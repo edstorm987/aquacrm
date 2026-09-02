@@ -9,6 +9,7 @@ import "server-only";
 // API layers can surface them to the operator without a 500.
 
 import { getState, mutate } from "@/server/storage";
+import { withPortalStateTransaction } from "@/server/productWorkspaceCoordinator";
 import {
   deleteInstall,
   getInstall,
@@ -42,8 +43,7 @@ function makeStorage(installId: string): PluginStorage {
         state.pluginData[installId][key] = value;
       });
     },
-    async runExclusive<T>(key: string, operation: () => Promise<T>): Promise<T> {
-      const { withPortalStateTransaction } = await import("@/server/productWorkspaceCoordinator");
+    runExclusive<T>(key: string, operation: () => Promise<T>): Promise<T> {
       return withPortalStateTransaction(`plugin:${installId}:${key}`, operation);
     },
     async del(key: string): Promise<void> {

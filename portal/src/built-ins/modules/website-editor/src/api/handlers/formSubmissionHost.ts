@@ -18,6 +18,7 @@
 import type { PluginCtx, PluginStorage } from "../../lib/aquaPluginTypes";
 import { listPages, getPage } from "../../server/pages";
 import { listSites } from "../../server/sites";
+import { resolvePublishedPage } from "../../lib/pagePublication";
 import {
   resolveFormSubmission,
   dispatchWebhook,
@@ -138,8 +139,8 @@ export async function handleFormSubmit(req: Request, ctx: PluginCtx): Promise<Re
     const page = await getPage(
       ctx.storage, scope.agencyId, scope.clientId, site.id, input.pageId,
     );
-    if (page) {
-      tree = (page.blocks ?? []) as BlockTreeJSON;
+    if (page?.status === "published") {
+      tree = (resolvePublishedPage(page).blocks ?? []) as BlockTreeJSON;
       break;
     }
   }

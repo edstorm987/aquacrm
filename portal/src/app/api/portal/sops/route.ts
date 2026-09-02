@@ -3,7 +3,11 @@ import { NextResponse, type NextRequest } from "next/server";
 import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
 import { deletePrivateObjectWithRecovery, privateObjectDeletionCheckpoint, privateObjectLifecycleLockKey, privateObjectRequestHash, PrivateObjectLifecycleConflictError } from "@/lib/server/privateObjectLifecycle";
 import { createInteractiveSop, createWrittenSop, getSop, listSopsWithPendingDeletion, updateSop } from "@/engines/sop/server/sops";
-import { sopDependencyInventory } from "@/engines/sop/server/sopDependencies";
+import {
+  assertSopHasNoDependants,
+  sopDependencyInventory,
+  SopHasDependantsError,
+} from "@/engines/sop/server/sopDependencies";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES, type SopDocument } from "@/server/types";
 import type { BlockTreeJSON } from "@/engines/editor/elements";
@@ -22,10 +26,9 @@ export async function GET(request: NextRequest) {
   try {
     const session = await agencySession(request);
     // Retirement preview: `?dependencies=<id>` answers "what would still be
-    // holding this id afterwards?" from the SAME inventory the DELETE response
-    // echoes, so the confirmation UI and the server command ask the question of
-    // one implementation rather than each guessing. It decides nothing — the
-    // retirement policy itself is still an open product decision (issues #176).
+    // holding this id afterwards?" from the SAME inventory the DELETE command
+    // enforces, so the confirmation UI explains the authoritative RESTRICT
+    // policy rather than guessing from a different dependency scan.
     const dependenciesFor = new URL(request.url).searchParams.get("dependencies")?.trim();
     if (dependenciesFor) {
       if (!getSop(session.agencyId, dependenciesFor)) {
@@ -129,11 +132,18 @@ export async function DELETE(request: NextRequest) {
     const session = await agencySession(request);
     const id = new URL(request.url).searchParams.get("id")?.trim();
     if (!id) return NextResponse.json({ ok: false, error: "id required" }, { status: 400 });
-    const sop = getSop(session.agencyId, id)
-      ?? privateObjectDeletionCheckpoint<SopDocument>(session.agencyId, "sop", id)?.snapshot;
+    const checkpoint = privateObjectDeletionCheckpoint<SopDocument>(session.agencyId, "sop", id);
+    const sop = getSop(session.agencyId, id) ?? checkpoint?.snapshot;
     if (!sop) return NextResponse.json({ ok: false, error: "SOP not found" }, { status: 404 });
 
-    const stranded = sopDependencyInventory(session.agencyId, id);
+    // New deletions are RESTRICT: keeping the source procedure is the only
+    // lossless default while another operating record still names it. A
+    // checkpoint means an older delete already removed the source row, so its
+    // exact recovery/replay must still be allowed to converge.
+    if (!checkpoint) {
+      const dependencies = sopDependencyInventory(session.agencyId, id);
+      if (dependencies.total > 0) throw new SopHasDependantsError(dependencies);
+    }
     const result = await deletePrivateObjectWithRecovery<SopDocument>({
       agencyId: session.agencyId,
       purpose: "sop",
@@ -154,8 +164,11 @@ export async function DELETE(request: NextRequest) {
       prepare(state) {
         const current = state.sops[id];
         if (!current || current.agencyId !== session.agencyId) throw new Error("SOP not found");
+        // Re-check beside the owner-row removal. The preview above explains the
+        // refusal, while this closes a reference added between preview and lock.
+        const dependencies = assertSopHasNoDependants(state, session.agencyId, id);
         delete state.sops[id];
-        return { snapshot: current, storageProvider: current.storageProvider, storageKey: current.storageKey, metadata: { stranded } };
+        return { snapshot: current, storageProvider: current.storageProvider, storageKey: current.storageKey, metadata: { stranded: dependencies } };
       },
     });
     if (!result.ok) {
@@ -167,8 +180,16 @@ export async function DELETE(request: NextRequest) {
         sop: getSop(session.agencyId, id),
       }, { status: 502 });
     }
-    return NextResponse.json({ ok: true, stranded: result.metadata?.stranded ?? stranded });
+    return NextResponse.json({ ok: true, stranded: result.metadata?.stranded });
   } catch (error) {
+    if (error instanceof SopHasDependantsError) {
+      return NextResponse.json({
+        ok: false,
+        reason: error.code,
+        error: error.message,
+        dependencies: error.inventory,
+      }, { status: 422 });
+    }
     if (error instanceof PrivateObjectLifecycleConflictError) return NextResponse.json({ ok: false, code: error.code, error: error.message }, { status: 409 });
     return authErrorResponse(error);
   }

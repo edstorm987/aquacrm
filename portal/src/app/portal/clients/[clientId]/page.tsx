@@ -391,6 +391,7 @@ export default async function ClientHome({
   const financeConnected = Boolean(financeInstall?.enabled);
   const aquaHealth = calculateClientAquaHealth({
     financeConnected,
+    financeAvailable: customerPortalData.available.invoices,
     invoices: customerPortalData.invoices,
     lastContactedAt: meta.lastContactedAt,
     requestsObserved: Array.isArray(meta.clientRequests),
@@ -427,6 +428,7 @@ export default async function ClientHome({
       : calculateClientAquaHealth({
         now,
         financeConnected,
+        financeAvailable: workspaceInvoiceRead.available,
         invoices: workspaceInvoices,
         lastContactedAt: typeof workspaceMeta.lastContactedAt === "number" ? workspaceMeta.lastContactedAt : undefined,
         requestsObserved: Array.isArray(workspaceMeta.clientRequests),
@@ -967,6 +969,7 @@ export default async function ClientHome({
         portalBuilt={Boolean(meta.portalBuiltAt)}
         contractCount={customerPortalData.contracts.length}
         invoiceCount={customerPortalData.invoices.length}
+        invoiceAvailability={customerPortalData.available.invoices ? "ready" : "unavailable"}
         fileCount={customerPortalData.files.length}
         propertyCount={propertyRecords.length}
         canManage={canManageClient}
@@ -1264,6 +1267,7 @@ export default async function ClientHome({
             accessPreparedAt: meta.portalAccessPreparedAt,
             fileCount: customerPortalData.files.length,
             invoiceCount: customerPortalData.invoices.length,
+            invoiceAvailability: customerPortalData.available.invoices ? "ready" : "unavailable",
             outstandingInvoiceCount: customerPortalData.invoices.filter(invoice => invoice.status === "sent" || invoice.status === "overdue").length,
             contractCount: customerPortalData.contracts.filter(contract => contract.status === "accepted").length,
             propertyCount: customerPortalData.properties.length,

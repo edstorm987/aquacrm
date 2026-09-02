@@ -35,6 +35,29 @@ export interface DevelopmentResourcePage {
   total: number;
 }
 
+export type DevelopmentTechnicalAccessLevel = "hidden" | "view" | "use" | "manage";
+
+export function isSharedLoginDevelopmentResource(
+  resource: Pick<PublicDevelopmentResource, "kind" | "credential">,
+): boolean {
+  return resource.kind === "credential" || Boolean(resource.credential);
+}
+
+export function mayMutateDevelopmentResource(
+  level: DevelopmentTechnicalAccessLevel,
+  resource: Pick<PublicDevelopmentResource, "kind" | "credential">,
+): boolean {
+  if (isSharedLoginDevelopmentResource(resource)) return level === "manage";
+  return level === "use" || level === "manage";
+}
+
+export function developmentResourceKindAvailableForMutation(
+  level: DevelopmentTechnicalAccessLevel,
+  kind: DevelopmentResourceKind,
+): boolean {
+  return kind !== "credential" || level === "manage";
+}
+
 const RESOURCE_KINDS = new Set<DevelopmentResourceKind>([
   "tool",
   "app",

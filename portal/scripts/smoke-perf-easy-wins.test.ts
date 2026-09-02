@@ -2,7 +2,17 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,6 +35,31 @@ describe("Perf — AquaCRM guards", () => {
     assert.ok(perf.includes("/portal/clients"));
     assert.ok(baseline.includes("perf-baseline"));
     assert.ok(baseline.includes(".next"));
+  });
+
+  it("perf baseline resolves build output when the workspace path contains spaces", () => {
+    const fixtureRoot = mkdtempSync(join(tmpdir(), "aqua perf baseline "));
+    const fixtureScript = join(fixtureRoot, "scripts", "perf-baseline.mjs");
+    const fixtureChunk = join(fixtureRoot, ".next", "static", "chunks", "fixture.js");
+    const chunkSource = "export const fixture = true;\n";
+
+    try {
+      mkdirSync(dirname(fixtureScript), { recursive: true });
+      mkdirSync(dirname(fixtureChunk), { recursive: true });
+      writeFileSync(fixtureScript, readFileSync(join(ROOT, "scripts", "perf-baseline.mjs"), "utf8"));
+      writeFileSync(fixtureChunk, chunkSource);
+
+      const stdout = execFileSync(process.execPath, [fixtureScript, "--no-build"], {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      });
+      const baseline = JSON.parse(stdout);
+
+      assert.equal(baseline.totals.staticChunksBytes, Buffer.byteLength(chunkSource));
+      assert.equal(baseline.topChunks[0]?.file, ".next/static/chunks/fixture.js");
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
   });
 
   it("retired public static apps are not shipped", () => {

@@ -26,6 +26,8 @@ export interface AquaHealthFactor {
   weight: number;
   score: number | null;
   state: AquaHealthState;
+  /** Whether this factor is based on a completed source read. */
+  sourceState: "ready" | "unavailable";
   detail: string;
   evidence: string[];
 }
@@ -41,6 +43,8 @@ export interface ClientAquaHealth {
 export interface ClientAquaHealthInput {
   now?: number;
   financeConnected: boolean;
+  /** `false` means the invoice source failed or was not readable for this view. */
+  financeAvailable?: boolean;
   invoices: AquaHealthInvoiceEvidence[];
   lastContactedAt?: number;
   requestsObserved: boolean;
@@ -70,7 +74,7 @@ const MAX_BASELINE_MONTHS = 6;
 export function calculateClientAquaHealth(input: ClientAquaHealthInput): ClientAquaHealth {
   const now = input.now ?? Date.now();
   const factors = [
-    paymentFactor(input.financeConnected, input.invoices, now),
+    paymentFactor(input.financeConnected, input.financeAvailable !== false, input.invoices, now),
     relationshipFactor(input.lastContactedAt, now),
     enquiryFactor(input.telemetryEvents, now),
     trafficFactor(input.telemetryEvents, now),
@@ -84,9 +88,10 @@ export function calculateClientAquaHealth(input: ClientAquaHealthInput): ClientA
     ? Math.round(observed.reduce((total, factor) => total + factor.score! * factor.weight, 0) / observedWeight)
     : null;
   const severeKnownRisk = factors.some(factor => factor.state === "risk" && factor.score !== null && factor.score <= 20);
+  const hasUnavailableSource = factors.some(factor => factor.sourceState === "unavailable");
   const state: AquaHealthState = severeKnownRisk
     ? "risk"
-    : confidence < 50
+    : hasUnavailableSource || confidence < 50
       ? "learning"
       : score !== null && score >= 80
         ? "strong"
@@ -103,9 +108,16 @@ export function calculateClientAquaHealth(input: ClientAquaHealthInput): ClientA
   };
 }
 
-function paymentFactor(connected: boolean, invoices: AquaHealthInvoiceEvidence[], now: number): AquaHealthFactor {
+function paymentFactor(connected: boolean, available: boolean, invoices: AquaHealthInvoiceEvidence[], now: number): AquaHealthFactor {
   const base = { id: "payment" as const, label: "Payment relationship", weight: 28 };
   if (!connected) return learning(base, "Finance is not connected, so payment behaviour cannot be assessed.", ["Connect Agency Finance to activate this signal."]);
+  if (!available) {
+    return unavailable(
+      base,
+      "Finance is connected, but invoice evidence is unavailable. No payment conclusion has been calculated.",
+      ["Reload to retry the invoice read.", "Last-known or empty invoice totals are not used for health."],
+    );
+  }
   const relevant = invoices.filter(invoice => !["void", "refunded"].includes(invoice.status));
   const paid = relevant.filter(invoice => invoice.status === "paid");
   const unpaidPastDue = relevant.filter(invoice => ["sent", "overdue", "partially-refunded"].includes(invoice.status) && invoice.dueAt < now);
@@ -357,16 +369,24 @@ function downPercent(ratio: number): string {
 }
 
 function learning(base: Pick<AquaHealthFactor, "id" | "label" | "weight">, detail: string, evidence: string[]): AquaHealthFactor {
-  return { ...base, score: null, state: "learning", detail, evidence };
+  return { ...base, score: null, state: "learning", sourceState: "ready", detail, evidence };
 }
 
 function scored(base: Pick<AquaHealthFactor, "id" | "label" | "weight">, score: number, detail: string, evidence: string[]): AquaHealthFactor {
-  return { ...base, score, state: score >= 80 ? "strong" : score >= 55 ? "watch" : "risk", detail, evidence };
+  return { ...base, score, state: score >= 80 ? "strong" : score >= 55 ? "watch" : "risk", sourceState: "ready", detail, evidence };
+}
+
+function unavailable(base: Pick<AquaHealthFactor, "id" | "label" | "weight">, detail: string, evidence: string[]): AquaHealthFactor {
+  return { ...base, score: null, state: "learning", sourceState: "unavailable", detail, evidence };
 }
 
 function summaryFor(state: AquaHealthState, factors: AquaHealthFactor[]): string {
   const riskiest = factors.filter(factor => factor.state === "risk").sort((left, right) => (left.score ?? 101) - (right.score ?? 101))[0];
   if (riskiest) return `${riskiest.label} needs attention: ${riskiest.detail}`;
+  const unavailableFactors = factors.filter(factor => factor.sourceState === "unavailable");
+  if (unavailableFactors.length) {
+    return `Aqua Health cannot give a complete conclusion while ${unavailableFactors.map(factor => factor.label.toLowerCase()).join(" and ")} evidence is unavailable. Confirmed signals remain visible.`;
+  }
   if (state === "learning") return "Aqua Health is still learning because key relationship evidence is not connected yet.";
   if (state === "strong") return "Payment, communication, enquiry, traffic, support and commitment signals are currently strong.";
   return "The relationship is stable, with one or more signals worth watching.";

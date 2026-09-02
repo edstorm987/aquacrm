@@ -352,92 +352,56 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     Template scope previews Master · Stunning Standard against the same stand-in.
     `smoke-template-preview-sample` 11/11.
 
-178. **🟠 OPEN, now MEASURABLE, and the most serious of the three retirement gaps
-    — deleting a membership plan leaves a paying member who receives nothing and
-    appears nowhere.** The other half of
-    dependency-safe-membership-affiliate-retirement. The roadmap says *"Plan
-    DELETE leaves a subscriber row but hides it from admin lists and removes
-    benefits without reconciling billing."* Verified — and "hides" understates
-    the mechanism.
+    **Production correction, 2026-09-02.** A later exact production probe found a
+    second edge: when the stand-in was the initial selection, the editor still
+    defaulted the design scope to Client and truthfully received a 404 for the
+    intentionally nonexistent client row. The sample now carries `previewOnly`,
+    initial and later sample selection force Template scope, the Client override
+    control is disabled with an explanation, and the mutation route independently
+    refuses the reserved id with 403. Tests prove neither a client nor a portal
+    instance is persisted: focused sample/update-route proof is **29/29** and the
+    wider editor/tenancy/access gate is **111/111**. The final production browser at
+    **390×844, 1024×768 and 1440×900** issued only template-scope sample API 200s,
+    kept Publish inside the viewport, matched the viewport width and recorded no
+    console, page, request or HTTP error.
 
-    **`SubscriptionService.list()` does not walk subscriptions. It walks the
-    surviving PLANS** and collects each one's member set:
+178. **🟠 CODE/BEHAVIOUR RESOLVED 2026-09-02; mounted/live-provider acceptance
+    remains — a Membership plan cannot be deleted while any subscription or
+    in-flight subscription command still depends on it.** Hard delete now uses
+    RESTRICT under the module's durable graph lock. The service boundary and the
+    mounted handler share the same dependency inventory; the handler returns 422
+    with the billable/unreachable detail and leaves the complete graph unchanged.
+    `PlanService.archive` remains the documented ordinary retirement path.
 
-    ```ts
-    const plans = await this.plans.list();
-    for (const plan of plans) {
-      const userIds = await storage.get(`memberships/by-plan/${plan.id}`);
-    ```
+    The guard is deliberately stronger than checking the visible member list:
+    interrupted enrolment commands and identity claims count before their final
+    subscription row exists, and a concurrent subscriber creation serialises with
+    deletion before the delete re-reads and refuses. An unreferenced plan still
+    deletes, so RESTRICT is not a blanket ban. The focused Membership/Affiliate
+    retirement and recovery run passes **32/32**. Live Stripe cancellation/migration
+    is not invented as an automatic purge; mounted and live-provider refusal/archive
+    acceptance remain before issue #63 can close completely.
 
-    Delete the plan and the only path to its members is gone. The subscription
-    rows and the `by-plan` set both still exist; nothing can reach them.
+177. **🟠 CODE/BEHAVIOUR RESOLVED 2026-09-02; mounted/live-provider acceptance
+    remains — an Affiliate cannot be deleted while codes, attributions, payouts or
+    in-flight identity claims still depend on it.** The parent delete now uses
+    RESTRICT under the same durable graph lock as every child writer. The shared
+    inventory distinguishes active referral codes and financial dependants, the
+    service boundary cannot bypass it, and the mounted handler returns 422 without
+    changing the affiliate or any child row.
 
-    Three things then happen at once, and the third conceals the first two:
+    A child created concurrently with deletion wins the shared lane and makes the
+    subsequent delete refuse; an interrupted referral-code claim also fences the
+    parent before its final row exists. An affiliate with no dependants still
+    deletes, while the existing removed/archive lifecycle remains the ordinary
+    retirement path. The combined focused retirement/recovery run passes **32/32**.
+    Live Stripe Connect/payout acceptance and an explicitly designed exceptional
+    financial purge remain separate; ordinary hard delete no longer orphans money.
 
-    1. the subscription row survives with its `stripeSubscriptionId` intact, so
-       **external billing is untouched and the member keeps paying**;
-    2. benefits resolve through `plans.get(sub.planId)`, now null, so the member
-       **silently loses what they pay for**;
-    3. **no admin list can show them**, so nobody can find out.
-
-    All three are asserted in `smoke-membership-plan-dependencies` (5/5), along
-    with the contrast that makes the case: `PlanService.archive` — the documented
-    ordinary path — keeps the member visible AND billable. The safe route already
-    exists; hard delete is the one with no policy behind it.
-
-    `memberships/src/server/dependencies.ts` reports `billableSubscribers` and
-    `wouldBecomeUnreachable`, because "one person is on this plan" and "one person
-    is on this plan, still being charged, and will vanish from every list" are
-    different sentences.
-
-    **Still open, and it is Ed's call with money in it:** whether hard deletion
-    should be refused outright when `billableSubscribers > 0`, or defined as an
-    explicit purge that cancels or migrates billing first.
-
-177. **🟠 OPEN, now MEASURABLE — deleting an affiliate orphans their referral code,
-    commission records and payouts.** The roadmap's claim —
-    *"Affiliate DELETE leaves active codes, attributions and payouts tied to a
-    missing parent"* — verified rather than repeated, and the inventory that item
-    names as its prerequisite is now built.
-
-    `AffiliateService.delete` removes the affiliate row, the by-user reverse
-    lookup, the enrollment claim and the index entry. It touches codes,
-    attributions and payouts not at all.
-
-    **Two of the three orphans are FINANCIAL, which is what makes this different
-    from an untidy id.** An attribution records that somebody earned commission;
-    a payout records that money is owed or was sent. Orphaning them detaches
-    money from the person it belongs to, and the surfaces that would have shown
-    it filter on an affiliate that no longer resolves — so it disappears quietly
-    rather than erroring.
-
-    **The referral code is sharp in a different way: it stays ACTIVE.** A live
-    link keeps attributing sales to an affiliate who is gone.
-
-    `affiliates/src/server/dependencies.ts` composes the services' existing
-    `affiliateId` filters — so it cannot drift from what the module itself
-    considers to belong to an affiliate — and reports `hasFinancialDependants`
-    and `activeReferralCodes` separately, because those are the two facts that
-    change the decision.
-
-    `smoke-affiliate-dependencies` (6/6) verifies the orphaning end to end and
-    proves the counts mean something: a bystander affiliate's records are not
-    counted, and an affiliate with nothing attached comes back zero. Blinding any
-    branch fires.
-
-    **Still open:** the policy. The roadmap's own instruction is to use the
-    existing archive/removed states for ordinary retirement and to define an
-    explicit exceptional purge that reconciles billing and payout state — Ed's
-    decision, with money in it. Same shape as issues #176 for SOPs.
-
-176. **🟠 OPEN, now MEASURABLE — deleting a SOP strands nine references, and the
-    surfaces holding them fail silently.** The roadmap's
-    dependency-safe-sop-retirement item; the missing prerequisite it names —
-    *"Build a dependency inventory used by both confirmation UI and the server
-    command"* — is now built.
-
-    `deleteSopRecord` is literally `delete state.sops[id]` and nothing else.
-    Nine reference sites across seven owning types keep the id:
+176. **🟠 CODE/BEHAVIOUR RESOLVED 2026-09-02; historical repair and mounted
+    acceptance remain — SOP deletion and every current incoming reference writer
+    now enforce one tenant-safe RESTRICT relationship.** Nine reference sites
+    across seven owning types are covered:
 
     | site | shape |
     |---|---|
@@ -451,24 +415,20 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     | `DevelopmentResource.sopIds[]` | collection |
     | `PeopleTrainingAssignment.sopId` | collection |
 
-    **The failure mode is silence.** A dangling SOP id raises nothing: the
-    surfaces holding it render one fewer step, so an operator's checklist quietly
-    gets SHORTER and nobody is told a required procedure went missing.
+    The direct service delete and provider-backed mounted delete both assert the
+    inventory beside the owner-row removal. The library previews that same
+    inventory, removes the unsafe “delete anyway” path and tells the operator to
+    remove or reassign links. Every current mounted/background writer uses the
+    same agency lifecycle lane and validates missing or cross-agency ids from the
+    exact state snapshot it writes; invalid API input returns structured 422 rather
+    than silently dropping the reference. Client product variations validate both
+    their top-level list and nested process-step lists.
 
-    `src/engines/sop/server/sopDependencies.ts` answers the one question every
-    candidate policy has to ask first — *what would break?* — so the confirmation
-    UI and the server command ask it of one implementation. It deliberately
-    decides nothing else: archive vs tombstone vs reassign vs detach is Ed's
-    product decision and inventing one would be worse than the gap.
-
-    `smoke-sop-dependencies` (6/6) pins all nine, singles out the four nested
-    ones, and proves an unreferenced SOP comes back empty so the count means
-    something. Blinding any one site drops the total and fires. The last test
-    RECORDS what deletion does today rather than asserting it is right; when a
-    policy lands, that is where the new rule gets written.
-
-    **Still open:** the policy itself, and wiring the inventory into the
-    confirmation UI and the delete command.
+    Deterministic delete-versus-guide creation proves the stale writer waits,
+    re-reads the post-delete state and fails without recreating a dangling id. The
+    focused SOP/dependent-domain run passes **52/52**. Existing stored dangling ids
+    predate this boundary and still need an explicit audit/repair migration; mounted
+    browser acceptance across representative owner surfaces also remains.
 
 175. **✅ FIXED 2026-08-27 — client erasure left behind records naming the erased
     client, INCLUDING free text that named them by name.** Item 6's *"unresolved
@@ -1192,20 +1152,31 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     proves the client/records remain, retries successfully, and then proves removal;
     the erasure/governance chain passes **53/53**.
 
-25. **🟠 PARTIALLY RESOLVED 2026-08-25 — the proven Team Chat refusal is fixed;
-    broader policy unification remains.** `src/proxy.ts`
-    redirects every `agency-staff` request under `/portal/agency` to `/portal/team`
-    and permits only five `/api/portal/*` roots. Some downstream pages/handlers
-    include staff in their allowed roles, so legitimate functionality is blocked
-    before its own gate runs. This is both a usability defect and an authorization-
-    policy drift risk; enumerate intended staff capabilities once and derive proxy,
-    navigation, page and API gates from that policy. This is not hypothetical:
-    `_TeamWorkspace` mounts `TeamChat`, the component calls `/api/portal/team-chat`,
-    and that route explicitly allows `agency-staff`. `team-chat` is now included in
-    the staff API roots, and the seeded staff browser renders the station. The
-    selection/poll/send response-order race is also guarded in `TeamChat.tsx`.
-    Remaining work is to derive every proxy/navigation/page/API gate from one
-    capability policy rather than relying on independently maintained allowlists.
+25. **🟠 SOURCE AND ISOLATED-BROWSER REPAIRED 2026-09-02; provider-backed live-
+    persona/shared-credential acceptance remains — staff workspace authority now
+    comes from one canonical capability policy.** Proxy
+    routing, staff navigation, workspace pages and the tested API families share
+    `staffWorkspacePolicy.ts` instead of maintaining independent route allowlists.
+    A staff member can be Hidden, View or Manage per workspace; View admits reads
+    but rejects mutations, Manage admits the declared operations, and a downgrade
+    takes effect on the next request. Portal Studio follows that same exact rule:
+    Manage can load/save/publish, View can load and inspect an update plan, and
+    Hidden can do neither. Foreign-client scope is refused, while owner/manager
+    behaviour is unchanged and manager-only AI configuration, project rebinding and
+    Developer mode remain separately restricted. The staff policy/Portal Studio
+    focused gate passes **35/35**. A 2026-09-02 production-browser roundtrip created
+    one reusable role, saved Projects at Manage, reloaded it, downgraded to View,
+    reloaded again and archived it; the 1280px document stayed exact-width with no
+    console or network error. The final Fulfilment probe at 390px and 1280px exposes
+    **11** element radiogroups and 11 each Hidden/View/Use/Manage plus Projects,
+    Portals and Aqua Tags, again exact-width and error-free. A separate isolated-
+    production Staff Technical run then passed **50/50** across six same-cookie
+    Hidden → View → Use → Manage → View → Hidden transitions with zero failures,
+    errors or overflow. Hidden routes render valid streamed Next not-found content
+    (document HTTP 200 or 404), and the exact API was refused with 403 after the
+    downgrade. Source and isolated-browser enforcement are therefore proven; only a
+    provider-backed live-persona/shared-credential acceptance walk remains before
+    closing the item completely.
 
 26. **✅ RESOLVED 2026-09-01 — Stripe refund and dispute webhook effects are durably
     idempotent across processes.** The module-level `processedEventIds` set is only a
@@ -1266,9 +1237,9 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     unfinished controls, and add a test that resolves every literal editor API call
     through the actual plugin/app route table.
 
-29. **P1 PARTLY REPAIRED 2026-09-01 — Contact capture, Blog summaries and
-    Ecommerce now have narrow tenant-scoped visitor facades; the other visitor
-    backends remain open.** Published
+29. **P1 PARTLY REPAIRED 2026-09-02 — Contact capture, Blog summaries/detail and
+    Ecommerce now have narrow tenant-scoped visitor facades, and published page
+    content is snapshot-stable; the other visitor backends remain open.** Published
     sites now carry their exact agency/client scope into separate public catalogue,
     product-detail, quote, checkout and opaque-session receipt routes. Operator routes
     stay session-gated, hidden/archived catalogue rows stay private, prices are
@@ -1278,21 +1249,31 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     disabled as “Not connected yet”. The dispatcher-level storefront proof passes
     **6/6**, the visitor-backend ratchet passes **11/11**, and the wider checkout/order/
     tenancy slice passes **51/51**. Website Editor also exposes a strict exact-install
-    Contact command and a published-summary-only Blog read. Contact requires affirmative
+    Contact command plus published-summary and single-post Blog reads. Contact requires affirmative
     versioned consent whose exact displayed statement is digest-bound to the submission;
     it persists one atomic receipt/submission record without returning operator data.
-    Focused visitor/backend proof passes **27/27**.
+    Blog Post uses the public allowlisted detail facade, renders the returned body
+    through the host child renderer and no longer exposes a raw-JSON/global fallback.
+    Blog bodies are bounded to 250 blocks, 12 nested levels and 250,000 JSON
+    characters, and a body cannot recursively mount another Blog Post block.
+    Publishing now records an immutable versioned visitor snapshot: blocks; slug,
+    title, description and homepage status; portal classification; privacy/password;
+    the exact theme record; CSS/head/foot injections; layout, SEO, redirects and
+    locales. Later editor saves remain preview-only until republish, revert restores
+    the complete published view, and legacy rows migrate on first edit without
+    replacing what visitors already saw. Focused public visitor/publication proof
+    passes **20/20** and the complete Website Editor gate passes **49/49 files**.
 
     This does **not** close the issue. Contact submissions still need their intended
     operator inbox/notification workflow. Forms, Bookings/Reservations, Newsletter and
-    Theme remain absent or deliberately labelled unavailable; Blog Post's host-renderer
-    path, the Affiliate promises and the Donation recurrence contract remain incomplete.
+    Theme remain absent or deliberately labelled unavailable; the Affiliate promises
+    and the Donation recurrence contract remain incomplete.
     They are tracked here and in **#184/#185**. Mounted anonymous Contact/Blog/Ecommerce
     acceptance, published-site search → quote → checkout → receipt and a real
     Stripe/custom-domain run also remain.
 
     _Historical pre-repair finding, retained to identify the still-open block classes;
-    its Contact, Blog Feed and Ecommerce route statements are superseded by the current
+    its Contact, Blog Feed/Post and Ecommerce route/host statements are superseded by the current
     evidence above:_
     The built-in **Contact** page template and generic `form` block default to a
     native POST at `/api/contact`; that route does not exist (the real public ingest
@@ -1653,23 +1634,30 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     save provider → provider-confirmed identity → accepted test message → signed
     delivery webhook visible in Logs. Do not mark this complete from mocks alone.
 
-44. **P2 PARTLY REPAIRED 2026-09-01 — the shared settings product is reachable
-    across eight registered families, and Agency Marketing is now coherent.** The
+44. **P2 PARTLY REPAIRED 2026-09-02 — the shared settings product is reachable
+    across registered families, and Marketing, Website Editor and Fulfillment now
+    have truthful operational settings.** The
     agency hub exposes Finance, HR, Marketing and Email settings; the client settings
     surface exposes CRM, Affiliates, Ecommerce and Memberships. Marketing's own
     Settings page also mounts the canonical panel, retains only `defaultCurrency`,
     and proves save → reload → campaign creation uses the changed GBP value. Its
     persisted-but-unused lead-assignee and auto-send declarations are removed.
-    Focused settings/Marketing proof passes **53/53** and TypeScript is clean.
+    Website Editor consumes its default theme and starter template when an omitted
+    create request needs them and removes two GitHub controls whose transport does
+    not exist. Fulfillment consumes its omitted-client starting phase and enforces
+    its checklist-advance gate under the same client mutation lane as checklist
+    ticks; it removes two notification toggles with no delivery port. Invalid
+    configured/explicit phases are rejected before client creation, and a disabled
+    checklist gate records the override and open-item count.
 
-    The source-derived inventory is now **12 registered manifests / 47 fields**:
-    **20 have runtime consumers and 27 do not**. Remaining unconsumed declarations
-    are Fulfillment (4), Website Editor (4), HR (3), Memberships (4), Leads Pipeline
-    (3), Public Funnel (2), Ecommerce (2), Affiliates (2), Client CRM (2) and Finance
-    (1). Fulfillment, Website Editor, Leads Pipeline and Public Funnel are dead-only
-    families with no settings mount. Wire or remove every remaining declaration and
-    behaviour-prove each retained field; `bos-auth-gate/loginPath` is separately
-    dormant and outside the registered 47-field surface.
+    The source-derived inventory is now **12 registered manifests / 43 fields**:
+    **24 have runtime consumers and 19 do not**. Remaining unconsumed declarations
+    are HR (3), Memberships (4), Leads Pipeline (3), Public Funnel (2), Ecommerce
+    (2), Affiliates (2), Client CRM (2) and Finance (1). Wire or remove every
+    remaining declaration and behaviour-prove each retained field;
+    `bos-auth-gate/loginPath` is separately dormant and outside this registered
+    surface. Focused settings/lifecycle proof and the source-derived unwired-settings
+    ratchet are green; mounted save/reload/changed-outcome acceptance remains.
 
     _Original finding, retained for context:_ Twelve built-ins declare **51** fields in `settings.groups`, and the
     generic `PluginSettingsPanel` plus validated `/api/portal/plugins/settings`
@@ -1693,17 +1681,25 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     runtime behavior, remove dead declarations, and regression/browser-prove save →
     reload → changed behavior for each plugin/scope.
 
-45. **P1 — Affiliate Stripe Connect is code/behaviour wired; live Stripe acceptance
-    remains.** The live foundation now resolves the enabled Ecommerce install and its
+45. **P1 — Affiliate Stripe Connect is code/behaviour wired and locally durable;
+    live Stripe acceptance remains.** The live foundation now resolves the enabled Ecommerce install and its
     vaulted Stripe keys in the exact agency/client scope, then supplies a real Connect
     SDK adapter for account creation, Account Links, account reads, transfers and
     signed webhooks. Missing keys return null, so onboarding is hidden/refused rather
     than advertised falsely. Money-moving controls separately require a webhook
     secret: a secret key can enable onboarding, but cannot start a transfer that the
     application would be unable to reconcile to completed; manual mark-paid remains
-    available. Focused payout ownership, currency/refund and module coverage passes
+    available. Focused payout ownership, currency/refund and module coverage passed
     **26/26** on 2026-09-01, including scope isolation, capability gating, SDK method
-    mapping, webhook completion and idempotent ownership. Remaining acceptance needs
+    mapping, webhook completion and idempotent ownership. The current module plus
+    onboarding/dependency gate passes **32/32**. Onboarding account creation
+    now persists a recoverable intent before provider I/O, uses a stable provider key,
+    adopts the result on retry and validates the target again before returning a link.
+    Status refreshes are sequence-fenced so a delayed older provider response cannot
+    overwrite a newer observation. Because Stripe webhook delivery is unordered, a
+    signed `account.updated` event is treated as a wake-up signal and re-reads current
+    provider state rather than trusting the potentially stale embedded object.
+    Remaining acceptance needs
     a real Stripe test account: account creation → hosted onboarding → account status
     webhook → transfer → transfer webhook → completed payout and reload.
 
@@ -1728,9 +1724,9 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     force failure/retry/reload, and confirm the reloaded installs/checklist/variant and
     incomplete UI on the mounted server.
 
-47. **P2 PARTLY REPAIRED 2026-09-01 — checked response contracts now cover the
-    first broad cohort plus all mounted Finance and Dev Team writes; other cohorts
-    and literal browser failure acceptance remain.** A focused UI scan found **13** direct `await fetch(...)` calls
+47. **P2 PARTLY REPAIRED 2026-09-02 — checked response contracts now cover the
+    first broad cohort plus Finance, Dev Team, Governance and Fulfilment writes;
+    Actions and remaining cohorts/acceptance stay open.** A focused UI scan found **13** direct `await fetch(...)` calls
     whose response is never inspected. These are not harmless telemetry calls: they
     include HR leave approval/rejection, Membership admin and customer cancellation,
     Affiliate approval/attribution/manual-payout/referral-code actions, Ecommerce
@@ -1851,6 +1847,15 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     behind validated success. The wider mounted inventory and literal browser-forced
     failure/recovery matrix still keep #47 partial rather than resolved.
 
+    **Third implementation cohort — 2026-09-02.** Governance and Fulfilment now use
+    the checked mutation contract for the repaired cohort. Fulfilment received literal
+    forced-failure browser acceptance at both **390px and 1280px**: an injected
+    refusal produced a visible alert, did not reload or run the success continuation,
+    rolled back or retained the affected state as appropriate, and a retry succeeded.
+    This closes that representative source/browser cohort, not issue #47 as a whole:
+    Actions remains open, as do the remaining unconverted families and their complete
+    forced-failure/transport/malformed-response browser matrix.
+
 48. **✅ RESOLVED 2026-08-26 — Health Check result sharing carries the completed
     state.** Progress-save and final result actions now use one testable seven-day
     serializer containing the exact Health Check state and optional captured email.
@@ -1966,8 +1971,9 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     the nested suite. The focused lifecycle/navigation set passes **43/43** and the
     wider client-creation gate passes **75/75**.
 
-57. **P1 PARTLY RESOLVED 2026-09-01 — consequential checked-read coverage now
-    includes Portal Editor configuration, attention plan/explanation/evidence,
+57. **P1 SOURCE/BEHAVIOUR RESOLVED 2026-09-02; mounted/live acceptance
+    remains — consequential checked-read coverage now includes Portal Editor
+    configuration, attention plan/explanation/evidence,
     Finance expense fields, KPI custom/shared views, completed history and both
     Fulfillment phase catalogues.** Independent checked reads distinguish confirmed
     absence from failure, retain last-confirmed snapshots, expose retry and lock writes
@@ -1992,11 +1998,33 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     The focused availability/failure regression passes **9/9** and the final
     interactive-read/utility gate passes **14/14**.
 
-    This remains a partial class, not a closure. Customer and sibling Finance,
-    contact-interaction, Meta, commercial/manual-detail, Identity queue and governance-
-    scope fallbacks still require the same treatment where named below. Mounted forced
+    **Third checked-read cohort — 2026-09-02.** The mounted client Finance tab now
+    settles invoices, expenses and categories independently as loading, ready or
+    unavailable; it retains clearly labelled last-confirmed snapshots and withholds
+    derived totals, payment-plan reconciliation and dependent mutations until the
+    current source is confirmed. The customer portal carries the same state through
+    its request aggregate: failed Finance reads no longer become zero invoices,
+    completed/paid plans, a false missing-deposit warning or a healthy attention
+    footer, while confirmed-empty results still render the ordinary empty state.
+    Aqua Health, Client Radar and the Fulfillment hub/readiness surfaces likewise
+    expose Finance blindness, reject delayed stale generations and cannot derive a
+    strong/ready/zero result from unread evidence. The widened Finance family passes
+    **326/326**, customer-portal availability/attention passes **54/54** plus **4/4**
+    HTML parity, and the Health/Radar/Fulfillment cohort passes **66/66**; TypeScript
+    and focused diff checks are clean.
+
+    **Fourth checked-read cohort — 2026-09-02.** Contact cards/interactions, Meta
+    connection/catalogue reads, commercial-pack and manual-contact detail, Identity
+    Review queue changes and governance company-scope reloads now use first-class
+    loading/ready/unavailable state. They retain only explicitly labelled confirmed
+    snapshots, fence delayed generations, lock dependent writes and never relabel a
+    previous scope as the new one. The exact remaining-source regression passes
+    **54/54**.
+
+    The named source-level fallback class is now repaired. Mounted forced
     rejection → retry, lost-response, multi-tab and live persistence-provider recovery
-    also remain acceptance work.
+    remain acceptance work; any newly discovered consequential empty-on-failure path
+    must join the same checked-read contract rather than reopening a silent fallback.
 
     _Original finding, retained to identify the remaining scope:_ The original audit found
     at least twenty-eight product paths that caught a rejected read and
@@ -2154,43 +2182,34 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     or label a genuinely permanent delete honestly; atomically remove or archive the
     linked card and prove archive → reload → archived view/restore plus failure retry.
 
-63. **P1 — Membership and Affiliate parent deletion strands live dependent
-    records.** Memberships exposes `DELETE plans` and calls `PlanService.delete()`
-    even though the service already has a soft `archive()` path. The delete removes
-    only the plan row/index: subscription rows still reference that plan, the admin
-    subscriber list becomes incomplete because it discovers subscribers by walking
-    the remaining plans, and benefit resolution returns none because the plan can no
-    longer be loaded. No external Stripe subscription is cancelled or reconciled.
-    An isolated memory probe created a free subscription with one benefit; after plan
-    deletion the direct subscription still carried the deleted plan id, the admin list
-    changed from one subscriber to zero and benefit access changed from one to zero.
-    Affiliates exposes the same hard-delete shape: deleting the affiliate removes only
-    its row and user lookup, while codes, attributions and payouts keep the missing
-    `affiliateId`. A second isolated probe left one active code, one approved
-    attribution and one scheduled payout after the parent disappeared. New attribution
-    through that code then cannot resolve the affiliate, and payout processing cannot
-    resolve its destination. Use the existing archive/removed states for operational
-    retirement, or reject/coordinate deletion under an explicit historical-retention
-    policy; preserve subscriber access and financial history, reconcile external
-    billing, and prove delete/archive with active dependants plus reload and retry.
+63. **P1 CODE/BEHAVIOUR RESOLVED 2026-09-02; mounted/live-provider acceptance
+    remains — Membership and Affiliate parent deletion is dependency-safe.** Both
+    hard-delete boundaries enforce RESTRICT under the same durable graph lane used by
+    every child writer. Membership plans cannot disappear while subscription rows,
+    interrupted subscription claims or pending provider-price changes target them;
+    Affiliate rows cannot disappear while codes, attributions, payouts or interrupted
+    identity claims target them. Each mounted handler returns a structured refusal and
+    leaves the graph unchanged. Concurrent child creation serialises before deletion,
+    forces a fresh inventory and makes the delete refuse; genuinely unreferenced
+    parents still delete. Archive/removed remains the ordinary retirement path, so no
+    automatic billing cancellation or financial-history purge is invented. Focused
+    retirement/recovery and race proof is green. Mounted refusal/archive/reload and
+    live Stripe/Connect acceptance remain; an exceptional purge would require an
+    explicit product and financial-reconciliation design.
 
-64. **P1 — deleting an SOP breaks active guides, tasks and service delivery without
-    a dependency decision.** The mounted SOP Library confirms only that deletion
-    cannot be undone, then `deleteSopRecord()` removes the SOP row and nothing else.
-    Creation/update validates SOP-guide and task references, which makes the delete
-    asymmetry especially misleading. A fresh memory-backend probe created one SOP,
-    linked it to a guide, agency task and product, deleted it through the same core
-    operation and observed all three dependants retaining the removed id. The guide
-    UI at least labels the step “Missing SOP”; Actions derives attached badges only
-    from currently resolvable SOP rows, Product Detail derives its link count/process
-    labels the same way, and client delivery flat-maps only resolvable procedures, so
-    those surfaces silently lose the operating instruction while their stored models
-    still say it is linked. Development resources, task-template steps and People
-    training records carry further SOP fields and have no delete-side reconciliation.
-    Before deletion, calculate and show every dependant; then archive/tombstone the
-    procedure, block until explicit reassignment, or perform one transactional,
-    auditable detach under a defined historical-retention policy. Prove guide/task/
-    product/client/training behavior, reload and forced partial failure.
+64. **P1 CODE/BEHAVIOUR RESOLVED 2026-09-02; historical repair and mounted
+    acceptance remain — SOP deletion and reference creation share one tenant-safe
+    lifecycle boundary.** The direct service delete and provider-backed mounted
+    delete calculate the complete incoming-reference inventory beside the owner-row
+    removal and enforce RESTRICT. The Library previews that same inventory, removes
+    the unsafe “delete anyway” path and directs the operator to remove or reassign
+    links. Every current mounted/background writer validates missing and cross-agency
+    SOP ids in the exact state snapshot it writes; client product variations validate
+    both top-level and nested process-step lists. A deterministic delete-versus-guide
+    creation race proves the stale writer waits, re-reads and fails without restoring
+    a dangling id. The focused SOP/dependent-domain gate passes **52/52**. Existing
+    stored dangling ids that predate this boundary still require an explicit audit/
+    repair migration, and representative mounted refusal/reassignment/reload remains.
 
 65. **P1 CODE/BEHAVIOUR RESOLVED 2026-09-01; mounted acceptance remains.** The
     capital plan is validated as one graph: identity/reference, allocation, paid-value and
@@ -2466,19 +2485,18 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     failure as retryable 5xx; and fault/concurrency-test every write, activity, event and
     session boundary across same/new instances and retries.
 
-80. **P1 — PARTIALLY RESOLVED 2026-08-25: lead identity conflicts are refused in one
-    application process; cross-process uniqueness remains.** `LeadService` now serialises
-    agency identity mutations, checks canonical email and phone ownership before a write,
-    and deletes an old pointer only when that pointer still belongs to the edited lead.
-    Simultaneous same-process edits cannot both claim one address, simultaneous upserts
-    converge, and ambiguous legacy email-card recovery creates a correctly linked card
-    instead of moving somebody else's. The real PATCH handler returns a field-specific
-    **409**; the mounted sales-record code awaits it, retains the draft/dialog and renders
-    the refusal inline. The focused service plus boundary gate passes **46/46**. The
-    module-scoped lock cannot coordinate separate server processes or a direct competing
-    storage writer. Add database/storage-native conditional pointer ownership and prove a
-    two-process edit/upsert/import/qualification race plus retry/reload before resolving
-    this issue completely.
+80. **P1 PARTLY RESOLVED 2026-09-02 — canonical lead identity and every current
+    journey writer are cross-process and crash-atomic on the file backend.** The shared
+    durable `runExclusive` lane rehydrates the latest state, stages each row, identity
+    pointer, index and activity mutation in an isolated working tree, and publishes the
+    complete diff with one recoverable file replacement. Writers fail closed when their
+    storage cannot provide that boundary. Real competing processes now elect one
+    canonical identity and preserve enquiry, contact, stage, meeting and conversion
+    mutations across retry and reload; a failed commit publishes neither partial rows nor
+    ghost events. The module core passes **88/88**, durable/process coverage passes
+    **11/11**, and the storage transaction seam passes **1/1**. Native database uniqueness,
+    a non-cooperating direct writer, live Supabase/Postgres acceptance and durable
+    post-commit event delivery still remain before this can be called fully resolved.
 
 81. **P1 — PARTIALLY RESOLVED 2026-08-25: opportunity money survives same-process
     concurrency; cross-process/provider delivery remains.** Invoice allocation now scans
@@ -2511,35 +2529,29 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     database-native version constraint and repeat create/edit/status/delete/reload across
     separate processes before resolving this issue completely.
 
-83. **P1 — PARTIALLY RESOLVED 2026-08-25: Agency Marketing lead email identity is
-    canonical and race-safe in one application process; distributed uniqueness remains.**
-    Create, lookup, pointer keys and stored rows now share one trimmed/lowercase address.
-    Every lead mutation serialises per agency, so simultaneous creates or edits cannot
-    both claim one canonical address, and contact history cannot be overwritten by a
-    concurrent edit. Re-keying deletes the old pointer only when it is still owned by the
-    edited lead; another owner's address raises a typed conflict and the real create/PATCH
-    handlers return **409** without moving either row. The package passes **24/24** and the
-    real-handler boundary passes **2/2**; the six issue-specific cases cover whitespace/
-    case, lookup, owner preservation, create/edit races and contact/edit survival. The
-    module-scoped lock and current storage cannot coordinate separate server processes.
-    Add database/storage-native conditional pointer ownership and prove separate-process
-    create/edit/import/contact races plus retry/reload before resolving completely.
+83. **P1 PARTLY RESOLVED 2026-09-02 — Agency Marketing lead identity, re-keying,
+    erasure and contact history are cross-process and crash-atomic on the file backend.**
+    Create, lookup, pointer keys and stored rows share one canonical address and one
+    durable agency mutation lane. Competing processes elect one owner; a re-key cannot
+    delete another owner's pointer; erasure removes the owned pointer and indexes; and a
+    concurrent contact-history append survives retry/reload without replacing the lead.
+    Row, pointer, index and activity changes publish atomically, and a forced commit
+    failure leaves no partial identity or event. The combined module gate passes
+    **88/88**, durable/process coverage passes **11/11**, and the transaction seam passes
+    **1/1**. Native Supabase/Postgres uniqueness and conditional ownership constraints,
+    non-cooperating direct writers, live-provider acceptance and durable post-commit
+    event delivery remain.
 
-84. **P2 — PARTIALLY RESOLVED 2026-08-25: Agency Marketing campaign records and reports
-    are truthful inside one application process; distributed mutation safety remains.**
-    Create and PATCH now build and validate the complete resulting record before touching
-    indexes or storage: name, channel, status, currency, KPI, finite non-negative numeric
-    values, integer minor units/timestamps and retained start/end order are enforced.
-    Invalid direct API values return **422** with the old row unchanged; invalid report
-    windows return **400**. An agency process lock also preserves every acknowledged
-    simultaneous campaign create. `campaignSnapshot()` declares `createdAt` as its window,
-    groups budgets by channel plus GBP/USD/EUR, exposes totals per currency and separates
-    measured results by KPI instead of adding unlike units. The mounted page labels and
-    formats those dimensions; live 3032 renders the corrected table. The package passes
-    **24/24** and the real handler/report/UI gate **3/3**. The process lock and shared
-    campaign indexes still lack database-native cross-process coordination. Add a durable
-    conditional/index operation and separate-process create/update/delete/reload proof
-    before resolving completely.
+84. **P2 PARTLY RESOLVED 2026-09-02 — Agency Marketing campaign rows, channel indexes
+    and reports are cross-process and crash-atomic on the file backend.** Complete
+    campaign records are validated before mutation, and create/update/delete plus channel
+    moves now execute in the shared durable agency lane. Real competing processes preserve
+    both rows and the correct old/new channel indexes across reload; forced commit failure
+    exposes neither half of a move nor a ghost event. Reporting continues to separate
+    currencies and unlike KPIs. The combined module gate passes **88/88**, durable/process
+    coverage passes **11/11**, and the transaction seam passes **1/1**. Native database
+    constraints, non-cooperating direct writers, live Supabase/Postgres acceptance and
+    durable post-commit event delivery remain.
 
 85. **P1 — PARTIALLY RESOLVED 2026-08-25: Aqua Tags stop-routing now preserves the site
     and every dependency; isolated mounted click acceptance remains.** The agency-company
@@ -2897,9 +2909,11 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     fail-through fixture proves file two executes after file one fails while the aggregate
     exits non-zero and names the failed file. The actual suite reaches assertions in
     **49/49 files (1,527 assertions)**, the runner contract passes **2/2**, TypeScript is clean
-    and the isolated production build passes **272/272**. The full root suite still contains
-    unrelated failures in concurrently changing areas, so no whole-repository green claim is
-    made. Mounted editor behavior remains a separate browser-acceptance responsibility.
+    and the isolated production build passes **272/272**. A later current runner passes
+    **49/49 files in 11.8s**. The later final canonical Node phase executed **6,417
+    tests across 1,093 suites: 6,415 passed / 0 failed / 2 skipped**, replacing the
+    old unrelated-failure state with current repository-wide green evidence.
+    Mounted editor behaviour remains a separate browser-acceptance responsibility.
 
 107. **RESOLVED 2026-08-25 — customer Billing renders the canonical relationship state.**
     The account-status panel now receives `client.status` and maps active, suspended and
@@ -2979,9 +2993,9 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     test covers all three mounted call paths and converges on one provider identity, one local
     user and one target. Wider People, Settings, customer-setup, company-disposition and state
     round-trip coverage passes **109/109** and final TypeScript passes. The isolated build reached
-    **272/272** before the final retry-error response wrapper; two exact rebuild attempts were
-    environment-killed during compilation without a code diagnostic. Real Supabase staging, an
-    exact build rerun and mounted form failure/retry/reload remain acceptance work.
+    **272/272** before the final retry-error response wrapper; a later complete production build
+    generated **245/245** pages. Real Supabase staging and mounted form failure/retry/reload remain
+    acceptance work.
     Legacy provider identities without the new marker are deliberately not auto-adopted and need
     explicit operator reconciliation. Shared port 3032 and its retained state were not mutated.
 
@@ -3000,9 +3014,8 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     freelancer and same-agency operator can download submitted work through the guarded content
     route. The mounted in-process journey passes **3/3**, including legacy-local adoption and
     replay; surrounding freelancer, People, upload, redirect and provisioning coverage passes
-    **105/105**, with TypeScript clean. The isolated
-    production build was environment-killed during webpack compilation without a code diagnostic.
-    Still to accept, without reopening this implementation finding: an exact build rerun, real
+    **105/105**, with TypeScript clean. A later complete production build generated **245/245**
+    pages. Still to accept, without reopening this implementation finding: real
     Supabase/email delivery, password reset and login in a browser, plus cross-process/reload
     persistence. Port 3032 was not mutated.
 
@@ -3150,8 +3163,8 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     claimed. Complete create → assign → invoice/pay → move/cancel → reload in an isolated mounted
     browser before upgrading this item to fully accepted.
 
-122. **🟠 CODE + BEHAVIOUR RESOLVED 2026-08-26; mounted/live-provider acceptance remains.**
-    Membership subscription changes now run under one per-user cross-process command. The command
+122. **🟠 CODE + BEHAVIOUR RESOLVED 2026-09-02; mounted/live-provider acceptance remains.**
+    Membership subscription changes run under one per-user cross-process command. The command
     is persisted before provider work, carries stable customer/Checkout/change/cancel idempotency
     identities, records accepted provider results before local adoption and resumes the same
     intent after storage failure or a fresh container. Paid→free cancels the live provider
@@ -3164,8 +3177,17 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     replay returns one session, provider-success/local-write failure is adopted after reload, and
     two concurrent paid changes call the provider once: **2/2**. The widened Membership/customer/
     discount chain passes **49/49**; package plus lifecycle passes **11/11**, TypeScript and diff
-    checks pass. The production foundation still supplies the separately tracked throwing Stripe
-    stub (#33), so no live Stripe or mounted-browser acceptance is claimed.
+    checks pass. Plan creation and price-changing updates now use the same durable-
+    command pattern: the intent owns the plan id and exact base/candidate snapshots,
+    monthly and annual Stripe Price outcomes checkpoint separately with stable per-
+    cadence provider keys, and provider I/O runs outside the PortalState transaction.
+    A rebuilt container resumes without duplicating a successful price; final commit
+    revalidates the exact target and benefit references, stale targets become terminal
+    conflicts without overwriting intervening edits, and a pending update blocks plan
+    deletion. The real foundation adapter forwards those keys to Stripe. The dedicated
+    plan-price provisioning gate passes **11/11**. A provider
+    success made stale by a legitimate intervening edit is retained for reconciliation
+    rather than automatically deactivated; mounted/live Stripe acceptance remains.
 
 123. **🟠 CODE + BEHAVIOUR RESOLVED 2026-08-26; live-provider acceptance remains.** The old
     pre-work seen flag is now a durable per-event inbox row with processing/failed/completed state
@@ -3179,8 +3201,7 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     gate faults subscriber persistence and payment activity, reloads a fresh container, races two
     deliveries, exercises legacy markers and refuses missing/wrong scope: **4/4**. Combined #122–
     #123 dedicated proof passes **6/6**, widened Membership/customer/discount **53/53**, package
-    plus dedicated **15/15**, TypeScript/diff pass. Production still supplies the separately
-    tracked throwing Stripe foundation (#33); no signed live-provider delivery is claimed.
+    plus dedicated **15/15**, TypeScript/diff pass. No signed live-provider delivery is claimed.
 
 124. **🟠 CODE + BEHAVIOUR RESOLVED 2026-08-26; mounted/live-Connect acceptance remains.**
     Scheduling now runs under one affiliate-scoped cross-process transaction and persists a
@@ -3315,9 +3336,9 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     browser-only failures honestly. Focused observability/readiness proof passes **50/50**.
     A clean isolated webpack server now compiles `/dev`, Contacts, Settings and the client
     Editor without the former `UnhandledSchemeError`; the mounted pages have no browser
-    warning/error log. The production webpack build also compiles, type-checks and generates
-    **244/244** pages without the former scheme error or false `DYNAMIC_SERVER_USAGE` incident
-    capture. Still required: installation and configuration of the chosen client capture sink,
+    warning/error log. The latest completed production webpack build also compiles, type-checks
+    and generates **245/245** pages without the former scheme error or false
+    `DYNAMIC_SERVER_USAGE` incident capture. Still required: installation and configuration of the chosen client capture sink,
     then a real production browser and API fault proving request/tenant context, delivery and
     flush/recovery.
 
@@ -3458,6 +3479,14 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     remain failures. The separate Settings six-primary slice is **36/36** with none.
     Dialog/menu activation, screen-reader output, installability, forced errors, date
     boundaries and mutation journeys remain separate acceptance work.
+
+    **Current production-target rerun — 2026-09-02.** The same Chromium version
+    accounted for all **1,326** broad checks as **1,177 passed / 0 failed / 149
+    observations / 0 missing**. The harness now bootstraps authentication once and
+    reuses isolated storage state instead of consuming one login attempt per viewport;
+    no application rate limit was weakened. The post-fix Settings run covers all 17
+    viewports and accounts for **102 = 92 passed / 0 failed / 10 observations /
+    0 missing**. Every observation retains the exact speculative-RSC proof above.
 
 138. **P2 CODE/BEHAVIOUR RESOLVED 2026-09-01; representative mounted keyboard acceptance
     remains.** Specialised roles now either implement the promised shared keyboard model or were
@@ -3721,6 +3750,15 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     Deployed geo/CDN/provider latency remains an operational measurement, not an unresolved
     live-file indexing defect. The separate `scan=1` replay tradeoff is tracked as #186.
 
+    **Current isolated measurement — 2026-09-02.** A fresh-process-per-route run
+    measured Library **803.6/30.4ms** and Logs **892.8/30.7ms** first/repeat-max,
+    with all responses 200 and failure lists empty. A separate fresh cacheless,
+    service-worker-blocked Chromium context per station passed **8/8** first-load
+    transfer probes: Day was **674,535B** of JS/CSS and the largest extra station
+    boundary was Calendar/Actions at **42,174B** above Day. These are transfer bytes,
+    not execution or paint budgets. Build/host caches remained shared and real
+    provider/deployed geography timings remain outside this local evidence.
+
 152. **Code/behaviour resolved 2026-08-26; mounted console acceptance remains.** The old clean-
     browser evidence remains the reproduction: a nonexistent client Website Editor deep link
     rendered the intended 404 but React rejected raw script elements during the client render. The
@@ -3729,9 +3767,8 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     `dangerouslySetInnerHTML` remains in the root layout. Their synchronous storage behavior is
     unchanged, and the absent-client guard still aborts before ThemeInjector, Sidebar, Topbar or
     preview code is constructed. Dedicated proof passes **4/4**, focused bootstrap/theme/sidebar
-    proof **23/23**, the wider client/navigation/editor-layout gate **125/125**, and TypeScript is
-    clean. An isolated production build produced no compiler diagnostic but was killed by the
-    environment, so it is inconclusive rather than a pass. Browser-prove direct load and client
+    proof **23/23**, the wider client/navigation/editor-layout gate **125/125**, TypeScript and a
+    later complete **245/245** production build pass. Browser-prove direct load and client
     navigation between valid, missing-client/editor and generic-404 controls with zero script/
     hydration console errors and unchanged colour/sidebar state before closing the mounted residue.
     Port 3032 and its build directory were untouched.
@@ -3858,21 +3895,23 @@ creation surface ignored it while its endpoint required a session the visitor di
 have. `BLOCK_BACKEND_GAPS` treated that symptom; the tenant install gate now fixes the
 palette contract itself.
 
-**#184 — PARTLY RESOLVED 2026-09-01: consent-aware contact capture and published
-blog summaries now have narrow visitor backends; the wider absent-module class remains.**
+**#184 — PARTLY RESOLVED 2026-09-02: consent-aware contact capture and published
+Blog summaries/detail now have narrow visitor backends; the wider absent-module class remains.**
 
 Website Editor now exposes an exact enabled-install `visitor/contact` command and
-allowlisted published-blog summary read. Contact capture requires a versioned DTO,
+allowlisted published-blog summary/detail reads. Contact capture requires a versioned DTO,
 affirmative versioned consent, a registered origin and a live site/published page/contact
 block. The exact displayed consent statement is digest-bound to the accepted version and
 submission, preventing valid-version replay against changed wording. It stores one atomic
 operation/receipt record, keeps contact PII single-copy, hashes
 replay and abuse-control identities, rate-limits per visitor and install, and returns no
 operator data. The authenticated contact-submission read remains private. The contact UI
-accepts only a parsed success receipt and neither it nor Blog Feed calls a live facade from
-the editor or a draft preview. Blog output contains summaries only—no body, internal ids,
-draft state or tenant metadata. Focused public-boundary/backend/dead-call proof passes
-**27/27**, TypeScript and diff checks are clean.
+accepts only a parsed success receipt and neither it nor Blog calls a live facade from
+the editor or a draft preview. The feed DTO contains summaries only; the detail DTO
+adds exactly one published body without internal ids, draft state or tenant metadata.
+Blog Post renders through the host child-renderer contract rather than a raw JSON dump.
+Focused public-boundary/snapshot proof passes **13/13** and Website Editor passes
+**49/49 files**.
 
 This is not full visitor-module closure. Contact submissions still need their intended
 operator inbox/notification workflow and a real anonymous custom-domain/live-backend walk.
@@ -3891,20 +3930,20 @@ before the 404, so an anonymous probe alone would have made these look like a
 permissions problem.
 
 The still-absent modules are fenced by `lib/blockBackends.ts` plus its smoke so a
-template cannot silently seed an unusable control. Contact and Blog Feed have now been
+template cannot silently seed an unusable control. Contact, Blog Feed and Blog Post have now been
 removed from that dead-backend inventory because their dedicated visitor facades exist.
 
-**#185 — PARTLY RESOLVED 2026-09-01: fifteen routes are deliberately public, but
+**#185 — PARTLY RESOLVED 2026-09-02: sixteen routes are deliberately public, but
 visitor-safe operations still need classification one command at a time.**
 
 The seven original webhook/funnel routes were later joined by Ecommerce's public Stripe
-webhook, five allowlisted storefront operations and now two Website Editor visitor
+webhook, five allowlisted storefront operations and now three Website Editor visitor
 facades. Public catalogue/detail,
-quote/checkout/receipt, contact capture and blog summaries therefore no longer depend on a
+quote/checkout/receipt, contact capture and blog summaries/detail therefore no longer depend on a
 portal session. Each route is an explicit public declaration with a narrow DTO; no generic
 operator route was widened; the Contact facade additionally binds the accepted consent
-version to the digest of the exact displayed statement. The executable registry now pins **341 total / 144
-undeclared / 15 public routes**, and the host/tenancy gates pass **50/50**. The
+version to the digest of the exact displayed statement. The executable registry now pins **342 total / 145
+undeclared / 16 public routes**; focused route/visitor checks are green. The
 rest of the inventory remains intentionally closed until it
 has the same scope, rate-limit, redaction, consent and durable-side-effect proof.
 
@@ -3912,7 +3951,7 @@ _Original finding, retained for context:_ the earlier prose audit reported nine 
 but the later executable registry baseline corrected the pre-storefront set to seven.
 
 `[module]/[...rest]/route.ts` calls `requireSession()` unless the resolved route
-sets `public: true`. The current fifteen are the exact webhook/funnel/storefront/
+sets `public: true`. The current sixteen are the exact webhook/funnel/storefront/
 visitor allowlist above. Every other module route therefore requires a
 session, which is correct for the portal and is the whole problem for a
 published website, where the visitor has none. Worth knowing before anybody

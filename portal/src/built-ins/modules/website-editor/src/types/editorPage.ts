@@ -12,6 +12,8 @@
 import type { AgencyId, ClientId } from "../lib/tenancy";
 import type { PortalRole } from "../lib/portalRole";
 import type { Block } from "./block";
+import type { ThemeRecord } from "./theme";
+import type { LocalePageMap } from "../lib/i18n";
 
 export type EditorPageStatus = "draft" | "published";
 
@@ -32,6 +34,38 @@ export interface EditorPageSeo {
   // R014 — SEO surface completion.
   canonical?: string;        // explicit canonical URL (defaults to page absolute URL)
   keywords?: string[];       // optional keyword list, comma-joined for the meta tag
+}
+
+// Every field below can affect what a visitor sees, how crawlers describe the
+// page, or whether the visitor may open it. Keeping them in one versioned
+// snapshot prevents ordinary editor saves from changing a live page before
+// the operator presses Publish. Optional values are deliberately represented
+// inside the snapshot: an absent value means "published without this field",
+// not "fall back to the current draft value".
+export interface EditorPagePublishedSnapshot {
+  version: 2;
+  slug: string;
+  title: string;
+  description?: string;
+  isHomepage?: boolean;
+  portalRole?: PortalRole;
+  isActivePortal?: boolean;
+  privacy?: EditorPagePrivacy;
+  passwordHash?: string;
+  themeId?: string;
+  // Exact theme tokens used for this publication. `null` means the page was
+  // published without a theme; unlike a missing legacy key, it must not fall
+  // through to a subsequently edited default theme.
+  theme?: ThemeRecord | null;
+  customCSS?: string;
+  customCss?: string;
+  customHead?: string;
+  customFoot?: string;
+  headInjection?: string;
+  layoutOverrides?: Record<string, unknown>;
+  seo?: EditorPageSeo;
+  redirectSourceSlugs?: string[];
+  locales?: LocalePageMap;
 }
 
 export interface EditorPage {
@@ -68,6 +102,7 @@ export interface EditorPage {
   // version even while the admin edits a draft, and lets the editor
   // revert.
   publishedBlocks?: Block[];
+  publishedPage?: EditorPagePublishedSnapshot;
 
   themeId?: string;
   // Page-level custom CSS — both Round-1 alias `customCSS` and 02's
@@ -79,6 +114,8 @@ export interface EditorPage {
   headInjection?: string;
   layoutOverrides?: Record<string, unknown>;
   seo?: EditorPageSeo;
+  redirectSourceSlugs?: string[];
+  locales?: LocalePageMap;
 
   createdAt: number;
   updatedAt: number;
@@ -106,7 +143,6 @@ export interface UpdatePagePatch {
   description?: string;
   blocks?: Block[];
   draftBlocks?: Block[];
-  publishedBlocks?: Block[];
   themeId?: string;
   customCSS?: string;
   customCss?: string;
@@ -118,6 +154,8 @@ export interface UpdatePagePatch {
   isActivePortal?: boolean;
   isHomepage?: boolean;
   seo?: EditorPageSeo;
+  redirectSourceSlugs?: string[];
+  locales?: LocalePageMap;
   // R026 — Privacy patches (raw passwords never accepted here; the
   // pagePrivacy handler hashes server-side before threading through).
   privacy?: EditorPagePrivacy;

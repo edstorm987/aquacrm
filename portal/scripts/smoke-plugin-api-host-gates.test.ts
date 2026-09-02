@@ -567,9 +567,14 @@ describe("plugin API routes — surface invariants no manifest can break", () =>
     // rises 141 → 144 and public rises 13 → 15. The exact public set is pinned in
     // smoke-plugin-api-tenancy.test.ts and the loop below still reports zero
     // open non-public routes.
-    assert.equal(total, 341, `the registry now ships ${total} API routes, not 341 — re-run the enumeration`);
+    // 2026-09-02: 341 → 342. Website Editor adds one public, allowlisted
+    // published Blog detail read; the private operator by-slug route remains
+    // unchanged. Undeclared rises 144 → 145 and public rises 15 → 16.
+    // Fulfillment then explicitly narrows phase/advance to agency operators;
+    // total/public stay fixed and undeclared returns 145 → 144.
+    assert.equal(total, 342, `the registry now ships ${total} API routes, not 342 — re-run the enumeration`);
     assert.equal(undeclared, 144, `${undeclared} routes declare no roles, not 144 — re-run the enumeration`);
-    assert.equal(publicRoutes, 15, `${publicRoutes} routes are public, not 15`);
+    assert.equal(publicRoutes, 16, `${publicRoutes} routes are public, not 16`);
 
     // …and none of them is open. This is the whole point: the count can stay
     // wherever it lands for ever, because the fallback is the ceiling and not

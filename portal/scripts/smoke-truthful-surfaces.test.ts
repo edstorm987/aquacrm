@@ -388,7 +388,7 @@ describe("a failed read is preserved, not converted into emptiness", () => {
       "the billing claim is inlined again instead of going through customerBillingSummary",
     );
     assert.ok(views.includes("customerBillingSummary(data)"));
-    assert.ok(views.includes("!data.available.invoices"), "the invoice list must gate its empty state on the read");
+    assert.ok(views.includes('customerPortalReadPhase(data, "invoices")'), "the invoice list must gate its empty state on the named read phase");
 
     // `available.messages` is recorded for the same reason and must be consumed,
     // not merely stored: "0 linked messages" and "No linked messages yet." are
@@ -397,17 +397,17 @@ describe("a failed read is preserved, not converted into emptiness", () => {
     const conversationPulse = views.slice(conversationAt, views.indexOf('label="Support"', conversationAt));
     assert.ok(conversationPulse.includes("data.record.messages.length"), "the Conversation pulse item moved — re-point this pin");
     assert.ok(
-      conversationPulse.includes("data.available.messages"),
+      conversationPulse.includes("messagesReady"),
       "the linked-message count is printed without consulting data.available.messages",
     );
     const beforeEmptyMessages = views.slice(0, views.indexOf("No linked messages yet.")).slice(-700);
     assert.ok(
-      beforeEmptyMessages.includes("!data.available.messages"),
+      beforeEmptyMessages.includes("!messagesReady"),
       "the conversation history still says 'No linked messages yet.' over a failed inbox read",
     );
 
     const composition = code(read("src/app/portal/customer/_PortalPageComposition.tsx"));
-    assert.ok(composition.includes("!data.available.invoices"), "the billing metric block prints unmeasured totals");
+    assert.ok(composition.includes('customerPortalReadPhase(data, "invoices") !== "ready"'), "the billing metric block prints unmeasured totals");
   });
 
   it("a sibling workspace whose invoices could not be read is not 'Operations clear'", () => {
@@ -444,6 +444,7 @@ describe("a failed read is preserved, not converted into emptiness", () => {
     assert.match(card, /if \(readState !== "ready"\) \{/, "save() must refuse outright, not just dim the button");
     assert.match(card, /disabled=\{busy \|\| locked\}/, "and the Save button must be disabled while the read is unknown");
     assert.ok(card.includes("Retry the read"));
+    assert.match(card, /<ManualContactDetails key=\{item\.id\}/, "details from one enquiry may not survive under another enquiry id");
   });
 
   it("the commercial pack modal will not overwrite an unread pack with default terms", () => {
@@ -451,7 +452,9 @@ describe("a failed read is preserved, not converted into emptiness", () => {
     assert.ok(modal.includes('setPackRead("unavailable")'));
     assert.match(modal, /if \(packRead !== "ready"\) \{/, "save() must refuse when the existing pack was never read");
     assert.match(modal, /disabled=\{Boolean\(busy\) \|\| packRead !== "ready"\}/);
-    assert.ok(modal.includes("setCatalogueAvailable(false)"), "an unread product catalogue must not look like no products");
+    assert.ok(modal.includes('setCatalogueRead("unavailable")'), "an unread product catalogue must not look like no products");
+    assert.ok(modal.includes("Retry catalogue") && modal.includes("Retry records"));
+    assert.match(modal, /if \(cancelled \|\| requestId !== readRequestId\.current\) return;/, "late commercial responses must be inert");
   });
 
   it("the queue label never moves ahead of the rows behind it", () => {
@@ -459,10 +462,9 @@ describe("a failed read is preserved, not converted into emptiness", () => {
     // showed the previous queue (or nothing) under the new queue's name.
     const identity = code(read("src/app/portal/clients/_IdentityReviewWorkspace.tsx"));
     const load = identity.slice(identity.indexOf("async function load("), identity.indexOf("async function rescan("));
-    assert.ok(!/^\s*setStatus\(nextStatus\);/m.test(load.split("setReviews(payload.reviews);")[0]),
-      "the status still switches before the read resolves");
-    assert.ok(load.indexOf("setReviews(payload.reviews);") < load.indexOf("setStatus(nextStatus);"),
-      "the label must move only after the rows arrive");
+    assert.ok(load.includes('type: "begin"') && load.includes('type: "succeed"'));
+    assert.ok(identity.includes("confirmedCheckedRead") && identity.includes("checkedReadReducer"),
+      "queue label and rows must settle together through the stale-response-safe reducer");
     assert.ok(identity.includes("This queue was not read"));
     // …and that claim must come from the READ, not from the error state shared
     // with rescan and per-row decisions: a failed "Approve" on an empty queue
@@ -471,8 +473,8 @@ describe("a failed read is preserved, not converted into emptiness", () => {
       !/\{error \? "This queue was not read"/.test(identity),
       "an unrelated failure is being reported as a queue that was never read",
     );
-    assert.match(identity, /queueUnread \? "This queue was not read"/);
-    assert.ok(identity.includes("setQueueUnread(true)") && identity.includes("setQueueUnread(false)"));
+    assert.match(identity, /queueRead\.phase === "unavailable" \? "This queue was not read"/);
+    assert.ok(identity.includes("Retry {reviewStatusLabel(failedStatus)}"));
 
     // Governance had the same shape on company scope.
     const governance = code(read("src/app/portal/agency/governance/_GovernanceWorkspace.tsx"));
@@ -480,22 +482,11 @@ describe("a failed read is preserved, not converted into emptiness", () => {
       !/function onScopeChange\(next: string\) \{\s*setCompanyId\(next\);/.test(governance),
       "a refused governance read labels the previous company's snapshot as the new scope again",
     );
-    // Pinned by INTENT, not by the exact one-line form it used to have: the
-    // selector may move only inside the success branch of the resolved read.
-    // (It now also records the refused scope so the operator gets a retry —
-    // a stricter surface, which a literal regex would have called a regression.)
-    const scopeChange = governance.slice(
-      governance.indexOf("function onScopeChange(next: string)"),
-      governance.indexOf("const { posture }"),
-    );
-    assert.ok(scopeChange.length > 0, "onScopeChange has moved or been renamed; this pin no longer reads it");
-    assert.match(scopeChange, /reload\(next\)\.then\(/,
-      "the scope change no longer waits for the read before relabelling");
-    const okBranch = scopeChange.indexOf("if (ok)");
-    const moves = scopeChange.indexOf("setCompanyId(next)");
-    assert.ok(okBranch >= 0 && moves > okBranch,
-      "setCompanyId is reached without the read having succeeded, so a refused read labels the previous company's snapshot as the new scope");
-    assert.ok(governance.includes("finally {"), "and an unguarded fetch must not leave the spinner running for ever");
+    assert.ok(governance.includes("confirmedCheckedRead") && governance.includes("checkedReadReducer"));
+    assert.match(governance, /const companyId = scopeRead\.confirmedScope/,
+      "the visible scope label must come from the same confirmed state as its snapshot");
+    assert.match(governance, /<fieldset disabled=\{scopeRead\.phase !== "ready"\}/,
+      "retained governance evidence must lock its dependent controls");
   });
 
   it("an empty list that was never read says so — sources, search, connections", () => {
@@ -525,6 +516,7 @@ describe("a failed read is preserved, not converted into emptiness", () => {
     const channels = code(read("src/app/portal/agency/marketing/_MarketingChannelsWorkspace.tsx"));
     assert.match(channels, /!inboxConnection && connectable && inboxConnectionsAvailable && metaConfigured/,
       "Connect must be withheld until the connection read succeeds");
+    assert.ok(channels.includes("Retry connections"));
   });
 
   it("a contact timeline missing its enquiries says it is incomplete", async () => {
@@ -545,6 +537,11 @@ describe("a failed read is preserved, not converted into emptiness", () => {
     const reader = code(read("src/lib/server/personInteractionsService.ts"));
     assert.ok(!/getRequestWebsiteEnquiries\(agencyId\)\.catch\(\(\) => \[\]\)/.test(reader));
     assert.ok(reader.includes("enquiriesAvailable: enquiryRead.available"));
+    const card = code(read("src/app/portal/agency/contacts/[personId]/_ContactCard.tsx"));
+    assert.match(card, /disabled=\{busy !== null \|\| !interactionsComplete\}/,
+      "relationship classification must be locked while the evidence timeline is incomplete");
+    assert.match(card, /disabled=\{!interactionsComplete\}/,
+      "client conversion must be locked while the evidence timeline is incomplete");
   });
 
   it("the client record ledger reports a communications read it could not make", () => {

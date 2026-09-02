@@ -9,6 +9,10 @@ import type { BusinessIssueRadar } from "@/engines/data/radar/businessRadar";
 import { builtInTemplateForSource } from "@/lib/tasks/taskTemplates";
 import { validatePortalEntityFields } from "./portalEditor";
 import { clientTaskColumnForStatus, clientTaskStatusForColumn, isClientTaskBoardColumn } from "@/lib/tasks/clientTaskBoard";
+import {
+  assertOptionalSopReferenceExists,
+  assertSopReferencesExist,
+} from "@/engines/sop/server/sopReferences";
 
 export interface CreateAgencyTaskInput {
   agencyId: string;
@@ -145,7 +149,7 @@ export function createAgencyTask(input: CreateAgencyTaskInput): AgencyTask {
     acceptedAt: origin !== "manual" ? now : undefined,
     assigneeUserId: validAssigneeUserId(input.agencyId, input.assigneeUserId),
     clientId: validClientId(input.agencyId, input.clientId),
-    sopIds: validSopIds(input.agencyId, input.sopIds),
+    sopIds: cleanSopIds(input.sopIds),
     customFields,
     revision: 0,
     clientBoardColumn,
@@ -155,7 +159,19 @@ export function createAgencyTask(input: CreateAgencyTaskInput): AgencyTask {
     updatedAt: now,
     completedAt: status === "done" ? now : undefined,
   };
-  mutate(state => { state.tasks[task.id] = task; });
+  mutate(state => {
+    task.sopIds = optionalSopIds(assertSopReferencesExist(state, input.agencyId, task.sopIds, "task.sopIds"));
+    task.checklist = task.checklist?.map((item, index) => ({
+      ...item,
+      sopId: assertOptionalSopReferenceExists(
+        state,
+        input.agencyId,
+        item.sopId,
+        `task.checklist[${index}].sopId`,
+      ),
+    }));
+    state.tasks[task.id] = task;
+  });
   logActivity({ agencyId: task.agencyId, clientId: task.clientId, actorUserId: input.createdBy, category: "system", action: "task.created", message: `Created task “${task.title}”.`, metadata: { taskId: task.id, clientId: task.clientId } });
   return task;
 }
@@ -201,7 +217,7 @@ export function updateAgencyTask(agencyId: string, id: string, patch: AgencyTask
     recurrence,
     assigneeUserId: patch.assigneeUserId === undefined ? existing.assigneeUserId : validAssigneeUserId(agencyId, patch.assigneeUserId),
     clientId: patch.clientId === undefined ? existing.clientId : validClientId(agencyId, patch.clientId),
-    sopIds: patch.sopIds === undefined ? existing.sopIds : validSopIds(agencyId, patch.sopIds),
+    sopIds: patch.sopIds === undefined ? existing.sopIds : cleanSopIds(patch.sopIds),
     customFields,
     revision: (existing.revision ?? 0) + 1,
     clientBoardColumn,
@@ -210,7 +226,19 @@ export function updateAgencyTask(agencyId: string, id: string, patch: AgencyTask
     updatedAt: Date.now(),
     completedAt: status === "done" ? existing.completedAt ?? Date.now() : undefined,
   };
-  mutate(state => { state.tasks[id] = updated; });
+  mutate(state => {
+    updated.sopIds = optionalSopIds(assertSopReferencesExist(state, agencyId, updated.sopIds, "task.sopIds"));
+    updated.checklist = updated.checklist?.map((item, index) => ({
+      ...item,
+      sopId: assertOptionalSopReferenceExists(
+        state,
+        agencyId,
+        item.sopId,
+        `task.checklist[${index}].sopId`,
+      ),
+    }));
+    state.tasks[id] = updated;
+  });
   logActivity({ agencyId, clientId: updated.clientId, actorUserId, category: "system", action: `task.${status}`, message: `${status === "done" ? "Completed" : "Updated"} task “${updated.title}”.`, metadata: { taskId: id, clientId: updated.clientId } });
   if (existing.status !== "done" && status === "done" && updated.recurrence) {
     createNextOccurrence(updated, actorUserId);
@@ -314,11 +342,16 @@ function advanceDate(value: number | undefined, recurrence: Exclude<AgencyTaskRe
   return date.getTime();
 }
 
-function validSopIds(agencyId: string, ids?: string[]): string[] | undefined {
-  const unique = [...new Set(ids ?? [])]
-    .filter(id => typeof id === "string" && getState().sops[id]?.agencyId === agencyId)
-    .slice(0, 20);
-  return unique.length ? unique : undefined;
+function cleanSopIds(ids?: string[]): string[] | undefined {
+  return optionalSopIds([...new Set(Array.isArray(ids) ? ids : [])]
+    .filter((id): id is string => typeof id === "string")
+    .map(id => id.trim().slice(0, 120))
+    .filter(Boolean)
+    .slice(0, 20));
+}
+
+function optionalSopIds(ids: string[]): string[] | undefined {
+  return ids.length ? ids : undefined;
 }
 
 function validAssigneeUserId(agencyId: string, userId?: string): string | undefined {
@@ -474,6 +507,12 @@ export function addTaskChecklistItem(
       done: false,
       createdAt: now,
     };
+    item.sopId = assertOptionalSopReferenceExists(
+      state,
+      agencyId,
+      item.sopId,
+      "task.checklist[].sopId",
+    );
     task.checklist = [...(task.checklist ?? []), item];
     task.updatedAt = now;
     saved = task;

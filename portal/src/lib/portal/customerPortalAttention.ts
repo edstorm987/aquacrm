@@ -1,12 +1,17 @@
 import type { CustomerPortalData } from "@/app/portal/customer/_portalData";
+import { customerPortalReadPhase } from "@/lib/portal/customerPortalReadState";
 
 export interface CustomerPortalAttentionItem {
   count: number;
   label: string;
+  /** A marker, never an inferred action count. */
+  unavailable?: true;
 }
 
 export interface CustomerPortalAttention {
   total: number;
+  state: "ready" | "unavailable";
+  unavailableSections: Record<string, string>;
   sections: Record<string, CustomerPortalAttentionItem>;
   modules: Record<string, Record<string, CustomerPortalAttentionItem>>;
 }
@@ -19,14 +24,22 @@ function attentionItem(count: number, singular: string, plural = `${singular}s`)
 export function buildCustomerPortalAttention(data: CustomerPortalData): CustomerPortalAttention {
   const sections: Record<string, CustomerPortalAttentionItem> = {};
   const modules: CustomerPortalAttention["modules"] = {};
+  const unavailableSections: CustomerPortalAttention["unavailableSections"] = {};
   const pendingApprovals = data.approvals.filter(approval => approval.status === "pending").length;
   const briefRequired = data.mode === "onboarding" && !data.brief.submittedAt ? 1 : 0;
   const projectAttention = attentionItem(pendingApprovals + briefRequired, "project item needs you", "project items need you");
   if (projectAttention) sections.project = projectAttention;
 
-  const outstandingInvoices = data.invoices.filter(invoice => invoice.status === "sent" || invoice.status === "overdue").length;
-  const billingAttention = attentionItem(outstandingInvoices, "invoice needs review", "invoices need review");
-  if (billingAttention) sections.billing = billingAttention;
+  const invoiceRead = customerPortalReadPhase(data, "invoices");
+  if (invoiceRead === "ready") {
+    const outstandingInvoices = data.invoices.filter(invoice => invoice.status === "sent" || invoice.status === "overdue").length;
+    const billingAttention = attentionItem(outstandingInvoices, "invoice needs review", "invoices need review");
+    if (billingAttention) sections.billing = billingAttention;
+  } else {
+    const label = "Billing status could not be checked";
+    unavailableSections.billing = label;
+    sections.billing = { count: 0, label, unavailable: true };
+  }
 
   const supportReplies = data.requests.filter(request => {
     if (request.status === "closed") return false;
@@ -54,7 +67,18 @@ export function buildCustomerPortalAttention(data: CustomerPortalData): Customer
 
   const total = Object.values(sections).reduce((sum, item) => sum + item.count, 0)
     + Object.values(modules).flatMap(product => Object.values(product)).reduce((sum, item) => sum + item.count, 0);
-  if (total > 0) sections.home = { count: total, label: `${total} ${total === 1 ? "item needs you" : "items need you"}` };
+  const state = Object.keys(unavailableSections).length ? "unavailable" : "ready";
+  if (total > 0 || state === "unavailable") {
+    sections.home = state === "unavailable"
+      ? {
+          count: total,
+          label: total > 0
+            ? `${total} confirmed ${total === 1 ? "item needs you" : "items need you"}; some status could not be checked`
+            : "Some status could not be checked",
+          unavailable: true,
+        }
+      : { count: total, label: `${total} ${total === 1 ? "item needs you" : "items need you"}` };
+  }
 
-  return { total, sections, modules };
+  return { total, state, unavailableSections, sections, modules };
 }

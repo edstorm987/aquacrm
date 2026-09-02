@@ -545,7 +545,7 @@ export function ContactsWorkspace({ referenceNow, contacts, leads, initialCustom
 
   return (
     <main data-testid="leads-pipeline-contacts" className="flex flex-col gap-6">
-      {commercialParty ? <CommercialPackModal party={commercialParty} onClose={() => setCommercialParty(null)} /> : null}
+      {commercialParty ? <CommercialPackModal key={`${commercialParty.kind}:${commercialParty.id}`} party={commercialParty} onClose={() => setCommercialParty(null)} /> : null}
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-brand">Contacts and sheets</p>

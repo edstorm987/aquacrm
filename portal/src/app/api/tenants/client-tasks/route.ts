@@ -3,12 +3,14 @@ import { type NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, AuthError, getSessionFromRequest } from "@/lib/server/auth/auth";
 import { clientTaskStatusForColumn, isClientTaskBoardColumn } from "@/lib/tasks/clientTaskBoard";
 import { canUsePeopleStation } from "@/server/people";
-import { ProductWorkspaceBusyError, withClientMetadataLedgerTransaction } from "@/server/productWorkspaceCoordinator";
+import { ProductWorkspaceBusyError, withPortalStateTransaction } from "@/server/productWorkspaceCoordinator";
 import { ensureHydrated } from "@/server/storage";
 import { createAgencyTask, deleteAgencyTask, listAgencyTasks, TaskValidationError, updateAgencyTask } from "@/server/tasks";
 import { getClientForAgency } from "@/server/tenants";
 import { AGENCY_ROLES, type AgencyTask, type ClientTaskBoardColumnId } from "@/server/types";
 import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
+import { privateObjectLifecycleLockKey } from "@/lib/server/privateObjectLifecycle";
+import { SopReferenceValidationError } from "@/engines/sop/server/sopReferences";
 
 const MAX_BOARD_TASKS = 250;
 
@@ -60,6 +62,9 @@ function operationError(error: unknown): Response {
   if (error instanceof TaskValidationError) {
     return NextResponse.json({ ok: false, error: error.message, field: error.field }, { status: 400 });
   }
+  if (error instanceof SopReferenceValidationError) {
+    return NextResponse.json({ ok: false, reason: error.code, error: error.message, field: error.field, sopIds: error.sopIds }, { status: 422 });
+  }
   if (error instanceof ProductWorkspaceBusyError) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 409 });
   }
@@ -86,7 +91,7 @@ export async function POST(request: NextRequest) {
     if (!clientId) return NextResponse.json({ ok: false, error: "clientId required" }, { status: 400 });
     const session = await authorise(request, clientId, true);
     const action = body?.action === "import" ? "import" : "create";
-    const result = await withClientMetadataLedgerTransaction({ agencyId: session.agencyId, clientId, ledger: "tasks" }, () => {
+    const result = await withPortalStateTransaction(privateObjectLifecycleLockKey(session.agencyId), () => {
       if (action === "import") {
         const cards = Array.isArray(body?.cards) ? body.cards.slice(0, MAX_BOARD_TASKS) : [];
         let imported = 0;
@@ -163,7 +168,7 @@ export async function PATCH(request: NextRequest) {
     }
     const columnId = submittedColumnId;
     const session = await authorise(request, clientId, true);
-    const result = await withClientMetadataLedgerTransaction({ agencyId: session.agencyId, clientId, ledger: "tasks" }, () => {
+    const result = await withPortalStateTransaction(privateObjectLifecycleLockKey(session.agencyId), () => {
       const task = clientBoardTasks(session.agencyId, clientId).find(item => item.id === id);
       if (!task) return { status: 404, error: "task not found", tasks: clientBoardTasks(session.agencyId, clientId) };
       if ((task.revision ?? 0) !== expectedRevision) {
@@ -195,7 +200,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ ok: false, error: "clientId, task and expectedRevision are required" }, { status: 400 });
     }
     const session = await authorise(request, clientId, true);
-    const result = await withClientMetadataLedgerTransaction({ agencyId: session.agencyId, clientId, ledger: "tasks" }, () => {
+    const result = await withPortalStateTransaction(privateObjectLifecycleLockKey(session.agencyId), () => {
       const task = clientBoardTasks(session.agencyId, clientId).find(item => item.id === id);
       if (!task) return { status: 404, error: "task not found", tasks: clientBoardTasks(session.agencyId, clientId) };
       if ((task.revision ?? 0) !== expectedRevision) {

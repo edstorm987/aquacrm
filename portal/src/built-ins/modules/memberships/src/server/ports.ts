@@ -193,6 +193,8 @@ export interface StripePriceInput {
   currency: string;                // ISO 4217 lowercase
   recurring: { interval: "month" | "year" };
   metadata?: Record<string, string>;
+  /** Stable logical operation + cadence identity for safe provider replay. */
+  idempotencyKey?: string;
 }
 
 export interface StripePrice {

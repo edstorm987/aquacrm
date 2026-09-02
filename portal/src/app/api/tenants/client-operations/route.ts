@@ -18,6 +18,9 @@ import { AGENCY_ROLES } from "@/server/types";
 import { getUserById } from "@/server/users";
 import { listAgencyTasks, updateAgencyTask } from "@/server/tasks";
 import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
+import { privateObjectLifecycleLockKey } from "@/lib/server/privateObjectLifecycle";
+import { withPortalStateTransaction } from "@/server/productWorkspaceCoordinator";
+import { SopReferenceValidationError } from "@/engines/sop/server/sopReferences";
 
 interface OwnerOption {
   id: string;
@@ -67,55 +70,59 @@ export async function POST(request: Request) {
       const nextReviewAt = timestampFromValue(body.nextReviewAt);
       if (!outcome) return NextResponse.json({ ok: false, error: "review outcome is required" }, { status: 400 });
       if (!nextReviewAt || nextReviewAt <= Date.now()) return NextResponse.json({ ok: false, error: "next review must be in the future" }, { status: 400 });
-      const now = Date.now();
-      const review = {
-        id: `review_${crypto.randomBytes(8).toString("hex")}`,
-        outcome,
-        reviewedAt: now,
-        nextReviewAt,
-        reviewedBy: session.email,
-      };
-      const brief = cleanClientOperationsBrief({
-        ...existing,
-        currentObjective: body.currentObjective === undefined ? existing.currentObjective : body.currentObjective,
-        nextReviewAt,
-        handoverNote: body.handoverNote === undefined ? existing.handoverNote : body.handoverNote,
-        reviews: [review, ...existing.reviews],
-        updatedAt: now,
-        updatedBy: session.email,
-      });
-      const recordEntries = cleanClientRecordEntries(client.metadata?.clientRecordEntries);
-      const updated = updateClient(session.agencyId, clientId, { metadata: {
-        clientOperations: brief,
-        clientRecordEntries: [{
-          id: `rec_${crypto.randomBytes(8).toString("hex")}`,
-          kind: "update",
-          title: "Account review completed",
-          body: `${outcome}\n\nNext review: ${new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(nextReviewAt)}${brief.currentObjective ? `\nCurrent objective: ${brief.currentObjective}` : ""}`,
-          occurredAt: now,
-          createdAt: now,
+      return await withPortalStateTransaction(privateObjectLifecycleLockKey(session.agencyId), () => {
+        const currentClient = getClientForAgency(session.agencyId, clientId);
+        if (!currentClient) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
+        const current = cleanClientOperationsBrief(currentClient.metadata?.clientOperations);
+        const now = Date.now();
+        const review = {
+          id: `review_${crypto.randomBytes(8).toString("hex")}`,
+          outcome,
+          reviewedAt: now,
+          nextReviewAt,
+          reviewedBy: session.email,
+        };
+        const brief = cleanClientOperationsBrief({
+          ...current,
+          currentObjective: body.currentObjective === undefined ? current.currentObjective : body.currentObjective,
+          nextReviewAt,
+          handoverNote: body.handoverNote === undefined ? current.handoverNote : body.handoverNote,
+          reviews: [review, ...current.reviews],
           updatedAt: now,
-          createdBy: session.email,
-          visibility: "internal",
-          channel: "Operations desk",
-        }, ...recordEntries],
-      } });
-      if (!updated) return NextResponse.json({ ok: false, error: "account review could not be saved" }, { status: 500 });
-      const resolvedTaskIds = listAgencyTasks(session.agencyId)
-        .filter(task => task.status !== "done" && task.sourceId === `client:${clientId}:operation:account-review-overdue`)
-        .flatMap(task => updateAgencyTask(session.agencyId, task.id, { status: "done" }, session.userId)?.id ?? []);
-      logActivity({
-        agencyId: session.agencyId,
-        clientId,
-        actorUserId: session.userId,
-        actorEmail: session.email,
-        category: "tenant",
-        action: "client_operations.review_completed",
-        message: `Completed ${client.name}'s account review and scheduled the next checkpoint.`,
-        metadata: { reviewId: review.id, nextReviewAt, resolvedTaskIds },
+          updatedBy: session.email,
+        });
+        const recordEntries = cleanClientRecordEntries(currentClient.metadata?.clientRecordEntries);
+        const updated = updateClient(session.agencyId, clientId, { metadata: {
+          clientOperations: brief,
+          clientRecordEntries: [{
+            id: `rec_${crypto.randomBytes(8).toString("hex")}`,
+            kind: "update",
+            title: "Account review completed",
+            body: `${outcome}\n\nNext review: ${new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(nextReviewAt)}${brief.currentObjective ? `\nCurrent objective: ${brief.currentObjective}` : ""}`,
+            occurredAt: now,
+            createdAt: now,
+            updatedAt: now,
+            createdBy: session.email,
+            visibility: "internal",
+            channel: "Operations desk",
+          }, ...recordEntries],
+        } });
+        if (!updated) return NextResponse.json({ ok: false, error: "account review could not be saved" }, { status: 500 });
+        const resolvedTaskIds = listAgencyTasks(session.agencyId)
+          .filter(task => task.status !== "done" && task.sourceId === `client:${clientId}:operation:account-review-overdue`)
+          .flatMap(task => updateAgencyTask(session.agencyId, task.id, { status: "done" }, session.userId)?.id ?? []);
+        logActivity({
+          agencyId: session.agencyId,
+          clientId,
+          actorUserId: session.userId,
+          actorEmail: session.email,
+          category: "tenant",
+          action: "client_operations.review_completed",
+          message: `Completed ${currentClient.name}'s account review and scheduled the next checkpoint.`,
+          metadata: { reviewId: review.id, nextReviewAt, resolvedTaskIds },
+        });
+        return NextResponse.json({ ok: true, brief, review, resolvedTaskIds });
       });
-      await flushPendingWrites();
-      return NextResponse.json({ ok: true, brief, review, resolvedTaskIds });
     }
 
     const ownerId = cleanRecordText(body?.ownerId, 160);
@@ -155,6 +162,9 @@ export async function POST(request: Request) {
     await flushPendingWrites();
     return NextResponse.json({ ok: true, brief });
   } catch (error) {
+    if (error instanceof SopReferenceValidationError) {
+      return NextResponse.json({ ok: false, reason: error.code, error: error.message, field: error.field, sopIds: error.sopIds }, { status: 422 });
+    }
     return authErrorResponse(error);
   }
 }

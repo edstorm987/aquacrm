@@ -16,6 +16,8 @@ import type {
 export interface StoragePort {
   get<T = unknown>(key: string): Promise<T | undefined>;
   set<T = unknown>(key: string, value: T): Promise<void>;
+  /** Optional host-provided cross-process read-modify-write boundary. */
+  runExclusive?<T>(key: string, operation: () => Promise<T>): Promise<T>;
   del(key: string): Promise<void>;
   list(prefix?: string): Promise<string[]>;
 }

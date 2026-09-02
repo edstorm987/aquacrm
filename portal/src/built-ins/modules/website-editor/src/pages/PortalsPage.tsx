@@ -22,7 +22,6 @@ import { formatUkDate } from "../lib/safeDate";
 import {
   listPortalVariants, setActivePortalVariant, createPage, deletePage, onPagesChange,
 } from "../lib/editorPages";
-import { starterForRole } from "../lib/portalStarters";
 import { confirm } from "../lib/confirm";
 import { prompt } from "../lib/prompt";
 import { notify } from "../lib/notify";
@@ -173,11 +172,9 @@ function AdminPortalsInner() {
         slug,
         title: name.trim(),
         portalRole: role,
-        // Pre-populate the editor with a sensible role-specific starter
-        // tree (heading + copy + auth form for login/affiliates, etc.)
-        // so the operator gets a working layout to tweak instead of a
-        // blank canvas.
-        blocks: starterForRole(role),
+        // The server selects the role-specific starter. For Login variants it
+        // reads this client's configurable default, so save -> reload changes
+        // the next variant without shipping config through the client bundle.
       });
       if (!page) {
         notify({ tone: "error", title: "Couldn't create variant", message: "The server didn't return a page. Try again." });

@@ -15,8 +15,11 @@ import { useRouter } from "next/navigation";
 import {
   createPhaseTransitionOperationId,
   phaseTransitionFailureMessage,
-  type PhaseTransitionApiResult,
 } from "@/built-ins/modules/fulfillment/src/lib/transitionFeedback";
+import {
+  isFulfillmentPhaseTransition,
+  isFulfillmentPhaseTransitionFailure,
+} from "@/built-ins/modules/fulfillment/src/lib/mutationPayloads";
 import {
   readFulfillmentPhases,
   resolveFulfillmentPhaseTarget,
@@ -24,6 +27,11 @@ import {
 } from "@/lib/clients/fulfillmentPhaseRead";
 import { useMenuKeys } from "@/lib/a11y/useMenuKeys";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
+import {
+  CheckedMutationError,
+  checkedJsonMutation,
+  mutationErrorMessage,
+} from "@/lib/client/checkedMutation";
 
 const AQUA_ORDER = [
   "aqua-epic-intro",
@@ -72,7 +80,7 @@ export function PhaseTransitionButton({
 
   useEffect(() => {
     operationIdRef.current = null;
-  }, [clientId, currentStage, targetId]);
+  }, [clientId, currentStage, targetId, reason]);
 
   useEffect(() => {
     if (!isFounder) return;
@@ -136,7 +144,8 @@ export function PhaseTransitionButton({
     setError(null);
     try {
       operationIdRef.current ??= createPhaseTransitionOperationId(clientId, current.id, target.id);
-      const res = await fetch("/api/portal/fulfillment/phase/advance", {
+      const requestOperationId = operationIdRef.current;
+      await checkedJsonMutation<unknown>("/api/portal/fulfillment/phase/advance", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -144,20 +153,27 @@ export function PhaseTransitionButton({
           fromPhaseId: current.id,
           toPhaseId: target.id,
           reason: reason.trim() || undefined,
-          operationId: operationIdRef.current,
+          operationId: requestOperationId,
+        }),
+      }, {
+        fallback: "Phase transition failed.",
+        validate: payload => isFulfillmentPhaseTransition(payload, {
+          operationId: requestOperationId,
+          clientId,
+          stage: target.stage,
         }),
       });
-      const data = await res.json() as PhaseTransitionApiResult;
-      if (!data.ok) {
-        setError(phaseTransitionFailureMessage(data));
-        return;
-      }
       operationIdRef.current = null;
       setTargetId(null);
       setReason("");
       startTransition(() => router.refresh());
     } catch (error) {
-      setError(error instanceof Error ? error.message : "Phase transition failed.");
+      setError(
+        error instanceof CheckedMutationError
+          && isFulfillmentPhaseTransitionFailure(error.payload)
+          ? phaseTransitionFailureMessage(error.payload)
+          : mutationErrorMessage(error, "Phase transition failed."),
+      );
     } finally {
       setBusy(false);
     }

@@ -30,6 +30,7 @@ import type { PluginStorage } from "../lib/aquaPluginTypes";
 import type { AgencyId, ClientId, BrandKit } from "./../lib/tenancy";
 import type { Block } from "../types/block";
 import type { EditorPage } from "../types/editorPage";
+import { resolvePublishedPage } from "../lib/pagePublication";
 import { listPages } from "./pages";
 import {
   buildSitemap as buildAdvancedSitemap,
@@ -464,11 +465,12 @@ export function renderPageHtml(page: EditorPage, opts: {
   siteTitle?: string;
   supabase?: ExportSupabaseTarget;
 }): string {
-  const blocks = (page.publishedBlocks ?? page.blocks ?? []) as Block[];
+  const publishedPage = resolvePublishedPage(page);
+  const blocks = (publishedPage.publishedBlocks ?? publishedPage.blocks ?? []) as Block[];
   const body = blocks.map(block => renderBlockToHtml(block, opts.supabase)).join("\n");
-  const title = page.seo?.metaTitle ?? page.title ?? page.slug;
-  const desc = page.seo?.metaDescription ?? page.description ?? "";
-  const noIndex = page.seo?.noIndex
+  const title = publishedPage.seo?.metaTitle ?? publishedPage.title ?? publishedPage.slug;
+  const desc = publishedPage.seo?.metaDescription ?? publishedPage.description ?? "";
+  const noIndex = publishedPage.seo?.noIndex
     ? `\n  <meta name="robots" content="noindex" />`
     : "";
   const customCssLink = opts.customCssHref
@@ -664,9 +666,10 @@ function pageFilename(page: EditorPage): string {
 export async function exportSiteToZip(input: ExportSiteInput): Promise<ExportSiteResult> {
   const { storage, agencyId, clientId, siteId, baseUrl, brandKit, customCss } = input;
   const allPages = await listPages(storage, agencyId, clientId, siteId);
-  const pages = allPages.filter(
-    p => p.status === "published" && !p.portalRole && !p.slug.startsWith("_"),
-  );
+  const pages = allPages
+    .map(resolvePublishedPage)
+    .filter(p => p.status === "published" && !p.portalRole)
+    .filter(p => !p.slug.startsWith("_"));
 
   const enc = new TextEncoder();
   const entries: ZipEntry[] = [];

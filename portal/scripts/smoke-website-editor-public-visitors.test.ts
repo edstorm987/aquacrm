@@ -5,6 +5,7 @@ import test from "node:test";
 import { withRequestScope } from "./dev-console-request-scope";
 
 import {
+  handleVisitorBlogPost,
   handleVisitorBlogPosts,
   handleVisitorContact,
   handleListVisitorContacts,
@@ -14,9 +15,34 @@ import type {
   PluginCtx,
   PluginStorage,
 } from "../src/built-ins/modules/website-editor/src/lib/aquaPluginTypes";
-import { createBlogPost } from "../src/built-ins/modules/website-editor/src/server/blog";
-import { createPage, publishPage } from "../src/built-ins/modules/website-editor/src/server/pages";
-import { createSite } from "../src/built-ins/modules/website-editor/src/server/sites";
+import {
+  BlogPostBodyValidationError,
+  createBlogPost,
+  updateBlogPost,
+} from "../src/built-ins/modules/website-editor/src/server/blog";
+import {
+  createPage,
+  getPublishedPageBySlug,
+  publishPage,
+  revertPage,
+  updatePage,
+} from "../src/built-ins/modules/website-editor/src/server/pages";
+import { createSite, updateSite } from "../src/built-ins/modules/website-editor/src/server/sites";
+import { createTheme, updateTheme } from "../src/built-ins/modules/website-editor/src/server/themes";
+import { resolveStorefrontTree } from "../src/built-ins/modules/website-editor/src/lib/draftPublished";
+import {
+  resolvePublishedPage,
+  resolvePublishedTheme,
+} from "../src/built-ins/modules/website-editor/src/lib/pagePublication";
+import {
+  BLOG_POST_BODY_MAX_DEPTH,
+  validateBlogPostBody,
+} from "../src/built-ins/modules/website-editor/src/lib/blogPostBody";
+import { storageKeys } from "../src/built-ins/modules/website-editor/src/server/storage-keys";
+import {
+  exportSiteToZip,
+  renderPageHtml,
+} from "../src/built-ins/modules/website-editor/src/server/staticExport";
 import { parseVisitorContactReceipt } from "../src/built-ins/modules/website-editor/src/lib/visitorContactReceipt";
 import {
   normaliseVisitorContactConsentStatement,
@@ -115,6 +141,19 @@ async function post(ctx: PluginCtx, body: unknown, origin = ORIGIN, ip = "198.51
   }), ctx);
 }
 
+async function getBlogPost(ctx: PluginCtx, siteId: string, slug: string, ip = "198.51.100.21") {
+  const params = new URLSearchParams({
+    agencyId: ctx.agencyId,
+    clientId: ctx.clientId!,
+    siteId,
+    slug,
+  });
+  return handleVisitorBlogPost(new Request(
+    `${ORIGIN}/api/portal/website-editor/public/blog/posts/by-slug?${params.toString()}`,
+    { headers: { "x-forwarded-for": ip } },
+  ), ctx);
+}
+
 test("route manifest exposes visitor facades without widening operator routes", () => {
   const source = readFileSync(
     new URL("../src/built-ins/modules/website-editor/src/api/routes.ts", import.meta.url),
@@ -122,6 +161,7 @@ test("route manifest exposes visitor facades without widening operator routes", 
   );
   assert.match(source, /path:\s*["']visitor\/contact["'][^}]*public:\s*true/s);
   assert.match(source, /path:\s*["']public\/blog\/posts["'][^}]*public:\s*true/s);
+  assert.match(source, /path:\s*["']public\/blog\/posts\/by-slug["'][^}]*public:\s*true/s);
   for (const path of ["/forms/submit", "/forms/webhook-log", "/forms/contact-submissions", "/blog/posts", "/blog/posts/by-slug"]) {
     const row = source.match(new RegExp(`\\{\\s*path:\\s*["']${path.replaceAll("/", "\\/")}["'][^}]*\\}`, "s"))?.[0] ?? "";
     assert.ok(row, `${path} route missing`);
@@ -142,10 +182,460 @@ test("visitor blocks activate only on a published mount, never the editor or dra
     new URL("../src/built-ins/modules/website-editor/src/components/blocks/BlogFeedBlock.tsx", import.meta.url),
     "utf8",
   );
+  const blogPost = readFileSync(
+    new URL("../src/built-ins/modules/website-editor/src/components/blocks/BlogPostBlock.tsx", import.meta.url),
+    "utf8",
+  );
 
-  assert.match(renderer, /publishedWebsite:\s*preview\s*!==\s*true\s*&&\s*page\.status\s*===\s*["']published["']/);
+  assert.match(renderer, /resolveStorefrontTree\(page,\s*\{\s*preview\s*\}\)/);
+  assert.match(renderer, /preview\s*\?\s*page\s*:\s*resolvePublishedPage\(page\)/);
+  assert.match(renderer, /data-portal-role=\{renderedPage\.portalRole\s*\?\?\s*["']page["']\}/);
+  assert.match(renderer, /customCSS=\{renderedPage\.customCss\s*\?\?\s*renderedPage\.customCSS\}/);
+  assert.match(renderer, /publishedWebsite:\s*preview\s*!==\s*true\s*&&\s*resolved\.source\s*===\s*["']published["']/);
+  assert.doesNotMatch(renderer, /blocks=\{page\.blocks\}/, "storefront bypasses the published snapshot resolver");
   assert.match(contact, /context\.publishedWebsite\s*===\s*true/);
   assert.match(blog, /context\.publishedWebsite\s*!==\s*true/);
+  assert.match(blogPost, /context\?\.publishedWebsite\s*===\s*true/);
+  assert.match(blogPost, /new URLSearchParams\(\{\s*agencyId,\s*clientId,\s*siteId,\s*slug\s*\}\)/);
+  assert.match(blogPost, /public\/blog\/posts\/by-slug/);
+  assert.match(blogPost, /renderChildren\(post\.body\)/);
+  assert.doesNotMatch(blogPost, /__aquaRenderBlocks|JSON\.stringify\(post\.body/);
+});
+
+test("published storefront keeps an immutable snapshot across edit, revert and republish", async () => {
+  const storage = memoryStorage();
+  const site = await createSite(storage, {
+    agencyId: AGENCY,
+    clientId: CLIENT,
+    name: "Published snapshot site",
+    slug: "published-snapshot-site",
+  });
+  const liveTree = [{ id: "live_heading", type: "heading", props: { text: "Live copy" } }];
+  const draftTree = [{ id: "draft_heading", type: "heading", props: { text: "Draft copy" } }];
+  const page = await createPage(storage, {
+    agencyId: AGENCY,
+    clientId: CLIENT,
+    siteId: site.id,
+    title: "Snapshot page",
+    blocks: liveTree,
+  });
+
+  const published = await publishPage(storage, AGENCY, CLIENT, site.id, page.id);
+  assert.deepEqual(published?.publishedBlocks, liveTree, "publishing records an explicit live snapshot");
+
+  const edited = await updatePage(storage, AGENCY, CLIENT, site.id, page.id, { blocks: draftTree });
+  assert.deepEqual(edited?.blocks, draftTree, "the editor keeps the new working tree");
+  assert.deepEqual(edited?.publishedBlocks, liveTree, "editing cannot replace the live snapshot");
+  assert.deepEqual(resolveStorefrontTree(edited!).tree, liveTree, "ordinary storefront serves the snapshot");
+  assert.deepEqual(resolveStorefrontTree(edited!, { preview: true }).tree, draftTree, "preview serves the working tree");
+
+  const reverted = await revertPage(storage, AGENCY, CLIENT, site.id, page.id);
+  assert.deepEqual(reverted?.blocks, liveTree, "revert restores the published tree into the editor");
+
+  const editedAgain = await updatePage(storage, AGENCY, CLIENT, site.id, page.id, { blocks: draftTree });
+  assert.ok(editedAgain);
+  const republished = await publishPage(storage, AGENCY, CLIENT, site.id, page.id);
+  assert.deepEqual(republished?.publishedBlocks, draftTree, "republish promotes the latest working tree");
+  assert.deepEqual(resolveStorefrontTree(republished!).tree, draftTree);
+});
+
+test("publication snapshot gates presentation, metadata, custom code and privacy until publish", async () => {
+  const storage = memoryStorage();
+  const site = await createSite(storage, {
+    agencyId: AGENCY,
+    clientId: CLIENT,
+    name: "Complete publication site",
+    slug: "complete-publication-site",
+  });
+  const liveTheme = await createTheme(storage, {
+    agencyId: AGENCY,
+    clientId: CLIENT,
+    siteId: site.id,
+    name: "Live theme",
+    tokens: { primary: "#0011aa", ink: "#ffffff" },
+  });
+  const draftTheme = await createTheme(storage, {
+    agencyId: AGENCY,
+    clientId: CLIENT,
+    siteId: site.id,
+    name: "Draft theme",
+    tokens: { primary: "#dd2200", ink: "#111111" },
+  });
+  const page = await createPage(storage, {
+    agencyId: AGENCY,
+    clientId: CLIENT,
+    siteId: site.id,
+    slug: "live-route",
+    title: "Live title",
+    description: "Live description",
+    themeId: liveTheme.id,
+    blocks: [{ id: "live", type: "heading", props: { text: "Live" } }],
+  });
+  await updatePage(storage, AGENCY, CLIENT, site.id, page.id, {
+    isHomepage: true,
+    portalRole: "login",
+    isActivePortal: true,
+    privacy: "password",
+    passwordHash: "sha256:live",
+    customCSS: ".live-alias{}",
+    customCss: ".live{}",
+    customHead: "<meta name=\"live-head\">",
+    customFoot: "<p>live foot</p>",
+    headInjection: "window.live=true",
+    layoutOverrides: { hideNav: true },
+    seo: { metaTitle: "Live SEO", metaDescription: "Live SEO description", noIndex: true },
+  });
+  const published = await publishPage(storage, AGENCY, CLIENT, site.id, page.id);
+  assert.equal(published?.publishedPage?.version, 2);
+  const editedThemeRecord = await updateTheme(storage, AGENCY, CLIENT, site.id, liveTheme.id, {
+    tokens: { primary: "#ff00ff" },
+  });
+  assert.equal(
+    resolvePublishedTheme(published!, editedThemeRecord)?.tokens.primary,
+    "#0011aa",
+    "editing a referenced theme record cannot change a published page",
+  );
+
+  const draftPatch = {
+    slug: "draft-route",
+    title: "Draft title",
+    description: "Draft description",
+    isHomepage: false,
+    portalRole: "account" as const,
+    isActivePortal: false,
+    privacy: "public" as const,
+    passwordHash: undefined,
+    themeId: draftTheme.id,
+    customCSS: ".draft-alias{}",
+    customCss: ".draft{}",
+    customHead: "<meta name=\"draft-head\">",
+    customFoot: "<p>draft foot</p>",
+    headInjection: "window.draft=true",
+    layoutOverrides: { hideFooter: true },
+    seo: { metaTitle: "Draft SEO", metaDescription: "Draft SEO description", noIndex: false },
+  };
+  const edited = await updatePage(storage, AGENCY, CLIENT, site.id, page.id, draftPatch);
+  assert.equal(edited?.title, "Draft title", "editor should retain the draft presentation");
+  const live = resolvePublishedPage(edited!);
+  assert.equal(
+    (await getPublishedPageBySlug(storage, AGENCY, CLIENT, site.id, "live-route"))?.id,
+    page.id,
+  );
+  assert.equal(
+    await getPublishedPageBySlug(storage, AGENCY, CLIENT, site.id, "draft-route"),
+    null,
+  );
+  const forged = await updatePage(storage, AGENCY, CLIENT, site.id, page.id, {
+    publishedBlocks: [{ id: "forged", type: "heading", props: { text: "Forged" } }],
+    publishedPage: { version: 1, slug: "forged", title: "Forged" },
+  } as never);
+  assert.equal(resolvePublishedPage(forged!).title, "Live title");
+  assert.deepEqual(resolveStorefrontTree(forged!).tree, [{ id: "live", type: "heading", props: { text: "Live" } }]);
+  assert.deepEqual({
+    slug: live.slug,
+    title: live.title,
+    description: live.description,
+    isHomepage: live.isHomepage,
+    portalRole: live.portalRole,
+    isActivePortal: live.isActivePortal,
+    privacy: live.privacy,
+    passwordHash: live.passwordHash,
+    themeId: live.themeId,
+    customCSS: live.customCSS,
+    customCss: live.customCss,
+    customHead: live.customHead,
+    customFoot: live.customFoot,
+    headInjection: live.headInjection,
+    layoutOverrides: live.layoutOverrides,
+    seo: live.seo,
+  }, {
+    slug: "live-route",
+    title: "Live title",
+    description: "Live description",
+    isHomepage: true,
+    portalRole: "login",
+    isActivePortal: true,
+    privacy: "password",
+    passwordHash: "sha256:live",
+    themeId: liveTheme.id,
+    customCSS: ".live-alias{}",
+    customCss: ".live{}",
+    customHead: "<meta name=\"live-head\">",
+    customFoot: "<p>live foot</p>",
+    headInjection: "window.live=true",
+    layoutOverrides: { hideNav: true },
+    seo: { metaTitle: "Live SEO", metaDescription: "Live SEO description", noIndex: true },
+  });
+  const exportedHtml = renderPageHtml(edited!, { brandCssHref: "assets/brand.css" });
+  assert.match(exportedHtml, /<title>Live SEO<\/title>/);
+  assert.match(exportedHtml, /Live SEO description/);
+  assert.doesNotMatch(exportedHtml, /Draft SEO|Draft description/);
+
+  const reverted = await revertPage(storage, AGENCY, CLIENT, site.id, page.id);
+  assert.equal(reverted?.title, "Live title");
+  assert.equal(reverted?.portalRole, "login");
+  assert.equal(reverted?.isActivePortal, true);
+  assert.equal(reverted?.privacy, "password");
+  assert.deepEqual(reverted?.seo, { metaTitle: "Live SEO", metaDescription: "Live SEO description", noIndex: true });
+
+  await updatePage(storage, AGENCY, CLIENT, site.id, page.id, draftPatch);
+  const republished = await publishPage(storage, AGENCY, CLIENT, site.id, page.id);
+  assert.equal(resolvePublishedPage(republished!).title, "Draft title");
+  assert.equal(resolvePublishedPage(republished!).portalRole, "account");
+  assert.equal(resolvePublishedPage(republished!).isActivePortal, false);
+  assert.equal(resolvePublishedPage(republished!).privacy, "public");
+  assert.equal(resolvePublishedPage(republished!).passwordHash, undefined);
+  assert.equal(resolvePublishedPage(republished!).seo?.metaTitle, "Draft SEO");
+  assert.equal(resolvePublishedTheme(republished!, null)?.id, draftTheme.id);
+  assert.equal(resolvePublishedTheme(republished!, null)?.tokens.primary, "#dd2200");
+  assert.equal(
+    (await getPublishedPageBySlug(storage, AGENCY, CLIENT, site.id, "draft-route"))?.id,
+    page.id,
+  );
+});
+
+test("first edit of a legacy published row snapshots its pre-edit live tree", async () => {
+  const storage = memoryStorage();
+  const site = await createSite(storage, {
+    agencyId: AGENCY,
+    clientId: CLIENT,
+    name: "Legacy snapshot site",
+    slug: "legacy-snapshot-site",
+  });
+  const liveTree = [{ id: "legacy_live", type: "heading", props: { text: "Legacy live copy" } }];
+  const draftTree = [{ id: "legacy_draft", type: "heading", props: { text: "Unpublished edit" } }];
+  const page = await createPage(storage, {
+    agencyId: AGENCY,
+    clientId: CLIENT,
+    siteId: site.id,
+    title: "Legacy page",
+    blocks: liveTree,
+  });
+  await storage.set(storageKeys.page(AGENCY, CLIENT, site.id, page.id), {
+    ...page,
+    status: "published",
+    publishedAt: Date.now() - 1_000,
+    publishedBlocks: undefined,
+  });
+
+  const edited = await updatePage(storage, AGENCY, CLIENT, site.id, page.id, { blocks: draftTree });
+  assert.deepEqual(edited?.publishedBlocks, liveTree, "migration-on-write preserves the legacy live tree");
+  assert.deepEqual(resolveStorefrontTree(edited!).tree, liveTree);
+  assert.deepEqual(resolveStorefrontTree(edited!, { preview: true }).tree, draftTree);
+});
+
+test("first presentation edit migrates a legacy published row before applying the draft", async () => {
+  const storage = memoryStorage();
+  const site = await createSite(storage, {
+    agencyId: AGENCY,
+    clientId: CLIENT,
+    name: "Legacy presentation site",
+    slug: "legacy-presentation-site",
+  });
+  const page = await createPage(storage, {
+    agencyId: AGENCY,
+    clientId: CLIENT,
+    siteId: site.id,
+    title: "Legacy live title",
+    description: "Legacy live description",
+    portalRole: "login",
+    isActivePortal: true,
+    blocks: [],
+  });
+  await storage.set(storageKeys.page(AGENCY, CLIENT, site.id, page.id), {
+    ...page,
+    status: "published",
+    publishedAt: Date.now() - 1_000,
+    publishedPage: undefined,
+  });
+
+  const edited = await updatePage(storage, AGENCY, CLIENT, site.id, page.id, {
+    title: "Unpublished title",
+    portalRole: "account",
+    isActivePortal: false,
+    privacy: "members-only",
+  });
+  assert.equal(edited?.publishedPage?.version, 2);
+  assert.equal(resolvePublishedPage(edited!).title, "Legacy live title");
+  assert.equal(resolvePublishedPage(edited!).description, "Legacy live description");
+  assert.equal(resolvePublishedPage(edited!).portalRole, "login");
+  assert.equal(resolvePublishedPage(edited!).isActivePortal, true);
+  assert.equal(resolvePublishedPage(edited!).privacy, undefined);
+});
+
+test("version-1 snapshots migrate portal classification before the first edit", async () => {
+  const storage = memoryStorage();
+  const site = await createSite(storage, {
+    agencyId: AGENCY,
+    clientId: CLIENT,
+    name: "Version one portal snapshot site",
+    slug: "version-one-portal-site",
+  });
+  const page = await createPage(storage, {
+    agencyId: AGENCY,
+    clientId: CLIENT,
+    siteId: site.id,
+    title: "Legacy portal",
+    portalRole: "login",
+    isActivePortal: true,
+    blocks: [],
+  });
+  const published = await publishPage(storage, AGENCY, CLIENT, site.id, page.id);
+  assert.ok(published?.publishedPage);
+  const legacySnapshot = { ...published.publishedPage } as Record<string, unknown>;
+  legacySnapshot.version = 1;
+  delete legacySnapshot.portalRole;
+  delete legacySnapshot.isActivePortal;
+  await storage.set(storageKeys.page(AGENCY, CLIENT, site.id, page.id), {
+    ...published,
+    publishedPage: legacySnapshot,
+  });
+
+  const edited = await updatePage(storage, AGENCY, CLIENT, site.id, page.id, {
+    portalRole: "orders",
+    isActivePortal: false,
+  });
+  assert.equal(edited?.publishedPage?.version, 2);
+  assert.equal(resolvePublishedPage(edited!).portalRole, "login");
+  assert.equal(resolvePublishedPage(edited!).isActivePortal, true);
+  const reverted = await revertPage(storage, AGENCY, CLIENT, site.id, page.id);
+  assert.equal(reverted?.portalRole, "login");
+  assert.equal(reverted?.isActivePortal, true);
+});
+
+test("version-1 snapshot migration freezes the pre-edit published theme", async () => {
+  const storage = memoryStorage();
+  const site = await createSite(storage, {
+    agencyId: AGENCY,
+    clientId: CLIENT,
+    name: "Version one theme snapshot site",
+    slug: "version-one-theme-site",
+  });
+  const theme = await createTheme(storage, {
+    agencyId: AGENCY,
+    clientId: CLIENT,
+    siteId: site.id,
+    name: "Legacy published theme",
+    tokens: { primary: "#123456", ink: "#ffffff" },
+  });
+  const page = await createPage(storage, {
+    agencyId: AGENCY,
+    clientId: CLIENT,
+    siteId: site.id,
+    title: "Legacy themed page",
+    themeId: theme.id,
+    blocks: [],
+  });
+  const published = await publishPage(storage, AGENCY, CLIENT, site.id, page.id);
+  assert.ok(published?.publishedPage);
+  const legacySnapshot = { ...published.publishedPage } as Record<string, unknown>;
+  legacySnapshot.version = 1;
+  delete legacySnapshot.theme;
+  await storage.set(storageKeys.page(AGENCY, CLIENT, site.id, page.id), {
+    ...published,
+    publishedPage: legacySnapshot,
+  });
+
+  const migrated = await updatePage(storage, AGENCY, CLIENT, site.id, page.id, {
+    title: "Unpublished title",
+  });
+  assert.equal(migrated?.publishedPage?.version, 2);
+  assert.equal(migrated?.publishedPage?.theme?.tokens.primary, "#123456");
+
+  const editedTheme = await updateTheme(storage, AGENCY, CLIENT, site.id, theme.id, {
+    tokens: { primary: "#abcdef" },
+  });
+  assert.equal(
+    resolvePublishedTheme(migrated!, editedTheme)?.tokens.primary,
+    "#123456",
+    "editing the current theme must not alter the migrated live publication",
+  );
+});
+
+test("static export filters portal pages from the published snapshot, not draft classification", async () => {
+  const storage = memoryStorage();
+  const site = await createSite(storage, {
+    agencyId: AGENCY,
+    clientId: CLIENT,
+    name: "Publication-aware export site",
+    slug: "publication-aware-export",
+  });
+  const publicPage = await createPage(storage, {
+    agencyId: AGENCY,
+    clientId: CLIENT,
+    siteId: site.id,
+    title: "Published public page",
+    slug: "published-public",
+    blocks: [],
+  });
+  await publishPage(storage, AGENCY, CLIENT, site.id, publicPage.id);
+  await updatePage(storage, AGENCY, CLIENT, site.id, publicPage.id, {
+    portalRole: "login",
+    isActivePortal: true,
+  });
+
+  const portalPage = await createPage(storage, {
+    agencyId: AGENCY,
+    clientId: CLIENT,
+    siteId: site.id,
+    title: "Published portal page",
+    slug: "published-portal",
+    portalRole: "login",
+    isActivePortal: true,
+    blocks: [],
+  });
+  await publishPage(storage, AGENCY, CLIENT, site.id, portalPage.id);
+  await updatePage(storage, AGENCY, CLIENT, site.id, portalPage.id, {
+    portalRole: undefined,
+    isActivePortal: false,
+  });
+
+  const exported = await exportSiteToZip({
+    storage,
+    agencyId: AGENCY,
+    clientId: CLIENT,
+    siteId: site.id,
+    baseUrl: "https://published.example.test",
+  });
+  const archiveText = new TextDecoder().decode(exported.zip);
+  assert.equal(exported.pageCount, 1);
+  assert.match(archiveText, /published-public\/index\.html/);
+  assert.doesNotMatch(archiveText, /published-portal\/index\.html/);
+});
+
+test("serialized publication snapshots preserve intentionally absent live fields", async () => {
+  const storage = memoryStorage();
+  const site = await createSite(storage, {
+    agencyId: AGENCY,
+    clientId: CLIENT,
+    name: "Serialized publication site",
+    slug: "serialized-publication-site",
+  });
+  const page = await createPage(storage, {
+    agencyId: AGENCY,
+    clientId: CLIENT,
+    siteId: site.id,
+    title: "Published without extras",
+    blocks: [],
+  });
+  const published = await publishPage(storage, AGENCY, CLIENT, site.id, page.id);
+  const edited = await updatePage(storage, AGENCY, CLIENT, site.id, page.id, {
+    description: "Draft description",
+    customCss: ".draft{}",
+    portalRole: "login",
+    isActivePortal: true,
+    privacy: "members-only",
+    seo: { metaTitle: "Draft only" },
+  });
+  assert.ok(published && edited);
+  const reloaded = JSON.parse(JSON.stringify(edited)) as typeof edited;
+  const live = resolvePublishedPage(reloaded!);
+  assert.equal(live.description, undefined);
+  assert.equal(live.customCss, undefined);
+  assert.equal(live.portalRole, undefined);
+  assert.equal(live.isActivePortal, undefined);
+  assert.equal(live.privacy, undefined);
+  assert.equal(live.seo, undefined);
 });
 
 test("contact UI accepts only a parsed success receipt, not an arbitrary 2xx response", () => {
@@ -430,4 +920,142 @@ test("public blog feed returns published summaries only through an allowlist DTO
     `${ORIGIN}/api/portal/website-editor/public/blog/posts?siteId=${unlocked.site.id}`,
   ), unlocked.ctx);
   assert.equal(unavailable.status, 503, "public blog rate control silently lost its durable lock");
+});
+
+test("public blog detail returns one published body through an allowlist DTO", async () => {
+  const ready = await fixture();
+  const body = [{ id: "published_heading", type: "heading", props: { text: "Published body" } }];
+  await createBlogPost(ready.ctx.storage, {
+    agencyId: AGENCY,
+    clientId: CLIENT,
+    siteId: ready.site.id,
+    title: "Public detail",
+    slug: "public-detail",
+    excerpt: "Visible detail",
+    coverImg: "https://cdn.example.test/cover.jpg",
+    author: "Public Author",
+    tags: ["news"],
+    status: "published",
+    body,
+  });
+  await createBlogPost(ready.ctx.storage, {
+    agencyId: AGENCY,
+    clientId: CLIENT,
+    siteId: ready.site.id,
+    title: "Draft detail",
+    slug: "draft-detail",
+    tags: ["private"],
+    status: "draft",
+    body: [{ id: "private", type: "html", props: { html: "PRIVATE DRAFT" } }],
+  });
+
+  const response = await getBlogPost(ready.ctx, ready.site.id, "public-detail", "192.0.2.51");
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("cache-control"), "no-store");
+  const reply = await response.json() as { ok: boolean; post: Record<string, unknown> };
+  assert.equal(reply.ok, true);
+  assert.deepEqual(Object.keys(reply.post).sort(), [
+    "author", "body", "coverImg", "excerpt", "publishedAt", "slug", "tags", "title",
+  ]);
+  assert.deepEqual(reply.post.body, body);
+  assert.equal(reply.post.id, undefined);
+  assert.equal(reply.post.agencyId, undefined);
+  assert.equal(reply.post.clientId, undefined);
+  assert.equal(reply.post.siteId, undefined);
+  assert.equal(reply.post.status, undefined);
+  assert.equal(reply.post.createdAt, undefined);
+  assert.equal(reply.post.updatedAt, undefined);
+
+  assert.equal((await getBlogPost(ready.ctx, ready.site.id, "draft-detail")).status, 404);
+  assert.equal((await getBlogPost(ready.ctx, ready.site.id, "missing-detail")).status, 404);
+  const otherTenant = context(memoryStorage(), "agency_other_blog", "client_other_blog");
+  assert.equal(
+    (await getBlogPost(otherTenant, ready.site.id, "public-detail")).status,
+    404,
+    "another install could resolve the first tenant's blog post",
+  );
+
+  await updateSite(ready.ctx.storage, AGENCY, CLIENT, ready.site.id, { status: "draft" });
+  assert.equal(
+    (await getBlogPost(ready.ctx, ready.site.id, "public-detail")).status,
+    404,
+    "an inactive site still exposed a published blog post",
+  );
+
+  const unlocked = await fixture(context(memoryStorage(false)));
+  await createBlogPost(unlocked.ctx.storage, {
+    agencyId: AGENCY,
+    clientId: CLIENT,
+    siteId: unlocked.site.id,
+    title: "Unlocked detail",
+    slug: "unlocked-detail",
+    tags: [],
+    status: "published",
+  });
+  assert.equal(
+    (await getBlogPost(unlocked.ctx, unlocked.site.id, "unlocked-detail")).status,
+    503,
+    "public blog detail silently lost its durable lock",
+  );
+});
+
+test("blog bodies are finite and cannot recursively mount blog-post blocks", async () => {
+  const ready = await fixture();
+  const recursiveBody = [{
+    id: "recursive_blog",
+    type: "blog-post",
+    props: { slug: "self" },
+  }];
+  assert.match(validateBlogPostBody(recursiveBody) ?? "", /cannot be blog-post/);
+
+  let nested: unknown[] = [{ id: "leaf", type: "text", props: { text: "leaf" } }];
+  for (let depth = 0; depth < BLOG_POST_BODY_MAX_DEPTH; depth += 1) {
+    nested = [{ id: `depth_${depth}`, type: "section", props: {}, children: nested }];
+  }
+  assert.match(validateBlogPostBody(nested) ?? "", /nested levels/);
+
+  await assert.rejects(
+    createBlogPost(ready.ctx.storage, {
+      agencyId: AGENCY,
+      clientId: CLIENT,
+      siteId: ready.site.id,
+      title: "Recursive create",
+      slug: "recursive-create",
+      status: "published",
+      body: recursiveBody,
+    }),
+    BlogPostBodyValidationError,
+  );
+
+  const safe = await createBlogPost(ready.ctx.storage, {
+    agencyId: AGENCY,
+    clientId: CLIENT,
+    siteId: ready.site.id,
+    title: "Safe before update",
+    slug: "safe-before-update",
+    status: "published",
+    body: [{ id: "safe", type: "text", props: { text: "safe" } }],
+  });
+  await assert.rejects(
+    updateBlogPost(ready.ctx.storage, AGENCY, CLIENT, ready.site.id, safe.id, { body: recursiveBody }),
+    BlogPostBodyValidationError,
+  );
+
+  // Legacy/corrupt storage is also refused by the visitor facade rather than
+  // reaching the recursive React renderer.
+  await ready.ctx.storage.set(storageKeys.blogPost(AGENCY, CLIENT, ready.site.id, safe.id), {
+    ...safe,
+    body: recursiveBody,
+  });
+  assert.equal(
+    (await getBlogPost(ready.ctx, ready.site.id, safe.slug, "192.0.2.92")).status,
+    404,
+  );
+
+  const component = readFileSync(
+    new URL("../src/built-ins/modules/website-editor/src/components/blocks/BlogPostBlock.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(component, /isSafeBlogPostBody\(row\.body\)/);
+  assert.match(component, /renderChildren\(post\.body\)/);
 });

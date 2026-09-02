@@ -24,6 +24,7 @@ export function ClientFulfilmentHub({
   portalBuilt,
   contractCount,
   invoiceCount,
+  invoiceAvailability,
   fileCount,
   propertyCount,
   canManage = true,
@@ -35,6 +36,7 @@ export function ClientFulfilmentHub({
   portalBuilt: boolean;
   contractCount: number;
   invoiceCount: number;
+  invoiceAvailability: "ready" | "unavailable";
   fileCount: number;
   propertyCount: number;
   canManage?: boolean;
@@ -58,7 +60,7 @@ export function ClientFulfilmentHub({
       <nav className="grid gap-px bg-black/[0.08] sm:grid-cols-2 xl:grid-cols-4" aria-label="Client fulfilment stations">
         <HubLink href={simpleHref} active={!advanced} icon={<BookOpenCheck size={16} />} label="Service command" detail="Stage and next move" />
         <HubLink href={advancedHref} active={advanced} icon={<FolderKanban size={16} />} label="Board & SOPs" detail="Tasks and procedures" />
-        <HubLink href={clientWorkspaceHref(clientId, "finance")} icon={<Landmark size={16} />} label="Contracts & finance" detail={`${contractCount} contracts · ${invoiceCount} invoices`} />
+        <HubLink href={clientWorkspaceHref(clientId, "finance")} icon={<Landmark size={16} />} label="Contracts & finance" detail={invoiceAvailability === "unavailable" ? `${contractCount} contracts · invoices unavailable` : `${contractCount} contracts · ${invoiceCount} invoices`} />
         <HubLink href={canManage && portalBuilt ? portalStudioHref : portalHref} icon={<PanelTop size={16} />} label={portalBuilt ? (canManage ? "Edit client portal" : "View client portal") : (canManage ? "Prepare client portal" : "Portal status")} detail={portalBuilt ? (canManage ? "Pages, brand, code and versions" : "Read-only client experience") : (canManage ? "Create and configure access" : "No portal created") } />
       </nav>
 

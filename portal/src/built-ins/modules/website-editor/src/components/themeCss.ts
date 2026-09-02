@@ -5,7 +5,14 @@
 //
 // Faithful port of `02/src/components/editor/themeCss.ts`.
 
-import type { ThemeTokens } from "../types/theme";
+import type { ThemeRecord, ThemeTokens } from "../types/theme";
+
+export function appearanceToColorSchemeCss(appearance: ThemeRecord["appearance"]): string {
+  if (appearance === "dark") return ":root { color-scheme: dark; }";
+  if (appearance === "light") return ":root { color-scheme: light; }";
+  if (appearance === "auto") return ":root { color-scheme: light dark; }";
+  return "";
+}
 
 export function tokensToCssVarsClient(tokens: ThemeTokens | undefined): string {
   if (!tokens) return "";

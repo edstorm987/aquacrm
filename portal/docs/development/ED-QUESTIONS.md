@@ -75,21 +75,22 @@ Run `node scripts/supabase-cutover-preflight.mjs` to see the current list.
 
 ## Q8 — Apply the written-but-unapplied database migrations (ACTION)
 
-Three things exist on disk but not in the live project, and the data
-architecture work (docs/data/MIGRATION-PLAN.md) is gated on them:
+The immediate coordinated-storage path has **four ordered database
+preconditions**, as defined by `docs/data/MIGRATION-PLAN.md`:
 
-1. `supabase/migrations/20260820150000_brand_enquiries_agency_scope.sql` —
-   the enquiry `agency_id` tenant column (until applied, tenancy rides in
-   `metadata->>'agencyId'` and the agency-aware RLS ratchet cannot bite).
-2. `supabase/migrations/20260811113000_master_inbox_messaging.sql` — the five
-   `inbox_*` tables; production's `useSupabase()` inbox path 404s without
-   them.
-3. The live project's `rls_auto_enable()` function exists in NO migration —
-   export it from the dashboard and commit it, or it dies on any rebuild.
+1. `20260809090000_atomic_datastore_patches_and_history.sql`;
+2. `20260825130000_product_workspace_leases.sql`;
+3. `20260902090000_merge_app_datastore_patch_objects.sql`; then
+4. `20260902091000_product_workspace_lease_renewal_fencing.sql`.
 
-**Unblocks:** migration phases 1/4/6; honest RLS claims. You run
-`supabase db push` by hand — say when, and I'll verify with
-`supabase/rls-verify.sql` + the preflight script.
+The wider relational extraction still separately requires the enquiry agency
+column, Master Inbox tables and a version-controlled `rls_auto_enable()`
+definition; those are not extra members of this four-migration ordering.
+
+**Unblocks:** live coordinated-storage/concurrency acceptance and later migration
+phases. Apply through the controlled production migration process, then verify
+schema status, RLS and the remote concurrency cases; checked-in SQL alone is not
+deployment evidence.
 
 ## Q9 — Which response SLA is canonical?
 
@@ -150,32 +151,6 @@ is because the closing evidence is a browser walk this container cannot run —
 recorded honestly rather than ticked.
 
 ## DECISIONS — product or policy calls
-
-### Q12 — Website editor: retire the localStorage surfaces, or wire them up?
-
-Sites, Sections, Popup, Customise and Page Detail persist **only to browser
-localStorage**. Nothing on the storefront or server reads any of it, so today
-an agency can "design" a site that cannot exist. Page Detail also has a real
-`[pageId]` / `params.id` mismatch and dead `/p/[slug]` links.
-
-Nothing else on this item can proceed until you choose, because the small fixes
-disappear entirely under the retire path.
-
-**Unblocks:** `todo:90` / issue #31, and roughly a week of editor work.
-
-### Q13 — "Build custom portal" wizard: build the backend, or remove the button?
-
-The wizard POSTs to `/api/portal/portal-export/clients/export` and GETs
-`/portal-export/presets`. **Neither endpoint exists** — no portal-export
-module exists anywhere in the repo — so the catch-all 404s and the modal
-swallows it silently. A complete but entirely unwired implementation is sitting
-in `github-templates/modules/portal-export`.
-
-Three options: adopt that template, build fresh, or remove the CTA.
-
-**Unblocks:** `todo:646`, `checklist:1551`. The honesty half (stop swallowing
-the 404, disable the CTA when the backend is absent) is implementable without
-you and is queued regardless.
 
 ### Q14 — Does form capture need consent, like telemetry does?
 
@@ -294,8 +269,9 @@ Each of these is code-complete and waiting on an account action:
   all exist and are tested against test mode. `checklist:1614`.
 - **Vercel env names + `CRON_SECRET`** — the required-env definitions, startup
   check and fail-closed cron guards exist. `checklist:1622`.
-- **Apply the 22 pending migrations** — see Q8; this is the one that unblocks
-  real RLS and the tenancy extraction. `checklist:1625`.
+- **Apply the four ordered coordinated-storage migrations** — see Q8; then
+  verify schema/RLS and remote concurrency before enabling that path.
+  `checklist:1625`.
 - **Re-enter the unrecoverable routing values** — `parseBlob` no longer wipes
   them, but the ones already lost cannot be recovered by code.
   `checklist:1984`.
@@ -314,5 +290,20 @@ Follow-on code (expiry/purge for the RETAIN set) is designed and waiting.
 
 ---
 
-*Answered items: move them to the bottom with the decision and date, so this
-file stays a live queue.*
+## Answered items
+
+### Q12 — Website Editor localStorage surfaces — answered 2026-09-01
+
+Retire the parallel admin islands. Sections, Popups and legacy Page Detail were
+removed or redirected; Customise now contains only an honest browser-local editor
+preference plus canonical tenant-scoped site/export controls. Issue #31 is resolved.
+
+### Q13 — Build custom portal wizard — answered 2026-09-01
+
+Remove the dead `portal-export` wizard and route the CTA to the canonical Systems
+workspace backed by `/api/tenants/client-projects/provision`. The code/path decision
+is complete under #36; mounted provision/reload and configured-provider acceptance
+remain, so the acceptance work stays in TODO rather than this decision queue.
+
+*Answered items stay here with the decision and date so the section above remains
+a live queue.*

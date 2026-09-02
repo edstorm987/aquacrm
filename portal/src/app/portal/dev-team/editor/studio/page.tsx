@@ -44,7 +44,12 @@ export default async function DevEditorStudioPage({
   const project = query.project ? getDevProject(agencyId, query.project) : null;
   if (query.project && !project) redirect("/portal/dev-team/editor");
 
-  const props = loadPortalStudioProps({ agencyId, userId: session.userId, role: session.role, query });
+  const props = loadPortalStudioProps({
+    agencyId,
+    userId: session.userId,
+    canManage: session.role === "agency-owner" || session.role === "agency-manager",
+    query,
+  });
   // Aqua Editor AI is configured PER PROJECT and runs on its OWN token, so the
   // project is what selects which assistant this is. Without one it reports
   // itself unconfigured rather than borrowing the agency assistant's key.

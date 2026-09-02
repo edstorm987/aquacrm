@@ -34,6 +34,112 @@ map stays trustworthy.
 
 ---
 
+## 2026-09-02 — Canonical post-fix release evidence and documentation reconciliation
+
+- **Canonical suite:** `npm run smoke:all` completed its Node phase with **6,417
+  tests across 1,093 suites: 6,415 passed / 0 failed / 2 skipped in
+  94,027.354917ms**; the subsequent Website Editor runner passed **49/49 files in
+  11.8s**.
+- **Final primary build:** production webpack compiled in **47s**, TypeScript
+  completed in **5.1s**, and static generation completed **245/245** pages in
+  **489ms**.
+- **Targeted production browser:** the exact-width matrix passed **6/6** — Settings
+  Environment at 768px, Studio at 390/1024/1440 and Fulfilment Roles at 390/1280 —
+  with the recorded source hash unchanged. The isolated Staff Technical matrix
+  passed **50/50** across six same-cookie Hidden → View → Use → Manage → View →
+  Hidden transitions with zero failures, errors or overflow. Hidden routes used
+  valid streamed Next not-found content (document HTTP 200 or 404), and the exact
+  downgraded API returned 403.
+- **Checked mutations:** Fulfilment forced-failure acceptance passed at **390px and
+  1280px**: an injected refusal showed an alert, performed no reload or false
+  success, rolled back or retained state as appropriate, and then succeeded on
+  retry. Governance and Fulfilment are repaired source/browser cohorts under #47;
+  Actions and the remaining cohorts/acceptance matrix stay open.
+- **Owned sidecars:** the receipt-deduplicated transactional main-plus-sidecar RPC,
+  coherent snapshot loader and adapter reconciliation are source/mocked verified.
+  Their migrations are **not applied to live PostgreSQL**; remote-database
+  concurrency remains a deployment gate.
+- **Truthful residuals:** #25 is now limited to provider-backed live-persona/shared-
+  credential acceptance. Provider/deployed-CDN/cold-machine timings remain open;
+  neither the suite nor local browser/build evidence closes them.
+- Reconciled [TODO](TODO.md), [issues](issues.md), [status](status.md),
+  [tests](tests.md), [roadmap](roadmap.md), the repository handoff and the
+  [data migration plan](../data/MIGRATION-PLAN.md); regenerated the authored
+  consolidated volumes. Earlier entries below are preserved as historical
+  snapshots and their pending markers are superseded by this entry.
+
+## 2026-09-02 — Final local speed, role and browser release evidence
+
+- **Canonical coverage:** `npm run smoke:all` now runs every `scripts/*.test.ts`,
+  every non-Website-Editor module smoke suite and the separate client-capable
+  Website Editor runner. Website Editor passes **49/49 files in 11.9s** and
+  TypeScript is clean. **Final post-fix Node total is pending the root rerun** after
+  release review found an atomic sidecar rollback defect; the preceding 6,389-test
+  attempt predates that repair and is not presented as final green.
+- **Production speed:** the isolated benchmark built in **158,476.1ms** with a
+  **1,584,943,643-byte** dist. Fresh-process first/repeat-max was auth
+  **765.9/9.2ms**, public **641.4/6.0ms**, Agency **949.4/53.1ms**, Dev Team
+  **869.2/38.9ms**, Library **803.6/30.4ms** and Logs **892.8/30.7ms**; readiness
+  was **304.3–309.1ms** and every failure list was empty. Shared host caches make
+  this fresh-process, not cold-machine/CDN, evidence. Real provider credentials
+  were deliberately disabled, so live-provider timings remain operational work.
+- **First-load station boundaries:** fresh cacheless, service-worker-blocked
+  Chromium contexts passed **8/8**. Day transferred **674,535B** of JS/CSS; extra
+  versus Day was Executive **4,473B**, Battle **36,102B**, Calendar/Actions
+  **42,174B**, Advisor **12,528B**, Dev Team **21,059B** and Radar Inspector
+  **34,731B**. The corrected filesystem baseline is **8,258,688B** with an
+  **862kB** largest chunk; path-with-spaces coverage prevents the former false zero.
+- **Responsive browser:** Chromium **151.0.7922.34** accounted for all **1,326**
+  broad production-target checks as **1,177 passed / 0 failed / 149 evidenced RSC-
+  prefetch observations / 0 missing**. The reusable-auth Settings run is **102 =
+  92 / 0 / 10 / 0** across 17 viewports. The exact final probe is **6/6**:
+  Settings Environment at 768px, Studio at 390/1024/1440 and Fulfilment Roles at
+  390/1280 all return 200, match their viewport and have zero console/page/request/
+  HTTP errors. Fulfilment exposes 11 element radiogroups with 11 each
+  Hidden/View/Use/Manage plus Projects, Portals and Aqua Tags.
+- **Role and Studio truth:** a real browser created a reusable role, persisted
+  Projects Manage through reload, downgraded it to View through reload and archived
+  it. Alternate-staff direct URL/API refusal remains a separate acceptance gate.
+  Studio's synthetic sample is now preview-only: it opens template scope, disables
+  Client scope and is refused at the client mutation boundary. Focused proof is
+  **29/29**, wider editor/tenancy/access is **111/111**, and all three Studio
+  viewports issue only a template-scope sample API 200 with Publish in view.
+- **Build and documentation:** the latest completed pre-sidecar-fix webpack build
+  compiled in **60s**, completed TypeScript in **7.4s** and generated **245/245**
+  pages in **409ms**. Reconciled [TODO](TODO.md), [issues](issues.md),
+  [status](status.md), [tests](tests.md), the handoff and roadmap; regenerated the
+  nine authored volumes. Pending Supabase migrations, live providers, deployed
+  timings and user/alternate-persona acceptance remain explicit.
+- **Post-review migration boundary:**
+  `20260902092000_owned_sidecar_compare_and_swap.sql` is source-verified and
+  unapplied. It conditionally restores/deletes an owned sidecar only while the
+  failed transaction's written value is still current, so a later writer is not
+  overwritten. This is source evidence only; live migration execution and remote
+  concurrency acceptance remain open.
+
+## 2026-09-02 — Source-freeze integrity, publication and provider hardening
+
+- PortalState transactions now isolate committed/working views, drain inherited async
+  work before scope closure, serialize durable commits, hand outbox work off only
+  after commit and fence expired/lost/ABA workspace leases. Supabase gains recursive
+  object-merge and renew-only lease migrations; live migration application and
+  cross-process outbox claims/per-consumer acknowledgement remain open.
+- Canonical Staff authority now drives proxy/navigation/pages/tested APIs and Portal
+  Studio. Website publication freezes the complete visitor view and exact theme;
+  Blog detail bodies are finite and non-recursive. Settings now inventory **43 fields:
+  24 consumed / 19 unwired**. Consequential read fallbacks, Membership/Affiliate parent
+  deletion, SOP reference integrity, Affiliate onboarding/status and Membership plan-
+  price provisioning have focused recovery/concurrency proof.
+- Current focused reruns are green: atomicity/lease/outbox **17/17**, Staff/Portal
+  Studio **18/18**, Website visitor/publication **20/20**, settings/lifecycle **26/26**,
+  Affiliate module/dependency **32/32**, plan price **11/11**, named reads **54/54**,
+  parent dependencies **28/28** and SOP dependency/writers **22/22**. The final
+  repository-wide Node suite, fresh production build and production-browser matrix
+  are deliberately **pending** after this wave; no final aggregate is invented here.
+- Reconciled [TODO](TODO.md), [issues](issues.md), [status](status.md), [tests](tests.md)
+  and the [data migration plan](../data/MIGRATION-PLAN.md). Authored-volume
+  consolidation is deferred until the final release evidence is recorded.
+
 ## 2026-09-02 — Exact private-upload ownership and replay integrity
 
 - Lifecycle claim/commit now binds the exact provider, storage key and cardinality and

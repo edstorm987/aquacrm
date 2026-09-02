@@ -5,6 +5,7 @@ import { useState, useRef } from "react";
 import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
 
 import type { Currency } from "../lib/domain";
+import { operationForPlanDraft, type PlanDraftOperation } from "../lib/planDraftOperation";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 export interface NewPlanModalProps {
@@ -16,6 +17,7 @@ export interface NewPlanModalProps {
 export function NewPlanModal({ apiBase, defaultCurrency, onClose }: NewPlanModalProps) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const operationRef = useRef<PlanDraftOperation | null>(null);
   // Modal keyboard contract: focus enters the form, Tab stays inside it, Escape backs out (except mid-save), focus returns to the control that opened it.
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(dialogRef, true, { onEscape: busy ? undefined : onClose });
@@ -30,7 +32,7 @@ export function NewPlanModal({ apiBase, defaultCurrency, onClose }: NewPlanModal
           setError(null);
           setBusy(true);
           const fd = new FormData(e.currentTarget);
-          const body = {
+          const draft = {
             name: String(fd.get("name") ?? "").trim(),
             description: String(fd.get("description") ?? "").trim() || undefined,
             priceMonthly: Math.round(Number(fd.get("priceMonthly") ?? 0) * 100),
@@ -42,11 +44,18 @@ export function NewPlanModal({ apiBase, defaultCurrency, onClose }: NewPlanModal
               .filter(Boolean),
             trialDays: Number(fd.get("trialDays") ?? 0) || undefined,
           };
-          if (!body.name) {
+          if (!draft.name) {
             setError("name required");
             setBusy(false);
             return;
           }
+          const operation = operationForPlanDraft(
+            operationRef.current,
+            draft,
+            () => `membership-plan-create-${crypto.randomUUID()}`,
+          );
+          operationRef.current = operation;
+          const body = { ...draft, operationId: operation.operationId };
           try {
             await checkedJsonMutation(`${apiBase}/plans`, {
               method: "POST",

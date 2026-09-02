@@ -94,6 +94,7 @@ async function world() {
   };
 
   const data: Record<string, unknown> = {};
+  const exclusiveQueues = new Map<string, Promise<void>>();
   const events: string[] = [];
   // The activity log is the other place an archive can CLAIM to have happened.
   // The event bus alone does not cover it, and "Archived lead X." written for an
@@ -108,6 +109,20 @@ async function world() {
     async setIfAbsent<T>(key: string, value: T) {
       if (Object.prototype.hasOwnProperty.call(data, key)) return false;
       data[key] = value; return true;
+    },
+    async runExclusive<T>(key: string, operation: () => Promise<T>) {
+      const previous = exclusiveQueues.get(key) ?? Promise.resolve();
+      let release!: () => void;
+      const gate = new Promise<void>(resolve => { release = resolve; });
+      const queued = previous.catch(() => undefined).then(() => gate);
+      exclusiveQueues.set(key, queued);
+      await previous.catch(() => undefined);
+      try {
+        return await operation();
+      } finally {
+        release();
+        if (exclusiveQueues.get(key) === queued) exclusiveQueues.delete(key);
+      }
     },
     async del(key: string) { delete data[key]; },
     async list(prefix?: string) {

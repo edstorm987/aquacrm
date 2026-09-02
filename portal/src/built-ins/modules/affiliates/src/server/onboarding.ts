@@ -45,49 +45,57 @@ export class OnboardingService {
 
   // Start (or resume) the Connect Express onboarding flow.
   async start(input: StartStripeOnboardingArgs, actor: UserId): Promise<StartStripeOnboardingResult> {
-    const affiliate = await this.affiliates.get(input.affiliateId);
-    if (!affiliate) throw new Error(`Affiliate ${input.affiliateId} not found.`);
+    return this.affiliates._withStripeOnboardingCommand(input.affiliateId, async () => {
+      const prepared = await this.affiliates._beginStripeOnboarding(input.affiliateId);
+      if (!prepared) throw new Error(`Affiliate ${input.affiliateId} not found.`);
 
-    let accountId = affiliate.stripeAccountId;
-    let isNew = false;
-    if (!accountId) {
-      const created = await this.stripe.createAccount({
-        email: affiliate.payoutEmail,
-        affiliateId: affiliate.id,
-        agencyId: this.agencyId,
-        clientId: this.clientId,
-      });
-      accountId = created.accountId;
-      isNew = true;
-      await this.affiliates._setStripe(affiliate.id, {
-        stripeAccountId: accountId,
-        stripeOnboardingStatus: "pending",
-      });
-      await this.activity.logActivity({
-        agencyId: this.agencyId,
-        clientId: this.clientId,
-        actorUserId: actor,
-        category: "affiliates",
-        action: "affiliate.stripe_onboarding_started",
-        message: `Started Stripe Connect onboarding for ${affiliate.displayName}.`,
-        metadata: { affiliateId: affiliate.id, stripeAccountId: accountId },
-      });
-      this.events.emit(
-        { agencyId: this.agencyId, clientId: this.clientId },
-        "affiliate.stripe_onboarding_started",
-        { affiliateId: affiliate.id, stripeAccountId: accountId },
-      );
-    }
+      let affiliate = prepared.affiliate;
+      let accountId = affiliate.stripeAccountId;
+      if (!accountId) {
+        accountId = await this.affiliates._provisionStripeOnboardingAccount(
+          affiliate.id,
+          prepared.intent.idempotencyKey,
+          () => this.stripe.createAccount({
+            email: affiliate.payoutEmail,
+            affiliateId: affiliate.id,
+            agencyId: this.agencyId,
+            clientId: this.clientId,
+            idempotencyKey: prepared.intent.idempotencyKey,
+          }),
+        );
+        const attached = await this.affiliates._attachStripeOnboardingAccount(
+          affiliate.id,
+          prepared.intent.idempotencyKey,
+          accountId,
+        );
+        affiliate = attached.affiliate;
+        if (attached.attached) {
+          await this.activity.logActivity({
+            idempotencyKey: `${prepared.intent.idempotencyKey}:activity`,
+            agencyId: this.agencyId,
+            clientId: this.clientId,
+            actorUserId: actor,
+            category: "affiliates",
+            action: "affiliate.stripe_onboarding_started",
+            message: `Started Stripe Connect onboarding for ${affiliate.displayName}.`,
+            metadata: { affiliateId: affiliate.id, stripeAccountId: accountId },
+          });
+          this.events.emit(
+            { agencyId: this.agencyId, clientId: this.clientId },
+            "affiliate.stripe_onboarding_started",
+            { affiliateId: affiliate.id, stripeAccountId: accountId },
+          );
+        }
+      }
 
-    const link = await this.stripe.createOnboardingLink({
-      accountId,
-      returnUrl: input.returnUrl,
-      refreshUrl: input.refreshUrl,
+      const link = await this.stripe.createOnboardingLink({
+        accountId,
+        returnUrl: input.returnUrl,
+        refreshUrl: input.refreshUrl,
+      });
+      const validated = await this.affiliates._validateStripeOnboardingTarget(affiliate.id, accountId);
+      return { affiliate: validated, onboardingUrl: link.url, expiresAt: link.expiresAt };
     });
-    const refreshed = isNew
-      ? await this.affiliates.get(affiliate.id) ?? affiliate
-      : affiliate;
-    return { affiliate: refreshed, onboardingUrl: link.url, expiresAt: link.expiresAt };
   }
 
   // Re-read Stripe + persist whatever status they report. Called by:
@@ -98,45 +106,63 @@ export class OnboardingService {
   async refreshStatus(affiliateId: string, actor?: UserId): Promise<Affiliate | null> {
     const affiliate = await this.affiliates.get(affiliateId);
     if (!affiliate || !affiliate.stripeAccountId) return affiliate;
+    const sequence = await this.affiliates._beginStripeStatusObservation(affiliate.id, affiliate.stripeAccountId);
+    if (sequence === null) return null;
     const snapshot = await this.stripe.retrieveAccount(affiliate.stripeAccountId);
-    return this._applySnapshot(affiliate, snapshot, actor);
+    return this._applySnapshot(affiliate, snapshot, sequence, actor);
   }
 
-  // Webhook entry point. Foundation calls this from the
-  // account.updated handler with the raw Stripe `Account` projected
-  // into our snapshot shape.
+  // Webhook entry point. Foundation passes the signed event's projected
+  // account so ownership can be checked; the event then wakes an authoritative
+  // provider read because Stripe webhook delivery is not ordered.
   async applySnapshotForAccount(accountId: string, snapshot: StripeConnectAccountSnapshot): Promise<Affiliate | null> {
+    if (snapshot.accountId !== accountId) {
+      throw new Error(`Stripe snapshot account ${snapshot.accountId} does not match webhook account ${accountId}.`);
+    }
     const affiliate = await this.affiliates.getByStripeAccount(accountId);
     if (!affiliate) return null;
-    return this._applySnapshot(affiliate, snapshot);
+    const sequence = await this.affiliates._beginStripeStatusObservation(affiliate.id, accountId);
+    if (sequence === null) return null;
+    // Stripe does not guarantee webhook delivery order. Treat the signed event
+    // as a wake-up signal, then retrieve the provider's current account state;
+    // otherwise a valid but older account.updated delivery can arrive last and
+    // regress a newer durable observation.
+    const currentSnapshot = await this.stripe.retrieveAccount(accountId);
+    return this._applySnapshot(affiliate, currentSnapshot, sequence);
   }
 
   private async _applySnapshot(
     affiliate: Affiliate,
     snapshot: StripeConnectAccountSnapshot,
+    sequence: number,
     actor?: UserId,
   ): Promise<Affiliate | null> {
-    const next = snapshotToStatus(snapshot);
-    if (affiliate.stripeOnboardingStatus === next) {
-      // No-op transition; persist any new accountId form just in case.
-      return affiliate;
+    if (snapshot.accountId !== affiliate.stripeAccountId) {
+      throw new Error(`Stripe snapshot account ${snapshot.accountId} does not match affiliate ${affiliate.id}.`);
     }
-    const updated = await this.affiliates._setStripe(affiliate.id, {
-      stripeOnboardingStatus: next,
-    });
-    if (!updated) return null;
+    const next = snapshotToStatus(snapshot);
+    const application = await this.affiliates._applyStripeStatusObservation(
+      affiliate.id,
+      snapshot.accountId,
+      sequence,
+      next,
+    );
+    if (!application) return null;
+    const updated = application.affiliate;
+    if (!application.applied || !application.changed) return updated;
     await this.activity.logActivity({
       agencyId: this.agencyId,
       clientId: this.clientId,
       actorUserId: actor,
       category: "affiliates",
       action: "affiliate.stripe_onboarding_status_changed",
-      message: `Stripe onboarding for ${updated.displayName}: ${affiliate.stripeOnboardingStatus ?? "absent"} → ${next}.`,
+      message: `Stripe onboarding for ${updated.displayName}: ${application.previousStatus ?? "absent"} → ${next}.`,
       metadata: {
         affiliateId: updated.id,
         stripeAccountId: snapshot.accountId,
-        previous: affiliate.stripeOnboardingStatus ?? null,
+        previous: application.previousStatus ?? null,
         next,
+        observationSequence: sequence,
         chargesEnabled: snapshot.chargesEnabled,
         payoutsEnabled: snapshot.payoutsEnabled,
         disabledReason: snapshot.disabledReason,

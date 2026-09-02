@@ -17,13 +17,17 @@ import "server-only";
 // one write, so the change and its event cannot part company. Then
 // `drainOutbox()` hands pending events to the existing bus (which stays the
 // delivery mechanism — subscribers, automations and plugin fan-out are
-// untouched) and marks them handed to that bus.
+// untouched) and only then marks them handed to that bus. Inside a coordinated
+// transaction, both the handoff and its mark wait until the domain/outbox write
+// is durably committed; the row is still pending throughout the crash window
+// between that commit and the post-commit callback actually starting.
 //
 // The durable guarantee currently stops at BUS DISPATCH. A crash after the
-// mutate but before `emit()` leaves a pending row for a later drain. The bus
+// mutate but before the dispatch callback starts leaves a pending row for a
+// later drain, and a synchronous dispatch failure also stays pending. The bus
 // itself is fire-and-forget, however: handler promises are not acknowledged,
-// so a handler failure or a crash after `emit()` cannot put the row back into
-// pending. Consumer-level at-least-once delivery needs durable per-consumer
+// so a handler failure or a crash after dispatch starts cannot put the row back
+// into pending. Consumer-level at-least-once delivery needs durable per-consumer
 // acknowledgement/retry/dead-letter state (MIGRATION-PLAN Phase 3).
 //
 // This is reliability + lineage, NOT event sourcing. State cannot be rebuilt
@@ -40,7 +44,8 @@ import { AsyncLocalStorage } from "async_hooks";
 import { randomUUID } from "crypto";
 
 import { emit } from "./eventBus";
-import { getState, mutate } from "./storage";
+import { deferUntilPortalStateCommit } from "./productWorkspaceCoordinator";
+import { getState, mutate, withAtomicPortalStateMutation } from "./storage";
 import type { OutboxEvent, PortalState } from "./types";
 
 /** Delivered events are kept this long as lineage, then pruned. */
@@ -152,39 +157,104 @@ function pruneOutbox(state: PortalState, now: number): void {
   }
 }
 
+export type OutboxDispatch = (
+  scope: { agencyId: string; clientId?: string },
+  name: string,
+  payload: Record<string, unknown>,
+) => void;
+
+function outboxError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.slice(0, 500);
+}
+
+function updateAttempt(
+  state: PortalState,
+  id: string,
+  now: number,
+  outcome: { delivered: true } | { delivered: false; error: unknown },
+): void {
+  const held = state.outbox[id];
+  if (!held || held.status !== "pending") return;
+  held.attempts = (held.attempts ?? 0) + 1;
+  held.lastAttemptAt = now;
+  if (outcome.delivered) {
+    held.status = "delivered";
+    held.deliveredAt = now;
+    held.lastError = undefined;
+  } else {
+    held.lastError = outboxError(outcome.error);
+  }
+}
+
+function attemptDispatch(
+  row: OutboxEvent,
+  dispatch: OutboxDispatch,
+): { delivered: true } | { delivered: false; error: unknown } | null {
+  // A repeated drain may have completed this row while a queued callback was
+  // waiting behind another post-commit effect. Never knowingly redispatch a
+  // row already handed to the bus in this process.
+  if (getState().outbox[row.id]?.status !== "pending") return null;
+  try {
+    dispatch({ agencyId: row.agencyId, clientId: row.clientId }, row.name, row.payload);
+    return { delivered: true };
+  } catch (error) {
+    console.error(`[outbox] dispatch for ${row.name} failed:`, error);
+    return { delivered: false, error };
+  }
+}
+
+function dispatchNow(row: OutboxEvent, now: number, dispatch: OutboxDispatch): void {
+  const outcome = attemptDispatch(row, dispatch);
+  if (!outcome) return;
+  // Mark only after the bus dispatch callback has actually run. If the process
+  // dies between these two statements, the durable row stays pending and the
+  // next drain safely retries it.
+  mutate(state => updateAttempt(state, row.id, now, outcome));
+}
+
+async function dispatchAfterCommit(
+  row: OutboxEvent,
+  now: number,
+  dispatch: OutboxDispatch,
+): Promise<void> {
+  // Dispatch outside a storage transaction so handler microtasks cannot inherit
+  // the delivery-mark working tree and accidentally write into a scope that is
+  // about to close. Only the outcome marker needs its own atomic durable write.
+  const outcome = attemptDispatch(row, dispatch);
+  if (!outcome) return;
+  // Isolate and durably flush the attempt while the coordinator still holds its
+  // cross-process write lane. A failed mark rolls back to `pending`, favouring
+  // an at-least-once retry over a permanently lost event.
+  await withAtomicPortalStateMutation(() => {
+    mutate(state => updateAttempt(state, row.id, now, outcome));
+  });
+}
+
 /**
  * Dispatch every pending outbox event to the bus (oldest first), then prune.
- * Returns how many events were handed to the bus. The persisted legacy status
- * is named `delivered`, but it does not mean every async consumer acknowledged
- * success; see the module contract above.
+ * Returns how many rows were attempted or queued for a post-commit attempt.
+ * The persisted legacy status is named `delivered`, but it does not mean every
+ * async consumer acknowledged success; see the module contract above.
  *
- * SYNCHRONOUS on purpose. Nothing in the loop awaits (emit schedules its
- * handlers in their own microtasks; mutate is sync), so making this async
- * would only detach the delivered-marks from the caller's turn — and a write
- * trailing behind a returned domain function is exactly the kind of ghost
- * mutation the "a GET does not write" pins exist to catch. Synchronous also
- * means overlapping drains are impossible in one instance, so no queue is
- * needed. Across instances the blob's last-write-wins still allows a rare
- * double-dispatch. Cross-process claims and acknowledged consumer delivery
- * arrive with the table extraction (MIGRATION-PLAN Phase 3).
+ * The public trigger stays synchronous for existing domain call sites. When it
+ * runs inside a coordinated transaction, an awaited post-commit effect performs
+ * the dispatch and durably records its outcome before that transaction releases
+ * its write lane. Repeated drains in the same transaction share a keyed effect.
+ * Across independent instances the blob still allows a rare double-dispatch;
+ * cross-process claims and acknowledged consumer delivery arrive with the table
+ * extraction (MIGRATION-PLAN Phase 3).
  */
-export function drainOutbox(now = Date.now()): number {
+export function drainOutbox(now = Date.now(), dispatch: OutboxDispatch = emit): number {
   const pending = Object.values(getState().outbox ?? {})
     .filter(row => row.status === "pending")
     .sort((left, right) => left.recordedAt - right.recordedAt);
-  // Emit BEFORE marking. This closes the pre-dispatch crash window: a crash
-  // before emit leaves pending, while mark-before-emit could silently skip the
-  // bus entirely. It does NOT acknowledge the fire-and-forget handlers; once
-  // emit returns, a later handler failure cannot make this row retry.
   for (const row of pending) {
-    emit({ agencyId: row.agencyId, clientId: row.clientId }, row.name, row.payload);
-    mutate(state => {
-      const held = state.outbox[row.id];
-      if (!held || held.status !== "pending") return;
-      held.status = "delivered";
-      held.deliveredAt = now;
-      held.attempts += 1;
-    });
+    const deferred = deferUntilPortalStateCommit(
+      () => dispatchAfterCommit(row, now, dispatch),
+      `outbox:${row.id}`,
+    );
+    if (!deferred) dispatchNow(row, now, dispatch);
   }
   mutate(state => pruneOutbox(state, now));
   return pending.length;

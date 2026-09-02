@@ -7,6 +7,8 @@
 
 import type { EditorPage } from "../../types/editorPage";
 import type { ThemeRecord } from "../../types/theme";
+import { resolveStorefrontTree } from "../../lib/draftPublished";
+import { resolvePublishedPage, resolvePublishedTheme } from "../../lib/pagePublication";
 import { BlockTreeRenderer } from "../BlockRenderer";
 import { EditorThemeInjector } from "./EditorThemeInjector";
 
@@ -19,24 +21,29 @@ export interface PortalPageRendererProps {
 }
 
 export function PortalPageRenderer({ page, theme, preview, agencyId, clientId }: PortalPageRendererProps) {
-  const blocks = preview && page.draftBlocks ? page.draftBlocks : page.blocks;
+  const resolved = resolveStorefrontTree(page, { preview });
+  const renderedPage = preview ? page : resolvePublishedPage(page);
+  const renderedTheme = preview ? (theme ?? null) : resolvePublishedTheme(page, theme);
   return (
     <div
-      data-portal-page={page.id}
-      data-portal-role={page.portalRole ?? "page"}
+      data-portal-page={renderedPage.id}
+      data-portal-role={renderedPage.portalRole ?? "page"}
       data-aqua-storefront={agencyId && clientId ? "" : undefined}
       data-aqua-agency-id={agencyId}
       data-aqua-client-id={clientId}
     >
-      <EditorThemeInjector theme={theme ?? null} customCSS={page.customCSS} />
+      <EditorThemeInjector
+        theme={renderedTheme ?? null}
+        customCSS={renderedPage.customCss ?? renderedPage.customCSS}
+      />
       <BlockTreeRenderer
-        blocks={blocks}
+        blocks={resolved.tree}
         context={{
-          agencyId: agencyId ?? page.agencyId,
-          clientId: clientId ?? page.clientId,
-          siteId: page.siteId,
-          pageId: page.id,
-          publishedWebsite: preview !== true && page.status === "published",
+          agencyId: agencyId ?? renderedPage.agencyId,
+          clientId: clientId ?? renderedPage.clientId,
+          siteId: renderedPage.siteId,
+          pageId: renderedPage.id,
+          publishedWebsite: preview !== true && resolved.source === "published",
         }}
       />
     </div>

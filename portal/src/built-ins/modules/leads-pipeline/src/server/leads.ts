@@ -41,7 +41,11 @@ const PLAUSIBLE_PHONE = /^\+?\d{7,15}$/;
 
 const identityQueues = new Map<AgencyId, Promise<void>>();
 
-async function withLeadIdentityLock<T>(agencyId: AgencyId, work: () => Promise<T>): Promise<T> {
+async function withLeadIdentityLock<T>(
+  agencyId: AgencyId,
+  storage: PluginStorage,
+  work: () => Promise<T>,
+): Promise<T> {
   const previous = identityQueues.get(agencyId) ?? Promise.resolve();
   let release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
@@ -49,7 +53,13 @@ async function withLeadIdentityLock<T>(agencyId: AgencyId, work: () => Promise<T
   identityQueues.set(agencyId, queued);
   await previous;
   try {
-    return await work();
+    // The local queue prevents duplicate work in one server. The mounted host
+    // boundary then refreshes and flushes the complete lead row/pointer/index
+    // mutation under the same durable lease in every process.
+    if (typeof storage.runExclusive !== "function") {
+      throw new Error("leads_pipeline_mutation_requires_exclusive_storage");
+    }
+    return await storage.runExclusive(`leads-state:${agencyId}`, work);
   } finally {
     release();
     if (identityQueues.get(agencyId) === queued) identityQueues.delete(agencyId);
@@ -201,7 +211,7 @@ export class LeadService {
   // Create-or-update on canonical email. Returns `{lead, created}` so
   // CSV import can tell whether a row was new or merged.
   async upsert(input: CreateLeadInput, actor: UserId): Promise<{ lead: Lead; created: boolean }> {
-    return withLeadIdentityLock(this.agencyId, () => this.upsertUnlocked(input, actor));
+    return withLeadIdentityLock(this.agencyId, this.storage, () => this.upsertUnlocked(input, actor));
   }
 
   private async upsertUnlocked(input: CreateLeadInput, actor: UserId): Promise<{ lead: Lead; created: boolean }> {
@@ -274,7 +284,7 @@ export class LeadService {
         }, actor);
         const merged = patched ?? existing;
         const tracked = isNewEnquiry
-          ? await this.recordEnquiryCapture(merged.id, {
+          ? await this.recordEnquiryCaptureUnlocked(merged.id, {
               at: input.capturedAt ?? now(),
               source: input.source,
               enquiryId: incomingEnquiryId,
@@ -358,7 +368,7 @@ export class LeadService {
   }
 
   async update(id: string, patch: UpdateLeadPatch, actor: UserId): Promise<Lead | null> {
-    return withLeadIdentityLock(this.agencyId, () => this.updateUnlocked(id, patch, actor));
+    return withLeadIdentityLock(this.agencyId, this.storage, () => this.updateUnlocked(id, patch, actor));
   }
 
   private async updateUnlocked(id: string, patch: UpdateLeadPatch, actor: UserId): Promise<Lead | null> {
@@ -421,6 +431,15 @@ export class LeadService {
     input: { at: number; source: string; enquiryId?: string },
     actor: UserId,
   ): Promise<Lead | null> {
+    return withLeadIdentityLock(this.agencyId, this.storage, () =>
+      this.recordEnquiryCaptureUnlocked(id, input, actor));
+  }
+
+  private async recordEnquiryCaptureUnlocked(
+    id: string,
+    input: { at: number; source: string; enquiryId?: string },
+    actor: UserId,
+  ): Promise<Lead | null> {
     const existing = await this.get(id);
     if (!existing) return null;
     if (input.enquiryId && existing.journeyEvents?.some(event => event.type === "enquiry-received" && event.enquiryId === input.enquiryId)) return existing;
@@ -453,6 +472,15 @@ export class LeadService {
   }
 
   async recordContact(
+    id: string,
+    input: { at?: number; channel?: string; outcome?: string; note?: string; incrementSentCount?: boolean },
+    actor: UserId,
+  ): Promise<Lead | null> {
+    return withLeadIdentityLock(this.agencyId, this.storage, () =>
+      this.recordContactUnlocked(id, input, actor));
+  }
+
+  private async recordContactUnlocked(
     id: string,
     input: { at?: number; channel?: string; outcome?: string; note?: string; incrementSentCount?: boolean },
     actor: UserId,
@@ -499,6 +527,15 @@ export class LeadService {
     input: { fromStage?: string; toStage: string; at?: number },
     actor: UserId,
   ): Promise<Lead | null> {
+    return withLeadIdentityLock(this.agencyId, this.storage, () =>
+      this.recordStageChangeUnlocked(id, input, actor));
+  }
+
+  private async recordStageChangeUnlocked(
+    id: string,
+    input: { fromStage?: string; toStage: string; at?: number },
+    actor: UserId,
+  ): Promise<Lead | null> {
     const existing = await this.get(id);
     if (!existing) return null;
     const toStage = input.toStage.trim().slice(0, 80);
@@ -523,6 +560,11 @@ export class LeadService {
   }
 
   async recordMeeting(id: string, meetingAt: number, actor: UserId): Promise<Lead | null> {
+    return withLeadIdentityLock(this.agencyId, this.storage, () =>
+      this.recordMeetingUnlocked(id, meetingAt, actor));
+  }
+
+  private async recordMeetingUnlocked(id: string, meetingAt: number, actor: UserId): Promise<Lead | null> {
     const existing = await this.get(id);
     if (!existing || !Number.isFinite(meetingAt)) return existing;
     if (existing.journeyEvents?.some(event => event.type === "meeting-scheduled" && event.scheduledFor === meetingAt)) return existing;
@@ -542,6 +584,11 @@ export class LeadService {
   }
 
   async recordConversion(id: string, clientId: string, actor: UserId, at = now()): Promise<Lead | null> {
+    return withLeadIdentityLock(this.agencyId, this.storage, () =>
+      this.recordConversionUnlocked(id, clientId, actor, at));
+  }
+
+  private async recordConversionUnlocked(id: string, clientId: string, actor: UserId, at: number): Promise<Lead | null> {
     const existing = await this.get(id);
     if (!existing) return null;
     if (existing.convertedAt && existing.convertedClientId === clientId) return existing;
@@ -587,7 +634,7 @@ export class LeadService {
   // it. Purge drops them, because after a purge there is nothing to find.
 
   async archive(id: string, actor: UserId): Promise<Lead | null> {
-    return withLeadIdentityLock(this.agencyId, () => this.archiveUnlocked(id, actor));
+    return withLeadIdentityLock(this.agencyId, this.storage, () => this.archiveUnlocked(id, actor));
   }
 
   private async archiveUnlocked(id: string, actor: UserId): Promise<Lead | null> {
@@ -631,7 +678,7 @@ export class LeadService {
   }
 
   async restore(id: string, actor: UserId): Promise<Lead | null> {
-    return withLeadIdentityLock(this.agencyId, () => this.restoreUnlocked(id, actor));
+    return withLeadIdentityLock(this.agencyId, this.storage, () => this.restoreUnlocked(id, actor));
   }
 
   private async restoreUnlocked(id: string, actor: UserId): Promise<Lead | null> {
@@ -692,7 +739,7 @@ export class LeadService {
    * route that does says "permanently" in its own copy.
    */
   async purge(id: string, actor: UserId): Promise<boolean> {
-    return withLeadIdentityLock(this.agencyId, () => this.purgeUnlocked(id, actor));
+    return withLeadIdentityLock(this.agencyId, this.storage, () => this.purgeUnlocked(id, actor));
   }
 
   private async purgeUnlocked(id: string, actor: UserId): Promise<boolean> {
@@ -745,7 +792,7 @@ export class LeadService {
   // be captured phone-only (`upsert` requires an email OR a phone), and
   // campaign sends already skip leads with no email address.
   async anonymiseForErasure(id: string, actor: UserId): Promise<Lead | null> {
-    return withLeadIdentityLock(this.agencyId, () => this.anonymiseForErasureUnlocked(id, actor));
+    return withLeadIdentityLock(this.agencyId, this.storage, () => this.anonymiseForErasureUnlocked(id, actor));
   }
 
   private async anonymiseForErasureUnlocked(id: string, actor: UserId): Promise<Lead | null> {

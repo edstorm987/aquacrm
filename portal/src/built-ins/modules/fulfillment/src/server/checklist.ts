@@ -21,6 +21,39 @@ import type {
 import type { PluginStorage } from "../lib/aquaPluginTypes";
 import type { EventBusPort } from "./ports";
 
+const clientMutationTails = new Map<string, Promise<void>>();
+
+async function localClientMutationLock<T>(key: string, operation: () => Promise<T>): Promise<T> {
+  const previous = clientMutationTails.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const tail = previous.catch(() => undefined).then(() => gate);
+  clientMutationTails.set(key, tail);
+  await previous.catch(() => undefined);
+  try {
+    return await operation();
+  } finally {
+    release();
+    if (clientMutationTails.get(key) === tail) clientMutationTails.delete(key);
+  }
+}
+
+/**
+ * Checklist writes and phase publication share one client lane. Without this,
+ * the advance gate can confirm a complete checklist while a concurrent untick
+ * is already on its way to storage.
+ */
+export function withClientPhaseMutationLock<T>(
+  storage: PluginStorage,
+  clientId: ClientId,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const key = `phase-transition:${clientId}`;
+  return storage.runExclusive
+    ? storage.runExclusive(key, operation)
+    : localClientMutationLock(key, operation);
+}
+
 export interface ChecklistItemState {
   done: boolean;
   doneAt?: number;
@@ -110,8 +143,9 @@ export class ChecklistService {
       clientDone,
       clientTotal: client.length,
       // Phase advance gate: everything internal AND client must be done.
-      // Agency owners can override via "Advance anyway" from the UI; the
-      // gate just toggles the button's default state.
+      // The API enforces this when the install's advanceRequiresAllTasks
+      // setting is on. When it is explicitly off, the transition audit records
+      // the number of open items that were overridden.
       allRequiredComplete:
         internalDone === internal.length && clientDone === client.length,
     };
@@ -126,49 +160,51 @@ export class ChecklistService {
     actor?: UserId;
     notes?: string;
   }): Promise<ChecklistProgress> {
-    const item = args.phase.checklist.find(i => i.id === args.itemId);
-    if (!item) {
-      throw new Error(`Checklist item ${args.itemId} not in phase ${args.phase.id}.`);
-    }
-    const current = await this.getProgress(args.clientId, args.phase.id);
-    const nextItems = { ...current.items };
-    if (args.done) {
-      nextItems[args.itemId] = {
-        done: true,
-        doneAt: now(),
-        doneBy: args.actor,
-        notes: args.notes,
+    return withClientPhaseMutationLock(this.storage, args.clientId, async () => {
+      const item = args.phase.checklist.find(i => i.id === args.itemId);
+      if (!item) {
+        throw new Error(`Checklist item ${args.itemId} not in phase ${args.phase.id}.`);
+      }
+      const current = await this.getProgress(args.clientId, args.phase.id);
+      const nextItems = { ...current.items };
+      if (args.done) {
+        nextItems[args.itemId] = {
+          done: true,
+          doneAt: now(),
+          doneBy: args.actor,
+          notes: args.notes,
+        };
+      } else {
+        // Untick — keep the entry so we can show "previously done at X" if needed.
+        nextItems[args.itemId] = {
+          done: false,
+          doneAt: undefined,
+          doneBy: undefined,
+          notes: args.notes,
+        };
+      }
+      const next: ChecklistProgress = {
+        clientId: args.clientId,
+        phaseId: args.phase.id,
+        items: nextItems,
+        updatedAt: now(),
       };
-    } else {
-      // Untick — keep the entry so we can show "previously done at X" if needed.
-      nextItems[args.itemId] = {
-        done: false,
-        doneAt: undefined,
-        doneBy: undefined,
-        notes: args.notes,
-      };
-    }
-    const next: ChecklistProgress = {
-      clientId: args.clientId,
-      phaseId: args.phase.id,
-      items: nextItems,
-      updatedAt: now(),
-    };
-    await this.setProgress(next);
-    if (args.done) {
-      this.events.emit(
-        { agencyId: args.agencyId, clientId: args.clientId },
-        "phase.checklist_item_completed",
-        {
-          phaseId: args.phase.id,
-          itemId: args.itemId,
-          itemLabel: item.label,
-          visibility: item.visibility,
-          actor: args.actor,
-        },
-      );
-    }
-    return next;
+      await this.setProgress(next);
+      if (args.done) {
+        this.events.emit(
+          { agencyId: args.agencyId, clientId: args.clientId },
+          "phase.checklist_item_completed",
+          {
+            phaseId: args.phase.id,
+            itemId: args.itemId,
+            itemLabel: item.label,
+            visibility: item.visibility,
+            actor: args.actor,
+          },
+        );
+      }
+      return next;
+    });
   }
 
   // Initialise a fresh progress row for a (client, phase) pair. Called

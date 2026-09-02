@@ -28,7 +28,7 @@ import type {
   PluginRuntimePort,
   PluginInstallStorePort,
 } from "./ports";
-import type { ChecklistService } from "./checklist";
+import { withClientPhaseMutationLock, type ChecklistService } from "./checklist";
 import type { StarterVariantService } from "./starterVariant";
 import type { PluginStorage } from "../lib/aquaPluginTypes";
 
@@ -42,11 +42,14 @@ export interface AdvancePhaseArgs {
   directJump?: boolean;
   skippedStageCount?: number;
   operationId?: string;
+  /** The API supplies the install setting; legacy direct service callers omit it. */
+  advanceRequiresAllTasks?: boolean;
 }
 
 export interface AdvancePhaseResult {
   ok: true;
   status: "complete";
+  requestOperationId: string;
   operationId: string;
   retryable: false;
   replayed: boolean;
@@ -66,6 +69,7 @@ export interface AdvancePhaseResult {
 export interface AdvancePhaseFailure {
   ok: false;
   status: "incomplete" | "rejected";
+  requestOperationId: string;
   operationId?: string;
   retryable: boolean;
   error: string;
@@ -93,6 +97,8 @@ interface TransitionOperationRecord {
   clientUpdated: boolean;
   checklistInitialised: boolean;
   activityLogged: boolean;
+  checklistOverride?: boolean;
+  openRequiredTasks?: number;
   failedStep?: TransitionStep;
   lastError?: string;
   createdAt: number;
@@ -118,8 +124,8 @@ export class TransitionService {
 
   async advancePhase(args: AdvancePhaseArgs): Promise<AdvancePhaseResult | AdvancePhaseFailure> {
     const run = () => this.runAdvancePhase(args);
-    return this.storage?.runExclusive
-      ? this.storage.runExclusive(`phase-transition:${args.clientId}`, run)
+    return this.storage
+      ? withClientPhaseMutationLock(this.storage, args.clientId, run)
       : run();
   }
 
@@ -127,12 +133,15 @@ export class TransitionService {
     const scope = { agencyId: args.agencyId, clientId: args.clientId };
     const isDirectJump = args.directJump === true;
     const skippedStageCount = args.skippedStageCount ?? 0;
+    const requestedId = cleanOperationId(args.operationId)
+      ?? `legacy:${args.clientId}:${args.fromPhase.id}:${args.toPhase.id}:${args.actor}`;
 
     // Sanity: same agency, both phases.
     if (args.fromPhase.agencyId !== args.agencyId || args.toPhase.agencyId !== args.agencyId) {
       return {
         ok: false,
         status: "rejected",
+        requestOperationId: requestedId,
         error: "Phase definitions don't belong to this agency.",
         step: "disable",
         retryable: false,
@@ -142,23 +151,62 @@ export class TransitionService {
     const records = this.storage
       ? (await this.storage.get<Record<string, TransitionOperationRecord>>(TRANSITION_OPERATIONS_KEY)) ?? {}
       : this.memoryRecords;
-    const requestedId = cleanOperationId(args.operationId)
-      ?? `legacy:${args.clientId}:${args.fromPhase.id}:${args.toPhase.id}:${args.actor}`;
     const requestKey = [args.agencyId, args.clientId, args.fromPhase.id, args.toPhase.id, args.reason ?? ""].join("\u0000");
     let record = records[requestedId]
       ?? Object.values(records).find(item => item.status !== "complete" && item.requestKey === requestKey);
     if (record && record.requestKey !== requestKey) {
-      return { ok: false, status: "rejected", operationId: requestedId, retryable: false, error: "That transition operation id belongs to a different request.", step: "enable" };
+      return { ok: false, status: "rejected", requestOperationId: requestedId, operationId: requestedId, retryable: false, error: "That transition operation id belongs to a different request.", step: "enable" };
     }
     if (record?.status === "complete") {
       const client = await Promise.resolve(this.clients.getClientForAgency(args.agencyId, args.clientId));
       if (!client || client.stage !== args.toPhase.stage) {
-        return { ok: false, status: "rejected", operationId: record.operationId, retryable: false, error: "The completed transition no longer matches the client's current stage.", step: "client" };
+        return { ok: false, status: "rejected", requestOperationId: requestedId, operationId: record.operationId, retryable: false, error: "The completed transition no longer matches the client's current stage.", step: "client" };
       }
       return {
-        ok: true, status: "complete", operationId: record.operationId, retryable: false, replayed: true,
+        ok: true, status: "complete", requestOperationId: requestedId, operationId: record.operationId, retryable: false, replayed: true,
         client, disabled: record.disabled, enabled: record.enabled, skipped: [], variant: record.variant,
       };
+    }
+
+    const currentClient = await Promise.resolve(this.clients.getClientForAgency(args.agencyId, args.clientId));
+    if (!currentClient) {
+      return { ok: false, status: "rejected", requestOperationId: requestedId, operationId: requestedId, retryable: false, error: "Client not found.", step: "client" };
+    }
+    const alreadyPublished = record?.clientUpdated === true && currentClient.stage === args.toPhase.stage;
+    if (!alreadyPublished && currentClient.stage !== args.fromPhase.stage) {
+      return {
+        ok: false,
+        status: "rejected",
+        requestOperationId: requestedId,
+        operationId: requestedId,
+        retryable: false,
+        error: `Client is currently in ${currentClient.stage}, not ${args.fromPhase.stage}. Refresh before advancing.`,
+        step: "client",
+      };
+    }
+
+    let checklistOverride = record?.checklistOverride === true;
+    let openRequiredTasks = record?.openRequiredTasks ?? 0;
+    if (!alreadyPublished && args.advanceRequiresAllTasks !== undefined) {
+      const checklist = await this.checklist.viewFor({
+        agencyId: args.agencyId,
+        clientId: args.clientId,
+        phase: args.fromPhase,
+      });
+      openRequiredTasks = checklist.internalTotal + checklist.clientTotal
+        - checklist.internalDone - checklist.clientDone;
+      checklistOverride = openRequiredTasks > 0 && args.advanceRequiresAllTasks === false;
+      if (args.advanceRequiresAllTasks === true && openRequiredTasks > 0) {
+        return {
+          ok: false,
+          status: "rejected",
+          requestOperationId: requestedId,
+          operationId: requestedId,
+          retryable: true,
+          error: `Complete all required checklist items before advancing (${openRequiredTasks} open).`,
+          step: "checklist",
+        };
+      }
     }
 
     const now = Date.now();
@@ -178,10 +226,24 @@ export class TransitionService {
       clientUpdated: false,
       checklistInitialised: false,
       activityLogged: false,
+      checklistOverride,
+      openRequiredTasks,
       createdAt: now,
       updatedAt: now,
     };
-    record = { ...record, status: "pending", attempts: record.attempts + 1, failedStep: undefined, lastError: undefined, enabled: [], disabled: [], skipped: [], updatedAt: now };
+    record = {
+      ...record,
+      status: "pending",
+      attempts: record.attempts + 1,
+      failedStep: undefined,
+      lastError: undefined,
+      enabled: [],
+      disabled: [],
+      skipped: [],
+      checklistOverride,
+      openRequiredTasks,
+      updatedAt: now,
+    };
     await this.saveRecord(records, record);
 
     let step: TransitionStep = "enable";
@@ -191,6 +253,7 @@ export class TransitionService {
       return {
         ok: false,
         status: "incomplete",
+        requestOperationId: requestedId,
         operationId: record.operationId,
         retryable: true,
         error,
@@ -287,7 +350,7 @@ export class TransitionService {
           action: "phase.advanced",
           message: isDirectJump
             ? `Moved directly to ${args.toPhase.label}, bypassing ${skippedStageCount} ${skippedStageCount === 1 ? "stage" : "stages"}.${args.reason ? ` Reason: ${args.reason}` : ""}`
-            : `${args.toPhase.order >= args.fromPhase.order ? "Advanced" : "Moved back"} to ${args.toPhase.label}.${args.reason ? ` Reason: ${args.reason}` : ""}`,
+            : `${args.toPhase.order >= args.fromPhase.order ? "Advanced" : "Moved back"} to ${args.toPhase.label}.${args.reason ? ` Reason: ${args.reason}` : ""}${checklistOverride ? ` Checklist override: ${openRequiredTasks} required item(s) remained open.` : ""}`,
           metadata: {
             operationId: record.operationId,
             from: args.fromPhase.id,
@@ -299,6 +362,8 @@ export class TransitionService {
             directJump: isDirectJump,
             skippedStageCount,
             reason: args.reason,
+            checklistOverride,
+            openRequiredTasks,
           },
         }));
         record.activityLogged = true;
@@ -321,6 +386,8 @@ export class TransitionService {
           directJump: isDirectJump,
           skippedStageCount,
           reason: args.reason,
+          checklistOverride,
+          openRequiredTasks,
         });
       } catch {
         // A non-durable subscriber notification cannot make committed state ambiguous.
@@ -329,6 +396,7 @@ export class TransitionService {
       return {
         ok: true,
         status: "complete",
+        requestOperationId: requestedId,
         operationId: record.operationId,
         retryable: false,
         replayed: false,

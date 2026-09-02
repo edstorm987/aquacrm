@@ -1,43 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ClientContract, ClientContractTemplate } from "@/lib/clients/clientContracts";
 import type { ClientPaymentPlan } from "@/lib/clients/clientPaymentPlans";
+import {
+  beginClientFinanceRead,
+  clientFinanceReadPresentation,
+  initialClientFinanceReadState,
+  readClientFinanceSources,
+  settleClientFinanceRead,
+  type ClientFinanceExpense as ClientExpense,
+  type ClientFinanceExpenseCategory as ExpenseCategory,
+  type ClientFinanceInvoice as Invoice,
+} from "@/lib/client/clientFinanceReads";
 import { ContractsPanel } from "./_ContractsPanel";
 import { PaymentPlansPanel, type PaymentPlanEvidenceFile } from "./_PaymentPlansPanel";
 import { addBusinessCalendarDays, businessCalendarDate, formatUkDate } from "@/lib/shared/formatDateTime";
-
-interface Invoice {
-  id: string;
-  number: string;
-  issuedAt: number;
-  dueAt: number;
-  totalCents: number;
-  currency: "usd" | "gbp" | "eur" | string;
-  status: "draft" | "sent" | "paid" | "overdue" | "void" | "partially-refunded" | "refunded";
-  paidAt?: number;
-  lineItems?: Array<{ description: string }>;
-  notes?: string;
-}
-
-interface ClientExpense {
-  id: string;
-  categoryId: string;
-  vendor?: string;
-  description?: string;
-  amountCents: number;
-  taxCents?: number;
-  currency: string;
-  incurredAt: number;
-  status: "pending" | "approved" | "reimbursed" | "rejected";
-  receiptUrl?: string;
-}
-
-interface ExpenseCategory {
-  id: string;
-  name: string;
-  status: "active" | "archived";
-}
 
 interface InitialState {
   planTier?: "foundational" | "expansion" | "mastery";
@@ -109,15 +87,15 @@ export function FinanceTabClient({
   canManage?: boolean;
   canConfigure?: boolean;
 }) {
-  const [invoices, setInvoices] = useState<Invoice[] | null>(null);
-  const [clientExpenses, setClientExpenses] = useState<ClientExpense[]>([]);
-  const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([]);
+  const [invoiceRead, setInvoiceRead] = useState(() => initialClientFinanceReadState<Invoice>());
+  const [expenseRead, setExpenseRead] = useState(() => initialClientFinanceReadState<ClientExpense>());
+  const [categoryRead, setCategoryRead] = useState(() => initialClientFinanceReadState<ExpenseCategory>());
   const [error, setError] = useState<string | null>(null);
   const [deliveryNotice, setDeliveryNotice] = useState<string | null>(null);
-  const [pluginMissing, setPluginMissing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState(false);
   const [addingCost, setAddingCost] = useState(false);
+  const refreshGeneration = useRef(0);
   const [draft, setDraft] = useState({
     description: "",
     amount: "",
@@ -126,40 +104,31 @@ export function FinanceTabClient({
     status: "draft" as "draft" | "sent" | "paid",
   });
 
-  async function refresh() {
-    try {
-      const [res, expenseRes, categoryRes] = await Promise.all([
-        fetch(`/api/portal/agency-finance/invoices?clientId=${encodeURIComponent(clientId)}`, { method: "GET" }),
-        fetch(`/api/portal/agency-finance/expenses?clientId=${encodeURIComponent(clientId)}`, { method: "GET" }),
-        fetch("/api/portal/agency-finance/categories", { method: "GET" }),
-      ]);
-      if (!res.ok) {
-        setPluginMissing(true);
-        setInvoices([]);
-        return;
-      }
-      const data = await res.json() as { ok: boolean; invoices?: Invoice[] };
-      setInvoices(data.invoices ?? []);
-      if (expenseRes.ok) {
-        const expenseData = await expenseRes.json() as { expenses?: ClientExpense[] };
-        setClientExpenses(expenseData.expenses ?? []);
-      }
-      if (categoryRes.ok) {
-        const categoryData = await categoryRes.json() as { categories?: ExpenseCategory[] };
-        setExpenseCategories(categoryData.categories ?? []);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }
+  const refresh = useCallback(async (signal?: AbortSignal) => {
+    const generation = ++refreshGeneration.current;
+    setInvoiceRead(beginClientFinanceRead);
+    setExpenseRead(beginClientFinanceRead);
+    setCategoryRead(beginClientFinanceRead);
+
+    const result = await readClientFinanceSources({ clientId, signal });
+    if (signal?.aborted || generation !== refreshGeneration.current) return;
+    setInvoiceRead(current => settleClientFinanceRead(current, result.invoices));
+    setExpenseRead(current => settleClientFinanceRead(current, result.expenses));
+    setCategoryRead(current => settleClientFinanceRead(current, result.categories));
+  }, [clientId]);
 
   useEffect(() => {
-    refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientId]);
+    const controller = new AbortController();
+    void refresh(controller.signal);
+    return () => controller.abort();
+  }, [refresh]);
 
   async function addManualInvoice() {
     setError(null);
+    if (!canMutateInvoices) {
+      setError("Current invoice evidence is required before creating an invoice. Retry the Finance read.");
+      return;
+    }
     const amountFloat = parseFloat(draft.amount);
     if (!draft.description.trim() || !Number.isFinite(amountFloat) || amountFloat <= 0) {
       setError("Add a service description and a positive amount.");
@@ -202,13 +171,17 @@ export function FinanceTabClient({
         status: "draft",
       });
       setAdding(false);
-      refresh();
+      await refresh();
     } finally {
       setBusy(false);
     }
   }
 
   async function updateInvoiceStatus(id: string, status: Invoice["status"], shouldRefresh = true, deliver = status === "sent") {
+    if (!canMutateInvoices) {
+      setError("Current invoice evidence is required before changing an invoice.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -245,6 +218,10 @@ export function FinanceTabClient({
   }
 
   async function markPaid(id: string, shouldRefresh = true) {
+    if (!canMutateInvoices) {
+      setError("Current invoice evidence is required before recording payment.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -264,13 +241,25 @@ export function FinanceTabClient({
     }
   }
 
-  // 12-month MRR rollup over PAID invoices only — no fabrication
-  // (chapter #68 honesty contract).
+  const invoicePresentation = clientFinanceReadPresentation(invoiceRead);
+  const expensePresentation = clientFinanceReadPresentation(expenseRead);
+  const categoryPresentation = clientFinanceReadPresentation(categoryRead);
+  const invoices = invoiceRead.rows;
+  const clientExpenses = expenseRead.rows;
+  const expenseCategories = categoryRead.rows;
+  const pluginMissing = invoiceRead.phase === "plugin-missing";
+  const currentInvoices = invoicePresentation.current ? invoices : null;
+  const currentExpenses = expensePresentation.current ? clientExpenses : null;
+  const canMutateInvoices = invoicePresentation.canMutate;
+  const canAddClientCost = expensePresentation.canMutate && categoryPresentation.canMutate;
+
+  // 12-month rollup over PAID invoices only. A retained snapshot may still be
+  // shown as labelled evidence, but it cannot authorise a current total.
   const mrrSeries = useMemo(() => {
-    if (!invoices || invoices.length === 0) return null;
+    if (!currentInvoices || currentInvoices.length === 0) return null;
     const buckets = new Array(12).fill(0) as number[];
     const now = new Date();
-    for (const inv of invoices) {
+    for (const inv of currentInvoices) {
       if (inv.status !== "paid" || !inv.paidAt) continue;
       const d = new Date(inv.paidAt);
       const monthsAgo = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
@@ -279,23 +268,24 @@ export function FinanceTabClient({
     }
     const total = buckets.reduce((a, b) => a + b, 0);
     return total > 0 ? buckets : null;
-  }, [invoices]);
+  }, [currentInvoices]);
 
   const max = mrrSeries ? Math.max(...mrrSeries) : 0;
   const totalPaid = mrrSeries ? mrrSeries.reduce((a, b) => a + b, 0) : 0;
-  const directCosts = clientExpenses
-    .filter(expense => expense.status === "reimbursed")
-    .reduce((sum, expense) => sum + expense.amountCents, 0);
-  const grossProfit = totalPaid - directCosts;
+  const directCosts = currentExpenses
+    ?.filter(expense => expense.status === "reimbursed")
+    .reduce((sum, expense) => sum + expense.amountCents, 0) ?? null;
+  const grossProfit = currentInvoices && directCosts !== null ? totalPaid - directCosts : null;
   const planLabel = initial.servicePlan?.trim()
     || (initial.planTier ? PLAN_LABELS[initial.planTier] : null);
-  const depositPaid = initial.lockInPaid === true || Boolean(invoices?.some(invoice =>
+  const depositPaid = initial.lockInPaid === true || Boolean(currentInvoices?.some(invoice =>
     invoice.status === "paid"
     && invoice.lineItems?.some(item => /\b(deposit|lock[\s-]?in)\b/i.test(item.description)),
   ));
+  const depositKnown = initial.lockInPaid === true || Boolean(currentInvoices);
 
   function openInvoiceComposer() {
-    if (pluginMissing) return;
+    if (!canMutateInvoices) return;
     setAdding(true);
     requestAnimationFrame(() => document.getElementById("client-invoices")?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
@@ -316,9 +306,11 @@ export function FinanceTabClient({
           "rounded-full px-2 py-0.5 font-medium",
           depositPaid
             ? "bg-emerald-100 text-emerald-800"
-            : "border border-black/10 bg-white text-black/55",
+            : depositKnown
+              ? "border border-black/10 bg-white text-black/55"
+              : "bg-amber-50 text-amber-800",
         ].join(" ")}>
-          {depositPaid ? "Received" : "Unpaid"}
+          {depositPaid ? "Received" : depositKnown ? "Unpaid" : "Not confirmed"}
         </span>
         {initial.stripeLink && (
           <a
@@ -332,19 +324,21 @@ export function FinanceTabClient({
         )}
       </header>
 
-      {canManage ? <CloseDealCard clientId={clientId} onClosed={refresh} /> : null}
+      {canManage ? <CloseDealCard clientId={clientId} disabled={!canMutateInvoices} onClosed={refresh} /> : null}
 
       {/* MRR strip */}
       <section className="rounded-xl border border-black/10 bg-white p-4">
         <header className="flex items-baseline justify-between gap-2">
           <h2 className="text-sm font-medium text-black/85">12-month paid total</h2>
-          {mrrSeries ? (
+          {mrrSeries && currentInvoices ? (
             <span className="text-base font-semibold text-black/90">{fmtMoney(totalPaid, "GBP")}</span>
-          ) : canManage ? (
-            <button type="button" onClick={openInvoiceComposer} disabled={pluginMissing} className="text-xs font-semibold text-brand hover:underline disabled:text-black/35 disabled:no-underline">
-              {pluginMissing ? "Invoice engine unavailable" : "Create first invoice"}
+          ) : currentInvoices && currentInvoices.length === 0 && canManage ? (
+            <button type="button" onClick={openInvoiceComposer} className="text-xs font-semibold text-brand hover:underline">
+              Create first invoice
             </button>
-          ) : <span className="text-xs font-semibold text-black/35">No paid invoices</span>}
+          ) : currentInvoices ? (
+            <span className="text-xs font-semibold text-black/35">No paid invoices</span>
+          ) : <span className="text-base font-semibold text-black/35">—</span>}
         </header>
         {mrrSeries ? (
           <svg
@@ -368,10 +362,19 @@ export function FinanceTabClient({
               );
             })}
           </svg>
+        ) : currentInvoices ? (
+          <p className="mt-1 text-xs text-black/50">No paid invoices have been recorded for this client yet.</p>
         ) : (
-          <p className="mt-1 text-xs text-black/50">
-            No paid invoices have been recorded for this client yet.
-          </p>
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-amber-800">
+            <p>{invoicePresentation.showLoading
+              ? "Loading current invoice evidence…"
+              : invoicePresentation.showPluginMissing
+                ? "The Finance engine is not enabled for this workspace."
+                : invoicePresentation.retainedSnapshotIsStale
+                  ? "Current totals are unavailable. Last-confirmed invoice rows remain visible below."
+                  : "Invoice totals are unavailable, so no paid-income claim is shown."}</p>
+            {!invoicePresentation.showLoading && !invoicePresentation.showPluginMissing ? <button type="button" onClick={() => void refresh()} className="rounded-md border border-amber-300 px-2 py-1 font-semibold">Retry Finance reads</button> : null}
+          </div>
         )}
       </section>
 
@@ -384,17 +387,20 @@ export function FinanceTabClient({
           {canManage ? <button
             type="button"
             onClick={() => setAddingCost(value => !value)}
-            className="rounded-md border border-black/15 px-3 py-1.5 text-xs font-medium hover:bg-black/5"
+            disabled={!canAddClientCost}
+            title={!canAddClientCost ? "Current client-cost and category reads are required." : undefined}
+            className="rounded-md border border-black/15 px-3 py-1.5 text-xs font-medium hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {addingCost ? "Cancel" : "Add client cost"}
           </button> : <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">Read-only</span>}
         </header>
         <dl className="grid grid-cols-3 divide-x divide-black/10 border-b border-black/10">
-          <div className="p-4"><dt className="text-xs text-black/45">Paid income</dt><dd className="mt-1 font-semibold text-black/85">{fmtMoney(totalPaid, "GBP")}</dd></div>
-          <div className="p-4"><dt className="text-xs text-black/45">Direct costs</dt><dd className="mt-1 font-semibold text-black/85">{fmtMoney(directCosts, "GBP")}</dd></div>
-          <div className="p-4"><dt className="text-xs text-black/45">Gross profit</dt><dd className={`mt-1 font-semibold ${grossProfit < 0 ? "text-red-700" : "text-emerald-800"}`}>{fmtMoney(grossProfit, "GBP")}</dd></div>
+          <div className="p-4"><dt className="text-xs text-black/45">Paid income</dt><dd className="mt-1 font-semibold text-black/85">{currentInvoices ? fmtMoney(totalPaid, "GBP") : "—"}</dd></div>
+          <div className="p-4"><dt className="text-xs text-black/45">Direct costs</dt><dd className="mt-1 font-semibold text-black/85">{directCosts !== null ? fmtMoney(directCosts, "GBP") : "—"}</dd></div>
+          <div className="p-4"><dt className="text-xs text-black/45">Gross profit</dt><dd className={`mt-1 font-semibold ${grossProfit === null ? "text-black/35" : grossProfit < 0 ? "text-red-700" : "text-emerald-800"}`}>{grossProfit === null ? "—" : fmtMoney(grossProfit, "GBP")}</dd></div>
         </dl>
-        {canManage && addingCost ? (
+        {grossProfit === null ? <p className="border-b border-black/10 bg-amber-50 px-4 py-2 text-xs text-amber-900">Profit is withheld until both invoices and client costs have a current confirmed read.</p> : null}
+        {canManage && addingCost && canAddClientCost ? (
           <ClientCostForm
             clientId={clientId}
             categories={expenseCategories.filter(category => category.status === "active")}
@@ -407,8 +413,9 @@ export function FinanceTabClient({
             }}
           />
         ) : null}
-        {clientExpenses.length > 0 ? (
-          <div className="divide-y divide-black/[0.07]">
+        {expensePresentation.retainedSnapshotIsStale ? <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/10 bg-amber-50 px-4 py-2 text-xs text-amber-900"><span>Last-confirmed client costs are shown below; current totals and cost changes are locked.</span><button type="button" onClick={() => void refresh()} className="rounded-md border border-amber-300 px-2 py-1 font-semibold">Retry costs</button></div> : null}
+        {expensePresentation.showRows ? (
+          <div className="divide-y divide-black/[0.07]" aria-label={expensePresentation.retainedSnapshotIsStale ? "Last-confirmed client costs" : "Client costs"}>
             {clientExpenses.slice(0, 5).map(expense => (
               <div key={expense.id} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
                 <div>
@@ -419,9 +426,14 @@ export function FinanceTabClient({
               </div>
             ))}
           </div>
-        ) : (
+        ) : expensePresentation.showEmpty ? (
           <p className="px-4 py-6 text-center text-sm text-black/45">No direct costs recorded for this client.</p>
+        ) : expensePresentation.showLoading ? (
+          <p className="px-4 py-6 text-center text-sm text-black/45">Loading client costs…</p>
+        ) : (
+          <div className="flex flex-col items-center gap-2 px-4 py-6 text-center text-sm text-amber-900"><p>Client costs are unavailable; this is not confirmation that there are none.</p><button type="button" onClick={() => void refresh()} className="rounded-md border border-amber-300 px-3 py-1.5 text-xs font-semibold">Retry costs</button></div>
         )}
+        {!categoryPresentation.current && !categoryPresentation.showLoading ? <p className="border-t border-black/10 bg-amber-50 px-4 py-2 text-xs text-amber-900">Expense categories are unavailable, so adding a client cost is locked until retry succeeds.</p> : null}
       </section>
 
       {showContracts ? <div data-resolution-focus="contract"><ContractsPanel
@@ -441,7 +453,10 @@ export function FinanceTabClient({
         products={products}
         initialPlans={initialPaymentPlans}
         initialFiles={initialCommercialFiles}
-        invoices={invoices ?? []}
+        invoices={invoices}
+        invoiceReadState={invoiceRead.phase}
+        invoiceHasConfirmedSnapshot={invoiceRead.hasConfirmedSnapshot}
+        onRetryInvoices={refresh}
         onInvoiceCreated={refresh}
         canManage={canManage}
         canConfigure={canConfigure}
@@ -455,7 +470,7 @@ export function FinanceTabClient({
             <p className="mt-0.5 text-xs text-black/45">Issue a request to the client portal and email it through your connected sender.</p>
           </div>
           <div className="flex items-center gap-2 text-xs">
-            {canManage && !pluginMissing && (
+            {canManage && canMutateInvoices && (
               <button
                 type="button"
                 onClick={() => setAdding(o => !o)}
@@ -467,7 +482,7 @@ export function FinanceTabClient({
             )}
           </div>
         </header>
-        {canManage && adding && (
+        {canManage && canMutateInvoices && adding && (
           <form
             onSubmit={e => { e.preventDefault(); addManualInvoice(); }}
             className="border-b border-black/10 bg-black/[0.015] p-4"
@@ -555,17 +570,30 @@ export function FinanceTabClient({
         )}
         {error && <p role="alert" className="border-b border-black/10 px-3 py-2 text-xs text-red-700">{error}</p>}
         {deliveryNotice && <p role="status" className="border-b border-black/10 bg-blue-50 px-3 py-2 text-xs text-blue-800">{deliveryNotice}</p>}
-        {invoices === null ? (
-          <p className="px-3 py-6 text-center text-sm text-black/55">Loading…</p>
-        ) : invoices.length === 0 ? (
+        {invoicePresentation.showLoading && !invoiceRead.hasConfirmedSnapshot ? (
+          <p className="px-3 py-6 text-center text-sm text-black/55">Loading invoices…</p>
+        ) : invoicePresentation.showPluginMissing && !invoiceRead.hasConfirmedSnapshot ? (
           <div className="flex flex-col items-center gap-2 px-3 py-10 text-center">
-            <p className="text-sm font-semibold text-black/65">{pluginMissing ? "Client invoicing is not enabled" : "No invoices yet"}</p>
-            <p className="max-w-md text-xs leading-5 text-black/45">{pluginMissing ? "A workspace owner must enable the finance engine. This client workspace will expose invoicing here once it is available." : "Create, issue and track this client’s first invoice without leaving their workspace."}</p>
-            {canManage && !pluginMissing ? <button type="button" onClick={openInvoiceComposer} className="mt-2 rounded-md bg-brand px-3 py-2 text-xs font-semibold text-white shadow hover:opacity-90">Create first invoice</button> : null}
+            <p className="text-sm font-semibold text-black/65">Client invoicing is not enabled</p>
+            <p className="max-w-md text-xs leading-5 text-black/45">A workspace owner must enable the Finance engine. This state is only used for an explicit not-installed or feature-disabled response.</p>
           </div>
-        ) : (
+        ) : invoicePresentation.showUnavailable && !invoiceRead.hasConfirmedSnapshot ? (
+          <div className="flex flex-col items-center gap-2 px-3 py-10 text-center">
+            <p className="text-sm font-semibold text-amber-900">Invoices are unavailable</p>
+            <p className="max-w-md text-xs leading-5 text-black/45">This is not confirmation that this client has no invoices. Invoice totals and changes remain locked.</p>
+            <button type="button" onClick={() => void refresh()} className="rounded-md border border-amber-300 px-3 py-1.5 text-xs font-semibold text-amber-900">Retry invoices</button>
+          </div>
+        ) : invoicePresentation.showEmpty ? (
+          <div className="flex flex-col items-center gap-2 px-3 py-10 text-center">
+            <p className="text-sm font-semibold text-black/65">No invoices yet</p>
+            <p className="max-w-md text-xs leading-5 text-black/45">Create, issue and track this client’s first invoice without leaving their workspace.</p>
+            {canManage ? <button type="button" onClick={openInvoiceComposer} className="mt-2 rounded-md bg-brand px-3 py-2 text-xs font-semibold text-white shadow hover:opacity-90">Create first invoice</button> : null}
+          </div>
+        ) : invoicePresentation.showRows ? (
+          <>
+          {invoicePresentation.retainedSnapshotIsStale || invoicePresentation.showLoading ? <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/10 bg-amber-50 px-3 py-2 text-xs text-amber-900"><span>{invoicePresentation.showLoading ? "Refreshing invoices. Last-confirmed rows remain visible and locked." : "Last-confirmed invoice rows are visible; current totals and invoice changes are locked."}</span>{!invoicePresentation.showLoading && !pluginMissing ? <button type="button" onClick={() => void refresh()} className="rounded-md border border-amber-300 px-2 py-1 font-semibold">Retry invoices</button> : null}</div> : null}
           <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-sm">
+          <table className="w-full min-w-[720px] text-sm" aria-label={invoicePresentation.retainedSnapshotIsStale ? "Last-confirmed invoices" : "Invoices"}>
             <thead className="bg-black/[0.02] text-[11px] uppercase tracking-wide text-black/55">
               <tr>
                 <th className="px-3 py-2 text-left">Number</th>
@@ -597,7 +625,8 @@ export function FinanceTabClient({
                     {canManage && inv.status === "draft" && (
                       <button
                         type="button"
-                        disabled={busy}
+                        disabled={busy || !canMutateInvoices}
+                        title={!canMutateInvoices ? "Current invoice evidence is required." : undefined}
                         onClick={() => updateInvoiceStatus(inv.id, "sent")}
                         className="rounded-md border border-black/15 px-2 py-1 text-xs hover:bg-black/5 disabled:opacity-50"
                       >
@@ -607,7 +636,8 @@ export function FinanceTabClient({
                     {canConfigure && (inv.status === "sent" || inv.status === "overdue") && (
                       <button
                         type="button"
-                        disabled={busy}
+                        disabled={busy || !canMutateInvoices}
+                        title={!canMutateInvoices ? "Current invoice evidence is required." : undefined}
                         onClick={() => markPaid(inv.id)}
                         className="rounded-md bg-brand px-2 py-1 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
                       >
@@ -620,6 +650,9 @@ export function FinanceTabClient({
             </tbody>
           </table>
           </div>
+          </>
+        ) : (
+          <p className="px-3 py-6 text-center text-sm text-black/55">Loading invoices…</p>
         )}
       </section>
     </div>
@@ -644,7 +677,7 @@ function freshIdempotencyKey(): string {
 // The one-button "close the deal" for an existing client: one action →
 // contract (sent) + invoice (issued) + a routed payment. Money flows to your
 // own Stripe/bank/cash directly; the app never holds funds.
-function CloseDealCard({ clientId, onClosed }: { clientId: string; onClosed: () => void }) {
+function CloseDealCard({ clientId, disabled, onClosed }: { clientId: string; disabled: boolean; onClosed: () => Promise<void> }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -662,6 +695,10 @@ function CloseDealCard({ clientId, onClosed }: { clientId: string; onClosed: () 
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    if (disabled) {
+      setError("Current invoice evidence is required before closing a deal.");
+      return;
+    }
     const amount = parseFloat(form.amount);
     if (!form.title.trim() || !Number.isFinite(amount) || amount <= 0) {
       setError("Add a deal title and a positive amount.");
@@ -691,7 +728,7 @@ function CloseDealCard({ clientId, onClosed }: { clientId: string; onClosed: () 
         return;
       }
       setResult(data);
-      onClosed();
+      await onClosed();
     } finally {
       setBusy(false);
     }
@@ -713,7 +750,7 @@ function CloseDealCard({ clientId, onClosed }: { clientId: string; onClosed: () 
             <a href={result.payLink} target="_blank" rel="noreferrer" className="inline-block rounded-md bg-black px-3 py-1.5 text-xs font-semibold text-white">Open the Stripe pay-link →</a>
           ) : null}
           {result.paymentInstruction ? <p className="text-xs text-black/50">{result.paymentInstruction}</p> : null}
-          <div><button type="button" onClick={reset} className="text-xs font-medium text-brand underline">Close another deal</button></div>
+          <div><button type="button" onClick={reset} disabled={disabled} className="text-xs font-medium text-brand underline disabled:text-black/35">Close another deal</button></div>
         </div>
       ) : !open ? (
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -721,7 +758,7 @@ function CloseDealCard({ clientId, onClosed }: { clientId: string; onClosed: () 
             <h2 className="text-sm font-medium text-black/85">Close the deal</h2>
             <p className="mt-0.5 text-xs text-black/45">One action → contract, invoice, and a routed payment. The money goes straight to you.</p>
           </div>
-          <button type="button" onClick={() => setOpen(true)} className="rounded-md bg-brand px-3 py-2 text-xs font-semibold text-white shadow hover:opacity-90">Close the deal</button>
+          <button type="button" onClick={() => setOpen(true)} disabled={disabled} title={disabled ? "Current invoice evidence is required." : undefined} className="rounded-md bg-brand px-3 py-2 text-xs font-semibold text-white shadow hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40">Close the deal</button>
         </div>
       ) : (
         <form onSubmit={submit} className="space-y-3">
@@ -751,7 +788,7 @@ function CloseDealCard({ clientId, onClosed }: { clientId: string; onClosed: () 
           </div>
           {error ? <p role="alert" className="text-xs text-red-700">{error}</p> : null}
           <div className="flex justify-end">
-            <button type="submit" disabled={busy} className="min-h-10 rounded-md bg-brand px-4 text-sm font-semibold text-white shadow hover:opacity-90 disabled:opacity-50">{busy ? "Closing…" : "Close the deal"}</button>
+            <button type="submit" disabled={busy || disabled} className="min-h-10 rounded-md bg-brand px-4 text-sm font-semibold text-white shadow hover:opacity-90 disabled:opacity-50">{busy ? "Closing…" : "Close the deal"}</button>
           </div>
         </form>
       )}

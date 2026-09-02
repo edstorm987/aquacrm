@@ -26,7 +26,9 @@ export function Interactions({ interactions, personId, complete = true }: { inte
   // the relationship built on a read that never happened (issues #57).
   const incomplete = complete ? null : (
     <p role="status" className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
-      Enquiries could not be read, so this timeline is incomplete. Reload before deciding what this person is.
+      Enquiries could not be read, so this timeline is incomplete. Relationship decisions are locked until the read succeeds.
+      {" "}
+      <button type="button" onClick={() => window.location.reload()} className="font-semibold underline underline-offset-2">Retry enquiries</button>
     </p>
   );
 

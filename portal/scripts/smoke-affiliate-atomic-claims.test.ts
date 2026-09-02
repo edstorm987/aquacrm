@@ -276,5 +276,5 @@ test("atomic-claim services use durable locks and identity-first records", async
   assert.match(codes, /redemptionOperationKey/);
   assert.match(attributions, /attributionClaimKey/);
   assert.match(attributions, /lockHeld/);
-  assert.match(payouts, /withLock\("schedule-collection"/);
+  assert.match(payouts, /withAffiliateDependencyLock/);
 });

@@ -138,6 +138,7 @@ for (const boundary of ["enable", "variant", "disable", "client", "checklist", "
     assert.equal(first.status, "incomplete");
     assert.equal(first.step, boundary);
     assert.equal(first.retryable, true);
+    assert.equal(first.requestOperationId, args.operationId);
     assert.match(phaseTransitionFailureMessage(first), /Retry continues the saved operation/);
     assert.equal(
       state.stage(),
@@ -145,11 +146,19 @@ for (const boundary of ["enable", "variant", "disable", "client", "checklist", "
       "the stage must reflect the durable checkpoint reached",
     );
 
-    // Constructing a fresh service simulates a request/reload using durable storage.
-    const retried = await state.service().advancePhase(args);
+    // Constructing a fresh service and generating a fresh UI operation id
+    // simulates a reload. The request key recovers the older durable operation,
+    // while the receipt still proves which new request received the response.
+    const refreshedOperationId = `phase_transition_${boundary}_refresh_0002`;
+    const retried = await state.service().advancePhase({
+      ...args,
+      operationId: refreshedOperationId,
+    });
     assert.equal(retried.ok, true);
     if (!retried.ok) return;
     assert.equal(retried.status, "complete");
+    assert.equal(retried.requestOperationId, refreshedOperationId);
+    assert.equal(retried.operationId, args.operationId);
     assert.equal(retried.replayed, false);
     assert.equal(state.stage(), toPhase.stage);
     assert.equal(state.install("target-plugin")?.enabled, true);
@@ -162,6 +171,8 @@ for (const boundary of ["enable", "variant", "disable", "client", "checklist", "
     assert.equal(replayed.ok, true);
     if (!replayed.ok) return;
     assert.equal(replayed.replayed, true);
+    assert.equal(replayed.requestOperationId, args.operationId);
+    assert.equal(replayed.operationId, args.operationId);
     assert.equal(state.checklistInitialisations(), 1);
     assert.equal(state.activityCount(), 1);
     assert.equal(state.events.filter(name => name === "phase.advanced").length, 1);
@@ -179,5 +190,12 @@ test("all mounted transition controls surface saved incomplete outcomes", () => 
     assert.match(source, /createPhaseTransitionOperationId/);
     assert.match(source, /operationId/);
     assert.match(source, /phaseTransitionFailureMessage/);
+  }
+
+  for (const file of files.slice(0, 2)) {
+    const source = readFileSync(file, "utf8");
+    assert.match(source, /checkedJsonMutation/);
+    assert.match(source, /isFulfillmentPhaseTransition/);
+    assert.doesNotMatch(source, /\bfetch\s*\(/);
   }
 });

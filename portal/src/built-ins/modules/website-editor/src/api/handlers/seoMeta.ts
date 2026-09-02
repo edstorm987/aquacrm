@@ -5,6 +5,7 @@
 
 import type { PluginCtx } from "../../lib/aquaPluginTypes";
 import { listPages } from "../../server/pages";
+import { resolvePublishedPage } from "../../lib/pagePublication";
 import { listSites } from "../../server/sites";
 import { buildSitemapXml, buildRobotsTxt, type SitemapPage } from "../../server/sitemap";
 import { buildOgCardSvg } from "../../server/ogImageGenerator";
@@ -24,7 +25,8 @@ async function collectSitemapPages(
   const out: SitemapPage[] = [];
   for (const site of sites) {
     const pages = await listPages(storage, agencyId, clientId, site.id);
-    for (const p of pages) {
+    for (const storedPage of pages) {
+      const p = resolvePublishedPage(storedPage);
       const seoNoIndex = (p as { seo?: { noIndex?: boolean } }).seo?.noIndex === true;
       out.push({
         slug: p.slug,

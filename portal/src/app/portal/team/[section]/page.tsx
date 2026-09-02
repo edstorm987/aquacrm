@@ -13,12 +13,13 @@ import {
   staffStationAccessEntries,
   workspaceElementLevel,
 } from "@/lib/server/access/workspaceElementAccess";
+import { staffOnlyRolesForWorkspacePagePath } from "@/lib/staffWorkspacePolicy";
 
 export const dynamic = "force-dynamic";
 
 export default async function TeamSectionPage({ params, searchParams }: { params: Promise<{ section: string }>; searchParams: Promise<{ date?: string }> }) {
   await ensureHydrated();
-  const session = await requireRole(["agency-staff"]);
+  const session = await requireRole([...staffOnlyRolesForWorkspacePagePath("/portal/team")]);
   const [{ section }, query] = await Promise.all([params, searchParams]);
   if (!PEOPLE_STATIONS.some(station => station.id === section)) notFound();
   const actor = await requireCurrentAccessActor();

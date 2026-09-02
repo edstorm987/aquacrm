@@ -20,10 +20,10 @@
 // ones a per-collection sweep misses, and missing one is how an inventory
 // becomes worse than none: it reports "safe to delete" and is wrong.
 //
-// It does NOT assert a retirement policy. Whether deletion should archive,
-// tombstone, reassign or detach is an open product decision, and inventing one
-// here would be worse than the gap. The last test records what deletion does
-// TODAY so that whoever decides has the current behaviour written down.
+// It asserts the lossless default retirement policy: RESTRICT hard deletion
+// while any dependant remains. Nothing is detached and no history is guessed;
+// the source SOP stays intact until those links are explicitly removed or
+// reassigned.
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -46,6 +46,7 @@ import {
   collectSopDependants,
   sopDependencyInventory,
   sopHasDependants,
+  SopHasDependantsError,
 } from "../src/engines/sop/server/sopDependencies";
 import { DELETE as sopsDelete, GET as sopsGet, PATCH as sopsPatch } from "../src/app/api/portal/sops/route";
 import { SESSION_COOKIE_NAME, issueSession } from "../src/lib/server/auth/auth";
@@ -182,28 +183,22 @@ describe("the inventory finds every reference site", () => {
   });
 });
 
-describe("what deletion does today, recorded rather than asserted as correct", () => {
-  it("deleting the SOP removes ONLY the source row and strands all nine", () => {
-    // Not a claim that this is right — it is the behaviour the roadmap calls
-    // out, written down so the retirement decision is made against facts. When
-    // a policy lands (archive / tombstone / reassign / detach), this test is
-    // where the new rule gets recorded.
+describe("the domain delete boundary refuses to strand operating records", () => {
+  it("keeps the SOP and all nine links intact", () => {
     const before = sopDependencyInventory(agencyId, sopId).total;
     assert.equal(before, 9);
 
-    const deleted = deleteSopRecord(agencyId, sopId);
-    assert.ok(deleted, "the SOP was not deleted");
-    assert.equal(getState().sops[sopId], undefined, "the source row survived");
+    assert.throws(
+      () => deleteSopRecord(agencyId, sopId),
+      (error: unknown) => error instanceof SopHasDependantsError && error.inventory.total === 9,
+      "the domain delete bypass did not enforce the same dependency restriction as the route",
+    );
+    assert.ok(getState().sops[sopId], "the linked source SOP was deleted");
 
     const after = collectSopDependants(getState(), agencyId, sopId);
-    assert.equal(after.length, 9,
-      "deletion now reconciles dependants — a retirement policy has landed, and this test should "
-      + "be rewritten to assert it rather than the old strand-everything behaviour");
-
-    // The consequence, stated: every one of these holds an id that resolves to
-    // nothing, and the surfaces rendering them fail SILENTLY by showing less.
+    assert.equal(after.length, 9, "a refused delete mutated one or more dependants");
     assert.equal(getState().tasks["task_dep"].sopIds?.includes(sopId), true,
-      "the task no longer holds the dangling id — if that is deliberate, record the policy here");
+      "the refusal detached the task instead of leaving the decision explicit");
   });
 });
 
@@ -215,10 +210,9 @@ describe("what deletion does today, recorded rather than asserted as correct", (
 // technically true and useless, because what a person needs to know is not that
 // deletion is permanent but WHAT ELSE it breaks.
 //
-// These pin the decision-free half: a retirement preview a confirmation surface
-// can read, and a delete response that states what it stranded. They still
-// assert NO policy — deletion is allowed to proceed and detaches nothing, which
-// remains Ed's open decision (issues #176).
+// These pin both halves: a retirement preview the confirmation surface can read,
+// and an authoritative delete refusal that keeps the source and every dependant
+// intact until the links are explicitly removed or reassigned.
 
 const routeAgency = { id: "", sopId: "", loneSopId: "", token: "" };
 
@@ -314,29 +308,24 @@ describe("the delete path consults the inventory instead of guessing", () => {
     assert.equal(foreign.status, 404, "the preview crossed the agency boundary");
   });
 
-  it("the DELETE response states what it stranded, rather than a bare ok", async () => {
+  it("DELETE returns the dependency inventory and changes nothing", async () => {
     const response = await sopsDelete(authed(`?id=${encodeURIComponent(routeAgency.sopId)}`, "DELETE"));
-    assert.equal(response.status, 200);
-    const body = await response.json() as { ok: boolean; stranded?: SopDependencyInventory };
-    assert.equal(body.ok, true);
-    assert.ok(body.stranded, "the deletion reported success without saying what it left holding a "
-      + "dangling id — the surfaces holding it fail silently, so this response is the only telling");
-    assert.equal(body.stranded.total, 3);
-    assert.equal(body.stranded.sopId, routeAgency.sopId);
-    assert.deepEqual(Object.keys(body.stranded.byKind).sort(), ["guide", "task", "task-checklist-item"]);
+    assert.equal(response.status, 422);
+    const body = await response.json() as { ok: boolean; reason?: string; dependencies?: SopDependencyInventory };
+    assert.equal(body.ok, false);
+    assert.equal(body.reason, "sop_has_dependants");
+    assert.equal(body.dependencies?.total, 3);
+    assert.equal(body.dependencies?.sopId, routeAgency.sopId);
+    assert.deepEqual(Object.keys(body.dependencies?.byKind ?? {}).sort(), ["guide", "task", "task-checklist-item"]);
 
-    // The row is gone and — deliberately, until a policy is decided — nothing
-    // was detached. The response describes that truthfully; it does not claim a
-    // reconciliation that did not happen.
-    assert.equal(getState().sops[routeAgency.sopId], undefined, "the source row survived");
+    assert.ok(getState().sops[routeAgency.sopId], "the refused delete removed the source row");
     assert.equal(getState().tasks["task_route_dep"].sopIds?.includes(routeAgency.sopId), true,
-      "deletion now detaches dependants — a retirement policy has landed, and this test plus the "
-      + "strand-everything test above should be rewritten to assert it");
+      "the refused delete detached a dependant rather than preserving explicit ownership");
 
     const replay = await sopsDelete(authed(`?id=${encodeURIComponent(routeAgency.sopId)}`, "DELETE"));
-    assert.equal(replay.status, 200, "an exact retry after response loss must replay the completed deletion checkpoint");
-    const replayBody = await replay.json() as { stranded?: SopDependencyInventory };
-    assert.equal(replayBody.stranded?.total, 3, "the replay lost the original dependency inventory");
+    assert.equal(replay.status, 422, "a retry bypassed the dependency restriction");
+    const replayBody = await replay.json() as { dependencies?: SopDependencyInventory };
+    assert.equal(replayBody.dependencies?.total, 3, "the retry lost the authoritative dependency inventory");
   });
 
   it("an unreferenced SOP is deleted with an empty stranded inventory, not a missing one", async () => {
@@ -498,10 +487,13 @@ describe("the library's confirmation shows the dependants instead of a bare warn
       + "— the exact false reassurance this dialog exists to prevent");
   });
 
-  it("keeps the stranded records on screen after the deletion", () => {
-    assert.match(source, /result\.stranded/,
-      "the DELETE response's stranded inventory is discarded, so nothing tells the person which "
-      + "records now hold an id that resolves to nothing");
+  it("blocks the destructive control while any dependency remains", () => {
+    assert.match(source, /retiring\.inventory\.total > 0/,
+      "the confirmation can still dispatch a linked SOP deletion");
+    assert.match(source, /Linked — cannot delete/,
+      "the dialog does not explain why the destructive control is unavailable");
+    assert.doesNotMatch(source, /Delete anyway/,
+      "the old strand-dependants escape hatch is still mounted");
   });
 
   // ── The two ways this dialog could go quiet instead of saying something ───

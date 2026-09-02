@@ -18,6 +18,8 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
  * (`fulfillment/.../lifecycle.test.ts`). One of the fourteen had been failing
  * silently since the client-CRM add-on shipped — `email-sender` pins the number
  * of declared event subscribers, CRM added a fifth, and nothing ran to notice.
+ * A later audit found the same class of omission in `scripts/`: seven test
+ * files did not use the `smoke-` prefix and were excluded by the narrower glob.
  *
  * The hand-written list was the defect: adding a module meant remembering to
  * edit `package.json`, and nothing enforced it. `smoke:all` now globs, and this
@@ -26,6 +28,10 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 describe("every smoke test is actually in a suite", () => {
   const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf-8"));
   const smokeAll: string = pkg.scripts["smoke:all"];
+  const scriptTests = readdirSync(join(ROOT, "scripts"))
+    .filter(file => file.endsWith(".test.ts"));
+  const nonSmokeScriptTests = scriptTests
+    .filter(file => !file.startsWith("smoke-"));
   const MODULES = join(ROOT, "src/built-ins/modules");
 
   const modulesWithSmoke = readdirSync(MODULES, { withFileTypes: true })
@@ -49,11 +55,37 @@ describe("every smoke test is actually in a suite", () => {
     assert.ok(modulesWithSmoke.includes("email-sender"));
   });
 
-  it("smoke:all globs the module suites instead of naming them by hand", () => {
+  it("finds script tests whose names do not start with smoke", () => {
+    // Guards the scripts glob specifically: these are the files the old
+    // `scripts/smoke-*.test.ts` command silently skipped.
+    assert.ok(scriptTests.length >= 550,
+      `expected the scripts suites to still exist, found ${scriptTests.length}`);
+    assert.deepEqual(nonSmokeScriptTests.sort(), [
+      "attention-protection.test.ts",
+      "client-aqua-health.test.ts",
+      "client-marketing-service.test.ts",
+      "client-workspace-navigation.test.ts",
+      "company-health.test.ts",
+      "hiring-capacity.test.ts",
+      "inbox-attention-thread.test.ts",
+    ]);
+  });
+
+  it("smoke:all globs every script test and every non-editor module suite", () => {
     assert.match(smokeAll, /src\/built-ins\/modules\/!\(website-editor\)\/src\/__smoke__\/\*\.test\.ts/,
       "smoke:all no longer globs the module smoke suites — a new module's tests would never run");
-    assert.match(smokeAll, /scripts\/smoke-\*\.test\.ts/,
-      "smoke:all no longer runs the scripts suite");
+    assert.match(smokeAll, /scripts\/\*\.test\.ts/,
+      "smoke:all no longer runs every scripts test");
+    assert.doesNotMatch(smokeAll, /scripts\/smoke-\*\.test\.ts/,
+      "smoke:all regressed to the narrow scripts glob and omits non-smoke test names");
+    assert.match(smokeAll, /PORTAL_BACKEND=memory/,
+      "smoke:all must use the deterministic in-memory backend");
+  });
+
+  it("every scripts test is covered by the canonical scripts glob", () => {
+    const uncovered = scriptTests.filter(() => !/scripts\/\*\.test\.ts/.test(smokeAll));
+    assert.deepEqual(uncovered, [],
+      `these scripts tests are not run by smoke:all: ${uncovered.join(", ")}`);
   });
 
   it("website-editor is excluded from smoke:all because its own gate runs it", () => {

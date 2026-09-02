@@ -3,7 +3,7 @@
 // theme tokens as CSS variables into a `<style>` block.
 
 import type { ThemeRecord } from "../../types/theme";
-import { tokensToCssVars } from "../themeCss";
+import { appearanceToColorSchemeCss, tokensToCssVars } from "../themeCss";
 
 export interface EditorThemeInjectorProps {
   theme?: ThemeRecord | null;
@@ -12,7 +12,8 @@ export interface EditorThemeInjectorProps {
 
 export function EditorThemeInjector({ theme, customCSS }: EditorThemeInjectorProps) {
   const tokensCss = theme ? tokensToCssVars(theme.tokens) : "";
-  const combined = [tokensCss, customCSS ?? ""].filter(Boolean).join("\n");
+  const appearanceCss = appearanceToColorSchemeCss(theme?.appearance);
+  const combined = [appearanceCss, tokensCss, customCSS ?? ""].filter(Boolean).join("\n");
   if (!combined) return null;
   return <style data-editor-theme dangerouslySetInnerHTML={{ __html: combined }} />;
 }

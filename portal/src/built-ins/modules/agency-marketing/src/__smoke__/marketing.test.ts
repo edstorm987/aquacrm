@@ -43,6 +43,7 @@ function buildWorld() {
   const storage: PluginStorage = {
     async get<T = unknown>(key: string): Promise<T | undefined> { return data.get(key) as T | undefined; },
     async set<T = unknown>(key: string, value: T): Promise<void> { data.set(key, value); },
+    async runExclusive<T>(_key: string, operation: () => Promise<T>): Promise<T> { return operation(); },
     async del(key: string): Promise<void> { data.delete(key); },
     async list(prefix?: string): Promise<string[]> {
       const keys = [...data.keys()];

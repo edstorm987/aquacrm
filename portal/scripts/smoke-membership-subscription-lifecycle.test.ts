@@ -437,7 +437,9 @@ test("mounted membership controls carry command identity and retryable failures"
   assert.match(customerPanel, /Switch to \$\{candidate\.name\}/);
   assert.match(customerPanel, /Cancel this free membership immediately/);
   assert.match(adminPanel, /membership-admin-cancel-/);
-  assert.match(service, /runExclusive/);
+  assert.match(service, /localUserExclusive/);
+  assert.match(service, /withDependencyGraph/);
+  assert.match(service, /membership-subscription-provider:/);
   assert.match(service, /idempotencyKey: this\.providerKey/);
 });
 
@@ -592,12 +594,14 @@ test("the Stripe adapter maps every StripePort method onto the SDK", async () =>
     currency: "usd",
     recurring: { interval: "month" },
     metadata: { planId: "plan_gold" },
+    idempotencyKey: "plan-gold-monthly-once",
   });
   assert.deepEqual(price, { id: "price_new", productId: "prod_1" });
   const priceParams = lastCall("prices.create")!.args[0] as Record<string, unknown>;
   assert.deepEqual(priceParams.product_data, { name: "Gold", description: "Top tier" });
   assert.equal(priceParams.unit_amount, 2499);
   assert.deepEqual(priceParams.recurring, { interval: "month" });
+  assert.deepEqual(lastCall("prices.create")!.args[1], { idempotencyKey: "plan-gold-monthly-once" });
 
   // Checkout — memberships always bills recurring, never one-shot.
   const session = await port.createCheckoutSession({

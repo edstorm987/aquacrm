@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import { getState, mutate } from "@/server/storage";
 import { logActivity } from "@/server/activity";
 import type { SopGuide, SopGuideAudience } from "@/server/types";
+import { assertSopReferencesExist } from "./sopReferences";
 
 // ─── SOP Engine — guides ──────────────────────────────────────────────────
 //
@@ -40,22 +41,25 @@ export interface CreateSopGuideInput {
 export function createSopGuide(input: CreateSopGuideInput): SopGuide {
   const title = input.title.trim().slice(0, 240);
   if (!title) throw new Error("Guide title required.");
-  const sopIds = assertSopsExist(input.agencyId, input.sopIds ?? []);
+  if (!Array.isArray(input.sopIds)) throw new Error("Guide requires a list of SOP ids.");
   const now = Date.now();
-  const guide: SopGuide = {
-    id: `sopguide_${crypto.randomBytes(8).toString("hex")}`,
-    agencyId: input.agencyId,
-    title,
-    description: cleanDescription(input.description),
-    sopIds,
-    quizEnabled: input.quizEnabled === true ? true : undefined,
-    audience: cleanAudience(input.audience),
-    createdBy: input.actorUserId,
-    updatedBy: input.actorUserId,
-    createdAt: now,
-    updatedAt: now,
-  };
-  mutate(state => { state.sopGuides[guide.id] = guide; });
+  let guide!: SopGuide;
+  mutate(state => {
+    guide = {
+      id: `sopguide_${crypto.randomBytes(8).toString("hex")}`,
+      agencyId: input.agencyId,
+      title,
+      description: cleanDescription(input.description),
+      sopIds: assertSopReferencesExist(state, input.agencyId, input.sopIds, "sopGuide.sopIds"),
+      quizEnabled: input.quizEnabled === true ? true : undefined,
+      audience: cleanAudience(input.audience),
+      createdBy: input.actorUserId,
+      updatedBy: input.actorUserId,
+      createdAt: now,
+      updatedAt: now,
+    };
+    state.sopGuides[guide.id] = guide;
+  });
   logActivity({
     agencyId: input.agencyId,
     actorUserId: input.actorUserId,
@@ -82,20 +86,31 @@ export function updateSopGuide(
   patch: UpdateSopGuidePatch,
   actorUserId: string,
 ): SopGuide | null {
-  const existing = getSopGuide(agencyId, id);
-  if (!existing) return null;
-  const sopIds = patch.sopIds !== undefined ? assertSopsExist(agencyId, patch.sopIds) : existing.sopIds;
-  const updated: SopGuide = {
-    ...existing,
-    title: patch.title !== undefined ? (patch.title.trim().slice(0, 240) || existing.title) : existing.title,
-    description: patch.description !== undefined ? cleanDescription(patch.description) : existing.description,
-    sopIds,
-    quizEnabled: patch.quizEnabled !== undefined ? (patch.quizEnabled === true ? true : undefined) : existing.quizEnabled,
-    audience: patch.audience !== undefined ? cleanAudience(patch.audience) : existing.audience,
-    updatedBy: actorUserId,
-    updatedAt: Date.now(),
-  };
-  mutate(state => { state.sopGuides[id] = updated; });
+  if (patch.sopIds !== undefined && !Array.isArray(patch.sopIds)) {
+    throw new Error("Guide requires a list of SOP ids.");
+  }
+  let updated: SopGuide | null = null;
+  mutate(state => {
+    const existing = state.sopGuides[id];
+    if (!existing || existing.agencyId !== agencyId) return;
+    const sopIds = assertSopReferencesExist(
+      state,
+      agencyId,
+      patch.sopIds !== undefined ? patch.sopIds : existing.sopIds,
+      "sopGuide.sopIds",
+    );
+    updated = {
+      ...existing,
+      title: patch.title !== undefined ? (patch.title.trim().slice(0, 240) || existing.title) : existing.title,
+      description: patch.description !== undefined ? cleanDescription(patch.description) : existing.description,
+      sopIds,
+      quizEnabled: patch.quizEnabled !== undefined ? (patch.quizEnabled === true ? true : undefined) : existing.quizEnabled,
+      audience: patch.audience !== undefined ? cleanAudience(patch.audience) : existing.audience,
+      updatedBy: actorUserId,
+      updatedAt: Date.now(),
+    };
+    state.sopGuides[id] = updated;
+  });
   return updated;
 }
 
@@ -112,27 +127,6 @@ export function deleteSopGuide(agencyId: string, id: string): SopGuide | null {
     metadata: { guideId: id },
   });
   return existing;
-}
-
-/**
- * Validate — and canonicalise — a guide's SOP references. Every id must resolve
- * to a SOP owned by `agencyId`. Order is preserved; exact-duplicate ids are
- * collapsed (a guide reads a SOP once). Throws on the first unknown id.
- */
-function assertSopsExist(agencyId: string, sopIds: string[]): string[] {
-  if (!Array.isArray(sopIds)) throw new Error("Guide requires a list of SOP ids.");
-  const seen = new Set<string>();
-  const result: string[] = [];
-  const sops = getState().sops;
-  for (const raw of sopIds) {
-    const sopId = typeof raw === "string" ? raw.trim() : "";
-    if (!sopId || seen.has(sopId)) continue;
-    const sop = sops[sopId];
-    if (!sop || sop.agencyId !== agencyId) throw new Error(`SOP “${sopId}” does not exist for this agency.`);
-    seen.add(sopId);
-    result.push(sopId);
-  }
-  return result;
 }
 
 function cleanDescription(description?: string): string | undefined {

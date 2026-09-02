@@ -2,12 +2,12 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-09-02 from **21** source documents / **34,896 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-02 from **21** source documents / **35,894 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
 - [`AGENTS.md`](#source-agents-md) — 95 words · `63f2c50380ed`
-- [`CLAUDE.md`](#source-claude-md) — 3,553 words · `c6abffdcbb5d`
+- [`CLAUDE.md`](#source-claude-md) — 3,889 words · `50ab6e810116`
 - [`docs/data/adr/ADR-001-semantic-registry-in-code.md`](#source-docs-data-adr-adr-001-semantic-registry-in-code-md) — 217 words · `f092ef6a564d`
 - [`docs/data/adr/ADR-002-domain-modules-are-the-repository-seam.md`](#source-docs-data-adr-adr-002-domain-modules-are-the-repository-seam-md) — 218 words · `361439671762`
 - [`docs/data/adr/ADR-003-one-calculation-path-per-metric.md`](#source-docs-data-adr-adr-003-one-calculation-path-per-metric-md) — 233 words · `9143b1627c97`
@@ -15,7 +15,7 @@
 - [`docs/data/ARCHITECTURE.md`](#source-docs-data-architecture-md) — 1,158 words · `b670851546a2`
 - [`docs/data/DATA-DICTIONARY.md`](#source-docs-data-data-dictionary-md) — 978 words · `23b25d96792a`
 - [`docs/data/LINEAGE.md`](#source-docs-data-lineage-md) — 681 words · `427fd35d964a`
-- [`docs/data/MIGRATION-PLAN.md`](#source-docs-data-migration-plan-md) — 1,353 words · `7a0f37fd6f75`
+- [`docs/data/MIGRATION-PLAN.md`](#source-docs-data-migration-plan-md) — 2,014 words · `867a7712f43a`
 - [`docs/data/SEMANTIC-LAYER.md`](#source-docs-data-semantic-layer-md) — 783 words · `cea3578c4a18`
 - [`docs/data/SOURCE-INVENTORY.md`](#source-docs-data-source-inventory-md) — 1,724 words · `11b027a56a18`
 - [`docs/DEVELOPMENT-HANDOFF.md`](#source-docs-development-handoff-md) — 1,552 words · `9199166a1f30`
@@ -23,9 +23,9 @@
 - [`docs/development.md`](#source-docs-development-md) — 3,285 words · `9f2c4da449cb`
 - [`docs/development/CAMPAIGN-LEDGER.md`](#source-docs-development-campaign-ledger-md) — 11,346 words · `8906eb267d7b`
 - [`docs/development/CLOUD-RESUME.md`](#source-docs-development-cloud-resume-md) — 500 words · `03458cdf18bf`
-- [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 2,209 words · `f8dfdfa9cfad`
+- [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 2,095 words · `379784a12461`
 - [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,643 words · `38954d1ad66e`
-- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 1,942 words · `d06735360396`
+- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 2,057 words · `8d2d0f36b8ae`
 - [`README.md`](#source-readme-md) — 437 words · `78865db66238`
 
 ---
@@ -52,12 +52,12 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## Source document — `CLAUDE.md`
 
-<!-- AQUACRM_SOURCE_START path="CLAUDE.md" sha256="c6abffdcbb5d4b09363e669bda5b0e2bb72d541a799b23ba86c45aa5ef5e0753" -->
+<!-- AQUACRM_SOURCE_START path="CLAUDE.md" sha256="50ab6e81011640064fc14538d53a2828c1427e44f12108b804c8d5564dca3c49" -->
 @AGENTS.md
 
 # AquaCRM Claude Handoff
 
-## 🚨 CURRENT CONTINUATION BRIEF — 27 August 2026
+## 🚨 CURRENT CONTINUATION BRIEF — refreshed 2 September 2026
 
 **Read this section before dispatching a worker or editing anything.** It is the
 current operational handoff and supersedes the stale status sentences at the
@@ -67,15 +67,13 @@ current task list** (`checklist.md` and `todo-retired.md` were retired into it o
 
 ### First five minutes: preserve the working state
 
-- Work in `aquaCRM/portal`. **Corrected 2026-08-27:** the tree is on **`main` at
-  `2f3995b`** ("chore(checkpoint): preserve complete AquaCRM workspace") — Ed
-  committed the previously dirty `work/2026-08-20-parallel-session` state as a
-  checkpoint. The older wording here described that branch and 2,823 unstaged
-  changes; that is history. **Run `git status --short` first, always** — do not
-  trust this paragraph over the command.
-- The tree currently carries the **27 August session's work, uncommitted**: ~82
-  changed files across source, tests and docs, including the P0 session-revocation
-  fix. Use narrowly scoped patches and diffs. Do not reset, rebase, checkout,
+- Work in `aquaCRM/portal`. At this documentation refresh the checkout was
+  **`main` at `ffd9110`** with **272 status entries**, but active work makes both
+  facts a moving snapshot. **Run `git branch --show-current`, `git rev-parse
+  --short HEAD` and `git status --short` first, always** — commands supersede this
+  paragraph.
+- The tree carries extensive concurrent work across source, tests and docs. Use
+  narrowly scoped patches and diffs. Do not reset, rebase, checkout,
   clean, blanket-regenerate, stash, commit, push, deploy, or rewrite history
   unless Ed explicitly asks.
 - Preserve the intentional deletion of the retired
@@ -83,10 +81,10 @@ current task list** (`checklist.md` and `todo-retired.md` were retired into it o
   replaced by consolidated reference volumes; the latter is replaced by
   `public/manifest.webmanifest`. Preserve the new `docs/00-START-HERE.md` through
   `docs/08-HISTORY-AND-ARCHIVE.md` volumes and their manifest.
-- A development server was already listening on port 3032 at handoff. Do not
-  kill, restart, or reuse it casually. Use `npm run sandbox:fork` for an isolated
-  browser/server lane. Do not delete ignored `.next*` outputs without resolving
-  the exact owner and target first.
+- Never assume an old documented port is still running or owns the current source.
+  Inspect the listener/build first and use `npm run sandbox:fork` for an isolated
+  browser/server lane. Do not kill or reuse another worker's server, and do not
+  delete ignored `.next*` outputs without resolving the exact owner and target.
 - Do not brief from `docs/context/state.md`,
   `docs/context/commander-handoff.md`, or anything in `docs/context/archive/`.
   Those records are history and contain stale persistence, Showcase, erasure,
@@ -117,14 +115,16 @@ current task list** (`checklist.md` and `todo-retired.md` were retired into it o
   editor, code/AI/explorer/publish gates, and loopback Start/Status/Logs/Stop/
   Restart control are present. A project grant must never reveal internal
   `/portal/dev-team` control-plane data.
-- The authored docs were consolidated into nine volumes from 127 sources, with
-  20 canonical Library documents. Regenerate them; do not re-create thousands
+- The authored docs are consolidated into nine volumes from the authored sources
+  recorded in `docs/consolidation-manifest.json`, with 20 canonical Library
+  documents. Regenerate them; do not re-create thousands
   of retired one-file Markdown stubs.
 
 ### Exact continuation order
 
-*Status refreshed 2026-08-27 after a full working session. Items 1–4 moved; 5
-and 6 have not started. Verify in source before acting on any line here.*
+*This sequence originated on 2026-08-27 and was reconciled on 2026-09-02. Items
+1, 3, 4 and 5 are complete; 2 and 6 retain explicit residuals. Verify in source
+and the current TODO before acting on any line here.*
 
 1. ✅ **P0 security — central session revocation. DONE.** `resolveFreshSessionUser()`
    (`src/lib/server/auth/auth.ts`) runs on every `getSession()` /
@@ -223,9 +223,10 @@ and 6 have not started. Verify in source before acting on any line here.*
    left as a decision rather than changed unilaterally.
 6. 🟡 **Close the recorded runtime residue.** Stale preview is closed (issues #19).
    Still open: live two-instance Editor-AI database coordination (needs
-   `DATABASE_URL`), dirty-editor browser transitions, remaining Staff policy,
-   unresolved references, dependency-safe retirement, hidden render-time
-   mutation. Use checklist/issues/todo, not memory.
+   `DATABASE_URL`), unapplied owned-sidecar PostgreSQL migrations, dirty-editor
+   browser transitions, provider-backed Staff persona/shared-credential acceptance,
+   unresolved references, dependency-safe retirement and hidden render-time
+   mutation. Use issues/TODO, not memory.
 
 ### Also decided on 27 August — read before touching Fulfilment
 
@@ -244,13 +245,19 @@ review-and-seed screen. His answers on what transfers are recorded verbatim in
 
 - During iteration: run the nearest focused test under the correct runtime,
   `npm run typecheck`, and `git diff --check`.
-- Canonical full suite before calling a behaviour complete:
+- Canonical full suite before calling a behaviour complete is `npm run smoke:all`.
+  Its exact expansion is:
 
   ```bash
-  PORTAL_BACKEND=memory NODE_OPTIONS='--conditions react-server' npx tsx --test scripts/*.test.ts
+  PORTAL_BACKEND=memory NODE_OPTIONS='--conditions react-server' \
+    node --import tsx --test scripts/*.test.ts \
+    'src/built-ins/modules/!(website-editor)/src/__smoke__/*.test.ts' && \
+    npm run smoke:website-editor
   ```
 
-  Do not substitute `smoke:all`; it omits non-`smoke-` tests.
+  The first gate covers every script test plus every non-Website-Editor module
+  smoke suite. The separate Website Editor gate intentionally runs without the
+  server-only React condition required by the first gate.
 
   > ### ✅ The suite is green — 27 August, first time since 23 August
   > **4,482 tests / 4,480 pass / 0 fail / 2 skip**, and it stayed green across the
@@ -295,22 +302,54 @@ review-and-seed screen. His answers on what transfers are recorded verbatim in
 
 ### Latest trustworthy evidence
 
-*The isolated-production and Library/Logs numbers below are from before
-27 August and remain the best available for speed. For access, session and
-template work, the 27 August suites named in the continuation order are current.*
+*Refreshed 2 September 2026. These are local/source-freeze and isolated-
+production-browser measurements. They are not deployed geo/CDN, live-provider,
+live-PostgreSQL-migration, cold-machine or broad human-usability proof.*
 
-- Isolated Webpack production: 281 pages, 135,196.3 ms build, 1,479,314,365-byte
-  output. Fresh-process first HTTP / repeat max: auth 619.1/7.7 ms, public
-  593.1/9.8, Agency 727.8/28.3, Dev Team 726.4/31.2, Library 693.0/26.4 and Logs
-  741.0/29.0; process readiness 205–308 ms. This is not deployed/CDN proof.
-- Library measured 4.428→3.290 s cold; Logs 3.182→0.857 s first and
-  2.702→0.868 s post-TTL. Its eager graph fell 47 modules / 469,232 bytes to
-  3 / 15,433. Agency's static proxy closure fell 77.6%; no comparable final
-  local runtime was claimed for that graph-only result.
-- Latest broad focused code gate: **335 pass / 0 fail / 1 optional live-DB skip**
-  with TypeScript clean. Loader/browser presentation: **127/127**, desktop
-  1440×900 and mobile 390×844, no overflow or console errors. These focused
-  gates do not replace the 23 August whole-suite result.
+- **Canonical `npm run smoke:all` is green.** Its Node phase executed **6,417
+  tests across 1,093 suites: 6,415 passed / 0 failed / 2 skipped in
+  94,027.354917ms**; the subsequent Website Editor runner passed **49/49 files
+  in 11.8s**.
+- The latest isolated production benchmark built in **158,476.1ms** with a
+  **1,584,943,643-byte** dist. Fresh-process first HTTP / repeat max was auth
+  **765.9/9.2ms**, public **641.4/6.0ms**, Agency **949.4/53.1ms**, Dev Team
+  **869.2/38.9ms**, Library **803.6/30.4ms** and Logs **892.8/30.7ms**; readiness
+  was **304.3–309.1ms** and every failure list was empty. Shared host caches make
+  this fresh-process, not cold-machine or deployed-CDN, evidence.
+- Fresh cacheless, service-worker-blocked station measurement passed **8/8**.
+  Agency Day transferred **674,535B** of first-navigation JS/CSS; extra transfer
+  versus Day was Executive **4,473B**, Battle **36,102B**, Calendar/Actions
+  **42,174B**, Advisor **12,528B**, Dev Team **21,059B** and Radar Inspector
+  **34,731B**. These are transfer bytes, not execution or paint timings.
+- The broad production-target browser matrix accounts for all **1,326** checks as
+  **1,177 passed / 0 failed / 149 evidenced aborted speculative RSC-prefetch
+  observations / 0 missing**. The reusable-auth Settings matrix is **102 = 92 / 0
+  / 10 / 0**. The corrected exact-width probe is **6/6**: Settings Environment at
+  768px, Studio at 390/1024/1440 and Fulfilment Roles at 390/1280, all HTTP 200
+  with zero console, page, request or HTTP errors; the recorded source hash was
+  unchanged.
+- The role browser roundtrip created a reusable role, persisted Projects Manage,
+  reloaded, downgraded it to View, reloaded and archived it. Fulfilment exposes
+  **11** element radiogroups and 11 each Hidden/View/Use/Manage plus Projects,
+  Portals and Aqua Tags. A separate isolated-production Staff Technical matrix
+  passed **50/50** through six same-cookie Hidden → View → Use → Manage → View →
+  Hidden transitions with zero failures, errors or overflow. Hidden routes use
+  valid streamed Next not-found content (document HTTP 200 or 404), and the exact
+  API downgrade was refused with HTTP 403.
+- Fulfilment checked-mutation acceptance passed at **390px and 1280px**: injected
+  failure produced an alert, no reload or false success, retained or rolled back
+  state as appropriate, and then succeeded on retry.
+- Studio's synthetic sample opened template scope only, made no client-scope
+  sample request and kept Publish in the viewport at all three widths. Its sample
+  API was HTTP 200. Focused source proof is **29/29** and wider editor/tenancy/
+  access proof is **111/111**.
+- The final primary production webpack build compiled in **47s**, completed
+  TypeScript in **5.1s** and generated **245/245** pages in **489ms**.
+- `20260902092000_owned_sidecar_compare_and_swap.sql` implements receipt-
+  deduplicated transactional main-plus-owned-sidecar patching and one-statement
+  snapshot hydration. It is source/mocked verified but **unapplied to live
+  PostgreSQL**; do not claim live migration or remote-concurrency acceptance
+  until it is deployed and exercised there.
 
 ### External decisions and blockers
 
@@ -414,8 +453,8 @@ The core operating boundary is:
   `judgement`) and what clears it. Never offer a Resolve control for work that
   happens outside Aqua, and never claim a clearance condition for a judgement
   call.
-- Run the FULL smoke suite
-  (`PORTAL_BACKEND=memory NODE_OPTIONS='--conditions react-server' npx tsx --test scripts/*.test.ts`)
+- Run the FULL smoke suite (`npm run smoke:all`, whose exact expansion is the
+  scripts, non-Website-Editor module, and separate Website Editor command above)
   before calling a behaviour change done. Adjacent suites are not enough — an existing
   contract test may be pinning the behaviour you just changed.
 
@@ -465,12 +504,11 @@ session context and re-exploration. After a change:
 - **Had to add a duplicate, alias, or dead path?** Log it in
   `docs/workspace/hazards-and-duplication.md` so it isn't mistaken for canonical.
 
-Current operational snapshot: 27 August 2026 on **`main` at `2f3995b`**, with that
-day's session work (~82 files) intentionally uncommitted on top. The earlier
-snapshot naming `work/2026-08-20-parallel-session` at `1d46479` is history — Ed
-checkpoint-committed that state. The current brief at the top of this file,
-source, and `docs/development/TODO.md` supersede older status prose, and
-`git status --short` supersedes all of them.
+Operational snapshot at the 2 September 2026 documentation refresh: **`main` at
+`ffd9110`** with **272 status entries**. This is a moving, concurrently edited
+working tree, not a freeze. The current brief at the top of this file, source and
+`docs/development/TODO.md` supersede older status prose; live Git commands
+supersede every embedded branch, commit and file count.
 <!-- AQUACRM_SOURCE_END path="CLAUDE.md" -->
 
 ---
@@ -1030,7 +1068,7 @@ class in the semantic registry / metadata contracts before copying a field.
 
 ## Source document — `docs/data/MIGRATION-PLAN.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/data/MIGRATION-PLAN.md" sha256="7a0f37fd6f75438ebab7a64aea49f260969e41e6f399e95d432349b0e9d6e8b9" -->
+<!-- AQUACRM_SOURCE_START path="docs/data/MIGRATION-PLAN.md" sha256="867a7712f43a167a001a24349adbdc2c6b9bec1de3ac492d4b3a04174922c9ef" -->
 # Migration plan — strangler, one coherent vertical slice at a time
 
 *Rules that bind every phase below: the PortalState/blob system is not
@@ -1039,9 +1077,13 @@ independently deployable and reversible; backfills are idempotent with
 dry-run, checkpoints, counts, reconciliation and rollback instructions;
 legacy fields are not removed until parity and rollback have been
 demonstrated; reads switch only after legacy-vs-canonical comparison. The
-house template for "two copies coexist until the new one is CONFIRMED" is the
-sidecar split's `sidecarPopulated` discipline (`storage.ts`) — every
-extraction below follows it.*
+current house template is the owned-sidecar protocol in `storage.ts`,
+`storageSupabase.ts` and migration `20260902092000`: one receipt-deduplicated
+transaction locks the main row and requested sidecars, seeds legacy/missing
+sidecars from the locked main value, applies all patches, marks authoritative
+sidecars, clears their main copies and returns one coherent snapshot. The
+authoritative marker distinguishes a confirmed empty sidecar from a legacy or
+absent copy.*
 
 ## Phase 0 — semantic groundwork ✅ (2026-08-30, this branch)
 
@@ -1090,8 +1132,7 @@ namespace) here — the metadata catalogue is the checklist.
 **Groundwork SHIPPED 2026-08-30** (`server/outbox.ts`, `PortalState.outbox`,
 `smoke-outbox.test.ts`): `recordOutboxEvent` appends inside the caller's own
 `mutate()` (atomic with the domain change), `drainOutbox` hands pending rows
-to the existing bus emit-then-mark (a crash before bus dispatch leaves the row
-pending), `emitDurable` is the drop-in for detached emit sites, handed-off rows prune
+to the existing bus emit-then-mark, `emitDurable` is the drop-in for detached emit sites, handed-off rows prune
 after 14 days / 5,000-row cap with pending never pruned. Envelope carries
 name + version, actor, tenant, source, correlationId (defaults to the event
 id), causationId, and occurredAt strictly apart from recordedAt. First
@@ -1100,15 +1141,90 @@ unchanged; pinned by source-scan). Company promotion classifies the
 collection as `leave` (events are the origin tenant's history).
 
 **Foundation emission adoption is complete, transaction adoption is not
-(corrected 2026-09-01):** every `emit()` under `src/server/**` now announces
+(corrected 2026-09-02):** every `emit()` under `src/server/**` now announces
 through the outbox —
 agency.created, client.updated/stage_changed (tenants + productWorkspaces),
 user.signed_up, action.completed, person.created/updated/classified,
 organisation.created/updated — plus the plugin lifecycle events
 (built-ins/runtime + ensureLeadsPipelineInstall). `smoke-outbox.test.ts`
 pins the manifest: plain `emit(` under `src/server` is confined to the bus
-and its drain. The drain is deliberately SYNCHRONOUS (nothing in it awaits),
-so an outbox write that already exists can be emitted and marked before return.
+and its drain. A coordinated PortalState transaction queues one keyed, awaited
+post-commit handoff per row: the durable row stays `pending` through the
+commit-to-dispatch crash window, is marked only after the bus handoff actually
+starts, and a synchronous handoff failure records its attempt/error while
+remaining pending for retry. Direct, non-transactional drains retain their
+synchronous trigger; if the process dies before their delivery mark persists,
+the pending row may be replayed rather than silently lost. The dedicated
+outbox/atomic/lease regression gate passes **17/17**, including a file-backed
+pause at the exact durable-commit/post-commit boundary.
+
+**Coordinated PortalState atomicity and lease fencing SHIPPED 2026-09-02:**
+`withPortalStateTransaction` now runs domain work against an
+`AsyncLocalStorage`-scoped working tree. Nested coordinated calls share that
+tree; unawaited nested calls that start while the scope is active are drained
+before commit, and a nested rejection rolls the outer unit back. File, memory
+and remote re-entrant lock scopes likewise drain work that began while they
+were active, then mark the inherited scope inactive before releasing. A timer
+or other async resource that resumes after closure therefore starts a fresh
+transaction instead of writing into a dead working tree.
+
+The durable publish boundary is isolated too. While a backend flush is in
+flight, unrelated readers continue to see the committed view; ordinary writes
+are evaluated against that view and replayed onto the tentative tree. A short
+per-realm commit lane serialises only publish/flush phases, so two logical
+Supabase lanes cannot use each other's tentative cache or rollback snapshot.
+The state diff is rebased after any awaited lease confirmation, and a failed
+flush rolls back only its transaction while preserving writes that arrived
+during the attempt. Post-commit effects start only after the state write is
+durable.
+
+Remote Postgres/Supabase workspace leases now have separate acquire, renew and
+release semantics. Heartbeats and near-expiry commit checks call
+`renew_product_workspace_lease`, which succeeds only for the same holder while
+its existing lease is still unexpired. It cannot reacquire an expired row; this
+fences the ABA case where another holder acquired, changed state and released
+between a delayed heartbeat and its arrival. Expiry, ownership loss, refused
+renewal, or inability to confirm a near-expiry lease raises a typed lease-lost
+failure at the commit boundary before the durable state patch. The same fence
+is checked again before each queued post-commit effect. Release is
+holder-checked and is skipped locally once ownership is known lost or expired.
+
+Supabase first-writer patches now use row-locked `merge_object` for a newly
+populated top-level collection. `aqua_jsonb_deep_merge` recursively preserves
+disjoint object children from concurrent stale snapshots while arrays and
+scalars retain replacement semantics. Existing `set`, `delete` and
+`append_unique` operations remain supported unchanged. Durable operation
+receipts make a same-id replay return without reapplying over a successor; the
+owned-sidecar RPC extends that receipt boundary across the main row and every
+requested sidecar in one PostgreSQL transaction. Its companion load RPC reads
+main plus sidecars in one statement/snapshot. The adapter rejects malformed
+authoritative envelopes rather than silently falling back to legacy main data.
+
+**Database deployment precondition:** apply these migrations in timestamp
+order before enabling the database-backed coordinated path:
+
+1. `20260809090000_atomic_datastore_patches_and_history.sql` — base row-locked
+   patch RPC;
+2. `20260825130000_product_workspace_leases.sql` — lease table plus acquire and
+   holder-checked release;
+3. `20260902090000_merge_app_datastore_patch_objects.sql` — recursive
+   `merge_object` support plus bounded durable patch receipts;
+4. `20260902091000_product_workspace_lease_renewal_fencing.sql` — renew-only,
+   unexpired-holder fencing; and
+5. `20260902092000_owned_sidecar_compare_and_swap.sql` — receipt-deduplicated,
+   transactional main-plus-owned-sidecar patching plus one-statement coherent
+   snapshot loading, including authoritative-empty and malformed-envelope
+   semantics.
+
+The TypeScript, mocked provider/failure-injection and SQL source-contract tests
+are green. All three 2026-09-02 migrations are source/mocked verified only; no
+evidence that any was applied and exercised against live PostgreSQL was
+available in this checkout. Idempotent replay, malformed envelopes, concurrent
+successors, same-value ABA, late/unknown outcomes and new/absent/authoritative-
+empty row cases are therefore local evidence, not production-database
+acceptance. Verify migration status and rerun those concurrency cases against
+the deployed database before declaring this gate complete.
+
 This does **not** make `emitDurable()` atomic with a domain change: it opens its
 own `mutate()` after that change. Each correctness-critical call site must move
 `recordOutboxEvent()` into the owning mutation; failure-injection proof must show
@@ -1130,9 +1246,10 @@ operations (lead conversion, company promotion) in `runWithCorrelation` as each
 is touched; add a cross-process claim (lease) when the outbox extracts to a
 table; and add stable consumer identities with durable acknowledgement,
 retry/backoff, poison-event dead-lettering and replay tooling. Until then,
-`delivered` is only a legacy label for in-process bus dispatch: a rejected
-handler promise or crash after `emit()` is not retried. The in-blob version's
-single-instance serialization is all synchrony currently buys.
+`delivered` is only a legacy label for a successfully started in-process bus
+dispatch: a rejected asynchronous handler promise or crash after that handoff
+is not retried. The in-blob version still has no cross-process claim,
+per-consumer acknowledgement or poison-event lifecycle.
 
 - **No event-sourcing claim**: state is not rebuildable from events; the
   outbox supports reliability and lineage, nothing more.
@@ -1205,6 +1322,10 @@ report. Rollback per phase = flip the read flag; blob writes never stopped.
 ## Standing constraints
 
 - `DATABASE_URL` / applied migrations need Ed's environment (ED-QUESTIONS).
+- The in-blob outbox still has no cross-process dispatch claim, durable
+  per-consumer acknowledgement, retry/backoff or poison-event dead-letter
+  lifecycle. Lease-fenced PortalState commits do not close those consumer-side
+  delivery gaps.
 - Sandbox realms multiply every extraction: tables carry `realm_id` (default
   `live`) or extractions exclude realm-scoped rows until designed — decide
   per slice, recorded in its ADR.
@@ -3187,7 +3308,7 @@ request-memoization.
 
 ## Source document — `docs/development/ED-QUESTIONS.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/ED-QUESTIONS.md" sha256="f8dfdfa9cfad61140e8ec9428b3b2b706cf33e96296825c7860467e862f7f86f" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/ED-QUESTIONS.md" sha256="379784a1246170ccd77969d495d85d49b8b81046c6ecfeac6c48c855f26a2c5a" -->
 # Questions for Ed — blocked decisions, work continues around them
 
 **Started 2026-08-30.** Per your instruction: anything needing your input is
@@ -3265,21 +3386,22 @@ Run `node scripts/supabase-cutover-preflight.mjs` to see the current list.
 
 ## Q8 — Apply the written-but-unapplied database migrations (ACTION)
 
-Three things exist on disk but not in the live project, and the data
-architecture work (docs/data/MIGRATION-PLAN.md) is gated on them:
+The immediate coordinated-storage path has **four ordered database
+preconditions**, as defined by `docs/data/MIGRATION-PLAN.md`:
 
-1. `supabase/migrations/20260820150000_brand_enquiries_agency_scope.sql` —
-   the enquiry `agency_id` tenant column (until applied, tenancy rides in
-   `metadata->>'agencyId'` and the agency-aware RLS ratchet cannot bite).
-2. `supabase/migrations/20260811113000_master_inbox_messaging.sql` — the five
-   `inbox_*` tables; production's `useSupabase()` inbox path 404s without
-   them.
-3. The live project's `rls_auto_enable()` function exists in NO migration —
-   export it from the dashboard and commit it, or it dies on any rebuild.
+1. `20260809090000_atomic_datastore_patches_and_history.sql`;
+2. `20260825130000_product_workspace_leases.sql`;
+3. `20260902090000_merge_app_datastore_patch_objects.sql`; then
+4. `20260902091000_product_workspace_lease_renewal_fencing.sql`.
 
-**Unblocks:** migration phases 1/4/6; honest RLS claims. You run
-`supabase db push` by hand — say when, and I'll verify with
-`supabase/rls-verify.sql` + the preflight script.
+The wider relational extraction still separately requires the enquiry agency
+column, Master Inbox tables and a version-controlled `rls_auto_enable()`
+definition; those are not extra members of this four-migration ordering.
+
+**Unblocks:** live coordinated-storage/concurrency acceptance and later migration
+phases. Apply through the controlled production migration process, then verify
+schema status, RLS and the remote concurrency cases; checked-in SQL alone is not
+deployment evidence.
 
 ## Q9 — Which response SLA is canonical?
 
@@ -3340,32 +3462,6 @@ is because the closing evidence is a browser walk this container cannot run —
 recorded honestly rather than ticked.
 
 ## DECISIONS — product or policy calls
-
-### Q12 — Website editor: retire the localStorage surfaces, or wire them up?
-
-Sites, Sections, Popup, Customise and Page Detail persist **only to browser
-localStorage**. Nothing on the storefront or server reads any of it, so today
-an agency can "design" a site that cannot exist. Page Detail also has a real
-`[pageId]` / `params.id` mismatch and dead `/p/[slug]` links.
-
-Nothing else on this item can proceed until you choose, because the small fixes
-disappear entirely under the retire path.
-
-**Unblocks:** `todo:90` / issue #31, and roughly a week of editor work.
-
-### Q13 — "Build custom portal" wizard: build the backend, or remove the button?
-
-The wizard POSTs to `/api/portal/portal-export/clients/export` and GETs
-`/portal-export/presets`. **Neither endpoint exists** — no portal-export
-module exists anywhere in the repo — so the catch-all 404s and the modal
-swallows it silently. A complete but entirely unwired implementation is sitting
-in `github-templates/modules/portal-export`.
-
-Three options: adopt that template, build fresh, or remove the CTA.
-
-**Unblocks:** `todo:646`, `checklist:1551`. The honesty half (stop swallowing
-the 404, disable the CTA when the backend is absent) is implementable without
-you and is queued regardless.
 
 ### Q14 — Does form capture need consent, like telemetry does?
 
@@ -3484,8 +3580,9 @@ Each of these is code-complete and waiting on an account action:
   all exist and are tested against test mode. `checklist:1614`.
 - **Vercel env names + `CRON_SECRET`** — the required-env definitions, startup
   check and fail-closed cron guards exist. `checklist:1622`.
-- **Apply the 22 pending migrations** — see Q8; this is the one that unblocks
-  real RLS and the tenancy extraction. `checklist:1625`.
+- **Apply the four ordered coordinated-storage migrations** — see Q8; then
+  verify schema/RLS and remote concurrency before enabling that path.
+  `checklist:1625`.
 - **Re-enter the unrecoverable routing values** — `parseBlob` no longer wipes
   them, but the ones already lost cannot be recovered by code.
   `checklist:1984`.
@@ -3504,8 +3601,23 @@ Follow-on code (expiry/purge for the RETAIN set) is designed and waiting.
 
 ---
 
-*Answered items: move them to the bottom with the decision and date, so this
-file stays a live queue.*
+## Answered items
+
+### Q12 — Website Editor localStorage surfaces — answered 2026-09-01
+
+Retire the parallel admin islands. Sections, Popups and legacy Page Detail were
+removed or redirected; Customise now contains only an honest browser-local editor
+preference plus canonical tenant-scoped site/export controls. Issue #31 is resolved.
+
+### Q13 — Build custom portal wizard — answered 2026-09-01
+
+Remove the dead `portal-export` wizard and route the CTA to the canonical Systems
+workspace backed by `/api/tenants/client-projects/provision`. The code/path decision
+is complete under #36; mounted provision/reload and configured-provider acceptance
+remain, so the acceptance work stays in TODO rather than this decision queue.
+
+*Answered items stay here with the decision and date so the section above remains
+a live queue.*
 <!-- AQUACRM_SOURCE_END path="docs/development/ED-QUESTIONS.md" -->
 
 ---
@@ -3731,7 +3843,7 @@ Path prefix: /private/tmp/claude-501/.../scratchpad/
 
 ## Source document — `docs/development/TODO.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="d06735360396d2a067ae939ae5cba522f3c0ab4da81ecc041ecb3d1b22873d24" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="8d2d0f36b8aed17bbd24ff16749866a6ac69da7674b9f61e2e3252adfb47afdd" -->
 # TODO — the one list
 
 **This is the only task list.** `checklist.md` and `todo-retired.md` are retired; they held the
@@ -3751,7 +3863,7 @@ remains the backing store. This file is the index over it.
 
 ---
 
-## 🔒 Blocked on you — 9
+## 🔒 Blocked on you — 10
 
 Nothing here moves without an account, a credential or a decision from you. Taken from
 the retired files' own Ed-only sections, minus one they had mis-filed (`#1`, RLS, whose
@@ -3767,6 +3879,7 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [ ] Aqua Tag form-capture consent → [#2](issues.md)
 - [ ] Choose the permanent last-grant revocation policy → [#174](issues.md)
 - [ ] Decide whether client identities get indistinguishable sibling-project 404s → [#163](issues.md)
+- [ ] Choose Radar probe freshness: restore sub-daily probes or show evidence age on every affected surface → [#170](issues.md)
 
 ## P0 — before any production use — 1
 
@@ -3778,7 +3891,7 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Complete Editor dirty-state browser acceptance → [#19](issues.md) `⚠ disputed`
 - [~] Public showcase capability boundary and shared fixture are repaired → [#21](issues.md) `⚠ disputed`
 - [~] Continue repairing Website Editor API contracts; exact-scope AI gating is fixed and the dead-call ratchet is 14 → [#28](issues.md)
-- [~] Website Editor now has consent-aware Contact capture, published Blog summaries and a narrow anonymous Ecommerce facade; finish the remaining visitor backends, operator handoff and live-browser acceptance → [#29](issues.md) `⚠ disputed`
+- [~] Website Editor now has consent-aware Contact capture, published Blog summaries/detail, immutable published page snapshots and a narrow anonymous Ecommerce facade; finish the remaining visitor backends, operator handoff and live-browser acceptance → [#29](issues.md) `⚠ disputed`
 - [~] Paid Memberships foundation is real; finish live Stripe lifecycle acceptance → [#33](issues.md)
 - [~] Build custom portal now reaches the canonical provisioner; mounted provision/reload acceptance remains → [#36](issues.md)
 - [~] Private-upload ownership now has exact payload/provider/key binding, fenced claims and safe definite-refusal release locally; finish live-provider, distributed/process-kill, mounted failure/retry and operator-reconciliation acceptance → [#38](issues.md)
@@ -3787,12 +3900,12 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Proposal acceptance is version-bound; finish mounted public acceptance → [#41](issues.md)
 - [~] Installments stop exactly in code; finish live Stripe refusal/retry acceptance → [#42](issues.md)
 - [~] Email Sender setup and SMTP delivery are real; finish live-provider browser acceptance → [#43](issues.md)
-- [~] Affiliate Stripe Connect is wired and gated; finish live Stripe payout acceptance → [#45](issues.md)
+- [~] Affiliate Stripe Connect onboarding/status and payouts are locally durable and gated; finish live Stripe acceptance → [#45](issues.md)
 - [~] Code/behaviour resolved — browser-accept the canonical client lifecycle → [#46](issues.md)
 - [~] Finish live visual acceptance for convergent client phase transitions → [#55](issues.md)
-- [~] Portal Editor, attention, expense-field, KPI, history, phase, website-routing, search, sender and combined-inbox reads are truthful; finish the remaining customer/Finance/Meta/governance fallbacks and mounted fault acceptance → [#57](issues.md)
-- [~] Membership/Affiliate dependency inventories exist; choose and enforce safe deletion policy → [#63](issues.md)
-- [~] SOP dependency inventory exists; choose and enforce safe deletion policy → [#64](issues.md)
+- [~] Every named consequential empty-on-read-failure source path now has explicit availability/stale-state handling; finish mounted rejection/retry/lost-response/multi-tab and live-provider acceptance → [#57](issues.md)
+- [~] Membership/Affiliate parent deletion now enforces dependency-safe RESTRICT under the durable graph lock; finish mounted/live-provider acceptance → [#63](issues.md)
+- [~] SOP deletion and every current incoming-reference writer enforce tenant-safe RESTRICT under one lifecycle lane; repair historical dangling rows and finish mounted acceptance → [#64](issues.md)
 - [~] Company capital/governance invariants are guarded; finish mounted acceptance → [#65](issues.md)
 - [~] Battle Table revisions/locks are guarded; finish mounted acceptance → [#66](issues.md)
 - [~] Legal dependency preview/refusal exists; finish mounted/provider acceptance → [#67](issues.md)
@@ -3802,15 +3915,15 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Code/behaviour resolved — live-accept Ecommerce shipping/tax quotes → [#74](issues.md)
 - [~] Code/behaviour resolved — live-accept the Ecommerce provider ledger → [#75](issues.md)
 - [~] Public Funnel capture visibility and ordinary retry are repaired; exact cross-process side-effect delivery remains → [#79](issues.md)
-- [~] Canonical lead identity is conflict-safe inside one application process; database-native uniqueness remains → [#80](issues.md)
+- [~] Canonical lead identity and all journey writers are cross-process/crash-atomic on the file backend; finish native Supabase/Postgres uniqueness and live-provider acceptance → [#80](issues.md)
 - [~] Opportunity money is safe under same-process races; distributed provider delivery remains → [#81](issues.md)
 - [~] Mounted Marketing records are isolated and stale-safe in one process; distributed compare-and-set remains → [#82](issues.md) `⚠ disputed`
-- [~] Agency Marketing lead identity is canonical and race-safe in one process; distributed uniqueness remains → [#83](issues.md)
+- [~] Agency Marketing lead identity, re-keying, erasure and contact history are cross-process/crash-atomic on the file backend; finish native Supabase/Postgres uniqueness and live-provider acceptance → [#83](issues.md)
 - [~] Aqua Tags stop-routing is non-destructive; mounted click acceptance remains → [#85](issues.md)
 - [~] Make Aqua Tag form ingestion durable and order-independent → [#87](issues.md)
 - [~] Dev Team document bytes and attribution now recover together after process death; constrain the final non-cooperating direct-writer check/rename window → [#88](issues.md)
 - [~] Client schedules and Finance Plans are converged; mounted browser acceptance remains → [#121](issues.md)
-- [~] Membership changes now share one durable provider-backed command; mounted/live acceptance remains → [#122](issues.md)
+- [~] Membership subscription and plan-price changes now use durable provider-backed commands outside storage transactions; mounted/live acceptance remains → [#122](issues.md)
 - [~] Membership webhooks now use a retryable scoped inbox; live-provider acceptance remains → [#123](issues.md)
 - [~] Affiliate commissions now have one recoverable payout owner; mounted/live-provider acceptance remains → [#124](issues.md)
 - [~] Affiliate currency/refund accounting is code- and behaviour-complete; mounted/live acceptance remains → [#125](issues.md)
@@ -3818,7 +3931,7 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Performance report history is code- and behaviour-repaired; mounted acceptance remains → [#128](issues.md)
 - [~] Performance experiment integrity is code- and behaviour-repaired; mounted acceptance remains → [#129](issues.md)
 - [~] Aqua Advisor turns are code/domain-behaviour durable; mounted provider acceptance remains → [#130](issues.md)
-- [~] Server error capture/readiness is mounted and the repaired cross-runtime graph is browser-clean and production-build green (244/244); install and live-prove the production client sink → [#132](issues.md)
+- [~] Server error capture/readiness is mounted and the repaired cross-runtime graph is browser-clean and production-build green (245/245); install and live-prove the production client sink → [#132](issues.md)
 - [~] Every declared modal uses the shared focus/restore contract; mounted representative keyboard acceptance remains → [#135](issues.md)
 - [~] Named internal actions and published fields are guarded; mounted accessibility-tree acceptance remains → [#139](issues.md)
 - [~] Make date-only business values local-calendar safe → [#140](issues.md)
@@ -3826,21 +3939,21 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Relative countdown deadline code/service behaviour is repaired; mounted acceptance remains → [#146](issues.md)
 - [~] Team Chat and notification response-order code is repaired; mounted acceptance remains → [#147](issues.md)
 - [~] Named core storage/provider waits are bounded; finish mounted/live acceptance → [#148](issues.md)
-- [~] Execute relational extraction, backfill, RLS and atomic-outbox phases; semantic Phase 0 and durable KPI identities are shipped, while outbox consumer acknowledgement/retry/dead-letter remains open → [data migration plan](../data/MIGRATION-PLAN.md)
+- [~] Execute relational extraction, backfill and RLS; semantic Phase 0, durable KPI identities and crash-safe post-commit outbox handoff are shipped, while cross-process claims and consumer acknowledgement/retry/dead-letter remain open → [data migration plan](../data/MIGRATION-PLAN.md)
 - [~] Editor `requiresPlugin` gating is code/behaviour-complete and an enabled tenant palette is browser-proven; compare disabled state and disable/reload preservation → [#183](issues.md)
-- [~] Consent-aware tenant contact capture and published blog summaries are built; connect submissions to the operator inbox and implement/remove the remaining Forms/Reservations/Newsletter/Themes promises → [#184](issues.md)
-- [~] Fifteen exact public routes are now classified, including allowlisted Ecommerce and Website Editor visitor facades; continue one operation at a time → [#185](issues.md)
+- [~] Consent-aware tenant contact capture and published Blog summaries/detail are built; connect submissions to the operator inbox and implement/remove the remaining Forms/Reservations/Newsletter/Themes promises → [#184](issues.md)
+- [~] Sixteen exact public routes are now classified, including allowlisted Ecommerce and Website Editor visitor facades; continue one operation at a time → [#185](issues.md)
 - [~] Isolated server/browser lane is restored; finish the remaining critical-flow acceptance  <sub>from todo-retired.md, no issue number</sub>
 
 ## P2 — quality and correctness — 15
 
 - [~] Reference validation remains a broad open class; the audited client-route slice is fixed → [#20](issues.md)
-- [~] Reconcile staff capability policy → [#25](issues.md)
-- [~] Shared plugin settings is operable across eight families and Marketing is truthful; wire/remove the remaining 27 unconsumed fields → [#44](issues.md)
-- [~] Finance and Dev Team mutation controls now use checked response contracts; finish the remaining non-Finance/non-Dev mounted cohorts and literal forced-failure browser acceptance → [#47](issues.md)
+- [~] Canonical staff workspace capability policy, reusable-role authoring and Staff Technical Hidden/View/Use/Manage plus same-cookie downgrade enforcement are source/isolated-browser proven; finish provider-backed live-persona/shared-credential acceptance → [#25](issues.md)
+- [~] Shared plugin settings is operable and Marketing, Website Editor and Fulfillment are truthful; wire/remove the remaining 19 unconsumed fields → [#44](issues.md)
+- [~] Finance, Dev Team, Governance and Fulfilment mutation controls use checked response contracts; Fulfilment forced-failure mobile/desktop browser proof is green, while Actions and the remaining cohorts/acceptance matrix stay open → [#47](issues.md)
 - [~] Finish Notepad autosave browser acceptance → [#54](issues.md)
 - [~] Mounted acceptance remains for settled utility controls → [#61](issues.md)
-- [~] Agency Marketing campaign writes and reports are truthful in one process; distributed mutation safety remains → [#84](issues.md)
+- [~] Agency Marketing campaign rows, channel indexes and reports are cross-process/crash-atomic on the file backend; finish native Supabase/Postgres constraints and live-provider acceptance → [#84](issues.md)
 - [~] Finance settings now control new invoices/documents; browser acceptance remains → [#120](issues.md)
 - [~] The route loader and Visual Builder boot expose one real live status, and the visual handoff is browser-proven; screen-reader announcement/removal/focus acceptance remains → [#136](issues.md)
 - [~] Tabs, menus and listboxes now use honest roles and shared keyboard models; mounted representative acceptance remains → [#138](issues.md)
@@ -3850,17 +3963,18 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Private media has one tested 200/206/416 provider-aware byte-range contract; mounted playback/seek acceptance remains → [#144](issues.md)
 - [~] Finish production-durable Dev Team authoring and live signals  <sub>consolidated from the retired lists; no issue number</sub>
 
-## Unprioritised — 24
+## Unprioritised — 25
 
 - [~] DB Row-Level Security — ⚠ NOT Ed's task, and no longer a 🔴 decision. CORRECTED 2026-08-23 → [#1](issues.md)
 - [~] Meta / Instagram inbox — self-serve "Connect now" → [#11](issues.md)
 - [~] Governance company scoping is isolated in code; finish mounted acceptance → [#68](issues.md)
 - [~] Role-aware account and portal recovery navigation is implemented; finish mounted acceptance → [#133](issues.md)
 - [~] Customer install help is revisitable from Support; mounted install/revisit acceptance remains → [#134](issues.md)
+- [ ] Standardise cross-tenant client-route refusals on the house 404 convention → [#168](issues.md)
 - [~] Customer Bookings code/behaviour is capability-driven; mounted proof remains → [#149](issues.md)
 - [~] Social Inbox's inert More control is removed; mounted confirmation remains → [#150](issues.md)
 - [~] Client-workspace 404 bootstrap code is repaired; browser console recheck remains → [#152](issues.md)
-- [~] Staff, Fulfilment and broad exact-client runtime adoption  <sub>from checklist.md, no issue number</sub>
+- [~] Staff Technical and representative Fulfilment runtime enforcement are browser-proven; finish broad exact-client/provider-backed live-persona adoption  <sub>from checklist.md, no issue number</sub>
 - [~] One consolidated release/browser/parity gate remains across the critical journeys  <sub>consolidated from the retired lists; no issue number</sub>
 - [~] Full browser authoring round trip  <sub>from checklist.md, no issue number</sub>
 - [~] Unsaved-work and project-prefill browser matrix  <sub>from checklist.md, no issue number</sub>
@@ -3879,12 +3993,12 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 
 ---
 
-## Done — 70 issue ids
+## Done — 71 issue ids
 
 Ids only. The account of each is in `issues.md`; the running narrative is in
 `updates.md` and `CAMPAIGN-LEDGER.md`.
 
-#4 #5 #8 #10 #16 #17 #22 #23 #24 #26 #27 #30 #31 #32 #34 #35 #37 #48 #49 #50 #51 #52 #53 #56 #58 #59 #60 #62 #76 #78 #86 #89 #90 #91 #92 #93 #94 #95 #96 #97 #98 #99 #100 #101 #102 #103 #104 #105 #106 #107 #108 #109 #110 #111 #112 #113 #114 #115 #116 #117 #118 #119 #127 #131 #137 #151 #153 #154 #161 #186
+#4 #5 #8 #10 #16 #17 #22 #23 #24 #26 #27 #30 #31 #32 #34 #35 #37 #48 #49 #50 #51 #52 #53 #56 #58 #59 #60 #62 #76 #78 #86 #89 #90 #91 #92 #93 #94 #95 #96 #97 #98 #99 #100 #101 #102 #103 #104 #105 #106 #107 #108 #109 #110 #111 #112 #113 #114 #115 #116 #117 #118 #119 #127 #131 #137 #151 #153 #154 #161 #172 #186
 <!-- AQUACRM_SOURCE_END path="docs/development/TODO.md" -->
 
 ---

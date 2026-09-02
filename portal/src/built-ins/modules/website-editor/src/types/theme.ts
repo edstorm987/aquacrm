@@ -48,6 +48,7 @@ export interface CreateThemeInput {
   clientId: ClientId;
   name: string;
   description?: string;
+  appearance?: "light" | "dark" | "auto";
   tokens?: ThemeTokens;
   isDefault?: boolean;
 }
@@ -55,6 +56,7 @@ export interface CreateThemeInput {
 export interface UpdateThemePatch {
   name?: string;
   description?: string;
+  appearance?: "light" | "dark" | "auto";
   tokens?: Partial<ThemeTokens>;
   isDefault?: boolean;
 }

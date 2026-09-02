@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState, type ReactNode } from "react";
 import {
   ArrowRight,
@@ -12,6 +13,7 @@ import {
   HeartHandshake,
   Search,
   ShieldCheck,
+  RefreshCw,
   WalletCards,
 } from "lucide-react";
 
@@ -72,6 +74,7 @@ export function JourneyCommercialWorkspace({
   clients,
   contractTemplates,
   canViewFinance,
+  financeEvidenceState,
 }: {
   pipeline: ReactNode;
   /** The Kanbans desk — the board directory + create flow, server-assembled. */
@@ -81,7 +84,9 @@ export function JourneyCommercialWorkspace({
   clients: JourneyCommercialClient[];
   contractTemplates: ClientContractTemplate[];
   canViewFinance: boolean;
+  financeEvidenceState: "ready" | "unavailable" | "restricted";
 }) {
+  const router = useRouter();
   const [desk, setDesk] = useState<JourneyDesk>("pipeline");
   const [selectedClientId, setSelectedClientId] = useState(clients[0]?.id ?? "");
   const [query, setQuery] = useState("");
@@ -141,6 +146,16 @@ export function JourneyCommercialWorkspace({
           <select value={service} onChange={event => setService(event.target.value)} className="min-h-10 rounded-md border border-black/15 bg-white px-3 text-sm text-black/65"><option value="">Every service</option>{serviceOptions.map(value => <option key={value}>{value}</option>)}</select>
         </div>
 
+        {desk === "aqua-health" && financeEvidenceState !== "ready" ? (
+          <div role="status" className="mt-4 flex flex-wrap items-center justify-between gap-3 border-l-2 border-sky-600 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+            <div>
+              <p className="font-semibold">Payment evidence {financeEvidenceState === "restricted" ? "is unavailable to this role" : "could not be read"}</p>
+              <p className="mt-0.5 text-xs leading-5 text-sky-800/75">Aqua Health keeps payment in an unavailable state and will not call any client strong from an empty fallback.</p>
+            </div>
+            {financeEvidenceState === "unavailable" ? <button type="button" onClick={() => router.refresh()} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-sky-200 bg-white px-3 text-xs font-semibold text-sky-800"><RefreshCw size={13} /> Retry Finance evidence</button> : null}
+          </div>
+        ) : null}
+
         {desk === "aqua-health" ? <AquaHealthPortfolio clients={filtered} onSelect={client => setSelectedClientId(client.id)} /> : (
           <div className="grid min-w-0 gap-6 pt-5 xl:grid-cols-[280px_minmax(0,1fr)]">
             <ClientRail clients={filtered} selectedClientId={selected?.id} onSelect={setSelectedClientId} />
@@ -198,7 +213,7 @@ function AquaHealthPortfolio({ clients, onSelect }: { clients: JourneyCommercial
   return <div className="divide-y divide-black/[0.08] border-y border-black/10">
     {clients.map(client => <article key={client.id} className="grid gap-4 py-5 lg:grid-cols-[220px_minmax(0,1fr)_auto] lg:items-center">
       <button type="button" onClick={() => onSelect(client)} className="min-w-0 text-left"><div className="flex items-center gap-2"><HealthSignal state={client.aquaHealth.state} /><h3 className="truncate text-sm font-semibold text-black/82">{client.name}</h3>{client.relationshipWorkspaceCount > 1 ? <span className="shrink-0 rounded-full bg-sky-50 px-1.5 py-0.5 text-[9px] font-semibold text-sky-700">{client.relationshipWorkspaceCount} linked</span> : null}</div><p className="mt-1 truncate text-xs text-black/42">{client.workspaceLabel ? `${client.workspaceLabel} · ` : ""}{client.brandName || "No brand"} · {client.serviceNames.join(", ") || "No service"}</p></button>
-      <div className="min-w-0"><div className="flex flex-wrap gap-2">{client.aquaHealth.factors.map(factor => <span key={factor.id} title={`${factor.detail} ${factor.evidence.join(" · ")}`} className={`rounded-full px-2 py-1 text-[10px] font-semibold ${stateClass(factor.state)}`}>{factor.label}: {factor.score === null ? "Learning" : factor.score}</span>)}</div><p className="mt-2 text-xs leading-5 text-black/50">{client.aquaHealth.summary}</p></div>
+      <div className="min-w-0"><div className="flex flex-wrap gap-2">{client.aquaHealth.factors.map(factor => <span key={factor.id} title={`${factor.detail} ${factor.evidence.join(" · ")}`} className={`rounded-full px-2 py-1 text-[10px] font-semibold ${factor.sourceState === "unavailable" ? "bg-sky-50 text-sky-800 ring-1 ring-inset ring-sky-200" : stateClass(factor.state)}`}>{factor.label}: {factor.sourceState === "unavailable" ? "Unavailable" : factor.score === null ? "Learning" : factor.score}</span>)}</div><p className="mt-2 text-xs leading-5 text-black/50">{client.aquaHealth.summary}</p></div>
       <div className="flex items-center gap-4 lg:justify-end"><div className="text-right"><p className={`text-2xl font-semibold tabular-nums ${client.aquaHealth.state === "risk" ? "text-red-700" : "text-black/80"}`}>{client.aquaHealth.score ?? "—"}<span className="text-xs font-normal text-black/35">/100</span></p><p className="text-[10px] text-black/40">{client.aquaHealth.confidence}% evidence</p></div><Link href={`/portal/clients/${client.id}?tab=relationship`} title="Open relationship" className="grid size-9 place-items-center rounded-md border border-black/15 text-black/55"><ArrowRight size={14} /></Link></div>
     </article>)}
     {!clients.length ? <EmptyClients /> : null}

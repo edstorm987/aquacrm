@@ -106,6 +106,30 @@ The deliberate residue is completed-scan station navigation carrying `scan=1`, w
 until a safe server-issued result token replaces it. Do not turn that or deployment latency into a
 false claim that the measured local/isolated-production work did not land.
 
+**2026-09-02 release measurement:** the newer isolated benchmark built in **158,476.1ms** with a
+**1,584,943,643-byte** dist. Fresh-process first/repeat-max was auth **765.9/9.2ms**, public
+**641.4/6.0ms**, Agency **949.4/53.1ms**, Dev Team **869.2/38.9ms**, Library **803.6/30.4ms** and
+Logs **892.8/30.7ms**; process readiness was **304.3–309.1ms**, all responses were 200 and every
+failure list was empty. The first-load station boundary passed **8/8** fresh cacheless Chromium
+contexts: Day transferred **674,535B** of JS/CSS, with Executive **+4,473B**, Battle **+36,102B**,
+Calendar/Actions **+42,174B**, Advisor **+12,528B**, Dev Team **+21,059B** and Radar Inspector
+**+34,731B**. Transfer is not execution or paint. The broad responsive matrix is **1,177 passed /
+0 failed / 149 evidenced aborted speculative RSC-prefetch observations / 0 missing** across all
+**1,326** checks; the corrected Settings run is **92 / 0 / 10 / 0** across **102** checks. A final
+exact-width **6/6** probe covers Settings Environment at 768px, Studio at 390/1024/1440 and
+Fulfilment Roles at 390/1280 with HTTP 200 and zero console/page/request/HTTP errors. Shared host
+caches mean the timing remains fresh-process rather than cold-machine or deployed-CDN proof; live
+provider credentials, deployed geography/CDN timing and production telemetry remain operational
+acceptance. That probe retained an unchanged source hash. The isolated-production Staff Technical
+matrix passed **50/50** through six same-cookie Hidden → View → Use → Manage → View → Hidden
+transitions with zero failures, errors or overflow; hidden pages use valid streamed Next not-found
+content (document HTTP 200 or 404), and the exact API downgrade returned 403. Fulfilment checked
+mutations passed injected failure/alert/no-reload/rollback-or-retain/retry acceptance at 390px and
+1280px. The final primary production webpack build compiled in **47s**, completed TypeScript in
+**5.1s** and generated **245/245** pages in **489ms**. The final canonical `smoke:all` Node phase
+executed **6,417 tests across 1,093 suites: 6,415 passed / 0 failed / 2 skipped in
+94,027.354917ms**; Website Editor passed **49/49 files in 11.8s**.
+
 ### Mission critical: launch the repository-backed Dev Workspace
 **Id:** repository-backed-dev-workspace-launch · **Status:** building · **Size:** XL · **Added:** 2026-08-26 · **Source:** ed
 **Plans:** dev-editor-finish
@@ -169,7 +193,8 @@ source contract pins 28 completed mappings. The final focused set passes **62/62
 direct tests, separate product-workspace cross-process proof passes **4/4**, and TypeScript/diff
 pass. Expense attachments lack client identity and agency/global branches remain agency surfaces.
 Dynamic plugin handlers for Fulfilment, Client CRM, Ecommerce, Memberships and Affiliates plus
-freelancer-job and generic task/task-template associations remain unclassified. Customer/session/
+freelancer-job and generic task/task-template associations are classified and enforced under
+#172. Customer/session/
 relationship, Dev-project, workspace-create, website-source and output/derived routes retain their
 named alternative authority; this is deliberately not every-client-API parity.
 
@@ -199,22 +224,28 @@ enforcement and the dynamic-loopback preview CSP.
 Representative browser proof now covers the access manager at 360/390/430/768/1024/1280/1680,
 real Overview-only Staff and Fulfilment identities plus their hidden direct routes, denial of a
 client workspace/Settings without an exact client grant, Freelancer phone/desktop rendering,
-responsive editor panes and preview Start/Restart/Stop. Status remains **Building**. Finish the
-named dynamic-module/freelancer-job/task classifications and remaining evaluator adoption across customer/freelancer/legacy
-reads and mutations; migrate or retire HR/freelancer competing policies; decide AI/service
+responsive editor panes and preview Start/Restart/Stop. A later isolated-production Staff Technical
+matrix passed **50/50** through six same-cookie Hidden → View → Use → Manage → View → Hidden
+transitions with zero failures, errors or overflow; hidden routes used valid streamed Next not-found
+content and the exact API downgrade returned 403. Status remains **Building**. Preserve the
+completed dynamic-module/freelancer-job/task classifications while finishing evaluator adoption
+across remaining customer/freelancer/legacy reads and mutations; decide AI/service
 principals and expiring share links; and complete the real two-user/two-project/two-environment
 create/grant/request/approve/revoke mutation matrix, positive exact-client journey, accessibility,
-failure and remaining Dev editor lifecycle. Focused tests and restricted-route browser proof are
-evidence, not full release acceptance.
+failure and remaining Dev editor lifecycle. The Staff result is isolated-browser evidence, not the
+still-open provider-backed live-persona/shared-credential acceptance.
 
 ### Runtime reliability and truthful state
 **Id:** runtime-reliability · **Status:** building · **Size:** L · **Added:** 2026-08-24 · **Source:** source-review
 **Files:** docs/development/checklist.md, docs/development/issues.md, docs/development/status.md, src/app/api/portal/dev/projects/route.ts, src/lib/server/auth/auth.ts, src/app/api/portal/settings/external-ai/route.ts, src/proxy.ts, src/server/clientErasure.ts, src/app/api/portal/clients/[clientId]/erase/route.ts, src/server/storage.ts, src/server/storagePostgres.ts, src/server/storageSupabase.ts, src/engines/editor/server/editorAiReply.ts, src/engines/editor/server/editorAiReplyClaim.ts, src/engines/editor/DevEditor.tsx, src/engines/editor/unsavedEditorWork.ts
-**Why:** The product is broadly built. The production build, file persistence, showcase boundary/fixture, erasure failure contract and audited editor/data slices were repaired on 2026-08-25. The new governed-access paths resolve fresh live identity and access revisions, but an old privileged cookie still remains privileged across legacy requireRole() paths after downgrade (P0). Editor AI still needs real d
+**Why:** The product is broadly built. The production build, file persistence, showcase boundary/fixture, erasure failure contract and audited editor/data slices are repaired. Central session freshness and role revocation are resolved under issue #22; an old privileged cookie no longer survives downgrade across the shared session boundary.
 
-Finish the remaining work in this order: central session freshness and role
-revocation; apply and live-prove the Editor AI database contract; complete the
-dirty-state editor browser matrix; reconcile the remaining staff capabilities;
+The transactional owned-sidecar path is source/mocked verified
+but its migrations are not applied to live PostgreSQL.
+
+Finish the remaining work in this order: apply and live-prove the Editor AI and
+owned-sidecar database contracts; complete the dirty-state editor browser matrix;
+finish provider-backed live-persona/shared-credential Staff acceptance;
 reject or explicitly policy-bound unresolved client/task/template/product/
 KPI/Custom-AI/Development/People/Team-Chat/inbox references and Finance, HR,
 Marketing, Leads Pipeline, Client CRM, Memberships and Email Sender relations,
@@ -668,12 +699,18 @@ to 3 / 15,433**. Canonical Library and Logs activity scans measured **67.6→1.0
 390px Logs settled without overflow. The local live-file navigation phase is complete; this queued
 item remains Building only for the deployed latency follow-up, not unfinished indexing work.
 
+The 2026-09-02 isolated rerun supersedes only those timing figures: Library measured
+**803.6/30.4ms** and Logs **892.8/30.7ms** fresh-process first/repeat-max, both HTTP 200 with empty
+failure lists. The broad responsive matrix and corrected exact-width probe are green, including
+Library/Logs coverage and Studio at 390/1024/1440. Shared host caches and disabled real-provider
+credentials keep deployed geo/CDN, live-provider and production-telemetry latency open.
+
 ### Keep client-workspace not-found rendering free of bootstrap errors
 **Id:** client-not-found-script-safe-bootstrap · **Status:** building · **Size:** S · **Added:** 2026-08-25 · **Source:** ultra-review
 **Files:** src/app/layout.tsx, src/app/portal/clients/[clientId]/layout.tsx, src/lib/chrome/colorMode.ts, src/components/chrome/sidebarCollapseState.ts, scripts/smoke-client-not-found-bootstrap.test.ts, scripts/smoke-sidebar-collapse-toggle.test.ts
 **Why:** The old missing-client browser reproduction reached the correct 404 but React rejected two raw root-layout scripts. Both bootstraps now use identified Next 16.3 beforeInteractive components, preserve pre-paint storage behavior and leave no raw root script; the client still aborts before chrome construction.
 
-Dedicated proof passes 4/4, focused bootstrap/theme/sidebar proof 23/23, the wider client/navigation/editor-layout gate 125/125 and TypeScript is clean. The isolated build was killed without a compiler diagnostic, so it proves nothing. Before Shipped, browser-regress valid, missing client/editor and generic 404 routes in both directions with zero script/hydration console errors and unchanged colour/sidebar state. Port 3032 was untouched.
+Dedicated proof passes 4/4, focused bootstrap/theme/sidebar proof 23/23, the wider client/navigation/editor-layout gate 125/125 and TypeScript is clean. A later complete production build generated **245/245** pages; the earlier killed build remains non-evidence. Before Shipped, browser-regress valid, missing client/editor and generic 404 routes in both directions with zero script/hydration console errors and unchanged colour/sidebar state. Port 3032 was untouched.
 
 ### Make New Client materialise its selected lifecycle stage
 **Id:** unify-new-client-phase-orchestration · **Status:** building · **Size:** M · **Added:** 2026-08-24 · **Source:** ultra-review
@@ -1171,14 +1208,14 @@ Independent file-backed processes prove distinct intents get distinct numbers an
 **Files:** src/server/freelancerAdmin.ts, src/server/freelancerWorkspace.ts, src/server/staffProvisioning.ts, src/server/people.ts, src/server/types.ts, src/app/api/portal/freelancers/route.ts, src/app/api/portal/freelancer-access/route.ts, src/app/api/portal/freelancer/message/route.ts, src/app/api/portal/freelancer/work/route.ts, src/app/api/portal/freelancer/work/content/route.ts, src/app/api/portal/freelancer/submit/route.ts, src/app/portal/agency/freelancers, src/app/portal/agency/freelancer-access, src/app/portal/freelancer, scripts/smoke-freelancer-real-journey.test.ts
 **Why:** Freelancer creation now converges one provider identity, local freelancer account and People record through the resumable operation, then sends a password-setup invitation or returns the authorised operator a fallback setup link. The effective per-job policy now drives real shared deliverables, private work upload/download, owner Team Chat and submit behavior.
 
-Shipped with a mounted in-process journey **3/3**, including legacy-local adoption/replay, surrounding freelancer/People/upload/redirect/provisioning coverage **105/105** and clean TypeScript. The isolated build was environment-killed during webpack compilation without a code diagnostic. Rerun it, then complete real Supabase/email/password-reset login and cross-process/browser reload acceptance without mutating the shared port-3032 state.
+Shipped with a mounted in-process journey **3/3**, including legacy-local adoption/replay, surrounding freelancer/People/upload/redirect/provisioning coverage **105/105** and clean TypeScript. An earlier isolated build was environment-killed during webpack compilation without a code diagnostic; the later final primary build generated **245/245** pages. Complete real Supabase/email/password-reset login and cross-process/browser reload acceptance without mutating shared state.
 
 ### Make staff identity provisioning resumable
 **Id:** recoverable-staff-account-provisioning · **Status:** shipped · **Size:** M · **Added:** 2026-08-24 · **Shipped:** 2026-08-25 · **Source:** ultra-review
 **Files:** src/server/staffProvisioning.ts, src/lib/supabase/admin.ts, src/app/api/portal/people/route.ts, src/app/api/portal/agency/users/route.ts, src/server/users.ts, src/server/people.ts, src/server/storage.ts, scripts/smoke-staff-provisioning-recovery.test.ts
 **Why:** Agency Users, candidate hire and employee activation now share one durable password-free agency/email operation. It preallocates stable local ids before Supabase, separately checkpoints provider, local-user, People-link and completion state, adopts only an exact operation-marked provider identity and exposes retryable stage-specific partial outcomes.
 
-Same-process and fresh-runtime failures converge on one provider identity, one local user and one target. Dedicated 14/14, wider 109/109 and final TypeScript pass. The isolated build reached 272/272 before the final retry-error wrapper; two exact rebuilds were environment-killed during compilation. Rerun the exact isolated build, then complete real-Supabase staging and mounted form failure → same-input retry → reload acceptance. Legacy provider identities lacking the operation marker require explicit operator reconciliation rather than unsafe automatic adoption.
+Same-process and fresh-runtime failures converge on one provider identity, one local user and one target. Dedicated 14/14, wider 109/109 and final TypeScript pass. The isolated build reached 272/272 before the final retry-error wrapper and two immediate rebuild attempts were environment-killed; the later final primary build generated **245/245** pages with the wrapper present. Complete real-Supabase staging and mounted form failure → same-input retry → reload acceptance. Legacy provider identities lacking the operation marker require explicit operator reconciliation rather than unsafe automatic adoption.
 
 ### Make staff compensation one authoritative contract
 **Id:** canonical-staff-compensation · **Status:** shipped · **Size:** M · **Added:** 2026-08-24 · **Shipped:** 2026-08-25 · **Source:** ultra-review
@@ -1213,14 +1250,14 @@ Complete mounted switching, direct-entry and reload acceptance when a suspended 
 **Files:** package.json, scripts/run-website-editor-smoke.mjs, scripts/smoke-website-editor-runner.test.ts, src/built-ins/modules/website-editor/package.json, src/built-ins/modules/website-editor/src/__smoke__
 **Why:** One discovery runner now owns module and root execution, pins portal path aliases, normalises the React condition, runs every discovered file and reports aggregate failures. Real fail-through proof is 2/2; the actual suite reaches 1,527 assertions in 49/49 files; TypeScript and isolated build 272/272 pass.
 
-Keep mounted editor behavior in the browser-verification sweep. The full root suite retains unrelated concurrent failures, so this shipment does not claim a repository-wide green run.
+Keep mounted editor behavior in the browser-verification sweep. At this shipment checkpoint the full root suite retained unrelated concurrent failures; the later final canonical run supersedes that old repository-wide state with **6,417 tests / 1,093 suites: 6,415 passed / 0 failed / 2 skipped**, followed by Website Editor **49/49 files in 11.8s**.
 
 ### Make payment-plan invoice creation retry-safe
 **Id:** idempotent-payment-plan-invoice-create · **Status:** shipped · **Size:** M · **Added:** 2026-08-24 · **Shipped:** 2026-08-25 · **Source:** ultra-review
 **Files:** src/app/api/tenants/client-payment-plans/route.ts, src/lib/clients/clientPaymentPlans.ts, src/app/portal/clients/[clientId]/_PaymentPlansPanel.tsx, src/lib/server/clients/clientRecordLedger.ts, src/server/productWorkspaceCoordinator.ts, scripts/smoke-payment-plan-invoice-recovery.test.ts
 **Why:** A private milestone operation now persists before Finance and deterministically selects one invoice. Finance state, milestone linking and idempotent ledger/activity projections flush as separate recovery stages. Stale and fresh-process retries adopt the first invoice. Focused 4/4, wider 119/119, TypeScript and build 272/272 pass.
 
-Keep mounted failure/retry acceptance in the verification sweep. Implementation and process tests did not mutate shared port-3032 state. Current 2026-08-26 verification is 3/4 on two isolated reruns: the fresh-process request receives 422 under the changing revision contract, so reconcile its expected/current revision before relying on the historical 4/4 result.
+Keep mounted failure/retry acceptance in the verification sweep. Implementation and process tests did not mutate shared state. The later 3/4 regression was traced to a non-reentrant nested file transaction and fixed: fresh-process adoption is restored to **4/4**, widened Finance/client/product-workspace proof is **65/65**, and the cross-process/re-entrancy lock gate is **8/8**.
 
 ### Make Advanced Fulfilment tasks shared
 **Id:** truthful-client-fulfilment-kanban · **Status:** shipped · **Size:** S · **Added:** 2026-08-24 · **Shipped:** 2026-08-25 · **Source:** ultra-review

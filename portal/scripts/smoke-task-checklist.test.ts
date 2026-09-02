@@ -11,6 +11,7 @@ const read = (...p: string[]) => readFileSync(join(ROOT, ...p), "utf-8");
 const AGENCY = "agency-checklist";
 let mod: typeof import("../src/server/tasks");
 let mutate: typeof import("../src/server/storage").mutate;
+let sopId = "";
 
 before(async () => {
   process.env.PORTAL_BACKEND = "memory";
@@ -18,6 +19,8 @@ before(async () => {
   await storage.ensureHydrated();
   mutate = storage.mutate;
   mod = await import("../src/server/tasks");
+  const sops = await import("../src/engines/sop/server/sops");
+  sopId = sops.createWrittenSop({ agencyId: AGENCY, title: "Set up billing", content: "Steps", actorUserId: "seed" }).id;
 });
 
 beforeEach(() => {
@@ -52,8 +55,8 @@ describe("an action can be broken into sub-tasks", () => {
 
   it("attaches an SOP to a step", () => {
     const t = task();
-    const updated = mod.addTaskChecklistItem(AGENCY, t.id, { label: "Set up billing", sopId: "sop_9" });
-    assert.equal(updated?.checklist?.[0].sopId, "sop_9");
+    const updated = mod.addTaskChecklistItem(AGENCY, t.id, { label: "Set up billing", sopId });
+    assert.equal(updated?.checklist?.[0].sopId, sopId);
   });
 
   it("refuses a blank label rather than storing an empty row", () => {

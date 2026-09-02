@@ -15,7 +15,11 @@ import {
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 const STALE_LOCK_MS = 60_000;
-const heldTransactions = new AsyncLocalStorage<ReadonlySet<string>>();
+interface HeldFileTransactionScope {
+  active: boolean;
+  pending: Set<Promise<unknown>>;
+}
+const heldTransactions = new AsyncLocalStorage<ReadonlyMap<string, HeldFileTransactionScope>>();
 
 export class DevFileConflictError extends Error {
   constructor(message = "The file changed before this write could commit. Reload and try again.") {
@@ -148,14 +152,28 @@ export async function withDevFileTransaction<T>(
   // one async request deadlocks until timeout. AsyncLocalStorage scopes this
   // bypass to the lock-owning call chain; unrelated requests in this process
   // still wait on the filesystem mutex.
-  if (held?.has(transactionTarget)) return operation();
+  const inheritedScope = held?.get(transactionTarget);
+  if (inheritedScope?.active) {
+    const nested = Promise.resolve().then(operation);
+    inheritedScope.pending.add(nested);
+    void nested.then(
+      () => { inheritedScope.pending.delete(nested); },
+      () => { inheritedScope.pending.delete(nested); },
+    );
+    return nested;
+  }
 
   const release = await acquire(transactionTarget, timeoutMs);
-  const nextHeld = new Set(held);
-  nextHeld.add(transactionTarget);
+  const scope: HeldFileTransactionScope = { active: true, pending: new Set() };
+  const nextHeld = new Map(held);
+  nextHeld.set(transactionTarget, scope);
   try {
     return await heldTransactions.run(nextHeld, operation);
   } finally {
+    while (scope.pending.size) {
+      await Promise.allSettled([...scope.pending]);
+    }
+    scope.active = false;
     await release();
   }
 }

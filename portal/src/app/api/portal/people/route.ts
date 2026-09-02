@@ -70,6 +70,9 @@ import {
 } from "@/lib/server/access/workspaceElementAccess";
 import { AccessControlError, accessErrorResponse } from "@/server/accessControl";
 import { projectPeopleWorkspaceSnapshot } from "@/lib/server/access/peopleWorkspaceProjection";
+import { privateObjectLifecycleLockKey } from "@/lib/server/privateObjectLifecycle";
+import { withPortalStateTransaction } from "@/server/productWorkspaceCoordinator";
+import { SopReferenceValidationError } from "@/engines/sop/server/sopReferences";
 
 export const runtime = "nodejs";
 
@@ -259,12 +262,12 @@ export async function POST(req: NextRequest) {
         assertWorkspaceElementAccess(access, STAFF_STATION_ELEMENT_KEYS.training, "use");
         const existing = self.training.find(item => item.id === text(body.trainingId, 120));
         if (!existing) return error("Training assignment not found.", 404);
-        const training = savePeopleTraining({
-          ...existing,
-          status: text(body.status, 30) as PeopleTrainingAssignment["status"],
-          evidence: text(body.evidence, 1_000),
-        });
-        await flushPendingWrites();
+        const training = await withPortalStateTransaction(privateObjectLifecycleLockKey(agencyId), () =>
+          savePeopleTraining({
+            ...existing,
+            status: text(body.status, 30) as PeopleTrainingAssignment["status"],
+            evidence: text(body.evidence, 1_000),
+          }));
         return NextResponse.json({ ok: true, training });
       }
       if (action === "complete-module") {
@@ -470,19 +473,19 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "save-training") {
-      const training = savePeopleTraining({
-        id: text(body.id, 120) || undefined,
-        agencyId,
-        employeeId: text(body.employeeId, 120),
-        title: text(body.title, 200),
-        description: text(body.description, 2_000),
-        sopId: text(body.sopId, 160),
-        resourceUrl: text(body.resourceUrl, 500),
-        dueAt: peopleNumber(body.dueAt),
-        status: text(body.status, 30) as PeopleTrainingAssignment["status"],
-        evidence: text(body.evidence, 1_000),
-      });
-      await flushPendingWrites();
+      const training = await withPortalStateTransaction(privateObjectLifecycleLockKey(agencyId), () =>
+        savePeopleTraining({
+          id: text(body.id, 120) || undefined,
+          agencyId,
+          employeeId: text(body.employeeId, 120),
+          title: text(body.title, 200),
+          description: text(body.description, 2_000),
+          sopId: text(body.sopId, 160),
+          resourceUrl: text(body.resourceUrl, 500),
+          dueAt: peopleNumber(body.dueAt),
+          status: text(body.status, 30) as PeopleTrainingAssignment["status"],
+          evidence: text(body.evidence, 1_000),
+        }));
       return NextResponse.json({ ok: true, training });
     }
 
@@ -643,6 +646,15 @@ export async function POST(req: NextRequest) {
 
     return error("Unknown People action.", 404);
   } catch (cause) {
+    if (cause instanceof SopReferenceValidationError) {
+      return NextResponse.json({
+        ok: false,
+        reason: cause.code,
+        error: cause.message,
+        field: cause.field,
+        sopIds: cause.sopIds,
+      }, { status: 422 });
+    }
     if (cause instanceof AccessControlError) return accessErrorResponse(cause);
     if (cause instanceof AuthError) return authErrorResponse(cause);
     if (cause instanceof StaffProvisioningRecoveryError) {

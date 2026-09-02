@@ -2,7 +2,16 @@ import { readdir, readFile } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { authErrorResponse } from "@/lib/server/auth/auth";
+import {
+  FULFILMENT_TECHNICAL_ELEMENT_KEY,
+  requireCurrentFulfilmentTechnicalAccess,
+} from "@/lib/server/access/fulfilmentTechnicalAccess";
+import {
+  assertWorkspaceElementAccess,
+  workspaceElementLevel,
+  type WorkspaceElementLevel,
+} from "@/lib/server/access/workspaceElementAccess";
 import { deletePrivateObjectWithRecovery, privateObjectDeletionCheckpoint, privateObjectLifecycleLockKey, privateObjectRequestHash, PrivateObjectLifecycleConflictError } from "@/lib/server/privateObjectLifecycle";
 import { withPortalStateTransaction } from "@/server/productWorkspaceCoordinator";
 import {
@@ -24,11 +33,11 @@ import {
   type DevelopmentWorkflowInput,
 } from "@/server/developmentToolkit";
 import { ensureHydrated } from "@/server/storage";
-import type { DevelopmentResource, DevelopmentResourceKind, Role } from "@/server/types";
+import type { DevelopmentResource, DevelopmentResourceKind } from "@/server/types";
 import { logActivity } from "@/server/activity";
+import { SopReferenceValidationError } from "@/engines/sop/server/sopReferences";
 
 export const runtime = "nodejs";
-const ADMINS: Role[] = ["agency-owner", "agency-manager"];
 const hasSharedLogin = (input: DevelopmentResourceInput) =>
   input.kind === "credential" || Boolean(
     input.credential?.loginUrl ||
@@ -48,10 +57,18 @@ type Body =
   | { action: "workflow:delete"; workflowId: string }
   | { action: "catalogue:workspace" };
 
+function technicalRequirementForAction(action: Body["action"]): Exclude<WorkspaceElementLevel, "hidden"> {
+  if (action === "credential:reveal") return "view";
+  if (action.startsWith("workflow:") || action === "catalogue:workspace") return "manage";
+  return "use";
+}
+
 export async function GET(request: Request) {
   try {
     await ensureHydrated();
-    const session = await requireRole(["agency-owner", "agency-manager", "agency-staff"]);
+    const { actor } = await requireCurrentFulfilmentTechnicalAccess("view");
+    const session = actor.session;
+    const agencyId = actor.resourceAgencyId;
     // NO SEED OR MIGRATION HERE (issue #21, 2026-08-27).
     //
     // This called `ensureDefaultDevelopmentWorkflow(...)` and DISCARDED the
@@ -66,7 +83,7 @@ export async function GET(request: Request) {
     const category = params.get("category");
     const offset = Math.max(0, Number(params.get("offset")) || 0);
     const limit = Math.min(100, Math.max(1, Number(params.get("limit")) || 50));
-    const allResources = listVisibleDevelopmentResourcesWithPendingDeletion(session.agencyId, session.userId, session.role)
+    const allResources = listVisibleDevelopmentResourcesWithPendingDeletion(agencyId, session.userId, session.role)
       .filter(resource => mode === "vault"
         ? ["course", "knowledge", "credential", "sop"].includes(resource.kind)
         : mode === "toolkit"
@@ -79,7 +96,7 @@ export async function GET(request: Request) {
       ok: true,
       resources: allResources.slice(offset, offset + limit).map(publicDevelopmentResource),
       total: allResources.length,
-      workflows: listDevelopmentWorkflows(session.agencyId),
+      workflows: listDevelopmentWorkflows(agencyId),
     });
   } catch (error) {
     return authErrorResponse(error);
@@ -89,15 +106,24 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     await ensureHydrated();
-    const session = await requireRole(["agency-owner", "agency-manager", "agency-staff"]);
+    const { actor, access } = await requireCurrentFulfilmentTechnicalAccess("view");
+    const session = actor.session;
+    const agencyId = actor.resourceAgencyId;
     const body = await request.json().catch(() => null) as Body | null;
     if (!body?.action) return NextResponse.json({ ok: false, error: "Action required." }, { status: 400 });
+    assertWorkspaceElementAccess(
+      access,
+      FULFILMENT_TECHNICAL_ELEMENT_KEY,
+      technicalRequirementForAction(body.action),
+    );
+    const canManageTechnical = workspaceElementLevel(access, FULFILMENT_TECHNICAL_ELEMENT_KEY) === "manage";
 
     if (body.action === "resource:create") {
-      if (hasSharedLogin(body.input) && !ADMINS.includes(session.role)) {
-        return NextResponse.json({ ok: false, error: "Only owners and managers can add shared logins." }, { status: 403 });
+      if (hasSharedLogin(body.input) && !canManageTechnical) {
+        return NextResponse.json({ ok: false, error: "Technical Manage access is required to add shared logins." }, { status: 403 });
       }
-      const resource = createDevelopmentResource(session.agencyId, body.input, session.userId);
+      const resource = await withPortalStateTransaction(privateObjectLifecycleLockKey(agencyId), () =>
+        createDevelopmentResource(agencyId, body.input, session.userId));
       return NextResponse.json({ ok: true, resource: publicDevelopmentResource(resource) }, { status: 201 });
     }
 
@@ -107,18 +133,18 @@ export async function POST(request: Request) {
       // permanent deletion, so a writer that saw the old row cannot recreate
       // it after the provider has deleted its binary.
       const outcome = await withPortalStateTransaction(
-        privateObjectLifecycleLockKey(session.agencyId),
+        privateObjectLifecycleLockKey(agencyId),
         () => {
-          const existing = getDevelopmentResource(session.agencyId, body.resourceId);
+          const existing = getDevelopmentResource(agencyId, body.resourceId);
           if (!existing) return { error: "Resource not found.", status: 404 } as const;
-          if (!ADMINS.includes(session.role) && existing.createdBy !== session.userId) {
+          if (!canManageTechnical && existing.createdBy !== session.userId) {
             return { error: "You cannot edit this resource.", status: 403 } as const;
           }
-          if ((existing.kind === "credential" || Boolean(existing.credential) || hasSharedLogin(body.input)) && !ADMINS.includes(session.role)) {
-            return { error: "Only owners and managers can edit shared logins.", status: 403 } as const;
+          if ((existing.kind === "credential" || Boolean(existing.credential) || hasSharedLogin(body.input)) && !canManageTechnical) {
+            return { error: "Technical Manage access is required to edit shared logins.", status: 403 } as const;
           }
           return {
-            resource: updateDevelopmentResource(session.agencyId, body.resourceId, body.input, session.userId),
+            resource: updateDevelopmentResource(agencyId, body.resourceId, body.input, session.userId),
           };
         },
       );
@@ -129,17 +155,20 @@ export async function POST(request: Request) {
     }
 
     if (body.action === "resource:delete") {
-      const existing = getDevelopmentResource(session.agencyId, body.resourceId)
-        ?? privateObjectDeletionCheckpoint<DevelopmentResource>(session.agencyId, "development-resource", body.resourceId)?.snapshot;
+      const existing = getDevelopmentResource(agencyId, body.resourceId)
+        ?? privateObjectDeletionCheckpoint<DevelopmentResource>(agencyId, "development-resource", body.resourceId)?.snapshot;
       if (!existing) return NextResponse.json({ ok: false, error: "Resource not found." }, { status: 404 });
-      if (!ADMINS.includes(session.role) && existing.createdBy !== session.userId) {
+      if ((existing.kind === "credential" || Boolean(existing.credential)) && !canManageTechnical) {
+        return NextResponse.json({ ok: false, error: "Technical Manage access is required to delete shared logins." }, { status: 403 });
+      }
+      if (!canManageTechnical && existing.createdBy !== session.userId) {
         return NextResponse.json({ ok: false, error: "You cannot delete this resource." }, { status: 403 });
       }
       const result = await deletePrivateObjectWithRecovery<DevelopmentResource>({
-        agencyId: session.agencyId,
+        agencyId,
         purpose: "development-resource",
         objectId: body.resourceId,
-        requestHash: privateObjectRequestHash([session.agencyId, body.resourceId, "permanent-delete"]),
+        requestHash: privateObjectRequestHash([agencyId, body.resourceId, "permanent-delete"]),
         localDirectory: "development-uploads",
         checkpointSnapshot: snapshot => ({
           ...snapshot,
@@ -157,13 +186,13 @@ export async function POST(request: Request) {
         completedSnapshot: snapshot => ({ id: snapshot.id, agencyId: snapshot.agencyId, title: snapshot.title, createdBy: snapshot.createdBy }),
         prepare(state) {
           const current = state.developmentResources[body.resourceId];
-          if (!current || current.agencyId !== session.agencyId) throw new Error("Resource not found.");
+          if (!current || current.agencyId !== agencyId) throw new Error("Resource not found.");
           delete state.developmentResources[body.resourceId];
           return { snapshot: current, storageProvider: current.file?.storageProvider, storageKey: current.file?.storageKey };
         },
       });
       if (!result.ok) {
-        const recoveryResource = listDevelopmentResourcesWithPendingDeletion(session.agencyId)
+        const recoveryResource = listDevelopmentResourcesWithPendingDeletion(agencyId)
           .find(resource => resource.id === body.resourceId);
         return NextResponse.json({
           ok: false,
@@ -177,14 +206,14 @@ export async function POST(request: Request) {
     }
 
     if (body.action === "credential:reveal") {
-      const resource = getDevelopmentResource(session.agencyId, body.resourceId);
+      const resource = getDevelopmentResource(agencyId, body.resourceId);
       if (!resource || (resource.visibility === "private" && resource.createdBy !== session.userId && session.role !== "agency-owner")) {
         return NextResponse.json({ ok: false, error: "Login not found." }, { status: 404 });
       }
       try {
-        const password = revealDevelopmentPassword(session.agencyId, body.resourceId, session.role);
+        const password = revealDevelopmentPassword(agencyId, body.resourceId, session.role);
         logActivity({
-          agencyId: session.agencyId,
+          agencyId,
           actorUserId: session.userId,
           actorEmail: session.email,
           category: "settings",
@@ -199,42 +228,49 @@ export async function POST(request: Request) {
     }
 
     if (body.action === "workflow:create" || body.action === "workflow:update" || body.action === "workflow:delete") {
-      if (!ADMINS.includes(session.role)) return NextResponse.json({ ok: false, error: "Owner or manager access required." }, { status: 403 });
       // Updating/deleting a workflow rewrites resource stage references, and
       // creating the first/default workflow may run the legacy reference
       // migration. Serialize the complete branch with resource deletion.
-      return withPortalStateTransaction(privateObjectLifecycleLockKey(session.agencyId), () => {
+      return withPortalStateTransaction(privateObjectLifecycleLockKey(agencyId), () => {
         if (body.action === "workflow:create") {
-          const workflow = createDevelopmentWorkflow(session.agencyId, body.input, session.userId);
+          const workflow = createDevelopmentWorkflow(agencyId, body.input, session.userId);
           return NextResponse.json({ ok: true, workflow }, { status: 201 });
         }
         if (body.action === "workflow:update") {
-          const workflow = updateDevelopmentWorkflow(session.agencyId, body.workflowId, body.input);
+          const workflow = updateDevelopmentWorkflow(agencyId, body.workflowId, body.input);
           return workflow ? NextResponse.json({ ok: true, workflow }) : NextResponse.json({ ok: false, error: "Workflow not found." }, { status: 404 });
         }
-        const deleted = deleteDevelopmentWorkflow(session.agencyId, body.workflowId);
+        const deleted = deleteDevelopmentWorkflow(agencyId, body.workflowId);
         return NextResponse.json({ ok: deleted }, { status: deleted ? 200 : 404 });
       });
     }
 
     if (body.action === "catalogue:workspace") {
-      if (!ADMINS.includes(session.role)) return NextResponse.json({ ok: false, error: "Owner or manager access required." }, { status: 403 });
       // `ensureDefaultDevelopmentWorkflow` can migrate every resource's stage
       // refs. Keep migration, workspace scan and imports on one snapshot so a
       // concurrent resource delete cannot be overwritten by the bulk rewrite.
-      return withPortalStateTransaction(privateObjectLifecycleLockKey(session.agencyId), async () => {
-        const defaultWorkflow = ensureDefaultDevelopmentWorkflow(session.agencyId, session.userId);
+      return withPortalStateTransaction(privateObjectLifecycleLockKey(agencyId), async () => {
+        const defaultWorkflow = ensureDefaultDevelopmentWorkflow(agencyId, session.userId);
         const candidates = await scanWorkspace(defaultWorkflow.id);
-        const existingPaths = new Set(listVisibleDevelopmentResources(session.agencyId, session.userId, session.role).map(resource => resource.localPath).filter(Boolean));
+        const existingPaths = new Set(listVisibleDevelopmentResources(agencyId, session.userId, session.role).map(resource => resource.localPath).filter(Boolean));
         const imported = candidates
           .filter(candidate => !existingPaths.has(candidate.localPath))
-          .map(candidate => publicDevelopmentResource(createDevelopmentResource(session.agencyId, candidate, session.userId)));
+          .map(candidate => publicDevelopmentResource(createDevelopmentResource(agencyId, candidate, session.userId)));
         return NextResponse.json({ ok: true, imported, skipped: candidates.length - imported.length });
       });
     }
 
     return NextResponse.json({ ok: false, error: "Unknown action." }, { status: 400 });
   } catch (error) {
+    if (error instanceof SopReferenceValidationError) {
+      return NextResponse.json({
+        ok: false,
+        reason: error.code,
+        error: error.message,
+        field: error.field,
+        sopIds: error.sopIds,
+      }, { status: 422 });
+    }
     if (error instanceof PrivateObjectLifecycleConflictError) return NextResponse.json({ ok: false, code: error.code, error: error.message }, { status: 409 });
     return authErrorResponse(error);
   }

@@ -45,6 +45,7 @@ const GATES = [
   "requireFounder", "requireCurrentAccessActor",
   // The access kernel
   "requireCurrentWorkspaceElementAccess", "requireCurrentClientWorkspaceElementAccess",
+  "requireCurrentFulfilmentTechnicalAccess",
   "requireAccessCapability", "requireDevProjectAccess", "requireWholeWorkingTreeFounderAccess",
   // Supabase's session (the MFA routes)
   "auth.getUser",

@@ -5,6 +5,7 @@ import { getState, mutate } from "./storage";
 import { createAgencyTask } from "./tasks";
 import { BUILT_IN_TASK_TEMPLATES, TEMPLATE_FOR_FAMILY, builtInTemplate, fillTemplateTitle } from "@/lib/tasks/taskTemplates";
 import type { AgencyTask, AgencyTaskChecklistItem, AgencyTaskPriority, AgencyTaskTemplate, AgencyTaskTemplateStep } from "./types";
+import { assertOptionalSopReferenceExists } from "@/engines/sop/server/sopReferences";
 
 /**
  * Saved sequences — the built-in library plus whatever this agency wrote.
@@ -104,6 +105,7 @@ export function saveTaskTemplate(
   // then sits next to the original under the same name.
   if (input.id?.startsWith("builtin:")) return null;
   const taskTitle = (input.taskTitle?.trim() || name).slice(0, 240);
+  const steps = cleanSteps(input.steps);
   let saved: AgencyTaskTemplate | null = null;
   mutate(state => {
     state.taskTemplates ??= {};
@@ -117,7 +119,15 @@ export function saveTaskTemplate(
       taskTitle,
       notes: input.notes?.trim().slice(0, 4_000) || undefined,
       priority: input.priority,
-      steps: cleanSteps(input.steps),
+      steps: steps.map((step, index) => ({
+        ...step,
+        sopId: assertOptionalSopReferenceExists(
+          state,
+          agencyId,
+          step.sopId,
+          `taskTemplate.steps[${index}].sopId`,
+        ),
+      })),
       appliesTo: (input.appliesTo ?? []).map(prefix => prefix.trim()).filter(Boolean).slice(0, 10),
       createdBy: existing?.createdBy ?? createdBy,
       createdAt: existing?.createdAt ?? now,
@@ -164,6 +174,20 @@ export interface ApplyTaskTemplateInput {
 export function createTaskFromTemplate(input: ApplyTaskTemplateInput, now = Date.now()): AgencyTask | null {
   const template = findTaskTemplate(input.agencyId, input.templateId);
   if (!template) return null;
+  const checklist: AgencyTaskChecklistItem[] = template.steps.map((step, index) => ({
+    id: `chk_${crypto.randomBytes(6).toString("hex")}`,
+    label: step.label,
+    href: step.href,
+    focus: step.focus,
+    sopId: assertOptionalSopReferenceExists(
+      getState(),
+      input.agencyId,
+      step.sopId,
+      `taskTemplate.steps[${index}].sopId`,
+    ),
+    done: false,
+    createdAt: now,
+  }));
   const task = createAgencyTask({
     agencyId: input.agencyId,
     title: fillTemplateTitle(template.taskTitle, input.subject) || template.name,
@@ -176,20 +200,19 @@ export function createTaskFromTemplate(input: ApplyTaskTemplateInput, now = Date
     assigneeUserId: input.assigneeUserId,
     createdBy: input.createdBy,
   });
-  const checklist: AgencyTaskChecklistItem[] = template.steps.map(step => ({
-    id: `chk_${crypto.randomBytes(6).toString("hex")}`,
-    label: step.label,
-    href: step.href,
-    focus: step.focus,
-    sopId: step.sopId,
-    done: false,
-    createdAt: now,
-  }));
   let saved: AgencyTask | null = null;
   mutate(state => {
     const stored = state.tasks[task.id];
     if (!stored) return;
-    stored.checklist = checklist;
+    stored.checklist = checklist.map((item, index) => ({
+      ...item,
+      sopId: assertOptionalSopReferenceExists(
+        state,
+        input.agencyId,
+        item.sopId,
+        `task.checklist[${index}].sopId`,
+      ),
+    }));
     stored.updatedAt = now;
     saved = stored;
   });

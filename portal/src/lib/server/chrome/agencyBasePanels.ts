@@ -22,6 +22,7 @@ import { canUseDevMode } from "@/lib/server/dev/devModeAccess";
 import { devDocsAccessible } from "@/lib/server/dev/devDocs";
 import { listInstalledFor } from "@/server/pluginInstalls";
 import type { SessionPayload } from "@/server/types";
+import { STAFF_WORKSPACE_NAVIGATION } from "@/lib/staffWorkspacePolicy";
 
 /**
  * The nav this session is entitled to, narrowed exactly as the agency layout
@@ -68,19 +69,22 @@ export async function assembleAgencyBasePanels(session: SessionPayload): Promise
     .some(key => workspaceElementLevel(staffAccess, key) !== "hidden");
   const hasFulfilment = Object.values(FULFILMENT_VIEW_ELEMENT_KEYS)
     .some(key => workspaceElementLevel(fulfilmentAccess, key) !== "hidden");
+  const visibleIds = new Set([
+    "team",
+    ...(hasPeople ? ["people"] : []),
+    ...(hasFulfilment ? ["fulfilment"] : []),
+    "account",
+  ]);
+  const navigation = STAFF_WORKSPACE_NAVIGATION.filter(item => visibleIds.has(item.id));
   return [{
     id: "main",
     label: "",
     order: 0,
-    items: [
-      { id: "team", label: "My workspace", href: "/portal/team", panelId: "main", order: 0 },
-      ...(hasPeople ? [{ id: "people", label: "Staff", href: "/portal/agency/people", panelId: "main" as const, order: 10 }] : []),
-      ...(hasFulfilment ? [{ id: "fulfilment", label: "Fulfilment", href: "/portal/agency/fulfilment", panelId: "main" as const, order: 20 }] : []),
-    ],
+    items: navigation.filter(item => item.panelId === "main").map(item => ({ ...item })),
   }, {
     id: "settings",
     label: "Settings",
     order: 90,
-    items: [{ id: "account", label: "My profile", href: "/portal/account", panelId: "settings", order: 0 }],
+    items: navigation.filter(item => item.panelId === "settings").map(item => ({ ...item })),
   }] satisfies NavPanel[];
 }

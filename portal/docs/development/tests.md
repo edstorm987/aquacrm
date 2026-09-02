@@ -8,16 +8,50 @@ tests that pin old behaviour).
 
 ## The canonical command
 ```bash
-PORTAL_BACKEND=memory NODE_OPTIONS='--conditions react-server' npx tsx --test scripts/*.test.ts
+npm run smoke:all
 ```
-`PORTAL_BACKEND=memory` keeps stateful tests off the live sandbox.
 
-> **Final whole-suite checkpoint: 6,243 Node tests across 1,074 suites — 6,241
-> passed / 0 failed / 0 cancelled / 2 skipped.** The separate Website Editor gate
-> passed **49/49 files**; combined accounting is **6,292 executed units / 6,290
-> passed / 0 failed / 2 skipped**. The production-browser matrix and local production build are
-> complete below. These gates establish repository behaviour/source/browser contracts,
-> not deployed-provider or mounted human acceptance.
+Its pinned expansion is:
+
+```bash
+PORTAL_BACKEND=memory NODE_OPTIONS='--conditions react-server' \
+  node --import tsx --test scripts/*.test.ts \
+  'src/built-ins/modules/!(website-editor)/src/__smoke__/*.test.ts' && \
+  npm run smoke:website-editor
+```
+
+The first process covers every script test and every non-Website-Editor module
+suite. The separate Website Editor runner deliberately uses client-capable React
+conditions. `PORTAL_BACKEND=memory` keeps stateful tests off the live sandbox.
+
+> The final canonical `npm run smoke:all` Node phase executed **6,417 tests across
+> 1,093 suites: 6,415 passed / 0 failed / 2 skipped in 94,027.354917ms**; the
+> subsequent Website Editor gate passed **49/49 files in 11.8s**. The browser/build
+> evidence below is local or isolated-production evidence, not deployed-provider,
+> cold-machine or broad mounted-human acceptance.
+
+## 2026-09-02 current source-freeze focused evidence
+
+- PortalState atomicity, post-commit ordering and lease fencing pass **17/17**.
+- Canonical Staff policy plus Portal Studio update-route proof passes **18/18** in
+  the direct rerun; the wider authored Staff policy gate remains **35/35**.
+- The sample-preview correction passes **29/29** focused and **111/111** across
+  editor, tenancy and access: the sample loads only through template scope, every
+  client mutation is refused and no client or portal-instance row is created.
+- Website Editor public visitor/publication proof passes **20/20**. The exact
+  settings/lifecycle slice passes **26/26** and the full Website Editor runner is
+  tracked separately as **49/49 files**.
+- Affiliate module plus onboarding/dependency proof passes **32/32**; Membership
+  plan-price provisioning passes **11/11**.
+- The final named checked-read source cohort passes **54/54**. Membership/Affiliate
+  parent dependency proof passes **28/28**; the dedicated SOP dependency/writer gate
+  passes **22/22**, within the documented wider SOP/dependent-domain **52/52** gate.
+- The transactional owned-sidecar RPC, one-statement hydration snapshot, receipt
+  replay/reconciliation and malformed-envelope boundaries are source/mocked verified.
+  The migrations have not been applied to live PostgreSQL, so this is not remote-
+  database concurrency acceptance.
+- These focused gates are supplemented by the final browser evidence below and the
+  final canonical repository aggregate recorded above.
 
 ## 2026-09-02 private-upload replay and ownership evidence
 
@@ -32,7 +66,8 @@ PORTAL_BACKEND=memory NODE_OPTIONS='--conditions react-server' npx tsx --test sc
 - Dedicated owner-binding and route regressions cover campaign exact asset identity and
   pre-write refusal handling, website/client malformed and duplicate token rejection,
   exact signed provider/key matching and client workspace-busy claim release.
-- The complete changed-surface gate is **85/85**. The final repository run is
+- The complete changed-surface gate is **85/85**. At that private-upload checkpoint
+  the repository run was
   **6,243 tests across 1,074 suites: 6,241 passed / 0 failed / 2 skipped**;
   Website Editor is **49/49**, and the production build generated **245/245** pages
   after a **43s** compile and **11.4s** TypeScript phase.
@@ -40,6 +75,62 @@ PORTAL_BACKEND=memory NODE_OPTIONS='--conditions react-server' npx tsx --test sc
   real process-kill/multi-process database leases, mounted forced-failure/retry,
   automatic retained-claim operator reconciliation, direct call-recording ambiguity
   and the separate SOP-retirement policy remain open under issue #38.
+
+## 2026-09-02 local production speed and browser evidence
+
+- `perf:production` built a fresh isolated webpack output in **158,476.1ms**
+  (**1,584,943,643 bytes**) and started a new Node/Next process for every target.
+  Readiness was TCP-only (**304.3–309.1ms**), so each named route was that process's
+  first HTTP request before three immediate repeats:
+
+  | Target | Fresh-process first HTTP | Repeat max |
+  |---|---:|---:|
+  | `/api/auth/me` | 765.9ms | 9.2ms |
+  | public home | 641.4ms | 6.0ms |
+  | Agency | 949.4ms | 53.1ms |
+  | Dev Team | 869.2ms | 38.9ms |
+  | Library | 803.6ms | 30.4ms |
+  | Logs | 892.8ms | 30.7ms |
+
+  Every response was 200 and every failure list was empty. Build and host
+  filesystem/page caches were shared: this is fresh-process evidence, not a cold
+  machine, deployed CDN/edge or live-provider result.
+- `perf:station-chunks` authenticated once, then used a fresh cacheless,
+  service-worker-blocked Chromium context per station and passed **8/8**. Agency
+  Day transferred **674,535B** of first-navigation JS/CSS. Extra transfer versus
+  Day was Executive **4,473B**, Battle **36,102B**, Calendar and Actions
+  **42,174B** each, Advisor **12,528B**, Dev Team **21,059B** and Radar Inspector
+  **34,731B**. These are network transfer bytes, not JavaScript execution or paint
+  budgets. The corrected filesystem baseline reports **8,258,688B** of static
+  chunks with an **862kB** largest chunk; its path-with-spaces regression prevents
+  the former false zero.
+- The broad production-target browser matrix used Chromium **151.0.7922.34** over
+  13 pages × 17 viewports and accounted for **1,326** checks as **1,177 passed /
+  0 failed / 149 observations / 0 missing**. The post-authentication-fix Settings
+  run accounts for **102** checks across 17 viewports as **92 / 0 / 10 / 0**.
+  Authentication is bootstrapped once and isolated storage state is reused; the
+  app's login limiter was not weakened. Every observation is an evidenced aborted
+  speculative Next RSC prefetch.
+- The exact final browser probe is **6/6**: Settings Environment at 768px, Portal
+  Studio at 390/1024/1440, and Fulfilment Roles at 390/1280 all return 200, match
+  the viewport width and have no console, page, request or HTTP error. Studio sends
+  only a template-scope sample API 200 and keeps Publish in view. Fulfilment exposes
+  **11** element radiogroups and 11 each Hidden/View/Use/Manage plus Projects,
+  Portals and Aqua Tags. The probe's recorded source hash was unchanged.
+- A separate browser roundtrip created a reusable role, saved Projects as Manage,
+  reloaded, downgraded it to View, reloaded and archived it without browser errors.
+- The isolated-production Staff Technical matrix passed **50/50** through six same-
+  cookie Hidden → View → Use → Manage → View → Hidden transitions with zero failures,
+  errors or overflow. Hidden pages render valid streamed Next not-found content and
+  may therefore carry document HTTP 200 or 404; the exact downgraded API returned 403.
+- Fulfilment checked-mutation acceptance passed at **390px and 1280px**: an injected
+  refusal showed an alert, avoided reload and false success, rolled back or retained
+  the affected state as appropriate, and succeeded on retry.
+- Provider deadline/outcome contracts are deterministic local adapter proof. Real
+  provider credentials were deliberately not used; live provider, deployed
+  geography/CDN and production telemetry timings remain operational acceptance.
+- The final primary production webpack build compiled in **47s**, completed
+  TypeScript in **5.1s** and generated **245/245** pages in **489ms**.
 
 ## 2026-09-01 final hardening evidence
 
@@ -279,19 +370,29 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   [ultra-review-2026-08-24.md](ultra-review-2026-08-24.md).
 - Production build is now an independently passing gate. The Dev Projects `GET`
   requires `NextRequest`, direct callers supply one, the route-contract smoke pins
-  the signature, and the final deterministic local build compiled in **51s**,
-  completed TypeScript in **17.3s** and generated **245/245** static pages in
-  **96.47s** wall time. Keep this local-only gate separate from ordinary
+  the signature, and the final primary deterministic local build compiled in
+  **47s**, completed TypeScript in **5.1s** and generated **245/245** static
+  pages in **489ms**. Keep this local-only gate separate from ordinary
   `tsc`/smoke checks and from deployment acceptance. → issue #27.
 - Staff Team Chat now passes `src/proxy.ts`, and selection/poll/send results are
-  bound to the latest operator intent. The broader independently maintained staff
-  capability policy still needs a systematic regression. → issues #25 and #147.
+  bound to the latest operator intent. The broader Staff policy now has one
+  systematic proxy/navigation/page/API/Portal Studio regression: direct **18/18**
+  and wider **35/35**. Role create/Manage-save/reload/View-downgrade/reload/archive
+  is browser-proven. Staff Technical enforcement and same-cookie downgrade are
+  isolated-production-browser proven **50/50**; only provider-backed live-persona/
+  shared-credential acceptance remains under #25, while the separate Team Chat
+  response-order acceptance remains under #147.
+  → issues #25 and #147.
 - The Command Centre performance test asserts that performance mode OFF runs the
   expensive path and ON pauses it; it is a policy/shape test, not a response-time
   acceptance result. → issues #21.
-- The suite does not enforce read/render purity. A source call-graph pass found **28
-  non-auth API GET handlers and 26 rendered page/layout files** that can reach
-  `mutate()` after hydration, spanning intentional callbacks/cron work and incidental
+- Read/render purity now has a source-derived declared-and-ruled regression rather
+  than an unmaintained prose count. It classifies callbacks, cron work, audit stamps,
+  first-touch seeders and the remaining operational writes and refuses new unruled
+  causes. The remaining classified causes are still product/performance debt; the
+  guard is not evidence that they were removed. A prior pass found **28 non-auth API
+  GET handlers and 26 rendered page/layout files** that could reach `mutate()`, spanning
+  intentional callbacks/cron work and incidental
   plugin provisioning, automation execution, materialisation, sweeps, read-state and
   tracking writes. Opening demo Finance in the fenced browser persisted
   `ukDefaultCurrencyV1`, proving this is not only call-graph theory. Tests should
@@ -330,24 +431,23 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   contact and plan rows retained the deleted ids. Add cross-plugin deletion cases for
   Marketing profile → Leads campaign and Marketing asset → Inbox routing as well.
   → issues #20.
-- Stripe tests prove durable PaymentIntent idempotency and same-process refund
-  redelivery. They do not prove refund/dispute event idempotency across processes.
-  → issues #26.
+- Stripe refund/dispute delivery now has independent file-process race and fresh-
+  reload proof. Deterministic provider identities leave one row and one side effect
+  for each event family (**4/4**); live signed Stripe acceptance remains separate.
+  → issue #26 resolved.
 
-- There is no whole-class behavioural regression proving that an old cookie is
-  rejected after its live user is downgraded, removed or password-rotated. The
-  existing freshness coverage exercises isolated routes; it did not stop a stale
-  owner cookie from creating a working external-AI API token. → issues #22.
-- Showcase coverage proves selected non-GET blocking and reset shape, not that
-  every mutating `GET`/OAuth callback is denied or that two visitors are isolated.
-  → issues #21 and #23.
-- Erasure tests use memory state and a fake Supabase client on successful paths.
-  An isolated review probe now proves the missing failure case: forced failures for
-  inbox, `inbox_contact_identities` and `brand_enquiries` were returned after the
-  local client was deleted; a second invocation returned no result; the surviving
-  activity retained `clientName`; and the route source still unconditionally wraps
-  a returned result in `{ok:true}`. Add a permanent route-level regression requiring
-  an incomplete response, durable retry state and de-identified audit. → issues #24.
+- Whole-class session revocation is now behaviourally pinned: old real cookies are
+  replayed after downgrade, password/session rotation and deletion across central
+  session/role consumers, with Sandbox/demo/showcase anchoring included (**16/16**).
+  Live mounted downgrade acceptance remains. → issue #22 resolved.
+- Showcase coverage now pins the known mutating GET/OAuth/materialisation capability
+  list, ordinary mutations and physical public/private realm isolation. Every new
+  read-side mutation still needs classification, and the broader read/render debt is
+  tracked separately under #21. → issue #23 resolved.
+- Erasure failure coverage now forces all three hosted deletes to fail, proves the
+  local client/records remain, checks retryable HTTP 502 plus de-identified durable
+  audit, then retries to completion; the wider erasure/governance chain is **53/53**.
+  Provider-backed acceptance remains. → issue #24 resolved.
 - File persistence acknowledgement, corrupt-state recovery and atomicity lack
   regressions. Isolated probes now prove both failures: `EISDIR` was detached while
   flush resolved/backend stayed writable, and malformed JSON hydrated empty then was
@@ -368,23 +468,23 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   handler outcomes, then browser-prove create/save/publish/promote/reload. → issues
   #28.
 - Published functional-block coverage now includes narrow anonymous backend proof
-  for Contact, Blog Feed and Ecommerce. Contact requires affirmative versioned
-  consent bound to the digest of the exact displayed statement and persists one
-  exact-install receipt/submission; Blog Feed returns allowlisted published
-  summaries only; Ecommerce exposes allowlisted catalogue/detail/quote/checkout/
-  receipt operations. Focused visitor proof is **27/27**, the executable registry
-  pins **341 total / 144 undeclared / 15 public routes**, and host/tenancy proof is
-  **50/50**. This still does not provide Forms, Booking/Reservations, Newsletter or
-  Theme backends, connect Contact submissions to their intended operator workflow,
-  resolve Affiliate Leaderboard/Signup promises, distinguish Membership API failure
-  from a genuinely empty plan list, or prove Donation's monthly choice creates a
-  subscription rather than the same one-off checkout.
-  The suite also never proves the promised host globals: neither
-  `__aquaRenderBlocks` nor `__PORTAL_SITE_ID__` is assigned anywhere, leaving Blog
-  Post on its JSON debug fallback and Theme Selector without a site id.
-  Add anonymous endpoint tests that assert both the response and the durable
-  content/product/enquiry/subscription/reservation result, followed by browser
-  interaction. → issue #29.
+  for Contact, Blog Feed/detail and Ecommerce. Contact binds affirmative consent to
+  the digest of the exact displayed statement and persists one exact-install
+  receipt/submission. Blog Feed/detail return published allowlist DTOs, and Blog Post
+  renders the body through the host child renderer with finite depth/node/JSON limits
+  and no recursive Blog Post mount. Ecommerce exposes allowlisted catalogue/detail/
+  quote/checkout/receipt operations. Publication proof freezes the complete visitor
+  view — blocks, page metadata/classification/privacy, exact theme, custom code,
+  layout, SEO, redirects and locales — until republish, including legacy migration
+  and revert. The dedicated visitor/publication gate passes **20/20**, the complete
+  Website Editor runner passes **49/49 files**, and the executable registry now pins
+  **342 total / 145 undeclared / 16 public routes**.
+  This still does not provide Forms, Booking/Reservations, Newsletter or Theme
+  backends, connect Contact submissions to their intended operator workflow, resolve
+  Affiliate Leaderboard/Signup promises, distinguish Membership API failure from a
+  genuinely empty plan list, or prove Donation's monthly choice creates a
+  subscription rather than the same one-off checkout. Add mounted anonymous and
+  custom-domain/provider proof for every retained published promise. → issue #29.
 - Website export coverage exercises the narrow static renderer directly with
   heading/button/image primitives and calls `handleExportSite()` in isolation. It
   never resolves the visible Customise button's `/api/admin/export-code` request,
@@ -408,18 +508,20 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   Thus the suite passes while Campaigns marks queued rows sent with no dispatcher.
   Add a real-container test covering unconfigured, successful provider, failure and
   retry, and assert campaign/lead/outbox states at each milestone. → issue #32.
-- Memberships tests inject a functional fake `StripePort`; they do not exercise the
-  production foundation adapter, which always returns a throwing no-op while making
-  `isStripeAvailable()` true. The suite therefore proves the plugin service against
-  an implementation production does not supply. Add adapter-level availability and
-  partial-seed tests, followed by a real Stripe test-mode checkout/webhook/lifecycle
-  run. → issue #33.
-- Affiliates tests inject a complete `StripeConnectPort` directly, while the live
-  foundation registration supplies none. They therefore prove onboarding, webhook
-  and transfer state machines that the mounted product can never enter. Add a
-  production-adapter capability regression, assert the UI never offers setup when
-  absent, then run Stripe test mode through connected-account onboarding and a
-  completed payout. → issue #45.
+- Memberships now exercises the real scoped Stripe foundation adapter and truthful
+  unavailable state, while lifecycle/webhook tests retain injected clients for
+  deterministic provider failures. Subscription transitions pass their dedicated
+  **2/2** gate and plan-price provisioning passes **11/11**, including stable cadence
+  identities, provider-success/local-write recovery, stale-target refusal and an
+  unlocked unrelated-plan lane. A real Stripe test-mode checkout/webhook/change/
+  cancel/reconciliation run remains. → issues #33 and #122.
+- Affiliates now exercises the real client-scoped Connect foundation, capability
+  gating and every adapter method. Onboarding persists intent before provider I/O,
+  uses a stable provider identity, revalidates its target and fences delayed status;
+  `account.updated` re-reads current provider state rather than trusting an old event
+  body. Module plus onboarding/dependency proof passes **32/32**. Complete the hosted
+  onboarding/status/transfer/webhook/reload lifecycle with a real Stripe test account.
+  → issue #45.
 - Canonical client-creation proof now executes the real shared operation against
   memory storage: default Epic Intro creates once, installs Website Editor, applies
   `aqua-incubator`, initialises its checklist and replays to the same client; changed
@@ -501,11 +603,15 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   Add route/UI reachability and canonical-config tests, reject unverifiable sender
   activation, then browser-walk a fresh install through delivery and a signed
   webhook status update. → issue #43.
-- Plugin-settings tests prove the generic serializer/validator only against
-  Agency Finance. No inventory test requires every manifest with fields to expose
-  a reachable editor, and no consumer test rejects fields that are declared but
-  unused. Add a registry-wide settings-reachability/consumer audit plus scoped
-  save/reload/behavior tests for all 51 retained fields. → issue #44.
+- Plugin-settings coverage now derives the registered inventory from source and
+  fails if the declared consumer list drifts. Twelve manifests declare **43 fields**:
+  **24 are consumed and 19 remain unwired**. Marketing, Website Editor and
+  Fulfillment have save/reload or changed-outcome proof, removed inert declarations
+  cannot persist through the generic writer, and unwired controls are labelled at
+  the input. The exact settings/lifecycle slice passes **26/26**. Wire or remove the
+  remaining HR (3), Memberships (4), Leads Pipeline (3), Public Funnel (2),
+  Ecommerce (2), Affiliates (2), Client CRM (2) and Finance (1) declarations, then
+  mounted-prove every retained setting. → issue #44.
 - Manifest and registry tests can load healthcheck functions, but no test proves the
   product ever invokes one or persists `health`/`healthCheckedAt`; the patch contract
   cannot currently carry those fields. Radar tests likewise do not reject an enabled
@@ -570,9 +676,17 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   site signup creates a lead without a password; and its form response returns by
   303. This does not visually prove the published-site result banner or the
   client-scoped end-customer signup embed.
-- Staff access needs a matrix that compares the proxy, navigation, page and API
-  gates against one intended capability policy; individual leaf-route role tests
-  do not catch the proxy blocking a legitimate staff feature first. → issues #25.
+- Staff proxy, navigation, pages and tested API families now consume one canonical
+  Hidden/View/Manage capability policy. Portal Studio separately proves View can
+  inspect but not mutate, Manage can save/publish, Hidden is refused, downgrades are
+  re-read and foreign-client scope stays closed. The direct policy/update-route rerun
+  passes **18/18** and the wider authored Staff policy gate is **35/35**. A browser
+  role-authoring roundtrip persisted Manage, then View, across reload and archived
+  the role. The isolated-production Staff Technical matrix then passed **50/50**
+  across six same-cookie Hidden → View → Use → Manage → View → Hidden transitions;
+  hidden routes used valid streamed Next not-found content and the exact API downgrade
+  returned 403. Provider-backed live-persona/shared-credential acceptance remains.
+  → issue #25.
 - Invalid client-reference handling, website empty-state truth, read-time
   mutations, slow-page profiling and showcase concurrency require direct
   behavioural checks.
@@ -582,16 +696,15 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   partial creation retry have focused companion tests, and `smoke:all` explicitly
   includes the nested suite. Focused lifecycle/navigation **43/43** and wider
   creation **75/75** pass. → issue #56 resolved.
-- Checked-read coverage now distinguishes unavailable from confirmed empty for Portal
-  Editor configuration, attention plan/explanation/evidence, expense fields, KPI
-  custom/shared views, completed history, both Fulfilment phase catalogues, agency/
-  exact-client website routing, Portal Search, Development search/resources, sender
-  catalogues and Unified Inbox. It retains labelled confirmed snapshots where safe,
-  exposes retry, locks dependent writes and withholds combined counts/ordinary empty
-  copy over partial evidence. The final interactive-read/utility gate is **14/14**.
-  Customer/sibling Finance, contact-interaction, Meta, commercial/manual-
-  detail, Identity and governance-scope families plus mounted rejection/lost-response/
-  multi-tab/provider recovery remain. → issue #57.
+- Checked-read coverage now distinguishes unavailable from confirmed empty across the
+  original editor/attention/KPI/history/phase/search/sender/inbox cohort and the later
+  client/customer Finance, Health/Radar/Fulfillment, contact/interactions, Meta,
+  commercial/manual detail, Identity and governance-scope families. Labelled snapshots
+  never authorise a dependent write, delayed generations are fenced and partial reads
+  cannot produce healthy totals or ordinary empty copy. The exact final named-source
+  regression passes **54/54**; the earlier interactive-read/utility gate remains
+  **14/14**. The named source-level fallback class is repaired. Mounted forced
+  rejection/retry, lost-response, multi-tab and live-provider recovery remain. → issue #57.
 - Client-contract smoke coverage is source-pattern only. It does not force the
   optional template request to fail after a random-id contract create, retry the
   retained editor or count drafts/templates after reload. Add that composite failure
@@ -617,18 +730,20 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   linked foundation card. Add a real handler/service test that creates and links both,
   archives, reloads, restores or purges, and injects failure on each side. The isolated
   probe currently observes a deleted lead plus the exact surviving card id. → issue #62.
-- Membership and Affiliate tests cover happy-path creation but not destructive parent
-  deletion with active dependants. Add mounted DELETE/retirement cases proving a plan
-  with a subscriber remains visible, retains benefits and reconciles billing, and an
-  affiliate with a code/attribution/payout remains processable or is deliberately
-  retained. The isolated probes currently observe a hidden still-present subscription
-  and orphaned active code/approved attribution/scheduled payout. → issue #63.
-- SOP tests validate guide/task references when written but do not drive the mounted
-  delete with dependants. Add a handler/browser test that links one SOP to a guide,
-  task, product process/client delivery, Development resource, template and training
-  record; require an explicit archive/reassign/detach outcome and fault-test it. The
-  isolated probe currently observes the SOP absent while guide/task/product ids remain,
-  and current task/product/client renderers silently filter the link. → issue #64.
+- Membership and Affiliate parent deletes now enforce RESTRICT under the same durable
+  graph lanes as child creation. Service bypass, mounted 422 shape, unchanged graph,
+  interrupted claims, concurrent child creation, ordinary archive/removed state and
+  genuinely unreferenced deletion are covered. The dedicated parent-dependency gate
+  passes **28/28**; adding the Affiliate identity-recovery file gives the documented
+  **32/32** retirement/recovery gate. Mounted refusal/archive/reload and live provider
+  acceptance remain. → issue #63.
+- SOP deletion and every current incoming-reference writer now share one tenant-safe
+  lifecycle lane. The dependency preview, service/mounted RESTRICT, all nine reference
+  shapes, nested client process steps, missing/cross-agency refusal and deterministic
+  delete-versus-guide race are covered. The dedicated SOP dependency/writer gate
+  passes **22/22**, within the wider documented **52/52** dependent-domain gate.
+  Historical dangling-row repair and representative mounted reassignment/refusal/
+  reload acceptance remain. → issue #64.
 - Company capital/governance adversarial coverage now refuses duplicate/missing graph
   identities and references, over-allocation/paid values, voting contradictions and
   hard deletes that would strand ledger links. Company governance legal citations also
@@ -888,7 +1003,7 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   passes **136/136**, TypeScript/diff and isolated production build **272/272**. Add mounted
   browser A/browser B plus storage-loss acceptance without changing the shared 3032 dataset.
   → issue #104 resolved.
-- Payment-plan invoice recovery shipped with a real-handler/file-process **4/4** gate. A normal create
+- Payment-plan invoice recovery ships with a real-handler/file-process **4/4** gate. A normal create
   plus stale HTTP replay retains one invoice and one revision; a pre-created issued invoice
   with only the durable milestone operation is adopted without another number; removed
   invoice/payment-plan ledger and activity projections reconcile exactly once on replay; and
@@ -896,9 +1011,10 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   recover. Source/visibility checks require intent flush before Finance, separate link flush,
   deterministic create, idempotent activity, a visible retry state and removal of operation
   fields from customer payloads. Wider Finance/client coverage passed **119/119**, TypeScript/
-  diff and isolated build **272/272**. **Current 2026-08-26 check: 3/4 on two isolated reruns;**
-  the fresh-process request receives 422 under the changing revision contract. Reconcile its
-  expected/current revision before restoring 4/4, then retain mounted failure/retry acceptance.
+  diff and isolated build **272/272**. The later **3/4** regression was traced to a
+  non-reentrant nested file transaction and fixed; fresh-process adoption is restored
+  to **4/4**, widened Finance/client/product-workspace is **65/65**, and the lock gate
+  is **8/8**. Retain mounted failure/retry acceptance.
   → issue #105
   resolved.
 - Website Editor nested verification now uses one discovery runner from module `npm test` and
@@ -907,9 +1023,10 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   tests, discovers new files automatically and attempts every file before failing. A two-file
   fixture proves an initial failure does not prevent the later file executing and the aggregate
   still exits non-zero with the failed filename (**2/2**). The actual suite reaches **1,527
-  assertions across 49/49 files**; TypeScript and isolated build **272/272** pass. The full root
-  run presently has unrelated concurrent failures, so it is not recorded as green. Mounted
-  editor behavior remains separate browser acceptance. → issue #106 resolved.
+  assertions across 49/49 files**; TypeScript and isolated build **272/272** pass. The later final
+  Website Editor runner passes **49/49 files in 11.8s**, following a green canonical Node phase
+  of **6,417 tests / 1,093 suites: 6,415 passed / 0 failed / 2 skipped**. Mounted editor behavior
+  remains separate browser acceptance. → issue #106 resolved.
 - Customer relationship-status proof runs the real presentation mapping for active, suspended
   and archived values, inspects the rendered status element/support destination and exercises
   fresh-memory linked workspaces twice. Active and suspended remain accessible after the fresh
@@ -950,8 +1067,7 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   one target. All three mounted routes are pinned to the shared coordinator, retryable errors
   expose the last stage, and serialized operations contain no password. Dedicated **14/14**,
   wider People/Settings/customer-setup/company-disposition/state **109/109** and final TypeScript
-  pass. The isolated build reached **272/272** before the final error-response wrapper; two exact
-  rebuilds were environment-killed during compilation. Rerun it, then add real-Supabase staging
+  pass. A later complete production build generated **245/245** pages. Add real-Supabase staging
   and mounted failure/retry/reload
   without changing the shared fixture. → issue #111 resolved.
 - Freelancer implementation journey added in `smoke-freelancer-real-journey.test.ts`. It drives
@@ -960,9 +1076,9 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   deliverable, posts through the mounted freelancer message route into owner Team Chat, uploads
   and downloads a private file through both freelancer and agency sessions, then submits the job.
   It also adopts/replays a pre-existing local-only freelancer without duplicating its user or
-  People record, and pins every rendered/API capability. Dedicated **3/3**, surrounding **105/105** and
-  TypeScript pass. The isolated build was environment-killed during webpack compilation without
-  a code diagnostic. Rerun it, then add a real Supabase/email/password-reset/login browser journey
+  People record, and pins every rendered/API capability. Dedicated **3/3**, surrounding **105/105**,
+  TypeScript and the later **245/245** production build pass. Add a real
+  Supabase/email/password-reset/login browser journey
   and a cross-process/reload pass before calling external acceptance complete. → issue #112 resolved.
 - Finance invoice identity now has a real separate-process file-backend gate in
   `smoke-finance-invoice-identity.test.ts`: distinct intents receive distinct agency/year
@@ -1032,7 +1148,11 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   Checkout, paid→paid adopts provider success after a failed local write/fresh container, and two
   concurrent same-target changes call the provider once. Dedicated **2/2**; widened Membership/
   customer/discount **49/49**; package+lifecycle **11/11**; TypeScript/diff pass. The production
-  Stripe foundation (#33) and mounted/live-provider acceptance remain.
+  Stripe foundation is now real and truthfully unavailable without scoped credentials; mounted/
+  live-provider acceptance remains. `smoke-membership-plan-price-provisioning.test.ts` adds
+  **11/11** for durable plan create/update intent, per-cadence provider identities, retry after a
+  partial provider result, rebuilt-container adoption, stale-target/reference refusal, delete
+  fencing and the proof that unrelated plan work is not held behind slow provider I/O.
 - Membership webhook issue #123 now has `smoke-membership-webhook-inbox.test.ts`. It faults
   subscriber persistence and payment activity, retries through a fresh container, races duplicate
   delivery, reprocesses legacy pre-work seen markers, rejects missing/cross-scope metadata,
@@ -1115,12 +1235,14 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
 - Keep `smoke-ux.mjs` in the HTTP/SSR layer. The repeatable real-browser gate now exists:
   `browser-matrix.mjs` drives 13 pages at 17 viewports—the six primaries, 320×568, 200% zoom
   and both sides of every Tailwind breakpoint—and requires render, overflow, console, network,
-  keyboard-focus and axe evidence. Chromium **151.0.7922.34** completed every final production
-  check: **1,326 required = 1,175 passed / 0 failed / 151 observations / 0 missing**. Every
-  observation is an explicitly proven aborted speculative Next RSC prefetch, not an ordinary
-  request failure. The fresh Settings six-primary slice is separately **36/36** with none.
-  Dialog/menu activation, screen-reader output, cross-persona role mutations, forced failures,
-  date boundaries and installability remain separate acceptance work. → issue #137.
+  keyboard-focus and axe evidence. Chromium **151.0.7922.34** completed every current broad
+  production-target check: **1,326 required = 1,177 passed / 0 failed / 149 observations /
+  0 missing**. Every observation is an explicitly proven aborted speculative Next RSC prefetch,
+  not an ordinary request failure. The corrected one-login Settings 17-viewport slice accounts
+  for **102 checks = 92 passed / 0 failed / 10 observations / 0 missing**.
+  Dialog/menu activation, screen-reader output, wider cross-persona enforcement,
+  remaining forced failures, date boundaries and installability remain separate
+  acceptance work. Staff Technical enforcement is separately proven **50/50**. → issue #137.
 - Shared tab/menu/listbox contracts now inventory every specialised role and pass **23/23** for
   arrow/Home/End, activation, Escape/return focus and reachable options; other surfaces use honest
   native navigation. Still browser-walk Settings, People, file tabs, Profile/Company menus and
@@ -1188,7 +1310,8 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   `route.ts` files containing `clientId` now use the canonical client-element evaluator. The sole
   tenant exception is the development-only empty-store seeder. This is source/runtime proof, not
   a mounted-browser claim: the API worker performed no browser actions. Dynamic plugin modules,
-  freelancer-job and generic task/task-template associations remain unclassified, while the
+  dynamic plugin and freelancer-job/task/task-template associations are classified and enforced,
+  while the
   documented customer/session/relationship, Dev-project, workspace-create, website-source and
   output/derived routes intentionally retain different authority.
 - The final access closure adds canonical Fulfilment Services View/Manage to client list/create,
@@ -1218,8 +1341,8 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
 - The new missing-client bootstrap regression passes **4/4**: the root contains only identified
   Next `beforeInteractive` bootstraps, their colour/sidebar storage behavior is executed in a VM,
   and absent clients abort before chrome/preview construction. Focused bootstrap/theme/sidebar proof
-  passes **23/23**, the wider client/navigation/editor-layout gate **125/125**, and TypeScript is
-  clean. The isolated production build was killed with no compiler diagnostic, so it is not counted.
+  passes **23/23**, the wider client/navigation/editor-layout gate **125/125**, TypeScript and the
+  later **245/245** production build pass.
   Still directly load and client-navigate between valid, missing client/editor and generic portal
   404 controls; require the intended state, zero script/hydration console errors and preserved
   colour/sidebar bootstrap state. → issue #152.

@@ -253,6 +253,9 @@ export interface ClientRadarSnapshot {
   confidencePercent: number;
   readinessPercent: number;
   summary: string;
+  sourceAvailability: {
+    finance: "ready" | "unavailable" | "not-connected";
+  };
   lastRecordedAt?: number;
   checks: BusinessRadarCheck[];
   issues: BusinessRadarIssue[];

@@ -46,12 +46,43 @@ import type { MembershipsContainer } from "./index";
 import type { StoragePort } from "./ports";
 import type { Subscription } from "../lib/domain";
 
+const dependencyLockTails = new Map<string, Promise<void>>();
+
+async function localDependencyLock<T>(key: string, operation: () => Promise<T>): Promise<T> {
+  const previous = dependencyLockTails.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const tail = previous.catch(() => undefined).then(() => gate);
+  dependencyLockTails.set(key, tail);
+  await previous.catch(() => undefined);
+  try {
+    return await operation();
+  } finally {
+    release();
+    if (dependencyLockTails.get(key) === tail) dependencyLockTails.delete(key);
+  }
+}
+
+/** One install-wide lane for plan parents and every subscription reference. */
+export function withMembershipDependencyLock<T>(
+  storage: StoragePort,
+  agencyId: string,
+  clientId: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const key = `memberships:dependency-graph:${agencyId}:${clientId}`;
+  return storage.runExclusive
+    ? storage.runExclusive(key, operation)
+    : localDependencyLock(key, operation);
+}
+
 export interface PlanDependant {
-  kind: "subscriber";
+  kind: "subscriber" | "subscription-command" | "plan-price-command";
   userId: string;
-  status: Subscription["status"];
+  status: Subscription["status"] | "pending";
   /** True when this subscriber is still being billed for the plan. */
   billable: boolean;
+  operationId?: string;
 }
 
 export interface PlanDependencyInventory {
@@ -63,6 +94,10 @@ export interface PlanDependencyInventory {
    * number that decides whether deletion is a data change or a money one.
    */
   billableSubscribers: number;
+  /** Provider/signup commands that can still materialise a subscription. */
+  pendingSubscriptions: number;
+  /** Price changes whose provider outcome still targets this plan. */
+  pendingPlanChanges: number;
   /**
    * True when deleting this plan would make its subscribers unreachable through
    * `SubscriptionService.list()`, which enumerates via surviving plans.
@@ -70,7 +105,133 @@ export interface PlanDependencyInventory {
   wouldBecomeUnreachable: boolean;
 }
 
+export class PlanHasDependantsError extends Error {
+  constructor(
+    readonly planName: string,
+    readonly dependencies: PlanDependencyInventory,
+  ) {
+    super(`Plan ${dependencies.planId} still has ${dependencies.total} blocking dependant(s).`);
+    this.name = "PlanHasDependantsError";
+  }
+}
+
 const BILLABLE_STATUSES = new Set<Subscription["status"]>(["active", "past_due", "trialing"]);
+
+function inventoryFor(planId: string, dependants: PlanDependant[]): PlanDependencyInventory {
+  return {
+    planId,
+    dependants,
+    total: dependants.length,
+    billableSubscribers: dependants.filter(dependant => dependant.billable).length,
+    pendingSubscriptions: dependants.filter(dependant => dependant.kind === "subscription-command").length,
+    pendingPlanChanges: dependants.filter(dependant => dependant.kind === "plan-price-command").length,
+    wouldBecomeUnreachable: dependants.length > 0,
+  };
+}
+
+interface StoredSubscriptionCommand {
+  kind?: string;
+  stage?: string;
+  userId?: string;
+  planId?: string;
+}
+
+interface StoredPlanPriceCommand {
+  id?: string;
+  kind?: string;
+  stage?: string;
+  actor?: string;
+  planId?: string;
+  agencyId?: string;
+  clientId?: string;
+}
+
+async function pendingCommandDependants(
+  storage: StoragePort,
+  planId: string,
+  seenUsers: Set<string>,
+): Promise<PlanDependant[]> {
+  const dependants: PlanDependant[] = [];
+  const keys = await storage.list("memberships/subscription-command/");
+  for (const key of keys) {
+    const command = await storage.get<StoredSubscriptionCommand>(key);
+    if (command?.kind !== "subscribe" || command.planId !== planId || !command.userId || seenUsers.has(command.userId)) continue;
+    seenUsers.add(command.userId);
+    dependants.push({
+      kind: "subscription-command",
+      userId: command.userId,
+      status: "pending",
+      billable: false,
+    });
+  }
+  return dependants;
+}
+
+async function pendingPlanChangeDependants(
+  storage: StoragePort,
+  agencyId: string,
+  clientId: string,
+  planId: string,
+): Promise<PlanDependant[]> {
+  const dependants: PlanDependant[] = [];
+  const keys = await storage.list("memberships/plan-price-command/");
+  for (const key of keys) {
+    const command = await storage.get<StoredPlanPriceCommand>(key);
+    if (
+      command?.kind !== "update"
+      || command.planId !== planId
+      || command.agencyId !== agencyId
+      || command.clientId !== clientId
+      || (command.stage !== "pending" && command.stage !== "provider_applied")
+    ) continue;
+    dependants.push({
+      kind: "plan-price-command",
+      userId: command.actor ?? "",
+      status: "pending",
+      billable: false,
+      operationId: command.id,
+    });
+  }
+  return dependants;
+}
+
+/** Storage-only form used by the Plan service while it owns the graph lock. */
+export async function planDependencyInventoryFromStorage(
+  storage: StoragePort,
+  agencyId: string,
+  clientId: string,
+  planId: string,
+): Promise<PlanDependencyInventory> {
+  if (!planId) return inventoryFor(planId, []);
+  const userIds = (await storage.get<string[]>(`memberships/by-plan/${planId}`)) ?? [];
+  const dependants: PlanDependant[] = [];
+  const seenUsers = new Set<string>();
+  for (const userId of userIds) {
+    const subscription = await storage.get<Subscription>(`memberships/subscribers/${userId}`);
+    if (
+      subscription
+      && subscription.agencyId === agencyId
+      && subscription.clientId === clientId
+      && subscription.planId === planId
+    ) {
+      seenUsers.add(subscription.endCustomerUserId);
+      dependants.push({
+        kind: "subscriber",
+        userId: subscription.endCustomerUserId,
+        status: subscription.status,
+        billable: BILLABLE_STATUSES.has(subscription.status),
+      });
+    } else if (typeof userId === "string" && userId) {
+      // A member-index write can durably precede its row. Treat that recovery
+      // candidate as a dependant rather than declaring the plan empty.
+      seenUsers.add(userId);
+      dependants.push({ kind: "subscription-command", userId, status: "pending", billable: false });
+    }
+  }
+  dependants.push(...await pendingCommandDependants(storage, planId, seenUsers));
+  dependants.push(...await pendingPlanChangeDependants(storage, agencyId, clientId, planId));
+  return inventoryFor(planId, dependants);
+}
 
 /**
  * Everyone still on this plan.
@@ -81,36 +242,39 @@ const BILLABLE_STATUSES = new Set<Subscription["status"]>(["active", "past_due",
  * nothing and asking it before would work only by luck of ordering.
  */
 export async function planDependencyInventory(
-  services: Pick<MembershipsContainer, "subscriptions">,
+  services: Pick<MembershipsContainer, "subscriptions" | "plans">,
   storage: StoragePort,
   planId: string,
 ): Promise<PlanDependencyInventory> {
-  const empty: PlanDependencyInventory = {
-    planId, dependants: [], total: 0, billableSubscribers: 0, wouldBecomeUnreachable: false,
-  };
-  if (!planId) return empty;
+  if (!planId) return inventoryFor(planId, []);
 
   const userIds = (await storage.get<string[]>(`memberships/by-plan/${planId}`)) ?? [];
   const dependants: PlanDependant[] = [];
+  const seenUsers = new Set<string>();
   for (const userId of userIds) {
     const subscription = await services.subscriptions.getByUser(userId);
-    if (!subscription || subscription.planId !== planId) continue;
-    dependants.push({
-      kind: "subscriber",
-      userId,
-      status: subscription.status,
-      billable: BILLABLE_STATUSES.has(subscription.status),
-    });
+    if (subscription?.planId === planId) {
+      seenUsers.add(subscription.endCustomerUserId);
+      dependants.push({
+        kind: "subscriber",
+        userId: subscription.endCustomerUserId,
+        status: subscription.status,
+        billable: BILLABLE_STATUSES.has(subscription.status),
+      });
+    } else if (typeof userId === "string" && userId) {
+      seenUsers.add(userId);
+      dependants.push({ kind: "subscription-command", userId, status: "pending", billable: false });
+    }
   }
-
-  const billableSubscribers = dependants.filter(dependant => dependant.billable).length;
-  return {
-    planId,
-    dependants,
-    total: dependants.length,
-    billableSubscribers,
-    // Any subscriber at all becomes unreachable, billable or not — the list
-    // walks plans, and the plan is what goes away.
-    wouldBecomeUnreachable: dependants.length > 0,
-  };
+  dependants.push(...await pendingCommandDependants(storage, planId, seenUsers));
+  const plan = await services.plans.get(planId);
+  if (plan) {
+    dependants.push(...await pendingPlanChangeDependants(
+      storage,
+      plan.agencyId,
+      plan.clientId,
+      planId,
+    ));
+  }
+  return inventoryFor(planId, dependants);
 }

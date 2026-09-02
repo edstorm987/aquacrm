@@ -1,6 +1,7 @@
 export interface PhaseTransitionApiResult {
   ok: boolean;
   status?: "complete" | "incomplete" | "rejected";
+  requestOperationId?: string;
   operationId?: string;
   retryable?: boolean;
   error?: string;

@@ -16,8 +16,13 @@
 import { execSync } from "node:child_process";
 import { readdirSync, statSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const ROOT = new URL("..", import.meta.url).pathname;
+// `URL.pathname` preserves percent-encoding, so it points at a nonexistent
+// directory when the checkout path contains spaces (for example,
+// `Web%20Development`). Convert the file URL with Node's filesystem-aware
+// helper before looking for the build output.
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const NEXT_DIR = join(ROOT, ".next");
 
 function du(dir) {

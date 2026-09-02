@@ -46,6 +46,7 @@ interface StoredRequest {
 export default async function PerformancePage() {
   await ensureHydrated();
   const session = await requireRole([...AGENCY_ROLES]);
+  const canManageSearchConsole = session.role === "agency-owner" || session.role === "agency-manager";
   const clients = listClients(session.agencyId).filter(client => client.status === "active");
   const productCatalogue = listAgencyProducts(session.agencyId, true);
   const milestones = listClientMilestones(session.agencyId);
@@ -202,7 +203,7 @@ export default async function PerformancePage() {
     experiments: experiments.filter(experiment => !experiment.clientId),
   };
 
-  return <PerformanceWorkspace initialClients={[own, ...rows]} />;
+  return <PerformanceWorkspace initialClients={[own, ...rows]} canManageSearchConsole={canManageSearchConsole} />;
 }
 
 function analyticsByPeriod(events: PerformanceEvent[]): PerformanceClient["analyticsByPeriod"] {

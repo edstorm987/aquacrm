@@ -25,6 +25,7 @@ import type {
 } from "./ports";
 import type { AffiliateService } from "./affiliates";
 import type { AttributionService } from "./attributions";
+import { withAffiliateDependencyLock } from "./dependencies";
 import {
   assertMarkPayoutPaidInput,
   assertPayout,
@@ -146,7 +147,7 @@ export class PayoutService {
   // — there's nothing to pay out).
   async schedule(input: SchedulePayoutInput, actor: UserId, defaultMethod: PayoutMethod = "manual"): Promise<Payout | null> {
     assertSchedulePayoutInput(input, defaultMethod);
-    return this.withLock("schedule-collection", async () => {
+    return withAffiliateDependencyLock(this.storage, this.agencyId, this.clientId, async () => {
       const affiliate = await this.affiliates.get(input.affiliateId);
       if (!affiliate) throw new Error(`Affiliate ${input.affiliateId} not found.`);
 

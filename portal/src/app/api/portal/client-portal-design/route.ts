@@ -15,15 +15,18 @@ import { routeTenantScope } from "@/lib/server/portal/apiTenantScope";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { updateClient } from "@/server/tenants";
-import { AGENCY_ROLES } from "@/server/types";
 import { applyClientPortalUpdate, planClientPortalUpdate } from "@/server/clientPortalDesigns";
 import { describeTemplateUpdate } from "@/server/clientPortalTemplateUpdate";
 import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
+import { agencyRolesForStaffWorkspaceApiPath } from "@/lib/staffWorkspacePolicy";
+import { isSampleClientId } from "@/lib/server/clients/samplePreviewClient";
 
 async function agencySession(request: NextRequest) {
   await ensureHydrated();
   const session = await getSessionFromRequest(request);
-  if (!session || !AGENCY_ROLES.includes(session.role)) throw new AuthError(401, "unauthorized");
+  const roles = agencyRolesForStaffWorkspaceApiPath(new URL(request.url).pathname);
+  if (!session || !roles.includes(session.role)) throw new AuthError(401, "unauthorized");
   return session;
 }
 
@@ -38,6 +41,13 @@ function cleanText(value: unknown, max = 160): string {
 export async function GET(request: NextRequest) {
   try {
     const session = await agencySession(request);
+    const delegatedStaff = session.role === "agency-staff";
+    // The Portals page and its API share one canonical element decision. Staff
+    // may read only while that decision is currently at least View; the
+    // owner/manager client-element contract below remains unchanged.
+    if (delegatedStaff) {
+      await requireCurrentWorkspaceElementAccess("fulfilment", "fulfilment.portals", "view");
+    }
     const url = new URL(request.url);
     const scope = cleanScope(url.searchParams.get("scope"));
     // `scope` in this file has always meant the DESIGN scope; the tenant one
@@ -47,7 +57,7 @@ export async function GET(request: NextRequest) {
     const templateId = cleanText(url.searchParams.get("templateId"), 220);
     const client = tenant.client;
     if (scope === "client" && !client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
-    if (scope === "client" && client) {
+    if (scope === "client" && client && !delegatedStaff) {
       await requireCurrentClientWorkspaceElementAccess(client.id, "client.portal", "view");
     }
     const record = getPortalDesignRecord({
@@ -71,9 +81,6 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await agencySession(request);
-    if (session.role !== "agency-owner" && session.role !== "agency-manager") {
-      return NextResponse.json({ ok: false, error: "manager access required" }, { status: 403 });
-    }
     const body = await request.json().catch(() => null) as {
       action?: "save-draft" | "publish" | "checkpoint" | "restore" | "refresh-product" | "reset-client"
         | "update-plan" | "update-apply";
@@ -88,13 +95,33 @@ export async function POST(request: NextRequest) {
       accept?: unknown;
     } | null;
     if (!body?.action) return NextResponse.json({ ok: false, error: "action required" }, { status: 400 });
+    const delegatedStaff = session.role === "agency-staff";
+    if (delegatedStaff) {
+      // `update-plan` is the read-only question exposed by a View-only Portals
+      // surface. Every write re-resolves Manage at the API boundary, so a
+      // revoked/downgraded grant cannot ride a page that was opened earlier.
+      await requireCurrentWorkspaceElementAccess(
+        "fulfilment",
+        "fulfilment.portals",
+        body.action === "update-plan" ? "view" : "manage",
+      );
+    } else if (session.role !== "agency-owner" && session.role !== "agency-manager") {
+      return NextResponse.json({ ok: false, error: "manager access required" }, { status: 403 });
+    }
     const scope = cleanScope(body.scope);
     const tenant = routeTenantScope(session, { clientId: body.clientId });
     const agencyId = tenant.agencyId;
     const templateId = cleanText(body.templateId, 220);
     const client = tenant.client;
+    // The sample is intentionally synthesised for template previews and has no
+    // durable client row. Keep this explicit at the mutation boundary: no
+    // action, including a future one added above the generic record path, may
+    // turn the fixture into business data or a writable client instance.
+    if (scope === "client" && isSampleClientId(body.clientId)) {
+      return NextResponse.json({ ok: false, error: "sample preview is read-only" }, { status: 403 });
+    }
     if (scope === "client" && !client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
-    if (scope === "client" && client) {
+    if (scope === "client" && client && !delegatedStaff) {
       await requireCurrentClientWorkspaceElementAccess(
         client.id,
         "client.portal",

@@ -2,7 +2,7 @@
 
 > Every active, completed and archived phased implementation plan and handoff.
 >
-> Consolidated 2026-09-02 from **57** source documents / **116,313 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-02 from **57** source documents / **116,315 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -17,7 +17,7 @@
 - [`docs/development/plans/client-health.md`](#source-docs-development-plans-client-health-md) — 1,471 words · `051c7d4dc72d`
 - [`docs/development/plans/client-owned-form-data.md`](#source-docs-development-plans-client-owned-form-data-md) — 4,950 words · `fb884cee1005`
 - [`docs/development/plans/compliance-legal.md`](#source-docs-development-plans-compliance-legal-md) — 2,046 words · `0085cdca2ac2`
-- [`docs/development/plans/configurable-access-and-workspace-parity.md`](#source-docs-development-plans-configurable-access-and-workspace-parity-md) — 2,675 words · `b1bb328b9156`
+- [`docs/development/plans/configurable-access-and-workspace-parity.md`](#source-docs-development-plans-configurable-access-and-workspace-parity-md) — 2,677 words · `76336c59e325`
 - [`docs/development/plans/connect-flow-real-codes.md`](#source-docs-development-plans-connect-flow-real-codes-md) — 889 words · `8f245e78dd8e`
 - [`docs/development/plans/database-separation.md`](#source-docs-development-plans-database-separation-md) — 2,312 words · `dacec6a22461`
 - [`docs/development/plans/dev-docs-handoff.md`](#source-docs-development-plans-dev-docs-handoff-md) — 1,619 words · `18658db39cef`
@@ -1882,7 +1882,7 @@ plan in flight._
 
 ## Source document — `docs/development/plans/configurable-access-and-workspace-parity.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/configurable-access-and-workspace-parity.md" sha256="b1bb328b9156f9d16f123c4604c972240b517a22beb6405e39bdbbe5e2054517" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/configurable-access-and-workspace-parity.md" sha256="76336c59e32582e69a574c7682ee28b619b187d79299500232d5b1e0de7b4827" -->
 # Plan — Configurable access and workspace parity
 
 ← [checklist.md](../checklist.md) · [roadmap.md](../roadmap.md) · [product architecture](../../PRODUCT-ARCHITECTURE.md) · [runtime verification](runtime-verification.md)
@@ -2135,8 +2135,8 @@ person → edit/reload → request/approve/revoke journey at every viewport.
 ## Remaining work before this can be called complete
 
 1. **Finish evaluator adoption.** Staff, Team, Fulfilment and the broad canonical
-   tenant/client route wave are adopted. Map the dynamic module catch-all plus
-   freelancer-job and generic task associations, then migrate the remaining customer,
+   tenant/client route wave are adopted. The dynamic module catch-all plus
+   freelancer-job and generic task associations are classified and enforced; migrate the remaining customer,
    freelancer and legacy operations at both data read and mutation boundaries.
    Preserve the named alternative-authority routes. Navigation hiding alone never counts.
 2. **Complete legacy-policy convergence.** Treat Team station access, HR custom

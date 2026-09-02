@@ -135,6 +135,7 @@ import {
   RESPONSIVE_CANVAS_PANE_CSS,
   responsiveCanvasPaneAttributes,
 } from "@/engines/editor/editing/responsiveCanvasPanes";
+import { RESPONSIVE_EDITOR_TOOLBAR_CSS } from "@/engines/editor/editing/responsiveEditorToolbar";
 import type {
   ClientPortalDesignDocument,
   ClientPortalDesignVersion,
@@ -148,6 +149,8 @@ export type PortalStudioClient = {
   name: string;
   built: boolean;
   mode: ClientPortalMode;
+  /** Synthesised preview data: valid behind a template, never a client write target. */
+  previewOnly?: boolean;
 };
 
 export type PortalStudioTemplate = {
@@ -1014,6 +1017,7 @@ export function DevEditor({
   const [notice, setNotice] = useState("Loading...");
 
   const selectedClient = clients.find(client => client.id === clientId) ?? clients[0];
+  const previewOnlyClient = Boolean(selectedClient?.previewOnly);
   const selectedTemplate = templates.find(template => template.id === templateId) ?? templates[0];
   /**
    * What the assistant is pointed at, in words that are TRUE of this target.
@@ -1962,6 +1966,12 @@ export function DevEditor({
 
   function changeScope(nextScope: Scope) {
     if (lockToClient) return;
+    // The built-in sample deliberately has no client row. It is the canvas a
+    // template renders through, not a client override that can be saved.
+    if (nextScope === "client" && previewOnlyClient) {
+      setNotice("The sample is preview-only. Edit the template, or choose a real client for a client override.");
+      return;
+    }
     if (scope === nextScope || !confirmDraftDiscard(false)) return;
     setScope(nextScope);
   }
@@ -1971,6 +1981,7 @@ export function DevEditor({
     if (clientId === nextClientId || !confirmDraftDiscard(false)) return;
     const nextClient = clients.find(client => client.id === nextClientId);
     setClientId(nextClientId);
+    if (nextClient?.previewOnly) setScope("template");
     setMode(nextClient?.mode ?? "onboarding");
   }
 
@@ -2041,7 +2052,7 @@ export function DevEditor({
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex min-h-0 flex-col overflow-hidden bg-[#111311] text-white"
+      className="mm-dev-editor-shell fixed inset-0 z-[80] flex min-h-0 flex-col overflow-hidden bg-[#111311] text-white"
       data-editing-mode={editingModeId}
       // Every accent in the editor reads from these, so a mode change repaints
       // the whole surface rather than one control.
@@ -2051,11 +2062,12 @@ export function DevEditor({
         ["--mode-line" as string]: modeSkin(editingModeId).line,
       }}
     >
-      <header className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 border-b bg-[#151715] px-3 xl:flex xl:min-h-[68px] xl:gap-3 xl:px-4" style={{ borderBottomColor: "var(--mode-line)" }}>
-        <Link href={backHref} onClick={event => { if (!confirmDraftDiscard()) event.preventDefault(); }} aria-label={backLabel} title={backLabel} className="my-2 grid size-10 shrink-0 place-items-center rounded-md border border-white/10 text-white/70 hover:bg-white/5 hover:text-white xl:my-0">
+      <style>{RESPONSIVE_EDITOR_TOOLBAR_CSS}</style>
+      <header data-dev-editor-toolbar className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 border-b bg-[#151715] px-3" style={{ borderBottomColor: "var(--mode-line)" }}>
+        <Link data-dev-editor-toolbar-back href={backHref} onClick={event => { if (!confirmDraftDiscard()) event.preventDefault(); }} aria-label={backLabel} title={backLabel} className="my-2 grid size-10 shrink-0 place-items-center rounded-md border border-white/10 text-white/70 hover:bg-white/5 hover:text-white">
           <ArrowLeft size={18} />
         </Link>
-        <div className="hidden min-w-40 xl:block">
+        <div data-dev-editor-toolbar-title className="hidden min-w-40">
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em]" style={{ color: "var(--mode-accent)" }}>Dev Editor</p>
           <p className="mt-0.5 truncate text-sm font-semibold text-white/90">{selectedProject?.name || projectName || (scope === "template" ? selectedTemplate?.name || "Stunning Standard" : selectedClient?.name)}</p>
         </div>
@@ -2069,7 +2081,7 @@ export function DevEditor({
             min-height as the mode buttons — it must never eat the header the
             way the old `w-full` select did. */}
         {availableProjects.length && !lockToClient ? (
-          <div className="hidden shrink-0 items-center gap-1.5 xl:flex">
+          <div data-dev-editor-project-switcher className="hidden shrink-0 items-center gap-1.5">
             <select
               aria-label="Dev project"
               value={projectId}
@@ -2121,10 +2133,10 @@ export function DevEditor({
           </div>
         ) : null}
 
-        <div className="col-span-3 col-start-1 row-start-2 flex min-w-0 flex-wrap items-center gap-2 border-t border-white/10 py-2 sm:flex-nowrap sm:overflow-x-auto sm:[scrollbar-width:none] xl:contents">
+        <div data-dev-editor-primary-controls className="col-span-3 col-start-1 row-start-2 flex min-w-0 flex-wrap items-center gap-2 border-t border-white/10 py-2 sm:flex-nowrap sm:overflow-x-auto sm:[scrollbar-width:none]">
           {/* How deep you want to go: the single most important choice in the
               editor, and it used to be a small select buried in the right rail. */}
-          <span aria-hidden className="mx-1 hidden h-7 w-px shrink-0 bg-white/10 xl:block" />
+          <span data-dev-editor-toolbar-divider aria-hidden className="mx-1 hidden h-7 w-px shrink-0 bg-white/10" />
           <EditorModeSwitch
             mode={editingModeId}
             onChange={next => changeMode(next)}
@@ -2208,11 +2220,17 @@ export function DevEditor({
         )}
         </div>
 
-        <div className="col-span-3 col-start-1 row-start-3 grid min-w-0 grid-cols-1 items-center gap-2 border-t border-white/10 py-2 sm:grid-cols-2 xl:col-auto xl:row-auto xl:flex xl:flex-1 xl:overflow-x-auto xl:border-t-0 xl:[scrollbar-width:none]">
+        <div data-dev-editor-context className="col-span-3 col-start-1 row-start-3 grid min-w-0 grid-cols-1 items-center gap-2 border-t border-white/10 py-2 sm:grid-cols-2">
           {portalTarget && browserPane && !lockToClient ? (
             <div className="inline-flex shrink-0 rounded-md border border-white/10 bg-black/25 p-1" aria-label="Editing scope">
               <TopToggle active={scope === "template"} disabled={busy} onClick={() => changeScope("template")} label="Template" />
-              <TopToggle active={scope === "client"} disabled={busy} onClick={() => changeScope("client")} label="Client" />
+              <TopToggle
+                active={scope === "client"}
+                disabled={busy || previewOnlyClient}
+                onClick={() => changeScope("client")}
+                label="Client"
+                title={previewOnlyClient ? "Choose a real client to edit a client override" : undefined}
+              />
             </div>
           ) : null}
           {portalTarget && scope === "template" ? (
@@ -2226,7 +2244,7 @@ export function DevEditor({
             </div>
           ) : (
             <select aria-label="Preview client" value={clientId} disabled={busy} onChange={event => changeClient(event.target.value)} className="h-10 w-full min-w-0 rounded-md border border-white/10 bg-white/[0.06] px-3 text-xs font-medium text-white outline-none disabled:opacity-45 sm:min-w-44 sm:max-w-56 sm:shrink-0">
-              {clients.map(client => <option key={client.id} value={client.id} className="bg-[#1a1c1a]">{client.name}{client.built ? "" : " (not built)"}</option>)}
+              {clients.map(client => <option key={client.id} value={client.id} className="bg-[#1a1c1a]">{client.name}{client.previewOnly || client.built ? "" : " (not built)"}</option>)}
             </select>
           )}
           {portalTarget ? <select aria-label="Lifecycle stage" value={mode} onChange={event => changeLifecycleMode(event.target.value as ClientPortalMode)} className="h-10 w-full min-w-0 rounded-md border border-white/10 bg-white/[0.06] px-3 text-xs font-medium text-white outline-none sm:min-w-40 sm:shrink-0">
@@ -2245,22 +2263,23 @@ export function DevEditor({
           {/* ED'S THIRD SWITCHER — "maybe its worth having a 3rd switcher to
               switch what it is". WHAT this is, beside WHICH PAGE of it.
 
-              It sits in this row rather than the top bar for the reason the
-              navigator does: the top bar is `xl:` and up, so a control put
-              there simply does not exist on a laptop — and a switcher that
-              decides whether the SEO panel is reachable at all cannot be one
-              that disappears at 1279px. Before the navigator, because "what
-              is this" is the wider question and reads first. */}
-          <div className="min-w-0 xl:contents">
+              It sits in this context row rather than in wide-only chrome. The
+              toolbar becomes one line only when its OWN container reaches
+              1280px, so a control put outside this row can still disappear in
+              a sidebar-constrained desktop — and a switcher that decides
+              whether the SEO panel is reachable cannot do that. Before the
+              navigator, because "what is this" is the wider question and
+              reads first. */}
+          <div data-dev-editor-context-wrapper className="min-w-0">
             <SurfaceSwitch resolved={resolvedSurface} onChange={changeSurface} disabled={busy} />
           </div>
-          <div className="min-w-0 xl:contents">
+          <div data-dev-editor-context-wrapper className="min-w-0">
             <PageNavigator plan={pageNavigator} value={navigatorValue} onPick={goToPage} disabled={busy} />
           </div>
           {/* The project switcher used to sit here as a `w-full` select over
               EVERY project in the agency — it now leads the top bar, compact
               and scoped to the project this editor is in. */}
-          <div className="col-span-full flex min-w-0 items-center justify-start gap-2 xl:col-auto">
+          <div data-dev-editor-device-actions className="col-span-full flex min-w-0 items-center justify-start gap-2">
             {browserPane ? <DeviceControl value={deviceState} onChange={setDeviceState} /> : null}
             <button type="button" onClick={refreshPreview} title="Refresh preview" aria-label="Refresh preview" className="hidden size-10 shrink-0 place-items-center rounded-md border border-white/10 text-white/65 hover:bg-white/5 hover:text-white sm:grid"><RefreshCw size={16} /></button>
             {openInTabUrl ? <Link href={openInTabUrl} target="_blank" rel="noreferrer" title="Open preview in new tab" aria-label="Open preview in new tab" className="grid size-10 shrink-0 place-items-center rounded-md border border-white/10 text-white/65 hover:bg-white/5 hover:text-white"><ExternalLink size={16} /></Link> : null}
@@ -2275,7 +2294,7 @@ export function DevEditor({
             has neither, and its saves happen per file in the code canvas, so
             offering them here would be offering something that does nothing. */}
         {portalTarget ? (
-          <div className="col-start-3 row-start-1 flex shrink-0 items-center justify-self-end gap-2 xl:col-auto xl:row-auto">
+          <div data-dev-editor-publish className="col-start-3 row-start-1 flex shrink-0 items-center justify-self-end gap-2">
             <button type="button" onClick={saveDraft} disabled={!canManage || busy || !dirty} className="hidden min-h-10 items-center gap-2 rounded-md border border-white/12 px-3 text-xs font-semibold text-white/75 enabled:hover:bg-white/5 disabled:opacity-35 md:inline-flex">{busy ? <LoaderCircle size={15} className="animate-spin" /> : <Save size={15} />} Save draft</button>
             <button type="button" onClick={publish} disabled={!canManage || busy || !record} aria-label="Publish portal" aria-busy={busy} style={{ background: "var(--mode-accent)" }} className="inline-flex size-10 items-center justify-center gap-2 rounded-md text-xs font-bold text-[#0d120f] hover:brightness-110 disabled:opacity-40 sm:w-auto sm:px-3">{busy ? <LoaderCircle size={15} className="animate-spin" /> : <Upload size={15} />}<span className="hidden sm:inline">Publish</span></button>
           </div>
@@ -4443,8 +4462,8 @@ function ColorField({ label, value, onChange, disabled }: { label: string; value
   return <label className="grid grid-cols-[36px_1fr_82px] items-center gap-2 rounded-md border border-white/10 bg-white/[0.025] p-2 text-[11px] font-semibold text-white/58"><input type="color" value={value} disabled={disabled} onChange={event => onChange(event.target.value)} className="size-8 cursor-pointer rounded-sm border-0 bg-transparent p-0" /><span>{label}</span><input value={value} disabled={disabled} onChange={event => onChange(event.target.value)} className="h-8 min-w-0 rounded-sm border border-white/10 bg-black/20 px-2 font-mono text-[10px] text-white/65 outline-none" /></label>;
 }
 
-function TopToggle({ active, disabled, onClick, label }: { active: boolean; disabled?: boolean; onClick: () => void; label: string }) {
-  return <button type="button" onClick={onClick} disabled={disabled} className={`min-h-8 rounded-sm px-2 text-xs font-semibold disabled:opacity-40 sm:px-3 ${active ? "bg-white text-black" : "text-white/48 hover:text-white"}`}>{label}</button>;
+function TopToggle({ active, disabled, onClick, label, title }: { active: boolean; disabled?: boolean; onClick: () => void; label: string; title?: string }) {
+  return <button type="button" onClick={onClick} disabled={disabled} title={title} className={`min-h-8 rounded-sm px-2 text-xs font-semibold disabled:opacity-40 sm:px-3 ${active ? "bg-white text-black" : "text-white/48 hover:text-white"}`}>{label}</button>;
 }
 
 function IconToggle({ active, onClick, label, children }: { active: boolean; onClick: () => void; label: string; children: React.ReactNode }) {

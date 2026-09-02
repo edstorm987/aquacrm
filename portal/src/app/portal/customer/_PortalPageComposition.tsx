@@ -10,6 +10,7 @@ import {
 import type { ReactNode } from "react";
 
 import { READ_UNAVAILABLE_LABEL } from "@/lib/readAvailability";
+import { customerPortalReadPhase } from "@/lib/portal/customerPortalReadState";
 import { formatPortalCopy } from "@/lib/portal/clientPortalDesign";
 import { portalBlockMatchesProducts, portalCustomPage, portalPageBlocks } from "@/lib/portal/clientPortalBuilder";
 import { portalProductModule } from "@/lib/portal/portalProductModules";
@@ -178,7 +179,7 @@ function metricRows(block: ClientPortalPageBlock, data: CustomerPortalData): Arr
     const positions = summariseInvoicesByCurrency(data.invoices);
     // A failed invoice read must not render as "0 invoices / No payment due"
     // (issues #57): those are measurements, and nothing was measured.
-    if (!data.available.invoices) {
+    if (customerPortalReadPhase(data, "invoices") !== "ready") {
       return [
         { label: "Plan", value: data.servicePlan || "Active", detail: data.billingCadence || "Billing plan" },
         { label: "Invoices", value: READ_UNAVAILABLE_LABEL, detail: "Billing could not be read" },

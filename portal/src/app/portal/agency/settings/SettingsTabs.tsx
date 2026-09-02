@@ -9,7 +9,7 @@
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { ArrowUpRight, Bell, Boxes, Briefcase, Building2, Check, CircleUserRound, FlaskConical, KeyRound, Palette, LifeBuoy, PanelLeft, Plug, Radar, Save, ScrollText, Settings as SettingsIcon, ShieldCheck, SlidersHorizontal, Sparkles, UsersRound } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
 import type { ProductionReadiness, ReadinessStatus } from "@/lib/server/productionReadiness";
 import type { AgencyWorkspaceSettings, ClientStage, SandboxSessionEnvironment } from "@/server/types";
 import type { AgencySettingsCapabilities } from "@/lib/agencySettingsCapabilities";
@@ -39,6 +39,7 @@ import { RadarTriggersPanel } from "./RadarTriggersPanel";
 import { ApiAccessPanel } from "./ApiAccessPanel";
 import { TradingCompaniesPanel } from "../company/_TradingCompaniesPanel";
 import type { TradingCompany } from "@/server/types";
+import { resolveSettingsTabHash } from "./settingsTabHash";
 
 const AccessControlPanel = dynamic(
   () => import("@/components/access/AccessControlPanel").then(module => module.AccessControlPanel),
@@ -194,6 +195,7 @@ const GROUPS: SettingsGroup[] = [
 ];
 
 const TAB_BY_ID = new Map(TABS.map(tab => [tab.id, tab]));
+const TAB_IDS = new Set(TABS.map(tab => tab.id));
 
 /**
  * Hashes that used to be tabs of their own.
@@ -238,11 +240,13 @@ export function SettingsTabs({ ctx }: { ctx: SettingsContext }) {
       }).map(tab => tab.id))
     : null;
 
-  useEffect(() => {
+  // A URL fragment is unavailable to the server render. Resolve it in a layout
+  // effect so direct entries such as `settings#environment` select the correct
+  // pane before the browser paints the server-side `account` fallback.
+  useLayoutEffect(() => {
     const syncHash = () => {
-      const hash = window.location.hash.slice(1);
-      const requested = (LEGACY_TAB_ALIASES[hash] ?? hash) as TabId;
-      if (TABS.some(tab => tab.id === requested)) setActive(requested);
+      const requested = resolveSettingsTabHash(window.location.hash, TAB_IDS, LEGACY_TAB_ALIASES);
+      if (requested) setActive(requested);
     };
     syncHash();
     window.addEventListener("hashchange", syncHash);

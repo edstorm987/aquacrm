@@ -30,6 +30,8 @@
 // the parent is carried in brackets, because a search result that cannot be
 // told apart from another search result is not a result.
 
+import { isStaffWorkspaceSearchPagePath } from "@/lib/staffWorkspacePolicy";
+
 export interface PortalDestination {
   href: string;
   label: string;
@@ -135,14 +137,18 @@ export function destinationSearchItemsFor(
   role: string,
   devTeamVisible: boolean,
 ): { label: string; href: string }[] {
+  if (role === "agency-staff") {
+    return PORTAL_DESTINATIONS
+      .filter(destination => isStaffWorkspaceSearchPagePath(destination.href))
+      .map(destination => ({
+        label: `${destination.label} · ${destination.area}`,
+        href: destination.href,
+      }));
+  }
   const areas = new Set<string>(["Portal", "Account"]);
   if (role === "agency-owner" || role === "agency-manager") {
     areas.add("Agency"); areas.add("Clients"); areas.add("Team");
     if (devTeamVisible) { areas.add("Dev Team"); areas.add("Dev"); }
-  } else if (role === "agency-staff") {
-    // Delegated staff get the reduced shell; their reachable agency leaves are
-    // already in the sidebar half. The registry adds only their own surfaces.
-    areas.add("Team");
   } else if (role === "freelancer") {
     areas.add("Freelancer");
   }

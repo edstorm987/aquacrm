@@ -1,3 +1,5 @@
+import { isStaffWorkspacePagePath } from "@/lib/staffWorkspacePolicy";
+
 export type StaffNavigationStation = {
   id: string;
   label: string;
@@ -75,7 +77,7 @@ export function buildStaffNavigationPanels(
 
   for (const entry of access) {
     const station = stationById.get(entry.stationId);
-    if (!station) continue;
+    if (!station || !isStaffWorkspacePagePath(station.href)) continue;
     const panelId = STAFF_SURFACE_BY_STATION[entry.stationId] ?? FALLBACK_SURFACE;
     itemsByPanel.get(panelId)!.push({
       id: station.id,

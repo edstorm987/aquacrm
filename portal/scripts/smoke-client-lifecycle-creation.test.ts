@@ -36,7 +36,10 @@ describe("canonical client lifecycle creation", () => {
     assert.match(presets, /listAgencyLifecyclePhases/);
     assert.doesNotMatch(presets, /const PRESETS/);
     assert.doesNotMatch(modal, /FALLBACK_PRESETS/);
-    assert.match(modal, /operationId: operationId\.current/);
+    assert.match(modal, /operationId: draftOperation\.operationId/);
+    assert.match(modal, /checkedJsonMutation<FulfillmentClientCreationPayload>/);
+    assert.match(modal, /createdAt: draftOperation\.contactTimestamp/);
+    assert.match(modal, /updatedAt: draftOperation\.contactTimestamp/);
     assert.match(linked, /createClientWithLifecycleOperation/);
     assert.match(leads, /ensureClientLifecycleOperation/);
     assert.match(person, /createClientWithLifecycleOperation/);

@@ -3,6 +3,11 @@ import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import { before, test } from "node:test";
 
+import {
+  developmentResourceKindAvailableForMutation,
+  mayMutateDevelopmentResource,
+} from "../src/lib/client/developmentResourceRead";
+
 const require = createRequire(import.meta.url);
 const serverOnlyPath = require.resolve("server-only");
 require.cache[serverOnlyPath] = {
@@ -17,10 +22,12 @@ require.cache[serverOnlyPath] = {
 type Storage = typeof import("../src/server/storage");
 type Tenants = typeof import("../src/server/tenants");
 type Toolkit = typeof import("../src/server/developmentToolkit");
+type Sops = typeof import("../src/engines/sop/server/sops");
 
 let storage: Storage;
 let tenants: Tenants;
 let toolkit: Toolkit;
+let sops: Sops;
 
 before(async () => {
   process.env.PORTAL_BACKEND = "memory";
@@ -28,12 +35,14 @@ before(async () => {
   storage = await import("../src/server/storage");
   tenants = await import("../src/server/tenants");
   toolkit = await import("../src/server/developmentToolkit");
+  sops = await import("../src/engines/sop/server/sops");
   await storage.ensureHydrated();
   await storage.reset();
 });
 
 test("toolkit resources support stages, SOPs, visibility and search-ready metadata", () => {
   const agency = tenants.createAgency({ name: "Development Smoke", slug: "development-smoke" });
+  const qualitySop = sops.createWrittenSop({ agencyId: agency.id, title: "Quality review", content: "Steps", actorUserId: "owner" });
   const flow = toolkit.ensureDefaultDevelopmentWorkflow(agency.id, "owner");
   const resource = toolkit.createDevelopmentResource(agency.id, {
     kind: "component",
@@ -48,13 +57,13 @@ test("toolkit resources support stages, SOPs, visibility and search-ready metada
       toolkit.developmentStageRef(flow.id, "design"),
       toolkit.developmentStageRef(flow.id, "build"),
     ],
-    sopIds: ["sop_quality"],
+    sopIds: [qualitySop.id],
     visibility: "team",
   }, "owner");
   assert.deepEqual(resource.workflowStageIds, [`${flow.id}:design`, `${flow.id}:build`]);
   assert.equal(resource.framework, "React + Tailwind");
   assert.match(resource.codeSnippet ?? "", /CheckoutBlock/);
-  assert.deepEqual(resource.sopIds, ["sop_quality"]);
+  assert.deepEqual(resource.sopIds, [qualitySop.id]);
   assert.equal(toolkit.listVisibleDevelopmentResources(agency.id, "staff", "agency-staff").length, 1);
 
   const privateResource = toolkit.createDevelopmentResource(agency.id, {
@@ -86,6 +95,27 @@ test("shared passwords are encrypted at rest, redacted from list payloads, and r
   assert.equal(publicRecord.credential?.hasPassword, true);
   assert.equal(toolkit.revealDevelopmentPassword(agency.id, resource.id, "agency-owner"), "SuperSecretValue!");
   assert.throws(() => toolkit.revealDevelopmentPassword(agency.id, resource.id, "agency-staff"), /do not have access/i);
+});
+
+test("Use UI policy hides shared-login creation and mutation controls", () => {
+  const sharedLogin = { kind: "credential" as const, credential: undefined };
+  const courseWithLogin = {
+    kind: "course" as const,
+    credential: { accessRoles: ["agency-staff" as const], hasPassword: true },
+  };
+  const normalTool = { kind: "tool" as const, credential: undefined };
+
+  assert.equal(developmentResourceKindAvailableForMutation("use", "credential"), false);
+  assert.equal(developmentResourceKindAvailableForMutation("use", "tool"), true);
+  assert.equal(developmentResourceKindAvailableForMutation("manage", "credential"), true);
+  assert.equal(mayMutateDevelopmentResource("use", sharedLogin), false);
+  assert.equal(mayMutateDevelopmentResource("use", courseWithLogin), false);
+  assert.equal(mayMutateDevelopmentResource("use", normalTool), true);
+  assert.equal(mayMutateDevelopmentResource("manage", sharedLogin), true);
+
+  const workspace = readFileSync("src/app/portal/agency/development/_DevelopmentToolkitWorkspace.tsx", "utf8");
+  assert.match(workspace, /resourceKinds=\{availableKinds\}/);
+  assert.match(workspace, /showMutationControls=\{mayMutateDevelopmentResource\(technicalAccessLevel, resource\)\}/);
 });
 
 test("development workflows are adaptable and retain ordered stages", () => {

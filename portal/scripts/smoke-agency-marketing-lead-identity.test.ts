@@ -28,6 +28,7 @@ function context(): PluginCtx {
   const storage: PluginStorage = {
     async get<T = unknown>(key: string) { return values.get(key) as T | undefined; },
     async set<T = unknown>(key: string, value: T) { values.set(key, structuredClone(value)); },
+    async runExclusive<T>(_key: string, operation: () => Promise<T>) { return operation(); },
     async del(key: string) { values.delete(key); },
     async list(prefix = "") { return [...values.keys()].filter(key => key.startsWith(prefix)); },
   };

@@ -16,15 +16,31 @@ interface MemoryStorage {
   set<T = unknown>(key: string, value: T): Promise<void>;
   del(key: string): Promise<void>;
   list(prefix?: string): Promise<string[]>;
+  runExclusive<T>(key: string, work: () => Promise<T>): Promise<T>;
 }
 
 function memoryStorage(): MemoryStorage {
   const values = new Map<string, unknown>();
+  const exclusiveQueues = new Map<string, Promise<void>>();
   return {
     async get<T>(key: string) { return values.get(key) as T | undefined; },
     async set<T>(key: string, value: T) { values.set(key, structuredClone(value)); },
     async del(key: string) { values.delete(key); },
     async list(prefix = "") { return [...values.keys()].filter(key => key.startsWith(prefix)); },
+    async runExclusive<T>(key: string, work: () => Promise<T>) {
+      const previous = exclusiveQueues.get(key) ?? Promise.resolve();
+      let release!: () => void;
+      const gate = new Promise<void>(resolve => { release = resolve; });
+      const queued = previous.then(() => gate);
+      exclusiveQueues.set(key, queued);
+      await previous;
+      try {
+        return await work();
+      } finally {
+        release();
+        if (exclusiveQueues.get(key) === queued) exclusiveQueues.delete(key);
+      }
+    },
   };
 }
 

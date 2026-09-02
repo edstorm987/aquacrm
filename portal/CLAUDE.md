@@ -2,7 +2,7 @@
 
 # AquaCRM Claude Handoff
 
-## 🚨 CURRENT CONTINUATION BRIEF — 27 August 2026
+## 🚨 CURRENT CONTINUATION BRIEF — refreshed 2 September 2026
 
 **Read this section before dispatching a worker or editing anything.** It is the
 current operational handoff and supersedes the stale status sentences at the
@@ -12,15 +12,13 @@ current task list** (`checklist.md` and `todo-retired.md` were retired into it o
 
 ### First five minutes: preserve the working state
 
-- Work in `aquaCRM/portal`. **Corrected 2026-08-27:** the tree is on **`main` at
-  `2f3995b`** ("chore(checkpoint): preserve complete AquaCRM workspace") — Ed
-  committed the previously dirty `work/2026-08-20-parallel-session` state as a
-  checkpoint. The older wording here described that branch and 2,823 unstaged
-  changes; that is history. **Run `git status --short` first, always** — do not
-  trust this paragraph over the command.
-- The tree currently carries the **27 August session's work, uncommitted**: ~82
-  changed files across source, tests and docs, including the P0 session-revocation
-  fix. Use narrowly scoped patches and diffs. Do not reset, rebase, checkout,
+- Work in `aquaCRM/portal`. At this documentation refresh the checkout was
+  **`main` at `ffd9110`** with **272 status entries**, but active work makes both
+  facts a moving snapshot. **Run `git branch --show-current`, `git rev-parse
+  --short HEAD` and `git status --short` first, always** — commands supersede this
+  paragraph.
+- The tree carries extensive concurrent work across source, tests and docs. Use
+  narrowly scoped patches and diffs. Do not reset, rebase, checkout,
   clean, blanket-regenerate, stash, commit, push, deploy, or rewrite history
   unless Ed explicitly asks.
 - Preserve the intentional deletion of the retired
@@ -28,10 +26,10 @@ current task list** (`checklist.md` and `todo-retired.md` were retired into it o
   replaced by consolidated reference volumes; the latter is replaced by
   `public/manifest.webmanifest`. Preserve the new `docs/00-START-HERE.md` through
   `docs/08-HISTORY-AND-ARCHIVE.md` volumes and their manifest.
-- A development server was already listening on port 3032 at handoff. Do not
-  kill, restart, or reuse it casually. Use `npm run sandbox:fork` for an isolated
-  browser/server lane. Do not delete ignored `.next*` outputs without resolving
-  the exact owner and target first.
+- Never assume an old documented port is still running or owns the current source.
+  Inspect the listener/build first and use `npm run sandbox:fork` for an isolated
+  browser/server lane. Do not kill or reuse another worker's server, and do not
+  delete ignored `.next*` outputs without resolving the exact owner and target.
 - Do not brief from `docs/context/state.md`,
   `docs/context/commander-handoff.md`, or anything in `docs/context/archive/`.
   Those records are history and contain stale persistence, Showcase, erasure,
@@ -62,14 +60,16 @@ current task list** (`checklist.md` and `todo-retired.md` were retired into it o
   editor, code/AI/explorer/publish gates, and loopback Start/Status/Logs/Stop/
   Restart control are present. A project grant must never reveal internal
   `/portal/dev-team` control-plane data.
-- The authored docs were consolidated into nine volumes from 127 sources, with
-  20 canonical Library documents. Regenerate them; do not re-create thousands
+- The authored docs are consolidated into nine volumes from the authored sources
+  recorded in `docs/consolidation-manifest.json`, with 20 canonical Library
+  documents. Regenerate them; do not re-create thousands
   of retired one-file Markdown stubs.
 
 ### Exact continuation order
 
-*Status refreshed 2026-08-27 after a full working session. Items 1–4 moved; 5
-and 6 have not started. Verify in source before acting on any line here.*
+*This sequence originated on 2026-08-27 and was reconciled on 2026-09-02. Items
+1, 3, 4 and 5 are complete; 2 and 6 retain explicit residuals. Verify in source
+and the current TODO before acting on any line here.*
 
 1. ✅ **P0 security — central session revocation. DONE.** `resolveFreshSessionUser()`
    (`src/lib/server/auth/auth.ts`) runs on every `getSession()` /
@@ -168,9 +168,10 @@ and 6 have not started. Verify in source before acting on any line here.*
    left as a decision rather than changed unilaterally.
 6. 🟡 **Close the recorded runtime residue.** Stale preview is closed (issues #19).
    Still open: live two-instance Editor-AI database coordination (needs
-   `DATABASE_URL`), dirty-editor browser transitions, remaining Staff policy,
-   unresolved references, dependency-safe retirement, hidden render-time
-   mutation. Use checklist/issues/todo, not memory.
+   `DATABASE_URL`), unapplied owned-sidecar PostgreSQL migrations, dirty-editor
+   browser transitions, provider-backed Staff persona/shared-credential acceptance,
+   unresolved references, dependency-safe retirement and hidden render-time
+   mutation. Use issues/TODO, not memory.
 
 ### Also decided on 27 August — read before touching Fulfilment
 
@@ -189,13 +190,19 @@ review-and-seed screen. His answers on what transfers are recorded verbatim in
 
 - During iteration: run the nearest focused test under the correct runtime,
   `npm run typecheck`, and `git diff --check`.
-- Canonical full suite before calling a behaviour complete:
+- Canonical full suite before calling a behaviour complete is `npm run smoke:all`.
+  Its exact expansion is:
 
   ```bash
-  PORTAL_BACKEND=memory NODE_OPTIONS='--conditions react-server' npx tsx --test scripts/*.test.ts
+  PORTAL_BACKEND=memory NODE_OPTIONS='--conditions react-server' \
+    node --import tsx --test scripts/*.test.ts \
+    'src/built-ins/modules/!(website-editor)/src/__smoke__/*.test.ts' && \
+    npm run smoke:website-editor
   ```
 
-  Do not substitute `smoke:all`; it omits non-`smoke-` tests.
+  The first gate covers every script test plus every non-Website-Editor module
+  smoke suite. The separate Website Editor gate intentionally runs without the
+  server-only React condition required by the first gate.
 
   > ### ✅ The suite is green — 27 August, first time since 23 August
   > **4,482 tests / 4,480 pass / 0 fail / 2 skip**, and it stayed green across the
@@ -240,22 +247,54 @@ review-and-seed screen. His answers on what transfers are recorded verbatim in
 
 ### Latest trustworthy evidence
 
-*The isolated-production and Library/Logs numbers below are from before
-27 August and remain the best available for speed. For access, session and
-template work, the 27 August suites named in the continuation order are current.*
+*Refreshed 2 September 2026. These are local/source-freeze and isolated-
+production-browser measurements. They are not deployed geo/CDN, live-provider,
+live-PostgreSQL-migration, cold-machine or broad human-usability proof.*
 
-- Isolated Webpack production: 281 pages, 135,196.3 ms build, 1,479,314,365-byte
-  output. Fresh-process first HTTP / repeat max: auth 619.1/7.7 ms, public
-  593.1/9.8, Agency 727.8/28.3, Dev Team 726.4/31.2, Library 693.0/26.4 and Logs
-  741.0/29.0; process readiness 205–308 ms. This is not deployed/CDN proof.
-- Library measured 4.428→3.290 s cold; Logs 3.182→0.857 s first and
-  2.702→0.868 s post-TTL. Its eager graph fell 47 modules / 469,232 bytes to
-  3 / 15,433. Agency's static proxy closure fell 77.6%; no comparable final
-  local runtime was claimed for that graph-only result.
-- Latest broad focused code gate: **335 pass / 0 fail / 1 optional live-DB skip**
-  with TypeScript clean. Loader/browser presentation: **127/127**, desktop
-  1440×900 and mobile 390×844, no overflow or console errors. These focused
-  gates do not replace the 23 August whole-suite result.
+- **Canonical `npm run smoke:all` is green.** Its Node phase executed **6,417
+  tests across 1,093 suites: 6,415 passed / 0 failed / 2 skipped in
+  94,027.354917ms**; the subsequent Website Editor runner passed **49/49 files
+  in 11.8s**.
+- The latest isolated production benchmark built in **158,476.1ms** with a
+  **1,584,943,643-byte** dist. Fresh-process first HTTP / repeat max was auth
+  **765.9/9.2ms**, public **641.4/6.0ms**, Agency **949.4/53.1ms**, Dev Team
+  **869.2/38.9ms**, Library **803.6/30.4ms** and Logs **892.8/30.7ms**; readiness
+  was **304.3–309.1ms** and every failure list was empty. Shared host caches make
+  this fresh-process, not cold-machine or deployed-CDN, evidence.
+- Fresh cacheless, service-worker-blocked station measurement passed **8/8**.
+  Agency Day transferred **674,535B** of first-navigation JS/CSS; extra transfer
+  versus Day was Executive **4,473B**, Battle **36,102B**, Calendar/Actions
+  **42,174B**, Advisor **12,528B**, Dev Team **21,059B** and Radar Inspector
+  **34,731B**. These are transfer bytes, not execution or paint timings.
+- The broad production-target browser matrix accounts for all **1,326** checks as
+  **1,177 passed / 0 failed / 149 evidenced aborted speculative RSC-prefetch
+  observations / 0 missing**. The reusable-auth Settings matrix is **102 = 92 / 0
+  / 10 / 0**. The corrected exact-width probe is **6/6**: Settings Environment at
+  768px, Studio at 390/1024/1440 and Fulfilment Roles at 390/1280, all HTTP 200
+  with zero console, page, request or HTTP errors; the recorded source hash was
+  unchanged.
+- The role browser roundtrip created a reusable role, persisted Projects Manage,
+  reloaded, downgraded it to View, reloaded and archived it. Fulfilment exposes
+  **11** element radiogroups and 11 each Hidden/View/Use/Manage plus Projects,
+  Portals and Aqua Tags. A separate isolated-production Staff Technical matrix
+  passed **50/50** through six same-cookie Hidden → View → Use → Manage → View →
+  Hidden transitions with zero failures, errors or overflow. Hidden routes use
+  valid streamed Next not-found content (document HTTP 200 or 404), and the exact
+  API downgrade was refused with HTTP 403.
+- Fulfilment checked-mutation acceptance passed at **390px and 1280px**: injected
+  failure produced an alert, no reload or false success, retained or rolled back
+  state as appropriate, and then succeeded on retry.
+- Studio's synthetic sample opened template scope only, made no client-scope
+  sample request and kept Publish in the viewport at all three widths. Its sample
+  API was HTTP 200. Focused source proof is **29/29** and wider editor/tenancy/
+  access proof is **111/111**.
+- The final primary production webpack build compiled in **47s**, completed
+  TypeScript in **5.1s** and generated **245/245** pages in **489ms**.
+- `20260902092000_owned_sidecar_compare_and_swap.sql` implements receipt-
+  deduplicated transactional main-plus-owned-sidecar patching and one-statement
+  snapshot hydration. It is source/mocked verified but **unapplied to live
+  PostgreSQL**; do not claim live migration or remote-concurrency acceptance
+  until it is deployed and exercised there.
 
 ### External decisions and blockers
 
@@ -359,8 +398,8 @@ The core operating boundary is:
   `judgement`) and what clears it. Never offer a Resolve control for work that
   happens outside Aqua, and never claim a clearance condition for a judgement
   call.
-- Run the FULL smoke suite
-  (`PORTAL_BACKEND=memory NODE_OPTIONS='--conditions react-server' npx tsx --test scripts/*.test.ts`)
+- Run the FULL smoke suite (`npm run smoke:all`, whose exact expansion is the
+  scripts, non-Website-Editor module, and separate Website Editor command above)
   before calling a behaviour change done. Adjacent suites are not enough — an existing
   contract test may be pinning the behaviour you just changed.
 
@@ -410,9 +449,8 @@ session context and re-exploration. After a change:
 - **Had to add a duplicate, alias, or dead path?** Log it in
   `docs/workspace/hazards-and-duplication.md` so it isn't mistaken for canonical.
 
-Current operational snapshot: 27 August 2026 on **`main` at `2f3995b`**, with that
-day's session work (~82 files) intentionally uncommitted on top. The earlier
-snapshot naming `work/2026-08-20-parallel-session` at `1d46479` is history — Ed
-checkpoint-committed that state. The current brief at the top of this file,
-source, and `docs/development/TODO.md` supersede older status prose, and
-`git status --short` supersedes all of them.
+Operational snapshot at the 2 September 2026 documentation refresh: **`main` at
+`ffd9110`** with **272 status entries**. This is a moving, concurrently edited
+working tree, not a freeze. The current brief at the top of this file, source and
+`docs/development/TODO.md` supersede older status prose; live Git commands
+supersede every embedded branch, commit and file count.

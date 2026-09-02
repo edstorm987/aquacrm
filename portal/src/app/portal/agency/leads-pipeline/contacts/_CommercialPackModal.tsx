@@ -121,7 +121,9 @@ export function CommercialPackModal({ party, onClose }: { party: Party; onClose:
   // editable: Save PUTs the whole record, so default terms shown after a failed
   // read would replace a real agreement the operator never saw (issues #57).
   const [packRead, setPackRead] = useState<"loading" | "ready" | "unavailable">("loading");
-  const [catalogueAvailable, setCatalogueAvailable] = useState(true);
+  const [catalogueRead, setCatalogueRead] = useState<"loading" | "ready" | "unavailable">("loading");
+  const [readAttempt, setReadAttempt] = useState(0);
+  const readRequestId = useRef(0);
 
   function showNotice(text: string | null, tone: "ok" | "warn" = "ok") {
     setNotice(text);
@@ -129,22 +131,29 @@ export function CommercialPackModal({ party, onClose }: { party: Party; onClose:
   }
 
   useEffect(() => {
+    const requestId = readRequestId.current + 1;
+    readRequestId.current = requestId;
+    let cancelled = false;
+    setPackRead("loading");
+    setCatalogueRead("loading");
+    setError(null);
     void (async () => {
       const [response, productsResponse] = await Promise.all([
         fetch(`${API}/commercial?partyKind=${party.kind}&partyId=${encodeURIComponent(party.id)}`).catch(() => null),
         fetch("/api/portal/products").catch(() => null),
       ]);
       const result = response ? await response.json().catch(() => null) as { ok?: boolean; pack?: Pack | null; stripeConfigured?: boolean; error?: string } | null : null;
-      const productsResult = productsResponse ? await productsResponse.json().catch(() => null) as { products?: ProductTemplate[] } | null : null;
-      if (productsResponse?.ok && productsResult) {
+      const productsResult = productsResponse ? await productsResponse.json().catch(() => null) as { ok?: boolean; products?: ProductTemplate[] } | null : null;
+      if (cancelled || requestId !== readRequestId.current) return;
+      if (productsResponse?.ok && productsResult?.ok && Array.isArray(productsResult.products)) {
         setProducts((productsResult.products ?? []).filter(product => product.active));
-        setCatalogueAvailable(true);
+        setCatalogueRead("ready");
       } else {
         // An empty product picker is indistinguishable from "no products
         // configured", so say which one this is (issues #57).
-        setCatalogueAvailable(false);
+        setCatalogueRead("unavailable");
       }
-      if (!response?.ok || !result?.ok) {
+      if (!response?.ok || !result?.ok || !("pack" in result)) {
         setError(result?.error ?? "Could not load commercial records.");
         setPackRead("unavailable");
         return;
@@ -166,7 +175,8 @@ export function CommercialPackModal({ party, onClose }: { party: Party; onClose:
       setSignedName(value.signedDocumentName ?? "");
       setSignedData(value.signedDocumentDataUrl ?? "");
     })();
-  }, [party.id, party.kind]);
+    return () => { cancelled = true; };
+  }, [party.id, party.kind, readAttempt]);
 
   const subtotal = lines.reduce((sum, line) => sum + line.quantity * line.unitCents, 0);
   const taxCents = Math.round(subtotal * Number(taxRate || 0) / 100);
@@ -181,6 +191,7 @@ export function CommercialPackModal({ party, onClose }: { party: Party; onClose:
     : [...(pack?.revisions ?? [])].reverse().find(revision => revision.acceptedAt);
 
   function applyProduct(productId: string) {
+    if (catalogueRead !== "ready") return;
     setSelectedProductId(productId);
     const product = products.find(item => item.id === productId);
     if (!product) return;
@@ -301,6 +312,10 @@ export function CommercialPackModal({ party, onClose }: { party: Party; onClose:
   }
 
   async function recordPayment() {
+    if (packRead !== "ready") {
+      setError("The commercial record is not current, so payment changes are locked until the read succeeds.");
+      return;
+    }
     if (!pack) {
       setError("Save the invoice before recording payment.");
       return;
@@ -374,7 +389,8 @@ export function CommercialPackModal({ party, onClose }: { party: Party; onClose:
           <div className="space-y-8 p-5 sm:p-6">
             <section>
               <div className="flex items-center justify-between gap-3"><div><h3 className="font-semibold">Invoice</h3><p className="mt-1 text-sm text-black/45">Edit this during the call and save it without creating a client.</p></div>{pack ? <span className="text-xs font-medium text-black/45">{pack.invoiceNumber}</span> : null}</div>
-              <label className="mt-4 grid gap-1 text-xs font-medium text-black/55">Choose product<select className={control} value={selectedProductId} onChange={event => applyProduct(event.target.value)}><option value="">Custom invoice</option>{products.map(product => <option key={product.id} value={product.id}>{product.name}{product.contractBody ? "" : " · no contract"}</option>)}</select></label>
+              <label className="mt-4 grid gap-1 text-xs font-medium text-black/55">Choose product<select disabled={catalogueRead !== "ready"} className={control} value={selectedProductId} onChange={event => applyProduct(event.target.value)}><option value="">Custom invoice</option>{products.map(product => <option key={product.id} value={product.id}>{product.name}{product.contractBody ? "" : " · no contract"}</option>)}</select></label>
+              {catalogueRead === "loading" ? <p role="status" className="mt-2 text-xs text-black/45">Loading the product catalogue…</p> : catalogueRead === "unavailable" ? <p role="status" className="mt-2 border-l-2 border-amber-500 bg-amber-50 px-3 py-2 text-xs text-amber-900">{products.length ? "Last-confirmed products remain visible but cannot be applied until the catalogue refresh succeeds." : "The product catalogue could not be read. An empty picker is not confirmation that no products exist."} <button type="button" onClick={() => setReadAttempt(current => current + 1)} className="font-semibold underline underline-offset-2">Retry catalogue</button></p> : !products.length ? <p className="mt-2 text-xs text-black/45">No active products are configured. A custom invoice is available.</p> : null}
               <label className="mt-4 grid gap-1 text-xs font-medium text-black/55">Service or plan<input className={control} value={serviceLevel} onChange={event => setServiceLevel(event.target.value)} /></label>
               <div className="mt-4 space-y-3">{lines.map((line, index) => <div key={index} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_90px_130px_36px] sm:items-end"><label className="grid gap-1 text-xs font-medium text-black/55">Description<input className={control} value={line.description} onChange={event => setLines(current => current.map((item, i) => i === index ? { ...item, description: event.target.value } : item))} /></label><label className="grid gap-1 text-xs font-medium text-black/55">Qty<input className={control} type="number" min="1" value={line.quantity} onChange={event => setLines(current => current.map((item, i) => i === index ? { ...item, quantity: Number(event.target.value) } : item))} /></label><label className="grid gap-1 text-xs font-medium text-black/55">Unit (£)<input className={control} type="number" min="0" step="0.01" value={(line.unitCents / 100).toFixed(2)} onChange={event => setLines(current => current.map((item, i) => i === index ? { ...item, unitCents: Math.round(Number(event.target.value) * 100) } : item))} /></label><button type="button" disabled={lines.length === 1} onClick={() => setLines(current => current.filter((_, i) => i !== index))} className="grid size-9 place-items-center rounded-md border border-black/10 disabled:opacity-25" aria-label={`Remove line ${index + 1}`}><X size={14} /></button></div>)}</div>
               <button type="button" onClick={() => setLines(current => [...current, { description: "", quantity: 1, unitCents: 0 }])} className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-black/60"><Plus size={14} /> Add line</button>
@@ -407,13 +423,14 @@ export function CommercialPackModal({ party, onClose }: { party: Party; onClose:
               : supersededAcceptance
                 ? <p role="status" className="mt-3 border-l-2 border-amber-600 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">Version {supersededAcceptance.version} was accepted{supersededAcceptance.acceptedBy ? ` by ${supersededAcceptance.acceptedBy}` : ""}{supersededAcceptance.acceptedAt ? ` on ${formatUkDate(supersededAcceptance.acceptedAt, { dateStyle: "medium" })}` : ""}, then the terms were amended. That acceptance covers version {supersededAcceptance.version} only — these are version {pack?.version} and are unsigned until sent and accepted again.</p>
                 : null}
-            {packRead === "unavailable" ? <p role="status" className="mt-5 border-l-2 border-amber-500 bg-amber-50 px-3 py-2 text-sm text-amber-900">These are default terms, not this party&rsquo;s. Their existing pack could not be read, so saving is held back rather than replacing an agreement nobody has seen. Reload to try again.</p> : null}
-            {!catalogueAvailable ? <p role="status" className="mt-3 border-l-2 border-amber-500 bg-amber-50 px-3 py-2 text-sm text-amber-900">The product catalogue could not be read, so the picker below is empty because of a failure rather than because no product exists.</p> : null}
+            {packRead === "loading" ? <p role="status" className="mt-5 border-l-2 border-sky-500 bg-sky-50 px-3 py-2 text-sm text-sky-900">Refreshing the commercial record. Any last-confirmed pack remains visible but every dependent change is locked.</p> : null}
+            {packRead === "unavailable" ? <p role="status" className="mt-5 border-l-2 border-amber-500 bg-amber-50 px-3 py-2 text-sm text-amber-900">{pack ? "The last-confirmed pack remains visible, but it may be stale and every dependent change is locked." : "These are default terms, not this party’s. Their existing pack could not be read, so saving is held back rather than replacing an agreement nobody has seen."} <button type="button" onClick={() => setReadAttempt(current => current + 1)} className="font-semibold underline underline-offset-2">Retry records</button></p> : null}
+            {packRead === "ready" ? <button type="button" disabled={Boolean(busy)} onClick={() => setReadAttempt(current => current + 1)} className="mt-3 text-xs font-semibold text-black/55 underline underline-offset-2 disabled:opacity-45">Refresh commercial records</button> : null}
             <button type="button" onClick={() => void save()} disabled={Boolean(busy) || packRead !== "ready"} title={packRead !== "ready" ? "The existing commercial record has not been read" : undefined} className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-50"><FilePenLine size={16} /> {busy === "save" ? "Saving..." : "Save draft"}</button>
             {pack ? <a href={`/proposal/${pack.publicToken}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-4 text-sm font-semibold"><ExternalLink size={16} /> Preview / download copy</a> : null}
             <button type="button" onClick={() => void action("commercial/send", sent => sent?.deliveryStatus === "delivered"
               ? { text: "Invoice and agreement delivered by email.", tone: "ok" }
-              : { text: "Invoice and agreement handed to the email provider. Delivery is not confirmed yet, so neither document is marked sent — retry the email if the client does not receive it.", tone: "warn" })} disabled={Boolean(busy)} className="mt-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-4 text-sm font-semibold disabled:opacity-50"><Mail size={16} /> {busy === "commercial/send" ? "Sending..." : pack?.deliveryStatus === "failed" || pack?.deliveryStatus === "queued" ? "Retry invoice & agreement email" : pack?.deliveryStatus === "delivered" ? "Resend invoice & agreement" : "Send invoice & agreement"}</button>
+              : { text: "Invoice and agreement handed to the email provider. Delivery is not confirmed yet, so neither document is marked sent — retry the email if the client does not receive it.", tone: "warn" })} disabled={Boolean(busy) || packRead !== "ready"} className="mt-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-4 text-sm font-semibold disabled:opacity-50"><Mail size={16} /> {busy === "commercial/send" ? "Sending..." : pack?.deliveryStatus === "failed" || pack?.deliveryStatus === "queued" ? "Retry invoice & agreement email" : pack?.deliveryStatus === "delivered" ? "Resend invoice & agreement" : "Send invoice & agreement"}</button>
             {pack?.deliveryStatus === "failed"
               ? <p role="status" className="mt-2 border-l-2 border-red-600 bg-red-50 px-3 py-2 text-xs leading-5 text-red-800">Email delivery failed{pack.deliveryAttemptedAt ? ` on ${formatUkDate(pack.deliveryAttemptedAt, { dateStyle: "medium" })}` : ""}: {pack.deliveryError ?? "the provider refused delivery."} The invoice and agreement stay unsent — retry the email above.{pack.emailMessageId ? ` Provider message ${pack.emailMessageId}.` : ""}</p>
               : pack?.deliveryStatus === "queued"
@@ -423,12 +440,12 @@ export function CommercialPackModal({ party, onClose }: { party: Party; onClose:
                   : null}
             <div className="mt-6 border-t border-black/10 pt-5">
               <p className="text-xs font-semibold uppercase tracking-wide text-black/40">Card payments</p>
-              {stripeConfigured ? <button type="button" onClick={() => void action("commercial/stripe-checkout", "Secure Stripe payment page created.")} disabled={Boolean(busy)} className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium"><CreditCard size={16} /> {pack?.stripeCheckoutUrl ? "Refresh Stripe payment page" : "Create Stripe payment page"}</button> : <p className="mt-2 text-xs leading-5 text-red-700">Stripe is not connected. Add the server key before offering card payment.</p>}
+              {stripeConfigured ? <button type="button" onClick={() => void action("commercial/stripe-checkout", "Secure Stripe payment page created.")} disabled={Boolean(busy) || packRead !== "ready"} className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium"><CreditCard size={16} /> {pack?.stripeCheckoutUrl ? "Refresh Stripe payment page" : "Create Stripe payment page"}</button> : <p className="mt-2 text-xs leading-5 text-red-700">Stripe is not connected. Add the server key before offering card payment.</p>}
               {pack?.stripeCheckoutUrl ? <a href={pack.stripeCheckoutUrl} target="_blank" rel="noreferrer" className="mt-2 block text-center text-xs font-medium underline">Open payment page</a> : null}
             </div>
             <div className="mt-6 border-t border-black/10 pt-5">
               <p className="text-xs font-semibold uppercase tracking-wide text-black/40">Record bank, cash or other payment</p>
-              <div className="mt-3 grid gap-2"><input className={control} type="number" min="0.01" step="0.01" placeholder={`Amount (£) · balance ${gbp(balance)}`} value={paymentAmount} onChange={event => setPaymentAmount(event.target.value)} /><select className={control} value={paymentMethod} onChange={event => setPaymentMethod(event.target.value)}><option value="bank-transfer">Bank transfer</option><option value="cash">Cash</option><option value="stripe">Stripe</option><option value="other">Other</option></select><input className={control} aria-label="Payment reference" required placeholder="Reference or receipt number · required" value={paymentReference} onChange={event => setPaymentReference(event.target.value)} /><button type="button" onClick={() => void recordPayment()} disabled={busy === "payment" || Number(paymentAmount) <= 0 || !paymentReference.trim()} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium disabled:opacity-40"><Landmark size={16} /> {busy === "payment" ? "Recording..." : "Record payment"}</button></div>
+              <div className="mt-3 grid gap-2"><input className={control} type="number" min="0.01" step="0.01" placeholder={`Amount (£) · balance ${gbp(balance)}`} value={paymentAmount} onChange={event => setPaymentAmount(event.target.value)} /><select className={control} value={paymentMethod} onChange={event => setPaymentMethod(event.target.value)}><option value="bank-transfer">Bank transfer</option><option value="cash">Cash</option><option value="stripe">Stripe</option><option value="other">Other</option></select><input className={control} aria-label="Payment reference" required placeholder="Reference or receipt number · required" value={paymentReference} onChange={event => setPaymentReference(event.target.value)} /><button type="button" onClick={() => void recordPayment()} disabled={packRead !== "ready" || busy === "payment" || Number(paymentAmount) <= 0 || !paymentReference.trim()} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium disabled:opacity-40"><Landmark size={16} /> {busy === "payment" ? "Recording..." : "Record payment"}</button></div>
             </div>
             {pack?.payments.length ? <div className="mt-6 border-t border-black/10 pt-5"><p className="text-xs font-semibold uppercase tracking-wide text-black/40">Payment trail</p><ul className="mt-3 space-y-2">{pack.payments.map(payment => <li key={payment.id} className="text-xs"><span className="flex justify-between gap-3"><span className="capitalize text-black/55">{payment.method.replace("-", " ")} · {formatUkDate(payment.paidAt, { dateStyle: "medium" })}</span><strong>{gbp(payment.amountCents)}</strong></span>{payment.receiptSentAt ? <span className="mt-0.5 block text-[11px] text-black/45">Receipt delivered {formatUkDate(payment.receiptSentAt, { dateStyle: "medium" })}</span> : payment.receiptDeliveryStatus === "failed" ? <span className="mt-0.5 block text-[11px] text-red-700">Receipt email refused: {payment.receiptError ?? "the provider refused delivery."} Re-record with the same reference to retry.</span> : <span className="mt-0.5 block text-[11px] text-amber-800">Receipt not confirmed delivered. Re-record with the same reference to retry it.</span>}</li>)}</ul></div> : null}
             {notice ? <p className={`mt-5 border-l-2 px-3 py-2 text-sm ${noticeTone === "warn" ? "border-amber-600 bg-amber-50 text-amber-900" : "border-emerald-600 bg-emerald-50 text-emerald-800"}`}>{notice}</p> : null}

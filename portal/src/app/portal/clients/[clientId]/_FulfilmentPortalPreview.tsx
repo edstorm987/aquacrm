@@ -10,12 +10,14 @@ import {
   Mail,
   Monitor,
   PackagePlus,
+  RefreshCw,
   Save,
   Send,
   Smartphone,
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { ClientApproval, ClientApprovalType } from "@/app/api/tenants/client-approvals/route";
@@ -49,6 +51,7 @@ export interface CustomerPortalPreviewInitial {
   accessPreparedAt?: number;
   fileCount?: number;
   invoiceCount?: number;
+  invoiceAvailability?: "ready" | "unavailable";
   outstandingInvoiceCount?: number;
   contractCount?: number;
   propertyCount?: number;
@@ -82,6 +85,7 @@ export function FulfilmentPortalPreview({
   initial: CustomerPortalPreviewInitial;
   canManage?: boolean;
 }) {
+  const router = useRouter();
   const [mode, setMode] = useState<CustomerPortalMode>(initial.mode ?? "onboarding");
   const [loginEmail, setLoginEmail] = useState(initial.loginEmail ?? "");
   const [contactName, setContactName] = useState(initial.contactName ?? "");
@@ -117,14 +121,21 @@ export function FulfilmentPortalPreview({
   const previewHref = `/client-preview/${clientId}${canManage ? "?manage=1" : ""}`;
   const embeddedPreviewHref = `/client-preview/${clientId}?embedded=1${canManage ? "&manage=1" : ""}`;
   const activeMode = useMemo(() => MODES.find(item => item.id === mode) ?? MODES[0], [mode]);
+  const invoicesAvailable = initial.invoiceAvailability !== "unavailable";
+  const confirmedLinkedRecords = (initial.fileCount ?? 0)
+    + (invoicesAvailable ? initial.invoiceCount ?? 0 : 0)
+    + (initial.contractCount ?? 0)
+    + (initial.propertyCount ?? 0);
   const readiness = [
     { label: "Portal", ready: Boolean(portalBuiltAt), value: portalBuiltAt ? "Ready" : "Create it" },
     { label: "Customer email", ready: Boolean(loginEmail.trim()), value: loginEmail.trim() ? "Ready" : "Missing" },
     { label: "Products", ready: products.length > 0, value: products.length ? `${products.length} selected` : "Choose products" },
     {
       label: "Billing",
-      ready: (initial.outstandingInvoiceCount ?? 0) === 0 || Boolean(billingUrl.trim()),
-      value: (initial.outstandingInvoiceCount ?? 0) === 0
+      ready: invoicesAvailable && ((initial.outstandingInvoiceCount ?? 0) === 0 || Boolean(billingUrl.trim())),
+      value: !invoicesAvailable
+        ? "Invoices unavailable"
+        : (initial.outstandingInvoiceCount ?? 0) === 0
         ? "Nothing due"
         : billingUrl.trim()
           ? "Payment ready"
@@ -132,8 +143,8 @@ export function FulfilmentPortalPreview({
     },
     {
       label: "Project data",
-      ready: (initial.fileCount ?? 0) + (initial.invoiceCount ?? 0) + (initial.contractCount ?? 0) + (initial.propertyCount ?? 0) > 0,
-      value: `${(initial.fileCount ?? 0) + (initial.invoiceCount ?? 0) + (initial.contractCount ?? 0) + (initial.propertyCount ?? 0)} linked`,
+      ready: confirmedLinkedRecords > 0,
+      value: invoicesAvailable ? `${confirmedLinkedRecords} linked` : `${confirmedLinkedRecords} confirmed · invoices unavailable`,
     },
   ];
 
@@ -395,12 +406,13 @@ export function FulfilmentPortalPreview({
               <span>·</span>
               <span>{initial.contractCount ?? 0} accepted agreements</span>
               <span>·</span>
-              <span>{initial.invoiceCount ?? 0} invoices</span>
+              <span>{invoicesAvailable ? `${initial.invoiceCount ?? 0} invoices` : "Invoices unavailable"}</span>
               <span>·</span>
               <span>{initial.propertyCount ?? 0} connected properties</span>
               <span>·</span>
               <span>{initial.tagInstalledCount ?? 0} monitoring tags</span>
             </div>
+            {!invoicesAvailable ? <div role="status" className="mt-4 flex flex-wrap items-center justify-between gap-3 border-l-2 border-sky-600 bg-sky-50 px-3 py-2 text-xs text-sky-900"><span>Billing readiness is withheld until the invoice source answers. Confirmed project records remain visible.</span><button type="button" onClick={() => router.refresh()} className="inline-flex min-h-8 items-center gap-2 rounded-md border border-sky-200 bg-white px-3 font-semibold text-sky-800"><RefreshCw size={13} /> Retry invoice read</button></div> : null}
           </section>
         </div>
 

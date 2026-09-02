@@ -61,8 +61,9 @@
 > boundaries enforce exact-client isolation. All tenant `route.ts` files containing
 > `clientId` are now **35/36** canonical-gated; the sole tenant exception is the dev-only
 > empty-store seeder. The source contract pins 28 completed route mappings. Dynamic
-> module APIs plus ambiguous freelancer-job and task associations remain unclassified,
-> while several other routes deliberately use customer/session/relationship, Dev-project,
+> module APIs and freelancer-job/task/task-template client associations are now
+> classified and enforced under #172, while several other routes deliberately use
+> customer/session/relationship, Dev-project,
 > workspace-create or output-only authority. This is not blanket client-API completion.
 > `/portal/dev-workspace` lists only exactly granted projects and mounts the shared
 > editor with separate view, code, AI, explorer and publish gates.
@@ -150,10 +151,9 @@
 > exact-project Dev Workspace, direct Dev API gates and trusted local preview supervisor now
 > exist. Broad sign-in roles remain persona/audience labels rather than resource authority on
 > those migrated paths. Team and Fulfilment projections and the broad exact-client workspace
-> slice now consume the evaluator, including their direct route boundaries. However, HR
-> custom-role/client-assignment records and freelancer job policies have not all converged;
-> the unclassified dynamic-module/freelancer-job/task associations and the whole application's
-> other legacy pages/APIs do not yet consume it;
+> slice now consume the evaluator, including their direct route boundaries. The dynamic
+> module and freelancer-job/task/task-template classifications, plus the named competing
+> HR routes, are converged. Some other legacy pages/APIs do not yet consume the evaluator;
 > the supervisor starts only a trusted, already-configured local repository and does not
 > complete clone/worktree/install/PR policy by itself; and the complete two-user/two-project/
 > two-environment mutation gate is still open. Do not call this release-ready until those
@@ -559,7 +559,8 @@ No request was sent to Mark's website and no project record was saved.
       `requireCurrentClientWorkspaceElementAccess` keeping its migration rule so
       un-migrated identities retain legacy behaviour.
       `scripts/smoke-plugin-client-element.test.ts` **7/7**. Freelancer-job and
-      generic task/task-template client associations remain genuinely unclassified.
+      generic task/task-template client associations are classified and enforced by
+      `clientAssociationElement.ts` under issue #172.
       Alternative-authority customer, Dev-project, workspace-create, website-source and
       output/derived-association routes are documented separately, not mislabeled as gaps.
       A final static gate also proved and repaired four adjacent adoption holes: Fulfilment
@@ -681,9 +682,9 @@ No request was sent to Mark's website and no project record was saved.
       exact-client journey; exercise edit/AI/diff/reload/PR and preview failure paths at
       the full accessibility matrix. Start/Restart/Stop and representative responsive
       route denial are already browser-proven and should not be described as wholly open.
-- [ ] **Application-wide parity.** Classify the remaining module catch-all, freelancer-job
-      and task-association client actions, then migrate or retire every competing HR/
-      freelancer policy and enforce the evaluator at all remaining customer, freelancer
+- [~] **Application-wide parity.** The module catch-all and freelancer-job/task-association
+      client actions are classified, and the named competing HR routes are converged.
+      Enforce the evaluator at all remaining customer, freelancer
       and legacy data/mutation boundaries. Preserve the named alternative-authority routes
       instead of forcing the wrong client gate. Finish AI/service-principal and expiring
       share-link contracts only if they remain product requirements.
@@ -1986,10 +1987,12 @@ Detailed scope and file map:
       company-facing enquiry view, per-client injection keys and richer registry
       state. These are the `aqua-tag-remainders` roadmap item, not evidence that
       the core tag manager or wizard steps are unbuilt.
-- [ ] **Env-only audit.** Every setting that needs a redeploy to change cannot
-      ship in a sellable product. `inspectProductionReadiness` reads its verdict
-      from env, so a sold instance would read as permanently unready. That list
-      is the true scope of "sellable" and nobody has it yet.
+- [~] **Env-only audit.** The baseline inventory now exists in
+      `docs/workspace/env-and-sellability.md`: **17 variables with no in-app path**,
+      grouped into five remediation classes with an implementation order. Two of the
+      original day-one leaks are already fixed. Continue migrating or explicitly
+      retaining the remaining deployment-only settings; the inventory is not proof
+      that a sold instance is fully self-configurable.
 - [x] ~~RLS as repo SQL~~ **Already true** — 16 migrations in
       `aquaCRM/supabase/migrations/` (the earlier "none exist" claim looked in
       `portal/` only). Open residue: `brand_enquiries` has no `agency_id`; ~30

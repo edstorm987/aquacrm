@@ -263,13 +263,16 @@ function NavItems({
 
 function PortalAttentionBadge({ item }: { item?: CustomerPortalAttentionItem }) {
   if (!item) return null;
+  const label = item.unavailable
+    ? item.count > 0 ? `${item.count}+` : "!"
+    : item.count > 99 ? "99+" : item.count;
   return (
     <span
       title={item.label}
       aria-label={item.label}
-      className="grid min-h-5 min-w-5 shrink-0 place-items-center rounded-full bg-[#b83f49] px-1.5 text-[9px] font-bold tabular-nums text-white shadow-[0_0_0_2px_rgba(255,255,255,0.08)]"
+      className={`grid min-h-5 min-w-5 shrink-0 place-items-center rounded-full px-1.5 text-[9px] font-bold tabular-nums text-white shadow-[0_0_0_2px_rgba(255,255,255,0.08)] ${item.unavailable ? "bg-[#9a671f]" : "bg-[#b83f49]"}`}
     >
-      {item.count > 99 ? "99+" : item.count}
+      {label}
     </span>
   );
 }
@@ -379,6 +382,16 @@ export function CustomerPortalChrome({
     mode: modeLabel,
     productId: activeProductId ?? "",
   }), [activeProductId, clientName, modeLabel, providerName]);
+  const attentionUnavailable = !attention || attention.state === "unavailable";
+  const attentionSummary = !attention
+    ? "Checking what needs you"
+    : attention.state === "unavailable"
+      ? attention.total > 0
+        ? `${attention.total} confirmed ${attention.total === 1 ? "item needs you" : "items need you"}; some status was not checked`
+        : "Some status could not be checked"
+      : attention.total > 0
+        ? `${attention.total} ${attention.total === 1 ? "item needs you" : "items need you"}`
+        : "No decisions are waiting on you";
 
   return (
     <div
@@ -426,8 +439,8 @@ export function CustomerPortalChrome({
             <span className="h-1.5 w-1.5 rounded-full bg-[var(--portal-accent)]" />
             {modeLabel}
           </div>
-          <p className={`mt-2 text-[10px] leading-4 ${attention?.total ? "text-[#f0a1a8]" : "text-white/35"}`}>
-            {attention?.total ? `${attention.total} ${attention.total === 1 ? "item needs you" : "items need you"}` : "No decisions are waiting on you"}
+          <p className={`mt-2 text-[10px] leading-4 ${attentionUnavailable ? "text-amber-200/80" : attention?.total ? "text-[#f0a1a8]" : "text-white/35"}`}>
+            {attentionSummary}
           </p>
         </div>
       </aside>
@@ -480,8 +493,8 @@ export function CustomerPortalChrome({
                 <span className="h-1.5 w-1.5 rounded-full bg-[var(--portal-accent)]" />
                 {modeLabel}
               </div>
-              <p className={`mt-2 text-[10px] leading-4 ${attention?.total ? "text-[#f0a1a8]" : "text-white/35"}`}>
-                {attention?.total ? `${attention.total} ${attention.total === 1 ? "item needs you" : "items need you"}` : "No decisions are waiting on you"}
+              <p className={`mt-2 text-[10px] leading-4 ${attentionUnavailable ? "text-amber-200/80" : attention?.total ? "text-[#f0a1a8]" : "text-white/35"}`}>
+                {attentionSummary}
               </p>
             </div>
           </aside>

@@ -1,10 +1,9 @@
 import { notFound } from "next/navigation";
 
-import { requireRole } from "@/lib/server/auth/auth";
+import { requireCurrentFulfilmentTechnicalAccess } from "@/lib/server/access/fulfilmentTechnicalAccess";
 import { isGitHubPublishingConfiguredForAgency } from "@/lib/server/integrations/githubProjectPublisher";
 import { getFirstPartyDevelopmentProject } from "@/lib/projects/firstPartyDevelopmentProjects";
 import { ensureHydrated } from "@/server/storage";
-import { AGENCY_ROLES } from "@/server/types";
 import { DevelopmentNav } from "../../_DevelopmentNav";
 import { FirstPartyProjectWorkspace } from "./_FirstPartyProjectWorkspace";
 
@@ -14,7 +13,7 @@ export default async function FirstPartyDevelopmentProjectPage({
   params: Promise<{ projectId: string }>;
 }) {
   await ensureHydrated();
-  const session = await requireRole([...AGENCY_ROLES]);
+  const { actor } = await requireCurrentFulfilmentTechnicalAccess("view");
   const project = getFirstPartyDevelopmentProject((await params).projectId);
   if (!project) notFound();
 
@@ -23,7 +22,7 @@ export default async function FirstPartyDevelopmentProjectPage({
       <DevelopmentNav active="systems" />
       <FirstPartyProjectWorkspace
         project={project}
-        githubWriteConfigured={isGitHubPublishingConfiguredForAgency(session.agencyId)}
+        githubWriteConfigured={isGitHubPublishingConfiguredForAgency(actor.resourceAgencyId)}
       />
     </div>
   );

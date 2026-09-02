@@ -2,7 +2,8 @@ import crypto from "node:crypto";
 import { join } from "node:path";
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { authErrorResponse } from "@/lib/server/auth/auth";
+import { requireCurrentFulfilmentTechnicalAccess } from "@/lib/server/access/fulfilmentTechnicalAccess";
 import { attachStoredPrivateUpload, PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { createDevelopmentResource, publicDevelopmentResource, rollbackDevelopmentResourceUpload } from "@/server/developmentToolkit";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
@@ -20,7 +21,9 @@ const ALLOWED = new Set([
 export async function POST(request: Request) {
   try {
     await ensureHydrated();
-    const session = await requireRole(["agency-owner", "agency-manager", "agency-staff"]);
+    const { actor } = await requireCurrentFulfilmentTechnicalAccess("use");
+    const session = actor.session;
+    const agencyId = actor.resourceAgencyId;
     const form = await request.formData().catch(() => null);
     const file = form?.get("file");
     if (!(file instanceof File)) return NextResponse.json({ ok: false, error: "Choose a file." }, { status: 400 });
@@ -29,8 +32,8 @@ export async function POST(request: Request) {
 
     const id = `devfile_${crypto.randomBytes(8).toString("hex")}`;
     const safeName = file.name.normalize("NFKD").replace(/[^\w.\- ]+/g, "").trim().replace(/\s+/g, "-").slice(0, 160) || "resource";
-    const pathname = `development/${session.agencyId}/${id}-${safeName}`;
-    const relative = join(session.agencyId, `${id}-${safeName}`);
+    const pathname = `development/${agencyId}/${id}-${safeName}`;
+    const relative = join(agencyId, `${id}-${safeName}`);
     const stored = await storePrivateUpload({
       pathname,
       file,
@@ -45,7 +48,7 @@ export async function POST(request: Request) {
     const attached = await attachStoredPrivateUpload(
       stored,
       "development-uploads",
-      () => createDevelopmentResource(session.agencyId, {
+      () => createDevelopmentResource(agencyId, {
         kind,
         title: String(form?.get("title") ?? "").trim() || file.name.replace(/\.[^.]+$/, ""),
         description: String(form?.get("description") ?? ""),
@@ -57,7 +60,7 @@ export async function POST(request: Request) {
       }, session.userId),
       {
         persist: flushPendingWrites,
-        rollbackOwner: () => { rollbackDevelopmentResourceUpload(session.agencyId, stored.storageKey); },
+        rollbackOwner: () => { rollbackDevelopmentResourceUpload(agencyId, stored.storageKey); },
       },
     );
     if (!attached.ok) {

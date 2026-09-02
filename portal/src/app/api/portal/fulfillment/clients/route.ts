@@ -14,6 +14,7 @@ import { customerPortalProvisioningMetadata } from "@/lib/server/clients/custome
 import { createClientDelight } from "@/server/clientDelight";
 import type { ClientStage } from "@/server/types";
 import { getTradingCompany } from "@/server/tradingCompanies";
+import { getInstall } from "@/server/pluginInstalls";
 import { PortalFormValidationError } from "@/lib/forms/portalFormValues";
 import {
   ClientLifecycleOperationConflictError,
@@ -81,12 +82,18 @@ export async function POST(req: NextRequest) {
   if (!name) {
     return NextResponse.json({ ok: false, error: "name is required" }, { status: 400 });
   }
+  const suppliedOperationId = typeof body.operationId === "string" ? body.operationId.trim() : "";
+  const operationId = suppliedOperationId || `new-client:${randomUUID()}`;
 
   try {
     const suppliedMetadata = body.metadata ?? {};
     const createPortal = body.createPortal === true;
-    const stage = body.stage ?? "aqua-epic-intro";
-    const operationId = body.operationId?.trim() || `new-client:${randomUUID()}`;
+    const requestedStage = typeof body.stage === "string" ? body.stage.trim() : "";
+    const fulfillmentInstall = getInstall({ agencyId }, "fulfillment");
+    const configuredStage = typeof fulfillmentInstall?.config.defaultStage === "string"
+      ? fulfillmentInstall.config.defaultStage.trim()
+      : "";
+    const stage = (requestedStage || configuredStage || "aqua-epic-intro") as ClientStage;
     const companyId = body.companyId?.trim();
     if (companyId && !getTradingCompany(agencyId, companyId)) {
       return NextResponse.json({ ok: false, error: "client-facing brand not found" }, { status: 400 });
@@ -137,6 +144,7 @@ export async function POST(req: NextRequest) {
     if (!creation.ok) {
       return NextResponse.json({
         ok: false,
+        operationId,
         error: creation.error ?? "Client lifecycle setup is incomplete.",
         code: "client_lifecycle_incomplete",
         client: { id: client.id, name: client.name, slug: client.slug },
@@ -163,6 +171,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             ok: false,
+            operationId,
             error: `Client created, but customer portal setup is incomplete: ${portalSetup.error}`,
             code: "client_portal_setup_incomplete",
             client: { id: client.id, name: client.name, slug: client.slug },
@@ -195,6 +204,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
+      operationId,
       client: { id: client.id, name: client.name, slug: client.slug },
       portalSetup,
       lifecycle: creation.lifecycle,
@@ -203,18 +213,18 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     if (err instanceof PortalFormValidationError) {
       return NextResponse.json(
-        { ok: false, error: err.message, fieldId: err.fieldId },
+        { ok: false, operationId, error: err.message, fieldId: err.fieldId },
         { status: 422 },
       );
     }
     if (err instanceof ClientLifecyclePhaseNotFoundError) {
-      return NextResponse.json({ ok: false, error: err.message, code: "phase_not_found" }, { status: 409 });
+      return NextResponse.json({ ok: false, operationId, error: err.message, code: "phase_not_found" }, { status: 409 });
     }
     if (err instanceof ClientLifecycleOperationConflictError) {
-      return NextResponse.json({ ok: false, error: err.message, code: "operation_conflict" }, { status: 409 });
+      return NextResponse.json({ ok: false, operationId, error: err.message, code: "operation_conflict" }, { status: 409 });
     }
     return NextResponse.json(
-      { ok: false, error: err instanceof Error ? err.message : "create failed" },
+      { ok: false, operationId, error: err instanceof Error ? err.message : "create failed" },
       { status: 500 },
     );
   }

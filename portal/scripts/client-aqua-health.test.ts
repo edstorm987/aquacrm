@@ -63,6 +63,28 @@ test("Aqua Health rewards current contact, paid invoices and accepted terms", ()
   assert.equal(health.confidence, 70);
 });
 
+test("Aqua Health never turns an unavailable invoice read into a healthy payment factor", () => {
+  const now = Date.UTC(2026, 7, 14);
+  const health = calculateClientAquaHealth({
+    now,
+    financeConnected: true,
+    financeAvailable: false,
+    invoices: [],
+    lastContactedAt: now - DAY,
+    requestsObserved: true,
+    requests: [],
+    contracts: [{ id: "ctr_1", title: "Agreement", status: "accepted", createdAt: now - 10, updatedAt: now - 5 }],
+  });
+  const payment = health.factors.find(factor => factor.id === "payment");
+
+  assert.equal(payment?.sourceState, "unavailable");
+  assert.equal(payment?.score, null);
+  assert.equal(payment?.state, "learning");
+  assert.match(payment?.detail ?? "", /invoice evidence is unavailable/i);
+  assert.equal(health.state, "learning");
+  assert.match(health.summary, /cannot give a complete conclusion/i);
+});
+
 test("Aqua Health raises risk when enquiries fall to none against an evolving baseline", () => {
   const now = Date.UTC(2026, 7, 14);
   const health = calculateClientAquaHealth({

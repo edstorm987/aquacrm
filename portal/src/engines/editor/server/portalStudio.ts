@@ -3,7 +3,7 @@ import "server-only";
 import { agencyProductsForRead, listAgencyProducts } from "@/server/agencyProducts";
 import { getClientPortalTemplate, productPortalTemplatesForRead } from "@/server/clientPortalDesigns";
 import { listClients } from "@/server/tenants";
-import type { ClientPortalMode, Role } from "@/server/types";
+import type { ClientPortalMode } from "@/server/types";
 import type {
   PortalStudioClient,
   PortalStudioTemplate,
@@ -47,7 +47,7 @@ export interface PortalStudioProps {
   lockToClient: boolean;
 }
 
-import { SAMPLE_CLIENT_NAME, sampleClientId } from "@/lib/server/clients/samplePreviewClient";
+import { isSampleClientId, SAMPLE_CLIENT_NAME, sampleClientId } from "@/lib/server/clients/samplePreviewClient";
 
 export function cleanPortalMode(value: unknown): ClientPortalMode {
   return value === "designing" || value === "developed-launch" || value === "maintenance" ? value : "onboarding";
@@ -70,10 +70,11 @@ export function cleanPortalSection(value: unknown): PortalStudioSection {
 export function loadPortalStudioProps(input: {
   agencyId: string;
   userId: string;
-  role: Role;
+  /** Canonical authority resolved by the caller at the request boundary. */
+  canManage: boolean;
   query: PortalStudioQuery;
 }): PortalStudioProps {
-  const { agencyId, role, query } = input;
+  const { agencyId, query } = input;
 
   agencyProductsForRead(agencyId);
   const products = listAgencyProducts(agencyId, true).filter(product => product.portalRequirement !== "none");
@@ -124,7 +125,16 @@ export function loadPortalStudioProps(input: {
   // Nothing is created for it — see samplePreviewClient.ts.
   const clients: PortalStudioClient[] = [
     ...realClients,
-    { id: sampleClientId(agencyId), name: SAMPLE_CLIENT_NAME, built: false, mode: "designing" as const },
+    {
+      id: sampleClientId(agencyId),
+      name: SAMPLE_CLIENT_NAME,
+      built: false,
+      mode: "designing" as const,
+      // This is preview data, not a tenant row. The editor may render a
+      // TEMPLATE through it, but must never offer a client override whose save
+      // target does not exist.
+      previewOnly: true,
+    },
   ];
 
   const requestedClient = clients.find(client => client.id === query.clientId);
@@ -134,16 +144,22 @@ export function loadPortalStudioProps(input: {
     ?? realClients.find(client => client.built)?.id
     ?? realClients[0]?.id
     ?? sampleClientId(agencyId);
+  const samplePreviewSelected = isSampleClientId(initialClientId);
 
   return {
     clients,
     templates,
     initialClientId,
     initialTemplateId,
-    initialScope: query.scope === "template" ? "template" : "client",
+    // A sample is only the data-shaped canvas behind a template. Treating it
+    // as a client override makes the browser call the real-client design API
+    // for an intentionally non-existent row, producing a truthful 404 but a
+    // broken default editor. Keep the API fail-closed and open the editable
+    // template instead.
+    initialScope: query.scope === "template" || samplePreviewSelected ? "template" : "client",
     initialMode: cleanPortalMode(query.mode ?? requestedClient?.mode),
     initialSection: cleanPortalSection(query.section),
-    canManage: role === "agency-owner" || role === "agency-manager",
+    canManage: input.canManage,
     lockToClient: query.context === "client-workspace" && Boolean(requestedClient),
   };
 }

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-02T04:02:52.654Z",
+  "generatedAt": "2026-09-02T09:10:27.413Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -79,9 +79,9 @@
       "path": "CLAUDE.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-claude-md",
-      "sha256": "c6abffdcbb5d4b09363e669bda5b0e2bb72d541a799b23ba86c45aa5ef5e0753",
-      "words": 3553,
-      "bytes": 26126
+      "sha256": "50ab6e81011640064fc14538d53a2828c1427e44f12108b804c8d5564dca3c49",
+      "words": 3889,
+      "bytes": 28763
     },
     {
       "path": "docs/architecture-noobie.md",
@@ -359,9 +359,9 @@
       "path": "docs/data/MIGRATION-PLAN.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-data-migration-plan-md",
-      "sha256": "7a0f37fd6f75438ebab7a64aea49f260969e41e6f399e95d432349b0e9d6e8b9",
-      "words": 1353,
-      "bytes": 10277
+      "sha256": "867a7712f43a167a001a24349adbdc2c6b9bec1de3ac492d4b3a04174922c9ef",
+      "words": 2014,
+      "bytes": 15561
     },
     {
       "path": "docs/data/SEMANTIC-LAYER.md",
@@ -431,9 +431,9 @@
       "path": "docs/development/checklist.md",
       "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
       "anchor": "source-docs-development-checklist-md",
-      "sha256": "8bb0518e3ee08df2e852a136ab724e122faf3d8eab8f436152c03ac0e50dab96",
-      "words": 21032,
-      "bytes": 165416
+      "sha256": "85a61c1343853a8b2631b126595f189fcc71f2d783130b2e79fd354ac22a7e32",
+      "words": 21042,
+      "bytes": 165575
     },
     {
       "path": "docs/development/CLOUD-RESUME.md",
@@ -447,9 +447,9 @@
       "path": "docs/development/ED-QUESTIONS.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-ed-questions-md",
-      "sha256": "f8dfdfa9cfad61140e8ec9428b3b2b706cf33e96296825c7860467e862f7f86f",
-      "words": 2209,
-      "bytes": 14740
+      "sha256": "379784a1246170ccd77969d495d85d49b8b81046c6ecfeac6c48c855f26a2c5a",
+      "words": 2095,
+      "bytes": 14245
     },
     {
       "path": "docs/development/findings/2026-08-22-agency-staff-can-read-salaries.md",
@@ -495,9 +495,9 @@
       "path": "docs/development/issues.md",
       "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
       "anchor": "source-docs-development-issues-md",
-      "sha256": "7ce9e8eeaa3ef9f0c40d61ccf4a06e043ae84e58782d5b60220b59b2adf79862",
-      "words": 40596,
-      "bytes": 313573
+      "sha256": "5c8309efe117c69bf822e988b50aade3f86e069ba6f247ebc33e96b3fc197bc3",
+      "words": 41083,
+      "bytes": 318131
     },
     {
       "path": "docs/development/LOOP-PROGRESS.md",
@@ -607,9 +607,9 @@
       "path": "docs/development/plans/configurable-access-and-workspace-parity.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-configurable-access-and-workspace-parity-md",
-      "sha256": "b1bb328b9156f9d16f123c4604c972240b517a22beb6405e39bdbbe5e2054517",
-      "words": 2675,
-      "bytes": 21621
+      "sha256": "76336c59e32582e69a574c7682ee28b619b187d79299500232d5b1e0de7b4827",
+      "words": 2677,
+      "bytes": 21640
     },
     {
       "path": "docs/development/plans/connect-flow-real-codes.md",
@@ -967,17 +967,17 @@
       "path": "docs/development/roadmap.md",
       "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
       "anchor": "source-docs-development-roadmap-md",
-      "sha256": "de9dbcb19413f51881f5af8fe87377fce29a1190811cca421c91dbbc611eca8b",
-      "words": 21139,
-      "bytes": 217667
+      "sha256": "dcf04f8d045ade3fd76b09825f3941a99530b8082c33c5cf1ace06e68bc939aa",
+      "words": 21563,
+      "bytes": 220986
     },
     {
       "path": "docs/development/status.md",
       "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
       "anchor": "source-docs-development-status-md",
-      "sha256": "586248861a9f59e11777685e10e74e611cca29ed1b36ff307051dee194689585",
-      "words": 20533,
-      "bytes": 160753
+      "sha256": "1ed419f2186092e848406338d8a354bdaf4bd8bd9581ae81536058a4ef87e04f",
+      "words": 20750,
+      "bytes": 163186
     },
     {
       "path": "docs/development/STRUCTURE.md",
@@ -991,9 +991,9 @@
       "path": "docs/development/tests.md",
       "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
       "anchor": "source-docs-development-tests-md",
-      "sha256": "79eed07e9779949a5e5fa7c93ce9e03e1cb53c0d34fb38753f2168d896dea8af",
-      "words": 12829,
-      "bytes": 100583
+      "sha256": "77d4fea568e755bd897f5d2ed97131f4e558ce03eedd40c14e4b59a6d31ff566",
+      "words": 13813,
+      "bytes": 108410
     },
     {
       "path": "docs/development/todo-retired.md",
@@ -1007,9 +1007,9 @@
       "path": "docs/development/TODO.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-todo-md",
-      "sha256": "d06735360396d2a067ae939ae5cba522f3c0ab4da81ecc041ecb3d1b22873d24",
-      "words": 1942,
-      "bytes": 14549
+      "sha256": "8d2d0f36b8aed17bbd24ff16749866a6ac69da7674b9f61e2e3252adfb47afdd",
+      "words": 2057,
+      "bytes": 15683
     },
     {
       "path": "docs/development/ultra-review-2026-08-24.md",
@@ -1023,9 +1023,9 @@
       "path": "docs/development/updates.md",
       "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
       "anchor": "source-docs-development-updates-md",
-      "sha256": "f8d508e8652d2d3964f7d9fa8dcaf08c2e91d357bdee696fe3e8940eda1e94d6",
-      "words": 100050,
-      "bytes": 748176
+      "sha256": "f564054b3a092dabe4a74c9d7b5c801c4fe02afc355ca6aae47a60d769a7bdd5",
+      "words": 100983,
+      "bytes": 755801
     },
     {
       "path": "docs/development/visual-browser-audit-2026-08-23.md",

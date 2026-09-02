@@ -22,6 +22,7 @@ import {
   assertReferralCode,
   assertUpdateReferralCodePatch,
 } from "../lib/runtimeValidation";
+import { withAffiliateDependencyLock } from "./dependencies";
 
 const CODE_INDEX_KEY = "codes/index";
 const codeKey = (id: string): string => `codes/by-id/${id}`;
@@ -110,14 +111,14 @@ export class ReferralCodeService {
 
   async create(input: CreateReferralCodeInput, actor: UserId): Promise<ReferralCode> {
     assertCreateReferralCodeInput(input);
-    const affiliate = await this.affiliates.get(input.affiliateId);
-    if (!affiliate) throw new Error(`Affiliate ${input.affiliateId} not found.`);
-    if (affiliate.status !== "active" && affiliate.status !== "pending") {
-      throw new Error(`Cannot create codes for a ${affiliate.status} affiliate.`);
-    }
+    return withAffiliateDependencyLock(this.storage, this.agencyId, this.clientId, async () => {
+      const affiliate = await this.affiliates.get(input.affiliateId);
+      if (!affiliate) throw new Error(`Affiliate ${input.affiliateId} not found.`);
+      if (affiliate.status !== "active" && affiliate.status !== "pending") {
+        throw new Error(`Cannot create codes for a ${affiliate.status} affiliate.`);
+      }
 
-    const proposed = normalizedCode(input.code ?? makeReferralCode(affiliate.displayName));
-    return this.withLock("code-collection", async () => {
+      const proposed = normalizedCode(input.code ?? makeReferralCode(affiliate.displayName));
       const signature = codeSignature({ ...input, code: proposed });
       const claimKey = codeClaimKey(proposed);
       let claim = await this.storage.get<CodeClaim>(claimKey);

@@ -24,6 +24,7 @@ import { listContractTemplates } from "./contractTemplates";
 import { getState, mutate } from "./storage";
 import { listAgencyTasks } from "./tasks";
 import { listUsersForAgency } from "./users";
+import { assertOptionalSopReferenceExists } from "@/engines/sop/server/sopReferences";
 import type {
   AgencyTask,
   DashboardWorkSession,
@@ -741,7 +742,15 @@ export function savePeopleTraining(input: Omit<PeopleTrainingAssignment, "id" | 
     updatedAt: now,
   };
   if (!training.title) throw new Error("Training title required.");
-  mutate(state => { state.peopleTrainingAssignments[training.id] = training; });
+  mutate(state => {
+    training.sopId = assertOptionalSopReferenceExists(
+      state,
+      input.agencyId,
+      training.sopId,
+      "peopleTrainingAssignment.sopId",
+    );
+    state.peopleTrainingAssignments[training.id] = training;
+  });
   return training;
 }
 

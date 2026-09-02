@@ -12,6 +12,9 @@ import {
 import { listAgencyTasks } from "@/server/tasks";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { AGENCY_ROLES, type AgencyTaskPriority, type AgencyTaskTemplateStep } from "@/server/types";
+import { privateObjectLifecycleLockKey } from "@/lib/server/privateObjectLifecycle";
+import { withPortalStateTransaction } from "@/server/productWorkspaceCoordinator";
+import { SopReferenceValidationError } from "@/engines/sop/server/sopReferences";
 
 function readSteps(value: unknown): AgencyTaskTemplateStep[] {
   if (!Array.isArray(value)) return [];
@@ -62,39 +65,40 @@ export async function POST(request: Request) {
         typeof body?.clientId === "string" ? body.clientId : undefined,
         "use",
       );
-      const task = createTaskFromTemplate({
-        agencyId: session.agencyId,
-        templateId,
-        subject: typeof body?.subject === "string" ? body.subject : undefined,
-        clientId: typeof body?.clientId === "string" ? body.clientId : undefined,
-        assigneeUserId: typeof body?.assigneeUserId === "string" ? body.assigneeUserId : undefined,
-        startAt: typeof body?.startAt === "number" ? body.startAt : undefined,
-        dueAt: typeof body?.dueAt === "number" ? body.dueAt : undefined,
-        createdBy: session.userId,
-      });
+      const task = await withPortalStateTransaction(privateObjectLifecycleLockKey(session.agencyId), () =>
+        createTaskFromTemplate({
+          agencyId: session.agencyId,
+          templateId,
+          subject: typeof body?.subject === "string" ? body.subject : undefined,
+          clientId: typeof body?.clientId === "string" ? body.clientId : undefined,
+          assigneeUserId: typeof body?.assigneeUserId === "string" ? body.assigneeUserId : undefined,
+          startAt: typeof body?.startAt === "number" ? body.startAt : undefined,
+          dueAt: typeof body?.dueAt === "number" ? body.dueAt : undefined,
+          createdBy: session.userId,
+        }));
       if (!task) return NextResponse.json({ ok: false, error: "Template not found." }, { status: 404 });
-      await flushPendingWrites();
       return NextResponse.json({ ok: true, task }, { status: 201 });
     }
 
     if (action === "save") {
       try {
-        const template = saveTaskTemplate(session.agencyId, {
-          id: typeof body?.id === "string" ? body.id : undefined,
-          name: typeof body?.name === "string" ? body.name : "",
-          summary: typeof body?.summary === "string" ? body.summary : undefined,
-          taskTitle: typeof body?.taskTitle === "string" ? body.taskTitle : undefined,
-          notes: typeof body?.notes === "string" ? body.notes : undefined,
-          priority: typeof body?.priority === "string" ? body.priority as AgencyTaskPriority : undefined,
-          steps: readSteps(body?.steps),
-          appliesTo: Array.isArray(body?.appliesTo)
-            ? body.appliesTo.filter((value): value is string => typeof value === "string")
-            : undefined,
-        }, session.userId);
+        const template = await withPortalStateTransaction(privateObjectLifecycleLockKey(session.agencyId), () =>
+          saveTaskTemplate(session.agencyId, {
+            id: typeof body?.id === "string" ? body.id : undefined,
+            name: typeof body?.name === "string" ? body.name : "",
+            summary: typeof body?.summary === "string" ? body.summary : undefined,
+            taskTitle: typeof body?.taskTitle === "string" ? body.taskTitle : undefined,
+            notes: typeof body?.notes === "string" ? body.notes : undefined,
+            priority: typeof body?.priority === "string" ? body.priority as AgencyTaskPriority : undefined,
+            steps: readSteps(body?.steps),
+            appliesTo: Array.isArray(body?.appliesTo)
+              ? body.appliesTo.filter((value): value is string => typeof value === "string")
+              : undefined,
+          }, session.userId));
         if (!template) return NextResponse.json({ ok: false, error: "That template cannot be edited." }, { status: 400 });
-        await flushPendingWrites();
         return NextResponse.json({ ok: true, template }, { status: 201 });
       } catch (error) {
+        if (error instanceof SopReferenceValidationError) return sopReferenceErrorResponse(error);
         return NextResponse.json({
           ok: false,
           error: error instanceof Error ? error.message : "That could not be saved.",
@@ -115,9 +119,9 @@ export async function POST(request: Request) {
       // list withholds is readable by asking for a copy of it.
       const source = listAgencyTasks(session.agencyId).find(entry => entry.id === taskId);
       await requireClientAssociation("agency-task", source?.clientId, "view");
-      const template = saveTaskAsTemplate(session.agencyId, taskId, name, session.userId);
+      const template = await withPortalStateTransaction(privateObjectLifecycleLockKey(session.agencyId), () =>
+        saveTaskAsTemplate(session.agencyId, taskId, name, session.userId));
       if (!template) return NextResponse.json({ ok: false, error: "Task not found." }, { status: 404 });
-      await flushPendingWrites();
       return NextResponse.json({ ok: true, template }, { status: 201 });
     }
 
@@ -131,6 +135,17 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: false, error: "Unknown action." }, { status: 400 });
   } catch (error) {
+    if (error instanceof SopReferenceValidationError) return sopReferenceErrorResponse(error);
     return authErrorResponse(error);
   }
+}
+
+function sopReferenceErrorResponse(error: SopReferenceValidationError) {
+  return NextResponse.json({
+    ok: false,
+    reason: error.code,
+    error: error.message,
+    field: error.field,
+    sopIds: error.sopIds,
+  }, { status: 422 });
 }

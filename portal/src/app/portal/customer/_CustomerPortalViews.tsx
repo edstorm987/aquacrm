@@ -74,6 +74,7 @@ import { formatUkDate, formatUkDateTime } from "@/lib/shared/formatDateTime";
 import { PortalPageComposition } from "./_PortalPageComposition";
 import { summariseInvoicesByCurrency, type InvoiceCurrencyPosition } from "@/lib/clients/clientPaymentPlans";
 import { CustomerRelationshipStatus } from "./_CustomerRelationshipStatus";
+import { customerPortalReadPhase, type CustomerPortalSettledReadPhase } from "@/lib/portal/customerPortalReadState";
 
 // "enquiries" sits alongside "service" and "custom": a VIEW section, not one of
 // the stored `ClientPortalSectionId`s. That distinction is deliberate — the
@@ -715,6 +716,7 @@ function HomeView({
   const copyTokens = portalCopyTokens(data, providerName);
   const projectLabel = portalProjectLabel(data.products);
   const billing = customerBillingSummary(data);
+  const messagesReady = customerPortalReadPhase(data, "messages") === "ready";
   const outstanding = billing.outstanding;
   const latestFile = data.files[0];
   const pendingApproval = data.approvals.find(approval => approval.status === "pending");
@@ -850,10 +852,10 @@ function HomeView({
           <PortalPulseItem
             icon={<MessageCircle size={17} />}
             label="Conversation"
-            value={data.available.messages
+            value={messagesReady
               ? `${data.record.messages.length} linked ${data.record.messages.length === 1 ? "message" : "messages"}`
               : READ_UNAVAILABLE_LABEL}
-            detail={data.available.messages
+            detail={messagesReady
               ? latestMessage?.body || "Messages sent through the portal will stay here"
               : "Your linked messages could not be read just now. Reload to try again."}
             href={customerHref("details", previewHrefPrefix)}
@@ -1352,8 +1354,17 @@ function CustomerFileRow({ file }: { file: CustomerFile }) {
   );
 }
 
-function CustomerPaymentPlans({ plans, files }: { plans: CustomerPortalData["paymentPlans"]; files: CustomerFile[] }) {
+function CustomerPaymentPlans({
+  plans,
+  files,
+  invoiceRead,
+}: {
+  plans: CustomerPortalData["paymentPlans"];
+  files: CustomerFile[];
+  invoiceRead: CustomerPortalSettledReadPhase;
+}) {
   if (plans.length === 0) return null;
+  const financeEvidenceReady = invoiceRead === "ready";
   return (
     <Surface className="mt-5 overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/10 px-6 py-5">
@@ -1363,34 +1374,48 @@ function CustomerPaymentPlans({ plans, files }: { plans: CustomerPortalData["pay
         </div>
         <CalendarDays size={19} className="text-[var(--portal-accent)]" aria-hidden="true" />
       </div>
+      {!financeEvidenceReady ? (
+        <div role="status" className="border-b border-amber-200 bg-amber-50 px-6 py-4 text-sm text-amber-900">
+          Current invoice and payment status could not be read. The agreed schedule remains visible, but payment totals and linked milestone statuses are withheld until you reload.
+        </div>
+      ) : null}
       <div className="divide-y divide-black/10">
         {plans.map(plan => {
           const total = plan.milestones.reduce((sum, milestone) => sum + (milestone.status === "waived" ? 0 : milestone.amountCents), 0);
           const paidAmount = plan.milestones.reduce((sum, milestone) => sum + (milestone.status === "paid" ? milestone.amountCents : 0), 0);
           const progress = total > 0 ? Math.round((paidAmount / total) * 100) : 0;
           const evidence = files.filter(file => file.collectionId === plan.id);
+          const planStatusLabel = !financeEvidenceReady && plan.status === "completed"
+            ? READ_UNAVAILABLE_LABEL
+            : plan.status;
           return (
             <section key={plan.id} className="px-6 py-6">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="font-serif text-xl">{plan.title}</h3>
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${plan.status === "completed" ? "bg-emerald-50 text-emerald-800" : "bg-blue-50 text-blue-800"}`}>{plan.status}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${financeEvidenceReady && plan.status === "completed" ? "bg-emerald-50 text-emerald-800" : !financeEvidenceReady && plan.status === "completed" ? "bg-black/5 text-black/48" : "bg-blue-50 text-blue-800"}`}>{planStatusLabel}</span>
                   </div>
                   {plan.summary ? <p className="mt-2 max-w-2xl text-sm leading-6 text-black/52">{plan.summary}</p> : null}
                 </div>
-                <div className="text-right"><p className="text-sm font-medium">{formatMoney(paidAmount, plan.currency)} paid</p><p className="mt-1 text-xs text-black/38">of {formatMoney(total, plan.currency)}</p></div>
+                <div className="text-right"><p className="text-sm font-medium">{financeEvidenceReady ? `${formatMoney(paidAmount, plan.currency)} paid` : READ_UNAVAILABLE_LABEL}</p><p className="mt-1 text-xs text-black/38">{financeEvidenceReady ? `of ${formatMoney(total, plan.currency)}` : `Agreed total ${formatMoney(total, plan.currency)}`}</p></div>
               </div>
-              <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-black/8" role="progressbar" aria-label={`${plan.title} payment progress`} aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}><div className="h-full bg-[var(--portal-accent)]" style={{ width: `${progress}%` }} /></div>
+              {financeEvidenceReady ? <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-black/8" role="progressbar" aria-label={`${plan.title} payment progress`} aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}><div className="h-full bg-[var(--portal-accent)]" style={{ width: `${progress}%` }} /></div> : null}
               <ul className="mt-5 divide-y divide-black/8 border-y border-black/8">
-                {plan.milestones.map(milestone => (
-                  <li key={milestone.id} className="grid gap-2 py-4 sm:grid-cols-[1fr_150px_130px_auto] sm:items-center">
+                {plan.milestones.map(milestone => {
+                  const invoiceBackedStatus = Boolean(milestone.invoiceId)
+                    || milestone.status === "invoiced"
+                    || milestone.status === "paid";
+                  const statusLabel = !financeEvidenceReady && invoiceBackedStatus
+                    ? READ_UNAVAILABLE_LABEL
+                    : milestone.status === "planned" ? "Scheduled" : milestone.status;
+                  return <li key={milestone.id} className="grid gap-2 py-4 sm:grid-cols-[1fr_150px_130px_auto] sm:items-center">
                     <div><p className="text-sm font-medium">{milestone.title}</p>{milestone.productName ? <p className="mt-1 text-xs text-black/40">{milestone.productName}</p> : null}</div>
                     <p className="text-xs text-black/48">Due {formatDate(milestone.dueAt)}</p>
                     <p className="text-sm font-medium sm:text-right">{formatMoney(milestone.amountCents, plan.currency)}</p>
-                    <div className="sm:text-right"><span className={`inline-flex rounded-full px-2 py-1 text-[10px] font-semibold uppercase ${milestone.status === "paid" ? "bg-emerald-50 text-emerald-800" : milestone.status === "invoiced" ? "bg-amber-50 text-amber-800" : "bg-black/5 text-black/48"}`}>{milestone.status === "planned" ? "Scheduled" : milestone.status}</span></div>
-                  </li>
-                ))}
+                    <div className="sm:text-right"><span className={`inline-flex rounded-full px-2 py-1 text-[10px] font-semibold uppercase ${financeEvidenceReady && milestone.status === "paid" ? "bg-emerald-50 text-emerald-800" : financeEvidenceReady && milestone.status === "invoiced" ? "bg-amber-50 text-amber-800" : "bg-black/5 text-black/48"}`}>{statusLabel}</span></div>
+                  </li>;
+                })}
               </ul>
               {evidence.length ? <div className="mt-5">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-black/38">Schedule documents</p>
@@ -1405,6 +1430,8 @@ function CustomerPaymentPlans({ plans, files }: { plans: CustomerPortalData["pay
 }
 
 function BillingView({ client, data, readOnly, providerName, previewHrefPrefix }: { client: Client; data: CustomerPortalData; readOnly: boolean; providerName: string; previewHrefPrefix?: string }) {
+  const invoiceRead = customerPortalReadPhase(data, "invoices");
+  const invoicesReady = invoiceRead === "ready";
   const invoicePositions = summariseInvoicesByCurrency(data.invoices);
   const paid = invoicePositionMoney(invoicePositions, "paidCents");
   const outstanding = invoicePositionMoney(invoicePositions, "outstandingCents");
@@ -1453,21 +1480,22 @@ function BillingView({ client, data, readOnly, providerName, previewHrefPrefix }
             </div>
             <div>
               <p className="text-[10px] uppercase tracking-[0.13em] text-black/35">Project deposit</p>
-              <p className="mt-2 text-sm font-medium">{data.lockInPaid ? "Received" : "Not yet recorded"}</p>
+              <p className="mt-2 text-sm font-medium">{data.depositState === "received" ? "Received" : data.depositState === "not-recorded" ? "Not yet recorded" : READ_UNAVAILABLE_LABEL}</p>
+              {data.depositState === "unavailable" ? <p className="mt-1 text-xs text-black/38">Billing could not be read</p> : null}
             </div>
           </div>
         </Surface>
         <Surface className="!bg-[var(--portal-hero)] p-6 text-white">
           <CreditCard size={19} className="text-[var(--portal-accent)]" aria-hidden="true" />
           <p className="mt-8 text-[10px] uppercase tracking-[0.16em] text-white/40">Outstanding</p>
-          <p className="mt-2 font-serif text-3xl">{!data.available.invoices ? READ_UNAVAILABLE_LABEL : outstanding ?? "No payment due"}</p>
-          <p className="mt-2 text-xs text-white/45">{!data.available.invoices
+          <p className="mt-2 font-serif text-3xl">{!invoicesReady ? READ_UNAVAILABLE_LABEL : outstanding ?? "No payment due"}</p>
+          <p className="mt-2 text-xs text-white/45">{!invoicesReady
             ? "Your billing could not be read just now. Reload to try again."
             : paid ? `${paid} paid to date` : "No paid invoices recorded yet"}</p>
         </Surface>
       </div>
 
-      <CustomerPaymentPlans plans={data.paymentPlans} files={data.files} />
+      <CustomerPaymentPlans plans={data.paymentPlans} files={data.files} invoiceRead={invoiceRead} />
 
       <Surface className="mt-5 overflow-hidden">
         <div className="flex items-center justify-between border-b border-black/10 px-6 py-5">
@@ -1477,7 +1505,7 @@ function BillingView({ client, data, readOnly, providerName, previewHrefPrefix }
           </div>
           <ReceiptText size={19} className="text-[var(--portal-accent)]" aria-hidden="true" />
         </div>
-        {!data.available.invoices ? (
+        {!invoicesReady ? (
           <div className="px-6 py-14 text-center">
             <p className="font-serif text-xl">Your invoices could not be read.</p>
             <p className="mt-2 text-sm text-black/45">This is a problem reaching billing, not a statement that you have none. Reload to try again.</p>
@@ -1708,6 +1736,8 @@ function RecordView({
   const inspirationLinks = data.record.links.filter(link => link.kind === "inspiration");
   const callEntryLinks = data.record.entries.filter(entry => (entry.kind === "call" || entry.kind === "meeting") && entry.url);
   const nonDraftContracts = data.contracts.filter(contract => contract.status !== "draft");
+  const invoicesReady = customerPortalReadPhase(data, "invoices") === "ready";
+  const messagesReady = customerPortalReadPhase(data, "messages") === "ready";
 
   return (
     <>
@@ -1847,7 +1877,7 @@ function RecordView({
           </div>
           <MessageSquareText size={19} className="text-[var(--portal-accent)]" aria-hidden="true" />
         </div>
-        {!data.available.messages ? (
+        {!messagesReady ? (
           <div className="px-6 py-12 text-center sm:px-7"><p className="font-serif text-xl">Your linked messages could not be read.</p><p className="mt-2 text-sm text-black/45">This is a problem reaching the conversation record, not a statement that you have none. Reload to try again.</p></div>
         ) : data.record.messages.length === 0 ? (
           <div className="px-6 py-12 text-center sm:px-7"><p className="font-serif text-xl">No linked messages yet.</p><p className="mt-2 text-sm text-black/45">Messages sent through Support will appear here automatically.</p></div>
@@ -1896,7 +1926,9 @@ function RecordView({
             <p className="text-[10px] uppercase tracking-[0.16em] text-black/40">Payment record</p>
             <h2 className="mt-2 font-serif text-2xl">Invoices</h2>
           </div>
-          {data.invoices.length === 0 ? (
+          {!invoicesReady ? (
+            <div className="px-6 py-10 text-center"><p className="font-serif text-xl">Your invoices could not be read.</p><p className="mt-2 text-sm text-black/45">This is a problem reaching billing, not a statement that you have none. Reload to try again.</p></div>
+          ) : data.invoices.length === 0 ? (
             <p className="px-6 py-10 text-sm text-black/45">No invoices have been issued yet.</p>
           ) : (
             <ul className="divide-y divide-black/8">

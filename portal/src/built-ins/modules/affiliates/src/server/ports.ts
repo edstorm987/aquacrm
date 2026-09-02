@@ -183,6 +183,8 @@ export interface StripeConnectPort {
     affiliateId: string;
     agencyId: AgencyId;
     clientId: ClientId;
+    /** Stable durable intent identity; every provider retry must reuse it. */
+    idempotencyKey: string;
   }): Promise<{ accountId: string }>;
 
   // Step 2 — generates a single-use AccountLink the affiliate visits to

@@ -11,6 +11,12 @@ import type { AgencyId, ClientId } from "../lib/tenancy";
 import type { Block } from "../types/block";
 import { storageKeys } from "./storage-keys";
 import { slugify } from "../lib/ids";
+import {
+  BlogPostBodyValidationError,
+  requireSafeBlogPostBody,
+} from "../lib/blogPostBody";
+
+export { BlogPostBodyValidationError };
 
 export type BlogPostStatus = "draft" | "published" | "archived";
 
@@ -117,6 +123,8 @@ export async function createBlogPost(
   storage: PluginStorage,
   input: CreateBlogPostInput,
 ): Promise<BlogPost> {
+  const body = input.body ?? [];
+  requireSafeBlogPostBody(body);
   const id = postId();
   const now = Date.now();
   const baseSlug = slugify(input.slug ?? input.title) || "post";
@@ -129,7 +137,7 @@ export async function createBlogPost(
     siteId: input.siteId,
     title: input.title.trim() || "Untitled",
     slug,
-    body: input.body ?? [],
+    body,
     ...(input.excerpt ? { excerpt: input.excerpt } : {}),
     ...(input.coverImg ? { coverImg: input.coverImg } : {}),
     tags: input.tags ?? [],
@@ -212,6 +220,7 @@ export async function updateBlogPost(
   const cur = await getBlogPost(storage, a, c, siteId, id);
   if (!cur) return null;
   const now = Date.now();
+  if (patch.body !== undefined) requireSafeBlogPostBody(patch.body);
 
   // Slug change: enforce uniqueness, swap the index entry. We accept
   // an explicit slug verbatim (after slugify) — if it collides with

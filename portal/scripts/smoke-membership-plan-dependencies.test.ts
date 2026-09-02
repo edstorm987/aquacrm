@@ -24,17 +24,17 @@
 // A paying member who receives nothing and appears nowhere is a billing problem,
 // not a tidiness one. All three are asserted below.
 //
-// This file asserts NO retirement policy. `PlanService.archive` already exists
-// and is the documented ordinary path — it keeps existing subscribers paying
-// while hiding the plan from new signups. Whether hard deletion should be
-// forbidden, or defined as an explicit purge that reconciles billing, is Ed's
-// decision. The last test records today's behaviour so it is made against facts.
+// The retirement policy is RESTRICT: archive is the ordinary path, and hard
+// deletion is allowed only while the authoritative dependency graph is empty.
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { buildMembershipsContainer } from "../src/built-ins/modules/memberships/src/server/index";
-import { planDependencyInventory } from "../src/built-ins/modules/memberships/src/server/dependencies";
+import {
+  PlanHasDependantsError,
+  planDependencyInventory,
+} from "../src/built-ins/modules/memberships/src/server/dependencies";
 import {
   clearMembershipsFoundation,
   registerMembershipsFoundation,
@@ -170,38 +170,21 @@ describe("the inventory says who is still on the plan", () => {
   });
 });
 
-describe("what plan DELETE does today, recorded rather than asserted as correct", () => {
-  it("the member keeps their subscription, loses the plan, and vanishes from every list", async () => {
+describe("the Plan service itself refuses to strand subscribers", () => {
+  it("rejects a direct-service bypass and leaves the complete graph unchanged", async () => {
     const { storage, services } = await seedWorld();
-
-    // Before: the admin can see them.
     assert.equal((await services.subscriptions.list()).length, 1, "the fixture's member was not listed");
-
-    const deleted = await services.plans.delete(PLAN_ID, ACTOR);
-    assert.equal(deleted, true);
-
-    // 1. The subscription row SURVIVES — so external billing is untouched and
-    //    the member keeps paying.
-    const surviving = await services.subscriptions.getByUser(MEMBER);
-    assert.ok(surviving, "the subscription row was removed — if that is now the policy, record it here");
-    assert.equal(surviving!.status, "active", "the subscription was not cancelled, so billing continues");
-    assert.equal(surviving!.stripeSubscriptionId, "sub_stripe_live",
-      "the external billing reference is still attached and unreconciled");
-
-    // 2. …and their plan is gone, so what they pay for cannot be resolved.
-    assert.equal(await services.plans.get(PLAN_ID), null);
-
-    // 3. …and no admin list can reach them, because `list()` enumerates by
-    //    surviving plan. This is the one that hides the other two.
-    const listed = await services.subscriptions.list();
-    assert.equal(listed.length, 0,
-      "subscribers are reachable after their plan is deleted — a retirement policy has landed, "
-      + "and this test should assert it rather than the old vanish-from-view behaviour");
-
-    // The data is still there. Nothing can see it.
-    assert.ok(storage.data.has(`memberships/subscribers/${MEMBER}`), "the row really is retained");
-    assert.deepEqual(storage.data.get(`memberships/by-plan/${PLAN_ID}`), [MEMBER],
-      "the member set is retained too — the only path to it is the plan that was deleted");
+    await assert.rejects(
+      () => services.plans.delete(PLAN_ID, ACTOR),
+      (error: unknown) => error instanceof PlanHasDependantsError
+        && error.dependencies.total === 1
+        && error.dependencies.billableSubscribers === 1,
+      "PlanService.delete bypassed the route guard and removed a paying member's parent",
+    );
+    assert.ok(await services.plans.get(PLAN_ID), "the plan row was removed by the refused service command");
+    assert.equal((await services.subscriptions.list()).length, 1, "the member vanished after a refused service command");
+    assert.ok(storage.data.has(`memberships/subscribers/${MEMBER}`), "the subscriber row was touched");
+    assert.deepEqual(storage.data.get(`memberships/by-plan/${PLAN_ID}`), [MEMBER], "the plan member index was touched");
   });
 
   it("archive — the documented ordinary path — keeps them visible and paying", async () => {
@@ -215,19 +198,156 @@ describe("what plan DELETE does today, recorded rather than asserted as correct"
     const inventory = await planDependencyInventory(services, storage, PLAN_ID);
     assert.equal(inventory.billableSubscribers, 1, "the archived plan's member stopped being billable");
   });
+
+  it("publishes a dependency intent before provider I/O, so deletion refuses without waiting on Stripe", async () => {
+    const storage = new MemoryStorage();
+    const paidPlan = {
+      ...plan(OTHER_PLAN_ID, "Paid"),
+      stripePriceIdMonthly: "price_dependency_race",
+    };
+    storage.data.set("memberships/plans/index", [OTHER_PLAN_ID]);
+    storage.data.set(`memberships/plans/${OTHER_PLAN_ID}`, paidPlan);
+
+    let providerEntered!: () => void;
+    let releaseProvider!: () => void;
+    const entered = new Promise<void>(resolve => { providerEntered = resolve; });
+    const release = new Promise<void>(resolve => { releaseProvider = resolve; });
+    const services = buildMembershipsContainer({
+      agencyId: AGENCY_ID,
+      clientId: CLIENT_ID,
+      storage,
+      activity: { logActivity(input) { return { id: "act", ts: Date.now(), ...input } as never; }, listActivity() { return [] as never; } },
+      events: { emit() {} },
+      stripe: {
+        async createCustomer() {
+          providerEntered();
+          await release;
+          return { id: "cus_dependency_race" };
+        },
+        async createCheckoutSession() {
+          return { id: "cs_dependency_race", url: "https://checkout.test/dependency-race" };
+        },
+      } as never,
+      tenant: { getClient() { return null; }, getClientForAgency() { return null; } },
+      user: { getUser(id: string) { return { id, email: `${id}@example.test`, name: "Member" } as never; } },
+      pluginInstalls: { getInstall() { return null; } },
+    } as never);
+
+    const subscribing = services.subscriptions.subscribe({
+      endCustomerUserId: MEMBER,
+      planId: OTHER_PLAN_ID,
+      billing: "monthly",
+      successUrl: "https://portal.test/success",
+      cancelUrl: "https://portal.test/cancel",
+      operationId: "subscribe-vs-delete",
+    });
+    await entered;
+
+    await assert.rejects(
+      services.plans.delete(OTHER_PLAN_ID, ACTOR),
+      (error: unknown) => error instanceof PlanHasDependantsError
+        && error.dependencies.pendingSubscriptions === 1,
+      "plan deletion crossed the durable subscription intent",
+    );
+    assert.ok(await services.plans.get(OTHER_PLAN_ID), "the plan disappeared while Stripe was still pending");
+
+    releaseProvider();
+    const subscribed = await subscribing;
+    assert.equal(subscribed.ok && subscribed.mode, "checkout");
+    assert.ok(storage.data.has(`memberships/subscription-command/${MEMBER}`));
+  });
+
+  it("does not serialize an unrelated user's provider call behind a delayed checkout", async () => {
+    const storage = new MemoryStorage();
+    const paidPlan = {
+      ...plan(OTHER_PLAN_ID, "Paid"),
+      stripePriceIdMonthly: "price_unrelated_users",
+    };
+    storage.data.set("memberships/plans/index", [OTHER_PLAN_ID]);
+    storage.data.set(`memberships/plans/${OTHER_PLAN_ID}`, paidPlan);
+    const delayedUser = MEMBER;
+    const fastUser = "member_unrelated_fast";
+    let delayedEntered!: () => void;
+    let releaseDelayed!: () => void;
+    const entered = new Promise<void>(resolve => { delayedEntered = resolve; });
+    const release = new Promise<void>(resolve => { releaseDelayed = resolve; });
+    const services = buildMembershipsContainer({
+      agencyId: AGENCY_ID,
+      clientId: CLIENT_ID,
+      storage,
+      activity: { logActivity(input) { return { id: "act", ts: Date.now(), ...input } as never; }, listActivity() { return [] as never; } },
+      events: { emit() {} },
+      stripe: {
+        async createCustomer(input: { metadata?: Record<string, string> }) {
+          if (input.metadata?.endCustomerUserId === delayedUser) {
+            delayedEntered();
+            await release;
+          }
+          return { id: `cus_${input.metadata?.endCustomerUserId}` };
+        },
+        async createCheckoutSession(input: { metadata?: Record<string, string> }) {
+          const userId = input.metadata?.endCustomerUserId;
+          return { id: `cs_${userId}`, url: `https://checkout.test/${userId}` };
+        },
+      } as never,
+      tenant: { getClient() { return null; }, getClientForAgency() { return null; } },
+      user: { getUser(id: string) { return { id, email: `${id}@example.test`, name: id } as never; } },
+      pluginInstalls: { getInstall() { return null; } },
+    } as never);
+    const subscribe = (userId: string) => services.subscriptions.subscribe({
+      endCustomerUserId: userId,
+      planId: OTHER_PLAN_ID,
+      billing: "monthly",
+      successUrl: "https://portal.test/success",
+      cancelUrl: "https://portal.test/cancel",
+      operationId: `subscribe-${userId}`,
+    });
+
+    const delayed = subscribe(delayedUser);
+    await entered;
+    const fast = await Promise.race([
+      subscribe(fastUser),
+      new Promise<"timeout">(resolve => setTimeout(() => resolve("timeout"), 100)),
+    ]);
+    assert.notEqual(fast, "timeout", "an unrelated user waited behind another user's Stripe call");
+    if (fast !== "timeout") assert.equal(fast.ok && fast.mode, "checkout");
+
+    releaseDelayed();
+    assert.equal((await delayed).ok, true);
+  });
+
+  it("treats an interrupted subscription command as a dependant before its subscriber row exists", async () => {
+    const { storage, services } = await seedWorld();
+    const pendingMember = "member_checkout_recovery";
+    storage.data.set(`memberships/subscription-command/${pendingMember}`, {
+      id: "subscribe_recovery_operation",
+      signature: "subscribe-recovery-signature",
+      kind: "subscribe",
+      stage: "provider_applied",
+      userId: pendingMember,
+      planId: OTHER_PLAN_ID,
+      billing: "monthly",
+      checkout: { id: "checkout_recovery", url: "https://checkout.test/recovery" },
+      createdAt: 1,
+      updatedAt: 1,
+    });
+
+    await assert.rejects(
+      () => services.plans.delete(OTHER_PLAN_ID, ACTOR),
+      (error: unknown) => error instanceof PlanHasDependantsError
+        && error.dependencies.total === 1
+        && error.dependencies.pendingSubscriptions === 1,
+      "a provider-applied signup could replay after its plan was purged",
+    );
+    assert.ok(await services.plans.get(OTHER_PLAN_ID), "the plan was removed despite its durable signup owner");
+    assert.ok(
+      storage.data.has(`memberships/subscription-command/${pendingMember}`),
+      "the refused delete touched the durable signup owner",
+    );
+  });
 });
 
-// ── The mounted route now ASKS before it destroys ──────────────────────────
-//
-// The block above records what `PlanService.delete` does when it is called: it
-// still hard-deletes, because no purge policy has been decided and inventing one
-// here would be the decision. What HAS changed is that the only caller — the
-// mounted `DELETE /api/portal/memberships/plans` route — asks the inventory
-// first and refuses while anyone is still on the plan, naming archive as the
-// path that works.
-//
-// Every assertion below fails against the previous handler, which passed the id
-// straight to `plans.delete` and answered `{ ok: true }`.
+// ── The mounted route translates the service refusal ───────────────────────
 
 describe("DELETE /plans refuses to strand subscribers", () => {
   it("answers 422 with the inventory, and names the path that works", async () => {

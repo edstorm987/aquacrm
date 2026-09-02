@@ -1,6 +1,8 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
 import {
+  RemoteOperationDefinitiveError,
   withRemoteOperationDeadline,
   type RemoteOperationBudget,
   type RemoteOperationOutcome,
@@ -67,16 +69,29 @@ function headers(serviceRoleKey: string) {
 export interface SupabaseStorageRequestOptions {
   signal?: AbortSignal;
   timeoutMs?: number;
+  /** Stable across retries so the database can return a durable receipt. */
+  operationId?: string;
 }
 
-async function request(
+interface SupabaseRawResponse {
+  ok: boolean;
+  status: number;
+  body: string;
+}
+
+function isUncertainWriteStatus(status: number): boolean {
+  return status === 408 || status === 425 || status === 429 || status >= 500;
+}
+
+async function request<T = SupabaseRawResponse>(
   operation: string,
   budget: RemoteOperationBudget,
   outcome: RemoteOperationOutcome,
   url: string,
   init: RequestInit,
   options: SupabaseStorageRequestOptions,
-): Promise<{ ok: boolean; status: number; body: string }> {
+  decode?: (response: SupabaseRawResponse) => T,
+): Promise<T> {
   return withRemoteOperationDeadline({
     operation,
     budget,
@@ -85,8 +100,28 @@ async function request(
     timeoutMs: options.timeoutMs,
   }, async signal => {
     const response = await fetch(url, { ...init, signal });
-    return { ok: response.ok, status: response.status, body: await response.text() };
+    const raw = { ok: response.ok, status: response.status, body: await response.text() };
+    if (!raw.ok) {
+      const failure = `${operation} failed (${raw.status})${raw.body ? `: ${raw.body}` : ""}`;
+      // A gateway/server failure may be the response to a transaction that
+      // already committed. Throwing a normal error inside the deadline wrapper
+      // preserves outcomeUnknown=true. Client/refusal responses are definitive.
+      if (outcome !== "read" && isUncertainWriteStatus(raw.status)) throw new Error(failure);
+      throw new RemoteOperationDefinitiveError(failure);
+    }
+    // Decode inside the deadline/outcome boundary. A truncated or malformed
+    // success body can arrive after the database committed and is therefore an
+    // uncertain write outcome, not a definitive local parse failure.
+    return decode ? decode(raw) : raw as T;
   });
+}
+
+function decodeJsonObject(response: SupabaseRawResponse, operation: string): Record<string, unknown> {
+  const parsed = JSON.parse(response.body) as unknown;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(`${operation} returned a malformed JSON object.`);
+  }
+  return parsed as Record<string, unknown>;
 }
 
 export async function loadBlob(
@@ -103,12 +138,55 @@ export async function loadBlob(
     { headers: headers(serviceRoleKey), cache: "no-store" },
     options,
   );
-  if (!response.ok) {
-    throw new Error(`[supabase-storage] load failed (${response.status}): ${response.body}`);
-  }
   const rows = JSON.parse(response.body || "[]") as Array<{ data?: unknown }>;
   if (!rows[0]?.data) return null;
   return JSON.stringify(rows[0].data);
+}
+
+export async function loadBlobWithSidecars(
+  sidecars: Array<{ slug: string; key: string }>,
+  options: SupabaseStorageRequestOptions = {},
+  realmId = "live",
+): Promise<{ mainBlob: string; sidecarBlobs: Record<string, string> }> {
+  const { url, serviceRoleKey } = getConfig();
+  return request(
+    "Supabase coherent state and sidecar load",
+    "storageRead",
+    "read",
+    `${url}/rest/v1/rpc/load_app_datastore_with_sidecars`,
+    {
+      method: "POST",
+      headers: headers(serviceRoleKey),
+      body: JSON.stringify({ p_app_key: stateKeyForRealm(realmId), p_sidecar_specs: sidecars }),
+      cache: "no-store",
+    },
+    options,
+    response => {
+      const saved = decodeJsonObject(response, "Supabase coherent state and sidecar load");
+      const main = saved.main;
+      const sidecarData = saved.sidecars;
+      if (!main || typeof main !== "object" || Array.isArray(main)) {
+        throw new Error("Supabase coherent state and sidecar load returned no main state.");
+      }
+      if (!sidecarData || typeof sidecarData !== "object" || Array.isArray(sidecarData)) {
+        throw new Error("Supabase coherent state and sidecar load returned no sidecar state.");
+      }
+      for (const sidecar of sidecars) {
+        const document = (sidecarData as Record<string, unknown>)[sidecar.slug];
+        if (!document || typeof document !== "object" || Array.isArray(document)) {
+          throw new Error(`Supabase coherent state and sidecar load omitted "${sidecar.slug}".`);
+        }
+        const collection = (document as Record<string, unknown>)[sidecar.key];
+        if (!collection || typeof collection !== "object" || Array.isArray(collection)) {
+          throw new Error(`Supabase coherent state and sidecar load returned an invalid "${sidecar.slug}" collection.`);
+        }
+      }
+      return {
+        mainBlob: JSON.stringify(main),
+        sidecarBlobs: Object.fromEntries(Object.entries(sidecarData).map(([slug, data]) => [slug, JSON.stringify(data)])),
+      };
+    },
+  );
 }
 
 export async function saveBlob(
@@ -119,7 +197,7 @@ export async function saveBlob(
   const { url, serviceRoleKey } = getConfig();
   const stateKey = stateKeyForRealm(realmId);
   const data = JSON.parse(content) as unknown;
-  const response = await request(
+  await request(
     "Supabase state save",
     "storageWrite",
     "non-idempotent-write",
@@ -134,9 +212,6 @@ export async function saveBlob(
     },
     options,
   );
-  if (!response.ok) {
-    throw new Error(`[supabase-storage] save failed (${response.status}): ${response.body}`);
-  }
 }
 
 /**
@@ -161,7 +236,6 @@ export async function loadSidecarBlob(
     { headers: headers(serviceRoleKey), cache: "no-store" },
     options,
   );
-  if (!response.ok) throw new Error(`[supabase-storage] sidecar "${slug}" load failed (${response.status})`);
   const rows = JSON.parse(response.body) as Array<{ data: unknown }>;
   if (!rows.length) return null;
   return JSON.stringify(rows[0]!.data ?? {});
@@ -189,7 +263,7 @@ export async function saveSidecarBlob(
   const { url, serviceRoleKey } = getConfig();
   const stateKey = sidecarKeyForRealm(slug, realmId);
   const data = JSON.parse(content) as unknown;
-  const response = await request(
+  await request(
     "Supabase sidecar save",
     "storageWrite",
     "non-idempotent-write",
@@ -201,7 +275,6 @@ export async function saveSidecarBlob(
     },
     options,
   );
-  if (!response.ok) throw new Error(`[supabase-storage] sidecar "${slug}" save failed (${response.status})`);
 }
 
 export const saveDevWorkspaceBlob = (
@@ -217,7 +290,8 @@ export async function applyPatch(
 ): Promise<string> {
   const { url, serviceRoleKey } = getConfig();
   const stateKey = stateKeyForRealm(realmId);
-  const response = await request(
+  const operationId = options.operationId ?? randomUUID();
+  return request(
     "Supabase state patch",
     "storageWrite",
     "idempotent-write",
@@ -227,15 +301,90 @@ export async function applyPatch(
       headers: headers(serviceRoleKey),
       body: JSON.stringify({
         p_app_key: stateKey,
+        p_operation_id: operationId,
         p_operations: operations,
       }),
     },
     options,
+    response => {
+      const saved = decodeJsonObject(response, "Supabase state patch");
+      if (saved.operationId !== operationId) {
+        throw new Error("Supabase state patch returned the wrong operation receipt.");
+      }
+      const main = saved.main;
+      if (!main || typeof main !== "object" || Array.isArray(main)) {
+        throw new Error("Supabase state patch returned no main state.");
+      }
+      return JSON.stringify(main);
+    },
   );
-  if (!response.ok) {
-    throw new Error(`[supabase-storage] patch failed (${response.status}): ${response.body}`);
-  }
-  return JSON.stringify(JSON.parse(response.body));
+}
+
+export async function applyPatchWithSidecars(
+  operations: StoragePatchOperation[],
+  sidecars: Array<{ slug: string; key: string; operations: StoragePatchOperation[] }>,
+  options: SupabaseStorageRequestOptions = {},
+  realmId = "live",
+): Promise<{ mainBlob: string; sidecarBlobs: Record<string, string> }> {
+  const { url, serviceRoleKey } = getConfig();
+  const operationId = options.operationId ?? randomUUID();
+  return request(
+    "Supabase atomic state and sidecar patch",
+    "storageWrite",
+    "idempotent-write",
+    `${url}/rest/v1/rpc/apply_app_datastore_patch_with_sidecars`,
+    {
+      method: "POST",
+      headers: headers(serviceRoleKey),
+      body: JSON.stringify({
+        p_app_key: stateKeyForRealm(realmId),
+        p_operation_id: operationId,
+        p_main_operations: operations,
+        p_sidecar_patches: sidecars,
+      }),
+    },
+    options,
+    response => {
+      const saved = decodeJsonObject(response, "Supabase atomic state and sidecar patch");
+      if (saved.operationId !== operationId) {
+        throw new Error("Supabase atomic state and sidecar patch returned the wrong operation receipt.");
+      }
+      const main = saved.main;
+      const sidecarData = saved.sidecars;
+      if (!main || typeof main !== "object" || Array.isArray(main)) {
+        throw new Error("Supabase atomic state and sidecar patch returned no main state.");
+      }
+      if (!sidecarData || typeof sidecarData !== "object" || Array.isArray(sidecarData)) {
+        throw new Error("Supabase atomic state and sidecar patch returned no sidecar state.");
+      }
+      for (const sidecar of sidecars) {
+        if (!Object.hasOwn(sidecarData, sidecar.slug)) {
+          throw new Error(`Supabase atomic state and sidecar patch omitted "${sidecar.slug}".`);
+        }
+        const sidecarDocument = (sidecarData as Record<string, unknown>)[sidecar.slug];
+        const collection = sidecarDocument && typeof sidecarDocument === "object" && !Array.isArray(sidecarDocument)
+          ? (sidecarDocument as Record<string, unknown>)[sidecar.key]
+          : null;
+        if (
+          !sidecarDocument
+          || typeof sidecarDocument !== "object"
+          || Array.isArray(sidecarDocument)
+          || !Object.hasOwn(sidecarDocument, sidecar.key)
+          || !collection
+          || typeof collection !== "object"
+          || Array.isArray(collection)
+        ) {
+          throw new Error(`Supabase atomic state and sidecar patch returned an invalid "${sidecar.slug}" collection.`);
+        }
+      }
+      return {
+        mainBlob: JSON.stringify(main),
+        sidecarBlobs: Object.fromEntries(
+          Object.entries(sidecarData).map(([slug, data]) => [slug, JSON.stringify(data)]),
+        ),
+      };
+    },
+  );
 }
 
 export async function applyDevTeamWorkspaceFiles(
@@ -246,7 +395,7 @@ export async function applyDevTeamWorkspaceFiles(
   const { url, serviceRoleKey } = getConfig();
   // The sidecar row, not the main document — see `devWorkspaceKeyForRealm`.
   const stateKey = devWorkspaceKeyForRealm(realmId);
-  const response = await request(
+  const saved = await request(
     "Supabase Dev Team workspace commit",
     "storageWrite",
     "idempotent-write",
@@ -260,11 +409,9 @@ export async function applyDevTeamWorkspaceFiles(
       }),
     },
     options,
+    response => decodeJsonObject(response, "Supabase Dev Team workspace commit"),
   );
-  if (!response.ok) {
-    throw new Error(`[supabase-storage] Dev Team workspace commit failed (${response.status}): ${response.body}`);
-  }
-  return JSON.stringify(JSON.parse(response.body));
+  return JSON.stringify(saved);
 }
 
 async function replyClaimRpc(
@@ -275,7 +422,7 @@ async function replyClaimRpc(
 ): Promise<unknown> {
   const { url, serviceRoleKey } = getConfig();
   const stateKey = stateKeyForRealm(realmId);
-  const response = await request(
+  return request(
     `Supabase ${name}`,
     "storageWrite",
     "idempotent-write",
@@ -286,15 +433,8 @@ async function replyClaimRpc(
       body: JSON.stringify({ p_app_key: stateKey, ...body }),
     },
     options,
+    response => response.body ? JSON.parse(response.body) as unknown : null,
   );
-  if (!response.ok) {
-    throw new Error(`[supabase-storage] ${name} failed (${response.status}): ${response.body}`);
-  }
-  // PostgREST returns JSON for the claim function, while void completion and
-  // release functions may legitimately answer with an empty body. Parsing an
-  // empty success response used to turn a completed database operation into a
-  // client-side failure and leave the caller unsure whether it held the claim.
-  return response.body ? JSON.parse(response.body) as unknown : null;
 }
 
 export function claimEditorAiReply(
@@ -385,6 +525,20 @@ export function claimProductWorkspaceLease(
   realmId = "live",
 ): Promise<unknown> {
   return replyClaimRpc("claim_product_workspace_lease", {
+    p_workspace_key: workspaceKey,
+    p_holder_id: holderId,
+    p_lease_ms: Math.max(1_000, Math.floor(leaseMs)),
+  }, options, realmId);
+}
+
+export function renewProductWorkspaceLease(
+  workspaceKey: string,
+  holderId: string,
+  leaseMs: number,
+  options: SupabaseStorageRequestOptions = {},
+  realmId = "live",
+): Promise<unknown> {
+  return replyClaimRpc("renew_product_workspace_lease", {
     p_workspace_key: workspaceKey,
     p_holder_id: holderId,
     p_lease_ms: Math.max(1_000, Math.floor(leaseMs)),

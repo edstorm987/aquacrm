@@ -3,6 +3,7 @@
 import type { PluginCtx } from "../../lib/aquaPluginTypes";
 import type { EditorPagePrivacy } from "../../types/editorPage";
 import { getPage, updatePage } from "../../server/pages";
+import { resolvePublishedPage } from "../../lib/pagePublication";
 import {
   hashPagePassword,
   verifyPagePassword,
@@ -65,9 +66,10 @@ export async function handleUnlockPage(req: Request, ctx: PluginCtx): Promise<Re
   const body = await readJsonBody<{ password?: string }>(req);
   if (!body?.password) return fail("password required", 400);
 
-  const page = await getPage(ctx.storage, scope.agencyId, scope.clientId, siteId, pageId);
-  if (!page) return fail("page not found", 404);
-  if (page.privacy !== "password" || !page.passwordHash) {
+  const storedPage = await getPage(ctx.storage, scope.agencyId, scope.clientId, siteId, pageId);
+  if (!storedPage) return fail("page not found", 404);
+  const page = resolvePublishedPage(storedPage);
+  if (page.status !== "published" || page.privacy !== "password" || !page.passwordHash) {
     return fail("page not password-gated", 400);
   }
   const valid = await verifyPagePassword(pageId, body.password, page.passwordHash);

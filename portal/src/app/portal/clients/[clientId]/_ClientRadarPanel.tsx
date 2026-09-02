@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useReducer, useState, useRef } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -18,19 +18,21 @@ import {
 } from "lucide-react";
 import type { BusinessRadarCheck, ClientRadarSnapshot, RadarCheckStatus } from "@/engines/data/radar/businessRadar";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
+import { initialClientRadarReadState, reduceClientRadarRead } from "@/lib/client/clientRadarRead";
 
 type Filter = "attention" | "all" | "blind" | "learning";
 
 export function ClientRadarPanel({ initialRadar }: { initialRadar: ClientRadarSnapshot }) {
-  const [radar, setRadar] = useState(initialRadar);
+  const [read, dispatchRead] = useReducer(reduceClientRadarRead, initialRadar, initialClientRadarReadState);
+  const radar = read.snapshot;
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState<Filter>("attention");
   const [packId, setPackId] = useState("all");
   // Modal keyboard contract: focus enters the drawer, Tab stays inside it, Escape closes it, focus returns to the control that opened it.
   const dialogRef = useRef<HTMLDivElement>(null);
+  const requestIdRef = useRef(0);
   useFocusTrap(dialogRef, open, { onEscape: () => setOpen(false) });
-  const [scanning, setScanning] = useState(false);
-  const [error, setError] = useState("");
+  const scanning = read.phase === "loading";
   const tone = radar.healthState === "risk" ? "risk" : radar.healthState === "strong" ? "strong" : radar.healthState === "learning" ? "learning" : "watch";
   const filteredChecks = useMemo(() => radar.checks.filter(check => {
     if (packId !== "all" && !check.id.includes(`:${packId}:`)) return false;
@@ -40,18 +42,21 @@ export function ClientRadarPanel({ initialRadar }: { initialRadar: ClientRadarSn
     return check.status !== "inactive";
   }), [filter, packId, radar.checks]);
 
+  useEffect(() => {
+    dispatchRead({ type: "hydrate", snapshot: initialRadar });
+  }, [initialRadar]);
+
   async function runScan() {
-    setScanning(true);
-    setError("");
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+    dispatchRead({ type: "begin", requestId });
     try {
       const response = await fetch(`/api/portal/clients/${encodeURIComponent(radar.clientId)}/radar`, { method: "POST" });
       const payload = await response.json() as { ok?: boolean; radar?: ClientRadarSnapshot; error?: string };
       if (!response.ok || !payload.ok || !payload.radar) throw new Error(payload.error || "Client Radar scan failed.");
-      setRadar(payload.radar);
+      dispatchRead({ type: "succeed", requestId, snapshot: payload.radar });
     } catch (scanError) {
-      setError(scanError instanceof Error ? scanError.message : "Client Radar scan failed.");
-    } finally {
-      setScanning(false);
+      dispatchRead({ type: "fail", requestId, message: scanError instanceof Error ? scanError.message : "Client Radar scan failed." });
     }
   }
 
@@ -65,6 +70,8 @@ export function ClientRadarPanel({ initialRadar }: { initialRadar: ClientRadarSn
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#315b85]">Client Radar · adaptive scope</p>
                 <span className={`mm-client-radar-state mm-client-radar-state--${tone}`}>{readable(radar.healthState)}</span>
+                {read.phase === "loading" ? <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[9px] font-semibold uppercase text-sky-700">Refreshing</span> : read.phase === "unavailable" ? <span className="rounded-full bg-red-50 px-2 py-0.5 text-[9px] font-semibold uppercase text-red-700">Refresh unavailable</span> : null}
+                {radar.sourceAvailability.finance === "unavailable" ? <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[9px] font-semibold uppercase text-sky-700">Finance unavailable</span> : null}
               </div>
               <h2 id="client-radar-heading" className="mt-1 text-lg font-semibold text-black/85">Every assigned system on one watch</h2>
               <p className="mt-1 max-w-3xl text-xs leading-5 text-black/48">{radar.summary}</p>
@@ -100,7 +107,7 @@ export function ClientRadarPanel({ initialRadar }: { initialRadar: ClientRadarSn
             </div>
           </aside>
         </div>
-        {error ? <p className="border-t border-red-100 bg-red-50 px-5 py-2 text-xs font-medium text-red-700">{error}</p> : null}
+        {read.phase === "unavailable" ? <p role="alert" className="border-t border-red-100 bg-red-50 px-5 py-2 text-xs font-medium text-red-700">Refresh unavailable. Last-confirmed Radar remains visible. {read.message}</p> : null}
       </section>
 
       {open ? (

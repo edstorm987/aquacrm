@@ -79,7 +79,7 @@ export interface CreateClientBody {
   slug?: string;
   ownerEmail?: string;
   websiteUrl?: string;
-  stage: string;                  // ClientStage
+  stage?: string;                 // ClientStage; install default is authoritative when omitted
   brand?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
 }
@@ -88,11 +88,20 @@ export async function createClientHandler(req: Request, ctx: PluginCtx): Promise
   const guard = requireMethod(req, "POST");
   if (guard) return guard;
   const body = await safeJson<CreateClientBody>(req);
-  if (!body || typeof body.name !== "string" || typeof body.stage !== "string") {
-    return badRequest("name + stage are required.");
+  if (!body || typeof body.name !== "string") {
+    return badRequest("name is required.");
   }
   try {
     const c = container(ctx);
+    const configuredDefault = typeof ctx.install.config.defaultStage === "string"
+      ? ctx.install.config.defaultStage.trim()
+      : "";
+    const requestedStage = typeof body.stage === "string" ? body.stage.trim() : "";
+    const stage = requestedStage || configuredDefault || "aqua-epic-intro";
+    const configuredPhase = await c.phaseService.getPhaseForStage(ctx.agencyId, stage as never);
+    if (!configuredPhase) {
+      return badRequest(`No configured phase exists for starting stage "${stage}".`);
+    }
     const result = await c.clientLifecycleService.createWithPhase({
       agencyId: ctx.agencyId,
       actor: ctx.actor,
@@ -100,7 +109,7 @@ export async function createClientHandler(req: Request, ctx: PluginCtx): Promise
       slug: body.slug,
       ownerEmail: body.ownerEmail,
       websiteUrl: body.websiteUrl,
-      stage: body.stage as never,
+      stage: stage as never,
       brand: body.brand as never,
       metadata: body.metadata,
     });
@@ -159,6 +168,7 @@ export async function advancePhaseHandler(req: Request, ctx: PluginCtx): Promise
     const stageDistance = fromIndex >= 0 && toIndex >= 0 ? Math.abs(toIndex - fromIndex) : 1;
     const client = await ctx.services.clients.getClientForAgency(ctx.agencyId, body.clientId);
     if (!client) return notFound("Client not found.");
+    const advanceRequiresAllTasks = ctx.install.config.advanceRequiresAllTasks !== false;
     const result = await c.transitionService.advancePhase({
       agencyId: ctx.agencyId,
       clientId: body.clientId,
@@ -169,6 +179,7 @@ export async function advancePhaseHandler(req: Request, ctx: PluginCtx): Promise
       directJump: stageDistance > 1,
       skippedStageCount: Math.max(0, stageDistance - 1),
       operationId: typeof body.operationId === "string" ? body.operationId : undefined,
+      advanceRequiresAllTasks,
     });
     return json(result, result.ok ? 200 : 422);
   } catch (err) {
@@ -311,7 +322,7 @@ export async function deletePhaseHandler(req: Request, ctx: PluginCtx): Promise<
     const phase = await c.phaseService.getPhase(id);
     if (!phase || phase.agencyId !== ctx.agencyId) return notFound("Phase not found.");
     const removed = await c.phaseService.deletePhase(id);
-    return json({ ok: removed });
+    return json({ ok: removed, ...(removed ? { phaseId: id } : {}) });
   } catch (err) {
     return serverError(err);
   }
@@ -419,7 +430,12 @@ export async function marketplaceUninstallHandler(req: Request, ctx: PluginCtx):
       pluginId: body.pluginId,
       actor: ctx.actor,
     });
-    return json(result, result.ok ? 200 : 422);
+    return json(
+      result.ok
+        ? { ...result, clientId: body.clientId, pluginId: body.pluginId }
+        : result,
+      result.ok ? 200 : 422,
+    );
   } catch (err) {
     return serverError(err);
   }

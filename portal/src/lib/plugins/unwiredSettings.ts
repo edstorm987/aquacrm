@@ -91,7 +91,13 @@
 // consumed when a campaign omits an explicit currency. Its former
 // `defaultLeadAssignee` and `autoSendOnTemplate` declarations were removed:
 // neither lead creation nor template delivery read them. The registered
-// manifests now declare 47 fields; 20 are consumed and 27 remain named below.
+// Website Editor now retains two operational defaults and removes two GitHub
+// controls whose publish transport is not implemented. Registered manifests
+// now declare 45 fields; 22 are consumed and 23 remain named below.
+// Fulfillment then connected its creation-stage default and checklist advance
+// gate, and removed two notification toggles because the module has no delivery
+// port behind them. Registered manifests now declare 43 fields; 24 are
+// consumed and 19 remain named below.
 
 export interface UnwiredSetting {
   pluginId: string;
@@ -118,10 +124,6 @@ export const UNWIRED_SETTINGS: readonly UnwiredSetting[] = [
   { pluginId: "client-crm", fieldId: "customAttributeSchema" },
   { pluginId: "ecommerce", fieldId: "stripePublishableKey" },
   { pluginId: "ecommerce", fieldId: "lowStockThreshold" },
-  { pluginId: "fulfillment", fieldId: "defaultStage" },
-  { pluginId: "fulfillment", fieldId: "advanceRequiresAllTasks" },
-  { pluginId: "fulfillment", fieldId: "notifyOnAdvance" },
-  { pluginId: "fulfillment", fieldId: "notifyClientOnAdvance" },
   { pluginId: "leads-pipeline", fieldId: "defaultLeadSource" },
   { pluginId: "leads-pipeline", fieldId: "newColumnLabel" },
   { pluginId: "leads-pipeline", fieldId: "fromName" },
@@ -131,10 +133,6 @@ export const UNWIRED_SETTINGS: readonly UnwiredSetting[] = [
   { pluginId: "memberships", fieldId: "showAnnualToggle" },
   { pluginId: "public-funnel", fieldId: "redirectAfterCapture" },
   { pluginId: "public-funnel", fieldId: "issueSessionCookie" },
-  { pluginId: "website-editor", fieldId: "githubRepo" },
-  { pluginId: "website-editor", fieldId: "githubBranch" },
-  { pluginId: "website-editor", fieldId: "defaultThemeVariant" },
-  { pluginId: "website-editor", fieldId: "defaultStarterId" },
 ];
 
 const LOOKUP = new Set(UNWIRED_SETTINGS.map(entry => unwiredKey(entry.pluginId, entry.fieldId)));

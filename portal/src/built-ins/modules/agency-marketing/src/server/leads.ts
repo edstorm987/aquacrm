@@ -26,7 +26,11 @@ const byStaffKey = (staffId: string): string => `leads/by-staff/${staffId}`;
 
 const leadMutationQueues = new Map<AgencyId, Promise<void>>();
 
-async function withLeadMutationLock<T>(agencyId: AgencyId, work: () => Promise<T>): Promise<T> {
+async function withLeadMutationLock<T>(
+  agencyId: AgencyId,
+  storage: StoragePort,
+  work: () => Promise<T>,
+): Promise<T> {
   const previous = leadMutationQueues.get(agencyId) ?? Promise.resolve();
   let release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
@@ -34,7 +38,10 @@ async function withLeadMutationLock<T>(agencyId: AgencyId, work: () => Promise<T
   leadMutationQueues.set(agencyId, queued);
   await previous;
   try {
-    return await work();
+    if (typeof storage.runExclusive !== "function") {
+      throw new Error("marketing_lead_mutation_requires_exclusive_storage");
+    }
+    return await storage.runExclusive(`marketing-leads:${agencyId}`, work);
   } finally {
     release();
     if (leadMutationQueues.get(agencyId) === queued) leadMutationQueues.delete(agencyId);
@@ -114,7 +121,7 @@ export class LeadService {
   }
 
   async create(input: CreateLeadInput, actor: UserId, sourceDefault: LeadSource = "manual"): Promise<Lead> {
-    return withLeadMutationLock(this.agencyId, () => this.createUnlocked(input, actor, sourceDefault));
+    return withLeadMutationLock(this.agencyId, this.storage, () => this.createUnlocked(input, actor, sourceDefault));
   }
 
   private async createUnlocked(input: CreateLeadInput, actor: UserId, sourceDefault: LeadSource): Promise<Lead> {
@@ -184,7 +191,7 @@ export class LeadService {
   //
   // Idempotent: a second run finds nothing and returns 0.
   async eraseForAddresses(addresses: readonly string[]): Promise<number> {
-    return withLeadMutationLock(this.agencyId, () => this.eraseForAddressesUnlocked(addresses));
+    return withLeadMutationLock(this.agencyId, this.storage, () => this.eraseForAddressesUnlocked(addresses));
   }
 
   private async eraseForAddressesUnlocked(addresses: readonly string[]): Promise<number> {
@@ -219,7 +226,7 @@ export class LeadService {
   }
 
   async update(id: string, patch: UpdateLeadPatch, actor: UserId): Promise<Lead | null> {
-    return withLeadMutationLock(this.agencyId, () => this.updateUnlocked(id, patch, actor));
+    return withLeadMutationLock(this.agencyId, this.storage, () => this.updateUnlocked(id, patch, actor));
   }
 
   private async updateUnlocked(id: string, patch: UpdateLeadPatch, actor: UserId): Promise<Lead | null> {
@@ -306,7 +313,7 @@ export class LeadService {
   }
 
   async recordContact(id: string, note: string, actor: UserId): Promise<Lead | null> {
-    return withLeadMutationLock(this.agencyId, () => this.recordContactUnlocked(id, note, actor));
+    return withLeadMutationLock(this.agencyId, this.storage, () => this.recordContactUnlocked(id, note, actor));
   }
 
   private async recordContactUnlocked(id: string, note: string, actor: UserId): Promise<Lead | null> {

@@ -37,10 +37,17 @@ import {
   upsertPhaseHandler,
 } from "./handlers";
 
+const AGENCY_OPERATORS = ["agency-owner", "agency-manager", "agency-staff"] as const;
+
 export const apiRoutes: readonly PluginApiRoute[] = [
   { path: "clients", methods: ["GET"], handler: listClientsHandler },
   { path: "clients", methods: ["POST"], handler: createClientHandler },
-  { path: "phase/advance", methods: ["POST"], handler: advancePhaseHandler },
+  {
+    path: "phase/advance",
+    methods: ["POST"],
+    handler: advancePhaseHandler,
+    visibleToRoles: [...AGENCY_OPERATORS],
+  },
   { path: "checklist", methods: ["GET"], handler: getChecklistHandler },
   { path: "checklist/tick", methods: ["POST"], handler: tickItemHandler },
   { path: "phases", methods: ["GET"], handler: listPhasesHandler },

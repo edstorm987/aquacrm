@@ -21,12 +21,13 @@ import {
 import { requireCurrentAccessActor } from "@/server/accessControl";
 import { withPersonalChrome } from "@/lib/server/chrome/personalPanels";
 import { buildStaffNavigationPanels } from "./staffNavigation";
+import { staffOnlyRolesForWorkspacePagePath } from "@/lib/staffWorkspacePolicy";
 
 export default async function TeamLayout({ children }: { children: ReactNode }) {
   await ensureHydrated();
   let session;
   try {
-    session = await requireRole(["agency-staff"]);
+    session = await requireRole([...staffOnlyRolesForWorkspacePagePath("/portal/team")]);
   } catch {
     redirect("/portal");
   }

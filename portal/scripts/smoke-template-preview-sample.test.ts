@@ -67,19 +67,46 @@ before(async () => {
 });
 
 const studio = (agencyId: string) => loadPortalStudioProps({
-  agencyId, userId: ownerId, role: "agency-owner", query: {},
+  agencyId, userId: ownerId, canManage: true, query: {},
 });
 
 describe("an agency with NO clients can still open the studio", () => {
+  it("preserves the canonical authority supplied by its server page", () => {
+    const readOnly = loadPortalStudioProps({
+      agencyId: emptyAgency,
+      userId: ownerId,
+      canManage: false,
+      query: {},
+    });
+    assert.equal(studio(emptyAgency).canManage, true);
+    assert.equal(readOnly.canManage, false);
+  });
+
   it("offers the sample, so the editor's empty-list block cannot fire", () => {
     const props = studio(emptyAgency);
     assert.equal(props.clients.length, 1, "an agency with no clients got no preview target");
     assert.equal(props.clients[0].name, SAMPLE_CLIENT_NAME);
     assert.ok(isSampleClientId(props.clients[0].id));
+    assert.equal(props.clients[0].previewOnly, true,
+      "the synthetic target looks writable to the client editor");
   });
 
   it("selects it as the initial client, so the preview has somewhere to point", () => {
     assert.equal(studio(emptyAgency).initialClientId, sampleClientId(emptyAgency));
+  });
+
+  it("opens the TEMPLATE through that sample instead of requesting a non-existent client override", () => {
+    const props = studio(emptyAgency);
+    assert.equal(props.initialScope, "template");
+
+    const explicitClientScope = loadPortalStudioProps({
+      agencyId: emptyAgency,
+      userId: ownerId,
+      canManage: true,
+      query: { scope: "client", clientId: sampleClientId(emptyAgency) },
+    });
+    assert.equal(explicitClientScope.initialScope, "template",
+      "a bookmarked sample target can still make the browser request the real-client design API");
   });
 
   it("writes NOTHING — no client row is created as a side effect", () => {
@@ -98,6 +125,7 @@ describe("a real client is still preferred when one exists", () => {
     const props = studio(stockedAgency);
     assert.equal(props.initialClientId, realClientId,
       "the sample displaced a real client as the default — it is a floor, not a preference");
+    assert.equal(props.initialScope, "client", "a real client's existing default scope changed");
     assert.ok(props.clients.some(client => client.id === realClientId), "the real client vanished");
     assert.ok(props.clients.some(client => isSampleClientId(client.id)),
       "the sample is not offered when clients exist — a template still ought to be drafted against it");
@@ -164,5 +192,19 @@ describe("the preview route resolves it, and only for its own agency", () => {
     // store lookup, find nothing, and 404.
     assert.match(source, /if \(!client\) notFound\(\);/,
       "an unresolvable client no longer 404s");
+  });
+});
+
+describe("the editor keeps the synthetic target out of client-write scope", () => {
+  it("normalises sample selection before its design fetch and disables the client-scope control", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const source = await readFile("src/engines/editor/DevEditor.tsx", "utf8");
+    assert.match(source, /const previewOnlyClient = Boolean\(selectedClient\?\.previewOnly\)/);
+    assert.match(source, /if \(nextClient\?\.previewOnly\) setScope\("template"\)/,
+      "selecting the sample can still leave scope=client for the following design request");
+    assert.match(source, /disabled=\{busy \|\| previewOnlyClient\}/,
+      "the sample still offers a client override that cannot truthfully exist");
+    assert.match(source, /The sample is preview-only\. Edit the template/,
+      "the editor no longer explains why the synthetic target is not writable");
   });
 });

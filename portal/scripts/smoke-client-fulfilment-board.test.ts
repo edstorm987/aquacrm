@@ -141,8 +141,7 @@ test("mounted board uses the shared route and only reads localStorage for one-ti
   assert.doesNotMatch(board, /window\.localStorage\.setItem/);
   assert.match(board, /expectedRevision: task\.revision \?\? 0/);
   assert.match(board, /Open Actions/);
-  assert.match(api, /withClientMetadataLedgerTransaction/);
-  assert.match(api, /ledger: "tasks"/);
+  assert.match(api, /withPortalStateTransaction\(privateObjectLifecycleLockKey\(session\.agencyId\)/);
   assert.match(api, /ensureHydrated\(\{ fresh: true \}\)/);
   assert.match(api, /status: 409/);
   assert.match(api, /deleteAgencyTask/);

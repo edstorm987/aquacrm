@@ -205,7 +205,7 @@ export function EnquiryDetailCard({
             </dl>
 
             {/* Phase 4: fill in the contact details the form didn't ask for. */}
-            <ManualContactDetails enquiryId={item.id} />
+            <ManualContactDetails key={item.id} enquiryId={item.id} />
           </section>
 
           {/* Aqua's read on where this belongs and how urgent it is. */}

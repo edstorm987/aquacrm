@@ -3,6 +3,11 @@
 import { useState } from "react";
 
 import type { MarketplaceCard } from "../server";
+import {
+  isFulfillmentPluginMutation,
+  isFulfillmentPluginUninstall,
+} from "../lib/mutationPayloads";
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
 
 export interface PluginCardProps {
   card: MarketplaceCard;
@@ -17,6 +22,13 @@ export function PluginCard(props: PluginCardProps) {
   const [error, setError] = useState<string | null>(null);
 
   async function call(action: "install" | "enable" | "disable" | "uninstall"): Promise<void> {
+    const fallback = action === "install"
+      ? "Could not install this plugin."
+      : action === "uninstall"
+        ? "Could not uninstall this plugin."
+        : action === "enable"
+          ? "Could not enable this plugin."
+          : "Could not disable this plugin.";
     setBusy(action);
     setError(null);
     try {
@@ -24,7 +36,7 @@ export function PluginCard(props: PluginCardProps) {
         action === "install" ? "marketplace/install"
           : action === "uninstall" ? "marketplace/uninstall"
             : "marketplace/enable";
-      const res = await fetch(`${apiBase}/${path}`, {
+      await checkedJsonMutation<unknown>(`${apiBase}/${path}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -34,16 +46,20 @@ export function PluginCard(props: PluginCardProps) {
             ? { enabled: action === "enable" }
             : {}),
         }),
+      }, {
+        fallback,
+        validate: payload => action === "uninstall"
+          ? isFulfillmentPluginUninstall(payload, { clientId, pluginId: card.id })
+          : isFulfillmentPluginMutation(payload, {
+            clientId,
+            pluginId: card.id,
+            enabled: action !== "disable",
+          }),
       });
-      const data = await res.json() as { ok: boolean; error?: string };
-      if (!data.ok) {
-        setError(data.error ?? "Action failed.");
-        return;
-      }
       onChanged?.();
       if (typeof window !== "undefined") window.location.reload();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+    } catch (reason) {
+      setError(mutationErrorMessage(reason, fallback));
     } finally {
       setBusy(null);
     }

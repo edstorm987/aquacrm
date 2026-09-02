@@ -1,29 +1,16 @@
 "use client";
 
-// R008 — Single blog post renderer. Reads the slug from the
-// `slug` prop (or the URL path `/blog/<slug>` when `slug` is
-// "auto") and fetches the post body BlockTree via
-// `/blog/posts/by-slug`.
-//
-// Body is rendered via the host site's BlockRenderer — but since
-// the storefront block-renderer is itself the consumer of this
-// block, we lean on the recursive renderer the website-editor
-// already exposes (`renderBlocks`) by re-emitting the body via a
-// nested `<RenderTree>` import. To keep this file self-contained
-// and compile cleanly in plugin scope (where we don't import the
-// storefront's `BlockRenderer`), we render the body as
-// `<BlockRenderer>` only when one is injected via the
-// optional global `__aquaRenderBlocks` (set by the host page).
-// Otherwise we fall back to a JSON dump fenced as a debug
-// block — host pages always inject the renderer in production.
+// R008 — Single published blog-post renderer. The host renderer supplies the
+// exact tenant/site context and its recursive renderChildren function. Draft
+// previews stay inert; a published mount reads only the narrow visitor facade.
 
 import { useEffect, useMemo, useState } from "react";
 import { formatUkDate } from "../../lib/safeDate";
 import type { BlockRenderProps } from "../blockRegistry";
 import type { Block } from "../../types/block";
+import { isSafeBlogPostBody } from "../../lib/blogPostBody";
 
 interface PostShape {
-  id: string;
   slug: string;
   title: string;
   body: Block[];
@@ -34,15 +21,36 @@ interface PostShape {
   publishedAt?: number;
 }
 
-declare global {
-  interface Window {
-    __aquaRenderBlocks?: (blocks: Block[]) => React.ReactNode;
-  }
+interface BlogPostReply {
+  ok?: unknown;
+  post?: unknown;
+  error?: unknown;
 }
 
-export default function BlogPostBlock({ block }: BlockRenderProps) {
+function parsePost(value: unknown): PostShape | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  if (typeof row.slug !== "string" || typeof row.title !== "string") return null;
+  if (!isSafeBlogPostBody(row.body) || !Array.isArray(row.tags) || !row.tags.every(tag => typeof tag === "string")) return null;
+  if (row.publishedAt !== undefined && (typeof row.publishedAt !== "number" || !Number.isFinite(row.publishedAt))) return null;
+  return {
+    slug: row.slug,
+    title: row.title,
+    body: row.body as Block[],
+    tags: row.tags,
+    ...(typeof row.excerpt === "string" ? { excerpt: row.excerpt } : {}),
+    ...(typeof row.coverImg === "string" ? { coverImg: row.coverImg } : {}),
+    ...(typeof row.author === "string" ? { author: row.author } : {}),
+    ...(typeof row.publishedAt === "number" ? { publishedAt: row.publishedAt } : {}),
+  };
+}
+
+export default function BlogPostBlock({ block, context, editorMode, renderChildren }: BlockRenderProps) {
   const slugProp = (block.props.slug as string | undefined) ?? "auto";
-  const siteId = block.props.siteId as string | undefined;
+  const agencyId = context?.agencyId;
+  const clientId = context?.clientId;
+  const siteId = context?.siteId;
+  const publishedWebsite = context?.publishedWebsite === true;
 
   const slug = useMemo(() => {
     if (slugProp !== "auto") return slugProp;
@@ -56,26 +64,53 @@ export default function BlogPostBlock({ block }: BlockRenderProps) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!slug) { setError("no slug — set `slug` prop or render under /blog/[slug]"); return; }
-    const params = new URLSearchParams({ slug });
-    if (siteId) params.set("siteId", siteId);
-    fetch(`/api/portal/website-editor/blog/posts/by-slug?${params.toString()}`)
-      .then(r => r.json() as Promise<{ ok: boolean; post?: PostShape; error?: string }>)
-      .then(data => {
-        if (!data.ok || !data.post) { setError(data.error ?? "post not found"); return; }
-        setPost(data.post);
+    if (editorMode || !publishedWebsite || !agencyId || !clientId || !siteId) {
+      setPost(null);
+      setError("This post is available on the published page.");
+      return;
+    }
+    if (!slug) {
+      setPost(null);
+      setError("Choose a blog post slug or publish this block under /blog/[slug].");
+      return;
+    }
+
+    const controller = new AbortController();
+    setPost(null);
+    setError(null);
+    const params = new URLSearchParams({ agencyId, clientId, siteId, slug });
+    fetch(`/api/portal/website-editor/public/blog/posts/by-slug?${params.toString()}`, {
+      signal: controller.signal,
+    })
+      .then(async response => {
+        let data: BlogPostReply | null = null;
+        try { data = await response.json() as BlogPostReply; }
+        catch { /* A non-JSON response is a failed visitor read. */ }
+        return { response, data };
       })
-      .catch(e => setError(e instanceof Error ? e.message : String(e)));
-  }, [slug, siteId]);
+      .then(({ response, data }) => {
+        if (controller.signal.aborted) return;
+        const next = response.ok && data?.ok === true ? parsePost(data.post) : null;
+        if (!next) {
+          setError(typeof data?.error === "string" ? data.error : "Post not found.");
+          return;
+        }
+        setPost(next);
+      })
+      .catch(error => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setError("This post could not be loaded. Please try again.");
+      });
+    return () => controller.abort();
+  }, [agencyId, clientId, editorMode, publishedWebsite, siteId, slug]);
 
   if (error) return <div data-block-type="blog-post" style={{ padding: 24, color: "#fca5a5" }}>{error}</div>;
   if (!post) return <div data-block-type="blog-post" style={{ padding: 24, color: "#94a3b8" }}>Loading…</div>;
+  if (!renderChildren) return <div data-block-type="blog-post" style={{ padding: 24, color: "#fca5a5" }}>Post renderer unavailable.</div>;
 
   const date = post.publishedAt
     ? formatUkDate(post.publishedAt, { year: "numeric", month: "short", day: "numeric" })
     : "";
-
-  const renderTree = typeof window !== "undefined" ? window.__aquaRenderBlocks : undefined;
 
   return (
     <article data-block-type="blog-post" style={{ maxWidth: 760, margin: "0 auto", padding: "32px 24px" }}>
@@ -106,12 +141,7 @@ export default function BlogPostBlock({ block }: BlockRenderProps) {
         )}
       </header>
       <div style={{ fontSize: 16, lineHeight: 1.7 }}>
-        {renderTree
-          ? renderTree(post.body)
-          : <pre style={{ fontSize: 11, color: "#64748b", whiteSpace: "pre-wrap" }}>
-              {/* Host page must inject window.__aquaRenderBlocks for full render */}
-              {JSON.stringify(post.body, null, 2)}
-            </pre>}
+        {renderChildren(post.body)}
       </div>
     </article>
   );

@@ -15,9 +15,10 @@ import {
   TriangleAlert,
   UserRoundCheck,
 } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useReducer, useRef, useState } from "react";
 
 import type { ControlStatus } from "@/lib/compliance/compliancePosture";
+import { checkedReadReducer, confirmedCheckedRead } from "@/lib/client/checkedReadState";
 import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
 import type {
@@ -75,55 +76,48 @@ const SECURITY_TONE: Record<SecurityStatus, string> = {
 };
 
 export function GovernanceWorkspace({ initial, isOwner, initialView }: { initial: GovernanceSnapshot; isOwner: boolean; initialView?: string }) {
-  const [snapshot, setSnapshot] = useState<GovernanceSnapshot>(initial);
-  const [companyId, setCompanyId] = useState<string>(initial.companyId ?? "");
+  const [scopeRead, dispatchScopeRead] = useReducer(
+    checkedReadReducer<GovernanceSnapshot, string>,
+    confirmedCheckedRead(initial.companyId ?? "", initial),
+  );
+  const scopeRequestId = useRef(0);
+  const snapshot = scopeRead.value;
+  const companyId = scopeRead.confirmedScope;
   // An unrecognised `?view=` falls back to the posture rather than rendering an
   // empty pane — a bad link must not look like an empty register.
   const [view, setView] = useState<View>(
     () => VIEWS.some(item => item.id === initialView) ? initialView as View : "overview",
   );
-  const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState("");
-  // The scope a failed read was ASKING for. Held so the failure is an explicit
-  // state with a way out, not a sentence the user has to re-drive by hand.
-  const [failedScope, setFailedScope] = useState<string | null>(null);
+  const loading = scopeRead.phase === "loading";
+  const status = scopeRead.phase === "unavailable" ? scopeRead.error : "";
+  const failedScope = scopeRead.phase === "unavailable" ? scopeRead.requestedScope : null;
 
   // The scope selector used to move first and the read second, so a refused
   // read left the PREVIOUS company's posture on screen labelled as the new one —
   // and, because the fetch was unguarded, a network reject also left the
   // spinner running for ever (issues #57). The label now follows its evidence.
   const reload = useCallback(async (scope: string) => {
-    setLoading(true);
-    setStatus("");
-    // Cleared on EVERY read, so a retry control can only ever offer the scope
-    // whose read just failed — never a stale one from an earlier failure that a
-    // later, unrelated reload happened to fail after.
-    setFailedScope(null);
+    const requestId = scopeRequestId.current + 1;
+    scopeRequestId.current = requestId;
+    dispatchScopeRead({ type: "begin", requestId, scope });
     try {
       const query = scope ? `?companyId=${encodeURIComponent(scope)}` : "";
       const response = await fetch(`/api/portal/governance${query}`);
       const body = await response.json().catch(() => null) as { ok?: boolean; snapshot?: GovernanceSnapshot; error?: string } | null;
       if (!response.ok || !body?.ok || !body.snapshot) {
-        setStatus(body?.error ?? "The governance data could not be read, so the scope below is unchanged.");
-        return false;
+        dispatchScopeRead({ type: "fail", requestId, scope, error: body?.error ?? "The governance data could not be read, so the last-confirmed scope below is retained and locked." });
+        return;
       }
-      setSnapshot(body.snapshot);
-      return true;
+      dispatchScopeRead({ type: "succeed", requestId, scope, value: body.snapshot });
     } catch {
-      setStatus("The governance data could not be read, so the scope below is unchanged.");
-      return false;
-    } finally {
-      setLoading(false);
+      dispatchScopeRead({ type: "fail", requestId, scope, error: "The governance data could not be read, so the last-confirmed scope below is retained and locked." });
     }
   }, []);
 
   function onScopeChange(next: string) {
-    void reload(next).then(ok => {
-      // The selector only moves once the evidence behind it arrived, so a
-      // refused read can never leave one company's records under another's name.
-      if (ok) { setCompanyId(next); setFailedScope(null); }
-      else setFailedScope(next);
-    });
+    // The reducer moves both label and evidence only on a current successful
+    // response; a late response from an older scope is ignored.
+    void reload(next);
   }
 
   const { posture } = snapshot;
@@ -146,6 +140,7 @@ export function GovernanceWorkspace({ initial, isOwner, initialView }: { initial
           Scope
           <select
             value={companyId}
+            disabled={loading}
             onChange={event => onScopeChange(event.target.value)}
             className="rounded-md border border-black/15 bg-white px-2 py-1.5 text-sm text-black/80"
           >
@@ -214,7 +209,7 @@ export function GovernanceWorkspace({ initial, isOwner, initialView }: { initial
         })}
       </nav>
 
-      <div className="mt-5">
+      <fieldset disabled={scopeRead.phase !== "ready"} className="mt-5 min-w-0 border-0 p-0 disabled:opacity-70">
         {view === "overview" ? <PostureSection snapshot={snapshot} companyId={companyId} isOwner={isOwner} onChanged={() => reload(companyId)} /> : null}
         {view === "legal" ? <LegalSection snapshot={snapshot} companyId={companyId} onChanged={() => reload(companyId)} /> : null}
         {view === "erasure" ? <ErasureSection snapshot={snapshot} isOwner={isOwner} onChanged={() => reload(companyId)} /> : null}
@@ -222,7 +217,7 @@ export function GovernanceWorkspace({ initial, isOwner, initialView }: { initial
         {view === "breaches" ? <BreachSection snapshot={snapshot} companyId={companyId} isOwner={isOwner} onChanged={() => reload(companyId)} /> : null}
         {view === "subprocessors" ? <SubprocessorSection rows={snapshot.subprocessors} /> : null}
         {view === "security" ? <SecuritySection controls={snapshot.security} snapshot={snapshot} /> : null}
-      </div>
+      </fieldset>
     </div>
   );
 }

@@ -8,6 +8,7 @@
 
 import type { PluginCtx } from "../../lib/aquaPluginTypes";
 import { listPages } from "../../server/pages";
+import { resolvePublishedPage } from "../../lib/pagePublication";
 import { listSites } from "../../server/sites";
 import {
   buildSitemap,
@@ -41,7 +42,8 @@ async function collectInputs(
 
   for (const site of sites) {
     const rows = await listPages(ctx.storage, agencyId, clientId, site.id);
-    for (const p of rows) {
+    for (const storedPage of rows) {
+      const p = resolvePublishedPage(storedPage);
       const seoNoIndex =
         (p as { seo?: { noIndex?: boolean } }).seo?.noIndex === true;
       const sourcesRaw = (p as { redirectSourceSlugs?: string[] })

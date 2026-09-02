@@ -6,7 +6,6 @@ import { headers } from "next/headers";
 import { Suspense, type ReactNode } from "react";
 import { ensureHydrated } from "@/server/storage";
 import { requireRole } from "@/lib/server/auth/auth";
-import { AGENCY_ROLES } from "@/server/types";
 import { getAgency, listClients } from "@/server/tenants";
 import { getUserById } from "@/server/users";
 import { listInstalledFor } from "@/server/pluginInstalls";
@@ -34,17 +33,26 @@ import { NotificationAttentionProvider } from "@/components/chrome/NotificationA
 import { RadarQuickLookControl } from "@/components/chrome/RadarQuickLookControl";
 import { withPersonalChrome } from "@/lib/server/chrome/personalPanels";
 import { assembleAgencyBasePanels } from "@/lib/server/chrome/agencyBasePanels";
+import {
+  agencyRolesForStaffWorkspacePagePath,
+  roleMayUseStaffWorkspaceApiPath,
+} from "@/lib/staffWorkspacePolicy";
 
 export default async function AgencyLayout({ children }: { children: ReactNode }) {
   await ensureHydrated();
+  const h = await headers();
+  const currentPath = h.get("x-aqua-route-path")
+    ?? h.get("x-invoke-path")
+    ?? h.get("x-pathname")
+    ?? "/portal/agency";
   let session;
   try {
-    session = await requireRole([...AGENCY_ROLES]);
+    // Owner/manager are the baseline. Staff are added only when the current
+    // path belongs to a capability in the same policy the proxy consumes.
+    session = await requireRole([...agencyRolesForStaffWorkspacePagePath(currentPath)]);
   } catch {
     redirect("/portal");
   }
-  const h = await headers();
-  const currentPath = h.get("x-invoke-path") ?? h.get("x-pathname") ?? "/portal/agency";
   // The proxy admits staff only to the explicitly delegated agency roots.
   // Once inside that allow-list, render a reduced shell instead of bouncing
   // them back to Team before the leaf element check can run.
@@ -106,6 +114,7 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
   // is set by /demo?embed=1.
   const embed = h.get("cookie")?.includes("lk_demo_embed=1") ?? false;
   const advisorEnabled = !session.publicShowcase && (session.role === "agency-owner" || session.role === "agency-manager");
+  const notificationsEnabled = roleMayUseStaffWorkspaceApiPath(session.role, "/api/portal/notifications");
 
   if (embed) {
     return (
@@ -122,7 +131,7 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
   return (
     <>
       <ThemeInjector brand={agency.brand} scope="agency" />
-      <NotificationAttentionProvider initialAlerts={alertViews}>
+      <NotificationAttentionProvider initialAlerts={alertViews} enabled={notificationsEnabled}>
       <div className="mm-portal-root flex h-[var(--aqua-shell-h,100dvh)] overflow-hidden">
         <Sidebar
           panels={panels}
@@ -149,7 +158,7 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
             devConsole={devDocsAccessible(session) && devIconVisible}
             devModeActive={Boolean(session.devReturnAgencyId)}
             privacyTerms={privacyTerms}
-            notifications={<NotificationCentreButton />}
+            notifications={notificationsEnabled ? <NotificationCentreButton /> : null}
             radarControl={advisorEnabled ? <RadarQuickLookControl agencyId={session.agencyId} lightweight={perfMode} /> : null}
             advisorControl={advisorEnabled ? (
               <AdvisorDrawerControl agencyId={session.agencyId} userId={session.userId} userName={currentUser?.name || session.email} lightweight={perfMode} />

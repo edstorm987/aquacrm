@@ -81,6 +81,9 @@ function buildWorld(opts: { withEmail?: boolean; withPipeline?: boolean } = {}) 
       data[key] = value;
       return true;
     },
+    async runExclusive<T>(_key: string, operation: () => Promise<T>): Promise<T> {
+      return operation();
+    },
     async del(key: string): Promise<void> {
       delete data[key];
     },

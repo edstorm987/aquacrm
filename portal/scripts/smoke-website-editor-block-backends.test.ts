@@ -163,6 +163,14 @@ test("contact-form is no longer declared dead after its visitor facade shipped",
   assert.equal(gap, undefined, "contact-form still claims it has no visitor backend");
 });
 
+test("blog-post is no longer declared dead after its visitor facade shipped", async () => {
+  const { blockBackendGap } = await import(
+    "../src/built-ins/modules/website-editor/src/lib/blockBackends.ts"
+  );
+  const gap = blockBackendGap("blog-post");
+  assert.equal(gap, undefined, "blog-post still claims it has no visitor backend");
+});
+
 test("no page template seeds a block that cannot serve a visitor", async () => {
   // The palette gate is not enough on its own. A template builds a page
   // directly, so it walks straight past the palette — and the "Contact" and

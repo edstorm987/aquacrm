@@ -41,6 +41,23 @@ describe("agency portals workspace", () => {
     assert.ok(workspace.includes("/portal/agency/portals/editor"));
   });
 
+  it("keeps the editor page, loader and API on the same Portals element decision", () => {
+    const editorPage = read("src", "app", "portal", "agency", "portals", "editor", "page.tsx");
+    const loader = read("src", "engines", "editor", "server", "portalStudio.ts");
+    const api = read("src", "app", "api", "portal", "client-portal-design", "route.ts");
+
+    assert.match(editorPage, /requireCurrentWorkspaceElementAccess\("fulfilment", "fulfilment\.portals", "manage"\)/);
+    assert.match(editorPage, /workspaceElementLevel\(access, "fulfilment\.portals"\) === "manage"/);
+    assert.match(editorPage, /loadPortalStudioProps\(\{ agencyId, userId: actor\.session\.userId, canManage, query \}\)/);
+    assert.match(loader, /canManage: input\.canManage/);
+    assert.doesNotMatch(loader, /role === "agency-owner" \|\| role === "agency-manager"/);
+    assert.match(api, /requireCurrentWorkspaceElementAccess\([\s\S]*?"fulfilment\.portals"/);
+    assert.match(editorPage, /assistantCanManage=\{canUseManagerTools\}/);
+    assert.match(editorPage, /canManageProjectConnections=\{canUseManagerTools\}/);
+    assert.match(editorPage, /canRebindProjectConnections=\{canUseManagerTools\}/);
+    assert.match(editorPage, /developerModeAvailable=\{!actor\.session\.publicShowcase && canUseManagerTools\}/);
+  });
+
   it("previews the canonical live portal and connects products to the real studio", () => {
     const page = read("src", "app", "portal", "agency", "portals", "page.tsx");
     const workspace = read("src", "app", "portal", "agency", "portals", "_PortalsWorkspace.tsx");

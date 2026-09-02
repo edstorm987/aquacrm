@@ -24,6 +24,7 @@ import {
   writeFileSync,
 } from "fs";
 import { randomUUID } from "crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { dirname, resolve } from "path";
 import { workUnitAsyncStorage } from "next/dist/server/app-render/work-unit-async-storage.external";
 import {
@@ -51,6 +52,7 @@ import {
   diffStorageValue,
   type StoragePatchOperation,
 } from "./storagePatch";
+import { isRemoteOperationError } from "@/lib/server/remoteOperation";
 import {
   applyDevTeamWorkspaceFileMutations as applyDevTeamWorkspaceMutationsToState,
   DevTeamWorkspaceConflictError,
@@ -171,8 +173,18 @@ interface Backend {
   persistent: boolean;
   description: string;
   loadBlob(realmId: string): Promise<string | null>;
+  loadBlobWithSidecars?(
+    sidecars: Array<{ slug: string; key: string }>,
+    realmId: string,
+  ): Promise<{ mainBlob: string; sidecarBlobs: Record<string, string> }>;
   saveBlob(content: string, realmId: string): Promise<void>;
-  applyPatch?(operations: StoragePatchOperation[], realmId: string): Promise<string>;
+  applyPatch?(operations: StoragePatchOperation[], operationId: string, realmId: string): Promise<string>;
+  applyPatchWithSidecars?(
+    operations: StoragePatchOperation[],
+    sidecars: Array<{ slug: string; key: string; operations: StoragePatchOperation[] }>,
+    operationId: string,
+    realmId: string,
+  ): Promise<{ mainBlob: string; sidecarBlobs: Record<string, string> }>;
   /**
    * Load the Dev Team workspace files from their own datastore row.
    *
@@ -298,13 +310,21 @@ const supabaseBackend: Backend = {
     const { loadBlob } = await import("./storageSupabase");
     return loadBlob({}, realmId);
   },
+  async loadBlobWithSidecars(sidecars, realmId) {
+    const { loadBlobWithSidecars } = await import("./storageSupabase");
+    return loadBlobWithSidecars(sidecars, {}, realmId);
+  },
   async saveBlob(content, realmId) {
     const { saveBlob } = await import("./storageSupabase");
     return saveBlob(content, {}, realmId);
   },
-  async applyPatch(operations, realmId) {
+  async applyPatch(operations, operationId, realmId) {
     const { applyPatch } = await import("./storageSupabase");
-    return applyPatch(operations, {}, realmId);
+    return applyPatch(operations, { operationId }, realmId);
+  },
+  async applyPatchWithSidecars(operations, sidecars, operationId, realmId) {
+    const { applyPatchWithSidecars } = await import("./storageSupabase");
+    return applyPatchWithSidecars(operations, sidecars, { operationId }, realmId);
   },
   async loadSidecarBlob(slug, realmId) {
     const { loadSidecarBlob } = await import("./storageSupabase");
@@ -466,7 +486,13 @@ interface RealmRuntime {
   mutationVersion: number;
   persistedVersion: number;
   lastFlushError: Error | null;
+  /** Durable main/sidecar outcome must be reloaded before another write. */
+  reconciliationRequired: Error | null;
+  /** Exact operations required to make an unknown durable outcome definite. */
+  reconciliationPlan: RealmReconciliationPlan | null;
   pendingPatchOperations: StoragePatchOperation[];
+  activeAtomicCommit: PortalStateCommitCapture | null;
+  atomicCommitTail: Promise<void>;
   hydrated: boolean;
   hydratePromise: Promise<void> | null;
   remoteRefreshPromise: Promise<void> | null;
@@ -488,6 +514,38 @@ interface RealmRuntime {
   /** Sidecar slugs confirmed to hold their collection. See `SIDECAR_COLLECTIONS`. */
   sidecarPopulated: Set<string>;
 }
+
+interface RealmReconciliationPlan {
+  /** The durable receipt makes replay return without reapplying over successors. */
+  mainPatch: {
+    operations: StoragePatchOperation[];
+    sidecars: Array<{ slug: string; key: string; operations: StoragePatchOperation[] }>;
+    operationId: string;
+    /** Exact in-memory operations covered by this receipt; identity is intentional. */
+    capturedPendingOperations: StoragePatchOperation[];
+  } | null;
+}
+
+interface PortalStateCommitCapture {
+  recording: boolean;
+  committed: PortalState;
+  operations: StoragePatchOperation[];
+}
+
+interface PortalStateMutationTransaction {
+  active: boolean;
+  realmId: string;
+  base: PortalState;
+  working: PortalState;
+  beforeCommit?: () => void | Promise<void>;
+}
+
+// Coordinated operations build against an isolated state snapshot. Until the
+// operation succeeds, ordinary readers keep seeing the last committed cache
+// and the file backend keeps serving the last committed JSON document. This is
+// deliberately request-scoped: nested domain calls share the same working
+// tree, while unrelated requests cannot observe half-written row/index sets.
+const portalStateMutationTransactions = new AsyncLocalStorage<PortalStateMutationTransaction>();
 
 const realmRuntimes = new Map<string, RealmRuntime>();
 
@@ -516,6 +574,8 @@ const MAX_REALM_RUNTIMES = 25;
 function realmRuntimeIsEvictable(runtime: RealmRuntime): boolean {
   return runtime.flushTimer === null
     && runtime.flushInFlight === null
+    && runtime.activeAtomicCommit === null
+    && runtime.reconciliationRequired === null
     && runtime.pendingPatchOperations.length === 0
     && runtime.mutationVersion === runtime.persistedVersion;
 }
@@ -562,7 +622,11 @@ function realmRuntime(realmId = getActiveDataRealmId()): RealmRuntime {
     mutationVersion: 0,
     persistedVersion: 0,
     lastFlushError: null,
+    reconciliationRequired: null,
+    reconciliationPlan: null,
     pendingPatchOperations: [],
+    activeAtomicCommit: null,
+    atomicCommitTail: Promise.resolve(),
     hydrated: false,
     hydratePromise: null,
     remoteRefreshPromise: null,
@@ -598,6 +662,43 @@ function enterSignedRequestRealm(preserveExplicitRealm: boolean): string {
   return enterDataRealm(realmId);
 }
 
+/**
+ * Make every ambiguous durable operation definite before the cache is
+ * reloaded and the realm becomes writable again.
+ *
+ * An unknown patch is retried with the same durable operation receipt. The
+ * database either completes the original main+sidecar transaction or returns
+ * current authoritative rows without reapplying over a successor.
+ */
+async function reconcileRealm(runtime: RealmRuntime, realmId: string): Promise<void> {
+  const plan = runtime.reconciliationPlan;
+  if (!plan) return;
+
+  if (plan.mainPatch) {
+    if (plan.mainPatch.sidecars.length > 0) {
+      if (!backend.applyPatchWithSidecars) {
+        throw new Error("[portal] cannot reconcile an unknown atomic sidecar patch on this storage backend.");
+      }
+      await backend.applyPatchWithSidecars(
+        plan.mainPatch.operations,
+        plan.mainPatch.sidecars,
+        plan.mainPatch.operationId,
+        realmId,
+      );
+    } else {
+      if (!backend.applyPatch) {
+        throw new Error("[portal] cannot reconcile an unknown main patch on this storage backend.");
+      }
+      await backend.applyPatch(plan.mainPatch.operations, plan.mainPatch.operationId, realmId);
+    }
+    // The receipt has now confirmed these exact operations durable. Remove
+    // only their original queue objects; operations appended by another
+    // request while the write was in flight must survive hydration and flush.
+    const confirmed = new Set(plan.mainPatch.capturedPendingOperations);
+    runtime.pendingPatchOperations = runtime.pendingPatchOperations.filter(operation => !confirmed.has(operation));
+  }
+}
+
 export async function ensureHydrated(options?: {
   fresh?: boolean;
   /** Server-only escape hatch for code already wrapped in runInDataRealm(). */
@@ -606,20 +707,36 @@ export async function ensureHydrated(options?: {
   const realmId = enterSignedRequestRealm(options?.preserveExplicitRealm === true);
   const runtime = realmRuntime(realmId);
   const dataFile = dataFileForRealm(realmId);
+  const needsReconciliation = runtime.reconciliationRequired !== null;
   const shouldRefreshPersistent =
     options?.fresh === true &&
     (backend.kind === "supabase" || backend.kind === "postgres" || backend.kind === "file");
 
-  if (shouldRefreshPersistent && runtime.hydrated) {
+  if ((shouldRefreshPersistent || needsReconciliation) && runtime.hydrated) {
     if (!runtime.remoteRefreshPromise) {
       runtime.remoteRefreshPromise = (async () => {
-        // Never replace local changes with a remote snapshot that predates
-        // them. Mutation routes explicitly flush before returning, while this
-        // also protects callers during a warm server transition.
-        await flushPendingWrites();
+        if (needsReconciliation) {
+          // Wait until the failed atomic lane has restored its committed cache
+          // view, then complete the exact durable reconciliation plan. No
+          // mutation can be flushed while the realm is fenced.
+          await runtime.atomicCommitTail.catch(() => undefined);
+          await reconcileRealm(runtime, realmId);
+        } else {
+          // Never replace local changes with a remote snapshot that predates
+          // them. Mutation routes explicitly flush before returning, while this
+          // also protects callers during a warm server transition.
+          await flushPendingWrites();
+        }
         runtime.hydrated = false;
         runtime.hydratePromise = null;
         await ensureHydrated({ preserveExplicitRealm: options?.preserveExplicitRealm });
+        // Mutations from unrelated requests may have arrived while the failed
+        // atomic write was in flight. Hydration reapplies those retained
+        // patches; persist them before the reconciliation fence is considered
+        // fully cleared, even if the request that triggered recovery is read-only.
+        if (needsReconciliation && runtime.pendingPatchOperations.length > 0) {
+          await flushPendingWrites();
+        }
       })().finally(() => {
         runtime.remoteRefreshPromise = null;
       });
@@ -637,6 +754,14 @@ export async function ensureHydrated(options?: {
   if (runtime.hydrated) return;
   if (!runtime.hydratePromise) {
     runtime.hydratePromise = (async () => {
+      const reconciliationAtStart = runtime.reconciliationRequired;
+      const cacheBeforeReconciliation = reconciliationAtStart ? runtime.cache : null;
+      const sidecarsBeforeReconciliation = reconciliationAtStart
+        ? new Set(runtime.sidecarPopulated)
+        : null;
+      const pendingBeforeReconciliation = reconciliationAtStart
+        ? structuredClone(runtime.pendingPatchOperations)
+        : null;
       const isDeployedProduction =
         process.env.NODE_ENV === "production" &&
         Boolean(process.env.VERCEL_ENV) &&
@@ -647,7 +772,13 @@ export async function ensureHydrated(options?: {
         );
       }
       try {
-        let raw = await backend.loadBlob(realmId);
+        const ownedSidecarSpecs = SIDECAR_COLLECTIONS
+          .filter(entry => !entry.dedicatedWriter)
+          .map(entry => ({ slug: entry.slug, key: entry.key }));
+        const coherentSnapshot = backend.loadBlobWithSidecars
+          ? await backend.loadBlobWithSidecars(ownedSidecarSpecs, realmId)
+          : null;
+        let raw = coherentSnapshot?.mainBlob ?? await backend.loadBlob(realmId);
         // R027 dual-read fallback. When Postgres is configured but the
         // blob row is missing (fresh DB / partial migration), read from
         // the file backend once, hydrate the cache, and stamp Postgres
@@ -686,6 +817,7 @@ export async function ensureHydrated(options?: {
           }
         }
         runtime.cache = raw ? parseBlob(raw) : empty();
+        runtime.sidecarPopulated.clear();
         // The Dev Team workspace files live in their own row on backends that
         // support it — 967 KB of a 3.25 MB document when this was measured.
         //
@@ -698,11 +830,15 @@ export async function ensureHydrated(options?: {
         if (backend.loadSidecarBlob && runtime.cache) {
           try {
             for (const sidecarCollection of SIDECAR_COLLECTIONS) {
-              const sidecar = await backend.loadSidecarBlob(sidecarCollection.slug, realmId);
+              const sidecar = sidecarCollection.dedicatedWriter || !coherentSnapshot
+                ? await backend.loadSidecarBlob(sidecarCollection.slug, realmId)
+                : coherentSnapshot.sidecarBlobs[sidecarCollection.slug];
               if (!sidecar) continue;
-              const parsed = JSON.parse(sidecar) as Record<string, Record<string, unknown> | undefined>;
+              const parsed = JSON.parse(sidecar) as Record<string, unknown>;
               const held = parsed[sidecarCollection.key];
-              if (held && Object.keys(held).length > 0) {
+              const authoritative = parsed.__aquaSidecarAuthoritative === true
+                || Boolean(held && typeof held === "object" && !Array.isArray(held) && Object.keys(held).length > 0);
+              if (held && typeof held === "object" && !Array.isArray(held) && authoritative) {
                 // The sidecar WINS where it exists; the main document is the
                 // fallback where it does not. That ordering is what makes the
                 // move safe on a project that has not been migrated: the data
@@ -712,6 +848,7 @@ export async function ensureHydrated(options?: {
               }
             }
           } catch (error) {
+            if (reconciliationAtStart) throw error;
             // A sidecar that cannot be read must not stop the portal booting:
             // the main document still carries the files until they are moved,
             // and every other collection is unaffected either way.
@@ -720,10 +857,17 @@ export async function ensureHydrated(options?: {
             }
           }
         }
-        runtime.mutationVersion = 0;
+        if (pendingBeforeReconciliation && pendingBeforeReconciliation.length > 0) {
+          runtime.cache = parseBlob(JSON.stringify(
+            applyStoragePatch(runtime.cache, pendingBeforeReconciliation),
+          ));
+        }
+        runtime.mutationVersion = pendingBeforeReconciliation?.length ? 1 : 0;
         runtime.persistedVersion = 0;
-        runtime.pendingPatchOperations = [];
+        runtime.pendingPatchOperations = pendingBeforeReconciliation ?? [];
         runtime.lastFlushError = null;
+        runtime.reconciliationRequired = null;
+        runtime.reconciliationPlan = null;
         // R025: migrate legacy single-agency user rows in place. Pure +
         // idempotent — re-running on already-migrated rows is a no-op.
         // Lazy-import to avoid pulling the migration helper into every
@@ -735,6 +879,17 @@ export async function ensureHydrated(options?: {
         }
       } catch (e) {
         const error = e instanceof Error ? e : new Error(String(e));
+        if (reconciliationAtStart) {
+          runtime.cache = cacheBeforeReconciliation;
+          runtime.sidecarPopulated.clear();
+          for (const slug of sidecarsBeforeReconciliation ?? []) runtime.sidecarPopulated.add(slug);
+          runtime.hydrated = runtime.cache !== null;
+          runtime.lastFlushError = new Error(
+            `[portal] storage reconciliation failed: ${error.message}`,
+            { cause: error },
+          );
+          throw runtime.lastFlushError;
+        }
         if (backend.kind === "file") {
           // A missing file is a valid first run; an unreadable/corrupt existing
           // file is not an empty CRM. Keep it untouched and fail visibly until
@@ -877,6 +1032,10 @@ async function flushRealm(
   options?: { throwOnError?: boolean },
 ): Promise<void> {
   if (!runtime.cache) return;
+  if (runtime.reconciliationRequired) {
+    if (options?.throwOnError) throw runtime.reconciliationRequired;
+    return;
+  }
   if (!runtime.writable) {
     if (options?.throwOnError) {
       throw runtime.lastFlushError ?? new Error(`[portal] backend "${backend.kind}" is not writable.`);
@@ -884,29 +1043,41 @@ async function flushRealm(
     return;
   }
   if (runtime.flushInFlight) await runtime.flushInFlight;
+  if (runtime.reconciliationRequired) {
+    if (options?.throwOnError) throw runtime.reconciliationRequired;
+    return;
+  }
   if (runtime.persistedVersion === runtime.mutationVersion) return;
 
   const targetVersion = runtime.mutationVersion;
-  // Where the sidecar is real, the main document must stop carrying these —
-  // otherwise the split doubles the storage instead of halving it, and two
-  // rows disagree about which copy is current.
-  //
-  // Conditional on the backend, deliberately: memory and file backends have
-  // nowhere else to put them, and excluding them there would delete a
-  // founder's workspace on save.
-  // Only collections whose sidecar is CONFIRMED populated are held back — see
-  // trap 2 on `SIDECAR_COLLECTIONS`.
+  const operationCount = runtime.pendingPatchOperations.length;
+  const capturedOperations = runtime.pendingPatchOperations.slice(0, operationCount);
+  const ownedSidecarPatches = backend.applyPatchWithSidecars
+    ? SIDECAR_COLLECTIONS
+      .filter(entry => !entry.dedicatedWriter)
+      .flatMap(entry => {
+        const collectionOperations = capturedOperations.filter(operation => operation.path[0] === entry.key);
+        const held = (runtime.cache as unknown as Record<string, unknown>)[entry.key] ?? {};
+        const seeding = !runtime.sidecarPopulated.has(entry.slug) && Object.keys(held as object).length > 0;
+        return collectionOperations.length > 0 || seeding
+          ? [{ slug: entry.slug, key: entry.key, operations: collectionOperations }]
+          : [];
+      })
+    : [];
+  // A sidecar being created in THIS transaction is cleared from main in that
+  // same database transaction. Computing this before the commit used to leave
+  // the first seed duplicated in main and allowed an empty sidecar to revive it.
   const splitOut = backend.loadSidecarBlob
-    ? SIDECAR_COLLECTIONS.filter(entry => runtime.sidecarPopulated.has(entry.slug))
+    ? SIDECAR_COLLECTIONS.filter(entry =>
+        runtime.sidecarPopulated.has(entry.slug)
+        || ownedSidecarPatches.some(sidecar => sidecar.slug === entry.slug))
     : [];
   const snapshot = JSON.stringify(
     splitOut.length > 0
       ? { ...runtime.cache, ...Object.fromEntries(splitOut.map(entry => [entry.key, {}])) }
       : runtime.cache,
   );
-  const operationCount = runtime.pendingPatchOperations.length;
-  const operations = runtime.pendingPatchOperations
-    .slice(0, operationCount)
+  const operations = capturedOperations
     .filter(operation => !splitOut.some(entry => entry.key === operation.path[0]));
   // Excluding NEW operations is not enough on its own: a document written
   // before the split still holds its own copy of the files, and nothing would
@@ -918,61 +1089,117 @@ async function flushRealm(
   // is idempotent, it costs one tiny operation, and it needs no migration step
   // that somebody has to remember to run. The sidecar row is a different row,
   // so this can never race a commit in flight against it.
-  if (operations.length > 0) {
+  if (capturedOperations.length > 0 || ownedSidecarPatches.length > 0) {
     for (const entry of splitOut) {
       operations.push({ op: "set", path: [entry.key], value: {} });
     }
   }
-  // Sidecars this file OWNS the writing of. `devTeamWorkspaceFiles` is excluded
-  // because its own row-locking RPC commits it; writing it here as well would
-  // race that lock.
-  const ownedSidecars = backend.saveSidecarBlob
-    ? SIDECAR_COLLECTIONS.filter(entry => !entry.dedicatedWriter)
-    : [];
+  const operationId = randomUUID();
   const dataFile = dataFileForRealm(realmId);
   runtime.flushInFlight = (async () => {
+    let mainWriteUnresolved = false;
+    let requiresReconciliation = false;
+    let durableResponseReceived = false;
     try {
-      // ── Sidecars are written BEFORE the main document, always ───────────
-      //
-      // The main write is what clears the collection from the portal
-      // document. Doing that first and then failing to write the sidecar
-      // would destroy the data — and a network blip between two writes is an
-      // ordinary event, not a hypothetical. This order means the worst case is
-      // a duplicate copy for one flush, which the next clear removes.
-      //
-      // A sidecar is written when its collection CHANGED, and once at the
-      // start when it has never been written — the latter is the seeding step
-      // that lets `sidecarPopulated` become true at all, and therefore the
-      // thing that allows the clear above to ever fire.
-      for (const entry of ownedSidecars) {
-        const held = (runtime.cache as unknown as Record<string, unknown>)[entry.key] ?? {};
-        const changed = runtime.pendingPatchOperations
-          .slice(0, operationCount)
-          .some(operation => operation.path[0] === entry.key);
-        const seeding = !runtime.sidecarPopulated.has(entry.slug) && Object.keys(held as object).length > 0;
-        if (!changed && !seeding) continue;
-        await backend.saveSidecarBlob!(entry.slug, JSON.stringify({ [entry.key]: held }), realmId);
-        runtime.sidecarPopulated.add(entry.slug);
+      const writeMain = async (): Promise<{ mainBlob: string | null; sidecarBlobs: Record<string, string> }> => {
+        if (ownedSidecarPatches.length > 0 && backend.applyPatchWithSidecars) {
+          const saved = await backend.applyPatchWithSidecars(operations, ownedSidecarPatches, operationId, realmId);
+          return saved;
+        }
+        if (backend.applyPatch) {
+          if (operations.length === 0) return { mainBlob: null, sidecarBlobs: {} };
+          return { mainBlob: await backend.applyPatch(operations, operationId, realmId), sidecarBlobs: {} };
+        }
+        await backend.saveBlob(snapshot, realmId);
+        return { mainBlob: null, sidecarBlobs: {} };
+      };
+      let saved: { mainBlob: string | null; sidecarBlobs: Record<string, string> };
+      try {
+        saved = await writeMain();
+      } catch (firstMainError) {
+        if (
+          backend.applyPatch
+          && (operations.length > 0 || ownedSidecarPatches.length > 0)
+          && isRemoteOperationError(firstMainError)
+          && firstMainError.outcomeUnknown
+        ) {
+          // The durable operation receipt makes this an exact replay, not
+          // f(f(x)): if the first transaction committed, the database returns
+          // current rows without applying these operations over successors.
+          try {
+            saved = await writeMain();
+          } catch (retryError) {
+            mainWriteUnresolved = true;
+            requiresReconciliation = true;
+            throw new Error(
+              `${firstMainError.message} Exact main-patch reconciliation retry also failed: ${retryError instanceof Error ? retryError.message : String(retryError)}`,
+              { cause: new AggregateError([firstMainError, retryError]) },
+            );
+          }
+        } else {
+          if (isRemoteOperationError(firstMainError) && firstMainError.outcomeUnknown) {
+            mainWriteUnresolved = true;
+            requiresReconciliation = true;
+          }
+          throw firstMainError;
+        }
       }
-
-      const savedBlob = backend.applyPatch && operations.length > 0
-        ? await backend.applyPatch(operations, realmId)
-        : (await backend.saveBlob(snapshot, realmId), null);
-
-      if (savedBlob) {
-        runtime.pendingPatchOperations.splice(0, operationCount);
-        const remoteState = parseBlob(savedBlob);
-        runtime.cache = runtime.pendingPatchOperations.length > 0
-          ? parseBlob(JSON.stringify(applyStoragePatch(remoteState, runtime.pendingPatchOperations)))
+      durableResponseReceived = true;
+      let nextCache: PortalState | null = null;
+      const populatedSidecars: string[] = [];
+      if (saved.mainBlob) {
+        const remoteState = parseBlob(saved.mainBlob);
+        for (const sidecar of ownedSidecarPatches) {
+          const sidecarBlob = saved.sidecarBlobs[sidecar.slug];
+          if (!sidecarBlob) throw new Error(`[portal] atomic sidecar response omitted "${sidecar.slug}".`);
+          const parsed = JSON.parse(sidecarBlob) as Record<string, unknown>;
+          (remoteState as unknown as Record<string, unknown>)[sidecar.key] = parsed[sidecar.key] ?? {};
+          populatedSidecars.push(sidecar.slug);
+        }
+        for (const entry of splitOut) {
+          if (ownedSidecarPatches.some(sidecar => sidecar.slug === entry.slug)) continue;
+          (remoteState as unknown as Record<string, unknown>)[entry.key] =
+            (runtime.cache as unknown as Record<string, unknown>)[entry.key] ?? {};
+        }
+        const remainingOperations = runtime.pendingPatchOperations.slice(operationCount);
+        nextCache = remainingOperations.length > 0
+          ? parseBlob(JSON.stringify(applyStoragePatch(remoteState, remainingOperations)))
           : remoteState;
       }
+      runtime.pendingPatchOperations.splice(0, operationCount);
+      for (const slug of populatedSidecars) runtime.sidecarPopulated.add(slug);
+      if (nextCache) runtime.cache = nextCache;
       runtime.persistedVersion = targetVersion;
       runtime.lastFlushError = null;
       if (backend.kind === "file" && existsSync(dataFile)) {
         runtime.fileSnapshotMtimeMs = statSync(dataFile).mtimeMs;
       }
     } catch (e) {
-      runtime.lastFlushError = e instanceof Error ? e : new Error(String(e));
+      const primaryError = e instanceof Error ? e : new Error(String(e));
+      runtime.lastFlushError = primaryError;
+      // A transport-successful commit whose authoritative state cannot be
+      // decoded locally is still durable. Keep the exact receipt and fence the
+      // realm; treating this as an ordinary rollback would drop retry state.
+      if (durableResponseReceived) {
+        mainWriteUnresolved = true;
+        requiresReconciliation = true;
+      }
+      if (requiresReconciliation) {
+        runtime.reconciliationRequired = runtime.lastFlushError;
+        runtime.reconciliationPlan = {
+          mainPatch:
+            mainWriteUnresolved
+              && (operations.length > 0 || ownedSidecarPatches.length > 0)
+              && (backend.applyPatch || backend.applyPatchWithSidecars)
+              ? {
+                  operations: structuredClone(operations),
+                  sidecars: structuredClone(ownedSidecarPatches),
+                  operationId,
+                  capturedPendingOperations: capturedOperations.slice(),
+                }
+              : null,
+        };
+      }
       // A remote timeout or brief outage is recoverable. Keep the pending
       // operations and allow the next mutation or explicit flush to retry.
       // Only a failed local file write indicates a process-level read-only
@@ -1001,7 +1228,16 @@ function scheduleFlush(realmId: string, runtime: RealmRuntime) {
 }
 
 export function getState(): PortalState {
-  return realmRuntime().cache ?? empty();
+  const realmId = getActiveDataRealmId();
+  const transaction = portalStateMutationTransactions.getStore();
+  if (transaction?.active && transaction.realmId === realmId) return transaction.working;
+  const runtime = realmRuntime(realmId);
+  // The backend write for an atomic transaction may still be in flight. Its
+  // tentative replacement lives in `runtime.cache` for the flush machinery,
+  // but unrelated request code must keep seeing the last committed view until
+  // that write succeeds. Concurrent ordinary mutations update both views.
+  if (runtime.activeAtomicCommit?.recording) return runtime.activeAtomicCommit.committed;
+  return runtime.cache ?? empty();
 }
 
 function workspaceConflictFrom(error: unknown): DevTeamWorkspaceConflictError | null {
@@ -1090,16 +1326,197 @@ export function commitDevTeamWorkspaceFiles(
   return run;
 }
 
+function replacePortalState(target: PortalState, replacement: PortalState): void {
+  const targetRecord = target as unknown as Record<string, unknown>;
+  for (const key of Object.keys(targetRecord)) delete targetRecord[key];
+  Object.assign(targetRecord, replacement as unknown as Record<string, unknown>);
+}
+
+async function commitPortalStateMutationTransactionInLane(
+  transaction: PortalStateMutationTransaction,
+  runtime: RealmRuntime,
+): Promise<void> {
+  const operations = diffStorageValue(transaction.base, transaction.working);
+  if (operations.length === 0) {
+    await portalStateMutationTransactions.exit(() => flushPendingWrites());
+    return;
+  }
+
+  // Coordinators use this boundary to prove that a remote lease still belongs
+  // to this operation immediately before any durable state can change. Keep it
+  // after the potentially expensive clone/diff work, and run it for explicit
+  // transaction checkpoints as well as the final commit.
+  await transaction.beforeCommit?.();
+
+  // The lease check above can await the database. Snapshot and merge only after
+  // it returns: an ordinary local writer may have committed a disjoint branch
+  // while renewal was in flight, and merging from the earlier cache would erase
+  // that write at the very boundary intended to make this transaction safe.
+  const beforeCommit = structuredClone(runtime.cache ?? empty());
+  const beforeMutationVersion = runtime.mutationVersion;
+  const beforePersistedVersion = runtime.persistedVersion;
+  const beforeLastFlushError = runtime.lastFlushError;
+  const beforeWritable = runtime.writable;
+  const merged = applyStoragePatch(runtime.cache ?? empty(), operations);
+  const commitCapture: PortalStateCommitCapture = {
+    recording: false,
+    committed: structuredClone(beforeCommit),
+    operations: [],
+  };
+  runtime.activeAtomicCommit = commitCapture;
+  const transactionPatchOperations = new Set<StoragePatchOperation>();
+  let transactionMutationVersion = beforeMutationVersion;
+  try {
+    await portalStateMutationTransactions.exit(async () => {
+      const patchStart = runtime.pendingPatchOperations.length;
+      mutate(state => replacePortalState(state, merged));
+      for (const operation of runtime.pendingPatchOperations.slice(patchStart)) {
+        transactionPatchOperations.add(operation);
+      }
+      transactionMutationVersion = runtime.mutationVersion;
+      commitCapture.recording = true;
+      await flushPendingWrites();
+    });
+    transaction.base = structuredClone(transaction.working);
+  } catch (error) {
+    commitCapture.recording = false;
+    const failedMutationVersion = runtime.mutationVersion;
+    const retainedPending = runtime.pendingPatchOperations.filter(
+      operation => !transactionPatchOperations.has(operation),
+    );
+    if (runtime.flushTimer) clearTimeout(runtime.flushTimer);
+    runtime.flushTimer = null;
+    // Roll back only this transaction. Mutations made by another async request
+    // while the failed backend call was in flight remain pending and visible.
+    runtime.cache = parseBlob(JSON.stringify(applyStoragePatch(beforeCommit, commitCapture.operations)));
+    runtime.pendingPatchOperations = retainedPending;
+    const concurrentMutationCount = Math.max(0, failedMutationVersion - transactionMutationVersion);
+    runtime.mutationVersion = beforeMutationVersion + concurrentMutationCount;
+    runtime.persistedVersion = Math.min(
+      runtime.mutationVersion,
+      Math.max(beforePersistedVersion, runtime.persistedVersion),
+    );
+    // A failed local file replacement deliberately makes the process
+    // read-only. A remote revision/unknown-outcome fence must also survive the
+    // optimistic cache rollback; only a fully compensated definitive failure
+    // can return to the pre-commit bookkeeping.
+    if (backend.kind !== "file" && !runtime.reconciliationRequired) {
+      runtime.lastFlushError = beforeLastFlushError;
+      runtime.writable = beforeWritable;
+    }
+    if (
+      runtime.writable
+      && !runtime.reconciliationRequired
+      && runtime.mutationVersion !== runtime.persistedVersion
+      && (!backend.applyPatch || runtime.pendingPatchOperations.length > 0)
+    ) {
+      scheduleFlush(transaction.realmId, runtime);
+    }
+    throw error;
+  } finally {
+    commitCapture.recording = false;
+    if (runtime.activeAtomicCommit === commitCapture) runtime.activeAtomicCommit = null;
+  }
+}
+
+async function commitPortalStateMutationTransaction(
+  transaction: PortalStateMutationTransaction,
+): Promise<void> {
+  const runtime = realmRuntime(transaction.realmId);
+  // Different Supabase workspace keys may execute their domain work in
+  // parallel, but they share one in-process cache. Serialize only the short
+  // publish/flush phase so one tentative tree can never become another
+  // transaction's base or overwrite its rollback view.
+  const previous = runtime.atomicCommitTail;
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const tail = previous.catch(() => undefined).then(() => gate);
+  runtime.atomicCommitTail = tail;
+  await previous.catch(() => undefined);
+  try {
+    await commitPortalStateMutationTransactionInLane(transaction, runtime);
+  } finally {
+    release();
+  }
+}
+
+/**
+ * Run one coordinated mutation against an isolated state tree and publish its
+ * complete diff in one durable commit. A thrown operation is discarded before
+ * it can reach the shared cache or backend. Nested coordinated domain calls
+ * reuse the outer working tree and therefore commit as one unit.
+ */
+export async function withAtomicPortalStateMutation<T>(
+  operation: () => T | Promise<T>,
+  options: { beforeCommit?: () => void | Promise<void> } = {},
+): Promise<T> {
+  const realmId = getActiveDataRealmId();
+  const runtime = realmRuntime(realmId);
+  if (runtime.reconciliationRequired) throw runtime.reconciliationRequired;
+  const inherited = portalStateMutationTransactions.getStore();
+  if (inherited?.active) {
+    if (inherited.realmId !== realmId) {
+      throw new Error("portal_state_transaction_cannot_change_realm");
+    }
+    return operation();
+  }
+
+  if (!runtime.cache) runtime.cache = empty();
+  const base = structuredClone(
+    runtime.activeAtomicCommit?.recording
+      ? runtime.activeAtomicCommit.committed
+      : runtime.cache,
+  );
+  const transaction: PortalStateMutationTransaction = {
+    active: true,
+    realmId,
+    base,
+    working: structuredClone(base),
+    beforeCommit: options.beforeCommit,
+  };
+  let result: T;
+  try {
+    result = await portalStateMutationTransactions.run(
+      transaction,
+      () => Promise.resolve(operation()),
+    );
+  } finally {
+    // Async resources created by the operation retain this store. They must
+    // never keep reading or mutating a working tree after its owner returned.
+    transaction.active = false;
+  }
+  await commitPortalStateMutationTransaction(transaction);
+  return result;
+}
+
 export function mutate(fn: (state: PortalState) => void): void {
   const realmId = getActiveDataRealmId();
   const runtime = realmRuntime(realmId);
+  if (runtime.reconciliationRequired) throw runtime.reconciliationRequired;
+  const transaction = portalStateMutationTransactions.getStore();
+  if (transaction?.active && transaction.realmId === realmId) {
+    fn(transaction.working);
+    return;
+  }
   if (!runtime.cache) runtime.cache = empty();
-  const before = backend.applyPatch ? structuredClone(runtime.cache) : null;
-  fn(runtime.cache);
+  const activeCommit = runtime.activeAtomicCommit;
+  // Once an atomic commit starts flushing, unrelated mutations are evaluated
+  // against the committed view, then replayed onto the tentative cache as a
+  // patch. This keeps failed/tentative transaction state invisible without
+  // running a caller's mutation callback twice (callbacks may allocate ids).
+  const mutationTarget = activeCommit?.recording ? activeCommit.committed : runtime.cache;
+  const before = backend.applyPatch || activeCommit?.recording
+    ? structuredClone(mutationTarget)
+    : null;
+  fn(mutationTarget);
   if (before) {
-    const operations = diffStorageValue(before, runtime.cache);
+    const operations = diffStorageValue(before, mutationTarget);
     if (operations.length === 0) return;
-    runtime.pendingPatchOperations.push(...operations);
+    if (activeCommit?.recording) {
+      activeCommit.operations.push(...operations);
+      runtime.cache = parseBlob(JSON.stringify(applyStoragePatch(runtime.cache, operations)));
+    }
+    if (backend.applyPatch) runtime.pendingPatchOperations.push(...operations);
   }
   runtime.mutationVersion += 1;
   if (backend.kind === "file" && runtime.writable) {
@@ -1132,6 +1549,11 @@ export function mutate(fn: (state: PortalState) => void): void {
  * the next request may execute in a different process with a different cache.
  */
 export async function flushPendingWrites(): Promise<void> {
+  const transaction = portalStateMutationTransactions.getStore();
+  if (transaction?.active) {
+    await commitPortalStateMutationTransaction(transaction);
+    return;
+  }
   const realmId = getActiveDataRealmId();
   const runtime = realmRuntime(realmId);
   if (runtime.flushTimer) {
@@ -1144,6 +1566,7 @@ export async function flushPendingWrites(): Promise<void> {
 export async function reset(): Promise<void> {
   const realmId = getActiveDataRealmId();
   const runtime = realmRuntime(realmId);
+  if (runtime.reconciliationRequired) throw runtime.reconciliationRequired;
   runtime.cache = empty();
   runtime.pendingPatchOperations = [];
   runtime.hydrated = true;
@@ -1152,7 +1575,8 @@ export async function reset(): Promise<void> {
 }
 
 export function isPersistent(): boolean {
-  return backend.persistent && realmRuntime().writable;
+  const runtime = realmRuntime();
+  return backend.persistent && runtime.writable && !runtime.reconciliationRequired;
 }
 
 export interface BackendInfo {
@@ -1172,7 +1596,7 @@ export function getBackendInfo(): BackendInfo {
     persistent: backend.persistent,
     description: backend.description,
     hydrated: runtime.hydrated,
-    writable: runtime.writable,
+    writable: runtime.writable && !runtime.reconciliationRequired,
     realmId,
   };
 }
@@ -1196,6 +1620,8 @@ export async function replaceDataRealmState(realmId: string, state: PortalState)
     runtime.mutationVersion += 1;
     runtime.persistedVersion = runtime.mutationVersion - 1;
     runtime.lastFlushError = null;
+    runtime.reconciliationRequired = null;
+    runtime.reconciliationPlan = null;
     await flushRealm(valid, runtime, { throwOnError: true });
   });
 }

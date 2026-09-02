@@ -7,6 +7,7 @@ import {
   RESPONSIVE_CANVAS_PANE_CSS,
   responsiveCanvasPaneAttributes,
 } from "../src/engines/editor/editing/responsiveCanvasPanes";
+import { RESPONSIVE_EDITOR_TOOLBAR_CSS } from "../src/engines/editor/editing/responsiveEditorToolbar";
 
 const editor = readFileSync(new URL("../src/engines/editor/DevEditor.tsx", import.meta.url), "utf8");
 const previewControl = readFileSync(new URL("../src/components/editing/RepositoryPreviewControl.tsx", import.meta.url), "utf8");
@@ -71,13 +72,35 @@ test("compact pane CSS survives compilation and force-hides only the inactive pa
 test("compact editor controls wrap or scroll inside their own available width", () => {
   assert.match(editor, /row-start-2 flex min-w-0 flex-wrap items-center/);
   assert.match(editor, /row-start-3 grid min-w-0 grid-cols-1/);
-  assert.match(editor, /sm:grid-cols-2[\s\S]{0,180}?xl:flex/);
+  assert.match(editor, /sm:grid-cols-2/);
   assert.match(editor, /col-span-full flex min-w-0 items-center justify-start/);
 
   // URL, Load and handshake status use two bounded grid rows, rather than a
   // flex line whose right-hand actions disappear inside a half-width pane.
   assert.match(editor, /grid grid-cols-\[auto_minmax\(0,1fr\)_auto\] items-center gap-1\.5/);
   assert.match(editor, /col-span-2 col-start-2 flex min-w-0[\s\S]{0,100}?TagBridgeBadge/);
+});
+
+test("the one-line editor toolbar responds to editor width, not viewport width", () => {
+  const compiled = transform({
+    code: Buffer.from(RESPONSIVE_EDITOR_TOOLBAR_CSS),
+    minify: true,
+  }).code.toString();
+
+  assert.match(editor, /className="mm-dev-editor-shell [^"]+"/);
+  assert.match(editor, /<style>\{RESPONSIVE_EDITOR_TOOLBAR_CSS\}<\/style>/);
+  assert.match(editor, /<header data-dev-editor-toolbar/);
+  assert.match(editor, /data-dev-editor-publish className="col-start-3 row-start-1/);
+  assert.doesNotMatch(
+    editor,
+    /<header[^>]+\bxl:flex\b/,
+    "a viewport breakpoint must not collapse a sidebar-constrained toolbar to one row",
+  );
+
+  assert.match(compiled, /\.mm-dev-editor-shell\{container-type:inline-size\}/);
+  assert.match(compiled, /@container ?\((?:min-width:1280px|width>=1280px)\)/);
+  assert.match(compiled, /\[data-dev-editor-toolbar\]\{[^}]*display:flex/);
+  assert.match(compiled, /\[data-dev-editor-publish\]\{[^}]*(?:grid-area:auto|grid-column:auto[^}]*grid-row:auto)/);
 });
 
 test("the compact inspector remains navigable however many tools are allowed", () => {

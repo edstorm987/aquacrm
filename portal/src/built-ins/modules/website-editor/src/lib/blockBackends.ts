@@ -84,11 +84,6 @@ export const BLOCK_BACKEND_GAPS: Readonly<Record<string, BlockBackendGap>> = {
     endpoints: ["/api/portal/themes/:siteId"],
     needs: "themes",
   },
-  "blog-post": {
-    reason: "A single post cannot be loaded on a published page yet.",
-    endpoints: ["/api/portal/website-editor/blog/posts/by-slug"],
-    needs: "website-editor blog routes",
-  },
   "donation-button": {
     // Two gaps, not one. The session gap is the one this list was built for.
     // The second was found on 2026-08-31 by reading the handler instead of

@@ -4,6 +4,9 @@ import { AuthError, authErrorResponse, getSessionFromRequest } from "@/lib/serve
 import { createSopGuide, deleteSopGuide, listSopGuides, updateSopGuide } from "@/engines/sop/server/sopGuides";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES, type Role, type SopGuideAudience } from "@/server/types";
+import { privateObjectLifecycleLockKey } from "@/lib/server/privateObjectLifecycle";
+import { withPortalStateTransaction } from "@/server/productWorkspaceCoordinator";
+import { SopReferenceValidationError } from "@/engines/sop/server/sopReferences";
 
 export const runtime = "nodejs";
 
@@ -41,18 +44,21 @@ export async function POST(request: NextRequest) {
     if (!body?.title?.trim()) {
       return NextResponse.json({ ok: false, error: "title required" }, { status: 400 });
     }
-    const guide = createSopGuide({
-      agencyId: session.agencyId,
-      title: body.title,
-      description: body.description,
-      sopIds: body.sopIds ?? [],
-      quizEnabled: body.quizEnabled,
-      audience: body.audience,
-      actorUserId: session.userId,
-    });
+    const title = body.title;
+    const guide = await withPortalStateTransaction(privateObjectLifecycleLockKey(session.agencyId), () =>
+      createSopGuide({
+        agencyId: session.agencyId,
+        title,
+        description: body.description,
+        sopIds: body.sopIds ?? [],
+        quizEnabled: body.quizEnabled,
+        audience: body.audience,
+        actorUserId: session.userId,
+      }));
     return NextResponse.json({ ok: true, guide }, { status: 201 });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
+    if (error instanceof SopReferenceValidationError) return sopReferenceErrorResponse(error);
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : "Guide could not be created." }, { status: 400 });
   }
 }
@@ -70,12 +76,14 @@ export async function PATCH(request: NextRequest) {
     } | null;
     if (!body?.id) return NextResponse.json({ ok: false, error: "id required" }, { status: 400 });
     const { id, ...patch } = body;
-    const guide = updateSopGuide(session.agencyId, id, patch, session.userId);
+    const guide = await withPortalStateTransaction(privateObjectLifecycleLockKey(session.agencyId), () =>
+      updateSopGuide(session.agencyId, id, patch, session.userId));
     return guide
       ? NextResponse.json({ ok: true, guide })
       : NextResponse.json({ ok: false, error: "Guide not found" }, { status: 404 });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
+    if (error instanceof SopReferenceValidationError) return sopReferenceErrorResponse(error);
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : "Guide could not be saved." }, { status: 400 });
   }
 }
@@ -91,4 +99,14 @@ export async function DELETE(request: NextRequest) {
   } catch (error) {
     return authErrorResponse(error);
   }
+}
+
+function sopReferenceErrorResponse(error: SopReferenceValidationError) {
+  return NextResponse.json({
+    ok: false,
+    reason: error.code,
+    error: error.message,
+    field: error.field,
+    sopIds: error.sopIds,
+  }, { status: 422 });
 }

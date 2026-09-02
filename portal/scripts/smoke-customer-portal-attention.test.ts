@@ -12,6 +12,8 @@ function portalData(patch: Partial<CustomerPortalData> = {}): CustomerPortalData
     invoices: [],
     requests: [],
     workspaces: [],
+    reads: { invoices: "ready", messages: "ready" },
+    available: { invoices: true, messages: true },
     ...patch,
   } as CustomerPortalData;
 }
@@ -38,6 +40,8 @@ test("customer portal attention points to exact shell and product destinations",
   assert.deepEqual(attention.sections.support, { count: 1, label: "1 support reply is waiting" });
   assert.deepEqual(attention.modules.photography.gallery, { count: 2, label: "2 items need your decision" });
   assert.equal(attention.total, 6);
+  assert.equal(attention.state, "ready");
+  assert.deepEqual(attention.unavailableSections, {});
   assert.equal(attention.sections.home.count, 6);
 });
 
@@ -51,6 +55,29 @@ test("customer portal attention stays quiet when no customer response is require
   } as Partial<CustomerPortalData>));
 
   assert.equal(attention.total, 0);
+  assert.equal(attention.state, "ready");
   assert.deepEqual(attention.sections, {});
   assert.deepEqual(attention.modules, {});
+});
+
+test("customer portal attention marks unread billing instead of treating stale fallback rows as current", () => {
+  const attention = buildCustomerPortalAttention(portalData({
+    reads: { invoices: "unavailable", messages: "ready" },
+    available: { invoices: false, messages: true },
+    invoices: [{ id: "stale-invoice", status: "overdue" }],
+  } as Partial<CustomerPortalData>));
+
+  assert.equal(attention.total, 0, "a stale fallback invoice must not become an actionable count");
+  assert.equal(attention.state, "unavailable");
+  assert.deepEqual(attention.unavailableSections, { billing: "Billing status could not be checked" });
+  assert.deepEqual(attention.sections.billing, {
+    count: 0,
+    label: "Billing status could not be checked",
+    unavailable: true,
+  });
+  assert.deepEqual(attention.sections.home, {
+    count: 0,
+    label: "Some status could not be checked",
+    unavailable: true,
+  });
 });

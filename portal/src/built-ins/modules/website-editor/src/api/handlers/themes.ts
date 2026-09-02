@@ -7,7 +7,14 @@ import {
   setDefaultTheme,
   updateTheme,
 } from "../../server/themes";
+import { defaultThemeAppearance, type ThemeAppearance } from "../../lib/editorSettings";
 import { fail, ok, readJsonBody, readQuery, requireClientScope } from "../helpers";
+
+function explicitAppearance(value: unknown): ThemeAppearance | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === "light" || value === "dark" || value === "auto") return value;
+  return null;
+}
 
 export async function handleListThemes(req: Request, ctx: PluginCtx): Promise<Response> {
   const scope = requireClientScope(ctx);
@@ -26,16 +33,20 @@ export async function handleCreateTheme(req: Request, ctx: PluginCtx): Promise<R
     siteId?: string;
     name?: string;
     description?: string;
+    appearance?: unknown;
     tokens?: Record<string, string>;
     isDefault?: boolean;
   }>(req);
   if (!body?.siteId || !body?.name) return fail("siteId, name required", 400);
+  const requestedAppearance = explicitAppearance(body.appearance);
+  if (requestedAppearance === null) return fail("appearance must be light, dark, or auto", 400);
   const theme = await createTheme(ctx.storage, {
     siteId: body.siteId,
     agencyId: scope.agencyId,
     clientId: scope.clientId,
     name: body.name,
     description: body.description,
+    appearance: requestedAppearance ?? defaultThemeAppearance(ctx.install.config),
     tokens: body.tokens,
     isDefault: body.isDefault,
   });

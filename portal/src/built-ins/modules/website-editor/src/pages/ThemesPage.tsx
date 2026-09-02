@@ -41,7 +41,7 @@ function ThemesPageInner() {
   const [themes, setThemes] = useState<ThemeRecord[]>([]);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
-  const [newAppearance, setNewAppearance] = useState<"light" | "dark" | "auto">("auto");
+  const [newAppearance, setNewAppearance] = useState<"" | "light" | "dark" | "auto">("");
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,8 +70,11 @@ function ThemesPageInner() {
     e.preventDefault();
     if (!site || !newName.trim()) return;
     setError(null);
-    await createTheme(site.id, { name: newName.trim(), appearance: newAppearance });
-    setNewName(""); setCreating(false);
+    await createTheme(site.id, {
+      name: newName.trim(),
+      ...(newAppearance ? { appearance: newAppearance } : {}),
+    });
+    setNewName(""); setNewAppearance(""); setCreating(false);
     void refresh(site.id);
   }
 
@@ -119,7 +122,8 @@ function ThemesPageInner() {
             </label>
             <label className="block">
               <span className="block text-[10px] tracking-[0.18em] uppercase text-brand-cream/45 mb-1">Appearance</span>
-              <select value={newAppearance} onChange={e => setNewAppearance(e.target.value as "light" | "dark" | "auto")} className={INPUT}>
+              <select value={newAppearance} onChange={e => setNewAppearance(e.target.value as "" | "light" | "dark" | "auto")} className={INPUT}>
+                <option value="">Workspace default</option>
                 <option value="auto">Auto</option>
                 <option value="light">Light</option>
                 <option value="dark">Dark</option>

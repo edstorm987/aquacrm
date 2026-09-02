@@ -3,6 +3,7 @@
 // declarative `PluginApiRoute.handler` functions.
 
 import type { PluginCtx } from "../../lib/aquaPluginTypes";
+import { defaultPortalStarterId } from "../../lib/editorSettings";
 import { isPortalRole } from "../../lib/portalRole";
 import {
   createPage,
@@ -17,6 +18,7 @@ import {
   setActivePortalVariant,
 } from "../../server/pages";
 import { listAllPortalVariants } from "../../server/portalVariants";
+import { loadStarterTree } from "../../server/starterLoader";
 import { fail, ok, readJsonBody, readQuery, requireClientScope } from "../helpers";
 
 function siteIdOrFail(query: Record<string, string>): string | Response {
@@ -55,6 +57,22 @@ export async function handleCreatePage(req: Request, ctx: PluginCtx): Promise<Re
     return fail(`unknown portalRole: ${body.portalRole}`, 400);
   }
 
+  const portalRole = body.portalRole && isPortalRole(body.portalRole) ? body.portalRole : undefined;
+  let blocks = (body.blocks ?? []) as never;
+  let variantId = body.variantId;
+  if (body.blocks === undefined && portalRole) {
+    const starterId = body.variantId?.trim() || defaultPortalStarterId(ctx.install.config, portalRole);
+    if (starterId) {
+      const starter = await loadStarterTree(starterId);
+      if (!starter) return fail(`unknown variantId: ${starterId}`, 400);
+      if (starter.role !== portalRole) {
+        return fail(`variantId ${starterId} is for role ${starter.role}, called with ${portalRole}`, 400);
+      }
+      blocks = starter.blocks as never;
+      variantId = starterId;
+    }
+  }
+
   const page = await createPage(ctx.storage, {
     siteId: body.siteId,
     agencyId: scope.agencyId,
@@ -62,9 +80,9 @@ export async function handleCreatePage(req: Request, ctx: PluginCtx): Promise<Re
     slug: body.slug,
     title: body.title,
     description: body.description,
-    portalRole: body.portalRole && isPortalRole(body.portalRole) ? body.portalRole : undefined,
-    variantId: body.variantId,
-    blocks: (body.blocks ?? []) as never,
+    portalRole,
+    variantId,
+    blocks,
     themeId: body.themeId,
     isHomepage: body.isHomepage,
   });

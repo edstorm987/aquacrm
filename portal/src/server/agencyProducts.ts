@@ -7,6 +7,7 @@ import { logActivity } from "./activity";
 import { getState, mutate } from "./storage";
 import type { AgencyProduct, AgencyProductInternalWorkspace, AgencyProductKind, AgencyProductPortalMode, AgencyProductPortalRequirement, AgencyProductPortalTemplateKey, AgencyProductPricing, AgencyProductStatus, AgencyProductWorkspaceModule } from "./types";
 import { validatePortalEntityFields } from "./portalEditor";
+import { assertProductSopReferencesExist } from "@/engines/sop/server/sopReferences";
 
 export interface AgencyProductInput {
   companyIds?: string[];
@@ -218,7 +219,10 @@ export function createAgencyProduct(agencyId: string, input: AgencyProductInput,
     createdAt: now,
     updatedAt: now,
   };
-  mutate(state => { state.agencyProducts[product.id] = product; });
+  mutate(state => {
+    assertProductSopReferencesExist(state, agencyId, product);
+    state.agencyProducts[product.id] = product;
+  });
   logActivity({ agencyId, actorUserId, category: "system", action: "product.created", message: `Created product “${product.name}”.`, metadata: { productId: product.id } });
   return product;
 }
@@ -280,7 +284,10 @@ export function updateAgencyProduct(agencyId: string, productId: string, input: 
     active: status === "live",
     updatedAt: Date.now(),
   };
-  mutate(state => { state.agencyProducts[productId] = updated; });
+  mutate(state => {
+    assertProductSopReferencesExist(state, agencyId, updated);
+    state.agencyProducts[productId] = updated;
+  });
   logActivity({ agencyId, actorUserId, category: "system", action: "product.updated", message: `Updated product “${updated.name}”.`, metadata: { productId } });
   return updated;
 }

@@ -9,6 +9,9 @@ import { PortalFormValidationError } from "@/lib/forms/portalFormValues";
 import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 import { canReadClientAssociation, requireClientAssociation } from "@/lib/server/access/clientAssociationElement";
 import { requireCurrentAccessActor } from "@/server/accessControl";
+import { privateObjectLifecycleLockKey } from "@/lib/server/privateObjectLifecycle";
+import { withPortalStateTransaction } from "@/server/productWorkspaceCoordinator";
+import { SopReferenceValidationError } from "@/engines/sop/server/sopReferences";
 
 async function agencySession(request: NextRequest) {
   await ensureHydrated();
@@ -50,9 +53,11 @@ export async function POST(request: NextRequest) {
     const staff = session.role === "agency-staff";
     // Attaching an Action to a client is a write against that client.
     await requireClientAssociation("agency-task", body.clientId, "use");
-    const task = createAgencyTask({ agencyId: session.agencyId, title: body.title as string, notes: body.notes, priority: body.priority, startAt: body.startAt, dueAt: body.dueAt, reminderAt: body.reminderAt, recurrence: body.recurrence, origin: staff ? "manual" : body.origin, sourceId: staff ? undefined : body.sourceId, sourceHref: staff ? undefined : body.sourceHref, evidence: staff ? undefined : body.evidence, evidenceSourceIds: staff ? undefined : body.evidenceSourceIds, expectedOutcome: staff ? undefined : body.expectedOutcome, reconciliationSourceIds: staff ? undefined : body.reconciliationSourceIds, assigneeUserId: staff ? session.userId : body.assigneeUserId ?? (body.origin && body.origin !== "manual" ? session.userId : undefined), clientId: body.clientId, sopIds: staff ? undefined : body.sopIds, customFields: body.customFields ?? {}, createdBy: session.userId });
+    const task = await withPortalStateTransaction(privateObjectLifecycleLockKey(session.agencyId), () =>
+      createAgencyTask({ agencyId: session.agencyId, title: body.title as string, notes: body.notes, priority: body.priority, startAt: body.startAt, dueAt: body.dueAt, reminderAt: body.reminderAt, recurrence: body.recurrence, origin: staff ? "manual" : body.origin, sourceId: staff ? undefined : body.sourceId, sourceHref: staff ? undefined : body.sourceHref, evidence: staff ? undefined : body.evidence, evidenceSourceIds: staff ? undefined : body.evidenceSourceIds, expectedOutcome: staff ? undefined : body.expectedOutcome, reconciliationSourceIds: staff ? undefined : body.reconciliationSourceIds, assigneeUserId: staff ? session.userId : body.assigneeUserId ?? (body.origin && body.origin !== "manual" ? session.userId : undefined), clientId: body.clientId, sopIds: staff ? undefined : body.sopIds, customFields: body.customFields ?? {}, createdBy: session.userId }));
     return NextResponse.json({ ok: true, task }, { status: 201 });
   } catch (error) {
+    if (error instanceof SopReferenceValidationError) return sopReferenceErrorResponse(error);
     if (error instanceof TaskValidationError) return NextResponse.json({ ok: false, error: error.message, field: error.field }, { status: 400 });
     if (error instanceof PortalFormValidationError) return NextResponse.json({ ok: false, error: error.message, fieldId: error.fieldId }, { status: 422 });
     return authErrorResponse(error);
@@ -76,7 +81,8 @@ export async function PATCH(request: NextRequest) {
     await requireClientAssociation("agency-task", patch.clientId, "use");
     const submittedCustomFields = patch.customFields ?? existing?.customFields ?? {};
     const safePatch = session.role === "agency-staff" ? { title: patch.title, notes: patch.notes, status: patch.status, priority: patch.priority, startAt: patch.startAt, dueAt: patch.dueAt, reminderAt: patch.reminderAt, recurrence: patch.recurrence, clientId: patch.clientId, customFields: submittedCustomFields } : { ...patch, customFields: submittedCustomFields };
-    const task = updateAgencyTask(session.agencyId, id, safePatch, session.userId);
+    const task = await withPortalStateTransaction(privateObjectLifecycleLockKey(session.agencyId), () =>
+      updateAgencyTask(session.agencyId, id, safePatch, session.userId));
     // Log the transition INTO done, not every save of an already-done task —
     // otherwise editing a completed task's notes would log it as finished
     // again and inflate the record.
@@ -93,6 +99,7 @@ export async function PATCH(request: NextRequest) {
     const tasks = listAgencyTasks(session.agencyId);
     return task ? NextResponse.json({ ok: true, task, tasks: session.role === "agency-staff" ? tasks.filter(item => item.assigneeUserId === session.userId || item.createdBy === session.userId) : tasks }) : NextResponse.json({ ok: false, error: "task not found" }, { status: 404 });
   } catch (error) {
+    if (error instanceof SopReferenceValidationError) return sopReferenceErrorResponse(error);
     if (error instanceof TaskValidationError) return NextResponse.json({ ok: false, error: error.message, field: error.field }, { status: 400 });
     if (error instanceof PortalFormValidationError) return NextResponse.json({ ok: false, error: error.message, fieldId: error.fieldId }, { status: 422 });
     return authErrorResponse(error);
@@ -115,4 +122,14 @@ export async function DELETE(request: NextRequest) {
     await requireClientAssociation("agency-task", existing?.clientId, "use");
     return deleteAgencyTask(session.agencyId, id, session.userId) ? NextResponse.json({ ok: true }) : NextResponse.json({ ok: false, error: "task not found" }, { status: 404 });
   } catch (error) { return authErrorResponse(error); }
+}
+
+function sopReferenceErrorResponse(error: SopReferenceValidationError) {
+  return NextResponse.json({
+    ok: false,
+    reason: error.code,
+    error: error.message,
+    field: error.field,
+    sopIds: error.sopIds,
+  }, { status: 422 });
 }

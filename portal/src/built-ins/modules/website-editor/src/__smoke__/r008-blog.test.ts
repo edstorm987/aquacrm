@@ -208,6 +208,17 @@ const BODY: Block[] = [
   }), ctx);
   expect("POST without title → 400", badPost.status === 400);
 
+  const recursivePost = await handleCreateBlogPost(new Request("http://x/blog/posts", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      siteId,
+      title: "Recursive post",
+      body: [{ id: "recursive", type: "blog-post", props: { slug: "recursive-post" } }],
+    }),
+  }), ctx);
+  expect("POST rejects nested blog-post renderer → 400", recursivePost.status === 400);
+
   // GET list
   const listRes = await handleListBlogPosts(
     new Request(`http://x/blog/posts?siteId=${siteId}`), ctx,
@@ -237,6 +248,17 @@ const BODY: Block[] = [
     }), ctx,
   );
   expect("PATCH /blog/posts 200", patch200.status === 200);
+
+  const recursivePatch = await handleUpdateBlogPost(
+    new Request(`http://x/blog/posts?siteId=${siteId}&id=${createBody.post.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        body: [{ id: "recursive-update", type: "blog-post", props: { slug: "handler-post" } }],
+      }),
+    }), ctx,
+  );
+  expect("PATCH rejects nested blog-post renderer → 400", recursivePatch.status === 400);
 
   const patch404 = await handleUpdateBlogPost(
     new Request(`http://x/blog/posts?siteId=${siteId}&id=post_nope`, {

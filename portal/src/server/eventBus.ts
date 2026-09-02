@@ -16,6 +16,8 @@ import "server-only";
 // agency) actually receive the event. This is the cross-plugin router
 // the architecture has needed since Round 3.
 
+import { deferUntilPortalStateCommit } from "./productWorkspaceCoordinator";
+
 export type AquaEventName =
   // Tenant lifecycle
   | "agency.created"
@@ -127,53 +129,56 @@ export function emit<T = unknown>(
     payload,
     emittedAt: Date.now(),
   };
-  // Untyped subscribers + wildcard — fire unconditionally (these are
-  // foundation-internal listeners, not plugin subscribers).
-  const direct = [
-    ...(SUBSCRIBERS.get(name) ?? []),
-    ...WILDCARD,
-  ];
-  for (const handler of direct) {
+  const dispatch = () => {
+    // Untyped subscribers + wildcard — fire unconditionally (these are
+    // foundation-internal listeners, not plugin subscribers).
+    const direct = [
+      ...(SUBSCRIBERS.get(name) ?? []),
+      ...WILDCARD,
+    ];
+    for (const handler of direct) {
+      Promise.resolve()
+        .then(() => handler(event))
+        .catch(err => console.error(`[eventBus] handler for ${name} threw:`, err));
+    }
+    // Aqua-owned automations subscribe to the same lifecycle stream without
+    // requiring module-level registration. The lazy import avoids a storage
+    // cycle and keeps ordinary domain writes non-blocking.
     Promise.resolve()
-      .then(() => handler(event))
-      .catch(err => console.error(`[eventBus] handler for ${name} threw:`, err));
-  }
-  // Aqua-owned automations subscribe to the same lifecycle stream without
-  // requiring module-level registration. The lazy import avoids a storage
-  // cycle and keeps ordinary domain writes non-blocking.
-  Promise.resolve()
-    .then(async () => {
-      const { triggerAutomations } = await import("./automations");
-      const eventPayload = payload && typeof payload === "object" && !Array.isArray(payload)
-        ? payload as Record<string, unknown>
-        : { value: payload as unknown };
-      await triggerAutomations(event.agencyId, name, {
-        ...eventPayload,
-        ...(event.clientId ? { clientId: event.clientId } : {}),
-        emittedAt: event.emittedAt,
-      });
-    })
-    .catch(err => console.error(`[eventBus] automation trigger for ${name} failed:`, err));
-  // Plugin subscribers — tenant-filtered fan-out.
-  const plugin = PLUGIN_SUBSCRIBERS.get(name);
-  if (!plugin || plugin.length === 0) return;
-  Promise.resolve()
-    .then(async () => {
-      // Lazy import to dodge a require-cycle: pluginInstalls reads
-      // from storage, which (in some build modes) imports through this
-      // module. The import resolves once at first emit.
-      const { getInstall } = await import("./pluginInstalls");
-      for (const sub of plugin) {
-        const install =
-          getInstall({ agencyId: event.agencyId, clientId: event.clientId }, sub.pluginId)
-          ?? getInstall({ agencyId: event.agencyId }, sub.pluginId);
-        if (!install || !install.enabled) continue;
-        Promise.resolve()
-          .then(() => sub.handler(event))
-          .catch(err => console.error(`[eventBus] ${sub.pluginId}/${name} handler threw:`, err));
-      }
-    })
-    .catch(err => console.error(`[eventBus] fan-out for ${name} failed:`, err));
+      .then(async () => {
+        const { triggerAutomations } = await import("./automations");
+        const eventPayload = payload && typeof payload === "object" && !Array.isArray(payload)
+          ? payload as Record<string, unknown>
+          : { value: payload as unknown };
+        await triggerAutomations(event.agencyId, name, {
+          ...eventPayload,
+          ...(event.clientId ? { clientId: event.clientId } : {}),
+          emittedAt: event.emittedAt,
+        });
+      })
+      .catch(err => console.error(`[eventBus] automation trigger for ${name} failed:`, err));
+    // Plugin subscribers — tenant-filtered fan-out.
+    const plugin = PLUGIN_SUBSCRIBERS.get(name);
+    if (!plugin || plugin.length === 0) return;
+    Promise.resolve()
+      .then(async () => {
+        // Lazy import to dodge a require-cycle: pluginInstalls reads
+        // from storage, which (in some build modes) imports through this
+        // module. The import resolves once at first emit.
+        const { getInstall } = await import("./pluginInstalls");
+        for (const sub of plugin) {
+          const install =
+            getInstall({ agencyId: event.agencyId, clientId: event.clientId }, sub.pluginId)
+            ?? getInstall({ agencyId: event.agencyId }, sub.pluginId);
+          if (!install || !install.enabled) continue;
+          Promise.resolve()
+            .then(() => sub.handler(event))
+            .catch(err => console.error(`[eventBus] ${sub.pluginId}/${name} handler threw:`, err));
+        }
+      })
+      .catch(err => console.error(`[eventBus] fan-out for ${name} failed:`, err));
+  };
+  if (!deferUntilPortalStateCommit(dispatch)) dispatch();
 }
 
 export function describeSubscribers(): Array<{ event: string; handlers: number; pluginHandlers: number }> {

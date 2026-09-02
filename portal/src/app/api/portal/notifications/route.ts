@@ -6,15 +6,16 @@ import { listOperationalAlertViews, setOperationalAlertPreference } from "@/lib/
 import { recordCompletedAction } from "@/server/completedActions";
 import { listOperationalAlerts } from "@/lib/server/inbox/operationalAlerts";
 import { ensureHydrated, flushPendingWrites, getBackendInfo } from "@/server/storage";
-import { AGENCY_ROLES } from "@/server/types";
+import { agencyRolesForStaffWorkspaceApiPath } from "@/lib/staffWorkspacePolicy";
 
 const ACTIONS = new Set<OperationalAlertAction>(["read", "unread", "park", "dismiss"]);
 const MAX_PARK_MS = 31 * 24 * 60 * 60 * 1000;
+const NOTIFICATION_ROLES = agencyRolesForStaffWorkspaceApiPath("/api/portal/notifications");
 
 export async function GET() {
   try {
     await ensureNotificationSnapshotHydrated();
-    const session = await requireRole([...AGENCY_ROLES]);
+    const session = await requireRole([...NOTIFICATION_ROLES]);
     const alerts = await listOperationalAlerts(session.agencyId);
     return NextResponse.json({ ok: true, alerts: listOperationalAlertViews(session.agencyId, session.userId, alerts) });
   } catch (error) {
@@ -24,7 +25,7 @@ export async function GET() {
 export async function PATCH(request: Request) {
   try {
     await ensureNotificationSnapshotHydrated();
-    const session = await requireRole([...AGENCY_ROLES]);
+    const session = await requireRole([...NOTIFICATION_ROLES]);
     const body = await request.json().catch(() => null) as {
       alertId?: string;
       action?: OperationalAlertAction;

@@ -1,7 +1,17 @@
 // Server-side barrel — services + container builder + foundation adapter.
 
-export { PlanService, SEED_REPORT_KEY } from "./plans";
-export type { SeedDefaultsFailure, SeedDefaultsResult, SeedReport } from "./plans";
+export {
+  PLAN_PRICE_COMMAND_PREFIX,
+  PlanPriceOperationConflictError,
+  PlanService,
+  SEED_REPORT_KEY,
+} from "./plans";
+export type {
+  PlanPriceProvisioningCommand,
+  SeedDefaultsFailure,
+  SeedDefaultsResult,
+  SeedReport,
+} from "./plans";
 export { BenefitService } from "./benefits";
 export { SubscriptionService } from "./subscriptions";
 export { WebhookService } from "./webhook";

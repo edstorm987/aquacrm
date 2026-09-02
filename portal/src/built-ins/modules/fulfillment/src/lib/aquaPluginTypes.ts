@@ -169,6 +169,8 @@ export interface PluginApiRoute {
   methods: ("GET" | "POST" | "PATCH" | "PUT" | "DELETE")[];
   handler: (req: Request, ctx: PluginCtx) => Promise<Response>;
   requiresFeature?: string;
+  visibleToRoles?: PluginRoleVisibility[];
+  roles?: PluginRoleVisibility[];
 }
 
 // ─── Settings schema ───────────────────────────────────────────────────────

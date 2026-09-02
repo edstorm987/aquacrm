@@ -3,7 +3,8 @@ import { extname, resolve } from "node:path";
 import { get } from "@vercel/blob";
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { authErrorResponse } from "@/lib/server/auth/auth";
+import { requireCurrentFulfilmentTechnicalAccess } from "@/lib/server/access/fulfilmentTechnicalAccess";
 import { readSupabasePrivateUpload } from "@/lib/server/privateUploadStorage";
 import { getDevelopmentResource } from "@/server/developmentToolkit";
 import { ensureHydrated } from "@/server/storage";
@@ -13,9 +14,11 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   try {
     await ensureHydrated();
-    const session = await requireRole(["agency-owner", "agency-manager", "agency-staff"]);
+    const { actor } = await requireCurrentFulfilmentTechnicalAccess("view");
+    const session = actor.session;
+    const agencyId = actor.resourceAgencyId;
     const id = new URL(request.url).searchParams.get("id");
-    const resource = id ? getDevelopmentResource(session.agencyId, id) : null;
+    const resource = id ? getDevelopmentResource(agencyId, id) : null;
     if (!resource) return NextResponse.json({ ok: false, error: "File not found." }, { status: 404 });
     if (resource.visibility === "private" && resource.createdBy !== session.userId && session.role !== "agency-owner") {
       return NextResponse.json({ ok: false, error: "File not found." }, { status: 404 });

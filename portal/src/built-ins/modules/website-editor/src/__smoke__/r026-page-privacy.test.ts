@@ -12,7 +12,7 @@ import {
   handleSetPagePrivacy,
   handleUnlockPage,
 } from "../api/handlers/pagePrivacy";
-import { createPage, getPage } from "../server/pages";
+import { createPage, getPage, publishPage } from "../server/pages";
 import { getOrCreateDefaultSite } from "../server/sites";
 import type { PluginStorage } from "../lib/aquaPluginTypes";
 import type { AgencyId, ClientId } from "../lib/tenancy";
@@ -191,6 +191,17 @@ const c = "cl_smoke" as ClientId;
       body: JSON.stringify({ privacy: "password", password: "newpw" }),
     }), ctx,
   );
+
+  // A draft privacy edit is not a visitor gate until Publish.
+  const draftUnlock = await handleUnlockPage(
+    new Request(`http://x/pages/privacy/unlock?siteId=${site.id}&id=${page.id}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ password: "newpw" }),
+    }), ctx,
+  );
+  expect("unlock refuses an unpublished privacy edit", draftUnlock.status === 400);
+  await publishPage(ctxStorage, a, c, site.id, page.id);
 
   // Unlock with wrong pw → 401.
   const unlockBad = await handleUnlockPage(

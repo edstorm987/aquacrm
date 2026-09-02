@@ -42,10 +42,12 @@ export function NotificationAttentionProvider({
   initialAlerts,
   children,
   clientId,
+  enabled = true,
 }: {
   initialAlerts: OperationalAlertView[];
   children: ReactNode;
   clientId?: string;
+  enabled?: boolean;
 }) {
   const scopeAlerts = useCallback(
     (items: OperationalAlertView[]) => clientId
@@ -114,6 +116,7 @@ export function NotificationAttentionProvider({
   }, []);
 
   const refreshAlerts = useCallback((): Promise<boolean> => {
+    if (!enabled) return Promise.resolve(false);
     if (refreshInFlightRef.current) return refreshInFlightRef.current;
 
     lastRefreshStartedAtRef.current = Date.now();
@@ -133,7 +136,7 @@ export function NotificationAttentionProvider({
     });
     refreshInFlightRef.current = trackedRequest;
     return trackedRequest;
-  }, [commitAlerts, scopeAlerts]);
+  }, [commitAlerts, enabled, scopeAlerts]);
 
   useEffect(() => {
     const refreshWhenStaleAndActive = () => {
@@ -163,6 +166,7 @@ export function NotificationAttentionProvider({
   }, [alerts, refreshAlerts]);
 
   async function updateAlert(alertId: string, action: OperationalAlertAction, parkedUntil?: number): Promise<boolean> {
+    if (!enabled) return false;
     const coordinator = coordinatorRef.current;
     const mutation = coordinator.beginMutation(alertsRef.current, alertId, action, parkedUntil);
     setError("");

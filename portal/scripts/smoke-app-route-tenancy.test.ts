@@ -86,7 +86,7 @@ function routeSource(short: string): string {
 const READS_SESSION =
   /getSessionFromRequest|requireSession|requireRole|requireRoleForClient|getSession\(|assertTenantScope|requireAgencyScope/;
 const READS_ACCESS_KERNEL =
-  /requireCurrentAccessActor|requireAccessCapability|requireDevProjectAccess|requireWholeWorkingTreeFounderAccess|requireCurrentWorkspaceElementAccess|requireCurrentClientWorkspaceElementAccess/;
+  /requireCurrentAccessActor|requireAccessCapability|requireDevProjectAccess|requireWholeWorkingTreeFounderAccess|requireCurrentWorkspaceElementAccess|requireCurrentClientWorkspaceElementAccess|requireCurrentFulfilmentTechnicalAccess/;
 const authenticates = (source: string): boolean =>
   READS_SESSION.test(source) || READS_ACCESS_KERNEL.test(source);
 const READS_QUERY_AGENCY = /searchParams\.get\(["']agencyId["']\)|x-aqua-agency-id/;

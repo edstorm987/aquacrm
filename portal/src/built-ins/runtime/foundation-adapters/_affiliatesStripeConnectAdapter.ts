@@ -133,7 +133,9 @@ export function makeAffiliatesStripeConnectPort(
         },
         // One connected account per affiliate, even if the customer
         // double-clicks: Stripe collapses retries carrying this key.
-        { idempotencyKey: `affiliate-account:${args.clientId}:${args.affiliateId}` },
+        // The service supplies the persisted intent key. Keep the historical
+        // derivation as a compatibility fallback for direct adapter consumers.
+        { idempotencyKey: args.idempotencyKey || `affiliate-account:${args.clientId}:${args.affiliateId}` },
       );
       return { accountId: account.id };
     },

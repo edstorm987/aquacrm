@@ -8,10 +8,11 @@ import {
 } from "@/lib/server/access/workspaceElementAccess";
 import { ensureDirectChannel, markChannelRead, postPeopleMessage, teamChatSnapshot } from "@/server/people";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
+import { agencyRolesForStaffWorkspaceApiPath } from "@/lib/staffWorkspacePolicy";
 
 export const runtime = "nodejs";
 
-const TEAM_ROLES = ["agency-owner", "agency-manager", "agency-staff"] as const;
+const TEAM_ROLES = agencyRolesForStaffWorkspaceApiPath("/api/portal/team-chat");
 
 function text(value: unknown, max = 4_000): string {
   return typeof value === "string" ? value.trim().slice(0, max) : "";

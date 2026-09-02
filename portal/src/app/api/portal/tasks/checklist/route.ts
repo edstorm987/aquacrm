@@ -10,6 +10,9 @@ import {
 } from "@/server/tasks";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
+import { privateObjectLifecycleLockKey } from "@/lib/server/privateObjectLifecycle";
+import { withPortalStateTransaction } from "@/server/productWorkspaceCoordinator";
+import { SopReferenceValidationError } from "@/engines/sop/server/sopReferences";
 
 /**
  * Sub-tasks on an action.
@@ -41,15 +44,24 @@ export async function POST(request: Request) {
 
     if (action === "add") {
       try {
-        const updated = addTaskChecklistItem(session.agencyId, taskId, {
-          label: typeof body?.label === "string" ? body.label : "",
-          href: typeof body?.href === "string" ? body.href : undefined,
-          focus: typeof body?.focus === "string" ? body.focus : undefined,
-          sopId: typeof body?.sopId === "string" ? body.sopId : undefined,
-        });
-        await flushPendingWrites();
+        const updated = await withPortalStateTransaction(privateObjectLifecycleLockKey(session.agencyId), () =>
+          addTaskChecklistItem(session.agencyId, taskId, {
+            label: typeof body?.label === "string" ? body.label : "",
+            href: typeof body?.href === "string" ? body.href : undefined,
+            focus: typeof body?.focus === "string" ? body.focus : undefined,
+            sopId: typeof body?.sopId === "string" ? body.sopId : undefined,
+          }));
         return NextResponse.json({ ok: true, task: updated });
       } catch (error) {
+        if (error instanceof SopReferenceValidationError) {
+          return NextResponse.json({
+            ok: false,
+            reason: error.code,
+            error: error.message,
+            field: error.field,
+            sopIds: error.sopIds,
+          }, { status: 422 });
+        }
         return NextResponse.json({
           ok: false,
           error: error instanceof Error ? error.message : "That could not be added.",

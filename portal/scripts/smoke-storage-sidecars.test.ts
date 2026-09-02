@@ -67,6 +67,17 @@ test("dev workspace files are written to their own row, and the portal is not wi
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     const method = init?.method ?? "GET";
 
+    if (method === "POST" && url.includes("/rpc/load_app_datastore_with_sidecars")) {
+      const body = JSON.parse(String(init?.body)) as { p_app_key: string; p_sidecar_specs: Array<{ slug: string; key: string }> };
+      return Response.json({
+        main: structuredClone(rows[body.p_app_key] ?? {}),
+        sidecars: Object.fromEntries(body.p_sidecar_specs.map(spec => [
+          spec.slug,
+          structuredClone(rows[`${body.p_app_key}:${spec.slug}`] ?? { [spec.key]: {} }),
+        ])),
+      });
+    }
+
     if (method === "POST" && url.includes("/rpc/apply_dev_team_workspace_files")) {
       const body = JSON.parse(String(init?.body)) as { p_app_key: string; p_operations: Array<{ relPath: string; file: unknown }> };
       // The real function reads `data->'devTeamWorkspaceFiles'` from whatever
@@ -78,9 +89,9 @@ test("dev workspace files are written to their own row, and the portal is not wi
       return Response.json(structuredClone(target));
     }
     if (method === "POST" && url.includes("/rpc/apply_app_datastore_patch")) {
-      const body = JSON.parse(String(init?.body)) as { p_app_key: string; p_operations: StoragePatchOperation[] };
+      const body = JSON.parse(String(init?.body)) as { p_app_key: string; p_operation_id: string; p_operations: StoragePatchOperation[] };
       rows[body.p_app_key] = applyStoragePatch(rows[body.p_app_key] ?? {}, body.p_operations) as Record<string, unknown>;
-      return Response.json(structuredClone(rows[body.p_app_key]));
+      return Response.json({ operationId: body.p_operation_id, main: structuredClone(rows[body.p_app_key]) });
     }
     if (method === "POST") {
       const body = JSON.parse(String(init?.body)) as { app_key?: string; data: Record<string, unknown> };
@@ -183,7 +194,7 @@ test("a backend with no sidecar keeps the files in the main document", async () 
 
   assert.match(
     source,
-    /const splitOut = backend\.loadSidecarBlob\s*\n?\s*\? SIDECAR_COLLECTIONS\.filter\(entry => runtime\.sidecarPopulated\.has\(entry\.slug\)\)\s*\n?\s*: \[\];/,
+    /const splitOut = backend\.loadSidecarBlob[\s\S]{0,300}?runtime\.sidecarPopulated\.has\(entry\.slug\)[\s\S]{0,150}?ownedSidecarPatches\.some\(sidecar => sidecar\.slug === entry\.slug\)[\s\S]{0,50}?: \[\];/,
     "the exclusion must be conditional on BOTH the backend having sidecars and the sidecar being "
     + "confirmed populated — clearing before that is the data-loss bug this file exists to prevent",
   );
@@ -211,16 +222,15 @@ test("a backend with no sidecar keeps the files in the main document", async () 
   // Ordering. The main write is what CLEARS the collection from the portal
   // document, so a sidecar that is written after it would lose everything on a
   // network blip between the two.
-  const flush = /const ownedSidecars[\s\S]*?const savedBlob = backend\.applyPatch/.exec(source)?.[0] ?? "";
-  assert.match(flush, /await backend\.saveSidecarBlob!\(entry\.slug/,
-    "owned sidecars must be written inside the flush");
-  assert.ok(
-    flush.indexOf("saveSidecarBlob!") < flush.indexOf("const savedBlob"),
-    "…and BEFORE the main document write, which is what clears them",
-  );
+  assert.match(source, /backend\.applyPatchWithSidecars\(operations, ownedSidecarPatches, operationId, realmId\)/,
+    "owned sidecars and main must use one database transaction");
+  assert.match(source, /if \(backend\.applyPatch\) \{\s*if \(operations\.length === 0\) return \{ mainBlob: null, sidecarBlobs: \{\} \};/,
+    "a sidecar-only flush must never fall through to full main saveBlob");
+  assert.match(source, /runtime\.pendingPatchOperations\.splice\(0, operationCount\)/,
+    "successful sidecar-only operations must be removed from the pending queue");
   assert.match(
     source,
-    /SIDECAR_COLLECTIONS\.filter\(entry => !entry\.dedicatedWriter\)/,
+    /SIDECAR_COLLECTIONS\s*\.filter\(entry => !entry\.dedicatedWriter\)/,
     "a collection with its own row-locking RPC must not also be written by the flush — that races "
     + "the lock",
   );

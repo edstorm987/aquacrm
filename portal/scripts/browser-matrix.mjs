@@ -619,7 +619,11 @@ export function selectPages(filter) {
 // `/dev` mints a real writable session on a file/memory backend with no
 // credentials, which is what makes this gate runnable by anyone on a
 // `sandbox:fork` lane. A deployed target has no `/dev`, so it uses the same
-// credential flow the SSR smoke uses.
+// credential flow the SSR smoke uses. The driver calls this ONCE in a bootstrap
+// context and copies that context's storage state into every viewport. Logging
+// in once per viewport is not stronger authentication; it only turns a wide
+// matrix into a burst of valid login attempts that correctly trips the app's
+// rate limiter.
 async function signIn(page) {
   const email = process.env.FOUNDER_EMAIL || "edwardhallam07@gmail.com";
   const password = process.env.FOUNDER_PASSWORD || "";
@@ -846,31 +850,51 @@ async function main() {
   };
 
   try {
-    for (const entry of viewports) {
-      const context = await browser.newContext({ viewport: cssViewport(entry), reducedMotion: "no-preference" });
-      const session = await context.newPage();
-      // Attached before sign-in, not per target. `signIn` navigates to /dev,
-      // which opens the HMR socket — but the listener used to go on inside the
-      // target loop, so the FIRST page of the run was always judged with
-      // `devServer` still false and its cancelled chunks scored as real
-      // failures. It reported `/` red on one viewport out of seventeen, which
-      // is exactly the shape of a gate defect rather than an app defect.
-      session.on("websocket", ws => { if (/hmr|_next\/webpack/.test(ws.url())) devServer = true; });
-      const authMode = await signIn(session);
+    // Authentication is a property of this RUN, not of a viewport. Mint one
+    // real session through the ordinary app boundary, capture its cookie state,
+    // then give every isolated viewport context a copy. Apart from avoiding a
+    // self-inflicted login-rate-limit failure, contexts remain isolated: page
+    // DOM, caches and runtime state are still fresh for every matrix row.
+    const bootstrapContext = await browser.newContext({ reducedMotion: "no-preference" });
+    let authMode;
+    let authenticatedState;
+    try {
+      const bootstrapSession = await bootstrapContext.newPage();
+      // This listener is attached before sign-in because dev-mode sign-in
+      // navigates to /dev and may open the socket before `signIn` returns.
+      bootstrapSession.on("websocket", ws => { if (/hmr|_next\/webpack/.test(ws.url())) devServer = true; });
+      authMode = await signIn(bootstrapSession);
+
+      // Password sign-in uses the context's request client and therefore does
+      // not navigate the page. Give a dev target one real document on which to
+      // announce its HMR socket before the first verdict is made. `/dev`
+      // sign-in already navigated, so it does not need a second bootstrap load.
+      if (bootstrapSession.url() === "about:blank") {
+        await bootstrapSession.goto(BASE, { waitUntil: "domcontentloaded", timeout: 45_000 });
+      }
+
       // Whether the target is a dev server is a property of the TARGET, so it
       // must be settled BEFORE anything is judged rather than discovered
-      // part-way through the run. Attaching the listener early was not enough:
-      // the socket opens shortly after `domcontentloaded`, which is after
-      // sign-in returns and can be after the first page has already been
-      // scored. Waiting for it explicitly, bounded, makes the first page and
-      // the seventeenth judged by the same rule. A production target has no
-      // such socket and simply spends the timeout once per viewport.
+      // part-way through the run. A production target has no such socket and
+      // pays this bounded wait once for the whole matrix, not once per viewport.
       if (!devServer) {
-        await session.waitForEvent("websocket", {
+        await bootstrapSession.waitForEvent("websocket", {
           predicate: ws => /hmr|_next\/webpack/.test(ws.url()),
           timeout: 4000,
         }).then(() => { devServer = true; }).catch(() => {});
       }
+      authenticatedState = await bootstrapContext.storageState();
+    } finally {
+      await bootstrapContext.close();
+    }
+
+    for (const entry of viewports) {
+      const context = await browser.newContext({
+        viewport: cssViewport(entry),
+        reducedMotion: "no-preference",
+        storageState: authenticatedState,
+      });
+      const session = await context.newPage();
       console.log(`\n— ${entry.label} (${entry.width}×${entry.height} @${entry.zoom}×, auth=${authMode})`);
 
       for (const target of pages) {

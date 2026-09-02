@@ -32,6 +32,7 @@ import type {
 } from "./ports";
 import type { AffiliateService } from "./affiliates";
 import type { ReferralCodeService } from "./codes";
+import { withAffiliateDependencyLock } from "./dependencies";
 import {
   assertCommissionRate,
   assertOrderForAttribution,
@@ -146,7 +147,7 @@ export class AttributionService {
   //   - the resolved code is archived / non-existent / for a different agency
   //   - the affiliate is not active
   async recordOrder(args: RecordOrderArgs): Promise<Attribution | null> {
-    return this.withLock("attribution-collection", async () => {
+    return withAffiliateDependencyLock(this.storage, this.agencyId, this.clientId, async () => {
       const claimKey = attributionClaimKey(args.orderId);
       let claim = await this.storage.get<AttributionClaim>(claimKey);
       const existing = await this.getByOrder(args.orderId);

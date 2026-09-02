@@ -59,8 +59,7 @@ const websiteEditorPlugin: AquaPlugin = {
     {
       path: "/portal/clients/[clientId]/customise",
       title: "Editor settings",
-      clientComponent: true,
-      component: () => import("./src/pages/CustomisePage"),
+      component: () => import("./src/pages/CustomiseRoutePage"),
     },
     {
       path: "/portal/clients/[clientId]/themes",
@@ -97,34 +96,15 @@ const websiteEditorPlugin: AquaPlugin = {
   settings: {
     groups: [
       {
-        id: "publish",
-        label: "Publishing",
-        description: "Where edits land when an operator hits publish.",
-        fields: [
-          {
-            id: "githubRepo",
-            label: "GitHub repo",
-            type: "text",
-            placeholder: "owner/repo",
-            helpText: "Optional. When set, publish opens a PR against this repo.",
-          },
-          {
-            id: "githubBranch",
-            label: "Default branch",
-            type: "text",
-            default: "main",
-          },
-        ],
-      },
-      {
         id: "defaults",
         label: "Defaults",
         fields: [
           {
             id: "defaultThemeVariant",
-            label: "Default theme variant",
+            label: "Default appearance for new themes",
             type: "select",
             default: "light",
+            helpText: "Used when a new theme keeps the workspace default instead of choosing an appearance explicitly.",
             options: [
               { value: "light", label: "Light" },
               { value: "dark", label: "Dark" },
@@ -133,9 +113,10 @@ const websiteEditorPlugin: AquaPlugin = {
           },
           {
             id: "defaultStarterId",
-            label: "Default starter for new clients",
+            label: "Default login portal starter",
             type: "select",
             default: "login-default",
+            helpText: "Used when a new Login portal variant is created without choosing a starter explicitly.",
             options: [
               { value: "login-default", label: "Login (default)" },
               { value: "login-onboarding", label: "Login (onboarding)" },

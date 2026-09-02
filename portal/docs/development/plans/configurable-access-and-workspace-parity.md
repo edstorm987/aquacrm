@@ -250,8 +250,8 @@ person → edit/reload → request/approve/revoke journey at every viewport.
 ## Remaining work before this can be called complete
 
 1. **Finish evaluator adoption.** Staff, Team, Fulfilment and the broad canonical
-   tenant/client route wave are adopted. Map the dynamic module catch-all plus
-   freelancer-job and generic task associations, then migrate the remaining customer,
+   tenant/client route wave are adopted. The dynamic module catch-all plus
+   freelancer-job and generic task associations are classified and enforced; migrate the remaining customer,
    freelancer and legacy operations at both data read and mutation boundaries.
    Preserve the named alternative-authority routes. Navigation hiding alone never counts.
 2. **Complete legacy-policy convergence.** Treat Team station access, HR custom

@@ -5,7 +5,10 @@ import {
   decideExternalAssistantActionProposal,
   listExternalAssistantActionProposals,
 } from "@/lib/server/assistants/externalAssistantProposals";
-import { ensureHydrated, flushPendingWrites } from "@/server/storage";
+import { ensureHydrated } from "@/server/storage";
+import { privateObjectLifecycleLockKey } from "@/lib/server/privateObjectLifecycle";
+import { withPortalStateTransaction } from "@/server/productWorkspaceCoordinator";
+import { SopReferenceValidationError } from "@/engines/sop/server/sopReferences";
 
 const ALLOWED_ROLES = new Set(["agency-owner", "agency-manager", "agency-staff"]);
 
@@ -38,19 +41,24 @@ export async function PATCH(request: NextRequest) {
       note?: string;
     } | null;
     if (!body?.proposalId || !body.decision) return NextResponse.json({ ok: false, error: "Proposal and decision are required." }, { status: 400 });
-    const result = decideExternalAssistantActionProposal({
-      agencyId: session.agencyId,
-      proposalId: body.proposalId,
-      decision: body.decision,
-      actorUserId: session.userId,
-      assigneeUserId: body.assigneeUserId,
-      dueAt: body.dueAt,
-      parkedUntil: body.parkedUntil,
-      note: body.note,
-    });
-    await flushPendingWrites();
+    const proposalId = body.proposalId;
+    const decision = body.decision;
+    const result = await withPortalStateTransaction(privateObjectLifecycleLockKey(session.agencyId), () =>
+      decideExternalAssistantActionProposal({
+        agencyId: session.agencyId,
+        proposalId,
+        decision,
+        actorUserId: session.userId,
+        assigneeUserId: body.assigneeUserId,
+        dueAt: body.dueAt,
+        parkedUntil: body.parkedUntil,
+        note: body.note,
+      }));
     return NextResponse.json({ ok: true, ...result, proposals: listExternalAssistantActionProposals(session.agencyId) });
   } catch (error) {
+    if (error instanceof SopReferenceValidationError) {
+      return NextResponse.json({ ok: false, reason: error.code, error: error.message, field: error.field, sopIds: error.sopIds }, { status: 422 });
+    }
     if (error instanceof Error && ["proposal_not_found", "proposal_already_decided"].includes(error.message)) {
       return NextResponse.json({ ok: false, error: error.message === "proposal_not_found" ? "Proposal not found." : "This proposal has already been decided." }, { status: error.message === "proposal_not_found" ? 404 : 409 });
     }

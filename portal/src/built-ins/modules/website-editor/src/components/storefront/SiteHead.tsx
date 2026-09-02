@@ -16,6 +16,7 @@ import {
   buildPageJsonLd,
   buildJsonLdScriptBodies,
 } from "../../lib/jsonLdInjection";
+import { resolvePublishedPage } from "../../lib/pagePublication";
 
 export interface SiteHeadProps {
   site: Site;
@@ -31,13 +32,14 @@ export interface SiteHeadProps {
 }
 
 export function SiteHead({ site, page, defaultLocale, defaultDescription, agencyName, baseUrl, brandKit }: SiteHeadProps) {
-  const title = page.title || site.name;
-  const description = page.description || defaultDescription || "";
+  const publishedPage = resolvePublishedPage(page);
+  const title = publishedPage.seo?.metaTitle || publishedPage.title || site.name;
+  const description = publishedPage.seo?.metaDescription || publishedPage.description || defaultDescription || "";
   const locale = defaultLocale || "en";
 
   const jsonLd = agencyName
-    ? buildPageJsonLd(page, { agencyName, baseUrl, brandKit, site })
-    : buildPageJsonLd(page, { agencyName: site.name, baseUrl, brandKit, site });
+    ? buildPageJsonLd(publishedPage, { agencyName, baseUrl, brandKit, site })
+    : buildPageJsonLd(publishedPage, { agencyName: site.name, baseUrl, brandKit, site });
   const scripts = buildJsonLdScriptBodies(jsonLd);
 
   return (
@@ -48,7 +50,7 @@ export function SiteHead({ site, page, defaultLocale, defaultDescription, agency
       {description ? <meta property="og:description" content={description} /> : null}
       <meta property="og:type" content="website" />
       <meta property="og:locale" content={locale} />
-      <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:card" content={publishedPage.seo?.twitterCard ?? "summary_large_image"} />
       {scripts.map((body, i) => (
         <script
           key={`jsonld-${i}`}
@@ -57,10 +59,10 @@ export function SiteHead({ site, page, defaultLocale, defaultDescription, agency
           dangerouslySetInnerHTML={{ __html: body }}
         />
       ))}
-      {page.headInjection ? (
+      {publishedPage.headInjection ? (
         <script
           data-page-head-injection
-          dangerouslySetInnerHTML={{ __html: page.headInjection }}
+          dangerouslySetInnerHTML={{ __html: publishedPage.headInjection }}
         />
       ) : null}
     </>

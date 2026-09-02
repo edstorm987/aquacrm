@@ -36,7 +36,11 @@ const CAMPAIGN_CURRENCIES = new Set<Campaign["currency"]>(["usd", "gbp", "eur"])
 const CAMPAIGN_KPIS = new Set<NonNullable<Campaign["goalKpi"]>>(["leads", "signups", "revenue", "engagement"]);
 const campaignMutationQueues = new Map<AgencyId, Promise<void>>();
 
-async function withCampaignMutationLock<T>(agencyId: AgencyId, work: () => Promise<T>): Promise<T> {
+async function withCampaignMutationLock<T>(
+  agencyId: AgencyId,
+  storage: StoragePort,
+  work: () => Promise<T>,
+): Promise<T> {
   const previous = campaignMutationQueues.get(agencyId) ?? Promise.resolve();
   let release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
@@ -44,7 +48,10 @@ async function withCampaignMutationLock<T>(agencyId: AgencyId, work: () => Promi
   campaignMutationQueues.set(agencyId, queued);
   await previous;
   try {
-    return await work();
+    if (typeof storage.runExclusive !== "function") {
+      throw new Error("marketing_campaign_mutation_requires_exclusive_storage");
+    }
+    return await storage.runExclusive(`campaigns:${agencyId}`, work);
   } finally {
     release();
     if (campaignMutationQueues.get(agencyId) === queued) campaignMutationQueues.delete(agencyId);
@@ -130,7 +137,7 @@ export class CampaignService {
   }
 
   async create(input: CreateCampaignInput, actor: UserId, defaultCurrency: Currency = "usd"): Promise<Campaign> {
-    return withCampaignMutationLock(this.agencyId, () => this.createUnlocked(input, actor, defaultCurrency));
+    return withCampaignMutationLock(this.agencyId, this.storage, () => this.createUnlocked(input, actor, defaultCurrency));
   }
 
   private async createUnlocked(input: CreateCampaignInput, actor: UserId, defaultCurrency: Currency): Promise<Campaign> {
@@ -179,7 +186,7 @@ export class CampaignService {
   }
 
   async update(id: string, patch: UpdateCampaignPatch, actor: UserId): Promise<Campaign | null> {
-    return withCampaignMutationLock(this.agencyId, () => this.updateUnlocked(id, patch, actor));
+    return withCampaignMutationLock(this.agencyId, this.storage, () => this.updateUnlocked(id, patch, actor));
   }
 
   private async updateUnlocked(id: string, patch: UpdateCampaignPatch, actor: UserId): Promise<Campaign | null> {
@@ -238,7 +245,7 @@ export class CampaignService {
   }
 
   async delete(id: string, actor: UserId): Promise<boolean> {
-    return withCampaignMutationLock(this.agencyId, () => this.deleteUnlocked(id, actor));
+    return withCampaignMutationLock(this.agencyId, this.storage, () => this.deleteUnlocked(id, actor));
   }
 
   private async deleteUnlocked(id: string, actor: UserId): Promise<boolean> {

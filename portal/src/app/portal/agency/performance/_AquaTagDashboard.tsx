@@ -37,10 +37,12 @@ type Period = 7 | 28 | 90;
 export function AquaTagDashboard({
   client,
   period,
+  canManageSearchConsole,
   onReportsChange,
 }: {
   client: PerformanceClient;
   period: Period;
+  canManageSearchConsole: boolean;
   onReportsChange: (reports: MonthlyPerformanceReport[]) => void;
 }) {
   const [propertyId, setPropertyId] = useState("all");
@@ -69,13 +71,13 @@ export function AquaTagDashboard({
           <StatusMetric label="Tag coverage" value={`${connectedProperties}/${client.properties.length}`} detail="properties reporting" good={connectedProperties > 0} />
           <StatusMetric label="Last signal" value={selectedProperty?.lastSeenAt ? relativeTime(selectedProperty.lastSeenAt) : client.lastSeenAt ? relativeTime(client.lastSeenAt) : "Waiting"} detail="first-party activity" good={Boolean(selectedProperty?.lastSeenAt || client.lastSeenAt)} />
           <StatusMetric label="Forms" value={String(analytics.current.conversions)} detail={`tracked in ${period} days`} good={analytics.current.conversions > 0} />
-          <StatusMetric label="Search data" value={analytics.current.searchImpressions ? "Connected" : "Not synced"} detail={analytics.current.searchImpressions ? `${analytics.current.searchImpressions.toLocaleString("en-GB")} impressions` : "connect below"} good={analytics.current.searchImpressions > 0} />
+          <StatusMetric label="Search data" value={analytics.current.searchImpressions ? "Connected" : "Not synced"} detail={analytics.current.searchImpressions ? `${analytics.current.searchImpressions.toLocaleString("en-GB")} impressions` : canManageSearchConsole ? "connect below" : "owner or manager setup"} good={analytics.current.searchImpressions > 0} />
         </div>
       </section>
 
       <GrowthPerformance analytics={analytics} />
 
-      <SearchConsolePanel client={client} />
+      {canManageSearchConsole ? <SearchConsolePanel client={client} /> : <SearchConsoleReadOnlyPanel />}
 
       {client.scope === "client" ? (
         <MonthlyReportsPanel
@@ -89,6 +91,20 @@ export function AquaTagDashboard({
         </section>
       )}
     </div>
+  );
+}
+
+function SearchConsoleReadOnlyPanel() {
+  return (
+    <section className="rounded-lg border border-black/10 bg-white p-5 sm:p-6">
+      <div className="flex items-start gap-3">
+        <span className="grid size-10 shrink-0 place-items-center rounded-md bg-[#eef6f4] text-[#17675f]"><Search size={17} /></span>
+        <div>
+          <h2 className="font-semibold text-black/85">Google Search Console</h2>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-black/50">Search performance remains available in the reporting above. An agency owner or manager can connect, sync or manage the encrypted Google credentials.</p>
+        </div>
+      </div>
+    </section>
   );
 }
 

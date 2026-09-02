@@ -1,6 +1,7 @@
 export type StoragePatchOperation =
   | { op: "set"; path: string[]; value: unknown }
   | { op: "delete"; path: string[] }
+  | { op: "merge_object"; path: string[]; value: Record<string, unknown> }
   | { op: "append_unique"; path: string[]; value: unknown };
 
 type JsonObject = Record<string, unknown>;
@@ -24,6 +25,17 @@ function clone<T>(value: T): T {
   return structuredClone(value);
 }
 
+function mergeObject(current: JsonObject, incoming: JsonObject): JsonObject {
+  const merged: JsonObject = clone(current);
+  for (const [key, value] of Object.entries(incoming)) {
+    const existing = merged[key];
+    merged[key] = isObject(existing) && isObject(value)
+      ? mergeObject(existing, value)
+      : clone(value);
+  }
+  return merged;
+}
+
 export function diffStorageValue(
   before: unknown,
   after: unknown,
@@ -45,10 +57,12 @@ export function diffStorageValue(
   }
 
   if (isObject(before) && isObject(after)) {
-    // PostgreSQL jsonb_set cannot create a missing intermediate object. Set a
-    // newly populated collection at its root so its first record persists.
+    // PostgreSQL jsonb_set cannot create a missing intermediate object. Merge
+    // a newly populated top-level collection at its root so its first record
+    // persists WITHOUT replacing a different first record committed by another
+    // process from the same empty snapshot.
     if (path.length === 1 && Object.keys(before).length === 0 && Object.keys(after).length > 0) {
-      return [{ op: "set", path, value: clone(after) }];
+      return [{ op: "merge_object", path, value: clone(after) }];
     }
     const operations: StoragePatchOperation[] = [];
     const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
@@ -101,6 +115,11 @@ export function applyStoragePatch<T>(target: T, operations: StoragePatchOperatio
     }
     if (operation.op === "set") {
       parent[key] = clone(operation.value);
+      continue;
+    }
+    if (operation.op === "merge_object") {
+      const current = getAtPath(result, operation.path);
+      parent[key] = mergeObject(isObject(current) ? current : {}, operation.value);
       continue;
     }
 

@@ -10,12 +10,37 @@ import { pageId as makePageId, slugify } from "../lib/ids";
 import { storageKeys } from "./storage-keys";
 import { promoteBlockTreeMedia } from "./publicMediaPromotion";
 import { stabiliseCountdownDeadlines } from "./../lib/countdownDeadline";
+import { getDefaultTheme, getTheme } from "./themes";
+import {
+  capturePublishedPage,
+  migratePublishedPageSnapshot,
+  publishedPageSnapshotNeedsMigration,
+  resolvePublishedPage,
+  restorePublishedPage,
+  touchesPublishedPage,
+} from "../lib/pagePublication";
 import type {
   CreatePageInput,
   EditorPage,
   EditorPageStatus,
   UpdatePagePatch,
 } from "../types/editorPage";
+
+const UPDATE_PAGE_FIELDS = [
+  "title", "slug", "description", "blocks", "draftBlocks", "themeId",
+  "customCSS", "customCss", "customHead", "customFoot", "headInjection",
+  "layoutOverrides", "portalRole", "isActivePortal", "isHomepage", "seo",
+  "privacy", "passwordHash", "redirectSourceSlugs", "locales",
+] as const satisfies readonly (keyof UpdatePagePatch)[];
+
+function sanitiseUpdatePagePatch(patch: UpdatePagePatch): UpdatePagePatch {
+  const source = patch as unknown as Record<string, unknown>;
+  const safe: Record<string, unknown> = {};
+  for (const field of UPDATE_PAGE_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(source, field)) safe[field] = source[field];
+  }
+  return safe as UpdatePagePatch;
+}
 
 async function readPageIndex(
   storage: PluginStorage,
@@ -71,6 +96,22 @@ export async function getPageBySlug(
   return pages.find((p) => p.slug === slug) ?? null;
 }
 
+/** Public lookup that keeps an unpublished slug edit off the live route. */
+export async function getPublishedPageBySlug(
+  storage: PluginStorage,
+  agencyId: AgencyId,
+  clientId: ClientId,
+  siteId: string,
+  slug: string,
+): Promise<EditorPage | null> {
+  const pages = await listPages(storage, agencyId, clientId, siteId);
+  const page = pages.find(candidate => (
+    candidate.status === "published"
+    && resolvePublishedPage(candidate).slug === slug
+  ));
+  return page ? resolvePublishedPage(page) : null;
+}
+
 export async function createPage(
   storage: PluginStorage,
   input: CreatePageInput,
@@ -118,12 +159,40 @@ export async function updatePage(
   const page = await getPage(storage, agencyId, clientId, siteId, id);
   if (!page) return null;
   const now = Date.now();
+  const safePatch = sanitiseUpdatePagePatch(patch);
+  const touchesPublishedBlocks = Object.prototype.hasOwnProperty.call(safePatch, "blocks");
+  const needsLegacyPageSnapshot = (
+    page.status === "published"
+    && (touchesPublishedBlocks || touchesPublishedPage(safePatch))
+    && publishedPageSnapshotNeedsMigration(page)
+  );
+  const legacyPublishedTheme = needsLegacyPageSnapshot
+    ? (page.themeId
+      ? await getTheme(storage, agencyId, clientId, siteId, page.themeId)
+      : await getDefaultTheme(storage, agencyId, clientId, siteId))
+    : null;
+  // Legacy published rows pre-date `publishedBlocks` and used `blocks` as
+  // both the editor tree and the live snapshot. Preserve that live tree before
+  // the first post-migration block edit so an operator edit cannot leak into
+  // the public storefront.
+  const existingPublishedBlocks = page.publishedBlocks
+    ?? (page.status === "published" && touchesPublishedBlocks
+      ? page.blocks
+      : undefined);
+  const existingPublishedPage = needsLegacyPageSnapshot
+    ? migratePublishedPageSnapshot(page, { theme: legacyPublishedTheme })
+    : page.publishedPage;
   const next: EditorPage = {
     ...page,
-    ...patch,
-    blocks: patch.blocks ? stabiliseCountdownDeadlines(patch.blocks, now) : page.blocks,
-    draftBlocks: patch.draftBlocks ? stabiliseCountdownDeadlines(patch.draftBlocks, now) : patch.draftBlocks === undefined ? page.draftBlocks : undefined,
-    publishedBlocks: patch.publishedBlocks ? stabiliseCountdownDeadlines(patch.publishedBlocks, now) : page.publishedBlocks,
+    ...safePatch,
+    blocks: safePatch.blocks ? stabiliseCountdownDeadlines(safePatch.blocks, now) : page.blocks,
+    draftBlocks: safePatch.draftBlocks ? stabiliseCountdownDeadlines(safePatch.draftBlocks, now) : safePatch.draftBlocks === undefined ? page.draftBlocks : undefined,
+    // Published state is promoted only by publishPage, never by a free-shape
+    // editor PATCH request.
+    publishedBlocks: existingPublishedBlocks,
+    // This value is server-owned. Explicitly assigning it after `...patch`
+    // also prevents a free-shape API payload from forging a live snapshot.
+    publishedPage: existingPublishedPage,
     updatedAt: now,
   };
   await storage.set(storageKeys.page(agencyId, clientId, siteId, id), next);
@@ -151,6 +220,9 @@ export async function publishPage(
   const page = await getPage(storage, agencyId, clientId, siteId, id);
   if (!page) return null;
   const now = Date.now();
+  const publishedTheme = page.themeId
+    ? await getTheme(storage, agencyId, clientId, siteId, page.themeId)
+    : await getDefaultTheme(storage, agencyId, clientId, siteId);
   let blocks = page.draftBlocks ?? page.blocks;
   blocks = stabiliseCountdownDeadlines(blocks, now);
   // Auto-public on publish: push inline data-URL media to the public CDN
@@ -167,6 +239,8 @@ export async function publishPage(
     status: "published",
     blocks,
     draftBlocks: undefined,
+    publishedBlocks: blocks,
+    publishedPage: capturePublishedPage(page, { theme: publishedTheme }),
     publishedAt: now,
     updatedAt: now,
   };
@@ -183,7 +257,15 @@ export async function revertPage(
 ): Promise<EditorPage | null> {
   const page = await getPage(storage, agencyId, clientId, siteId, id);
   if (!page) return null;
-  const next: EditorPage = { ...page, draftBlocks: undefined, updatedAt: Date.now() };
+  const publishedBlocks = page.publishedBlocks
+    ?? (page.status === "published" ? page.blocks : undefined);
+  const restored = restorePublishedPage(page);
+  const next: EditorPage = {
+    ...restored,
+    blocks: publishedBlocks ?? restored.blocks,
+    draftBlocks: undefined,
+    updatedAt: Date.now(),
+  };
   await storage.set(storageKeys.page(agencyId, clientId, siteId, id), next);
   return next;
 }

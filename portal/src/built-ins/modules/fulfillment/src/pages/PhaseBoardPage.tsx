@@ -51,6 +51,7 @@ export default async function PhaseBoardPage(props: PluginPageProps) {
       nextPhase={nextPhase}
       view={view}
       apiBase={API_BASE}
+      advanceRequiresAllTasks={props.install.config.advanceRequiresAllTasks !== false}
     />
   );
 }

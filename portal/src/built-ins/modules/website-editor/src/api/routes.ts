@@ -84,6 +84,7 @@ import {
 } from "./handlers/formSubmissionHost";
 import {
   handleListVisitorContacts,
+  handleVisitorBlogPost,
   handleVisitorBlogPosts,
   handleVisitorContact,
 } from "./handlers/visitor";
@@ -244,11 +245,12 @@ export const apiRoutes: PluginApiRoute[] = [
   { path: "/forms/contact-submissions", methods: ["GET"], handler: handleListVisitorContacts },
 
   // Anonymous visitor facades. These stay separate from the operator routes:
-  // contact accepts one strict consent-bearing DTO and the blog feed returns
-  // published summaries only. The dispatcher still requires the exact enabled
-  // agency/client install named in the request scope.
+  // contact accepts one strict consent-bearing DTO; blog feed/detail return
+  // allowlisted published data only. The dispatcher still requires the exact
+  // enabled agency/client install named in the request scope.
   { path: "visitor/contact", methods: ["POST"], handler: handleVisitorContact, public: true },
   { path: "public/blog/posts", methods: ["GET"], handler: handleVisitorBlogPosts, public: true },
+  { path: "public/blog/posts/by-slug", methods: ["GET"], handler: handleVisitorBlogPost, public: true },
 
   // Page versions (R022) — auto-save + named checkpoints.
   { path: "/pages/versions", methods: ["GET"], handler: handleListVersions },

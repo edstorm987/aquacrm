@@ -12,12 +12,13 @@ import {
   staffStationAccessEntries,
   workspaceElementLevel,
 } from "@/lib/server/access/workspaceElementAccess";
+import { staffOnlyRolesForWorkspacePagePath } from "@/lib/staffWorkspacePolicy";
 
 export const dynamic = "force-dynamic";
 
 export default async function TeamPage({ searchParams }: { searchParams: Promise<{ date?: string }> }) {
   await ensureHydrated();
-  const session = await requireRole(["agency-staff"]);
+  const session = await requireRole([...staffOnlyRolesForWorkspacePagePath("/portal/team")]);
   const actor = await requireCurrentAccessActor();
   const access = resolveActorWorkspaceElementAccess(actor, "staff");
   const stations = staffStationAccessEntries(actor, access);

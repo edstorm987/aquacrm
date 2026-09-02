@@ -3,7 +3,12 @@
 import { useState, useRef } from "react";
 
 import type { PhaseDefinition, PhaseChecklistItem, ClientStage } from "../lib/tenancy";
+import {
+  isFulfillmentPhaseDelete,
+  isFulfillmentPhaseMutation,
+} from "../lib/mutationPayloads";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
 
 export interface PhasesSettingsListProps {
   phases: PhaseDefinition[];
@@ -13,18 +18,29 @@ export interface PhasesSettingsListProps {
 export function PhasesSettingsList(props: PhasesSettingsListProps) {
   const { phases, apiBase } = props;
   const [editing, setEditing] = useState<PhaseDefinition | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function deletePhase(id: string): Promise<void> {
     if (!confirm("Delete this phase? Clients currently in it stay where they are; reassign them later.")) return;
+    const fallback = "Could not delete phase.";
+    setDeletingId(id);
     setError(null);
-    const res = await fetch(`${apiBase}/phases?id=${encodeURIComponent(id)}`, { method: "DELETE" });
-    const data = await res.json() as { ok: boolean; error?: string };
-    if (!data.ok) {
-      setError(data.error ?? "Could not delete phase.");
-      return;
+    try {
+      await checkedJsonMutation<unknown>(
+        `${apiBase}/phases?id=${encodeURIComponent(id)}`,
+        { method: "DELETE" },
+        {
+          fallback,
+          validate: payload => isFulfillmentPhaseDelete(payload, id),
+        },
+      );
+      if (typeof window !== "undefined") window.location.reload();
+    } catch (reason) {
+      setError(mutationErrorMessage(reason, fallback));
+    } finally {
+      setDeletingId(null);
     }
-    if (typeof window !== "undefined") window.location.reload();
   }
 
   return (
@@ -56,7 +72,13 @@ export function PhasesSettingsList(props: PhasesSettingsListProps) {
             </div>
             <div className="fulfillment-phase-actions">
               <button type="button" onClick={() => setEditing(phase)}>Edit</button>
-              <button type="button" onClick={() => deletePhase(phase.id)}>Delete</button>
+              <button
+                type="button"
+                onClick={() => deletePhase(phase.id)}
+                disabled={deletingId !== null}
+              >
+                {deletingId === phase.id ? "Deleting…" : "Delete"}
+              </button>
             </div>
           </li>
         ))}
@@ -149,10 +171,11 @@ function PhaseEditorModal({ phase, apiBase, onClose }: PhaseEditorModalProps) {
   }
 
   async function save(): Promise<void> {
+    const fallback = "Could not save phase.";
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${apiBase}/phases`, {
+      await checkedJsonMutation<unknown>(`${apiBase}/phases`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -171,15 +194,17 @@ function PhaseEditorModal({ phase, apiBase, onClose }: PhaseEditorModalProps) {
               visibility: item.visibility,
             })),
         }),
+      }, {
+        fallback,
+        validate: payload => isFulfillmentPhaseMutation(payload, {
+          id: draft.id || undefined,
+          stage: draft.stage,
+          label: draft.label,
+        }),
       });
-      const data = await res.json() as { ok: boolean; error?: string };
-      if (!data.ok) {
-        setError(data.error ?? "Could not save.");
-        return;
-      }
       if (typeof window !== "undefined") window.location.reload();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+    } catch (reason) {
+      setError(mutationErrorMessage(reason, fallback));
     } finally {
       setBusy(false);
     }

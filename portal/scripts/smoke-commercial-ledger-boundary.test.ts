@@ -13,6 +13,7 @@ process.env.PORTAL_BACKEND = "memory";
 
 function memoryStorage() {
   const values = new Map<string, unknown>();
+  const exclusiveQueues = new Map<string, Promise<void>>();
   return {
     async get<T = unknown>(key: string) { return values.get(key) as T | undefined; },
     async set<T = unknown>(key: string, value: T) { values.set(key, structuredClone(value)); },
@@ -23,6 +24,20 @@ function memoryStorage() {
     },
     async del(key: string) { values.delete(key); },
     async list(prefix = "") { return [...values.keys()].filter(key => key.startsWith(prefix)); },
+    async runExclusive<T>(key: string, work: () => Promise<T>) {
+      const previous = exclusiveQueues.get(key) ?? Promise.resolve();
+      let release!: () => void;
+      const gate = new Promise<void>(resolve => { release = resolve; });
+      const queued = previous.then(() => gate);
+      exclusiveQueues.set(key, queued);
+      await previous;
+      try {
+        return await work();
+      } finally {
+        release();
+        if (exclusiveQueues.get(key) === queued) exclusiveQueues.delete(key);
+      }
+    },
   };
 }
 

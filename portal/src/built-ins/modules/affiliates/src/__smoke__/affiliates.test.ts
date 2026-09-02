@@ -108,6 +108,7 @@ function buildWorld() {
   // can assert idempotency-key shape + transfer destination.
   const stripeCalls: { kind: string; payload: unknown }[] = [];
   const stripeAccounts = new Map<string, StripeConnectAccountSnapshot>();
+  let stripeRetrieveOverride: ((accountId: string) => Promise<StripeConnectAccountSnapshot>) | undefined;
   let stripeAccountSeq = 1;
   let stripeTransferSeq = 1;
   const stripeConnect: StripeConnectPort = {
@@ -132,6 +133,7 @@ function buildWorld() {
     },
     async retrieveAccount(accountId) {
       stripeCalls.push({ kind: "retrieveAccount", payload: { accountId } });
+      if (stripeRetrieveOverride) return stripeRetrieveOverride(accountId);
       return stripeAccounts.get(accountId) ?? {
         accountId,
         onboardingStatus: "pending",
@@ -156,9 +158,23 @@ function buildWorld() {
     stripeAccounts.set(accountId, { ...cur, ...patch });
   }
 
+  function setStripeRetrieveOverride(
+    override: ((accountId: string) => Promise<StripeConnectAccountSnapshot>) | undefined,
+  ) {
+    stripeRetrieveOverride = override;
+  }
+
   return {
     storage, tenant, user, activity, events: eventBus, pluginInstalls, ecommerceOrders, stripeConnect,
-    inspect: { activityLog, events, orders, stripeCalls, stripeAccounts, setStripeAccountState },
+    inspect: {
+      activityLog,
+      events,
+      orders,
+      stripeCalls,
+      stripeAccounts,
+      setStripeAccountState,
+      setStripeRetrieveOverride,
+    },
   };
 }
 
@@ -422,7 +438,8 @@ describe("affiliates smoke", () => {
       detailsSubmitted: true,
     });
 
-    // Webhook handler reads the snapshot we project from `account.updated`.
+    // A signed webhook wakes a fresh provider read, so delayed event delivery
+    // cannot make an older embedded object overwrite current Stripe state.
     const out = await services.onboarding!.applySnapshotForAccount(aff!.stripeAccountId!, {
       accountId: aff!.stripeAccountId!,
       onboardingStatus: "pending",
@@ -432,7 +449,23 @@ describe("affiliates smoke", () => {
     });
     assert.equal(out?.stripeOnboardingStatus, "complete");
 
+    const staleWebhook = await services.onboarding!.applySnapshotForAccount(aff!.stripeAccountId!, {
+      accountId: aff!.stripeAccountId!,
+      onboardingStatus: "restricted",
+      chargesEnabled: false,
+      payoutsEnabled: false,
+      detailsSubmitted: true,
+      disabledReason: "requirements.past_due",
+    });
+    assert.equal(staleWebhook?.stripeOnboardingStatus, "complete", "an older webhook object cannot regress current provider state");
+
     // Restricted state — needs additional info.
+    world.inspect.setStripeAccountState(aff!.stripeAccountId!, {
+      chargesEnabled: false,
+      payoutsEnabled: false,
+      detailsSubmitted: true,
+      disabledReason: "requirements.past_due",
+    });
     const restricted = await services.onboarding!.applySnapshotForAccount(aff!.stripeAccountId!, {
       accountId: aff!.stripeAccountId!,
       onboardingStatus: "pending",
@@ -444,6 +477,12 @@ describe("affiliates smoke", () => {
     assert.equal(restricted?.stripeOnboardingStatus, "restricted");
 
     // Flip back to complete for the rest of the test.
+    world.inspect.setStripeAccountState(aff!.stripeAccountId!, {
+      chargesEnabled: true,
+      payoutsEnabled: true,
+      detailsSubmitted: true,
+      disabledReason: undefined,
+    });
     await services.onboarding!.applySnapshotForAccount(aff!.stripeAccountId!, {
       accountId: aff!.stripeAccountId!,
       onboardingStatus: "pending",
@@ -451,6 +490,66 @@ describe("affiliates smoke", () => {
       payoutsEnabled: true,
       detailsSubmitted: true,
     });
+  });
+
+  test("step 10b: a delayed older Stripe read cannot overwrite a newer observation", async () => {
+    const affiliate = await services.affiliates.get(aliceAffiliateId);
+    assert.ok(affiliate?.stripeAccountId);
+    const accountId = affiliate!.stripeAccountId!;
+    type Deferred<T> = { promise: Promise<T>; resolve: (value: T) => void };
+    const deferred = <T>(): Deferred<T> => {
+      let resolve!: (value: T) => void;
+      const promise = new Promise<T>(done => { resolve = done; });
+      return { promise, resolve };
+    };
+    const olderStarted = deferred<void>();
+    const newerStarted = deferred<void>();
+    const olderResult = deferred<StripeConnectAccountSnapshot>();
+    const newerResult = deferred<StripeConnectAccountSnapshot>();
+    let call = 0;
+    world.inspect.setStripeRetrieveOverride(async observedAccountId => {
+      assert.equal(observedAccountId, accountId);
+      call += 1;
+      if (call === 1) {
+        olderStarted.resolve();
+        return olderResult.promise;
+      }
+      newerStarted.resolve();
+      return newerResult.promise;
+    });
+
+    try {
+      const older = services.onboarding!.refreshStatus(aliceAffiliateId, ACTOR);
+      await olderStarted.promise;
+      const newer = services.onboarding!.refreshStatus(aliceAffiliateId, ACTOR);
+      await newerStarted.promise;
+
+      newerResult.resolve({
+        accountId,
+        onboardingStatus: "complete",
+        chargesEnabled: true,
+        payoutsEnabled: true,
+        detailsSubmitted: true,
+      });
+      assert.equal((await newer)?.stripeOnboardingStatus, "complete");
+
+      olderResult.resolve({
+        accountId,
+        onboardingStatus: "restricted",
+        chargesEnabled: false,
+        payoutsEnabled: false,
+        detailsSubmitted: true,
+        disabledReason: "requirements.past_due",
+      });
+      assert.equal((await older)?.stripeOnboardingStatus, "complete", "stale caller receives current durable state");
+      assert.equal(
+        (await services.affiliates.get(aliceAffiliateId))?.stripeOnboardingStatus,
+        "complete",
+        "older provider response is fenced from regressing the affiliate",
+      );
+    } finally {
+      world.inspect.setStripeRetrieveOverride(undefined);
+    }
   });
 
   test("step 11: processPayout requires Stripe complete + creates real Transfer", async () => {

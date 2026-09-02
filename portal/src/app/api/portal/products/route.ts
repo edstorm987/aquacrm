@@ -1,15 +1,14 @@
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
-import { agencyProductsForRead, createAgencyProduct, listAgencyProducts, updateAgencyProduct } from "@/server/agencyProducts";
+import { agencyProductsForRead, createAgencyProduct, updateAgencyProduct } from "@/server/agencyProducts";
 import { ensureProductPortalTemplate } from "@/server/clientPortalDesigns";
 import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES, type AgencyProductInternalWorkspace, type AgencyProductKind, type AgencyProductPortalMode, type AgencyProductPortalRequirement, type AgencyProductPortalTemplateKey, type AgencyProductPricing, type AgencyProductStatus } from "@/server/types";
 import { PortalFormValidationError } from "@/lib/forms/portalFormValues";
-import {
-  requireCurrentWorkspaceElementAccess,
-  workspaceElementAtLeast,
-  workspaceElementLevel,
-} from "@/lib/server/access/workspaceElementAccess";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
+import { privateObjectLifecycleLockKey } from "@/lib/server/privateObjectLifecycle";
+import { withPortalStateTransaction } from "@/server/productWorkspaceCoordinator";
+import { SopReferenceValidationError } from "@/engines/sop/server/sopReferences";
 
 type Body = {
   action?: "create" | "update";
@@ -77,9 +76,6 @@ export async function POST(request: Request) {
     const agencyId = actor.resourceAgencyId;
     const body = await request.json().catch(() => null) as Body | null;
     if (!body?.action) return NextResponse.json({ ok: false, error: "action required" }, { status: 400 });
-    const existing = body.productId
-      ? listAgencyProducts(agencyId, true).find(product => product.id === body.productId)
-      : undefined;
     const input = {
       kind: body.kind,
       name: body.name ?? "",
@@ -114,23 +110,37 @@ export async function POST(request: Request) {
       active: body.active,
       status: body.status,
       companyIds: body.companyIds,
-      customFields: body.customFields ?? existing?.customFields ?? {},
+      customFields: body.customFields,
     };
-    const product = body.action === "create"
-      ? createAgencyProduct(agencyId, input, session.userId)
-      : body.productId
-        ? updateAgencyProduct(agencyId, body.productId, input, session.userId)
+    const outcome = await withPortalStateTransaction(privateObjectLifecycleLockKey(agencyId), () => {
+      const product = body.action === "create"
+        ? createAgencyProduct(agencyId, input, session.userId)
+        : body.productId
+          ? updateAgencyProduct(agencyId, body.productId, input, session.userId)
+          : null;
+      if (!product) return null;
+      const portalTemplate = product.status !== "archived" && product.portalRequirement !== "none"
+        ? ensureProductPortalTemplate(agencyId, product, session.userId)
         : null;
-    if (!product) return NextResponse.json({ ok: false, error: "product not found" }, { status: 404 });
-    const portalTemplate = product.status !== "archived" && product.portalRequirement !== "none"
-      ? ensureProductPortalTemplate(agencyId, product, session.userId)
-      : null;
+      return { product, portalTemplate };
+    });
+    if (!outcome) return NextResponse.json({ ok: false, error: "product not found" }, { status: 404 });
+    const { product, portalTemplate } = outcome;
     return NextResponse.json({ ok: true, product, portalTemplate: portalTemplate ? {
       id: portalTemplate.id,
       publishedVersionId: portalTemplate.publishedVersionId,
       productSourceUpdatedAt: portalTemplate.productSourceUpdatedAt,
     } : null });
   } catch (error) {
+    if (error instanceof SopReferenceValidationError) {
+      return NextResponse.json({
+        ok: false,
+        reason: error.code,
+        error: error.message,
+        field: error.field,
+        sopIds: error.sopIds,
+      }, { status: 422 });
+    }
     if (error instanceof PortalFormValidationError) {
       return NextResponse.json({ ok: false, error: error.message, fieldId: error.fieldId }, { status: 422 });
     }

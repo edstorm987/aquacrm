@@ -1,7 +1,9 @@
 import type { PluginCtx } from "../../lib/aquaPluginTypes";
 import type { Block } from "../../types/block";
-import { listBlogPosts } from "../../server/blog";
+import { getBlogPostBySlug, listBlogPosts } from "../../server/blog";
 import { getPage } from "../../server/pages";
+import { resolvePublishedPage } from "../../lib/pagePublication";
+import { isSafeBlogPostBody } from "../../lib/blogPostBody";
 import { getSite } from "../../server/sites";
 import {
   normaliseVisitorContactConsentStatement,
@@ -68,6 +70,10 @@ interface PublicBlogPostSummary {
   tags: string[];
   author?: string;
   publishedAt?: number;
+}
+
+interface PublicBlogPostDetail extends PublicBlogPostSummary {
+  body: Block[];
 }
 
 function clean(value: unknown, max: number): string {
@@ -233,7 +239,8 @@ export async function handleVisitorContact(req: Request, ctx: PluginCtx): Promis
       const site = await getSite(ctx.storage, scope.agencyId, scope.clientId, input.siteId);
       if (!site || (site.status !== "active" && site.status !== "live")) return fail("Contact form not found.", 404);
       if (!originAllowed(req, site)) return fail("This contact form could not be verified.", 403);
-      const page = await getPage(ctx.storage, scope.agencyId, scope.clientId, input.siteId, input.pageId);
+      const storedPage = await getPage(ctx.storage, scope.agencyId, scope.clientId, input.siteId, input.pageId);
+      const page = storedPage ? resolvePublishedPage(storedPage) : null;
       if (!page || page.status !== "published" || (page.privacy && page.privacy !== "public" && page.privacy !== "unlisted")) {
         return fail("Contact form not found.", 404);
       }
@@ -333,6 +340,16 @@ function toPublicBlogPostSummary(post: {
   };
 }
 
+function toPublicBlogPostDetail(post: {
+  slug: string; title: string; body: Block[]; excerpt?: string; coverImg?: string;
+  tags: string[]; author?: string; publishedAt?: number;
+}): PublicBlogPostDetail {
+  return {
+    ...toPublicBlogPostSummary(post),
+    body: post.body,
+  };
+}
+
 /** Published summary feed only; draft state and post bodies stay behind operator routes. */
 export async function handleVisitorBlogPosts(req: Request, ctx: PluginCtx): Promise<Response> {
   const scope = requireClientScope(ctx);
@@ -381,5 +398,54 @@ export async function handleVisitorBlogPosts(req: Request, ctx: PluginCtx): Prom
     });
   } catch (error) {
     return privateFailure("blog summaries", error);
+  }
+}
+
+/** One published post body; operator metadata and non-published rows never cross this facade. */
+export async function handleVisitorBlogPost(req: Request, ctx: PluginCtx): Promise<Response> {
+  const scope = requireClientScope(ctx);
+  if (!scope.ok) return scope.res;
+  const url = new URL(req.url);
+  const siteId = clean(url.searchParams.get("siteId"), 120);
+  const slug = clean(url.searchParams.get("slug"), 160);
+  if (!siteId) return fail("siteId required", 400);
+  if (!slug) return fail("slug required", 400);
+
+  try {
+    return await withVisitorPublicBoundary(ctx.storage, async () => {
+      const site = await getSite(ctx.storage, scope.agencyId, scope.clientId, siteId);
+      if (!site || (site.status !== "active" && site.status !== "live")) return fail("post not found", 404);
+
+      const limited = await takeVisitorRateLimitsLocked(ctx.storage, [
+        {
+          action: "blog",
+          identity: clientIpFromHeaders(req.headers),
+          max: 120,
+          windowMs: 60_000,
+        },
+        {
+          action: "blog-install",
+          identity: "all",
+          max: 1_200,
+          windowMs: 60_000,
+        },
+      ]);
+      if (!limited.allowed) {
+        return json(
+          { ok: false, error: "Too many requests. Please try again shortly." },
+          { status: 429, headers: { "retry-after": String(limited.retryAfterSec), "cache-control": "no-store" } },
+        );
+      }
+
+      const post = await getBlogPostBySlug(ctx.storage, scope.agencyId, scope.clientId, siteId, slug);
+      if (!post || post.status !== "published") return fail("post not found", 404);
+      if (!isSafeBlogPostBody(post.body)) return fail("post not found", 404);
+      return json(
+        { ok: true, post: toPublicBlogPostDetail(post) },
+        { status: 200, headers: { "cache-control": "no-store" } },
+      );
+    });
+  } catch (error) {
+    return privateFailure("blog detail", error);
   }
 }

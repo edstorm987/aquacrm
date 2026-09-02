@@ -3,11 +3,14 @@ import { NextResponse } from "next/server";
 import { cleanRecordText } from "@/lib/clients/clientRelationshipRecord";
 import { authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { canUsePeopleStation } from "@/server/people";
-import { ensureHydrated, flushPendingWrites } from "@/server/storage";
+import { ensureHydrated } from "@/server/storage";
 import { createAgencyTask } from "@/server/tasks";
 import { getClientForAgency } from "@/server/tenants";
 import { AGENCY_ROLES, type AgencyTaskPriority } from "@/server/types";
 import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
+import { privateObjectLifecycleLockKey } from "@/lib/server/privateObjectLifecycle";
+import { withPortalStateTransaction } from "@/server/productWorkspaceCoordinator";
+import { SopReferenceValidationError } from "@/engines/sop/server/sopReferences";
 
 function cleanPriority(value: unknown): AgencyTaskPriority {
   return value === "urgent" || value === "high" || value === "low" ? value : "normal";
@@ -35,23 +38,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "Actions access is required" }, { status: 403 });
     }
     const sourceHref = href.startsWith(`/portal/clients/${clientId}`) ? href : `/portal/clients/${clientId}`;
-    const task = createAgencyTask({
-      agencyId: session.agencyId,
-      title: `${client.name}: ${title}`,
-      notes: detail,
-      priority: cleanPriority(body?.priority),
-      origin: "crm",
-      sourceId: `client:${clientId}:operation:${operationId}`,
-      sourceHref,
-      evidence: [detail],
-      expectedOutcome: `${title} is resolved and the outcome is retained on ${client.name}'s client record.`,
-      assigneeUserId: session.userId,
-      clientId,
-      createdBy: session.userId,
-    });
-    await flushPendingWrites();
+    const task = await withPortalStateTransaction(privateObjectLifecycleLockKey(session.agencyId), () =>
+      createAgencyTask({
+        agencyId: session.agencyId,
+        title: `${client.name}: ${title}`,
+        notes: detail,
+        priority: cleanPriority(body?.priority),
+        origin: "crm",
+        sourceId: `client:${clientId}:operation:${operationId}`,
+        sourceHref,
+        evidence: [detail],
+        expectedOutcome: `${title} is resolved and the outcome is retained on ${client.name}'s client record.`,
+        assigneeUserId: session.userId,
+        clientId,
+        createdBy: session.userId,
+      }));
     return NextResponse.json({ ok: true, task }, { status: 201 });
   } catch (error) {
+    if (error instanceof SopReferenceValidationError) {
+      return NextResponse.json({ ok: false, reason: error.code, error: error.message, field: error.field, sopIds: error.sopIds }, { status: 422 });
+    }
     return authErrorResponse(error);
   }
 }

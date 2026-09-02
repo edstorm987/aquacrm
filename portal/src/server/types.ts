@@ -4705,8 +4705,8 @@ export interface ClientFormNotice {
 // announced to whom. An OutboxEvent is the durable half — recorded INSIDE the
 // same `mutate()` as the domain change it announces, so the state change and
 // its event are one write, then drained to the in-process bus. The current bus
-// is fire-and-forget, so `delivered` means dispatched to the bus, not
-// acknowledged by every consumer.
+// is fire-and-forget, so `delivered` means the bus dispatch callback actually
+// started, not that every asynchronous consumer acknowledged success.
 //
 // This is reliability and lineage, NOT event sourcing: state is not
 // rebuildable from these records and nothing may claim it is
@@ -4741,6 +4741,10 @@ export interface OutboxEvent {
   deliveredAt?: number;
   /** Attempts to hand this event to the in-process bus. */
   attempts: number;
+  /** When the latest bus handoff attempt started, successful or otherwise. */
+  lastAttemptAt?: number;
+  /** Synchronous handoff failure retained while status remains pending. */
+  lastError?: string;
 }
 
 export interface PortalState {

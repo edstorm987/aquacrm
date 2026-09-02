@@ -10,6 +10,7 @@ import {
   updateBlogPost,
   deleteBlogPost,
   BlogSlugConflictError,
+  BlogPostBodyValidationError,
   type BlogPostStatus,
   type ListBlogPostsFilter,
 } from "../../server/blog";
@@ -66,20 +67,25 @@ export async function handleCreateBlogPost(req: Request, ctx: PluginCtx): Promis
   }>(req);
   if (!body?.siteId) return fail("siteId required", 400);
   if (!body.title) return fail("title required", 400);
-  const post = await createBlogPost(ctx.storage, {
-    agencyId: scope.agencyId,
-    clientId: scope.clientId,
-    siteId: body.siteId,
-    title: body.title,
-    ...(body.slug ? { slug: body.slug } : {}),
-    ...(body.body ? { body: body.body } : {}),
-    ...(body.excerpt ? { excerpt: body.excerpt } : {}),
-    ...(body.coverImg ? { coverImg: body.coverImg } : {}),
-    ...(body.tags ? { tags: body.tags } : {}),
-    ...(body.author ? { author: body.author } : {}),
-    ...(body.status ? { status: body.status } : {}),
-  });
-  return ok({ post }, { status: 201 });
+  try {
+    const post = await createBlogPost(ctx.storage, {
+      agencyId: scope.agencyId,
+      clientId: scope.clientId,
+      siteId: body.siteId,
+      title: body.title,
+      ...(body.slug ? { slug: body.slug } : {}),
+      ...(body.body ? { body: body.body } : {}),
+      ...(body.excerpt ? { excerpt: body.excerpt } : {}),
+      ...(body.coverImg ? { coverImg: body.coverImg } : {}),
+      ...(body.tags ? { tags: body.tags } : {}),
+      ...(body.author ? { author: body.author } : {}),
+      ...(body.status ? { status: body.status } : {}),
+    });
+    return ok({ post }, { status: 201 });
+  } catch (error) {
+    if (error instanceof BlogPostBodyValidationError) return fail(error.reason, 400);
+    throw error;
+  }
 }
 
 // PATCH /blog/posts?siteId=...&id=...  body: UpdateBlogPostPatch
@@ -102,6 +108,7 @@ export async function handleUpdateBlogPost(req: Request, ctx: PluginCtx): Promis
     if (e instanceof BlogSlugConflictError) {
       return fail(`slug already in use: ${e.slug}`, 409);
     }
+    if (e instanceof BlogPostBodyValidationError) return fail(e.reason, 400);
     throw e;
   }
 }

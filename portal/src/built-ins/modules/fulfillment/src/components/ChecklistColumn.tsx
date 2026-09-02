@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 
 import type { ChecklistViewItem } from "../server";
 import { ChecklistTask } from "./ChecklistTask";
+import { mutationErrorMessage } from "@/lib/client/checkedMutation";
 
 export interface ChecklistColumnProps {
   title: string;
@@ -18,10 +19,10 @@ export interface ChecklistColumnProps {
 }
 
 export function ChecklistColumn(props: ChecklistColumnProps) {
-  const { title, subtitle, items, done, total, editable, onTick } = props;
+  const { title, subtitle, items, total, editable, onTick } = props;
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [, startTransition] = useTransition();
   const [optimistic, setOptimistic] = useState<Record<string, boolean>>({});
+  const [error, setError] = useState<string | null>(null);
 
   const merged = items.map(item => ({
     ...item,
@@ -31,7 +32,11 @@ export function ChecklistColumn(props: ChecklistColumnProps) {
   const pct = total > 0 ? Math.round((mergedDone / total) * 100) : 0;
 
   return (
-    <section className="fulfillment-checklist-column" data-empty={items.length === 0}>
+    <section
+      className="fulfillment-checklist-column"
+      data-empty={items.length === 0}
+      aria-busy={busyId !== null}
+    >
       <header>
         <h3>{title}</h3>
         {subtitle && <p className="fulfillment-column-subtitle">{subtitle}</p>}
@@ -44,6 +49,11 @@ export function ChecklistColumn(props: ChecklistColumnProps) {
           </div>
         </div>
       </header>
+      {error ? (
+        <p className="fulfillment-error" role="alert">
+          {error} The previous checklist state is still shown; try again.
+        </p>
+      ) : null}
       {merged.length === 0 ? (
         <p className="fulfillment-empty">No tasks yet.</p>
       ) : (
@@ -53,24 +63,26 @@ export function ChecklistColumn(props: ChecklistColumnProps) {
               key={task.id}
               task={task}
               editable={editable}
-              busy={busyId === task.id}
+              busy={busyId !== null}
               onToggle={async (next) => {
-                if (!onTick) return;
+                if (!onTick || busyId !== null) return;
                 setBusyId(task.id);
+                setError(null);
                 setOptimistic(o => ({ ...o, [task.id]: next }));
                 try {
                   await onTick({ itemId: task.id, done: next });
-                } catch {
-                  // rollback
+                } catch (reason) {
+                  setError(mutationErrorMessage(reason, "Could not update this checklist item."));
+                } finally {
+                  // Remove the transient value on both outcomes. A confirmed
+                  // parent view is updated before success resolves; failure
+                  // therefore reveals the unchanged server-provided value.
                   setOptimistic(o => {
                     const copy = { ...o };
                     delete copy[task.id];
                     return copy;
                   });
-                } finally {
-                  startTransition(() => {
-                    setBusyId(null);
-                  });
+                  setBusyId(null);
                 }
               }}
             />

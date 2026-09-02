@@ -2,6 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import {
+  PluginSettingsPanel,
+  type PluginSettingsView,
+} from "@/components/workspaces/PluginSettingsPanel";
 import AdminTabs from "../components/AdminTabs";
 import {
   COMPLEXITY_OPTIONS,
@@ -28,15 +32,21 @@ interface SitesResponse {
 
 const CARD = "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6";
 
-export default function EditorSettingsPage(_props: unknown) {
+interface EditorSettingsPageProps {
+  settings: PluginSettingsView | null;
+  clientId: string;
+  canEdit: boolean;
+}
+
+export default function EditorSettingsPage(props: EditorSettingsPageProps) {
   return (
     <PluginRequired plugin="website-editor">
-      <EditorSettingsPageInner />
+      <EditorSettingsPageInner {...props} />
     </PluginRequired>
   );
 }
 
-function EditorSettingsPageInner() {
+function EditorSettingsPageInner({ settings, clientId, canEdit }: EditorSettingsPageProps) {
   const [complexity, setComplexityState] = useState<EditorComplexity>(getEditorComplexity);
   const [sites, setSites] = useState<ExportSite[]>([]);
   const [siteId, setSiteId] = useState("");
@@ -144,6 +154,16 @@ function EditorSettingsPageInner() {
           Choose how this browser presents the editor, or download a snapshot from the shared website store.
         </p>
       </header>
+
+      {settings ? (
+        <section className={CARD} aria-label="Workspace defaults">
+          <PluginSettingsPanel initial={settings} clientId={clientId} canEdit={canEdit} />
+        </section>
+      ) : (
+        <p className={`${CARD} text-sm text-slate-600`}>
+          This client has no Website Editor settings to show.
+        </p>
+      )}
 
       <section className={CARD} aria-labelledby="editor-mode-heading">
         <h2 id="editor-mode-heading" className="text-sm font-semibold text-slate-950">Editor mode</h2>

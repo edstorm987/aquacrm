@@ -18,6 +18,7 @@ export {
   listPages,
   getPage,
   getPageBySlug,
+  getPublishedPageBySlug,
   createPage,
   updatePage,
   publishPage,

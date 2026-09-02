@@ -360,11 +360,11 @@ test("the dev-server caveat reaches the FIRST page of the run", () => {
   // judged before any socket had been seen, and its cancelled Turbopack chunks
   // scored as real failures. It showed up as `/` failing console and network on
   // exactly one viewport out of seventeen, which is the signature of an
-  // artefact, not a defect. The listener now goes on the session page before
+  // artefact, not a defect. The listener now goes on the bootstrap page before
   // sign-in, which itself navigates to /dev and opens the socket.
   assert.match(
     SOURCE,
-    /const session = await context\.newPage\(\);[\s\S]{0,600}?session\.on\("websocket"[\s\S]{0,200}?const authMode = await signIn\(session\);/,
+    /const bootstrapSession = await bootstrapContext\.newPage\(\);[\s\S]{0,600}?bootstrapSession\.on\("websocket"[\s\S]{0,200}?authMode = await signIn\(bootstrapSession\);/,
     "the HMR listener must be attached before the first navigation is judged",
   );
   // Still derived from the socket, never from a flag or an environment variable.
@@ -374,8 +374,33 @@ test("the dev-server caveat reaches the FIRST page of the run", () => {
   // opens after `domcontentloaded`, so sign-in can return before it exists and
   // the first page still gets judged under the wrong rule. The run waits for
   // it, bounded, so page one and page 119 are judged identically.
-  assert.match(SOURCE, /await session\.waitForEvent\("websocket", \{/, "the run must settle the flag before judging");
+  assert.match(SOURCE, /await bootstrapSession\.waitForEvent\("websocket", \{/, "the run must settle the flag before judging");
   assert.match(SOURCE, /timeout: 4000/, "…and bounded, so a production target is not stalled");
+});
+
+test("one real login session is reused across every viewport", () => {
+  // A 17-viewport production run used to POST the same correct credentials 17
+  // times. The app correctly rate-limits the burst after ten attempts, so the
+  // gate failed itself before it could inspect the last seven viewports. Auth
+  // belongs to the run; layout/runtime isolation still belongs to each row.
+  assert.equal(
+    (SOURCE.match(/await signIn\(/g) ?? []).length,
+    1,
+    "the matrix must authenticate once, not once per viewport",
+  );
+  assert.match(SOURCE, /authenticatedState = await bootstrapContext\.storageState\(\)/,
+    "the successfully authenticated bootstrap context must be captured");
+  assert.match(
+    SOURCE,
+    /for \(const entry of viewports\)[\s\S]{0,320}?browser\.newContext\(\{[\s\S]{0,220}?storageState: authenticatedState/,
+    "every viewport context must start from the captured authenticated state",
+  );
+  assert.match(SOURCE, /auth=\$\{authMode\}/, "the evidence log must still identify the authentication mode");
+
+  // This is a harness fix, never an auth bypass: password mode still traverses
+  // the real login route exactly once and no cookie is fabricated in-browser.
+  assert.match(SOURCE, /page\.request\.post\(`\$\{BASE\}\/api\/auth\/login`/);
+  assert.doesNotMatch(SOURCE, /addCookies\(|document\.cookie/);
 });
 
 test("a cancelled dev asset is not reported twice, and only when it is one", () => {

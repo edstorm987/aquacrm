@@ -13,6 +13,7 @@ import type {
   Role,
 } from "./types";
 import { pendingPrivateObjectDeletionSnapshots } from "@/lib/server/privateObjectLifecycle";
+import { assertSopReferencesExist } from "@/engines/sop/server/sopReferences";
 
 const KINDS: DevelopmentResourceKind[] = [
   "tool", "app", "design-inspiration", "saved-page", "template", "git-template",
@@ -152,7 +153,10 @@ export function createDevelopmentResource(
     createdAt: now,
     updatedAt: now,
   };
-  mutate(state => { state.developmentResources[resource.id] = resource; });
+  mutate(state => {
+    resource.sopIds = assertSopReferencesExist(state, agencyId, resource.sopIds, "developmentResource.sopIds");
+    state.developmentResources[resource.id] = resource;
+  });
   logActivity({
     agencyId,
     actorUserId,
@@ -218,7 +222,10 @@ export function updateDevelopmentResource(
     updatedBy: actorUserId,
     updatedAt: Date.now(),
   };
-  mutate(state => { state.developmentResources[resourceId] = updated; });
+  mutate(state => {
+    updated.sopIds = assertSopReferencesExist(state, agencyId, updated.sopIds, "developmentResource.sopIds");
+    state.developmentResources[resourceId] = updated;
+  });
   return updated;
 }
 

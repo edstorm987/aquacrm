@@ -248,6 +248,19 @@ export async function claimProductWorkspaceLease(
   return result.rows[0]?.result;
 }
 
+export async function renewProductWorkspaceLease(
+  workspaceKey: string,
+  holderId: string,
+  leaseMs: number,
+  realmId = "live",
+): Promise<unknown> {
+  const result = await getPool().query<{ result: unknown }>(
+    "SELECT public.renew_product_workspace_lease($1, $2, $3, $4)::jsonb AS result",
+    [stateKeyForRealm(realmId), workspaceKey, holderId, Math.max(1_000, Math.floor(leaseMs))],
+  );
+  return result.rows[0]?.result;
+}
+
 export async function releaseProductWorkspaceLease(
   workspaceKey: string,
   holderId: string,

@@ -3,11 +3,13 @@ import "server-only";
 import crypto from "node:crypto";
 import { logActivity } from "./activity";
 import { createAgencyTask } from "./tasks";
-import { getState, mutate } from "./storage";
+import { flushPendingWrites, getState, mutate } from "./storage";
 import { getAgency } from "./tenants";
 import { listUsersForAgency } from "./users";
 import { sendTransactionalEmail } from "@/lib/server/email/transactionalEmail";
 import { listWebsiteEnquiries } from "@/lib/server/websiteEnquiries";
+import { privateObjectLifecycleLockKey } from "@/lib/server/privateObjectLifecycle";
+import { withPortalStateTransaction } from "./productWorkspaceCoordinator";
 import type {
   AgencyTaskPriority,
   AutomationConditionOperator,
@@ -698,17 +700,22 @@ async function executeAction(workflow: AutomationWorkflow, run: AutomationRun, n
       return;
     }
     const dueIn = safeNumber(node.config.dueInMinutes, 1_440, 0, 525_600);
-    const task = createAgencyTask({
-      agencyId: workflow.agencyId,
-      title,
-      notes,
-      priority: node.config.taskPriority ?? "normal",
-      dueAt: Date.now() + dueIn * 60_000,
-      origin: "crm",
-      sourceId: `automation:${workflow.id}:${node.id}`,
-      sourceHref: "/portal/agency/marketing?view=automations",
-      createdBy: run.initiatedBy || workflow.createdBy,
-    });
+    // The run/log mutations above are intentionally outside this narrow SOP
+    // lifecycle lane. Persist them before its fresh hydration so the task
+    // transaction cannot replace an unflushed automation checkpoint.
+    await flushPendingWrites();
+    const task = await withPortalStateTransaction(privateObjectLifecycleLockKey(workflow.agencyId), () =>
+      createAgencyTask({
+        agencyId: workflow.agencyId,
+        title,
+        notes,
+        priority: node.config.taskPriority ?? "normal",
+        dueAt: Date.now() + dueIn * 60_000,
+        origin: "crm",
+        sourceId: `automation:${workflow.id}:${node.id}`,
+        sourceHref: "/portal/agency/marketing?view=automations",
+        createdBy: run.initiatedBy || workflow.createdBy,
+      }));
     appendRunLog(run.id, { nodeId: node.id, level: "success", message: `Created task "${task.title}".` });
     return;
   }

@@ -196,7 +196,7 @@ export function ContactCard({
               it on an unclassified enquiry would invite creating a client for
               somebody who turns out to be a supplier. */}
           {state !== "client" && person.classification !== "unclassified" ? (
-            <ConvertToClient personId={person.id} suggestedName={person.company ?? person.name ?? ""} />
+            <ConvertToClient personId={person.id} suggestedName={person.company ?? person.name ?? ""} disabled={!interactionsComplete} />
           ) : null}
 
           {/* Progression, so the card's current face is never ambiguous. */}
@@ -429,6 +429,7 @@ export function ContactCard({
             <p className="mt-1 text-xs text-black/50">
               Changing this never deletes anything. Move them out and back and their history is intact.
             </p>
+            {!interactionsComplete ? <p role="status" className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">The enquiry history is incomplete, so relationship changes are locked until the timeline read succeeds.</p> : null}
             <div className="mt-3 flex flex-wrap gap-2">
               {WEBSITE_ENQUIRY_CLASSIFICATIONS.filter(entry => entry !== "unclassified").map(entry => {
                 const active = person.classification === entry;
@@ -436,7 +437,8 @@ export function ContactCard({
                   <button
                     key={entry}
                     type="button"
-                    disabled={busy !== null}
+                    disabled={busy !== null || !interactionsComplete}
+                    title={!interactionsComplete ? "Retry the enquiry timeline before changing this relationship" : undefined}
                     aria-pressed={active}
                     onClick={() => void send(
                       { action: "classify", classification: entry },
@@ -746,7 +748,7 @@ function IdentityRow({
  * the enquiry, seen the meetings and set the relationship. Sending you to the
  * pipeline to say "yes, they're a client" is a detour with no purpose.
  */
-function ConvertToClient({ personId, suggestedName }: { personId: string; suggestedName: string }) {
+function ConvertToClient({ personId, suggestedName, disabled = false }: { personId: string; suggestedName: string; disabled?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(suggestedName);
@@ -777,8 +779,10 @@ function ConvertToClient({ personId, suggestedName }: { personId: string; sugges
     return (
       <button
         type="button"
+        disabled={disabled}
         onClick={() => setOpen(true)}
-        className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md bg-brand px-3.5 text-sm font-semibold text-white hover:bg-brand/90"
+        title={disabled ? "Retry the enquiry timeline before creating a workspace" : undefined}
+        className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md bg-brand px-3.5 text-sm font-semibold text-white hover:bg-brand/90 disabled:opacity-45"
       >
         <Briefcase size={15} aria-hidden />Convert to client
       </button>
@@ -804,7 +808,7 @@ function ConvertToClient({ personId, suggestedName }: { personId: string; sugges
       <div className="mt-2 flex gap-2">
         <button
           type="button"
-          disabled={busy || !name.trim()}
+          disabled={busy || disabled || !name.trim()}
           onClick={() => void convert()}
           className="inline-flex h-9 items-center rounded-md bg-brand px-4 text-xs font-semibold text-white disabled:opacity-40"
         >

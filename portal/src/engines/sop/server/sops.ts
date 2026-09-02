@@ -5,6 +5,7 @@ import { getState, mutate } from "@/server/storage";
 import { logActivity } from "@/server/activity";
 import type { SopDocument } from "@/server/types";
 import { pendingPrivateObjectDeletionSnapshots } from "@/lib/server/privateObjectLifecycle";
+import { assertSopHasNoDependants } from "@/engines/sop/server/sopDependencies";
 // Keep the server SOP store on the element engine's leaf modules. Importing the
 // public barrel also exposes `websiteElements`, whose on-demand vocabulary
 // reaches the website editor's 78 client block renderers. Next registers those
@@ -281,9 +282,14 @@ export function updateSop(agencyId: string, id: string, patch: { title?: string;
 }
 
 export function deleteSopRecord(agencyId: string, id: string): SopDocument | null {
-  const existing = getSop(agencyId, id);
-  if (!existing) return null;
-  mutate(state => { delete state.sops[id]; });
+  let existing: SopDocument | null = null;
+  mutate(state => {
+    const current = state.sops[id];
+    if (!current || current.agencyId !== agencyId) return;
+    assertSopHasNoDependants(state, agencyId, id);
+    existing = current;
+    delete state.sops[id];
+  });
   return existing;
 }
 

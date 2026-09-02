@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useReducer, useRef, useState } from "react";
 import { Check, ExternalLink, Fingerprint, Link2, PauseCircle, RefreshCw, SearchCheck, X, XCircle } from "lucide-react";
 
+import { checkedReadReducer, confirmedCheckedRead } from "@/lib/client/checkedReadState";
 import type { IdentityResolutionReview, IdentityReviewStatus } from "@/server/types";
 
 interface ClientOption {
@@ -23,15 +24,19 @@ export function IdentityReviewWorkspace({
   initialReviews: IdentityResolutionReview[];
   clients: ClientOption[];
 }) {
-  const [reviews, setReviews] = useState(initialReviews);
-  const [status, setStatus] = useState<IdentityReviewStatus | "all">("pending");
-  const [loadingStatus, setLoadingStatus] = useState<IdentityReviewStatus | "all" | null>(null);
+  type ReviewScope = IdentityReviewStatus | "all";
+  const [queueRead, dispatchQueueRead] = useReducer(
+    checkedReadReducer<IdentityResolutionReview[], ReviewScope>,
+    confirmedCheckedRead<IdentityResolutionReview[], ReviewScope>("pending", initialReviews),
+  );
+  const queueRequestId = useRef(0);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  // Only a failed QUEUE READ may claim the queue was not read. `error` is shared
-  // with rescan and with per-row decisions, and borrowing it would tell an
-  // operator whose "Approve" failed that a queue they can see was never read.
-  const [queueUnread, setQueueUnread] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const reviews = queueRead.value;
+  const status = queueRead.confirmedScope;
+  const loadingStatus = queueRead.phase === "loading" ? queueRead.requestedScope : null;
+  const failedStatus = queueRead.phase === "unavailable" ? queueRead.requestedScope : null;
+  const error = actionError ?? (queueRead.phase === "unavailable" ? queueRead.error : null);
   const visible = useMemo(() => reviews.filter(review => status === "all" || review.status === status), [reviews, status]);
   const pendingCount = reviews.filter(review => review.status === "pending").length;
 
@@ -40,57 +45,68 @@ export function IdentityReviewWorkspace({
   // under "Nothing in this queue", which is a claim about a queue nobody read
   // (issues #57). The label only moves once the rows behind it have arrived.
   async function load(nextStatus: IdentityReviewStatus | "all") {
-    setLoadingStatus(nextStatus);
-    setError(null);
+    const requestId = queueRequestId.current + 1;
+    queueRequestId.current = requestId;
+    dispatchQueueRead({ type: "begin", requestId, scope: nextStatus });
+    setActionError(null);
     try {
       const response = await fetch(`/api/portal/identity-resolution?status=${encodeURIComponent(nextStatus)}`, { cache: "no-store" });
       const payload = await response.json().catch(() => null) as { ok?: boolean; reviews?: IdentityResolutionReview[]; error?: string } | null;
-      if (!response.ok || !payload?.ok || !payload.reviews) {
-        setError(payload?.error || "Identity reviews could not be loaded.");
-        setQueueUnread(true);
+      if (!response.ok || !payload?.ok || !Array.isArray(payload.reviews)) {
+        dispatchQueueRead({ type: "fail", requestId, scope: nextStatus, error: payload?.error || `The ${reviewStatusLabel(nextStatus)} queue could not be loaded. The last-confirmed queue is retained.` });
         return;
       }
-      setReviews(payload.reviews);
-      setStatus(nextStatus);
-      setQueueUnread(false);
+      dispatchQueueRead({ type: "succeed", requestId, scope: nextStatus, value: payload.reviews });
     } catch {
-      setError("Identity reviews could not be loaded.");
-      setQueueUnread(true);
-    } finally {
-      setLoadingStatus(null);
+      dispatchQueueRead({ type: "fail", requestId, scope: nextStatus, error: `The ${reviewStatusLabel(nextStatus)} queue could not be loaded. The last-confirmed queue is retained.` });
     }
   }
 
   async function rescan() {
+    const requestId = queueRequestId.current + 1;
+    queueRequestId.current = requestId;
+    dispatchQueueRead({ type: "begin", requestId, scope: "pending" });
     setBusyId("rescan");
-    setError(null);
-    const response = await fetch("/api/portal/identity-resolution", { method: "POST" });
-    const payload = await response.json().catch(() => null) as { ok?: boolean; reviews?: IdentityResolutionReview[]; error?: string } | null;
-    setBusyId(null);
-    if (!response.ok || !payload?.ok || !payload.reviews) {
-      setError(payload?.error || "Identity sources could not be rescanned.");
-      return;
+    setActionError(null);
+    try {
+      const response = await fetch("/api/portal/identity-resolution", { method: "POST" });
+      const payload = await response.json().catch(() => null) as { ok?: boolean; reviews?: IdentityResolutionReview[]; error?: string } | null;
+      if (!response.ok || !payload?.ok || !Array.isArray(payload.reviews)) {
+        dispatchQueueRead({ type: "fail", requestId, scope: "pending", error: payload?.error || "Identity sources could not be rescanned. The last-confirmed queue is retained." });
+        return;
+      }
+      dispatchQueueRead({ type: "succeed", requestId, scope: "pending", value: payload.reviews });
+    } catch {
+      dispatchQueueRead({ type: "fail", requestId, scope: "pending", error: "Identity sources could not be rescanned. The last-confirmed queue is retained." });
+    } finally {
+      setBusyId(null);
     }
-    setStatus("pending");
-    setReviews(payload.reviews);
-    setQueueUnread(false);
   }
 
   async function decide(review: IdentityResolutionReview, action: "link" | "park" | "dismiss", clientId?: string) {
-    setBusyId(review.id);
-    setError(null);
-    const response = await fetch("/api/portal/identity-resolution", {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ reviewId: review.id, action, clientId }),
-    });
-    const payload = await response.json().catch(() => null) as { ok?: boolean; review?: IdentityResolutionReview; error?: string } | null;
-    setBusyId(null);
-    if (!response.ok || !payload?.ok || !payload.review) {
-      setError(payload?.error || "The identity decision could not be saved.");
+    if (queueRead.phase !== "ready") {
+      setActionError("The queue is not current, so identity decisions are locked until its read succeeds.");
       return;
     }
-    setReviews(current => current.map(item => item.id === review.id ? payload.review! : item));
+    setBusyId(review.id);
+    setActionError(null);
+    try {
+      const response = await fetch("/api/portal/identity-resolution", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ reviewId: review.id, action, clientId }),
+      });
+      const payload = await response.json().catch(() => null) as { ok?: boolean; review?: IdentityResolutionReview; error?: string } | null;
+      if (!response.ok || !payload?.ok || !payload.review) {
+        setActionError(payload?.error || "The identity decision could not be saved.");
+        return;
+      }
+      dispatchQueueRead({ type: "update-confirmed", update: current => current.map(item => item.id === review.id ? payload.review! : item) });
+    } catch {
+      setActionError("The identity decision could not be saved.");
+    } finally {
+      setBusyId(null);
+    }
   }
 
   return (
@@ -101,28 +117,28 @@ export function IdentityReviewWorkspace({
           <h2 className="mt-2 text-xl font-semibold text-black/85">Resolve people to the right client</h2>
           <p className="mt-1 max-w-3xl text-sm text-black/52">Aqua auto-links authoritative matches. Anything uncertain stays here with the evidence visible, so a name similarity can never silently join the wrong account.</p>
         </div>
-        <button type="button" onClick={() => void rescan()} disabled={busyId === "rescan"} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-45">
+        <button type="button" onClick={() => void rescan()} disabled={busyId === "rescan" || queueRead.phase === "loading"} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-45">
           <RefreshCw size={15} className={busyId === "rescan" ? "animate-spin" : ""} /> Rescan sources
         </button>
       </header>
 
       <div className="flex flex-wrap gap-2 border-b border-black/10 py-4" aria-label="Identity review status">
-        <FilterButton active={status === "pending"} onClick={() => void load("pending")} label="Needs review" count={pendingCount} />
-        <FilterButton active={status === "parked"} onClick={() => void load("parked")} label="Parked" />
-        <FilterButton active={status === "linked"} onClick={() => void load("linked")} label="Approved" />
-        <FilterButton active={status === "dismissed"} onClick={() => void load("dismissed")} label="Dismissed" />
-        <FilterButton active={status === "all"} onClick={() => void load("all")} label="History" />
+        <FilterButton active={status === "pending"} disabled={queueRead.phase === "loading"} onClick={() => void load("pending")} label="Needs review" count={pendingCount} />
+        <FilterButton active={status === "parked"} disabled={queueRead.phase === "loading"} onClick={() => void load("parked")} label="Parked" />
+        <FilterButton active={status === "linked"} disabled={queueRead.phase === "loading"} onClick={() => void load("linked")} label="Approved" />
+        <FilterButton active={status === "dismissed"} disabled={queueRead.phase === "loading"} onClick={() => void load("dismissed")} label="Dismissed" />
+        <FilterButton active={status === "all"} disabled={queueRead.phase === "loading"} onClick={() => void load("all")} label="History" />
         {loadingStatus ? <span role="status" className="self-center text-xs text-black/45">Loading…</span> : null}
       </div>
 
-      {error ? <div className="mt-4 flex items-center justify-between gap-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"><span>{error}</span><button type="button" onClick={() => setError(null)} aria-label="Dismiss error"><X size={15} /></button></div> : null}
+      {error ? <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"><span>{error}</span><span className="flex items-center gap-2">{failedStatus ? <button type="button" onClick={() => void load(failedStatus)} className="rounded-md border border-red-300 bg-white px-2.5 py-1 text-xs font-semibold">Retry {reviewStatusLabel(failedStatus)}</button> : null}{actionError ? <button type="button" onClick={() => setActionError(null)} aria-label="Dismiss error"><X size={15} /></button> : null}</span></div> : null}
 
       <div className="mt-5 divide-y divide-black/[0.08] border-y border-black/10">
-        {visible.map(review => <IdentityReviewRow key={review.id} review={review} clients={clients} busy={busyId === review.id} onDecide={decide} />)}
+        {visible.map(review => <IdentityReviewRow key={review.id} review={review} clients={clients} busy={busyId === review.id || queueRead.phase !== "ready"} onDecide={decide} />)}
       </div>
       {!visible.length ? (
         <div className="grid min-h-56 place-items-center border-b border-black/10 text-center">
-          <div><SearchCheck className="mx-auto text-brand" size={28} /><p className="mt-3 text-sm font-semibold text-black/70">{queueUnread ? "This queue was not read" : "Nothing in this queue"}</p><p className="mt-1 text-sm text-black/45">{queueUnread ? "Nothing is shown because the read failed, not because the queue is empty. Try the filter again." : "Run a source scan to check new enquiries and social identities."}</p></div>
+          <div><SearchCheck className="mx-auto text-brand" size={28} /><p className="mt-3 text-sm font-semibold text-black/70">{queueRead.phase === "unavailable" ? "This queue was not read" : "Nothing in this queue"}</p><p className="mt-1 text-sm text-black/45">{queueRead.phase === "unavailable" ? "Nothing is shown because the read failed, not because the queue is empty. Retry the requested filter above." : "Run a source scan to check new enquiries and social identities."}</p></div>
         </div>
       ) : null}
     </section>
@@ -197,6 +213,13 @@ function IdentityReviewRow({
   );
 }
 
-function FilterButton({ active, onClick, label, count }: { active: boolean; onClick: () => void; label: string; count?: number }) {
-  return <button type="button" onClick={onClick} className={`inline-flex min-h-9 items-center gap-2 rounded-md border px-3 text-xs font-semibold ${active ? "border-brand bg-brand/8 text-brand" : "border-black/12 text-black/55"}`}>{label}{typeof count === "number" ? <span className="rounded-full bg-black/7 px-1.5 py-0.5 text-[10px]">{count}</span> : null}</button>;
+function FilterButton({ active, disabled, onClick, label, count }: { active: boolean; disabled?: boolean; onClick: () => void; label: string; count?: number }) {
+  return <button type="button" disabled={disabled} onClick={onClick} className={`inline-flex min-h-9 items-center gap-2 rounded-md border px-3 text-xs font-semibold disabled:opacity-45 ${active ? "border-brand bg-brand/8 text-brand" : "border-black/12 text-black/55"}`}>{label}{typeof count === "number" ? <span className="rounded-full bg-black/7 px-1.5 py-0.5 text-[10px]">{count}</span> : null}</button>;
+}
+
+function reviewStatusLabel(status: IdentityReviewStatus | "all"): string {
+  if (status === "pending") return "Needs review";
+  if (status === "linked") return "Approved";
+  if (status === "all") return "History";
+  return status.charAt(0).toUpperCase() + status.slice(1);
 }

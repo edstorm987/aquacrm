@@ -12,6 +12,7 @@ function input(overrides: Partial<ClientRadarInput> = {}): ClientRadarInput {
   const requests = overrides.requests ?? [];
   const contracts = overrides.contracts ?? [];
   const financeConnected = overrides.financeConnected ?? false;
+  const financeAvailable = overrides.financeAvailable ?? true;
   const requestsObserved = overrides.requestsObserved ?? false;
   const lastContactedAt = overrides.lastContactedAt;
   return {
@@ -29,6 +30,7 @@ function input(overrides: Partial<ClientRadarInput> = {}): ClientRadarInput {
     aquaHealth: overrides.aquaHealth ?? calculateClientAquaHealth({
       now: NOW,
       financeConnected,
+      financeAvailable,
       invoices,
       lastContactedAt,
       requestsObserved,
@@ -40,6 +42,7 @@ function input(overrides: Partial<ClientRadarInput> = {}): ClientRadarInput {
     milestones: overrides.milestones ?? [],
     alerts: overrides.alerts ?? [],
     financeConnected,
+    financeAvailable,
     paymentPosition: overrides.paymentPosition,
     invoices,
     requestsObserved,
@@ -187,6 +190,39 @@ describe("client-scoped adaptive Radar", () => {
     assert.equal(finance?.status, "critical");
     assert.match(finance?.detail ?? "", /£600\.00 remains outstanding/);
     assert.deepEqual(finance?.evidence.slice(0, 3), ["1 missed", "1 open invoices", "GBP: £400.00 collected · £600.00 outstanding"]);
+  });
+
+  it("keeps Finance blind and the client conclusion learning when the invoice read is unavailable", () => {
+    const radar = buildClientRadarSnapshot(input({
+      financeConnected: true,
+      financeAvailable: false,
+      invoices: [],
+      requestsObserved: true,
+      lastContactedAt: NOW,
+      products: [{
+        id: "retainer",
+        name: "Retainer",
+        requiresPortal: false,
+        deliverableCount: 1,
+        workspace: {
+          progress: 100,
+          pendingDecisions: 0,
+          blockedDecisions: 0,
+          outputCount: 1,
+          readyOutputs: 1,
+          lastUpdatedAt: NOW,
+        },
+      }],
+    }));
+    const finance = radar.checks.find(check => check.id.endsWith(":payment-position"));
+
+    assert.equal(finance?.status, "blind");
+    assert.equal(finance?.value, undefined);
+    assert.equal(finance?.sampleSize, 0);
+    assert.match(finance?.detail ?? "", /invoice evidence is unavailable/i);
+    assert.doesNotMatch(finance?.evidence.join(" ") ?? "", /0 overdue|0 open|0 retained/);
+    assert.equal(radar.sourceAvailability.finance, "unavailable");
+    assert.notEqual(radar.healthState, "strong");
   });
 
   it("never shares check identities between client workspaces", () => {

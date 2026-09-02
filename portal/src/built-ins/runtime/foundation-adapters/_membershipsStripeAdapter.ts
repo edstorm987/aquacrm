@@ -299,13 +299,16 @@ export function makeMembershipsStripePort(
                 description: input.product.description,
               },
             };
-      const price = await stripe.prices.create({
-        ...productParams,
-        unit_amount: input.unitAmount,
-        currency: input.currency,
-        recurring: { interval: input.recurring.interval },
-        metadata: input.metadata,
-      });
+      const price = await stripe.prices.create(
+        {
+          ...productParams,
+          unit_amount: input.unitAmount,
+          currency: input.currency,
+          recurring: { interval: input.recurring.interval },
+          metadata: input.metadata,
+        },
+        input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : undefined,
+      );
       return {
         id: price.id,
         productId: typeof price.product === "string" ? price.product : (price.product?.id ?? ""),

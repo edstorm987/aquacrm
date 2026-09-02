@@ -13,13 +13,13 @@ import "server-only";
 // an error; the surfaces holding it simply render one fewer step, so a checklist
 // quietly gets shorter and nobody is told a required procedure went missing.
 //
-// ── This module deliberately decides NOTHING ───────────────────────────────
+// ── Retirement policy ──────────────────────────────────────────────────────
 //
-// Whether retirement should archive, tombstone, reassign or detach is a product
-// decision that is still open, and inventing one here would be worse than the
-// gap. This answers only the question every one of those policies has to ask
-// first — *what would break?* — so the confirmation UI and the server command
-// ask it the same way, of one implementation.
+// Hard deletion is RESTRICT: a linked procedure stays intact until every
+// reference is removed or reassigned. This is the only lossless default that
+// needs no guess about historical retention and cannot silently shorten an
+// operating checklist. The inventory below is both the mounted explanation and
+// the same-snapshot domain assertion used by the destructive command.
 //
 // ── Every place a SOP id can hide ─────────────────────────────────────────
 //
@@ -72,6 +72,17 @@ export interface SopDependencyInventory {
   /** `dependants.length`, for a caller that only needs "is it safe?". */
   total: number;
   byKind: Record<string, number>;
+}
+
+export class SopHasDependantsError extends Error {
+  readonly code = "sop_has_dependants";
+
+  constructor(readonly inventory: SopDependencyInventory) {
+    super(
+      `Cannot delete this SOP: ${inventory.total} record${inventory.total === 1 ? " still uses" : "s still use"} it. Remove or reassign those links, then retry.`,
+    );
+    this.name = "SopHasDependantsError";
+  }
 }
 
 const label = (value: unknown, fallback: string): string =>
@@ -189,20 +200,38 @@ export function collectSopDependants(
   return found;
 }
 
-/** The inventory, grouped and counted, for a confirmation surface. */
-export function sopDependencyInventory(agencyId: string, sopId: string): SopDependencyInventory {
-  const dependants = collectSopDependants(getState(), agencyId, sopId);
+/** The inventory, grouped and counted, from one authoritative state snapshot. */
+export function sopDependencyInventoryFromState(
+  state: PortalState,
+  agencyId: string,
+  sopId: string,
+): SopDependencyInventory {
+  const dependants = collectSopDependants(state, agencyId, sopId);
   const byKind: Record<string, number> = {};
   for (const dependant of dependants) byKind[dependant.kind] = (byKind[dependant.kind] ?? 0) + 1;
   return { sopId, dependants, total: dependants.length, byKind };
 }
 
+/** The current inventory for read/preview surfaces. */
+export function sopDependencyInventory(agencyId: string, sopId: string): SopDependencyInventory {
+  return sopDependencyInventoryFromState(getState(), agencyId, sopId);
+}
+
+/** Enforce RESTRICT inside the same state mutation that would remove the SOP. */
+export function assertSopHasNoDependants(
+  state: PortalState,
+  agencyId: string,
+  sopId: string,
+): SopDependencyInventory {
+  const inventory = sopDependencyInventoryFromState(state, agencyId, sopId);
+  if (inventory.total > 0) throw new SopHasDependantsError(inventory);
+  return inventory;
+}
+
 /**
  * Is deleting this procedure safe RIGHT NOW, with nothing left holding its id?
  *
- * A convenience over the inventory — deliberately not a policy. A caller that
- * wants to allow retirement anyway is free to; it just cannot claim it did not
- * know.
+ * A convenience over the inventory for non-destructive callers.
  */
 export function sopHasDependants(agencyId: string, sopId: string): boolean {
   return collectSopDependants(getState(), agencyId, sopId).length > 0;

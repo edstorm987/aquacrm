@@ -142,6 +142,12 @@ function decodePayload(token: string | undefined): ProxySession | null {
 
 export function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;
+  // Forward one proxy-owned path header so the nested agency layout can apply
+  // the same canonical staff page policy even when framework-private pathname
+  // headers are absent. Overwrite, rather than trust, any inbound value.
+  const forwardedHeaders = new Headers(req.headers);
+  forwardedHeaders.set("x-aqua-route-path", path);
+  const next = () => NextResponse.next({ request: { headers: forwardedHeaders } });
   const token = req.cookies.get(COOKIE)?.value;
   const payload = decodePayload(token);
   const safeMethod = ["GET", "HEAD", "OPTIONS"].includes(req.method);
@@ -230,9 +236,9 @@ export function proxy(req: NextRequest) {
 
   const env = process.env.NEXT_PUBLIC_PORTAL_SECURITY;
   const isStrict = env === "strict" || env === "true";
-  if (!isStrict) return NextResponse.next();
+  if (!isStrict) return next();
 
-  if (!path.startsWith("/portal")) return NextResponse.next();
+  if (!path.startsWith("/portal")) return next();
 
   if (!token) {
     const url = req.nextUrl.clone();
@@ -263,7 +269,7 @@ export function proxy(req: NextRequest) {
     }
   }
 
-  return NextResponse.next();
+  return next();
 }
 
 export const config = {

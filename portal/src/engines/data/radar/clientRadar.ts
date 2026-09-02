@@ -76,6 +76,7 @@ export interface ClientRadarInput {
   milestones: ClientRadarMilestoneInput[];
   alerts: ClientRadarAlertInput[];
   financeConnected: boolean;
+  financeAvailable: boolean;
   paymentPosition?: ClientPaymentPosition;
   invoices: Array<{
     status: string;
@@ -166,9 +167,11 @@ export function buildClientRadarSnapshot(input: ClientRadarInput): ClientRadarSn
 
   const overdueInvoices = input.invoices.filter(invoice => ["sent", "overdue"].includes(invoice.status) && invoice.dueAt < now);
   const openInvoices = input.invoices.filter(invoice => ["sent", "overdue"].includes(invoice.status));
-  const paymentPosition = input.paymentPosition;
+  const paymentPosition = input.financeAvailable ? input.paymentPosition : undefined;
   const paymentStatus: RadarCheckStatus = !input.financeConnected
     ? "blind"
+    : !input.financeAvailable
+      ? "blind"
     : paymentPosition?.state === "missed-payment" || overdueInvoices.length
       ? "critical"
       : paymentPosition?.state === "payment-due" || openInvoices.length
@@ -182,6 +185,8 @@ export function buildClientRadarSnapshot(input: ClientRadarInput): ClientRadarSn
               : "learning";
   const paymentDetail = !input.financeConnected
     ? "Finance is not connected for this workspace."
+    : !input.financeAvailable
+      ? "Finance is connected, but its invoice evidence is unavailable. Radar has not calculated a payment position from an empty fallback."
     : paymentPosition
       ? `${paymentPosition.label}. ${moneyPositions(paymentPosition.currencyPositions, "outstandingCents") ?? "No collectible amount"} remains outstanding across ${paymentPosition.activePlans} active payment plan${paymentPosition.activePlans === 1 ? "" : "s"}.`
       : overdueInvoices.length
@@ -189,7 +194,7 @@ export function buildClientRadarSnapshot(input: ClientRadarInput): ClientRadarSn
         : openInvoices.length
           ? `${openInvoices.length} issued invoice${openInvoices.length === 1 ? " is" : "s are"} awaiting payment inside its retained terms.`
           : input.invoices.length ? "No issued client invoice is overdue." : "No issued invoice history exists yet.";
-  add({ ...base, id: "payment-position", domain: "finance", label: "Payment position", status: paymentStatus, detail: paymentDetail, evidence: paymentPosition ? [`${paymentPosition.missedPayments} missed`, `${paymentPosition.openInvoices} open invoices`, ...paymentPosition.currencyPositions.map(position => `${position.currency.toUpperCase()}: ${money(position.paidCents, position.currency)} collected · ${money(position.outstandingCents, position.currency)} outstanding`)] : [`${overdueInvoices.length} overdue`, `${openInvoices.length} open`, `${input.invoices.length} retained`], target: "No missed payments and all issued amounts collected by their due date", value: paymentPosition?.missedPayments ?? overdueInvoices.length, sourceId: `client-finance:${client.id}`, href: `${href}?tab=finance`, lastSeenAt: newest(input.invoices.flatMap(invoice => [invoice.paidAt, invoice.dueAt])), sampleSize: input.invoices.length + (paymentPosition?.activePlans ?? 0), expectedDirection: "lower" });
+  add({ ...base, id: "payment-position", domain: "finance", label: "Payment position", status: paymentStatus, detail: paymentDetail, evidence: !input.financeAvailable && input.financeConnected ? ["Invoice source unavailable", "No payment conclusion calculated"] : paymentPosition ? [`${paymentPosition.missedPayments} missed`, `${paymentPosition.openInvoices} open invoices`, ...paymentPosition.currencyPositions.map(position => `${position.currency.toUpperCase()}: ${money(position.paidCents, position.currency)} collected · ${money(position.outstandingCents, position.currency)} outstanding`)] : [`${overdueInvoices.length} overdue`, `${openInvoices.length} open`, `${input.invoices.length} retained`], target: "No missed payments and all issued amounts collected by their due date", value: input.financeAvailable ? paymentPosition?.missedPayments ?? overdueInvoices.length : undefined, sourceId: `client-finance:${client.id}`, href: `${href}?tab=finance`, lastSeenAt: input.financeAvailable ? newest(input.invoices.flatMap(invoice => [invoice.paidAt, invoice.dueAt])) : undefined, sampleSize: input.financeAvailable ? input.invoices.length + (paymentPosition?.activePlans ?? 0) : 0, expectedDirection: "lower" });
 
   const acceptedContracts = input.contracts.filter(contract => contract.status === "accepted");
   const waitingContracts = input.contracts.filter(contract => contract.status === "sent");
@@ -254,9 +259,10 @@ export function buildClientRadarSnapshot(input: ClientRadarInput): ClientRadarSn
     : checkHealth === null
       ? input.aquaHealth.score
       : Math.round(input.aquaHealth.score * 0.4 + checkHealth * 0.6);
+  const hasUnavailableConclusionSource = input.financeConnected && !input.financeAvailable;
   const healthState = totals.critical > 0 || issues.some(issue => issue.severity === "critical") || (healthScore !== null && healthScore < 55)
     ? "risk" as const
-    : confidence < 50 || healthScore === null
+    : hasUnavailableConclusionSource || confidence < 50 || healthScore === null
       ? "learning" as const
       : totals.warning > 0 || totals.watch > 0 || issues.some(issue => issue.severity === "warning" || issue.severity === "watch")
         ? "watch" as const
@@ -273,7 +279,10 @@ export function buildClientRadarSnapshot(input: ClientRadarInput): ClientRadarSn
     healthState,
     confidencePercent: confidence,
     readinessPercent: readiness,
-    summary: primary ? `${primary.title}: ${primary.detail}` : totals.learning || totals.blind ? "The client system is still connecting evidence before it can prove full health." : "No client-specific guardrail currently needs attention.",
+    summary: primary ? `${primary.title}: ${primary.detail}` : hasUnavailableConclusionSource ? "Finance evidence is unavailable, so Radar is retaining a learning conclusion instead of calling the client clear." : totals.learning || totals.blind ? "The client system is still connecting evidence before it can prove full health." : "No client-specific guardrail currently needs attention.",
+    sourceAvailability: {
+      finance: !input.financeConnected ? "not-connected" : input.financeAvailable ? "ready" : "unavailable",
+    },
     lastRecordedAt: input.lastRecordedAt,
     checks,
     issues,

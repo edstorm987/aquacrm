@@ -65,7 +65,13 @@ export interface PerformanceClient {
   experiments: PerformanceExperiment[];
 }
 
-export function PerformanceWorkspace({ initialClients }: { initialClients: PerformanceClient[] }) {
+export function PerformanceWorkspace({
+  initialClients,
+  canManageSearchConsole,
+}: {
+  initialClients: PerformanceClient[];
+  canManageSearchConsole: boolean;
+}) {
   const [clients, setClients] = useState(initialClients);
   const [view, setView] = useState<"tag" | "outcomes">("tag");
   const [selectedId, setSelectedId] = useState(initialClients[0]?.id ?? "all");
@@ -133,6 +139,7 @@ export function PerformanceWorkspace({ initialClients }: { initialClients: Perfo
           key={selected.id}
           client={selected}
           period={period}
+          canManageSearchConsole={canManageSearchConsole}
           onReportsChange={reports => updateReports(selected.id, reports)}
         />
       ) : selected ? (

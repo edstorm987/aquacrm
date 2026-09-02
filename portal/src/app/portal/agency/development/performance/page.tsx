@@ -1,7 +1,9 @@
 import PerformancePage from "../../performance/page";
+import { requireCurrentFulfilmentTechnicalAccess } from "@/lib/server/access/fulfilmentTechnicalAccess";
 import { DevelopmentNav } from "../_DevelopmentNav";
 
 export default async function DevelopmentPerformancePage() {
+  await requireCurrentFulfilmentTechnicalAccess("view");
   const workspace = await PerformancePage();
 
   return (

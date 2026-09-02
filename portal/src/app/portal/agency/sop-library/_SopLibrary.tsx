@@ -236,17 +236,11 @@ export function SopLibrary({ initialSops, initialCategories, initialGuides = [],
 
   // ── Retiring a procedure: ask what breaks BEFORE offering to delete ───────
   //
-  // A bare `window.confirm` could only say "this cannot be undone", which is the
-  // least useful true sentence available: deletion removes the source row and
-  // nothing else, so guides, actions, templates, services and training keep an
-  // id that now resolves to nothing — and those surfaces fail SILENTLY, by
-  // rendering one fewer step. This reads the server's dependency inventory (the
-  // same one the DELETE response echoes) and names every record that would be
-  // left holding the id, so the choice is informed rather than blind.
-  //
-  // It deliberately does not BLOCK the deletion, and offers no "detach" or
-  // "reassign" button: the retirement policy is still an open product decision
-  // (issues #176), and inventing one in a dialog would be worse than the gap.
+  // A bare `window.confirm` could only say "this cannot be undone", while the
+  // dangerous truth is that linked operating records silently render one fewer
+  // step after their SOP disappears. The server now enforces RESTRICT deletion:
+  // this preview names every link to remove or reassign, and only an unreferenced
+  // procedure can reach the destructive command.
   async function openRetirement(sop: SopDocument) {
     setError("");
     setRetiring({ sop, inventory: null, loading: true, busy: false });
@@ -277,11 +271,11 @@ export function SopLibrary({ initialSops, initialCategories, initialGuides = [],
   }
 
   async function confirmRetirement() {
-    if (!retiring || retiring.loading || retiring.busy) return;
+    if (!retiring || retiring.loading || retiring.busy || !retiring.inventory || retiring.inventory.total > 0) return;
     const sop = retiring.sop;
     setError("");
     setRetiring(current => current ? { ...current, busy: true } : current);
-    type DeleteAnswer = { ok?: boolean; stranded?: SopDependencyInventory; error?: string };
+    type DeleteAnswer = { ok?: boolean; stranded?: SopDependencyInventory; dependencies?: SopDependencyInventory; error?: string };
     let result: DeleteAnswer | null = null;
     let responseOk = false;
     try {
@@ -301,14 +295,18 @@ export function SopLibrary({ initialSops, initialCategories, initialGuides = [],
       // The route's storage-refusal message ("…is still stored…") is the one
       // that matters most here.
       setError(result?.error ?? "The SOP could not be deleted.");
-      setRetiring(current => current ? { ...current, busy: false } : current);
+      setRetiring(current => current ? {
+        ...current,
+        busy: false,
+        ...(result?.dependencies ? { inventory: result.dependencies, readFailed: false } : {}),
+      } : current);
       return;
     }
     setSops(current => current.filter(item => item.id !== sop.id));
     setRetiring(null);
-    // What the deletion actually left behind, kept on screen afterwards: the
-    // records below still name a procedure that no longer exists, and nothing
-    // else in the app will say so.
+    // A legacy deletion checkpoint created before RESTRICT may still replay
+    // with its original stranded inventory. Keep that recovery truth visible;
+    // new deletions cannot produce it.
     setStranded(result.stranded && result.stranded.total > 0
       ? { title: sop.title, inventory: result.stranded }
       : null);
@@ -613,7 +611,7 @@ export function SopLibrary({ initialSops, initialCategories, initialGuides = [],
         <div className="grid gap-4">
           <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
             <strong className="block">Delete “{retiring.sop.title}”?</strong>
-            <span className="mt-1 block text-red-700/75">This cannot be undone.</span>
+            <span className="mt-1 block text-red-700/75">Deletion is available only when no operating record still references this procedure.</span>
           </div>
           {retiring.loading ? <p className="text-sm text-black/55">Checking what still uses this procedure…</p> : null}
           {!retiring.loading && retiring.readFailed ? <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
@@ -625,7 +623,7 @@ export function SopLibrary({ initialSops, initialCategories, initialGuides = [],
             : <div className="grid gap-3">
               <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
                 <strong className="block">{retiring.inventory.total} record{retiring.inventory.total === 1 ? "" : "s"} still use{retiring.inventory.total === 1 ? "s" : ""} this SOP.</strong>
-                <span className="mt-1 block text-amber-900/75">Deleting removes only the procedure itself. Each record below keeps a reference that will no longer resolve, and those screens will simply show one fewer step rather than reporting a problem — so fix them by hand, before or after.</span>
+                <span className="mt-1 block text-amber-900/75">Deletion is blocked and the SOP remains intact. Remove or reassign every link below, then check again.</span>
               </div>
               <div className="grid max-h-64 gap-3 overflow-y-auto rounded-md border border-black/10 p-3">
                 {groupDependants(retiring.inventory.dependants).map(group => <div key={group.kind} className="grid gap-1">
@@ -641,10 +639,16 @@ export function SopLibrary({ initialSops, initialCategories, initialGuides = [],
             <button type="button" onClick={() => setRetiring(null)} className={secondaryButton}>Cancel</button>
             <button
               type="button"
-              disabled={retiring.loading || retiring.busy}
+              disabled={retiring.loading || retiring.busy || retiring.readFailed || !retiring.inventory || retiring.inventory.total > 0}
               onClick={() => void confirmRetirement()}
               className="inline-flex min-h-10 items-center gap-2 rounded-md bg-red-700 px-4 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-50"
-            ><Trash2 size={14} /> {retiring.busy ? "Deleting…" : "Delete anyway"}</button>
+            ><Trash2 size={14} /> {retiring.busy
+              ? "Deleting…"
+              : retiring.inventory?.total
+                ? "Linked — cannot delete"
+                : retiring.readFailed || !retiring.inventory
+                  ? "Dependency check required"
+                  : "Delete SOP"}</button>
           </div>
         </div>
       </Modal> : null}

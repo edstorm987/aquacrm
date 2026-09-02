@@ -34,6 +34,7 @@ import type {
   UserPort,
 } from "./ports";
 import type { PlanService } from "./plans";
+import { withMembershipDependencyLock } from "./dependencies";
 import {
   assertBilling,
   assertCancelInput,
@@ -71,22 +72,28 @@ interface SubscriptionCommand {
   updatedAt: number;
 }
 
-const localTails = new Map<string, Promise<void>>();
+const localUserCommandTails = new Map<string, Promise<void>>();
 
-async function localExclusive<T>(key: string, operation: () => Promise<T>): Promise<T> {
-  const previous = localTails.get(key) ?? Promise.resolve();
+async function localUserExclusive<T>(key: string, operation: () => Promise<T>): Promise<T> {
+  const previous = localUserCommandTails.get(key) ?? Promise.resolve();
   let release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
-  const tail = previous.then(() => gate);
-  localTails.set(key, tail);
-  await previous;
+  const tail = previous.catch(() => undefined).then(() => gate);
+  localUserCommandTails.set(key, tail);
+  await previous.catch(() => undefined);
   try {
     return await operation();
   } finally {
     release();
-    if (localTails.get(key) === tail) localTails.delete(key);
+    if (localUserCommandTails.get(key) === tail) localUserCommandTails.delete(key);
   }
 }
+
+const commandStageRank: Record<SubscriptionCommand["stage"], number> = {
+  pending: 0,
+  provider_applied: 1,
+  completed: 2,
+};
 
 function operationId(value?: string): string {
   const cleaned = value?.trim().replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 160);
@@ -190,30 +197,34 @@ export class SubscriptionService {
   > {
     assertSubscribeInput(input);
     return this.withUserCommand(input.endCustomerUserId, async () => {
-      const plan = await this.plans.get(input.planId);
-      if (!plan || plan.status !== "active") {
-        return { ok: false, error: "Plan not found or not active." } as const;
-      }
       const profile = await this.user.getUser(input.endCustomerUserId);
       if (!profile) return { ok: false, error: "End customer not found." } as const;
-
-      const isFree = (input.billing === "monthly" && plan.priceMonthly === 0)
-        || (input.billing === "annual" && plan.priceAnnual === 0);
-      const priceId = input.billing === "monthly" ? plan.stripePriceIdMonthly : plan.stripePriceIdAnnual;
-      if (!isFree && !priceId) {
-        return { ok: false, error: `Plan ${plan.name} has no Stripe price for billing=${input.billing}.` } as const;
-      }
-
-      const signature = `subscribe:${plan.id}:${input.billing}`;
-      const existing = await this.getByUser(input.endCustomerUserId);
-      let command = await this.beginCommand({
-        userId: input.endCustomerUserId,
-        kind: "subscribe",
-        signature,
-        requestedId: input.operationId,
-        planId: plan.id,
-        billing: input.billing,
+      const prepared = await this.withDependencyGraph(async () => {
+        const plan = await this.plans.get(input.planId);
+        if (!plan || plan.status !== "active") {
+          return { ok: false, error: "Plan not found or not active." } as const;
+        }
+        const isFree = (input.billing === "monthly" && plan.priceMonthly === 0)
+          || (input.billing === "annual" && plan.priceAnnual === 0);
+        const priceId = input.billing === "monthly" ? plan.stripePriceIdMonthly : plan.stripePriceIdAnnual;
+        if (!isFree && !priceId) {
+          return { ok: false, error: `Plan ${plan.name} has no Stripe price for billing=${input.billing}.` } as const;
+        }
+        const signature = `subscribe:${plan.id}:${input.billing}`;
+        const existing = await this.getByUser(input.endCustomerUserId);
+        const command = await this.beginCommand({
+          userId: input.endCustomerUserId,
+          kind: "subscribe",
+          signature,
+          requestedId: input.operationId,
+          planId: plan.id,
+          billing: input.billing,
+        });
+        return { ok: true, plan, isFree, priceId, existing, command } as const;
       });
+      if (!prepared.ok) return prepared;
+      const { plan, isFree, priceId, existing } = prepared;
+      let command = prepared.command;
 
       if (command.stage === "completed" && command.subscribeResult) {
         if (
@@ -238,124 +249,145 @@ export class SubscriptionService {
       );
 
       if (hasLiveProviderSubscription && existing) {
-        let providerSubscription = command.providerSubscription;
-        if (!providerSubscription) {
-          providerSubscription = isFree
+        command = await this.withUserProviderCall(input.endCustomerUserId, async () => {
+          const current = await this.storage.get<SubscriptionCommand>(commandKey(input.endCustomerUserId)) ?? command;
+          if (current.stage === "completed" || current.providerSubscription) return current;
+          const providerSubscription = isFree
             ? await this.stripe.cancelSubscription(
                 existing.stripeSubscriptionId!,
                 false,
-                this.providerKey(command, "cancel-for-free"),
+                this.providerKey(current, "cancel-for-free"),
               )
             : await this.stripe.changeSubscriptionPlan({
                 id: existing.stripeSubscriptionId!,
                 newPriceId: priceId!,
-                idempotencyKey: this.providerKey(command, "change-plan"),
+                idempotencyKey: this.providerKey(current, "change-plan"),
               });
-          command = await this.saveCommand({
-            ...command,
+          return this.saveCommand({
+            ...current,
             stage: "provider_applied",
             providerSubscription,
           });
-        }
-
-        const subscription = isFree
-          ? await this.persistFreeSubscription(input.endCustomerUserId, existing, plan.id, input.billing)
-          : await this.upsertFromStripeForUser(
-              input.endCustomerUserId,
-              plan.id,
-              input.billing,
-              providerSubscription,
-            );
-        const mode = isFree ? "free" : "changed";
-        await this.logSubscribe(
-          command,
-          subscription,
-          profile.email,
-          plan.name,
-          Boolean(existing && existing.status !== "canceled"),
-        );
-        const result: SubscribeSuccess = {
-          ok: true,
-          mode,
-          subscription,
-          operationId: command.id,
-        };
-        await this.saveCommand({ ...command, stage: "completed", subscribeResult: result });
-        return result;
+        });
+        if (command.stage === "completed" && command.subscribeResult) return command.subscribeResult;
+        const providerSubscription = command.providerSubscription;
+        if (!providerSubscription) throw new Error("Membership provider outcome was not recorded.");
+        return this.withDependencyGraph(async () => {
+          const current = await this.getByUser(input.endCustomerUserId);
+          const subscription = isFree
+            ? await this.persistFreeSubscription(input.endCustomerUserId, current, plan.id, input.billing)
+            : await this.upsertFromStripeForUser(
+                input.endCustomerUserId,
+                plan.id,
+                input.billing,
+                providerSubscription,
+              );
+          const mode = isFree ? "free" : "changed";
+          await this.logSubscribe(
+            command,
+            subscription,
+            profile.email,
+            plan.name,
+            Boolean(existing && existing.status !== "canceled"),
+          );
+          const result: SubscribeSuccess = {
+            ok: true,
+            mode,
+            subscription,
+            operationId: command.id,
+          };
+          const saved = await this.saveCommand({ ...command, stage: "completed", subscribeResult: result });
+          return saved.subscribeResult ?? result;
+        });
       }
 
       if (isFree) {
-        const subscription = await this.persistFreeSubscription(
-          input.endCustomerUserId,
-          existing,
-          plan.id,
-          input.billing,
-        );
-        await this.logSubscribe(
-          command,
-          subscription,
-          profile.email,
-          plan.name,
-          Boolean(existing && existing.status !== "canceled"),
-        );
-        const result: SubscribeSuccess = {
-          ok: true,
-          mode: "free",
-          subscription,
-          operationId: command.id,
-        };
-        await this.saveCommand({ ...command, stage: "completed", subscribeResult: result });
-        return result;
+        return this.withDependencyGraph(async () => {
+          const current = await this.getByUser(input.endCustomerUserId);
+          const subscription = await this.persistFreeSubscription(
+            input.endCustomerUserId,
+            current,
+            plan.id,
+            input.billing,
+          );
+          await this.logSubscribe(
+            command,
+            subscription,
+            profile.email,
+            plan.name,
+            Boolean(existing && existing.status !== "canceled"),
+          );
+          const result: SubscribeSuccess = {
+            ok: true,
+            mode: "free",
+            subscription,
+            operationId: command.id,
+          };
+          const saved = await this.saveCommand({ ...command, stage: "completed", subscribeResult: result });
+          return saved.subscribeResult ?? result;
+        });
       }
 
-      let customerId = command.customerId
-        ?? existing?.stripeCustomerId
-        ?? await this.storage.get<string>(customerCacheKey(input.endCustomerUserId));
-      if (!customerId) {
-        const customer = await this.stripe.createCustomer({
-          email: profile.email,
-          name: profile.name,
-          metadata: {
-            agencyId: this.agencyId,
-            clientId: this.clientId,
-            endCustomerUserId: input.endCustomerUserId,
-          },
-          idempotencyKey: this.providerKey(command, "create-customer"),
-        });
-        assertProviderId(customer.id, "stripeCustomerId");
-        customerId = customer.id;
-        command = await this.saveCommand({ ...command, customerId });
-      }
-      await this.storage.set(customerCacheKey(input.endCustomerUserId), customerId);
-
-      let checkout = command.checkout;
-      if (!checkout) {
-        checkout = await this.stripe.createCheckoutSession({
-          customerId,
-          priceId: priceId!,
-          successUrl: input.successUrl,
-          cancelUrl: input.cancelUrl,
-          trialDays: plan.trialDays,
-          metadata: {
-            planId: plan.id,
-            billing: input.billing,
-            endCustomerUserId: input.endCustomerUserId,
-            agencyId: this.agencyId,
-            clientId: this.clientId,
-          },
-          idempotencyKey: this.providerKey(command, "create-checkout"),
-        });
-        assertProviderId(checkout.id, "checkout.id");
-        assertProviderUrl(checkout.url, "checkout.url");
-      }
+      command = await this.withUserProviderCall(input.endCustomerUserId, async () => {
+        let current = await this.storage.get<SubscriptionCommand>(commandKey(input.endCustomerUserId)) ?? command;
+        if (current.stage === "completed") return current;
+        let customerId = current.customerId
+          ?? existing?.stripeCustomerId
+          ?? await this.storage.get<string>(customerCacheKey(input.endCustomerUserId));
+        if (!customerId) {
+          const customer = await this.stripe.createCustomer({
+            email: profile.email,
+            name: profile.name,
+            metadata: {
+              agencyId: this.agencyId,
+              clientId: this.clientId,
+              endCustomerUserId: input.endCustomerUserId,
+            },
+            idempotencyKey: this.providerKey(current, "create-customer"),
+          });
+          assertProviderId(customer.id, "stripeCustomerId");
+          customerId = customer.id;
+          current = await this.saveCommand({ ...current, customerId });
+        }
+        await this.storage.set(customerCacheKey(input.endCustomerUserId), customerId);
+        let checkout = current.checkout;
+        if (!checkout) {
+          checkout = await this.stripe.createCheckoutSession({
+            customerId,
+            priceId: priceId!,
+            successUrl: input.successUrl,
+            cancelUrl: input.cancelUrl,
+            trialDays: plan.trialDays,
+            metadata: {
+              planId: plan.id,
+              billing: input.billing,
+              endCustomerUserId: input.endCustomerUserId,
+              agencyId: this.agencyId,
+              clientId: this.clientId,
+            },
+            idempotencyKey: this.providerKey(current, "create-checkout"),
+          });
+          assertProviderId(checkout.id, "checkout.id");
+          assertProviderUrl(checkout.url, "checkout.url");
+        }
+        return this.saveCommand({ ...current, customerId, checkout, stage: "provider_applied" });
+      });
+      if (command.stage === "completed" && command.subscribeResult) return command.subscribeResult;
+      const checkout = command.checkout;
+      if (!checkout) throw new Error("Membership checkout outcome was not recorded.");
       const result: SubscribeSuccess = {
         ok: true,
         mode: "checkout",
         checkoutUrl: checkout.url,
         operationId: command.id,
       };
-      await this.saveCommand({ ...command, customerId, checkout, stage: "completed", subscribeResult: result });
-      return result;
+      const saved = await this.withDependencyGraph(() => this.saveCommand({
+        ...command,
+        checkout,
+        stage: "completed",
+        subscribeResult: result,
+      }));
+      return saved.subscribeResult ?? result;
     });
   }
 
@@ -364,38 +396,46 @@ export class SubscriptionService {
   async cancel(input: CancelInput): Promise<Subscription | null> {
     assertCancelInput(input);
     return this.withUserCommand(input.endCustomerUserId, async () => {
-      const sub = await this.getByUser(input.endCustomerUserId);
-      if (!sub) return null;
-      if (sub.status === "canceled") return sub;
-
-      // A free row has no provider period or webhook. Treat its mounted
-      // end-of-period request as immediate so benefits cannot remain active forever.
-      const effectiveAtPeriodEnd = Boolean(sub.stripeSubscriptionId && input.atPeriodEnd);
-      const signature = `cancel:${effectiveAtPeriodEnd ? "period-end" : "immediate"}`;
-      let command = await this.beginCommand({
-        userId: input.endCustomerUserId,
-        kind: "cancel",
-        signature,
-        requestedId: input.operationId,
-        atPeriodEnd: effectiveAtPeriodEnd,
+      const prepared = await this.withDependencyGraph(async () => {
+        const sub = await this.getByUser(input.endCustomerUserId);
+        if (!sub || sub.status === "canceled") return { done: true, subscription: sub } as const;
+        // A free row has no provider period or webhook. Treat its mounted
+        // end-of-period request as immediate so benefits cannot remain active forever.
+        const effectiveAtPeriodEnd = Boolean(sub.stripeSubscriptionId && input.atPeriodEnd);
+        const signature = `cancel:${effectiveAtPeriodEnd ? "period-end" : "immediate"}`;
+        const command = await this.beginCommand({
+          userId: input.endCustomerUserId,
+          kind: "cancel",
+          signature,
+          requestedId: input.operationId,
+          atPeriodEnd: effectiveAtPeriodEnd,
+        });
+        return { done: false, sub, effectiveAtPeriodEnd, command } as const;
       });
+      if (prepared.done) return prepared.subscription;
+      const { sub, effectiveAtPeriodEnd } = prepared;
+      let command = prepared.command;
       if (command.stage === "completed" && command.cancelResult) return command.cancelResult;
 
       let updated: Subscription;
       if (sub.stripeSubscriptionId) {
-        let providerSubscription = command.providerSubscription;
-        if (!providerSubscription) {
-          providerSubscription = await this.stripe.cancelSubscription(
-            sub.stripeSubscriptionId,
+        command = await this.withUserProviderCall(input.endCustomerUserId, async () => {
+          const current = await this.storage.get<SubscriptionCommand>(commandKey(input.endCustomerUserId)) ?? command;
+          if (current.stage === "completed" || current.providerSubscription) return current;
+          const providerSubscription = await this.stripe.cancelSubscription(
+            sub.stripeSubscriptionId!,
             effectiveAtPeriodEnd,
-            this.providerKey(command, "cancel"),
+            this.providerKey(current, "cancel"),
           );
-          command = await this.saveCommand({
-            ...command,
+          return this.saveCommand({
+            ...current,
             stage: "provider_applied",
             providerSubscription,
           });
-        }
+        });
+        if (command.stage === "completed" && command.cancelResult) return command.cancelResult;
+        const providerSubscription = command.providerSubscription;
+        if (!providerSubscription) throw new Error("Membership cancellation outcome was not recorded.");
         assertProviderSubscription(providerSubscription);
         updated = fromStripe(
           this.agencyId,
@@ -416,27 +456,37 @@ export class SubscriptionService {
           updatedAt: now(),
         };
       }
-      await this.persist(updated);
-      await this.logCancel(updated, effectiveAtPeriodEnd, command.id);
-      await this.saveCommand({ ...command, stage: "completed", cancelResult: updated });
-      return updated;
+      return this.withDependencyGraph(async () => {
+        await this.persist(updated);
+        await this.logCancel(updated, effectiveAtPeriodEnd, command.id);
+        const saved = await this.saveCommand({ ...command, stage: "completed", cancelResult: updated });
+        return saved.cancelResult ?? updated;
+      });
     });
   }
 
   // ─── Pause / resume / change plan ──────────────────────────────────────
 
   async pause(userId: UserId): Promise<Subscription | null> {
-    const sub = await this.getByUser(userId);
-    if (!sub?.stripeSubscriptionId) return null;
-    const stripeSub = await this.stripe.pauseSubscription(sub.stripeSubscriptionId);
-    return this.upsertFromStripeForUser(userId, sub.planId, sub.billing, stripeSub);
+    return this.withUserCommand(userId, async () => {
+      const sub = await this.getByUser(userId);
+      if (!sub?.stripeSubscriptionId) return null;
+      const stripeSub = await this.withUserProviderCall(userId, () =>
+        this.stripe.pauseSubscription(sub.stripeSubscriptionId!));
+      return this.withDependencyGraph(() =>
+        this.upsertFromStripeForUser(userId, sub.planId, sub.billing, stripeSub));
+    });
   }
 
   async resume(userId: UserId): Promise<Subscription | null> {
-    const sub = await this.getByUser(userId);
-    if (!sub?.stripeSubscriptionId) return null;
-    const stripeSub = await this.stripe.resumeSubscription(sub.stripeSubscriptionId);
-    return this.upsertFromStripeForUser(userId, sub.planId, sub.billing, stripeSub);
+    return this.withUserCommand(userId, async () => {
+      const sub = await this.getByUser(userId);
+      if (!sub?.stripeSubscriptionId) return null;
+      const stripeSub = await this.withUserProviderCall(userId, () =>
+        this.stripe.resumeSubscription(sub.stripeSubscriptionId!));
+      return this.withDependencyGraph(() =>
+        this.upsertFromStripeForUser(userId, sub.planId, sub.billing, stripeSub));
+    });
   }
 
   async changePlan(userId: UserId, newPlanId: string): Promise<Subscription | null> {
@@ -468,7 +518,8 @@ export class SubscriptionService {
     const billing = metadata.billing ?? "monthly";
     if (!userId || !planId) return null;
     assertBilling(billing);
-    return this.upsertFromStripeForUser(userId, planId, billing, stripeSub);
+    return this.withUserCommand(userId, () =>
+      this.withDependencyGraph(() => this.upsertFromStripeForUser(userId, planId, billing, stripeSub)));
   }
 
   async billingPortalUrl(userId: UserId, returnUrl: string): Promise<string | null> {
@@ -486,11 +537,21 @@ export class SubscriptionService {
   // ─── Internals ─────────────────────────────────────────────────────────
 
   private async withUserCommand<T>(userId: UserId, operation: () => Promise<T>): Promise<T> {
-    const lockKey = `membership-subscription:${userId}`;
+    // Avoid duplicate work in this process. Provider steps additionally take a
+    // narrow durable per-user lane; graph/reference phases use their own short
+    // install-wide transaction and are never nested inside provider I/O.
+    return localUserExclusive(`${this.agencyId}:${this.clientId}:${userId}`, operation);
+  }
+
+  private async withDependencyGraph<T>(operation: () => Promise<T>): Promise<T> {
+    return withMembershipDependencyLock(this.storage, this.agencyId, this.clientId, operation);
+  }
+
+  private async withUserProviderCall<T>(userId: UserId, operation: () => Promise<T>): Promise<T> {
     if (this.storage.runExclusive) {
-      return this.storage.runExclusive(lockKey, operation);
+      return this.storage.runExclusive(`membership-subscription-provider:${userId}`, operation);
     }
-    return localExclusive(`${this.agencyId}:${this.clientId}:${lockKey}`, operation);
+    return operation();
   }
 
   private async beginCommand(input: {
@@ -525,7 +586,31 @@ export class SubscriptionService {
   }
 
   private async saveCommand(command: SubscriptionCommand): Promise<SubscriptionCommand> {
-    const next = { ...command, updatedAt: now() };
+    const current = await this.storage.get<SubscriptionCommand>(commandKey(command.userId));
+    if (
+      current
+      && current.id === command.id
+      && current.signature === command.signature
+      && current.kind === command.kind
+      && commandStageRank[current.stage] > commandStageRank[command.stage]
+    ) {
+      return current;
+    }
+    const next = current
+      && current.id === command.id
+      && current.signature === command.signature
+      && current.kind === command.kind
+      ? {
+          ...current,
+          ...command,
+          customerId: command.customerId ?? current.customerId,
+          providerSubscription: command.providerSubscription ?? current.providerSubscription,
+          checkout: command.checkout ?? current.checkout,
+          subscribeResult: command.subscribeResult ?? current.subscribeResult,
+          cancelResult: command.cancelResult ?? current.cancelResult,
+          updatedAt: now(),
+        }
+      : { ...command, updatedAt: now() };
     await this.storage.set(commandKey(command.userId), next);
     return next;
   }

@@ -17,6 +17,11 @@ import {
 import { businessCalendarDate } from "@/lib/shared/formatDateTime";
 import type { PortalFormFieldDefinition } from "@/server/types";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
+import {
+  isFulfillmentClientCreation,
+  type FulfillmentClientCreationPayload,
+} from "@/built-ins/modules/fulfillment/src/lib/mutationPayloads";
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
 
 interface FormState {
   entityType: "company" | "person";
@@ -110,8 +115,20 @@ function slugify(s: string): string {
   return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
-function freshOperationId(): string {
-  return `new-client:${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
+interface ClientDraftOperation {
+  operationId: string;
+  contactTimestamp: number;
+  onboardingStartedAt: string;
+  fingerprint?: string;
+}
+
+function freshClientDraftOperation(): ClientDraftOperation {
+  const contactTimestamp = Date.now();
+  return {
+    operationId: `new-client:${globalThis.crypto?.randomUUID?.() ?? `${contactTimestamp}-${Math.random().toString(36).slice(2)}`}`,
+    contactTimestamp,
+    onboardingStartedAt: businessCalendarDate(),
+  };
 }
 
 function composedDisplayName(state: FormState): string {
@@ -135,7 +152,7 @@ export function NewClientButton({ brands = [], defaults = FALLBACK_DEFAULTS, cus
   const [error, setError] = useState<string | null>(null);
   const [customFieldValues, setCustomFieldValues] = useState<PortalCustomFieldValues>({});
   const slugTouched = useRef(false);
-  const operationId = useRef(freshOperationId());
+  const operation = useRef<ClientDraftOperation>(freshClientDraftOperation());
 
   useEffect(() => {
     if (!open) return;
@@ -143,7 +160,7 @@ export function NewClientButton({ brands = [], defaults = FALLBACK_DEFAULTS, cus
     setError(null);
     setCustomFieldValues({});
     slugTouched.current = false;
-    operationId.current = freshOperationId();
+    operation.current = freshClientDraftOperation();
   }, [open, defaults]);
 
   useEffect(() => {
@@ -171,7 +188,7 @@ export function NewClientButton({ brands = [], defaults = FALLBACK_DEFAULTS, cus
   }, [open, presetReloadToken]);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
-    operationId.current = freshOperationId();
+    operation.current = freshClientDraftOperation();
     setState(s => {
       const next = { ...s, [key]: value };
       if ((key === "contactName" || key === "businessName") && !slugTouched.current) {
@@ -201,75 +218,90 @@ export function NewClientButton({ brands = [], defaults = FALLBACK_DEFAULTS, cus
     setError(null);
     try {
       const helpingWith = state.helpingWith.trim();
-      const res = await fetch("/api/portal/fulfillment/clients", {
+      const buildRequestPayload = (draftOperation: ClientDraftOperation) => ({
+        name: display,
+        slug: state.slug.trim() || undefined,
+        ownerEmail: state.email.trim() || undefined,
+        companyId: state.clientFacingBrandId || undefined,
+        createPortal: state.createPortal,
+        stage: state.stage,
+        brand: {
+          primaryColor: state.brandColor,
+          logoUrl: state.logoUrl.trim() || undefined,
+        },
+        metadata: {
+          clientEntityType: state.entityType,
+          contactName: state.contactName.trim() || undefined,
+          linkedContacts: state.contactName.trim()
+            ? [{
+                id: `contact_${draftOperation.operationId.replace(/[^a-zA-Z0-9]/g, "_").slice(-80)}`,
+                name: state.contactName.trim(),
+                email: state.email.trim() || undefined,
+                phone: state.contactPhone.trim() || undefined,
+                role: state.entityType === "company" ? "Primary contact" : "Client",
+                primary: true,
+                createdAt: draftOperation.contactTimestamp,
+                updatedAt: draftOperation.contactTimestamp,
+              }]
+            : [],
+          businessName: state.businessName.trim() || undefined,
+          niche: state.niche.trim() || undefined,
+          therapistName: state.contactName.trim() || undefined,
+          practiceName: state.businessName.trim() || undefined,
+          helpingWith: helpingWith || undefined,
+          serviceBrief: helpingWith || undefined,
+          portalServicePlan: helpingWith || undefined,
+          clientFacingBrandId: state.clientFacingBrandId || undefined,
+          lifecycleStartReason: state.stageReason.trim() || undefined,
+          whatsappLink: state.whatsappLink.trim() || undefined,
+          stripeLink: state.stripeLink.trim() || undefined,
+          portalWelcomeNote: defaults.clientWelcomeMessage || undefined,
+          customFields: customFieldValues,
+        },
+        ...(state.createPortal
+          ? {
+              starterPortal: {
+                phase: presets.find(p => p.stage === state.stage)?.label ?? state.stage,
+                planTier: helpingWith || "Custom work",
+                contactName: state.contactName.trim() || undefined,
+                businessName: state.businessName.trim() || undefined,
+                onboardingStartedAt: draftOperation.onboardingStartedAt,
+              },
+            }
+          : {}),
+      });
+      let draftOperation = operation.current;
+      let requestPayload = buildRequestPayload(draftOperation);
+      let requestFingerprint = JSON.stringify(requestPayload);
+      if (draftOperation.fingerprint && draftOperation.fingerprint !== requestFingerprint) {
+        draftOperation = freshClientDraftOperation();
+        requestPayload = buildRequestPayload(draftOperation);
+        requestFingerprint = JSON.stringify(requestPayload);
+      }
+      operation.current = { ...draftOperation, fingerprint: requestFingerprint };
+      const data = await checkedJsonMutation<FulfillmentClientCreationPayload>("/api/portal/fulfillment/clients", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          operationId: operationId.current,
+          operationId: draftOperation.operationId,
+          ...requestPayload,
+        }),
+      }, {
+        fallback: "Could not create client.",
+        validate: payload => isFulfillmentClientCreation(payload, {
+          operationId: draftOperation.operationId,
           name: display,
-          slug: state.slug.trim() || undefined,
-          ownerEmail: state.email.trim() || undefined,
-          companyId: state.clientFacingBrandId || undefined,
-          createPortal: state.createPortal,
           stage: state.stage,
-          brand: {
-            primaryColor: state.brandColor,
-            logoUrl: state.logoUrl.trim() || undefined,
-          },
-          metadata: {
-            clientEntityType: state.entityType,
-            contactName: state.contactName.trim() || undefined,
-            linkedContacts: state.contactName.trim()
-              ? [{
-                  id: `contact_${operationId.current.replace(/[^a-zA-Z0-9]/g, "_").slice(-80)}`,
-                  name: state.contactName.trim(),
-                  email: state.email.trim() || undefined,
-                  phone: state.contactPhone.trim() || undefined,
-                  role: state.entityType === "company" ? "Primary contact" : "Client",
-                  primary: true,
-                  createdAt: Date.now(),
-                  updatedAt: Date.now(),
-                }]
-              : [],
-            businessName:  state.businessName.trim()  || undefined,
-            niche: state.niche.trim() || undefined,
-            therapistName: state.contactName.trim() || undefined,
-            practiceName:  state.businessName.trim()  || undefined,
-            helpingWith: helpingWith || undefined,
-            serviceBrief: helpingWith || undefined,
-            portalServicePlan: helpingWith || undefined,
-            clientFacingBrandId: state.clientFacingBrandId || undefined,
-            lifecycleStartReason: state.stageReason.trim() || undefined,
-            whatsappLink:  state.whatsappLink.trim()  || undefined,
-            stripeLink:    state.stripeLink.trim()    || undefined,
-            portalWelcomeNote: defaults.clientWelcomeMessage || undefined,
-            customFields: customFieldValues,
-          },
-          ...(state.createPortal
-            ? {
-                starterPortal: {
-                  phase: presets.find(p => p.stage === state.stage)?.label ?? state.stage,
-                  planTier: helpingWith || "Custom work",
-                  contactName: state.contactName.trim() || undefined,
-                  businessName: state.businessName.trim() || undefined,
-                  onboardingStartedAt: businessCalendarDate(),
-                },
-              }
-            : {}),
         }),
       });
-      const data = await res.json() as { ok: boolean; error?: string; client?: { id: string }; clientId?: string };
-      if (!data.ok) {
-        setError(data.error ?? "Could not create client.");
-        return;
-      }
-      const newId = data.client?.id ?? data.clientId;
+      const newId = data.client.id;
 
+      operation.current = freshClientDraftOperation();
       setOpen(false);
-      router.push(newId ? `/portal/clients/${newId}` : "/portal/agency");
+      router.push(`/portal/clients/${newId}`);
       router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+    } catch (reason) {
+      setError(mutationErrorMessage(reason, "Could not create client."));
     } finally {
       setBusy(false);
     }
@@ -395,7 +427,7 @@ export function NewClientButton({ brands = [], defaults = FALLBACK_DEFAULTS, cus
                 fields={customFields}
                 values={customFieldValues}
                 onChange={values => {
-                  operationId.current = freshOperationId();
+                  operation.current = freshClientDraftOperation();
                   setCustomFieldValues(values);
                 }}
                 disabled={busy}

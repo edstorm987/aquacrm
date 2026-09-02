@@ -8,6 +8,9 @@ import {
 import { useEffect, useMemo, useState, useRef } from "react";
 import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
 import {
+  developmentResourceKindAvailableForMutation,
+  isSharedLoginDevelopmentResource,
+  mayMutateDevelopmentResource,
   validDevelopmentResourcePage,
   validPublicDevelopmentResource,
   type DevelopmentResourcePage,
@@ -18,6 +21,7 @@ import type {
   DevelopmentWorkflow,
   Role,
 } from "@/server/types";
+import type { WorkspaceElementLevel } from "@/lib/server/access/workspaceElementAccess";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 type SopOption = { id: string; title: string; category?: string };
@@ -69,7 +73,7 @@ export function DevelopmentToolkitWorkspace({
   initialCategories,
   initialWorkflows,
   sops,
-  role,
+  technicalAccessLevel,
 }: {
   mode: Mode;
   initialResources: PublicResource[];
@@ -77,7 +81,7 @@ export function DevelopmentToolkitWorkspace({
   initialCategories: string[];
   initialWorkflows: DevelopmentWorkflow[];
   sops: SopOption[];
-  role: Role;
+  technicalAccessLevel: WorkspaceElementLevel;
 }) {
   const [resources, setResources] = useState(initialResources);
   const [total, setTotal] = useState(initialTotal);
@@ -97,11 +101,13 @@ export function DevelopmentToolkitWorkspace({
   const [resourceError, setResourceError] = useState("");
   const [resourceRetry, setResourceRetry] = useState<"search" | "more">("search");
   const [resourceReloadToken, setResourceReloadToken] = useState(0);
-  const canManage = role === "agency-owner" || role === "agency-manager";
+  const canUse = technicalAccessLevel === "use" || technicalAccessLevel === "manage";
+  const canManage = technicalAccessLevel === "manage";
   const resourceSnapshotIsStale = mode !== "workflow" && (loadingResources || Boolean(resourceError));
-  const canMutateResources = !resourceSnapshotIsStale;
+  const canMutateResources = canUse && !resourceSnapshotIsStale;
 
-  const modeKinds = KINDS.filter(item => mode === "vault" ? item.group === "vault" : item.group === "toolkit").map(item => item.id);
+  const availableKinds = KINDS.filter(item => developmentResourceKindAvailableForMutation(technicalAccessLevel, item.id));
+  const modeKinds = availableKinds.filter(item => mode === "vault" ? item.group === "vault" : item.group === "toolkit").map(item => item.id);
   const baseResources = mode === "vault"
     ? resources.filter(resource => ["course", "knowledge", "credential", "sop"].includes(resource.kind))
     : resources.filter(resource => !["course", "knowledge", "credential", "sop"].includes(resource.kind));
@@ -191,6 +197,10 @@ export function DevelopmentToolkitWorkspace({
   }
 
   function editResource(resource: PublicResource) {
+    if (!mayMutateDevelopmentResource(technicalAccessLevel, resource)) {
+      setNotice("Technical Manage access is required to edit shared logins.");
+      return;
+    }
     if (!canMutateResources) {
       setNotice("The retained resource snapshot is stale. Retry the read before editing.");
       return;
@@ -231,6 +241,10 @@ export function DevelopmentToolkitWorkspace({
       return;
     }
     const currentResource = draft.id ? resources.find(resource => resource.id === draft.id) : null;
+    if (!canManage && (draft.kind === "credential" || (currentResource && isSharedLoginDevelopmentResource(currentResource)))) {
+      setNotice("Technical Manage access is required to save shared logins.");
+      return;
+    }
     if (currentResource?.deleteState) {
       setNotice("This resource is pending permanent deletion. Retry the delete instead of editing it.");
       return;
@@ -249,7 +263,7 @@ export function DevelopmentToolkitWorkspace({
       workflowStageIds: draft.workflowStageIds,
       sopIds: draft.sopIds,
       visibility: draft.visibility,
-      credential: draft.kind === "credential" || draft.kind === "course" ? {
+      credential: draft.kind === "credential" || (draft.kind === "course" && canManage) ? {
         loginUrl: draft.loginUrl,
         username: draft.username,
         password: draft.password || undefined,
@@ -280,6 +294,10 @@ export function DevelopmentToolkitWorkspace({
   }
 
   async function removeResource(resource: PublicResource) {
+    if (!mayMutateDevelopmentResource(technicalAccessLevel, resource)) {
+      setNotice("Technical Manage access is required to delete shared logins.");
+      return;
+    }
     if (!canMutateResources) {
       setNotice("The retained resource snapshot is stale. Retry the read before deleting.");
       return;
@@ -376,11 +394,11 @@ export function DevelopmentToolkitWorkspace({
             </div>
           </div>
           <section>
-            <div className="flex items-end justify-between gap-3"><div><h2 className="text-lg font-semibold text-black/85">{activeWorkflow.stages.find(stage => stage.id === selectedStageId)?.name ?? "All stages"}</h2><p className="mt-1 text-sm text-black/45">Everything ready for this part of the job.</p></div><button onClick={() => setDraft({ ...EMPTY, workflowStageIds: activeStageRef ? [activeStageRef] : [] })} className={secondary}><Plus size={15} />Attach resource</button></div>
-            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{flowResources.map(resource => <ResourceCard key={resource.id} resource={resource} onEdit={() => editResource(resource)} onDelete={() => void removeResource(resource)} />)}{!flowResources.length ? <Empty title="Nothing attached yet" detail="Attach the tools, templates, components, inspiration and SOPs used at this stage." /> : null}</div>
+            <div className="flex items-end justify-between gap-3"><div><h2 className="text-lg font-semibold text-black/85">{activeWorkflow.stages.find(stage => stage.id === selectedStageId)?.name ?? "All stages"}</h2><p className="mt-1 text-sm text-black/45">Everything ready for this part of the job.</p></div>{canUse ? <button onClick={() => setDraft({ ...EMPTY, workflowStageIds: activeStageRef ? [activeStageRef] : [] })} className={secondary}><Plus size={15} />Attach resource</button> : <span className="text-xs font-medium text-black/40">View only</span>}</div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{flowResources.map(resource => <ResourceCard key={resource.id} resource={resource} showMutationControls={mayMutateDevelopmentResource(technicalAccessLevel, resource)} mutationLocked={!canMutateResources} onEdit={() => editResource(resource)} onDelete={() => void removeResource(resource)} />)}{!flowResources.length ? <Empty title="Nothing attached yet" detail="Attach the tools, templates, components, inspiration and SOPs used at this stage." /> : null}</div>
           </section>
         </> : <Empty title="No build flow yet" detail="Create the first reusable delivery process." />}
-        {draft ? <ResourceDialog draft={draft} setDraft={setDraft} workflows={workflows} sops={sops} busy={busy === "resource"} onClose={() => setDraft(null)} onSubmit={saveResource} /> : null}
+        {draft ? <ResourceDialog draft={draft} setDraft={setDraft} workflows={workflows} sops={sops} resourceKinds={availableKinds} canManageSharedLogins={canManage} busy={busy === "resource"} onClose={() => setDraft(null)} onSubmit={saveResource} /> : null}
         {workflowDraft ? <WorkflowDialog workflow={workflowDraft === "new" ? null : workflowDraft} busy={busy === "workflow"} onClose={() => setWorkflowDraft(null)} onSave={saveWorkflow} /> : null}
         {notice ? <Status text={notice} /> : null}
       </div>
@@ -395,12 +413,12 @@ export function DevelopmentToolkitWorkspace({
         detail={mode === "vault"
           ? "Courses, notes, procedures and controlled shared logins. Passwords are encrypted and only revealed to permitted roles."
           : "Apps, SEO tools, saved pages, Canva designs, reusable code, components and inspiration without hunting through folders."}
-        actions={<>{mode === "toolkit" && canManage ? <button onClick={() => void importWorkspace()} disabled={busy === "catalogue" || !canMutateResources} className={secondary}><FolderGit2 size={15} />{busy === "catalogue" ? "Cataloguing..." : "Catalogue workspace"}</button> : null}<button onClick={() => setUploading(true)} disabled={!canMutateResources} className={secondary}><Upload size={15} />Upload</button><button onClick={() => setDraft({ ...EMPTY, kind: mode === "vault" ? "knowledge" : "tool" })} disabled={!canMutateResources} className={primary}><Plus size={15} />Add {mode === "vault" ? "vault item" : "resource"}</button></>}
+        actions={<>{mode === "toolkit" && canManage ? <button onClick={() => void importWorkspace()} disabled={busy === "catalogue" || !canMutateResources} className={secondary}><FolderGit2 size={15} />{busy === "catalogue" ? "Cataloguing..." : "Catalogue workspace"}</button> : null}{canUse ? <><button onClick={() => setUploading(true)} disabled={!canMutateResources} className={secondary}><Upload size={15} />Upload</button><button onClick={() => setDraft({ ...EMPTY, kind: mode === "vault" ? "knowledge" : "tool" })} disabled={!canMutateResources} className={primary}><Plus size={15} />Add {mode === "vault" ? "vault item" : "resource"}</button></> : <span className="text-xs font-medium text-black/40">View only</span>}</>}
       />
 
       <div className="grid gap-3 border-y border-black/10 py-4 lg:grid-cols-[minmax(240px,1fr)_190px_190px]">
         <label className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-black/35" /><input value={query} onChange={event => setQuery(event.target.value)} className={`${control} pl-9`} placeholder={mode === "vault" ? "Search knowledge, courses and logins" : "Search tools, templates, links and components"} /></label>
-        <select value={kind} onChange={event => setKind(event.target.value as DevelopmentResourceKind | "all")} className={control}><option value="all">All types</option>{KINDS.filter(item => modeKinds.includes(item.id)).map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select>
+        <select value={kind} onChange={event => setKind(event.target.value as DevelopmentResourceKind | "all")} className={control}><option value="all">All types</option>{availableKinds.filter(item => modeKinds.includes(item.id)).map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select>
         <select value={category} onChange={event => setCategory(event.target.value)} className={control}><option value="all">All categories</option>{categories.map(item => <option key={item}>{item}</option>)}</select>
       </div>
 
@@ -424,7 +442,7 @@ export function DevelopmentToolkitWorkspace({
       ) : null}
 
       {filtered.length ? <>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{displayed.map(resource => <ResourceCard key={resource.id} resource={resource} mutationLocked={!canMutateResources} onEdit={() => editResource(resource)} onDelete={() => void removeResource(resource)} />)}</div>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{displayed.map(resource => <ResourceCard key={resource.id} resource={resource} showMutationControls={mayMutateDevelopmentResource(technicalAccessLevel, resource)} mutationLocked={!canMutateResources} onEdit={() => editResource(resource)} onDelete={() => void removeResource(resource)} />)}</div>
         {displayed.length < total ? <div className="flex justify-center border-t border-black/10 pt-5"><button onClick={() => void loadMore()} disabled={loadingResources} className={secondary}>{loadingResources ? "Loading..." : `Show 36 more · ${total - displayed.length} remaining`}</button></div> : null}
       </> : resourceError ? (
         <Empty title="Resources unavailable" detail="This search did not complete, so an empty result cannot be confirmed. Retry the resource read above." />
@@ -434,7 +452,7 @@ export function DevelopmentToolkitWorkspace({
         <Empty title={query || kind !== "all" || category !== "all" ? "Nothing matches" : "Start your library"} detail={mode === "vault" ? "Add a course, useful note, SOP connection or controlled shared login." : "Save the first tool, link, component, template or inspiration pack you want ready next time."} />
       )}
 
-      {draft ? <ResourceDialog draft={draft} setDraft={setDraft} workflows={workflows} sops={sops} busy={busy === "resource"} mutationLocked={!canMutateResources} onClose={() => setDraft(null)} onSubmit={saveResource} /> : null}
+      {draft ? <ResourceDialog draft={draft} setDraft={setDraft} workflows={workflows} sops={sops} resourceKinds={availableKinds} canManageSharedLogins={canManage} busy={busy === "resource"} mutationLocked={!canMutateResources} onClose={() => setDraft(null)} onSubmit={saveResource} /> : null}
       {uploading ? <UploadDialog mode={mode} workflows={workflows} mutationLocked={!canMutateResources} onClose={() => setUploading(false)} onUploaded={resource => {
         setResources(current => [resource, ...current]);
         setTotal(value => value + 1);
@@ -445,7 +463,7 @@ export function DevelopmentToolkitWorkspace({
   );
 }
 
-function ResourceCard({ resource, mutationLocked = false, onEdit, onDelete }: { resource: PublicResource; mutationLocked?: boolean; onEdit: () => void; onDelete: () => void }) {
+function ResourceCard({ resource, showMutationControls, mutationLocked = false, onEdit, onDelete }: { resource: PublicResource; showMutationControls: boolean; mutationLocked?: boolean; onEdit: () => void; onDelete: () => void }) {
   const [password, setPassword] = useState("");
   const [revealing, setRevealing] = useState(false);
   const [revealError, setRevealError] = useState("");
@@ -491,7 +509,7 @@ function ResourceCard({ resource, mutationLocked = false, onEdit, onDelete }: { 
       {hasImagePreview ? <a href={`/api/portal/development/content?id=${encodeURIComponent(resource.id)}`} target="_blank" className="-m-4 mb-4 block aspect-[16/9] overflow-hidden border-b border-black/10 bg-black/[0.025]"><img src={`/api/portal/development/content?id=${encodeURIComponent(resource.id)}`} alt={resource.title} className="h-full w-full object-cover" loading="lazy" /></a> : null}
       <div className="flex items-start justify-between gap-3">
         <span className="grid size-9 shrink-0 place-items-center rounded-md bg-black/[0.045] text-black/55"><Icon size={17} /></span>
-        <div className="flex opacity-60 transition group-hover:opacity-100"><button type="button" onClick={onEdit} disabled={mutationLocked || deletionPending} aria-label={`Edit ${resource.title}`} className="grid size-8 place-items-center rounded-md hover:bg-black/[0.04] disabled:cursor-not-allowed disabled:opacity-35"><Pencil size={14} /></button><button type="button" onClick={onDelete} disabled={mutationLocked} aria-label={`${deletionPending ? "Retry deleting" : "Delete"} ${resource.title}`} className="grid size-8 place-items-center rounded-md text-black/40 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-35"><Trash2 size={14} /></button></div>
+        {showMutationControls ? <div className="flex opacity-60 transition group-hover:opacity-100"><button type="button" onClick={onEdit} disabled={mutationLocked || deletionPending} aria-label={`Edit ${resource.title}`} className="grid size-8 place-items-center rounded-md hover:bg-black/[0.04] disabled:cursor-not-allowed disabled:opacity-35"><Pencil size={14} /></button><button type="button" onClick={onDelete} disabled={mutationLocked} aria-label={`${deletionPending ? "Retry deleting" : "Delete"} ${resource.title}`} className="grid size-8 place-items-center rounded-md text-black/40 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-35"><Trash2 size={14} /></button></div> : null}
       </div>
       <div className="mt-4 flex-1">
         <div className="flex flex-wrap items-center gap-2"><span className="text-[10px] font-semibold uppercase text-brand">{kindLabel(resource.kind)}</span>{resource.visibility === "private" ? <LockKeyhole size={12} className="text-black/35" /> : null}{deletionPending ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900">{resource.deleteState === "delete-failed" ? "Delete failed · retry only" : "Deleting · retry only"}</span> : null}</div>
@@ -540,7 +558,7 @@ function ResourceCard({ resource, mutationLocked = false, onEdit, onDelete }: { 
   );
 }
 
-function ResourceDialog({ draft, setDraft, workflows, sops, busy, mutationLocked = false, onClose, onSubmit }: { draft: typeof EMPTY; setDraft: React.Dispatch<React.SetStateAction<typeof EMPTY | null>>; workflows: DevelopmentWorkflow[]; sops: SopOption[]; busy: boolean; mutationLocked?: boolean; onClose: () => void; onSubmit: (event: React.FormEvent) => void }) {
+function ResourceDialog({ draft, setDraft, workflows, sops, resourceKinds, canManageSharedLogins, busy, mutationLocked = false, onClose, onSubmit }: { draft: typeof EMPTY; setDraft: React.Dispatch<React.SetStateAction<typeof EMPTY | null>>; workflows: DevelopmentWorkflow[]; sops: SopOption[]; resourceKinds: typeof KINDS; canManageSharedLogins: boolean; busy: boolean; mutationLocked?: boolean; onClose: () => void; onSubmit: (event: React.FormEvent) => void }) {
   const stages = workflows.flatMap(workflow => workflow.stages.map(stage => ({ ...stage, workflowId: workflow.id, workflowName: workflow.name, ref: stageRef(workflow.id, stage.id) })));
   const toggle = (field: "workflowStageIds" | "sopIds" | "accessRoles", value: string) => setDraft(current => current ? ({ ...current, [field]: current[field].includes(value as never) ? current[field].filter(item => item !== value) : [...current[field], value] }) : current);
   const toggleStage = (workflowId: string, stageId: string) => setDraft(current => {
@@ -552,10 +570,10 @@ function ResourceDialog({ draft, setDraft, workflows, sops, busy, mutationLocked
     return { ...current, workflowStageIds: selected ? withoutStage : [...withoutStage, ref] };
   });
   return <Modal title={draft.id ? "Edit resource" : "Add resource"} onClose={onClose}><form onSubmit={onSubmit} className="grid gap-4">
-    <div className="grid gap-4 sm:grid-cols-2"><Field label="Type"><select value={draft.kind} onChange={event => setDraft(current => current ? { ...current, kind: event.target.value as DevelopmentResourceKind } : current)} className={control}>{KINDS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></Field><Field label="Category"><input value={draft.category} onChange={event => setDraft(current => current ? { ...current, category: event.target.value } : current)} className={control} placeholder="Design, SEO, deployment..." /></Field></div>
+    <div className="grid gap-4 sm:grid-cols-2"><Field label="Type"><select value={draft.kind} onChange={event => setDraft(current => current ? { ...current, kind: event.target.value as DevelopmentResourceKind } : current)} className={control}>{resourceKinds.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></Field><Field label="Category"><input value={draft.category} onChange={event => setDraft(current => current ? { ...current, category: event.target.value } : current)} className={control} placeholder="Design, SEO, deployment..." /></Field></div>
     <Field label="Title"><input required value={draft.title} onChange={event => setDraft(current => current ? { ...current, title: event.target.value } : current)} className={control} /></Field>
     <Field label="What it is useful for"><textarea rows={3} value={draft.description} onChange={event => setDraft(current => current ? { ...current, description: event.target.value } : current)} className={`${control} py-2`} /></Field>
-    {draft.kind === "credential" || draft.kind === "course" ? <div className="grid gap-4 rounded-md border border-black/10 bg-black/[0.015] p-4">
+    {draft.kind === "credential" || (draft.kind === "course" && canManageSharedLogins) ? <div className="grid gap-4 rounded-md border border-black/10 bg-black/[0.015] p-4">
       <div className="grid gap-4 sm:grid-cols-2"><Field label="Login page"><input type="url" value={draft.loginUrl} onChange={event => setDraft(current => current ? { ...current, loginUrl: event.target.value } : current)} className={control} placeholder="https://" /></Field><Field label="Username or email"><input value={draft.username} onChange={event => setDraft(current => current ? { ...current, username: event.target.value } : current)} className={control} /></Field></div>
       <Field label={draft.id ? "New password (leave blank to keep current)" : "Password (optional)"}><input type="password" value={draft.password} onChange={event => setDraft(current => current ? { ...current, password: event.target.value } : current)} className={control} autoComplete="new-password" /></Field>
       <Field label="Password manager link (recommended)"><input type="url" value={draft.passwordManagerUrl} onChange={event => setDraft(current => current ? { ...current, passwordManagerUrl: event.target.value } : current)} className={control} placeholder="https://" /></Field>

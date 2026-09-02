@@ -3,7 +3,7 @@
 
 import type { PluginCtx } from "../lib/aquaPluginTypes";
 import { containerFor, isStripeConnectAvailable } from "../server/foundationAdapter";
-import { affiliateDependencyInventory } from "../server/dependencies";
+import { AffiliateHasDependantsError } from "../server/dependencies";
 import type {
   AffiliateFilter,
   AttributionFilter,
@@ -107,13 +107,17 @@ export async function deleteAffiliateHandler(req: Request, ctx: PluginCtx): Prom
   const c = buildContainer(ctx);
   const affiliate = await c.affiliates.get(id);
   if (!affiliate) return notFound("affiliate not found");
-
-  const dependencies = await affiliateDependencyInventory(c, id);
-  if (dependencies.total > 0) {
+  try {
+    const ok = await c.affiliates.delete(id, ctx.actor);
+    return ok ? json({ ok: true }) : notFound("affiliate not found");
+  } catch (error) {
+    if (!(error instanceof AffiliateHasDependantsError)) throw error;
+    const dependencies = error.dependencies;
     const parts = [
       `${dependencies.byKind["referral-code"]} referral code(s)`,
       `${dependencies.byKind.attribution} attribution(s)`,
       `${dependencies.byKind.payout} payout(s)`,
+      `${dependencies.byKind["stripe-account"]} Stripe Connect account/onboarding operation(s)`,
     ].join(", ");
     const sharp = [
       dependencies.hasFinancialDependants ? "commission and payout records would be detached from their owner" : null,
@@ -124,7 +128,7 @@ export async function deleteAffiliateHandler(req: Request, ctx: PluginCtx): Prom
     return json({
       ok: false,
       error:
-        `Cannot delete ${affiliate.displayName}: ${dependencies.total} record(s) still point at this `
+        `Cannot delete ${error.affiliateName}: ${dependencies.total} record(s) still point at this `
         + `affiliate (${parts})${sharp ? ` — ${sharp}` : ""}. Set the affiliate's status to "removed" `
         + `instead (PATCH status "removed") — every record keeps its owner, and a removed affiliate `
         + `earns no new attributions.`,
@@ -132,9 +136,6 @@ export async function deleteAffiliateHandler(req: Request, ctx: PluginCtx): Prom
       dependencies,
     }, 422);
   }
-
-  const ok = await c.affiliates.delete(id, ctx.actor);
-  return ok ? json({ ok: true }) : notFound("affiliate not found");
 }
 
 // ─── Codes ───────────────────────────────────────────────────────────────

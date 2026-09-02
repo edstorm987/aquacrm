@@ -25,7 +25,7 @@ import assert from "node:assert/strict";
 import { beforeEach, describe, it } from "node:test";
 import { NextRequest } from "next/server";
 
-import { POST as designPost } from "../src/app/api/portal/client-portal-design/route";
+import { GET as designGet, POST as designPost } from "../src/app/api/portal/client-portal-design/route";
 import {
   ensureClientPortalInstance,
   ensureStunningPortalTemplate,
@@ -36,7 +36,9 @@ import {
 import { issueSession, SESSION_COOKIE_NAME } from "../src/lib/server/auth/auth";
 import { createAgency, createClient } from "../src/server/tenants";
 import { createUser } from "../src/server/users";
-import { flushPendingWrites, reset } from "../src/server/storage";
+import { flushPendingWrites, getState, mutate, reset } from "../src/server/storage";
+import type { WorkspaceElementLevel } from "../src/lib/server/access/workspaceElementAccess";
+import { sampleClientId } from "../src/lib/server/clients/samplePreviewClient";
 
 type Fixture = Awaited<ReturnType<typeof fixture>>;
 
@@ -56,6 +58,13 @@ async function fixture() {
     role: "agency-staff",
     agencyId: agency.id,
     password: "staff-test-password",
+  });
+  const manager = createUser({
+    email: `manager-${agency.id}@template.test`,
+    name: "Manager",
+    role: "agency-manager",
+    agencyId: agency.id,
+    password: "manager-test-password",
   });
   const client = createClient(agency.id, { name: "Bright Coffee", stage: "live" });
 
@@ -80,13 +89,34 @@ async function fixture() {
   return {
     agency,
     owner,
+    manager,
     staff,
     client,
     template,
     instance,
     ownerToken: tokenFor(owner),
+    managerToken: tokenFor(manager),
     staffToken: tokenFor(staff),
   };
+}
+
+async function setStaffPortalLevel(home: Fixture, level: WorkspaceElementLevel) {
+  mutate(state => {
+    state.accessGrants.staffPortal = {
+      id: "staffPortal",
+      agencyId: home.agency.id,
+      userId: home.staff.id,
+      scope: { kind: "workspace", id: "fulfilment" },
+      environment: "live",
+      capabilities: level === "hidden"
+        ? ["workspace.view"]
+        : [`element.fulfilment.portals.${level}`],
+      createdBy: home.owner.id,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+  });
+  await flushPendingWrites();
 }
 
 /** Move the template on, so there is genuinely something to offer. */
@@ -123,6 +153,39 @@ function post(token: string, body: unknown) {
     },
     body: JSON.stringify(body),
   })));
+}
+
+function get(token: string, query: { scope: "client" | "template"; clientId?: string; templateId?: string }) {
+  const url = new URL("http://localhost/api/portal/client-portal-design");
+  url.searchParams.set("scope", query.scope);
+  if (query.clientId) url.searchParams.set("clientId", query.clientId);
+  if (query.templateId) url.searchParams.set("templateId", query.templateId);
+  return withSession(token, () => designGet(new NextRequest(url, {
+    headers: { cookie: `${SESSION_COOKIE_NAME}=${token}` },
+  })));
+}
+
+async function saveAndPublish(token: string, label: string) {
+  const document = {
+    ...home.instance.draft,
+    chrome: { ...home.instance.draft.chrome, serviceLabel: label },
+  };
+  const saved = await post(token, {
+    action: "save-draft",
+    scope: "client",
+    clientId: home.client.id,
+    recordId: home.instance.id,
+    document,
+  });
+  assert.equal(saved.status, 200, `save-draft was refused for ${label}`);
+  const published = await post(token, {
+    action: "publish",
+    scope: "client",
+    clientId: home.client.id,
+    recordId: home.instance.id,
+  });
+  assert.equal(published.status, 200, `publish was refused for ${label}`);
+  assert.equal(getClientPortalInstance(home.agency.id, home.client.id)?.published.chrome.serviceLabel, label);
 }
 
 let home: Fixture;
@@ -248,12 +311,70 @@ describe("update-apply — only what was accepted, and only to the draft", () =>
 });
 
 describe("who may press it", () => {
-  it("refuses a non-manager identity outright", async () => {
+  it("lets staff with Portals View load and inspect, but refuses every write", async () => {
+    await setStaffPortalLevel(home, "view");
     advanceTemplate(home, "Your website");
-    const response = await post(home.staffToken, {
+
+    const loaded = await get(home.staffToken, { scope: "client", clientId: home.client.id });
+    assert.equal(loaded.status, 200, "the read API drifted from the visible Portals surface");
+
+    const planned = await post(home.staffToken, {
+      action: "update-plan", scope: "client", clientId: home.client.id,
+    });
+    assert.equal(planned.status, 200, "the Portals read-only control must reach its read-only API");
+    assert.equal((await planned.json() as { ok?: boolean }).ok, true);
+
+    const applied = await post(home.staffToken, {
       action: "update-apply", scope: "client", clientId: home.client.id, accept: ["chrome.serviceLabel"],
     });
-    assert.equal(response.status, 403, "changing a live client's portal is manager work");
+    assert.equal(applied.status, 403, "View must not grant a portal mutation");
+
+    const saved = await post(home.staffToken, {
+      action: "save-draft",
+      scope: "client",
+      clientId: home.client.id,
+      recordId: home.instance.id,
+      document: home.instance.draft,
+    });
+    assert.equal(saved.status, 403, "View must not grant an editor save");
+  });
+
+  it("lets staff with current Portals Manage save and publish", async () => {
+    await setStaffPortalLevel(home, "manage");
+    await saveAndPublish(home.staffToken, "Staff-managed portal");
+  });
+
+  it("re-resolves a staff grant on every write instead of trusting an open editor", async () => {
+    await setStaffPortalLevel(home, "manage");
+    assert.equal((await get(home.staffToken, { scope: "client", clientId: home.client.id })).status, 200);
+
+    await setStaffPortalLevel(home, "view");
+    const response = await post(home.staffToken, {
+      action: "save-draft",
+      scope: "client",
+      clientId: home.client.id,
+      recordId: home.instance.id,
+      document: home.instance.draft,
+    });
+    assert.equal(response.status, 403, "a downgraded grant kept mutation authority from an earlier load");
+  });
+
+  it("refuses staff whose canonical Portals element is Hidden", async () => {
+    await setStaffPortalLevel(home, "hidden");
+    advanceTemplate(home, "Your website");
+
+    const loaded = await get(home.staffToken, { scope: "client", clientId: home.client.id });
+    assert.equal(loaded.status, 403, "Hidden staff read a portal design");
+
+    const planned = await post(home.staffToken, {
+      action: "update-plan", scope: "client", clientId: home.client.id,
+    });
+    assert.equal(planned.status, 403, "Hidden staff inspected a portal update");
+
+    const applied = await post(home.staffToken, {
+      action: "update-apply", scope: "client", clientId: home.client.id, accept: ["chrome.serviceLabel"],
+    });
+    assert.equal(applied.status, 403, "Hidden staff changed a portal draft");
     assert.notEqual(
       getClientPortalInstance(home.agency.id, home.client.id)?.draft.chrome.serviceLabel,
       "Your website",
@@ -261,9 +382,61 @@ describe("who may press it", () => {
     );
   });
 
+  it("keeps owner and manager save/publish behavior unchanged", async () => {
+    await saveAndPublish(home.ownerToken, "Owner portal");
+    await saveAndPublish(home.managerToken, "Manager portal");
+  });
+
+  it("keeps a staff manager inside the exact tenant/client boundary", async () => {
+    await setStaffPortalLevel(home, "manage");
+    const foreignAgency = createAgency({ name: "Foreign portal agency" });
+    const foreignClient = createClient(foreignAgency.id, { name: "Foreign client", stage: "live" });
+    const response = await post(home.staffToken, {
+      action: "save-draft",
+      scope: "client",
+      clientId: foreignClient.id,
+      recordId: home.instance.id,
+      document: home.instance.draft,
+    });
+    assert.equal(response.status, 403, "Portals Manage crossed the signed tenant boundary");
+  });
+
   it("requires a client — a template alone has nothing to update", async () => {
     const response = await post(home.ownerToken, { action: "update-plan", scope: "template" });
     assert.equal(response.status, 400);
+  });
+
+  it("loads the sample through template scope, then refuses every client write", async () => {
+    const sampleId = sampleClientId(home.agency.id);
+    const clientsBefore = Object.keys(getState().clients).length;
+    const instancesBefore = Object.keys(getState().clientPortalInstances).length;
+
+    // This is the exact request shape the corrected DevEditor produces: the
+    // sample still supplies preview data, while the design record is the real
+    // agency template. It must be a clean 200 rather than the old client 404.
+    const loaded = await get(home.ownerToken, {
+      scope: "template",
+      clientId: sampleId,
+      templateId: home.template.id,
+    });
+    assert.equal(loaded.status, 200);
+    assert.equal((await loaded.json() as { record?: { id: string } }).record?.id, home.template.id);
+    assert.equal(Object.keys(getState().clients).length, clientsBefore);
+    assert.equal(Object.keys(getState().clientPortalInstances).length, instancesBefore);
+
+    const response = await post(home.ownerToken, {
+      action: "save-draft",
+      scope: "client",
+      clientId: sampleId,
+      recordId: `${home.agency.id}:${sampleId}`,
+      document: home.instance.draft,
+    });
+    assert.equal(response.status, 403);
+    assert.deepEqual(await response.json(), { ok: false, error: "sample preview is read-only" });
+    assert.equal(Object.keys(getState().clients).length, clientsBefore,
+      "the route turned the preview fixture into a business client");
+    assert.equal(Object.keys(getState().clientPortalInstances).length, instancesBefore,
+      "the route persisted a portal instance for the preview fixture");
   });
 });
 

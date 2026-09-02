@@ -9,12 +9,27 @@ import type { PluginStorage } from "../src/built-ins/modules/leads-pipeline/src/
 
 function leadService() {
   const values = new Map<string, unknown>();
+  const exclusiveQueues = new Map<string, Promise<void>>();
   const activity: Array<{ action: string; metadata?: Record<string, unknown> }> = [];
   const storage: PluginStorage = {
     async get<T>(key: string) { return values.get(key) as T | undefined; },
     async set<T>(key: string, value: T) { values.set(key, value); },
     async del(key: string) { values.delete(key); },
     async list(prefix = "") { return [...values.keys()].filter(key => key.startsWith(prefix)); },
+    async runExclusive<T>(key: string, work: () => Promise<T>) {
+      const previous = exclusiveQueues.get(key) ?? Promise.resolve();
+      let release!: () => void;
+      const gate = new Promise<void>(resolve => { release = resolve; });
+      const queued = previous.then(() => gate);
+      exclusiveQueues.set(key, queued);
+      await previous;
+      try {
+        return await work();
+      } finally {
+        release();
+        if (exclusiveQueues.get(key) === queued) exclusiveQueues.delete(key);
+      }
+    },
   };
   const service = new LeadService(
     "agency_wait_test",

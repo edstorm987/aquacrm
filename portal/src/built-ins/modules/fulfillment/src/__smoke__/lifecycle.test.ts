@@ -50,7 +50,7 @@ import type {
   UserId,
   ActivityEntry,
 } from "../lib/tenancy";
-import type { PluginStorage } from "../lib/aquaPluginTypes";
+import type { PluginCtx, PluginStorage } from "../lib/aquaPluginTypes";
 import type {
   ActivityLogPort,
   ClientStorePort,
@@ -71,6 +71,9 @@ import type {
 } from "../server/ports";
 import { buildFulfillmentContainer } from "../server/index";
 import { DEFAULT_PHASE_PRESETS } from "../server/presets";
+import { advancePhaseHandler, createClientHandler } from "../api/handlers";
+import { apiRoutes } from "../api/routes";
+import { checklistViewAfterTick } from "../lib/checklistView";
 
 // ─── Test fixtures: id helpers + clock ────────────────────────────────────
 
@@ -758,6 +761,256 @@ describe("Aqua phase preset catalogue + transition incompleteness", () => {
 // Lets a future foundation-side smoke runner invoke this whole flow
 // without going through `node:test`. Returns a structured report so the
 // caller can assert + render it however it likes.
+
+describe("Fulfillment install settings change real lifecycle outcomes", () => {
+  function context(world: SmokeWorld, config: Record<string, unknown>): PluginCtx {
+    return {
+      agencyId: world.agencyId,
+      actor: world.actor,
+      install: {
+        id: `${world.agencyId}|_agency|fulfillment`,
+        pluginId: "fulfillment",
+        agencyId: world.agencyId,
+        enabled: true,
+        config,
+        features: {},
+        installedAt: fixedNow,
+        installedBy: world.actor,
+      },
+      storage: world.storage,
+      services: {
+        clients: world.clients,
+        pluginInstalls: world.installs,
+        pluginRuntime: world.runtime,
+        registry: world.registry,
+        phases: world.phases,
+        activity: world.activity,
+        events: world.events,
+        variants: world.variants,
+      },
+    };
+  }
+
+  test("phase advancement remains an agency-operator API", () => {
+    const route = apiRoutes.find(candidate => candidate.path === "phase/advance");
+    assert.deepEqual(
+      route?.visibleToRoles,
+      ["agency-owner", "agency-manager", "agency-staff"],
+      "client roles may complete their checklist but cannot move the agency's delivery lifecycle",
+    );
+  });
+
+  test("defaultStage supplies an omitted create stage and an explicit stage still wins", async () => {
+    const world = buildSmokeWorld("agency_settings_default", "user_settings_default", ALL_PRESET_PLUGINS);
+    const services = buildFulfillmentContainer({
+      clients: world.clients,
+      pluginInstalls: world.installs,
+      pluginRuntime: world.runtime,
+      registry: world.registry,
+      phases: world.phases,
+      activity: world.activity,
+      events: world.events,
+      variants: world.variants,
+      storage: world.storage,
+    });
+    await services.phaseService.seedDefaultPhases(world.agencyId);
+    const ctx = context(world, { defaultStage: "aqua-blueprint", advanceRequiresAllTasks: true });
+
+    const defaultedResponse = await createClientHandler(new Request("http://local/clients", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Configured default" }),
+    }), ctx);
+    assert.equal(defaultedResponse.status, 201);
+    const defaulted = await defaultedResponse.json() as { client: Client };
+    assert.equal(defaulted.client.stage, "aqua-blueprint");
+
+    const explicitResponse = await createClientHandler(new Request("http://local/clients", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Explicit start", stage: "aqua-epic-intro" }),
+    }), ctx);
+    assert.equal(explicitResponse.status, 201);
+    const explicit = await explicitResponse.json() as { client: Client };
+    assert.equal(explicit.client.stage, "aqua-epic-intro");
+
+    const beforeInvalid = world.state.clients.size;
+    ctx.install.config.defaultStage = "not-a-configured-stage";
+    const invalidDefault = await createClientHandler(new Request("http://local/clients", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Invalid configured default" }),
+    }), ctx);
+    assert.equal(invalidDefault.status, 400);
+    assert.match(JSON.stringify(await invalidDefault.json()), /No configured phase/);
+    assert.equal(world.state.clients.size, beforeInvalid, "invalid settings must not leave an orphan client row");
+
+    ctx.install.config.defaultStage = "aqua-blueprint";
+    const invalidExplicit = await createClientHandler(new Request("http://local/clients", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Invalid explicit stage", stage: "not-a-configured-stage" }),
+    }), ctx);
+    assert.equal(invalidExplicit.status, 400);
+    assert.equal(world.state.clients.size, beforeInvalid, "invalid explicit input must be rejected before creation");
+  });
+
+  test("the phase gate is bound to the client's real current phase", async () => {
+    const world = buildSmokeWorld("agency_settings_phase_owner", "user_settings_phase_owner", ALL_PRESET_PLUGINS);
+    const services = buildFulfillmentContainer({
+      clients: world.clients,
+      pluginInstalls: world.installs,
+      pluginRuntime: world.runtime,
+      registry: world.registry,
+      phases: world.phases,
+      activity: world.activity,
+      events: world.events,
+      variants: world.variants,
+      storage: world.storage,
+    });
+    await services.phaseService.seedDefaultPhases(world.agencyId);
+    const ctx = context(world, { defaultStage: "aqua-blueprint", advanceRequiresAllTasks: true });
+    const createdResponse = await createClientHandler(new Request("http://local/clients", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Current phase owner" }),
+    }), ctx);
+    const created = await createdResponse.json() as { client: Client };
+    const wrongFrom = await services.phaseService.getPhaseForStage(world.agencyId, "aqua-epic-intro");
+    const target = await services.phaseService.getPhaseForStage(world.agencyId, "aqua-diagnostics");
+    assert.ok(wrongFrom && target);
+
+    // Make the caller-selected wrong checklist look complete. The actual
+    // Blueprint checklist remains open and is the only authoritative source.
+    for (const item of wrongFrom.checklist) {
+      await services.checklistService.tickItem({
+        agencyId: world.agencyId,
+        clientId: created.client.id,
+        phase: wrongFrom,
+        itemId: item.id,
+        done: true,
+        actor: world.actor,
+      });
+    }
+    const response = await advancePhaseHandler(new Request("http://local/phase/advance", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        clientId: created.client.id,
+        fromPhaseId: wrongFrom.id,
+        toPhaseId: target.id,
+        operationId: "settings-wrong-from-0001",
+      }),
+    }), ctx);
+    assert.equal(response.status, 422);
+    assert.match(JSON.stringify(await response.json()), /currently in aqua-blueprint/);
+    assert.equal(world.state.clients.get(created.client.id)?.stage, "aqua-blueprint");
+  });
+
+  test("concurrent checklist ticks converge and the board view unlocks on the final confirmed tick", async () => {
+    const world = buildSmokeWorld("agency_settings_ticks", "user_settings_ticks", ALL_PRESET_PLUGINS);
+    const services = buildFulfillmentContainer({
+      clients: world.clients,
+      pluginInstalls: world.installs,
+      pluginRuntime: world.runtime,
+      registry: world.registry,
+      phases: world.phases,
+      activity: world.activity,
+      events: world.events,
+      variants: world.variants,
+      storage: world.storage,
+    });
+    await services.phaseService.seedDefaultPhases(world.agencyId);
+    const created = await services.clientLifecycleService.createWithPhase({
+      agencyId: world.agencyId,
+      actor: world.actor,
+      name: "Concurrent checklist",
+      stage: "aqua-epic-intro",
+    });
+    const [first, second] = created.phase.checklist;
+    assert.ok(first && second);
+    await Promise.all([first, second].map(item => services.checklistService.tickItem({
+      agencyId: world.agencyId,
+      clientId: created.client.id,
+      phase: created.phase,
+      itemId: item.id,
+      done: true,
+      actor: world.actor,
+    })));
+    const stored = await services.checklistService.viewFor({
+      agencyId: world.agencyId,
+      clientId: created.client.id,
+      phase: created.phase,
+    });
+    assert.equal(stored.internal.find(item => item.id === first.id)?.done, true);
+    assert.equal(stored.internal.find(item => item.id === second.id)?.done, true);
+
+    const view = {
+      internal: [{ id: "internal-last", label: "Last task", visibility: "internal" as const, done: false }],
+      client: [{ id: "client-done", label: "Client task", visibility: "client" as const, done: true }],
+      internalDone: 0,
+      internalTotal: 1,
+      clientDone: 1,
+      clientTotal: 1,
+      allRequiredComplete: false,
+    };
+    const updated = checklistViewAfterTick(view, "internal-last", true);
+    assert.equal(updated.allRequiredComplete, true, "PhaseBoard can enable Advance without a full reload");
+    assert.equal(updated.internalDone, 1);
+    assert.equal(view.internal[0]?.done, false, "the server-provided view is not mutated in place");
+  });
+
+  test("advanceRequiresAllTasks rejects open work by default and audits an explicit off-setting override", async () => {
+    const world = buildSmokeWorld("agency_settings_gate", "user_settings_gate", ALL_PRESET_PLUGINS);
+    const services = buildFulfillmentContainer({
+      clients: world.clients,
+      pluginInstalls: world.installs,
+      pluginRuntime: world.runtime,
+      registry: world.registry,
+      phases: world.phases,
+      activity: world.activity,
+      events: world.events,
+      variants: world.variants,
+      storage: world.storage,
+    });
+    await services.phaseService.seedDefaultPhases(world.agencyId);
+    const ctx = context(world, { defaultStage: "aqua-blueprint", advanceRequiresAllTasks: true });
+    const createdResponse = await createClientHandler(new Request("http://local/clients", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "Checklist gate" }),
+    }), ctx);
+    const created = await createdResponse.json() as { client: Client; phase: PhaseDefinition };
+    const target = await services.phaseService.getPhaseForStage(world.agencyId, "aqua-diagnostics");
+    assert.ok(target);
+    const advanceRequest = (operationId: string) => new Request("http://local/phase/advance", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        clientId: created.client.id,
+        fromPhaseId: created.phase.id,
+        toPhaseId: target!.id,
+        operationId,
+      }),
+    });
+
+    const refused = await advancePhaseHandler(advanceRequest("settings-required-0001"), ctx);
+    assert.equal(refused.status, 422);
+    assert.match(JSON.stringify(await refused.json()), /Complete all required checklist items/);
+    assert.equal(world.state.clients.get(created.client.id)?.stage, "aqua-blueprint");
+
+    ctx.install.config.advanceRequiresAllTasks = false;
+    const allowed = await advancePhaseHandler(advanceRequest("settings-override-0002"), ctx);
+    assert.equal(allowed.status, 200);
+    assert.equal(world.state.clients.get(created.client.id)?.stage, "aqua-diagnostics");
+    const audit = world.state.activityLog.find(entry =>
+      entry.action === "phase.advanced" && entry.clientId === created.client.id);
+    const auditFields = audit?.metadata ?? {};
+    assert.equal(auditFields.checklistOverride, true);
+    assert.ok(Number(auditFields.openRequiredTasks) > 0);
+    assert.match(audit?.message ?? "", /Checklist override/);
+  });
+});
 
 export interface LifecycleSmokeReport {
   ok: boolean;

@@ -16,19 +16,17 @@
 // A referral CODE is sharp in a different way: it stays ACTIVE. A live link
 // keeps attributing sales to an affiliate who is gone.
 //
-// ── What this file does not do ─────────────────────────────────────────────
-//
-// It asserts no retirement policy. The roadmap's own instruction is to use the
-// existing archive/removed states for ordinary retirement and to define an
-// explicit exceptional purge with billing reconciliation — an open product
-// decision. The last test RECORDS today's behaviour so that decision is made
-// against facts.
+// The retirement policy is RESTRICT: `removed` is the ordinary path, and hard
+// deletion is allowed only while the authoritative dependency graph is empty.
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { buildAffiliatesContainer } from "../src/built-ins/modules/affiliates/src/server/index";
-import { affiliateDependencyInventory } from "../src/built-ins/modules/affiliates/src/server/dependencies";
+import {
+  AffiliateHasDependantsError,
+  affiliateDependencyInventory,
+} from "../src/built-ins/modules/affiliates/src/server/dependencies";
 import {
   clearAffiliatesFoundation,
   registerAffiliatesFoundation,
@@ -36,7 +34,12 @@ import {
 import { deleteAffiliateHandler } from "../src/built-ins/modules/affiliates/src/api/handlers";
 import type { PluginCtx } from "../src/built-ins/modules/affiliates/src/lib/aquaPluginTypes";
 import type { Affiliate, Attribution, Payout, ReferralCode } from "../src/built-ins/modules/affiliates/src/lib/domain";
-import type { ActivityLogPort, EventBusPort, StoragePort } from "../src/built-ins/modules/affiliates/src/server/ports";
+import type {
+  ActivityLogPort,
+  EventBusPort,
+  StoragePort,
+  StripeConnectPort,
+} from "../src/built-ins/modules/affiliates/src/server/ports";
 
 const AGENCY_ID = "agency_affiliate_deps";
 const CLIENT_ID = "client_affiliate_deps";
@@ -62,8 +65,12 @@ class MemoryStorage implements StoragePort {
   }
 }
 
-function buildWorld(storage: MemoryStorage) {
-  const activity: ActivityLogPort = {
+function buildWorld(
+  storage: MemoryStorage,
+  activityOverride?: ActivityLogPort,
+  stripeConnect?: StripeConnectPort,
+) {
+  const activity: ActivityLogPort = activityOverride ?? {
     logActivity(input) { return { id: "act", ts: Date.now(), ...input } as never; },
     listActivity() { return [] as never; },
   };
@@ -74,7 +81,29 @@ function buildWorld(storage: MemoryStorage) {
     user: { getUser() { return null; } },
     pluginInstalls: { getInstall() { return null; } },
     ecommerceOrders: { getOrder() { return null; } },
+    stripeConnect,
   });
+}
+
+function stripeConnect(overrides: Partial<StripeConnectPort> = {}): StripeConnectPort {
+  return {
+    async createAccount() { return { accountId: "acct_default" }; },
+    async createOnboardingLink({ accountId }) {
+      return { url: `https://connect.test/${accountId}`, expiresAt: Date.now() + 60_000 };
+    },
+    async retrieveAccount(accountId) {
+      return {
+        accountId,
+        onboardingStatus: "pending",
+        chargesEnabled: false,
+        payoutsEnabled: false,
+        detailsSubmitted: false,
+      };
+    },
+    async createTransfer() { return { transferId: "tr_default", created: Date.now() }; },
+    async verifyWebhookSignature() { return false; },
+    ...overrides,
+  };
 }
 
 async function seedAffiliate(storage: MemoryStorage, id: string, name: string): Promise<void> {
@@ -179,7 +208,12 @@ describe("the inventory finds everything still attached", () => {
     const { services } = await seedWorld();
     const inventory = await affiliateDependencyInventory(services, AFFILIATE_ID);
     assert.equal(inventory.total, 3, `expected three dependants, got ${JSON.stringify(inventory.byKind)}`);
-    assert.deepEqual(inventory.byKind, { "referral-code": 1, attribution: 1, payout: 1 });
+    assert.deepEqual(inventory.byKind, {
+      "referral-code": 1,
+      attribution: 1,
+      payout: 1,
+      "stripe-account": 0,
+    });
   });
 
   it("says which are FINANCIAL, because that is what changes the decision", async () => {
@@ -216,44 +250,194 @@ describe("the inventory finds everything still attached", () => {
   });
 });
 
-describe("what DELETE does today, recorded rather than asserted as correct", () => {
-  it("removes the affiliate and orphans all three — including the money", async () => {
-    // The roadmap's claim, verified rather than repeated. Not an assertion that
-    // this is right: when a retirement policy lands (archive / removed state /
-    // explicit purge with billing reconciliation), this is where the new rule
-    // gets recorded instead of someone finding the old expectation and guessing.
+describe("the Affiliate service itself refuses to orphan dependants", () => {
+  it("rejects a direct-service bypass and leaves the complete graph unchanged", async () => {
     const { storage, services } = await seedWorld();
     assert.equal((await affiliateDependencyInventory(services, AFFILIATE_ID)).total, 3);
+    await assert.rejects(
+      () => services.affiliates.delete(AFFILIATE_ID, ACTOR_ID),
+      (error: unknown) => error instanceof AffiliateHasDependantsError
+        && error.dependencies.total === 3
+        && error.dependencies.hasFinancialDependants,
+      "AffiliateService.delete bypassed the route guard and detached money from its owner",
+    );
+    assert.ok(await services.affiliates.get(AFFILIATE_ID), "the affiliate row was removed by the refused service command");
+    assert.ok(storage.data.has("codes/by-id/code_owner"), "the referral code was touched");
+    assert.ok(storage.data.has("attributions/by-id/attr_owner"), "the attribution was touched");
+    assert.ok(storage.data.has("payouts/by-id/payout_owner"), "the payout was touched");
+  });
 
-    const deleted = await services.affiliates.delete(AFFILIATE_ID, ACTOR_ID);
-    assert.equal(deleted, true);
-    assert.equal(await services.affiliates.get(AFFILIATE_ID), null, "the affiliate row survived");
+  it("serializes referral-code creation against deletion, then refuses the now-dependent delete", async () => {
+    const storage = new MemoryStorage();
+    await seedAffiliate(storage, AFFILIATE_ID, "Owner");
+    let codeWriteEntered!: () => void;
+    let releaseCodeWrite!: () => void;
+    const entered = new Promise<void>(resolve => { codeWriteEntered = resolve; });
+    const release = new Promise<void>(resolve => { releaseCodeWrite = resolve; });
+    const activity: ActivityLogPort = {
+      async logActivity(input) {
+        if (input.action === "affiliate.code_created") {
+          codeWriteEntered();
+          await release;
+        }
+        return { id: "act", ts: Date.now(), ...input } as never;
+      },
+      listActivity() { return [] as never; },
+    };
+    const services = buildWorld(storage, activity);
 
-    const after = await affiliateDependencyInventory(services, AFFILIATE_ID);
-    assert.equal(after.total, 3,
-      "DELETE now reconciles dependants — a retirement policy has landed, and this test should "
-      + "assert it rather than the old orphan-everything behaviour");
-    assert.equal(after.activeReferralCodes, 1,
-      "the referral code is no longer left ACTIVE after its affiliate is deleted — record the new policy here");
+    const creating = services.codes.create({ affiliateId: AFFILIATE_ID, code: "RACE10" }, ACTOR_ID);
+    await entered;
+    let deleteSettled = false;
+    const deleting = services.affiliates.delete(AFFILIATE_ID, ACTOR_ID).then(
+      value => { deleteSettled = true; return value; },
+      error => { deleteSettled = true; throw error; },
+    );
+    await new Promise(resolve => setTimeout(resolve, 20));
+    assert.equal(deleteSettled, false, "affiliate deletion crossed the in-flight referral-code graph mutation");
 
-    // …and the storage rows really are still there, pointing at nobody.
-    assert.ok(storage.data.has("attributions/by-id/attr_owner"), "the attribution vanished without a policy");
-    assert.ok(storage.data.has("payouts/by-id/payout_owner"), "the payout vanished without a policy");
+    releaseCodeWrite();
+    const code = await creating;
+    await assert.rejects(deleting, AffiliateHasDependantsError);
+    assert.ok(await services.affiliates.get(AFFILIATE_ID), "the affiliate disappeared after its code committed");
+    assert.equal(code.affiliateId, AFFILIATE_ID);
+    assert.equal((await services.codes.list({ affiliateId: AFFILIATE_ID })).length, 1, "the committed code was orphaned or hidden");
+  });
+
+  it("treats an interrupted referral-code claim as a dependant before its primary row exists", async () => {
+    const storage = new MemoryStorage();
+    await seedAffiliate(storage, AFFILIATE_ID, "Owner");
+    const recoveryCode: ReferralCode = {
+      id: "code_recovery_owner",
+      agencyId: AGENCY_ID,
+      clientId: CLIENT_ID,
+      affiliateId: AFFILIATE_ID,
+      code: "RECOVERY10",
+      status: "active",
+      commissionPercent: 10,
+      uses: 0,
+      createdAt: 1,
+      updatedAt: 1,
+    } as ReferralCode;
+    await storage.set("codes/claims/by-code/RECOVERY10", {
+      signature: "code-recovery-signature",
+      row: recoveryCode,
+      status: "pending",
+      updatedAt: 1,
+    });
+    const services = buildWorld(storage);
+
+    assert.equal((await services.codes.list({ affiliateId: AFFILIATE_ID })).length, 0,
+      "the fixture must exercise a claim that is not yet visible through the primary index");
+    await assert.rejects(
+      () => services.affiliates.delete(AFFILIATE_ID, ACTOR_ID),
+      (error: unknown) => error instanceof AffiliateHasDependantsError
+        && error.dependencies.total === 1
+        && error.dependencies.byKind["referral-code"] === 1,
+      "a pending code claim could replay after its affiliate was purged",
+    );
+    assert.ok(await services.affiliates.get(AFFILIATE_ID), "the affiliate was removed despite its durable code owner");
+    assert.ok(storage.data.has("codes/claims/by-code/RECOVERY10"), "the refused delete touched the durable code owner");
   });
 });
 
-// ── The mounted route now ASKS before it destroys ──────────────────────────
-//
-// The block above records what `AffiliateService.delete` does when it is
-// called: it still hard-deletes and still orphans everything, because what
-// happens to commission already earned is an undecided policy and inventing one
-// here would be the decision. What HAS changed is that the only caller — the
-// mounted `DELETE /api/portal/affiliates/affiliates` route — asks the inventory
-// first and refuses while anything is still attached, naming the "removed"
-// status as the path that works.
-//
-// Every assertion below fails against the previous handler, which passed the id
-// straight to `affiliates.delete` and answered `{ ok: true }`.
+describe("Stripe onboarding owns a durable affiliate dependency", () => {
+  it("collapses concurrent starts onto one account and one durable intent", async () => {
+    const storage = new MemoryStorage();
+    await seedAffiliate(storage, AFFILIATE_ID, "Owner");
+    let accountCalls = 0;
+    const services = buildWorld(storage, undefined, stripeConnect({
+      async createAccount() {
+        accountCalls += 1;
+        await new Promise(resolve => setTimeout(resolve, 15));
+        return { accountId: `acct_concurrent_${accountCalls}` };
+      },
+    }));
+
+    const input = {
+      affiliateId: AFFILIATE_ID,
+      returnUrl: "https://portal.test/affiliate/return",
+      refreshUrl: "https://portal.test/affiliate/refresh",
+    };
+    const [first, second] = await Promise.all([
+      services.onboarding!.start(input, ACTOR_ID),
+      services.onboarding!.start(input, ACTOR_ID),
+    ]);
+
+    assert.equal(accountCalls, 1, "concurrent starts provisioned two connected accounts");
+    assert.equal(first.affiliate.stripeAccountId, "acct_concurrent_1");
+    assert.equal(second.affiliate.stripeAccountId, first.affiliate.stripeAccountId);
+    const intent = storage.data.get(`affiliates/onboarding-intent/${AFFILIATE_ID}`) as {
+      idempotencyKey?: string; stage?: string; accountId?: string;
+    };
+    assert.equal(intent.stage, "account_attached");
+    assert.equal(intent.accountId, first.affiliate.stripeAccountId);
+    assert.match(intent.idempotencyKey ?? "", /affiliate-account:.*affiliate_deps_owner/);
+  });
+
+  it("refuses deletion while Stripe is delayed, without holding the graph lock across provider I/O", async () => {
+    const storage = new MemoryStorage();
+    await seedAffiliate(storage, AFFILIATE_ID, "Owner");
+    let enteredProvider!: () => void;
+    let releaseProvider!: () => void;
+    const providerEntered = new Promise<void>(resolve => { enteredProvider = resolve; });
+    const providerRelease = new Promise<void>(resolve => { releaseProvider = resolve; });
+    const services = buildWorld(storage, undefined, stripeConnect({
+      async createAccount() {
+        enteredProvider();
+        await providerRelease;
+        return { accountId: "acct_delete_race" };
+      },
+    }));
+
+    const starting = services.onboarding!.start({
+      affiliateId: AFFILIATE_ID,
+      returnUrl: "https://portal.test/affiliate/return",
+      refreshUrl: "https://portal.test/affiliate/refresh",
+    }, ACTOR_ID);
+    await providerEntered;
+
+    const deletion = await Promise.race([
+      services.affiliates.delete(AFFILIATE_ID, ACTOR_ID).then(
+        value => ({ kind: "resolved" as const, value }),
+        error => ({ kind: "rejected" as const, error }),
+      ),
+      new Promise<{ kind: "timeout" }>(resolve => setTimeout(() => resolve({ kind: "timeout" }), 100)),
+    ]);
+    assert.notEqual(deletion.kind, "timeout", "delete waited behind the Stripe provider call");
+    assert.equal(deletion.kind, "rejected", "delete crossed the durable onboarding intent");
+    if (deletion.kind === "rejected") assert.ok(deletion.error instanceof AffiliateHasDependantsError);
+    assert.ok(await services.affiliates.get(AFFILIATE_ID), "delete removed the onboarding target");
+
+    releaseProvider();
+    const started = await starting;
+    assert.equal(started.affiliate.stripeAccountId, "acct_delete_race");
+  });
+
+  it("does not report success if a non-cooperating writer removes the target before the final check", async () => {
+    const storage = new MemoryStorage();
+    await seedAffiliate(storage, AFFILIATE_ID, "Owner");
+    const services = buildWorld(storage, undefined, stripeConnect({
+      async createAccount() { return { accountId: "acct_final_validation" }; },
+      async createOnboardingLink({ accountId }) {
+        await storage.del(`affiliates/by-id/${AFFILIATE_ID}`);
+        return { url: `https://connect.test/${accountId}`, expiresAt: Date.now() + 60_000 };
+      },
+    }));
+
+    await assert.rejects(
+      services.onboarding!.start({
+        affiliateId: AFFILIATE_ID,
+        returnUrl: "https://portal.test/affiliate/return",
+        refreshUrl: "https://portal.test/affiliate/refresh",
+      }, ACTOR_ID),
+      /no longer owns Stripe Connect account/,
+      "a stale onboarding request returned success for a deleted affiliate",
+    );
+  });
+});
+
+// ── The mounted route translates the service refusal ───────────────────────
 
 describe("DELETE /affiliates refuses to orphan money", () => {
   it("answers 422 with the inventory, and names the path that works", async () => {

@@ -30,13 +30,21 @@ describe("Next route contracts", () => {
   it("declares every direct Website Editor client page at the safe boundary", () => {
     const manifest = read("src/built-ins/modules/website-editor/index.ts");
     const clientPages = [
-      "PagesPage", "PortalsPage", "CustomisePage",
+      "PagesPage", "PortalsPage",
       "ThemesPage", "ThemeDetailPage", "AssetsPage", "GitStatusPage",
     ];
     for (const page of clientPages) {
       const entry = new RegExp(`clientComponent: true,[\\s\\S]{0,120}import\\(\\"\\./src/pages/${page}\\"\\)`);
       assert.match(manifest, entry, `${page} must not receive server-only PluginPageProps`);
     }
+    // Customise needs a server boundary so it can resolve the canonical
+    // settings view and edit permission. That wrapper passes only serializable
+    // props into the existing client page.
+    assert.match(manifest, /component: \(\) => import\("\.\/src\/pages\/CustomiseRoutePage"\)/);
+    const customiseRoute = read("src/built-ins/modules/website-editor/src/pages/CustomiseRoutePage.tsx");
+    assert.match(customiseRoute, /describePluginSettings/);
+    assert.match(customiseRoute, /<EditorSettingsPage/);
+    assert.doesNotMatch(customiseRoute, /FOUNDATION_SERVICES|makePluginStorage/);
   });
 });
 

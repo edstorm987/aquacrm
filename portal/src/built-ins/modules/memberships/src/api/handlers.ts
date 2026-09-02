@@ -9,7 +9,12 @@
 
 import type { PluginCtx } from "../lib/aquaPluginTypes";
 import { containerFor, isStripeAvailable } from "../server/foundationAdapter";
-import { planDependencyInventory } from "../server/dependencies";
+import { PlanHasDependantsError } from "../server/dependencies";
+import {
+  PlanPriceOperationConflictError,
+  PlanPriceProvisioningRetryableError,
+  PlanValidationError,
+} from "../server/plans";
 import type {
   CreateBenefitInput,
   CreatePlanInput,
@@ -25,11 +30,34 @@ function json(body: unknown, status = 200): Response {
 }
 const badRequest = (m: string): Response => json({ ok: false, error: m }, 400);
 const notFound = (m: string): Response => json({ ok: false, error: m }, 404);
+const conflict = (m: string, operationId?: string): Response => json({
+  ok: false,
+  error: m,
+  ...(operationId ? { operationId } : {}),
+}, 409);
 const unprocessable = (m: string): Response => json({ ok: false, error: m }, 422);
-const retryableFailure = (m: string): Response => json({ ok: false, error: m, retryable: true }, 503);
+const retryableFailure = (m: string, operationId?: string): Response => json({
+  ok: false,
+  error: m,
+  retryable: true,
+  ...(operationId ? { operationId } : {}),
+}, 503);
 
 function methodGuard(req: Request, expected: string): Response | null {
   return req.method === expected ? null : json({ ok: false, error: "method_not_allowed" }, 405);
+}
+
+function operationIdFromRequest(req: Request, bodyValue: unknown): string | null {
+  if (bodyValue !== undefined && typeof bodyValue !== "string") return null;
+  return (typeof bodyValue === "string" ? bodyValue.trim() : "")
+    || req.headers.get("idempotency-key")?.trim()
+    || null;
+}
+
+function patchCanChangeProviderPrice(patch: unknown): boolean {
+  if (!patch || typeof patch !== "object" || Array.isArray(patch)) return false;
+  return ["priceMonthly", "priceAnnual", "currency"]
+    .some(field => Object.prototype.hasOwnProperty.call(patch, field));
 }
 
 async function safeJson<T>(req: Request): Promise<T | null> {
@@ -66,31 +94,59 @@ export async function listPlansHandler(req: Request, ctx: PluginCtx): Promise<Re
 export async function createPlanHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   const guard = methodGuard(req, "POST");
   if (guard) return guard;
-  const body = await safeJson<CreatePlanInput>(req);
+  const body = await safeJson<CreatePlanInput & { operationId?: unknown }>(req);
   if (!body || !body.name || typeof body.priceMonthly !== "number" || !body.currency) {
     return badRequest("name + priceMonthly + currency required.");
   }
-  if (body.priceMonthly > 0 && !isStripeAvailable({ agencyId: ctx.agencyId, clientId: ctx.clientId! })) {
+  const operationId = operationIdFromRequest(req, body.operationId);
+  if (!operationId) return badRequest("operationId or Idempotency-Key header is required.");
+  const { operationId: _operationId, ...input } = body;
+  if ((input.priceMonthly > 0 || (input.priceAnnual ?? 0) > 0)
+    && !isStripeAvailable({ agencyId: ctx.agencyId, clientId: ctx.clientId! })) {
     return unprocessable("Stripe not configured for this client. Configure via the ecommerce plugin first.");
   }
   try {
-    const plan = await buildContainer(ctx).plans.create(body, ctx.actor);
-    return json({ ok: true, plan }, 201);
+    const plan = await buildContainer(ctx).plans.create(input, ctx.actor, operationId);
+    return json({ ok: true, plan, operationId }, 201);
   } catch (err) {
-    return unprocessable(err instanceof Error ? err.message : String(err));
+    if (err instanceof PlanPriceOperationConflictError) return conflict(err.message, operationId);
+    if (err instanceof PlanValidationError) return unprocessable(err.message);
+    if (err instanceof PlanPriceProvisioningRetryableError) {
+      return retryableFailure(err.message, err.operationId);
+    }
+    // A command may already have reached Stripe or committed its plan before
+    // storage/activity failed. The same operation id is therefore the only
+    // safe retry and must not be represented as a permanent 422 input error.
+    return retryableFailure(err instanceof Error ? err.message : String(err), operationId);
   }
 }
 
 export async function updatePlanHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   const guard = methodGuard(req, "PATCH");
   if (guard) return guard;
-  const body = await safeJson<{ id: string; patch: UpdatePlanPatch }>(req);
+  const body = await safeJson<{ id: string; patch: UpdatePlanPatch; operationId?: unknown }>(req);
   if (!body?.id) return badRequest("id required.");
+  const providerPriceChange = patchCanChangeProviderPrice(body.patch);
+  const suppliedOperationId = operationIdFromRequest(req, body.operationId);
+  if (providerPriceChange && !suppliedOperationId) {
+    return badRequest("operationId or Idempotency-Key header is required for price changes.");
+  }
+  // Metadata/status changes are a short storage mutation, not a durable
+  // provider command. Do not claim operation-id replay semantics for them or
+  // break existing archive/edit callers that never needed such an id.
+  const operationId = providerPriceChange ? suppliedOperationId! : undefined;
   try {
-    const plan = await buildContainer(ctx).plans.update(body.id, body.patch ?? {}, ctx.actor);
-    return plan ? json({ ok: true, plan }) : notFound("plan not found");
+    const plan = await buildContainer(ctx).plans.update(body.id, body.patch ?? {}, ctx.actor, operationId);
+    return plan
+      ? json({ ok: true, plan, ...(operationId ? { operationId } : {}) })
+      : notFound("plan not found");
   } catch (err) {
-    return unprocessable(err instanceof Error ? err.message : String(err));
+    if (err instanceof PlanPriceOperationConflictError) return conflict(err.message, operationId);
+    if (err instanceof PlanValidationError) return unprocessable(err.message);
+    if (err instanceof PlanPriceProvisioningRetryableError) {
+      return retryableFailure(err.message, err.operationId);
+    }
+    return retryableFailure(err instanceof Error ? err.message : String(err), operationId);
   }
 }
 
@@ -121,26 +177,28 @@ export async function deletePlanHandler(req: Request, ctx: PluginCtx): Promise<R
   const c = buildContainer(ctx);
   const plan = await c.plans.get(id);
   if (!plan) return notFound("plan not found");
-
-  const dependencies = await planDependencyInventory(c, ctx.storage, id);
-  if (dependencies.total > 0) {
+  try {
+    const ok = await c.plans.delete(id, ctx.actor);
+    return ok ? json({ ok: true }) : notFound("plan not found");
+  } catch (error) {
+    if (!(error instanceof PlanHasDependantsError)) throw error;
+    const dependencies = error.dependencies;
     const billed = dependencies.billableSubscribers > 0
       ? `${dependencies.billableSubscribers} still being billed`
       : "none currently billable";
+    const pendingPlanChange = dependencies.pendingPlanChanges > 0;
     return json({
       ok: false,
-      error:
-        `Cannot delete "${plan.name}": ${dependencies.total} subscriber(s) are still on it `
-        + `(${billed}). Deleting it would leave their subscriptions running and unreachable from `
-        + `every admin list. Archive the plan instead (PATCH status "archived") — existing `
-        + `subscribers keep their plan and their billing, and it disappears from new signups.`,
-      reason: "plan_has_subscribers",
+      error: pendingPlanChange
+        ? `Cannot delete "${error.planName}": ${dependencies.pendingPlanChanges} provider price change(s) still target it. Retry or finish that operation before retiring the plan.`
+        : `Cannot delete "${error.planName}": ${dependencies.total} subscriber(s) are still on it `
+          + `(${billed}). Deleting it would leave their subscriptions running and unreachable from `
+          + `every admin list. Archive the plan instead (PATCH status "archived") — existing `
+          + `subscribers keep their plan and their billing, and it disappears from new signups.`,
+      reason: pendingPlanChange ? "plan_change_in_progress" : "plan_has_subscribers",
       dependencies,
     }, 422);
   }
-
-  const ok = await c.plans.delete(id, ctx.actor);
-  return ok ? json({ ok: true }) : notFound("plan not found");
 }
 
 // ─── Benefits ────────────────────────────────────────────────────────────

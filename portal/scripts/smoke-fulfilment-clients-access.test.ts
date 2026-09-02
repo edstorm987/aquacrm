@@ -4,6 +4,7 @@ import { before, beforeEach, describe, it } from "node:test";
 
 import { withSession } from "./dev-console-request-scope";
 import type { AccessCapability } from "../src/server/types";
+import { isFulfillmentClientCreation } from "../src/built-ins/modules/fulfillment/src/lib/mutationPayloads";
 
 process.env.PORTAL_BACKEND = "memory";
 process.env.PORTAL_STORAGE_BACKEND = "memory";
@@ -21,20 +22,23 @@ type Auth = typeof import("../src/lib/server/auth/auth");
 type Tenants = typeof import("../src/server/tenants");
 type Users = typeof import("../src/server/users");
 type Route = typeof import("../src/app/api/portal/fulfillment/clients/route");
+type PluginInstalls = typeof import("../src/server/pluginInstalls");
 
 let storage: Storage;
 let auth: Auth;
 let tenants: Tenants;
 let users: Users;
 let route: Route;
+let pluginInstalls: PluginInstalls;
 
 before(async () => {
-  [storage, auth, tenants, users, route] = await Promise.all([
+  [storage, auth, tenants, users, route, pluginInstalls] = await Promise.all([
     import("../src/server/storage"),
     import("../src/lib/server/auth/auth"),
     import("../src/server/tenants"),
     import("../src/server/users"),
     import("../src/app/api/portal/fulfillment/clients/route"),
+    import("../src/server/pluginInstalls"),
   ]);
 });
 
@@ -71,10 +75,14 @@ async function grant(home: Awaited<ReturnType<typeof fixture>>, capabilities: Ac
 }
 
 function createRequest(name: string) {
+  return requestFor({ name, createPortal: false });
+}
+
+function requestFor(body: Record<string, unknown>) {
   return new Request("http://localhost/api/portal/fulfillment/clients", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name, createPortal: false }),
+    body: JSON.stringify(body),
   }) as unknown as Parameters<Route["POST"]>[0];
 }
 
@@ -96,5 +104,40 @@ describe("fulfilment client collection access", () => {
     const created = await withSession(home.token, () => route.POST(createRequest("Managed client")));
     assert.equal(created.status, 201);
     assert.equal(tenants.listClients(home.agency.id).some(client => client.name === "Managed client"), true);
+  });
+
+  it("uses the installed default stage and returns an idempotent concrete lifecycle receipt", async () => {
+    const home = await fixture();
+    await grant(home, ["element.fulfilment.services.manage"]);
+    pluginInstalls.upsertInstall({
+      pluginId: "fulfillment",
+      scope: { agencyId: home.agency.id },
+      enabled: true,
+      config: { defaultStage: "aqua-blueprint" },
+      features: {},
+    });
+    await storage.flushPendingWrites();
+
+    const operationId = "new-client:route-default-stage-0001";
+    const body = { operationId, name: "Configured stage client", createPortal: false };
+    const created = await withSession(home.token, () => route.POST(requestFor(body)));
+    const createdPayload = await created.json() as unknown;
+    assert.equal(created.status, 201);
+    assert.equal(isFulfillmentClientCreation(createdPayload, {
+      operationId,
+      name: body.name,
+      stage: "aqua-blueprint",
+    }), true);
+
+    const replayed = await withSession(home.token, () => route.POST(requestFor(body)));
+    const replayedPayload = await replayed.json() as { replayed?: unknown; client?: { id?: unknown } };
+    assert.equal(replayed.status, 200);
+    assert.equal(replayedPayload.replayed, true);
+    assert.equal(replayedPayload.client?.id, (createdPayload as { client: { id: string } }).client.id);
+    assert.equal(tenants.listClients(home.agency.id).filter(client => client.name === body.name).length, 1);
+
+    const conflict = await withSession(home.token, () => route.POST(requestFor({ ...body, name: "Changed details" })));
+    assert.equal(conflict.status, 409);
+    assert.equal((await conflict.json() as { operationId?: unknown }).operationId, operationId);
   });
 });

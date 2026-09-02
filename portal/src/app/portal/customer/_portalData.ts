@@ -28,6 +28,12 @@ import {
   reconcileClientPaymentPlan,
   type ClientPaymentPlan,
 } from "@/lib/clients/clientPaymentPlans";
+import {
+  customerPortalReadPhase,
+  resolveCustomerDepositState,
+  type CustomerDepositState,
+  type CustomerPortalSettledReadPhase,
+} from "@/lib/portal/customerPortalReadState";
 
 export type CustomerPortalMode = "onboarding" | "designing" | "developed-launch" | "maintenance";
 
@@ -149,14 +155,27 @@ export interface CustomerPortalData {
   invoices: CustomerInvoice[];
   paymentPlans: ClientPaymentPlan[];
   /**
-   * Which of this aggregate's remote reads actually answered. `false` means the
-   * read failed — NOT that the customer has none. Every surface that states a
-   * fact about invoices or messages must consult this first (issues #57).
+   * Settled read outcomes for this server-rendered snapshot. The route-level
+   * loading boundary owns the `loading` phase; once this aggregate exists each
+   * source is either confirmed `ready` or explicitly `unavailable`.
+   */
+  reads: {
+    invoices: CustomerPortalSettledReadPhase;
+    messages: CustomerPortalSettledReadPhase;
+  };
+  /**
+   * Compatibility projection for older portal blocks. New consumers should
+   * use `reads`, whose named states cannot be confused with a data value.
    */
   available: {
     invoices: boolean;
     messages: boolean;
   };
+  /**
+   * A deposit can be positively known from the durable client flag even while
+   * Finance is down. A negative claim requires a successful invoice read.
+   */
+  depositState: CustomerDepositState;
   record: CustomerRecord;
   support: {
     email?: string;
@@ -188,10 +207,10 @@ export function portalMode(value: unknown): CustomerPortalMode {
  * settlement (issues #57).
  */
 export function customerBillingSummary(
-  data: Pick<CustomerPortalData, "invoices" | "available">,
+  data: Pick<CustomerPortalData, "invoices" | "available"> & Partial<Pick<CustomerPortalData, "reads">>,
 ): { state: "unavailable" | "outstanding" | "settled"; outstanding: CustomerInvoice[]; body: string } {
   const outstanding = data.invoices.filter(invoice => invoice.status === "sent" || invoice.status === "overdue");
-  if (!data.available.invoices) {
+  if (customerPortalReadPhase(data, "invoices") !== "ready") {
     return { state: "unavailable", outstanding: [], body: "Your billing could not be read just now. Reload to try again." };
   }
   if (outstanding.length) {
@@ -633,10 +652,12 @@ export async function loadCustomerPortalData(
     status: invoice.status,
     paidAt: invoice.paidAt,
   }));
-  const depositPaid = meta.lockInPaid === true || safeInvoices.some(invoice =>
-    invoice.status === "paid"
-    && invoice.lineItems.some(item => /\b(deposit|lock[\s-]?in)\b/i.test(item.description)),
-  );
+  const invoiceReadPhase: CustomerPortalSettledReadPhase = invoiceRead.available ? "ready" : "unavailable";
+  const depositState = resolveCustomerDepositState({
+    durablePaid: meta.lockInPaid === true,
+    invoiceRead: invoiceReadPhase,
+    invoices: safeInvoices,
+  });
   const noteCandidates: Array<[string, unknown]> = [
     ["Additional project brief", sourceBrief.additionalNotes],
   ];
@@ -752,7 +773,7 @@ export async function loadCustomerPortalData(
     builtAt: meta.portalBuiltAt,
     websiteUrl: supportUrl(client.websiteUrl),
     billingUrl: supportUrl(meta.stripeLink),
-    lockInPaid: depositPaid,
+    lockInPaid: depositState === "received",
     files: safeFiles,
     properties: safeProperties,
     requests: safeRequests,
@@ -761,10 +782,15 @@ export async function loadCustomerPortalData(
     approvals: safeApprovals,
     invoices: safeInvoices,
     paymentPlans: safePaymentPlans,
+    reads: {
+      invoices: invoiceReadPhase,
+      messages: inboxRead.available && enquiryRead.available ? "ready" : "unavailable",
+    },
     available: {
       invoices: invoiceRead.available,
       messages: inboxRead.available && enquiryRead.available,
     },
+    depositState,
     record: {
       email: meta.portalLoginEmail?.trim() || meta.clientEmail?.trim() || client.ownerEmail?.trim() || undefined,
       phone: meta.phone?.trim() || meta.contactPhone?.trim() || undefined,

@@ -17,12 +17,14 @@ req.cache[serverOnlyPath] = {
 type Storage = typeof import("../src/server/storage");
 type Tenants = typeof import("../src/server/tenants");
 type Products = typeof import("../src/server/agencyProducts");
+type Sops = typeof import("../src/engines/sop/server/sops");
 type Milestones = typeof import("../src/server/clientMilestones");
 type Delight = typeof import("../src/server/clientDelight");
 
 let storage: Storage;
 let tenants: Tenants;
 let products: Products;
+let sops: Sops;
 let milestones: Milestones;
 let delight: Delight;
 
@@ -31,6 +33,7 @@ before(async () => {
   storage = await import("../src/server/storage");
   tenants = await import("../src/server/tenants");
   products = await import("../src/server/agencyProducts");
+  sops = await import("../src/engines/sop/server/sops");
   milestones = await import("../src/server/clientMilestones");
   delight = await import("../src/server/clientDelight");
 });
@@ -53,6 +56,7 @@ describe("agency products", () => {
     assert.equal(seeded[0]?.name, "Website");
     assert.equal(seeded[0]?.portalTemplateKey, "website");
     assert.equal(products.ensureDefaultAgencyProducts(agency.id).length, 1, "re-running the seed does not multiply products");
+    const shootSop = sops.createWrittenSop({ agencyId: agency.id, title: "Run a launch shoot", content: "Steps", actorUserId: "tester" });
 
     const custom = products.createAgencyProduct(agency.id, {
       name: "Launch photography",
@@ -79,7 +83,7 @@ describe("agency products", () => {
       deliverables: ["Planning", "Shoot", "Edited gallery"],
       contractTitle: "Launch photography agreement",
       contractBody: "The agreed shoot, editing, delivery and payment terms.",
-      sopIds: ["sop_shoot"],
+      sopIds: [shootSop.id],
       sopCategories: ["Photography"],
     }, "tester");
     assert.equal(products.listAgencyProducts(agency.id).length, 2);
@@ -88,7 +92,7 @@ describe("agency products", () => {
     assert.match(custom.contractBody ?? "", /delivery and payment/);
     assert.equal(custom.depositPercent, 30);
     assert.equal(custom.paymentTermsDays, 14);
-    assert.deepEqual(custom.sopIds, ["sop_shoot"]);
+    assert.deepEqual(custom.sopIds, [shootSop.id]);
     assert.deepEqual(custom.sopCategories, ["Photography"]);
     assert.equal(custom.portalRequirement, "required");
     assert.equal(custom.portalTemplateKey, "photography");

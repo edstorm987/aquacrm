@@ -358,8 +358,9 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
       })),
   ];
   const invoicesByClient = new Map<string, Invoice[]>();
-  let financeConnected = false;
   const financeInstall = getInstall({ agencyId: agency.id }, "agency-finance");
+  const financeConnected = Boolean(financeInstall?.enabled);
+  let financeAvailable = !financeConnected;
   if (financeInstall?.enabled && canViewFinance) {
     try {
       ensureAgencyFinanceFoundationRegistered();
@@ -369,9 +370,9 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
         rows.push(invoice);
         invoicesByClient.set(invoice.clientId, rows);
       }
-      financeConnected = true;
+      financeAvailable = true;
     } catch {
-      // Journey remains operational and declares finance evidence as unavailable.
+      financeAvailable = false;
     }
   }
   const journeyClients: JourneyCommercialClient[] = clients.map(client => {
@@ -413,6 +414,7 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
       products: services.map(service => ({ id: service.id, name: service.name })),
       aquaHealth: calculateClientAquaHealth({
         financeConnected,
+        financeAvailable,
         invoices: invoicesByClient.get(client.id) ?? [],
         lastContactedAt: metadata?.lastContactedAt,
         requestsObserved,
@@ -521,6 +523,7 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
                     clients={journeyClients}
                     contractTemplates={contractTemplates}
                     canViewFinance={canViewFinance}
+                    financeEvidenceState={!financeConnected || financeAvailable ? "ready" : canViewFinance ? "unavailable" : "restricted"}
                   />}
                   clients={clients.map(client => {
                     const metadata = client.metadata as JourneyClientMetadata | undefined;

@@ -71,7 +71,7 @@ describe("everything is editable INSIDE Settings", () => {
     // first tab with no hint that the thing moved.
     assert.match(TABS, /freelancer: "access"/);
     assert.match(TABS, /showcase: "environment"/);
-    assert.match(TABS, /LEGACY_TAB_ALIASES\[hash\]/);
+    assert.match(TABS, /resolveSettingsTabHash\(window\.location\.hash, TAB_IDS, LEGACY_TAB_ALIASES\)/);
   });
 
   it("does NOT render client-scoped module settings at agency scope", () => {

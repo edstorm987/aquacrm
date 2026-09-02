@@ -31,7 +31,7 @@ interface ClientRadarFleetOptions {
   telemetry?: RadarTelemetrySnapshot;
 }
 
-interface RadarInvoice {
+export interface RadarInvoice {
   id: string;
   number: string;
   clientId?: string;
@@ -40,6 +40,12 @@ interface RadarInvoice {
   paidAt?: number;
   totalCents: number;
   currency: string;
+}
+
+export interface ClientRadarInvoiceEvidence {
+  connected: boolean;
+  available: boolean;
+  invoices: RadarInvoice[];
 }
 
 export async function buildClientRadarFleet(
@@ -56,7 +62,7 @@ export async function buildClientRadarFleet(
     state.radarSyntheticProbes[agencyId] ?? {},
     now,
   );
-  const invoices = await listRadarInvoices(agencyId);
+  const invoiceEvidence = await listRadarInvoices(agencyId);
   const products = listAgencyProducts(agencyId, true);
   const milestones = listClientMilestones(agencyId);
   const evidence = state.radarEvidence[agencyId];
@@ -68,7 +74,7 @@ export async function buildClientRadarFleet(
     const productById = new Map(products.map(product => [product.id, product]));
     const inheritedKeys = inheritedClientServiceKeys(assignments, products);
     const capabilities = clientServiceCapabilities(assignments, inheritedKeys);
-    const clientInvoices = invoices.filter(invoice => invoice.clientId === client.id);
+    const clientInvoices = invoiceEvidence.invoices.filter(invoice => invoice.clientId === client.id);
     const requests = cleanClientRequests(metadata.clientRequests);
     const contracts = cleanContracts(metadata.contracts);
     const clientProperties = telemetry.properties.filter(property => property.clientId === client.id);
@@ -88,7 +94,8 @@ export async function buildClientRadarFleet(
       },
       aquaHealth: calculateClientAquaHealth({
         now,
-        financeConnected: Boolean(getInstall({ agencyId }, "agency-finance")?.enabled),
+        financeConnected: invoiceEvidence.connected,
+        financeAvailable: invoiceEvidence.available,
         invoices: clientInvoices,
         lastContactedAt: numberValue(metadata.lastContactedAt),
         requestsObserved: Array.isArray(metadata.clientRequests),
@@ -143,8 +150,11 @@ export async function buildClientRadarFleet(
         href: alert.href,
         occurredAt: alert.occurredAt,
       })),
-      financeConnected: Boolean(getInstall({ agencyId }, "agency-finance")?.enabled),
-      paymentPosition: summariseClientPaymentPosition(cleanClientPaymentPlans(metadata.clientPaymentPlans), clientInvoices, now),
+      financeConnected: invoiceEvidence.connected,
+      financeAvailable: invoiceEvidence.available,
+      paymentPosition: invoiceEvidence.available
+        ? summariseClientPaymentPosition(cleanClientPaymentPlans(metadata.clientPaymentPlans), clientInvoices, now)
+        : undefined,
       invoices: clientInvoices,
       requestsObserved: Array.isArray(metadata.clientRequests),
       requests,
@@ -183,10 +193,10 @@ export async function buildClientRadar(
   return (await buildClientRadarFleet(agencyId, { ...options, clients: [client] }))[0] ?? null;
 }
 
-async function listRadarInvoices(agencyId: string): Promise<RadarInvoice[]> {
+async function listRadarInvoices(agencyId: string): Promise<ClientRadarInvoiceEvidence> {
   const financeInstall = getInstall({ agencyId }, "agency-finance");
-  if (!financeInstall?.enabled) return [];
-  try {
+  return readClientRadarInvoiceEvidence(Boolean(financeInstall?.enabled), async () => {
+    if (!financeInstall?.enabled) return [];
     const invoices = await containerFor({ agencyId, storage: makePluginStorage(financeInstall.id), install: financeInstall }).invoices.list();
     return invoices.map(invoice => ({
       id: invoice.id,
@@ -198,8 +208,22 @@ async function listRadarInvoices(agencyId: string): Promise<RadarInvoice[]> {
       totalCents: invoice.totalCents,
       currency: invoice.currency,
     }));
+  });
+}
+
+/**
+ * Preserve the difference between a confirmed empty Finance result and a read
+ * that never completed. Radar can stay available while marking Finance blind.
+ */
+export async function readClientRadarInvoiceEvidence(
+  connected: boolean,
+  read: () => Promise<RadarInvoice[]>,
+): Promise<ClientRadarInvoiceEvidence> {
+  if (!connected) return { connected: false, available: true, invoices: [] };
+  try {
+    return { connected: true, available: true, invoices: await read() };
   } catch {
-    return [];
+    return { connected: true, available: false, invoices: [] };
   }
 }
 

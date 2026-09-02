@@ -75,7 +75,7 @@ describe("the contact-details route + card are wired (Phase 4)", () => {
   });
 
   it("the card offers an editable 'Added by hand' layer that saves", () => {
-    assert.match(card, /<ManualContactDetails enquiryId=\{item\.id\}/);
+    assert.match(card, /<ManualContactDetails key=\{item\.id\} enquiryId=\{item\.id\}/);
     assert.match(card, /Added by hand/);
     assert.match(card, /website-enquiries\/contact-details/);
     assert.match(card, /Save details/);

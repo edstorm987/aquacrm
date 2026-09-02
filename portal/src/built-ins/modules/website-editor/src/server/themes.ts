@@ -58,6 +58,7 @@ export async function createTheme(
     clientId: input.clientId,
     name: input.name,
     description: input.description,
+    appearance: input.appearance,
     tokens: input.tokens ?? {},
     isDefault: input.isDefault,
     createdAt: now,

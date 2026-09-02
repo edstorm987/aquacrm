@@ -3,7 +3,12 @@
 import { useEffect, useState, useRef } from "react";
 
 import type { ClientStage } from "../lib/tenancy";
+import {
+  isFulfillmentClientCreation,
+  type FulfillmentClientCreationPayload,
+} from "../lib/mutationPayloads";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
 
 export interface NewClientModalProps {
   open: boolean;
@@ -30,12 +35,19 @@ const DEFAULT_STATE: FormState = {
   stage: "discovery",
 };
 
+function freshClientOperationId(): string {
+  const suffix = globalThis.crypto?.randomUUID?.()
+    ?? `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  return `new-client:${suffix}`;
+}
+
 export function NewClientModal(props: NewClientModalProps) {
   const { open, apiBase, onClose, onCreated, phasePresets } = props;
   const firstStage = phasePresets[0]?.stage;
   const [state, setState] = useState<FormState>(DEFAULT_STATE);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const pendingOperationRef = useRef<{ fingerprint: string; operationId: string } | null>(null);
   // Modal keyboard contract: focus enters the form, Tab stays inside it, Escape backs out (except mid-save), focus returns to the control that opened it.
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(dialogRef, open, { onEscape: busy ? undefined : onClose });
@@ -44,6 +56,7 @@ export function NewClientModal(props: NewClientModalProps) {
     if (open) {
       setState({ ...DEFAULT_STATE, stage: firstStage ?? DEFAULT_STATE.stage });
       setError(null);
+      pendingOperationRef.current = null;
     }
   }, [open, firstStage]);
 
@@ -57,35 +70,46 @@ export function NewClientModal(props: NewClientModalProps) {
 
   async function submit(e: React.FormEvent<HTMLFormElement>): Promise<void> {
     e.preventDefault();
-    if (!state.name.trim()) {
+    const name = state.name.trim();
+    if (!name) {
       setError("Name is required.");
       return;
     }
+    const fallback = "Could not create client.";
+    const requestPayload = {
+      name,
+      ownerEmail: state.email.trim() || undefined,
+      stage: state.stage,
+      brand: {
+        primaryColor: state.brandColor,
+        logoUrl: state.logoUrl.trim() || undefined,
+      },
+    };
+    const fingerprint = JSON.stringify(requestPayload);
+    if (pendingOperationRef.current?.fingerprint !== fingerprint) {
+      pendingOperationRef.current = { fingerprint, operationId: freshClientOperationId() };
+    }
+    const requestOperationId = pendingOperationRef.current.operationId;
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${apiBase}/clients`, {
+      await checkedJsonMutation<FulfillmentClientCreationPayload>(`${apiBase}/clients`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          name: state.name.trim(),
-          ownerEmail: state.email.trim() || undefined,
+        body: JSON.stringify({ operationId: requestOperationId, ...requestPayload }),
+      }, {
+        fallback,
+        validate: payload => isFulfillmentClientCreation(payload, {
+          operationId: requestOperationId,
+          name,
           stage: state.stage,
-          brand: {
-            primaryColor: state.brandColor,
-            logoUrl: state.logoUrl.trim() || undefined,
-          },
         }),
       });
-      const data = await res.json() as { ok: boolean; error?: string };
-      if (!data.ok) {
-        setError(data.error ?? "Could not create client.");
-        return;
-      }
+      pendingOperationRef.current = null;
       onCreated?.();
       onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+    } catch (reason) {
+      setError(mutationErrorMessage(reason, fallback));
     } finally {
       setBusy(false);
     }
