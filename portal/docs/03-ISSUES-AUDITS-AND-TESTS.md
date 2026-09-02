@@ -2,7 +2,7 @@
 
 > Verified findings, independent reviews, browser audits and the testing record.
 >
-> Consolidated 2026-09-02 from **11** source documents / **118,635 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-02 from **11** source documents / **118,832 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -13,8 +13,8 @@
 - [`docs/development/findings/2026-08-22-app-audit-salvage.md`](#source-docs-development-findings-2026-08-22-app-audit-salvage-md) — 1,294 words · `16f6f10e5bc4`
 - [`docs/development/findings/2026-08-22-stripe-can-never-be-configured.md`](#source-docs-development-findings-2026-08-22-stripe-can-never-be-configured-md) — 466 words · `e91f13c8620f`
 - [`docs/development/findings/2026-08-22-surfaces-that-state-a-falsehood.md`](#source-docs-development-findings-2026-08-22-surfaces-that-state-a-falsehood-md) — 892 words · `dfeb4a6302c1`
-- [`docs/development/issues.md`](#source-docs-development-issues-md) — 42,854 words · `68b214962945`
-- [`docs/development/tests.md`](#source-docs-development-tests-md) — 14,688 words · `3b3420b0197f`
+- [`docs/development/issues.md`](#source-docs-development-issues-md) — 42,993 words · `ebcf043fe834`
+- [`docs/development/tests.md`](#source-docs-development-tests-md) — 14,746 words · `0883ceae4880`
 - [`docs/development/ultra-review-2026-08-24.md`](#source-docs-development-ultra-review-2026-08-24-md) — 15,503 words · `6725e738af21`
 - [`docs/development/visual-browser-audit-2026-08-23.md`](#source-docs-development-visual-browser-audit-2026-08-23-md) — 3,582 words · `3ee9b61d74e3`
 
@@ -2001,7 +2001,7 @@ _Captured from the Dev Team portal. Findings are the input side: review them, tu
 
 ## Source document — `docs/development/issues.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/issues.md" sha256="68b2149629457123c0de97fef2217a3ade52dfb2663c0a1b88b25d65902adc2c" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/issues.md" sha256="ebcf043fe834c094e9cb3318757cf80fa1dc8e7cc6ae15b55152be38f7bcb279" -->
 # Issues & risks
 
 ← Back to [development.md](../development.md) (the law)
@@ -4669,6 +4669,19 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     database-native version constraint and repeat create/edit/status/delete/reload across
     separate processes before resolving this issue completely.
 
+    **Later on 2026-09-02 — proven across real processes on the file backend.** The
+    record lock already hands its work to the storage port's exclusive lane (a
+    cross-process, re-hydrating transaction on the file backend), so the remaining
+    file-backend gap was proof, not code. `smoke-marketing-records-durable-processes`
+    (**3/3**, separate Node processes on one shared state file behind a filesystem
+    barrier) drives the real asset and customer-profile handlers: four simultaneous
+    creates from separate processes all survive and a fresh process lists them; two
+    processes editing the same asset or profile version yield exactly one 200 and one
+    visible 409 with the stored row being the winner's and the version advanced once;
+    a delete raised on the pre-edit version from another process is refused and the
+    fresh-version delete succeeds; every list is a fresh-process reload. Still open:
+    a database-native version constraint exercised on live Supabase/Postgres.
+
 83. **P1 PARTLY RESOLVED 2026-09-02 — Agency Marketing lead identity, re-keying,
     erasure and contact history are cross-process and crash-atomic on the file backend.**
     Create, lookup, pointer keys and stored rows share one canonical address and one
@@ -6174,7 +6187,7 @@ Keep the item's number, other docs link to it._
 
 ## Source document — `docs/development/tests.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/tests.md" sha256="3b3420b0197f806d8838890a724fb87773bc4fa01535793eed371d7fdcff1786" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/tests.md" sha256="0883ceae488036def629f851ac701e3773b220bb5f11997ec90fd309212ddca0" -->
 # Tests
 
 ← Back to [development.md](../development.md) (the law)
@@ -7074,6 +7087,11 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   number, and a crash after the ledger claim leaves no half-written payment while the
   retry resumes the same id. It fails 2/3 against the previous in-process-only lock.
   → issue #81.
+- Marketing records across real processes (2026-09-02): `smoke-marketing-records-durable-processes`
+  (**3/3**) spawns separate Node processes on one shared file-backed state and proves
+  simultaneous asset/profile creates all survive, same-version edits from two processes
+  yield one 200 and one 409 with the winner's row stored, stale deletes from another
+  process are refused, and every list is a fresh-process reload. → issue #82.
 - Lease fencing under load (2026-09-02): `smoke-product-workspace-lease-fencing` pins the
   refresh window at 10ms, so on a loaded machine a healthy transaction can outlive the
   window and legitimately refresh once. The "no unnecessary renewal" pin now applies

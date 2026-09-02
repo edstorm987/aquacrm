@@ -2,7 +2,7 @@
 
 > The append-only change record, dated handoffs and superseded historical summaries.
 >
-> Consolidated 2026-09-02 from **18** source documents / **133,206 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-02 from **18** source documents / **133,372 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -23,7 +23,7 @@
 - [`docs/context/archive/website-editor-and-migration.md`](#source-docs-context-archive-website-editor-and-migration-md) — 1,159 words · `235e8af731b6`
 - [`docs/context/archive/WHERE-WE-ARE-2026-08-18.md`](#source-docs-context-archive-where-we-are-2026-08-18-md) — 2,192 words · `4056e9a347cb`
 - [`docs/context/archive/WHERE-WE-STAND-2026-08-20.md`](#source-docs-context-archive-where-we-stand-2026-08-20-md) — 2,482 words · `26bf4442580e`
-- [`docs/development/updates.md`](#source-docs-development-updates-md) — 103,050 words · `618be556f356`
+- [`docs/development/updates.md`](#source-docs-development-updates-md) — 103,216 words · `eadb285a3a23`
 
 ---
 
@@ -3318,7 +3318,7 @@ Being straight with you about the edges.
 
 ## Source document — `docs/development/updates.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="618be556f356a3988c97ee4dadcb8acdc15a603eda7364b5dbc5e3b2d48f1050" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="eadb285a3a23b72cbfcaf7e298d7a75ec8b527f8be7b5cc8c90fd30d9df4adab" -->
 # Updates log
 
 ← Back to [development.md](../development.md) (the law)
@@ -3354,6 +3354,24 @@ map stays trustworthy.
 > If you ship something, log it.
 
 ---
+
+## 2026-09-02 — Marketing records across real processes (#82)
+
+- The mounted asset and customer-profile handlers already run under the storage port's
+  exclusive lane, so the file-backend half of #82 was a proof gap. New
+  `smoke-marketing-records-durable-processes` **3/3** drives the real handlers from
+  separate Node processes on one shared state file: simultaneous creates all survive;
+  same-version edits from two processes yield exactly one 200 and one visible 409 with
+  the winner's row stored and the version advanced once; a stale delete from another
+  process is refused while the fresh-version delete succeeds; every list is a
+  fresh-process reload. TypeScript and `git diff --check` clean. The uncontended canonical
+  `npm run smoke:all` on this tree executed **6,529 tests across 1,115 suites: 6,527
+  passed / 0 failed / 2 skipped in 142,043.568834ms**, then the Website Editor gate
+  passed **49/49 files in 22.0s**.
+- **Honest residual.** A database-native version constraint exercised on live
+  Supabase/Postgres remains open under #82.
+- Reconciled [TODO](TODO.md), [issue #82](issues.md) and [tests](tests.md); regenerated
+  the symbol reference and consolidated volumes.
 
 ## 2026-09-02 — Settings truthfulness: final pass (#44)
 

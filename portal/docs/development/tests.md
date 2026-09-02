@@ -897,6 +897,11 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   number, and a crash after the ledger claim leaves no half-written payment while the
   retry resumes the same id. It fails 2/3 against the previous in-process-only lock.
   → issue #81.
+- Marketing records across real processes (2026-09-02): `smoke-marketing-records-durable-processes`
+  (**3/3**) spawns separate Node processes on one shared file-backed state and proves
+  simultaneous asset/profile creates all survive, same-version edits from two processes
+  yield one 200 and one 409 with the winner's row stored, stale deletes from another
+  process are refused, and every list is a fresh-process reload. → issue #82.
 - Lease fencing under load (2026-09-02): `smoke-product-workspace-lease-fencing` pins the
   refresh window at 10ms, so on a loaded machine a healthy transaction can outlive the
   window and legitimately refresh once. The "no unnecessary renewal" pin now applies

@@ -2,7 +2,7 @@
 
 ← Back to [the reference index](00-index.md) · [the map](../WORKSPACE-FILE-TREE.md) · [development.md](../development.md)
 
-Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2656 source files; 0 per-source stubs.**
+Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2657 source files; 0 per-source stubs.**
 
 ## Engines — `src/engines/` (85)
 
@@ -2082,7 +2082,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/showcase/exit/route.ts`](app.md#file-src-app-showcase-exit-route-ts-2297ba275f)
 - [`src/app/showcase/route.ts`](app.md#file-src-app-showcase-route-ts-4c24dd82df)
 
-## Scripts — `scripts/` (590)
+## Scripts — `scripts/` (591)
 
 - [`scripts/attention-protection.test.ts`](scripts.md#file-scripts-attention-protection-test-ts-d64d01714c)
 - [`scripts/audit-actions.ts`](scripts.md#file-scripts-audit-actions-ts-862ea31175) — What state Actions is actually in — measured, not remembered. For every alert the checks currently …
@@ -2437,6 +2437,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-marketing-funnel-builder.test.ts`](scripts.md#file-scripts-smoke-marketing-funnel-builder-test-ts-a4ff34125e)
 - [`scripts/smoke-marketing-intelligence.test.ts`](scripts.md#file-scripts-smoke-marketing-intelligence-test-ts-8ad1452c3b)
 - [`scripts/smoke-marketing-record-concurrency.test.ts`](scripts.md#file-scripts-smoke-marketing-record-concurrency-test-ts-13d7dfcaf3)
+- [`scripts/smoke-marketing-records-durable-processes.test.ts`](scripts.md#file-scripts-smoke-marketing-records-durable-processes-test-ts-5f637c6cde) — smoke-marketing-durable-processes and smoke-commercial-durable-processes.
 - [`scripts/smoke-marketing-view-consolidation.test.ts`](scripts.md#file-scripts-smoke-marketing-view-consolidation-test-ts-48a38fa62e)
 - [`scripts/smoke-master-inbox-communications.test.ts`](scripts.md#file-scripts-smoke-master-inbox-communications-test-ts-bf4bd0f522)
 - [`scripts/smoke-master-inbox-replies.test.ts`](scripts.md#file-scripts-smoke-master-inbox-replies-test-ts-ef58ca1a3d)

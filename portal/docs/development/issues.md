@@ -2665,6 +2665,19 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     database-native version constraint and repeat create/edit/status/delete/reload across
     separate processes before resolving this issue completely.
 
+    **Later on 2026-09-02 — proven across real processes on the file backend.** The
+    record lock already hands its work to the storage port's exclusive lane (a
+    cross-process, re-hydrating transaction on the file backend), so the remaining
+    file-backend gap was proof, not code. `smoke-marketing-records-durable-processes`
+    (**3/3**, separate Node processes on one shared state file behind a filesystem
+    barrier) drives the real asset and customer-profile handlers: four simultaneous
+    creates from separate processes all survive and a fresh process lists them; two
+    processes editing the same asset or profile version yield exactly one 200 and one
+    visible 409 with the stored row being the winner's and the version advanced once;
+    a delete raised on the pre-edit version from another process is refused and the
+    fresh-version delete succeeds; every list is a fresh-process reload. Still open:
+    a database-native version constraint exercised on live Supabase/Postgres.
+
 83. **P1 PARTLY RESOLVED 2026-09-02 — Agency Marketing lead identity, re-keying,
     erasure and contact history are cross-process and crash-atomic on the file backend.**
     Create, lookup, pointer keys and stored rows share one canonical address and one

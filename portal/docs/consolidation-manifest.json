@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-02T20:39:49.299Z",
+  "generatedAt": "2026-09-02T20:46:53.180Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -495,9 +495,9 @@
       "path": "docs/development/issues.md",
       "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
       "anchor": "source-docs-development-issues-md",
-      "sha256": "68b2149629457123c0de97fef2217a3ade52dfb2663c0a1b88b25d65902adc2c",
-      "words": 42854,
-      "bytes": 331789
+      "sha256": "ebcf043fe834c094e9cb3318757cf80fa1dc8e7cc6ae15b55152be38f7bcb279",
+      "words": 42993,
+      "bytes": 332794
     },
     {
       "path": "docs/development/LOOP-PROGRESS.md",
@@ -991,9 +991,9 @@
       "path": "docs/development/tests.md",
       "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
       "anchor": "source-docs-development-tests-md",
-      "sha256": "3b3420b0197f806d8838890a724fb87773bc4fa01535793eed371d7fdcff1786",
-      "words": 14688,
-      "bytes": 115700
+      "sha256": "0883ceae488036def629f851ac701e3773b220bb5f11997ec90fd309212ddca0",
+      "words": 14746,
+      "bytes": 116139
     },
     {
       "path": "docs/development/todo-retired.md",
@@ -1007,9 +1007,9 @@
       "path": "docs/development/TODO.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-todo-md",
-      "sha256": "8e117fe400ebe12c8eb81ef24e4c5476f60fbf5eb7bced7ce43937fb13ad4bbf",
-      "words": 2165,
-      "bytes": 16466
+      "sha256": "596b0f059feb4ca5a793e1226ed897fe919e5077cd4dd8521f6b52bb17a20999",
+      "words": 2180,
+      "bytes": 16583
     },
     {
       "path": "docs/development/ultra-review-2026-08-24.md",
@@ -1023,9 +1023,9 @@
       "path": "docs/development/updates.md",
       "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
       "anchor": "source-docs-development-updates-md",
-      "sha256": "618be556f356a3988c97ee4dadcb8acdc15a603eda7364b5dbc5e3b2d48f1050",
-      "words": 103050,
-      "bytes": 771462
+      "sha256": "eadb285a3a23b72cbfcaf7e298d7a75ec8b527f8be7b5cc8c90fd30d9df4adab",
+      "words": 103216,
+      "bytes": 772660
     },
     {
       "path": "docs/development/visual-browser-audit-2026-08-23.md",

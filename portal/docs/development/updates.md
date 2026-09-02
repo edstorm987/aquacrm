@@ -34,6 +34,24 @@ map stays trustworthy.
 
 ---
 
+## 2026-09-02 — Marketing records across real processes (#82)
+
+- The mounted asset and customer-profile handlers already run under the storage port's
+  exclusive lane, so the file-backend half of #82 was a proof gap. New
+  `smoke-marketing-records-durable-processes` **3/3** drives the real handlers from
+  separate Node processes on one shared state file: simultaneous creates all survive;
+  same-version edits from two processes yield exactly one 200 and one visible 409 with
+  the winner's row stored and the version advanced once; a stale delete from another
+  process is refused while the fresh-version delete succeeds; every list is a
+  fresh-process reload. TypeScript and `git diff --check` clean. The uncontended canonical
+  `npm run smoke:all` on this tree executed **6,529 tests across 1,115 suites: 6,527
+  passed / 0 failed / 2 skipped in 142,043.568834ms**, then the Website Editor gate
+  passed **49/49 files in 22.0s**.
+- **Honest residual.** A database-native version constraint exercised on live
+  Supabase/Postgres remains open under #82.
+- Reconciled [TODO](TODO.md), [issue #82](issues.md) and [tests](tests.md); regenerated
+  the symbol reference and consolidated volumes.
+
 ## 2026-09-02 — Settings truthfulness: final pass (#44)
 
 - Five declarations whose own help text admitted "value stored, not enforced" are

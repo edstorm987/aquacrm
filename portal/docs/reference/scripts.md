@@ -4270,6 +4270,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-marketing-records-durable-processes-test-ts-5f637c6cde"></a>
+
+### `scripts/smoke-marketing-records-durable-processes.test.ts`
+
+**What it is:** smoke-marketing-durable-processes and smoke-commercial-durable-processes.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-marketing-view-consolidation-test-ts-48a38fa62e"></a>
 
 ### `scripts/smoke-marketing-view-consolidation.test.ts`
