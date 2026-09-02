@@ -152,7 +152,12 @@ function sweep(): { total: number; unwired: string[] } {
 describe("settings fields that nothing reads", () => {
   it("the detector is measuring something", () => {
     const { total } = sweep();
-    assert.ok(total > 40, `expected the modules' declared settings fields, counted ${total}`);
+    // 51 on 2026-08-28; 43 after the Marketing/Website Editor/Fulfillment
+    // removals; 40 after 2026-09-02 removed Finance's unenforced approval
+    // threshold, Ecommerce's unread publishable key and Leads Pipeline's
+    // unhonourable from-name. Each removal is pinned by its own suite; this
+    // floor only proves the sweep still sees the manifests at all.
+    assert.ok(total >= 40, `expected the modules' declared settings fields, counted ${total}`);
     for (const [key, readers] of Object.entries(HOST_READERS)) {
       assert.ok(readers.length > 0 && hostReads(key), `${key} has stale host-reader evidence`);
     }

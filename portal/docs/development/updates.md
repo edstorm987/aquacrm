@@ -34,6 +34,30 @@ map stays trustworthy.
 
 ---
 
+## 2026-09-02 — Settings truthfulness: Leads Pipeline's three resolved (#44)
+
+- `defaultLeadSource` now applies to CSV lead imports without an override (blank
+  keeps `csv:<filename>`; an explicit import override wins). `newColumnLabel` places
+  fresh captures in the leads-pipeline column with that label, resolved in the
+  pipeline port beside the existing id override with "New" as the fallback. `fromName`
+  is removed: the email sender needs a verified name+address identity, so a bare
+  display name could never be honoured.
+- Inventory is now **12 manifests / 40 fields: 30 consumed, 10 unwired** (HR 3, Public
+  Funnel 2, Affiliates 2, Client CRM 3). New `smoke-leads-pipeline-settings-consumers`
+  **4/4** through the real pipeline port and real import handler; the derived-inventory
+  sweep's floor is restated to 40 with every removal named. Because the module now
+  reads its own settings, the agency Settings hub gains a "Leads pipeline" door (the
+  hub suite owes one to every module with a consumed field), and the targeted
+  install-repair mirror of the manifest defaults is updated to match. The uncontended
+  canonical `npm run smoke:all` on this tree executed **6,522 tests across 1,113
+  suites: 6,520 passed / 0 failed / 2 skipped in 115,954.624542ms**, then the Website
+  Editor gate passed **49/49 files in 12.8s**. A contended run of the same tree tripped
+  the close-deal "both requests raced past the fast-path read" pin once (a true-race
+  assertion that scheduling can serialise under load); that suite passes 12/12 in
+  isolation and its files are untouched by this slice.
+- Reconciled [TODO](TODO.md), [issue #44](issues.md), [status](status.md) and
+  [tests](tests.md); regenerated the symbol reference and consolidated volumes.
+
 ## 2026-09-02 — Opportunity money across real processes (#81) and a load-safe lease pin
 
 - **Commercial mutations run in the storage port's exclusive lane.** `withCommercialLock`

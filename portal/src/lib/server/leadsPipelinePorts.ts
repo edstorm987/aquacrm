@@ -241,7 +241,14 @@ export const pipelinePort: PipelinePort = {
     const requested = input.columnId
       ? pipeline.columns.find(c => c.id === input.columnId)?.id
       : undefined;
+    // The `newColumnLabel` setting names a column by label. Like the id
+    // override it is honoured only when that column exists, so a renamed or
+    // deleted column can never strand a card somewhere nothing renders.
+    const labelled = !requested && input.columnLabel?.trim()
+      ? pipeline.columns.find(c => c.label === input.columnLabel!.trim())?.id
+      : undefined;
     const columnId = requested
+      ?? labelled
       ?? pipeline.columns.find(c => c.label === "New")?.id
       ?? pipeline.columns.find(c => c.id === DEFAULT_NEW_COLUMN_ID)?.id
       ?? pipeline.columns[0]?.id

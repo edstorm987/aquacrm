@@ -4042,6 +4042,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-leads-pipeline-settings-consumers-test-ts-9d49a18201"></a>
+
+### `scripts/smoke-leads-pipeline-settings-consumers.test.ts`
+
+**What it is:** honoured, and the setting's own help text already deferred to that identity.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/lib/plugins/unwiredSettings.ts`](lib.md#file-src-lib-plugins-unwiredsettings-ts-2bbb67e7f7)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-legacy-client-shape-test-ts-551cb7ad99"></a>
 
 ### `scripts/smoke-legacy-client-shape.test.ts`

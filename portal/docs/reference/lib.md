@@ -2365,7 +2365,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ### `src/lib/plugins/unwiredSettings.ts`
 
-**What it is:** now feeds the inventory adjustment default. 41 fields; 28 consumed, 13 below.
+**What it is:** 40 fields; 30 consumed, 10 below.
 
 **Exports (5):**
 
@@ -2373,11 +2373,11 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `isSettingUnwired(pluginId: string, fieldId: string): boolean` — Does this field save a value nothing will ever read?
 - `UNWIRED_SETTINGS: readonly UnwiredSetting[]` — Every declared settings field whose saved value nothing reads. Ordered by module, then by the order they appear in that manifest, so a diff against a fresh sweep reads cleanly.
 - `UNWIRED_SETTING_NOTICE = "Saved, but not yet connected — nothing reads this value, so changing it will not affect anything."` — What the panel says. Deliberately plain, and deliberately not an apology: the operator needs to know their input will not take effect, and nothing else.
-- `interface UnwiredSetting (2 members)` — now feeds the inventory adjustment default. 41 fields; 28 consumed, 13 below.
+- `interface UnwiredSetting (2 members)` — 40 fields; 30 consumed, 10 below.
 
 **Depends on:** _No internal imports._
 
-**Used by (4):** [`scripts/smoke-ecommerce-low-stock-default.test.ts`](scripts.md#file-scripts-smoke-ecommerce-low-stock-default-test-ts-aaf54defbe) · [`scripts/smoke-settings-hub.test.ts`](scripts.md#file-scripts-smoke-settings-hub-test-ts-326468fa4c) · [`scripts/smoke-unwired-settings.test.ts`](scripts.md#file-scripts-smoke-unwired-settings-test-ts-acfbdd281e) · [`src/components/workspaces/PluginSettingsPanel.tsx`](components.md#file-src-components-workspaces-pluginsettingspanel-tsx-1ae842fede)
+**Used by (5):** [`scripts/smoke-ecommerce-low-stock-default.test.ts`](scripts.md#file-scripts-smoke-ecommerce-low-stock-default-test-ts-aaf54defbe) · [`scripts/smoke-leads-pipeline-settings-consumers.test.ts`](scripts.md#file-scripts-smoke-leads-pipeline-settings-consumers-test-ts-9d49a18201) · [`scripts/smoke-settings-hub.test.ts`](scripts.md#file-scripts-smoke-settings-hub-test-ts-326468fa4c) · [`scripts/smoke-unwired-settings.test.ts`](scripts.md#file-scripts-smoke-unwired-settings-test-ts-acfbdd281e) · [`src/components/workspaces/PluginSettingsPanel.tsx`](components.md#file-src-components-workspaces-pluginsettingspanel-tsx-1ae842fede)
 
 
 ## `src/lib/portal/`

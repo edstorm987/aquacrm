@@ -107,6 +107,12 @@
 // and Ecommerce's never-read `stripePublishableKey` were removed from their
 // manifests rather than kept as promises, and Ecommerce's `lowStockThreshold`
 // now feeds the inventory adjustment default. 41 fields; 28 consumed, 13 below.
+//
+// 2026-09-02 (later still): Leads Pipeline's `defaultLeadSource` now applies to CSV
+// imports without an override and `newColumnLabel` places fresh captures by
+// column label; `fromName` was removed — the email sender requires a verified
+// name+address identity, so a bare display name could never be honoured.
+// 40 fields; 30 consumed, 10 below.
 
 export interface UnwiredSetting {
   pluginId: string;
@@ -131,9 +137,6 @@ export const UNWIRED_SETTINGS: readonly UnwiredSetting[] = [
   { pluginId: "client-crm", fieldId: "autoCreateOnSignup" },
   { pluginId: "client-crm", fieldId: "defaultTags" },
   { pluginId: "client-crm", fieldId: "customAttributeSchema" },
-  { pluginId: "leads-pipeline", fieldId: "defaultLeadSource" },
-  { pluginId: "leads-pipeline", fieldId: "newColumnLabel" },
-  { pluginId: "leads-pipeline", fieldId: "fromName" },
   { pluginId: "public-funnel", fieldId: "redirectAfterCapture" },
   { pluginId: "public-funnel", fieldId: "issueSessionCookie" },
 ];

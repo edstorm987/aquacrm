@@ -11,7 +11,7 @@ import type {
 } from "./ports";
 import type { AgencyId, UserId } from "../lib/tenancy";
 import type { LeadsPipelineContainer } from "./index";
-import { buildLeadsPipelineContainer } from "./index";
+import { buildLeadsPipelineContainer, type LeadsPipelineSettings } from "./index";
 
 export interface LeadsPipelineFoundation {
   tenant: TenantPort;
@@ -50,6 +50,7 @@ export function requireFoundation(): LeadsPipelineFoundation {
 export function containerFor(args: {
   agencyId: AgencyId;
   storage: PluginStorage;
+  settings?: LeadsPipelineSettings;
 }): LeadsPipelineContainer {
   const f = requireFoundation();
   return buildLeadsPipelineContainer({
@@ -61,6 +62,7 @@ export function containerFor(args: {
     pluginInstalls: f.pluginInstalls,
     emailEnqueue: f.emailEnqueue,
     pipeline: f.pipeline,
+    settings: args.settings,
   });
 }
 

@@ -2,7 +2,7 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-09-02 from **21** source documents / **35,956 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-02 from **21** source documents / **35,972 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -25,7 +25,7 @@
 - [`docs/development/CLOUD-RESUME.md`](#source-docs-development-cloud-resume-md) — 500 words · `03458cdf18bf`
 - [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 2,095 words · `379784a12461`
 - [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,643 words · `38954d1ad66e`
-- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 2,119 words · `19bce71cf97b`
+- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 2,135 words · `feffd797c3fd`
 - [`README.md`](#source-readme-md) — 437 words · `78865db66238`
 
 ---
@@ -3843,7 +3843,7 @@ Path prefix: /private/tmp/claude-501/.../scratchpad/
 
 ## Source document — `docs/development/TODO.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="19bce71cf97b30a8327bca1757af037aab578a0cf100fbc7a63d6ce62798a3b9" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="feffd797c3fdf1ccea07effb8c92a6761b0a7f4492bb1e3b4eed9be020107884" -->
 # TODO — the one list
 
 **This is the only task list.** `checklist.md` and `todo-retired.md` are retired; they held the
@@ -3947,7 +3947,7 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 
 - [~] Reference validation remains a broad open class; the audited client-route slice is fixed → [#20](issues.md)
 - [~] Canonical staff workspace capability policy, reusable-role authoring and Staff Technical Hidden/View/Use/Manage plus same-cookie downgrade enforcement are source/isolated-browser proven; finish provider-backed live-persona/shared-credential acceptance → [#25](issues.md)
-- [~] Shared plugin settings is operable and Marketing, Website Editor, Fulfillment and Memberships are truthful; Memberships is exact-build browser-proven, Ecommerce's low-stock default is now consumed and two dead Finance/Ecommerce declarations are removed, while 13 unconsumed fields still need wiring/removal → [#44](issues.md)
+- [~] Shared plugin settings is operable and Marketing, Website Editor, Fulfillment and Memberships are truthful; Memberships is exact-build browser-proven, Ecommerce's low-stock default and Leads Pipeline's default source/capture column are now consumed and three dead Finance/Ecommerce/Leads declarations are removed, while 10 unconsumed fields (HR 3, Public Funnel 2, Affiliates 2, Client CRM 3) still need wiring/removal → [#44](issues.md)
 - [~] Finance, Dev Team, Governance, Fulfilment, Actions and Performance mutation controls use checked response contracts; Actions (four viewports) and Performance (seven viewports) are exact-build browser-proven, while Client Centre, phase, SOP, Company and other families and their acceptance matrix stay open → [#47](issues.md)
 - [~] Finish Notepad autosave browser acceptance → [#54](issues.md)
 - [~] Mounted acceptance remains for settled utility controls → [#61](issues.md)

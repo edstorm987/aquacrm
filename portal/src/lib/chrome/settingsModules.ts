@@ -56,6 +56,9 @@ export const AGENCY_SCOPED_SETTINGS_MODULES = [
   { pluginId: "agency-hr", label: "Staff & HR" },
   { pluginId: "agency-marketing", label: "Marketing" },
   { pluginId: "email-sender", label: "Email sending" },
+  // Leads Pipeline reads its default lead source and capture column (2026-09-02),
+  // so the hub owes it an editable door rather than a value nothing can change.
+  { pluginId: "leads-pipeline", label: "Leads pipeline" },
 ] as const;
 
 /** Just the ids, for the server read. */

@@ -79,6 +79,24 @@ import { CommercialService } from "./commercial";
 
 // ─── Container ────────────────────────────────────────────────────────────
 
+/**
+ * The operator-facing manifest settings this module actually consumes,
+ * normalised from `install.config` (issue #44). Blank means "no override".
+ */
+export interface LeadsPipelineSettings {
+  defaultLeadSource?: string;
+  newColumnLabel?: string;
+}
+
+export function readLeadsPipelineSettings(config: unknown): LeadsPipelineSettings {
+  const record = config && typeof config === "object" ? (config as Record<string, unknown>) : {};
+  const text = (value: unknown, max: number) => typeof value === "string" && value.trim() ? value.trim().slice(0, max) : undefined;
+  return {
+    defaultLeadSource: text(record.defaultLeadSource, 120),
+    newColumnLabel: text(record.newColumnLabel, 80),
+  };
+}
+
 export interface LeadsPipelineDeps {
   agencyId: AgencyId;
   storage: PluginStorage;
@@ -88,6 +106,7 @@ export interface LeadsPipelineDeps {
   pluginInstalls: PluginInstallStorePort;
   emailEnqueue?: EmailEnqueuePort;
   pipeline?: PipelinePort;
+  settings?: LeadsPipelineSettings;
 }
 
 export interface LeadsPipelineContainer {
@@ -103,7 +122,7 @@ export function buildLeadsPipelineContainer(deps: LeadsPipelineDeps): LeadsPipel
     deps.agencyId, deps.storage, deps.activity, deps.events,
   );
   const leads = new LeadService(
-    deps.agencyId, deps.storage, deps.activity, deps.events, deps.pipeline,
+    deps.agencyId, deps.storage, deps.activity, deps.events, deps.pipeline, deps.settings,
   );
   const contacts = new ContactService(
     deps.agencyId, deps.storage, deps.activity, deps.events,

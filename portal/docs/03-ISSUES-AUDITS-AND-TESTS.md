@@ -2,7 +2,7 @@
 
 > Verified findings, independent reviews, browser audits and the testing record.
 >
-> Consolidated 2026-09-02 from **11** source documents / **118,144 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-02 from **11** source documents / **118,383 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -13,8 +13,8 @@
 - [`docs/development/findings/2026-08-22-app-audit-salvage.md`](#source-docs-development-findings-2026-08-22-app-audit-salvage-md) — 1,294 words · `16f6f10e5bc4`
 - [`docs/development/findings/2026-08-22-stripe-can-never-be-configured.md`](#source-docs-development-findings-2026-08-22-stripe-can-never-be-configured-md) — 466 words · `e91f13c8620f`
 - [`docs/development/findings/2026-08-22-surfaces-that-state-a-falsehood.md`](#source-docs-development-findings-2026-08-22-surfaces-that-state-a-falsehood-md) — 892 words · `dfeb4a6302c1`
-- [`docs/development/issues.md`](#source-docs-development-issues-md) — 42,428 words · `f77fb8f0bc33`
-- [`docs/development/tests.md`](#source-docs-development-tests-md) — 14,623 words · `7de1d9de62e0`
+- [`docs/development/issues.md`](#source-docs-development-issues-md) — 42,642 words · `aad22ffa0da2`
+- [`docs/development/tests.md`](#source-docs-development-tests-md) — 14,648 words · `8de719463365`
 - [`docs/development/ultra-review-2026-08-24.md`](#source-docs-development-ultra-review-2026-08-24-md) — 15,503 words · `6725e738af21`
 - [`docs/development/visual-browser-audit-2026-08-23.md`](#source-docs-development-visual-browser-audit-2026-08-23-md) — 3,582 words · `3ee9b61d74e3`
 
@@ -2001,7 +2001,7 @@ _Captured from the Dev Team portal. Findings are the input side: review them, tu
 
 ## Source document — `docs/development/issues.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/issues.md" sha256="f77fb8f0bc334ec51985737a2c2d90e0abe31c1cf8e4fcbca5f299eb664c0b30" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/issues.md" sha256="aad22ffa0da2b0aacffdfbe3f9ef8100bc25d905582b00819ccd4c0d5c4086c9" -->
 # Issues & risks
 
 ← Back to [development.md](../development.md) (the law)
@@ -3705,6 +3705,24 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     the fallbacks and the removals; the derived inventory, settings-surface,
     product-lifecycle, tenancy/host-gate and Ecommerce/Finance module suites pass
     **164/164** together. The issue stays partial for the remaining 13.
+
+    **Later still on 2026-09-02 — Leads Pipeline's three resolved.** `defaultLeadSource`
+    now applies to CSV lead imports that give no override (its manifest default is
+    blank, which keeps the import's own `csv:<filename>` provenance; a set value is the
+    source; an explicit import override still wins). `newColumnLabel` now places fresh
+    captures in the leads-pipeline column whose label matches, resolved inside the
+    pipeline port next to the existing id override and falling back to "New" when no
+    such column exists, so a renamed column can never strand a card. `fromName` is
+    removed: the email sender requires a verified name+address identity, so a bare
+    display name could never be honoured, and the field's own help text already
+    deferred to that identity. The keyed inventory is now **12 manifests / 40 fields:
+    30 consumed, 10 unwired** — HR (3), Public Funnel (2), Affiliates (2), Client CRM
+    (3). `smoke-leads-pipeline-settings-consumers` (**4/4**, real pipeline port and real
+    import handler) pins the reader, the label placement and fallback, the CSV source
+    rules and the removal; the derived-inventory guard's floor is restated to 40 with
+    every removal named. The agency Settings hub now lists a "Leads pipeline" door,
+    since a module that reads its settings must offer somewhere to edit them, and the
+    targeted install-repair mirror of the manifest defaults matches the new manifest.
 
     _Original finding, retained for context:_ Twelve built-ins declare **51** fields in `settings.groups`, and the
     generic `PluginSettingsPanel` plus validated `/api/portal/plugins/settings`
@@ -6135,7 +6153,7 @@ Keep the item's number, other docs link to it._
 
 ## Source document — `docs/development/tests.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/tests.md" sha256="7de1d9de62e0435c7f741beae47c8698d4d42127983050193b22722df15088ca" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/tests.md" sha256="8de71946336545b9bd65dea191c4b84cb9a9eccd63759f5a3df2d938688cea51" -->
 # Tests
 
 ← Back to [development.md](../development.md) (the law)
@@ -6791,10 +6809,13 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   activation, then browser-walk a fresh install through delivery and a signed
   webhook status update. → issue #43.
 - Plugin-settings coverage now derives the registered inventory from source and
-  fails if the declared consumer list drifts. Twelve manifests declare **41 fields**:
-  **28 are consumed and 13 remain unwired** (later 2026-09-02: two dead Finance/
-  Ecommerce declarations removed and Ecommerce's low-stock threshold consumed by the
-  inventory default, pinned by `smoke-ecommerce-low-stock-default` **3/3**). Host readers are keyed to a full
+  fails if the declared consumer list drifts. Twelve manifests declare **40 fields**:
+  **30 are consumed and 10 remain unwired** (later 2026-09-02: three dead Finance/
+  Ecommerce/Leads declarations removed; Ecommerce's low-stock threshold consumed by the
+  inventory default, pinned by `smoke-ecommerce-low-stock-default` **3/3**; Leads
+  Pipeline's default source and capture-column label consumed by the real import
+  handler and pipeline port, pinned by `smoke-leads-pipeline-settings-consumers`
+  **4/4**; the sweep's floor restated to 40). Host readers are keyed to a full
   plugin/field identity plus an exact file/access expression, so the unrelated
   Leads CSV `defaultTags` FormData key can no longer mask Client CRM's unused
   setting. Marketing, Website Editor and

@@ -153,6 +153,9 @@ export interface AddLeadCardInput {
   source: string;
   // Optional column override; defaults to the leads pipeline's "New".
   columnId?: string;
+  // Optional column LABEL override (the `newColumnLabel` setting). Honoured
+  // only when a column with that label exists; otherwise the default applies.
+  columnLabel?: string;
 }
 
 export interface PipelinePort {

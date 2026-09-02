@@ -13,6 +13,7 @@ import {
   type StagedPrivateUploadBinding,
 } from "@/lib/server/privateObjectLifecycle";
 import { containerFor } from "../server/foundationAdapter";
+import { readLeadsPipelineSettings } from "../server/index";
 import { addCard, getPipelineBySlug, listCardsByAgency, moveCard } from "@/server/pipelines";
 import { createClient, getClientForAgency, listClients, updateClient } from "@/server/tenants";
 import { setupClientStarterPortal } from "@/server/clientPortalSetup";
@@ -104,7 +105,7 @@ const PROSPECT_OUTREACH_CHANNELS = new Set<ProspectOutreachChannel>(["call", "em
 const PROSPECT_OUTREACH_OUTCOMES = new Set<ProspectOutreachOutcome>(["attempted", "no-answer", "left-message", "sent", "replied", "interested", "not-now", "not-fit", "wrong-contact", "meeting-booked"]);
 
 const buildContainer = (ctx: PluginCtx) =>
-  containerFor({ agencyId: ctx.agencyId, storage: ctx.storage });
+  containerFor({ agencyId: ctx.agencyId, storage: ctx.storage, settings: readLeadsPipelineSettings(ctx.install.config) });
 
 async function safeJson<T>(req: Request): Promise<T | null> {
   try { return (await req.json()) as T; }
@@ -1815,11 +1816,14 @@ export async function importCsvHandler(req: Request, ctx: PluginCtx): Promise<Re
     }
   }
   const customFields = getPortalFormFields(ctx.agencyId, "leads").filter(field => field.active);
+  // The `defaultLeadSource` setting applies when the import names no override;
+  // a blank setting keeps the import's own `csv:<filename>` provenance.
+  const settingsDefaultSource = readLeadsPipelineSettings(ctx.install.config).defaultLeadSource;
   const result = await buildContainer(ctx).leads.importCsv({
     text,
     filename,
     actor: ctx.actor,
-    defaultSource,
+    defaultSource: defaultSource?.trim() || settingsDefaultSource,
     defaultTags,
     defaultRelationshipCategory,
     mapping,

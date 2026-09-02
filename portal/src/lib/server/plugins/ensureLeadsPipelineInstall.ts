@@ -22,9 +22,11 @@ import type { PluginInstall } from "@/server/types";
 
 export const LEADS_PIPELINE_PLUGIN_ID = "leads-pipeline";
 export const LEADS_PIPELINE_DEFAULT_CONFIG = {
-  defaultLeadSource: "manual",
+  // Mirrors the manifest exactly (pinned by smoke-shared-graph-split): a blank
+  // default source keeps the CSV import's own csv:<filename> provenance, and
+  // the unhonourable from-name declaration is gone.
+  defaultLeadSource: "",
   newColumnLabel: "New",
-  fromName: "",
 } as const;
 export const LEADS_PIPELINE_DEFAULT_FEATURES = {
   "csv-import": true,

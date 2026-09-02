@@ -101,7 +101,7 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 
 - [~] Reference validation remains a broad open class; the audited client-route slice is fixed → [#20](issues.md)
 - [~] Canonical staff workspace capability policy, reusable-role authoring and Staff Technical Hidden/View/Use/Manage plus same-cookie downgrade enforcement are source/isolated-browser proven; finish provider-backed live-persona/shared-credential acceptance → [#25](issues.md)
-- [~] Shared plugin settings is operable and Marketing, Website Editor, Fulfillment and Memberships are truthful; Memberships is exact-build browser-proven, Ecommerce's low-stock default is now consumed and two dead Finance/Ecommerce declarations are removed, while 13 unconsumed fields still need wiring/removal → [#44](issues.md)
+- [~] Shared plugin settings is operable and Marketing, Website Editor, Fulfillment and Memberships are truthful; Memberships is exact-build browser-proven, Ecommerce's low-stock default and Leads Pipeline's default source/capture column are now consumed and three dead Finance/Ecommerce/Leads declarations are removed, while 10 unconsumed fields (HR 3, Public Funnel 2, Affiliates 2, Client CRM 3) still need wiring/removal → [#44](issues.md)
 - [~] Finance, Dev Team, Governance, Fulfilment, Actions and Performance mutation controls use checked response contracts; Actions (four viewports) and Performance (seven viewports) are exact-build browser-proven, while Client Centre, phase, SOP, Company and other families and their acceptance matrix stay open → [#47](issues.md)
 - [~] Finish Notepad autosave browser acceptance → [#54](issues.md)
 - [~] Mounted acceptance remains for settled utility controls → [#61](issues.md)

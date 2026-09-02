@@ -2,7 +2,7 @@
 
 > The append-only change record, dated handoffs and superseded historical summaries.
 >
-> Consolidated 2026-09-02 from **18** source documents / **132,750 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-02 from **18** source documents / **133,006 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -23,7 +23,7 @@
 - [`docs/context/archive/website-editor-and-migration.md`](#source-docs-context-archive-website-editor-and-migration-md) — 1,159 words · `235e8af731b6`
 - [`docs/context/archive/WHERE-WE-ARE-2026-08-18.md`](#source-docs-context-archive-where-we-are-2026-08-18-md) — 2,192 words · `4056e9a347cb`
 - [`docs/context/archive/WHERE-WE-STAND-2026-08-20.md`](#source-docs-context-archive-where-we-stand-2026-08-20-md) — 2,482 words · `26bf4442580e`
-- [`docs/development/updates.md`](#source-docs-development-updates-md) — 102,594 words · `0bd198620e57`
+- [`docs/development/updates.md`](#source-docs-development-updates-md) — 102,850 words · `422dba16a6ea`
 
 ---
 
@@ -3318,7 +3318,7 @@ Being straight with you about the edges.
 
 ## Source document — `docs/development/updates.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="0bd198620e5715f6c26ac66da20116355c33d55c68f5b325a403a9d165260b6e" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="422dba16a6eaa961f7c053af4594b66387725fcea4c00935b5c2df75f86e517b" -->
 # Updates log
 
 ← Back to [development.md](../development.md) (the law)
@@ -3354,6 +3354,30 @@ map stays trustworthy.
 > If you ship something, log it.
 
 ---
+
+## 2026-09-02 — Settings truthfulness: Leads Pipeline's three resolved (#44)
+
+- `defaultLeadSource` now applies to CSV lead imports without an override (blank
+  keeps `csv:<filename>`; an explicit import override wins). `newColumnLabel` places
+  fresh captures in the leads-pipeline column with that label, resolved in the
+  pipeline port beside the existing id override with "New" as the fallback. `fromName`
+  is removed: the email sender needs a verified name+address identity, so a bare
+  display name could never be honoured.
+- Inventory is now **12 manifests / 40 fields: 30 consumed, 10 unwired** (HR 3, Public
+  Funnel 2, Affiliates 2, Client CRM 3). New `smoke-leads-pipeline-settings-consumers`
+  **4/4** through the real pipeline port and real import handler; the derived-inventory
+  sweep's floor is restated to 40 with every removal named. Because the module now
+  reads its own settings, the agency Settings hub gains a "Leads pipeline" door (the
+  hub suite owes one to every module with a consumed field), and the targeted
+  install-repair mirror of the manifest defaults is updated to match. The uncontended
+  canonical `npm run smoke:all` on this tree executed **6,522 tests across 1,113
+  suites: 6,520 passed / 0 failed / 2 skipped in 115,954.624542ms**, then the Website
+  Editor gate passed **49/49 files in 12.8s**. A contended run of the same tree tripped
+  the close-deal "both requests raced past the fast-path read" pin once (a true-race
+  assertion that scheduling can serialise under load); that suite passes 12/12 in
+  isolation and its files are untouched by this slice.
+- Reconciled [TODO](TODO.md), [issue #44](issues.md), [status](status.md) and
+  [tests](tests.md); regenerated the symbol reference and consolidated volumes.
 
 ## 2026-09-02 — Opportunity money across real processes (#81) and a load-safe lease pin
 

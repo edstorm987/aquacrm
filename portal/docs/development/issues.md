@@ -1702,6 +1702,24 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     product-lifecycle, tenancy/host-gate and Ecommerce/Finance module suites pass
     **164/164** together. The issue stays partial for the remaining 13.
 
+    **Later still on 2026-09-02 — Leads Pipeline's three resolved.** `defaultLeadSource`
+    now applies to CSV lead imports that give no override (its manifest default is
+    blank, which keeps the import's own `csv:<filename>` provenance; a set value is the
+    source; an explicit import override still wins). `newColumnLabel` now places fresh
+    captures in the leads-pipeline column whose label matches, resolved inside the
+    pipeline port next to the existing id override and falling back to "New" when no
+    such column exists, so a renamed column can never strand a card. `fromName` is
+    removed: the email sender requires a verified name+address identity, so a bare
+    display name could never be honoured, and the field's own help text already
+    deferred to that identity. The keyed inventory is now **12 manifests / 40 fields:
+    30 consumed, 10 unwired** — HR (3), Public Funnel (2), Affiliates (2), Client CRM
+    (3). `smoke-leads-pipeline-settings-consumers` (**4/4**, real pipeline port and real
+    import handler) pins the reader, the label placement and fallback, the CSV source
+    rules and the removal; the derived-inventory guard's floor is restated to 40 with
+    every removal named. The agency Settings hub now lists a "Leads pipeline" door,
+    since a module that reads its settings must offer somewhere to edit them, and the
+    targeted install-repair mirror of the manifest defaults matches the new manifest.
+
     _Original finding, retained for context:_ Twelve built-ins declare **51** fields in `settings.groups`, and the
     generic `PluginSettingsPanel` plus validated `/api/portal/plugins/settings`
     endpoint exist, but only Agency Finance imports and mounts that panel. HR,

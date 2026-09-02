@@ -122,6 +122,8 @@ describe("Ecommerce low-stock default is the saved setting", () => {
     ]) {
       assert.equal(UNWIRED_SETTINGS.some(entry => entry.pluginId === removed[0] && entry.fieldId === removed[1]), false, `${removed.join("/")} must no longer be listed as unwired`);
     }
-    assert.equal(UNWIRED_SETTINGS.length, 13);
+    // The total is pinned by the newest settings-consumer suite; this one only
+    // owns the three fields above.
+    assert.ok(UNWIRED_SETTINGS.length <= 13);
   });
 });

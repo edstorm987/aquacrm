@@ -162,6 +162,7 @@ export class LeadService {
     private activity: ActivityLogPort,
     private events: EventBusPort,
     private pipeline?: PipelinePort,
+    private settings?: { newColumnLabel?: string },
   ) {}
 
   async list(filter?: LeadFilter): Promise<Lead[]> {
@@ -358,6 +359,9 @@ export class LeadService {
         name: lead.name,
         company: lead.company,
         source: lead.source,
+        // The `newColumnLabel` setting; the port falls back to "New" when no
+        // column carries this label.
+        columnLabel: this.settings?.newColumnLabel,
       });
       if (card) {
         await this.updateUnlocked(id, { pipelineCardId: card.cardId }, actor);

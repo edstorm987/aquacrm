@@ -653,10 +653,13 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   activation, then browser-walk a fresh install through delivery and a signed
   webhook status update. → issue #43.
 - Plugin-settings coverage now derives the registered inventory from source and
-  fails if the declared consumer list drifts. Twelve manifests declare **41 fields**:
-  **28 are consumed and 13 remain unwired** (later 2026-09-02: two dead Finance/
-  Ecommerce declarations removed and Ecommerce's low-stock threshold consumed by the
-  inventory default, pinned by `smoke-ecommerce-low-stock-default` **3/3**). Host readers are keyed to a full
+  fails if the declared consumer list drifts. Twelve manifests declare **40 fields**:
+  **30 are consumed and 10 remain unwired** (later 2026-09-02: three dead Finance/
+  Ecommerce/Leads declarations removed; Ecommerce's low-stock threshold consumed by the
+  inventory default, pinned by `smoke-ecommerce-low-stock-default` **3/3**; Leads
+  Pipeline's default source and capture-column label consumed by the real import
+  handler and pipeline port, pinned by `smoke-leads-pipeline-settings-consumers`
+  **4/4**; the sweep's floor restated to 40). Host readers are keyed to a full
   plugin/field identity plus an exact file/access expression, so the unrelated
   Leads CSV `defaultTags` FormData key can no longer mask Client CRM's unused
   setting. Marketing, Website Editor and
