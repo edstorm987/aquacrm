@@ -572,9 +572,15 @@ describe("plugin API routes — surface invariants no manifest can break", () =>
     // unchanged. Undeclared rises 144 → 145 and public rises 15 → 16.
     // Fulfillment then explicitly narrows phase/advance to agency operators;
     // total/public stay fixed and undeclared returns 145 → 144.
-    assert.equal(total, 342, `the registry now ships ${total} API routes, not 342 — re-run the enumeration`);
-    assert.equal(undeclared, 144, `${undeclared} routes declare no roles, not 144 — re-run the enumeration`);
-    assert.equal(publicRoutes, 16, `${publicRoutes} routes are public, not 16`);
+    // 2026-09-02, later: 342 → 344. Website Editor adds one public, strict
+    // consent-bearing newsletter sign-up facade (`visitor/newsletter`) and one
+    // private operator read (`forms/newsletter-subscriptions`), replacing the
+    // block's dead call to a `newsletter` module that never existed. Neither
+    // declares a separate role list, so undeclared rises 144 → 146 and public
+    // rises 16 → 17. Counts re-enumerated from the shipped registry, not added.
+    assert.equal(total, 344, `the registry now ships ${total} API routes, not 344 — re-run the enumeration`);
+    assert.equal(undeclared, 146, `${undeclared} routes declare no roles, not 146 — re-run the enumeration`);
+    assert.equal(publicRoutes, 17, `${publicRoutes} routes are public, not 17`);
 
     // …and none of them is open. This is the whole point: the count can stay
     // wherever it lands for ever, because the fallback is the ceiling and not

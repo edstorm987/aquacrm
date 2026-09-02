@@ -5,10 +5,17 @@ import { getPage } from "../../server/pages";
 import { resolvePublishedPage } from "../../lib/pagePublication";
 import { isSafeBlogPostBody } from "../../lib/blogPostBody";
 import { getSite } from "../../server/sites";
+import { resolveStorefrontTree } from "../../lib/draftPublished";
 import {
   normaliseVisitorContactConsentStatement,
   visitorContactConsentDigest,
 } from "../../lib/visitorContactConsent";
+import {
+  VISITOR_NEWSLETTER_CONSENT_PURPOSE,
+  normaliseVisitorNewsletterConsentStatement,
+  visitorNewsletterConsentDigest,
+} from "../../lib/visitorNewsletterConsent";
+import { normaliseVisitorNewsletterEmail } from "../../lib/visitorNewsletterEmail";
 import {
   takeVisitorRateLimitsLocked,
   visitorBoundaryDigest,
@@ -20,6 +27,10 @@ import { fail, json, ok, requireClientScope } from "../helpers";
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE = /^[+()\d\s.-]{7,40}$/;
 const CONTACT_OPERATION_PREFIX = "visitor-contact-operation:v1:";
+const NEWSLETTER_OPERATION_PREFIX = "visitor-newsletter-operation:v1:";
+const NEWSLETTER_SUBSCRIBER_PREFIX = "visitor-newsletter-subscriber:v1:";
+/** Earlier consent wordings kept on the canonical subscriber for audit. */
+const NEWSLETTER_PREVIOUS_CONSENTS_MAX = 9;
 
 interface VisitorContactInput {
   version: 1;
@@ -60,6 +71,60 @@ interface VisitorContactOperation {
   receiptId: string;
   /** The canonical contact record. PII is stored here once, not in a sidecar. */
   submission: VisitorContactSubmission;
+}
+
+interface VisitorNewsletterInput {
+  version: 1;
+  operationId: string;
+  siteId: string;
+  pageId: string;
+  blockId: string;
+  email: string;
+  consent: {
+    agreed: true;
+    purpose: typeof VISITOR_NEWSLETTER_CONSENT_PURPOSE;
+    version: number;
+    statementDigest: string;
+  };
+}
+
+export interface VisitorNewsletterConsentRecord {
+  agreed: true;
+  purpose: typeof VISITOR_NEWSLETTER_CONSENT_PURPOSE;
+  version: number;
+  statementDigest: string;
+  /** The exact wording the visitor was shown, retained for audit. */
+  statement: string;
+  capturedAt: number;
+}
+
+/**
+ * The one canonical subscriber per normalised address and site. This is the
+ * ONLY record that holds the address in plaintext: operation receipts and
+ * rate-limit buckets carry digests and ids.
+ */
+export interface VisitorNewsletterSubscriber {
+  id: string;
+  agencyId: string;
+  clientId: string;
+  siteId: string;
+  pageId: string;
+  blockId: string;
+  email: string;
+  /** The most recent affirmation. */
+  consent: VisitorNewsletterConsentRecord;
+  /** Earlier affirmations whose wording or version differed, newest first. */
+  previousConsents: VisitorNewsletterConsentRecord[];
+  sourcePath: string;
+  subscriptionCount: number;
+  createdAt: number;
+  lastSubscribedAt: number;
+}
+
+interface VisitorNewsletterOperation {
+  fingerprint: string;
+  receiptId: string;
+  subscriberId: string;
 }
 
 interface PublicBlogPostSummary {
@@ -141,6 +206,54 @@ function parseContactInput(value: unknown): VisitorContactInput | null {
   };
 }
 
+function parseNewsletterInput(value: unknown): VisitorNewsletterInput | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const body = value as Record<string, unknown>;
+  if (!exactKeys(body, ["version", "operationId", "siteId", "pageId", "blockId", "email", "consent", "honeypot"])) return null;
+  if (body.version !== 1) return null;
+  // The trap field may be absent or an empty string; a non-empty value was
+  // already answered before parsing, and any other type is not this DTO.
+  if (body.honeypot !== undefined && typeof body.honeypot !== "string") return null;
+
+  const operationId = clean(body.operationId, 120);
+  const siteId = clean(body.siteId, 120);
+  const pageId = clean(body.pageId, 120);
+  const blockId = clean(body.blockId, 120);
+  if (!/^[A-Za-z0-9:_-]{8,120}$/.test(operationId) || !siteId || !pageId || !blockId) return null;
+
+  const email = normaliseVisitorNewsletterEmail(body.email);
+  if (!email) return null;
+
+  if (!body.consent || typeof body.consent !== "object" || Array.isArray(body.consent)) return null;
+  const rawConsent = body.consent as Record<string, unknown>;
+  if (!exactKeys(rawConsent, ["agreed", "purpose", "version", "statementDigest"])) return null;
+  const consentVersion = Number(rawConsent.version);
+  const statementDigest = clean(rawConsent.statementDigest, 71).toLowerCase();
+  if (
+    rawConsent.agreed !== true
+    || rawConsent.purpose !== VISITOR_NEWSLETTER_CONSENT_PURPOSE
+    || !Number.isSafeInteger(consentVersion)
+    || consentVersion < 1
+    || consentVersion > 10_000
+    || !/^sha256:[a-f0-9]{64}$/.test(statementDigest)
+  ) return null;
+
+  return {
+    version: 1,
+    operationId,
+    siteId,
+    pageId,
+    blockId,
+    email,
+    consent: {
+      agreed: true,
+      purpose: VISITOR_NEWSLETTER_CONSENT_PURPOSE,
+      version: consentVersion,
+      statementDigest,
+    },
+  };
+}
+
 function findBlock(blocks: readonly Block[] | undefined, blockId: string): Block | null {
   for (const block of blocks ?? []) {
     if (block.id === blockId) return block;
@@ -196,6 +309,31 @@ function contactFingerprint(input: VisitorContactInput): Promise<string> {
 
 function newReceiptId(): string {
   return `contact_${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}_${Math.random().toString(36).slice(2)}`}`;
+}
+
+function randomId(prefix: string): string {
+  return `${prefix}_${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}_${Math.random().toString(36).slice(2)}`}`;
+}
+
+function newsletterFingerprint(input: VisitorNewsletterInput): Promise<string> {
+  return visitorBoundaryDigest(JSON.stringify({
+    version: input.version,
+    siteId: input.siteId,
+    pageId: input.pageId,
+    blockId: input.blockId,
+    email: input.email,
+    consent: input.consent,
+  }));
+}
+
+/**
+ * The storage key of the canonical subscriber. It is a digest of the tenant,
+ * site and normalised address, so the key itself never spells the address out
+ * and two installs cannot share a subscriber row by accident.
+ */
+async function newsletterSubscriberKey(agencyId: string, clientId: string, siteId: string, email: string): Promise<string> {
+  const digest = await visitorBoundaryDigest(`${agencyId}\u0000${clientId}\u0000${siteId}\u0000${email}`);
+  return `${NEWSLETTER_SUBSCRIBER_PREFIX}${digest}`;
 }
 
 function privateFailure(area: string, error: unknown): Response {
@@ -323,6 +461,164 @@ export async function handleListVisitorContacts(req: Request, ctx: PluginCtx): P
     .sort((a, b) => b.createdAt - a.createdAt)
     .slice(0, limit);
   return ok({ submissions }, { headers: { "cache-control": "no-store" } });
+}
+
+/**
+ * Anonymous newsletter capture. One strict consent-bearing DTO in, one
+ * allowlisted receipt out. The published snapshot is the only thing that can
+ * make a block writable; nothing about the operator, the tenant or whether the
+ * address was already known crosses this facade.
+ */
+export async function handleVisitorNewsletter(req: Request, ctx: PluginCtx): Promise<Response> {
+  const scope = requireClientScope(ctx);
+  if (!scope.ok) return scope.res;
+
+  let raw: unknown;
+  try { raw = await req.json(); }
+  catch { return fail("Please check the form and try again.", 400); }
+  if (raw && typeof raw === "object" && !Array.isArray(raw) && clean((raw as Record<string, unknown>).honeypot, 200)) {
+    // A filled trap field is a bot. Answer as though it worked; persist nothing.
+    return json({ ok: true, receiptId: "accepted" }, { status: 200, headers: { "cache-control": "no-store" } });
+  }
+  const input = parseNewsletterInput(raw);
+  if (!input) return fail("Please provide a valid email address and consent.", 400);
+
+  try {
+    return await withVisitorPublicBoundary(ctx.storage, async () => {
+      const operationKey = `${NEWSLETTER_OPERATION_PREFIX}${encodeURIComponent(input.operationId)}`;
+      const fingerprint = await newsletterFingerprint(input);
+      const existing = await ctx.storage.get<VisitorNewsletterOperation>(operationKey);
+      if (existing) {
+        if (existing.fingerprint !== fingerprint) return fail("This sign-up reference was already used.", 409);
+        return json(
+          { ok: true, receiptId: existing.receiptId },
+          { status: 200, headers: { "cache-control": "no-store" } },
+        );
+      }
+
+      // Site, page and block are checked inside the same durable transaction
+      // as the write, so an unpublish racing this request cannot pass an
+      // earlier check and then accept a sign-up against content that is no
+      // longer public.
+      const site = await getSite(ctx.storage, scope.agencyId, scope.clientId, input.siteId);
+      if (!site || (site.status !== "active" && site.status !== "live")) return fail("Newsletter sign-up not found.", 404);
+      if (!originAllowed(req, site)) return fail("This sign-up form could not be verified.", 403);
+      const storedPage = await getPage(ctx.storage, scope.agencyId, scope.clientId, input.siteId, input.pageId);
+      const page = storedPage ? resolvePublishedPage(storedPage) : null;
+      if (!storedPage || !page || page.status !== "published" || (page.privacy && page.privacy !== "public" && page.privacy !== "unlisted")) {
+        return fail("Newsletter sign-up not found.", 404);
+      }
+      // The block must sit in the PUBLISHED tree. A draft that has added the
+      // block, or an editor preview, is never a live write surface.
+      const live = resolveStorefrontTree(storedPage);
+      if (live.source !== "published") return fail("Newsletter sign-up not found.", 404);
+      const block = findBlock(live.tree, input.blockId);
+      if (!block || block.type !== "newsletter-signup") return fail("Newsletter sign-up not found.", 404);
+      const configuredConsentVersion = Number.isSafeInteger(block.props.consentVersion)
+        ? Number(block.props.consentVersion)
+        : 1;
+      if (input.consent.version !== configuredConsentVersion) {
+        return fail("The consent wording changed. Please review it and submit again.", 400);
+      }
+      const consentStatement = normaliseVisitorNewsletterConsentStatement(block.props.consentLabel);
+      const consentStatementDigest = await visitorNewsletterConsentDigest(consentStatement);
+      if (input.consent.statementDigest !== consentStatementDigest) {
+        return fail("The consent wording changed. Please review it and submit again.", 400);
+      }
+
+      const ip = clientIpFromHeaders(req.headers);
+      const limit = await takeVisitorRateLimitsLocked(ctx.storage, [
+        { action: "newsletter-ip", identity: ip, max: 6, windowMs: 60 * 60 * 1_000 },
+        { action: "newsletter-install", identity: "all", max: 200, windowMs: 60 * 60 * 1_000 },
+      ]);
+      if (!limit.allowed) {
+        return json(
+          { ok: false, error: "Too many sign-ups have been made. Please try again later." },
+          {
+            status: 429,
+            headers: { "retry-after": String(limit.retryAfterSec), "cache-control": "no-store" },
+          },
+        );
+      }
+
+      const now = Date.now();
+      const consent: VisitorNewsletterConsentRecord = {
+        ...input.consent,
+        statement: consentStatement,
+        capturedAt: now,
+      };
+      const subscriberKey = await newsletterSubscriberKey(scope.agencyId, scope.clientId, input.siteId, input.email);
+      const current = await ctx.storage.get<VisitorNewsletterSubscriber>(subscriberKey);
+      const subscriber: VisitorNewsletterSubscriber = current
+        ? {
+          ...current,
+          pageId: input.pageId,
+          blockId: input.blockId,
+          consent,
+          previousConsents: (
+            current.consent.statementDigest !== consent.statementDigest || current.consent.version !== consent.version
+              ? [current.consent, ...(current.previousConsents ?? [])]
+              : (current.previousConsents ?? [])
+          ).slice(0, NEWSLETTER_PREVIOUS_CONSENTS_MAX),
+          sourcePath: sourcePath(req),
+          subscriptionCount: (current.subscriptionCount ?? 1) + 1,
+          lastSubscribedAt: now,
+        }
+        : {
+          id: randomId("subscriber"),
+          agencyId: scope.agencyId,
+          clientId: scope.clientId,
+          siteId: input.siteId,
+          pageId: input.pageId,
+          blockId: input.blockId,
+          email: input.email,
+          consent,
+          previousConsents: [],
+          sourcePath: sourcePath(req),
+          subscriptionCount: 1,
+          createdAt: now,
+          lastSubscribedAt: now,
+        };
+      // Subscriber first, receipt second. A crash between the two leaves a
+      // subscriber and no receipt, which the retry repairs by finding the same
+      // canonical row; the other order would hand out a receipt for a
+      // subscriber that was never stored.
+      await ctx.storage.set(subscriberKey, subscriber);
+      const receiptId = randomId("newsletter");
+      await ctx.storage.set(operationKey, {
+        fingerprint,
+        receiptId,
+        subscriberId: subscriber.id,
+      } satisfies VisitorNewsletterOperation);
+      // 201 whether or not the address was already on the list: a different
+      // status for a repeat would tell a stranger who has subscribed.
+      return json(
+        { ok: true, receiptId },
+        { status: 201, headers: { "cache-control": "no-store" } },
+      );
+    });
+  } catch (error) {
+    return privateFailure("newsletter subscription", error);
+  }
+}
+
+/** Authenticated operator read; deliberately not registered as a public route. */
+export async function handleListVisitorNewsletterSubscriptions(req: Request, ctx: PluginCtx): Promise<Response> {
+  const scope = requireClientScope(ctx);
+  if (!scope.ok) return scope.res;
+  const url = new URL(req.url);
+  const requested = Number(url.searchParams.get("limit") ?? 50);
+  const limit = Number.isSafeInteger(requested) ? Math.max(1, Math.min(100, requested)) : 50;
+  const siteId = clean(url.searchParams.get("siteId"), 120);
+  const keys = await ctx.storage.list(NEWSLETTER_SUBSCRIBER_PREFIX);
+  const rows = await Promise.all(keys.map(key => ctx.storage.get<VisitorNewsletterSubscriber>(key)));
+  const subscriptions = rows
+    .filter((row): row is VisitorNewsletterSubscriber => Boolean(
+      row && row.agencyId === scope.agencyId && row.clientId === scope.clientId && (!siteId || row.siteId === siteId),
+    ))
+    .sort((a, b) => (b.lastSubscribedAt - a.lastSubscribedAt) || (b.createdAt - a.createdAt))
+    .slice(0, limit);
+  return ok({ subscriptions }, { headers: { "cache-control": "no-store" } });
 }
 
 function toPublicBlogPostSummary(post: {

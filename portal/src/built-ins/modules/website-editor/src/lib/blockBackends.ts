@@ -8,9 +8,12 @@
 // The original wording was "these blocks use absent paths". Half true. Three
 // different things are going on and they need different answers:
 //
-//   1. The module does not exist AT ALL. `forms`, `reservations`, `newsletter`
-//      and `themes` are not among the thirteen modules in `src/built-ins/modules`.
-//      Nothing can install them, so these blocks can never work.
+//   1. The module does not exist AT ALL. `forms`, `reservations` and `themes`
+//      are not among the modules in `src/built-ins/modules`. Nothing can
+//      install them, so these blocks can never work. (`newsletter` was in this
+//      group until 2026-09-02, when the website editor grew its own
+//      `visitor/newsletter` facade — the same path `contact-form` took — so
+//      the block no longer waits on a module that was never going to exist.)
 //   2. The module exists but never declares the route. The website editor's own
 //      blog endpoints are in this group.
 //   3. The route exists but is not `public`, so the dispatcher demands a
@@ -73,11 +76,6 @@ export const BLOCK_BACKEND_GAPS: Readonly<Record<string, BlockBackendGap>> = {
       "/api/portal/reservations/resources",
     ],
     needs: "reservations",
-  },
-  "newsletter-signup": {
-    reason: "Sign-ups are not stored anywhere yet.",
-    endpoints: ["/api/portal/newsletter/subscribe"],
-    needs: "newsletter",
   },
   "theme-selector": {
     reason: "Visitor theme switching has no backend yet.",

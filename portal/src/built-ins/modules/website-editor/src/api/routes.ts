@@ -84,9 +84,11 @@ import {
 } from "./handlers/formSubmissionHost";
 import {
   handleListVisitorContacts,
+  handleListVisitorNewsletterSubscriptions,
   handleVisitorBlogPost,
   handleVisitorBlogPosts,
   handleVisitorContact,
+  handleVisitorNewsletter,
 } from "./handlers/visitor";
 import {
   handleSaveVersion,
@@ -243,12 +245,14 @@ export const apiRoutes: PluginApiRoute[] = [
   { path: "/forms/submit", methods: ["POST"], handler: handleFormSubmit },
   { path: "/forms/webhook-log", methods: ["GET"], handler: handleListFormWebhookLog },
   { path: "/forms/contact-submissions", methods: ["GET"], handler: handleListVisitorContacts },
+  { path: "/forms/newsletter-subscriptions", methods: ["GET"], handler: handleListVisitorNewsletterSubscriptions },
 
   // Anonymous visitor facades. These stay separate from the operator routes:
-  // contact accepts one strict consent-bearing DTO; blog feed/detail return
-  // allowlisted published data only. The dispatcher still requires the exact
-  // enabled agency/client install named in the request scope.
+  // contact and newsletter each accept one strict consent-bearing DTO; blog
+  // feed/detail return allowlisted published data only. The dispatcher still
+  // requires the exact enabled agency/client install named in the request scope.
   { path: "visitor/contact", methods: ["POST"], handler: handleVisitorContact, public: true },
+  { path: "visitor/newsletter", methods: ["POST"], handler: handleVisitorNewsletter, public: true },
   { path: "public/blog/posts", methods: ["GET"], handler: handleVisitorBlogPosts, public: true },
   { path: "public/blog/posts/by-slug", methods: ["GET"], handler: handleVisitorBlogPost, public: true },
 

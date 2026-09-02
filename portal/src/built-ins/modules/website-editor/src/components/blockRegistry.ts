@@ -960,12 +960,18 @@ export const BLOCK_REGISTRY: Record<string, BlockDefinition> = {
       heading: "Stay in the loop",
       subheading: "One email a month. New launches, no spam.",
       submitLabel: "Subscribe", successMessage: "You're in. Welcome!",
+      // The visitor facade binds each sign-up to the exact published wording
+      // and version, so a changed sentence cannot inherit an older consent.
+      consentLabel: "I agree that this business may send its newsletter to this email address.",
+      consentVersion: 1,
     },
     fields: [
       { key: "heading", label: "Heading", type: "text" },
       { key: "subheading", label: "Sub-heading", type: "textarea" },
       { key: "submitLabel", label: "Submit label", type: "text" },
       { key: "successMessage", label: "Success message", type: "text" },
+      { key: "consentLabel", label: "Consent wording", type: "textarea" },
+      { key: "consentVersion", label: "Consent version", type: "number", default: 1 },
     ],
   },
   "app-showcase": {
