@@ -171,6 +171,20 @@ test("blog-post is no longer declared dead after its visitor facade shipped", as
   assert.equal(gap, undefined, "blog-post still claims it has no visitor backend");
 });
 
+test("newsletter-signup is no longer declared dead after its visitor facade shipped", async () => {
+  const { blockBackendGap, blocksWithoutVisitorBackend } = await import(
+    "../src/built-ins/modules/website-editor/src/lib/blockBackends.ts"
+  );
+  assert.equal(blockBackendGap("newsletter-signup"), undefined, "newsletter-signup still claims it has no visitor backend");
+  // Only the newsletter block left. Forms, reservations, themes and the
+  // donation contract mismatch are still real gaps and must stay labelled.
+  assert.deepEqual(
+    blocksWithoutVisitorBackend(),
+    ["booking-widget", "donation-button", "form-embed", "theme-selector"],
+    "a block other than newsletter-signup left (or joined) the gap list",
+  );
+});
+
 test("no page template seeds a block that cannot serve a visitor", async () => {
   // The palette gate is not enough on its own. A template builds a page
   // directly, so it walks straight past the palette — and the "Contact" and

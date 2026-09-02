@@ -2,9 +2,10 @@
 //
 // ── What this is, and what it is NOT ─────────────────────────────────────
 //
-// It is a RATCHET, not a clean bill of health. Fourteen distinct endpoints
-// (thirty-one when this was written; two were repointed on 2026-08-30 and the
-// thirteen-call browser-local Sites island was retired on 2026-09-01)
+// It is a RATCHET, not a clean bill of health. Thirteen distinct endpoints
+// (thirty-one when this was written; two were repointed on 2026-08-30, the
+// thirteen-call browser-local Sites island was retired on 2026-09-01 and the
+// newsletter block was given a real facade on 2026-09-02)
 // are fetched by website-editor pages and blocks and resolve to nothing: no
 // `src/app` route, and no path declared by any module's `routes.ts`. They are
 // listed below by name. The test fails if a NEW one appears, and it fails if a
@@ -53,7 +54,9 @@ const KNOWN_DEAD = [
   "/api/portal/ai-builder/image/variations",
   "/api/portal/forms/public/form/*",
   "/api/portal/forms/public/submit/*",
-  "/api/portal/newsletter/subscribe",
+  // `/api/portal/newsletter/subscribe` LEFT this list on 2026-09-02. No
+  // `newsletter` module ever existed; the block now posts to the website
+  // editor's own public `visitor/newsletter` facade, which is declared.
   "/api/portal/reservations",
   "/api/portal/reservations/resources",
   "/api/portal/reservations/services",
