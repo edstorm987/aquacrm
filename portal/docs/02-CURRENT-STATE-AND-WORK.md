@@ -2,7 +2,7 @@
 
 > The current checklist, status, roadmap, goals, decisions and working queue.
 >
-> Consolidated 2026-09-02 from **7** source documents / **86,669 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-02 from **7** source documents / **86,691 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -11,7 +11,7 @@
 - [`docs/development/goals.md`](#source-docs-development-goals-md) — 506 words · `28009372c4ab`
 - [`docs/development/notes.md`](#source-docs-development-notes-md) — 1,730 words · `f68ea59936dd`
 - [`docs/development/roadmap.md`](#source-docs-development-roadmap-md) — 21,627 words · `6fdc87932849`
-- [`docs/development/status.md`](#source-docs-development-status-md) — 21,171 words · `b67028c8778e`
+- [`docs/development/status.md`](#source-docs-development-status-md) — 21,193 words · `7b143f9724c0`
 - [`docs/development/todo-retired.md`](#source-docs-development-todo-retired-md) — 15,920 words · `4bde57e97f03`
 
 ---
@@ -4388,7 +4388,7 @@ This remains a truthful record of the first pass, **not a current performance cl
 
 ## Source document — `docs/development/status.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/status.md" sha256="b67028c8778ed20ade159fcc6de285cd0f6394c1beb58ce6ef2949e035a6dcfb" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/status.md" sha256="7b143f9724c0c62f9375adb0c23502dff4aabfc3f149b89a0f08b0b6da111629" -->
 # Status & verification register
 
 ← Back to [development.md](../development.md) (the law)
@@ -4683,7 +4683,7 @@ not rerun.
 | KPI target persistence | **P1 — the mounted editor can diverge from agency truth.** Edit/reset/suggestion writes React state and localStorage first, fire-and-forgets the server POST and suppresses initial-load failure. The same browser can keep the new plan while the server and another operator retain the old one; file-store false acknowledgement from #16 compounds this. | Make acknowledged server state authoritative, retain visible retryable intent, then fault-test edit/reset/suggestion plus reload and a second session against one durable version. |
 | Email Sender disabled-provider truth | **Resolved 2026-08-26.** Provider `none` refuses before `sending`, leaves rows queued, returns HTTP 409 and cannot create an external reference, `sentAt`, `email.sent`, active provider state or green health. Provider changes reset readiness; successful Postmark/SMTP delivery alone establishes `active`/`testedAt`. | Module behavior/typecheck pass (**23/23**). Consumer-specific false milestones remain separately open in #32/#39; production setup/verification remains #43. |
 | Email Sender setup | **Code/behaviour repaired; live-provider browser acceptance remains.** Mounted Settings writes encrypted Postmark/SMTP credentials and sender identities to the store used by delivery; secrets return masked, Postmark verification uses provider evidence and SMTP is a real bounded TLS/STARTTLS path. | Foundation/module proof is **47/47**. Browser-prove fresh install → credentials → provider-confirmed sender → accepted test message → signed webhook with real Postmark or SMTP credentials. |
-| Manifest plugin settings | **P2 partly repaired.** Shared settings are reachable across the registered families; Marketing, Website Editor, Fulfillment and Memberships now consume truthful retained fields, and unwired controls identify themselves at the input. Memberships applies its plan-trial default, safe billing-return target, member heading and fully gated annual cadence. The keyed source-derived inventory is **12 manifests / 43 fields: 27 consumed, 16 unwired**; it no longer mistakes an unrelated Leads CSV `defaultTags` key for a Client CRM settings consumer. | Focused Memberships **65/65**, adjacent **90/90** and changed-surface **145/145** pass; exact build `bcNH7NEvlzmp6z1VXtmch` browser-proves Memberships settings/controls within the **40/40** four-viewport matrix. Wire or remove the remaining HR (3), Leads Pipeline (3), Public Funnel (2), Ecommerce (2), Affiliates (2), Client CRM (3) and Finance (1) fields. |
+| Manifest plugin settings | **P2 partly repaired.** Shared settings are reachable across the registered families; Marketing, Website Editor, Fulfillment and Memberships now consume truthful retained fields, and unwired controls identify themselves at the input. Memberships applies its plan-trial default, safe billing-return target, member heading and fully gated annual cadence. The keyed source-derived inventory is **12 manifests / 41 fields: 28 consumed, 13 unwired** (later 2026-09-02: Finance's unenforced approval threshold and Ecommerce's unread publishable key removed, Ecommerce's low-stock threshold now the inventory default); it no longer mistakes an unrelated Leads CSV `defaultTags` key for a Client CRM settings consumer. | Focused Memberships **65/65**, adjacent **90/90** and changed-surface **145/145** pass; exact build `bcNH7NEvlzmp6z1VXtmch` browser-proves Memberships settings/controls within the **40/40** four-viewport matrix. `smoke-ecommerce-low-stock-default` **3/3** plus the manifest-pinning suites **164/164**. Wire or remove the remaining HR (3), Leads Pipeline (3), Public Funnel (2), Affiliates (2) and Client CRM (3) fields. |
 | Plugin health monitoring | **Resolved at the bounded runner/persistent-evidence boundary.** Enabled hooks run concurrently with timeouts, the agency sweep persists host-owned result and age, and Radar keeps unsupported, never-run and stale checks as absent evidence while current failures remain visible. | Focused route/sweep/Radar/read-path proof is **65/65**. Retain live scheduling/provider acceptance as an operational gate. |
 | Client custom-portal build | **Code/path resolved; mounted provision/reload acceptance remains.** The dead `portal-export` wizard is removed; “Build custom portal” now opens the canonical Systems workspace and its real `/api/tenants/client-projects/provision` action. | Focused navigation/route truth is **57/57**. Browser-prove provision → durable property → reload → publish/deploy with configured providers. |
 | Client project lifecycle | **Resolved at the recorded partial-success boundaries.** Provision, GitHub publish and Vercel preview deploy persist immutable intent/provider recovery tokens, adopt exact matching side effects and refuse changed-intent key reuse without suffixing or duplicating resources. | Focused recovery is **20/20**, coordinator proof **4/4**, and route/Next contracts **30/30**. Configured-provider mounted acceptance remains under #36. |

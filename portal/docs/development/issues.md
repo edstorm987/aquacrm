@@ -1686,6 +1686,22 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     viewports with zero unexpected diagnostics or overflow. The issue remains partial
     because the 16 declarations named above are still unconsumed.
 
+    **Later on 2026-09-02 — three of those declarations resolved.** Finance's
+    `expenseApprovalThresholdCents` (help text admitted it was "stored, not yet
+    enforced") and Ecommerce's `stripePublishableKey` (no client-side Stripe.js
+    reader exists; checkout is a server-side session redirect) are removed from their
+    manifests, setup wizard, README and Stripe config type rather than kept as
+    promises. Ecommerce's `lowStockThreshold` is now consumed: the inventory
+    adjustment handler uses it as the default low-stock level for a row that does
+    not set its own (explicit and existing levels still win), and a malformed saved
+    value falls back to the manifest default of 5 instead of poisoning every SKU.
+    The keyed inventory is now **12 manifests / 41 fields: 28 consumed, 13
+    unwired** — HR (3), Leads Pipeline (3), Public Funnel (2), Affiliates (2),
+    Client CRM (3). `smoke-ecommerce-low-stock-default` (**3/3**) pins the default,
+    the fallbacks and the removals; the derived inventory, settings-surface,
+    product-lifecycle, tenancy/host-gate and Ecommerce/Finance module suites pass
+    **164/164** together. The issue stays partial for the remaining 13.
+
     _Original finding, retained for context:_ Twelve built-ins declare **51** fields in `settings.groups`, and the
     generic `PluginSettingsPanel` plus validated `/api/portal/plugins/settings`
     endpoint exist, but only Agency Finance imports and mounts that panel. HR,
@@ -2574,6 +2590,26 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     server processes, and marker-after-side-effect crashes still need a durable outbox/
     idempotent Finance, Stripe, email, activity and event consumer. Add database-native
     constraints and fault/race those boundaries before resolving this issue completely.
+
+    **Later on 2026-09-02 — cross-process ownership on the file backend.** Every
+    commercial mutation now runs inside the storage port's exclusive lane
+    (`withCommercialLock` → `storage.runExclusive`, the same primitive the Marketing
+    lead identity work adopted): on the file backend that is a cross-process
+    transaction that re-hydrates before the work runs, on Supabase/Postgres a remote
+    lease, so the payment-ledger and invoice-number `setIfAbsent` claims are judged
+    against fresh state in every process. `smoke-commercial-durable-processes`
+    (**3/3**, real child processes on one shared state file behind a filesystem
+    barrier) proves two processes recording the same reference — even with different
+    casing and whitespace — converge on one ledger payment id, a different amount on
+    that reference is refused with the visible conflict, two parties saved at the same
+    instant never share an invoice number, and a process that dies after claiming the
+    ledger row (the write after the claim is forced to throw) leaves no half-written
+    payment while the retry resumes the ledger's own payment id exactly once. Verified
+    two-sided: against the previous in-process-only lock the same suite fails 2/3
+    (duplicate payment ids across processes; a half-written payment after the crash).
+    Still open: native Supabase/Postgres constraints exercised live, provider (Stripe/
+    email) side-effect delivery across processes, and lost-acknowledgement browser
+    coverage of the payment modal on an exact build.
 
 82. **P1 — PARTIALLY RESOLVED 2026-08-25: mounted Marketing records no longer replace
     one another inside one application process; distributed CAS remains.** Channel/funnel

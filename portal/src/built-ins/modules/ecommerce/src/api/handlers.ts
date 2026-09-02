@@ -1076,6 +1076,17 @@ export async function listInventoryHandler(_req: Request, ctx: PluginCtx): Promi
   }
 }
 
+/**
+ * The settings field `lowStockThreshold` is the default low-stock level for an
+ * inventory row that does not set its own. Anything that is not a whole
+ * non-negative number falls back to the manifest default of 5, so a malformed
+ * saved value cannot make every SKU report "low" or never report it.
+ */
+export function defaultLowStockThreshold(config: unknown): number {
+  const value = config && typeof config === "object" ? (config as Record<string, unknown>).lowStockThreshold : undefined;
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : 5;
+}
+
 export async function setInventoryHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   const guard = methodGuard(req, "POST"); if (guard) return guard;
   const scope = requireClientScope(ctx); if (typeof scope !== "string") return scope;
@@ -1101,7 +1112,7 @@ export async function setInventoryHandler(req: Request, ctx: PluginCtx): Promise
         // Reserved stock and operation markers belong to CheckoutService;
         // an inventory form must never erase active customer reservations.
         reserved: existing?.reserved ?? 0,
-        lowAt: body.lowAt ?? existing?.lowAt ?? 5,
+        lowAt: body.lowAt ?? existing?.lowAt ?? defaultLowStockThreshold(ctx.install.config),
         unlimited: body.unlimited ?? existing?.unlimited,
         checkoutOperations: existing?.checkoutOperations,
         version: (existing?.version ?? 0) + 1,

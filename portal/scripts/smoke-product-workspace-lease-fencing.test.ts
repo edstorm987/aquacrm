@@ -141,13 +141,26 @@ test("remote lease loss and expiry fence state commit, effects and release", asy
     patchCalls = 0;
     releaseCalls = 0;
     let healthyEffectCalls = 0;
+    const healthyStartedAt = Date.now();
     await withPortalStateTransaction("healthy-lease", async () => {
       storage.mutate(state => { state.assistant.healthyLeaseWrite = { persisted: true }; });
       const { deferUntilPortalStateCommit } = await import("../src/server/productWorkspaceCoordinator");
       assert.equal(deferUntilPortalStateCommit(() => { healthyEffectCalls += 1; }), true);
     });
+    const healthyElapsedMs = Date.now() - healthyStartedAt;
     assert.equal(claimCalls, 1, "a fresh lease does not need an unnecessary second claim");
-    assert.equal(renewCalls, 0, "a fresh lease does not need an unnecessary renewal");
+    // This file pins the refresh window at 10ms (see the env at the top). On a
+    // loaded machine the transaction itself can take longer than that, and then
+    // the periodic refresh legitimately renews once — that is the coordinator
+    // doing its job, not an unnecessary renewal. Only a transaction that finished
+    // inside the window can prove "no renewal"; a slower one is bounded instead,
+    // so CPU contention (a parallel production build, 2026-09-02) cannot turn this
+    // pin into a false regression.
+    if (healthyElapsedMs < 10) {
+      assert.equal(renewCalls, 0, "a fresh lease does not need an unnecessary renewal");
+    } else {
+      assert.ok(renewCalls <= 1, `a fresh lease may refresh at most once when the transaction outlives the 10ms window (took ${healthyElapsedMs}ms, renewed ${renewCalls}×)`);
+    }
     assert.equal(patchCalls, 1);
     assert.equal(releaseCalls, 1);
     assert.equal(healthyEffectCalls, 1);

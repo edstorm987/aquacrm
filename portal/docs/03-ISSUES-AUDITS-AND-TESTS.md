@@ -2,7 +2,7 @@
 
 > Verified findings, independent reviews, browser audits and the testing record.
 >
-> Consolidated 2026-09-02 from **11** source documents / **117,622 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-02 from **11** source documents / **118,144 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -13,8 +13,8 @@
 - [`docs/development/findings/2026-08-22-app-audit-salvage.md`](#source-docs-development-findings-2026-08-22-app-audit-salvage-md) — 1,294 words · `16f6f10e5bc4`
 - [`docs/development/findings/2026-08-22-stripe-can-never-be-configured.md`](#source-docs-development-findings-2026-08-22-stripe-can-never-be-configured-md) — 466 words · `e91f13c8620f`
 - [`docs/development/findings/2026-08-22-surfaces-that-state-a-falsehood.md`](#source-docs-development-findings-2026-08-22-surfaces-that-state-a-falsehood-md) — 892 words · `dfeb4a6302c1`
-- [`docs/development/issues.md`](#source-docs-development-issues-md) — 42,059 words · `6378e18532ac`
-- [`docs/development/tests.md`](#source-docs-development-tests-md) — 14,470 words · `ff95a4f0ff65`
+- [`docs/development/issues.md`](#source-docs-development-issues-md) — 42,428 words · `f77fb8f0bc33`
+- [`docs/development/tests.md`](#source-docs-development-tests-md) — 14,623 words · `7de1d9de62e0`
 - [`docs/development/ultra-review-2026-08-24.md`](#source-docs-development-ultra-review-2026-08-24-md) — 15,503 words · `6725e738af21`
 - [`docs/development/visual-browser-audit-2026-08-23.md`](#source-docs-development-visual-browser-audit-2026-08-23-md) — 3,582 words · `3ee9b61d74e3`
 
@@ -2001,7 +2001,7 @@ _Captured from the Dev Team portal. Findings are the input side: review them, tu
 
 ## Source document — `docs/development/issues.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/issues.md" sha256="6378e18532ac7d26f2f910307eb01dc2233d86b0012411014c907b0849e16f85" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/issues.md" sha256="f77fb8f0bc334ec51985737a2c2d90e0abe31c1cf8e4fcbca5f299eb664c0b30" -->
 # Issues & risks
 
 ← Back to [development.md](../development.md) (the law)
@@ -3690,6 +3690,22 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     viewports with zero unexpected diagnostics or overflow. The issue remains partial
     because the 16 declarations named above are still unconsumed.
 
+    **Later on 2026-09-02 — three of those declarations resolved.** Finance's
+    `expenseApprovalThresholdCents` (help text admitted it was "stored, not yet
+    enforced") and Ecommerce's `stripePublishableKey` (no client-side Stripe.js
+    reader exists; checkout is a server-side session redirect) are removed from their
+    manifests, setup wizard, README and Stripe config type rather than kept as
+    promises. Ecommerce's `lowStockThreshold` is now consumed: the inventory
+    adjustment handler uses it as the default low-stock level for a row that does
+    not set its own (explicit and existing levels still win), and a malformed saved
+    value falls back to the manifest default of 5 instead of poisoning every SKU.
+    The keyed inventory is now **12 manifests / 41 fields: 28 consumed, 13
+    unwired** — HR (3), Leads Pipeline (3), Public Funnel (2), Affiliates (2),
+    Client CRM (3). `smoke-ecommerce-low-stock-default` (**3/3**) pins the default,
+    the fallbacks and the removals; the derived inventory, settings-surface,
+    product-lifecycle, tenancy/host-gate and Ecommerce/Finance module suites pass
+    **164/164** together. The issue stays partial for the remaining 13.
+
     _Original finding, retained for context:_ Twelve built-ins declare **51** fields in `settings.groups`, and the
     generic `PluginSettingsPanel` plus validated `/api/portal/plugins/settings`
     endpoint exist, but only Agency Finance imports and mounts that panel. HR,
@@ -4578,6 +4594,26 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     server processes, and marker-after-side-effect crashes still need a durable outbox/
     idempotent Finance, Stripe, email, activity and event consumer. Add database-native
     constraints and fault/race those boundaries before resolving this issue completely.
+
+    **Later on 2026-09-02 — cross-process ownership on the file backend.** Every
+    commercial mutation now runs inside the storage port's exclusive lane
+    (`withCommercialLock` → `storage.runExclusive`, the same primitive the Marketing
+    lead identity work adopted): on the file backend that is a cross-process
+    transaction that re-hydrates before the work runs, on Supabase/Postgres a remote
+    lease, so the payment-ledger and invoice-number `setIfAbsent` claims are judged
+    against fresh state in every process. `smoke-commercial-durable-processes`
+    (**3/3**, real child processes on one shared state file behind a filesystem
+    barrier) proves two processes recording the same reference — even with different
+    casing and whitespace — converge on one ledger payment id, a different amount on
+    that reference is refused with the visible conflict, two parties saved at the same
+    instant never share an invoice number, and a process that dies after claiming the
+    ledger row (the write after the claim is forced to throw) leaves no half-written
+    payment while the retry resumes the ledger's own payment id exactly once. Verified
+    two-sided: against the previous in-process-only lock the same suite fails 2/3
+    (duplicate payment ids across processes; a half-written payment after the crash).
+    Still open: native Supabase/Postgres constraints exercised live, provider (Stripe/
+    email) side-effect delivery across processes, and lost-acknowledgement browser
+    coverage of the payment modal on an exact build.
 
 82. **P1 — PARTIALLY RESOLVED 2026-08-25: mounted Marketing records no longer replace
     one another inside one application process; distributed CAS remains.** Channel/funnel
@@ -6099,7 +6135,7 @@ Keep the item's number, other docs link to it._
 
 ## Source document — `docs/development/tests.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/tests.md" sha256="ff95a4f0ff655a45acc4cf855e971cd4f106b6deb711d4d92c74c273bc8c93d0" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/tests.md" sha256="7de1d9de62e0435c7f741beae47c8698d4d42127983050193b22722df15088ca" -->
 # Tests
 
 ← Back to [development.md](../development.md) (the law)
@@ -6755,8 +6791,10 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   activation, then browser-walk a fresh install through delivery and a signed
   webhook status update. → issue #43.
 - Plugin-settings coverage now derives the registered inventory from source and
-  fails if the declared consumer list drifts. Twelve manifests declare **43 fields**:
-  **27 are consumed and 16 remain unwired**. Host readers are keyed to a full
+  fails if the declared consumer list drifts. Twelve manifests declare **41 fields**:
+  **28 are consumed and 13 remain unwired** (later 2026-09-02: two dead Finance/
+  Ecommerce declarations removed and Ecommerce's low-stock threshold consumed by the
+  inventory default, pinned by `smoke-ecommerce-low-stock-default` **3/3**). Host readers are keyed to a full
   plugin/field identity plus an exact file/access expression, so the unrelated
   Leads CSV `defaultTags` FormData key can no longer mask Client CRM's unused
   setting. Marketing, Website Editor and
@@ -6983,6 +7021,18 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   contract. Still add database-backed separate-process and crash tests around the invoice/
   ledger claims and every receipt, Finance, Stripe, activity and event outbox boundary.
   → issue #81.
+- Opportunity money across real processes (2026-09-02): `smoke-commercial-durable-processes`
+  (**3/3**) spawns separate Node processes on one shared file-backed state behind a
+  filesystem barrier and proves same-reference payments converge on one ledger id,
+  different-amount claims are refused, simultaneous invoice allocation never shares a
+  number, and a crash after the ledger claim leaves no half-written payment while the
+  retry resumes the same id. It fails 2/3 against the previous in-process-only lock.
+  → issue #81.
+- Lease fencing under load (2026-09-02): `smoke-product-workspace-lease-fencing` pins the
+  refresh window at 10ms, so on a loaded machine a healthy transaction can outlive the
+  window and legitimately refresh once. The "no unnecessary renewal" pin now applies
+  only when the transaction finished inside the window and otherwise bounds renewals
+  to one, after two canonical runs tripped it while a production build compiled.
 - Mounted Marketing record persistence now has a focused **25/25** package/handler/UI
   gate. It proves every simultaneous asset/profile create survives, same-version asset and
   profile edits yield one 200 plus one visible 409, stale delete is refused, and Channels,

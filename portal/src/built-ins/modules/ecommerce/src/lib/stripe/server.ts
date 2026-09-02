@@ -7,7 +7,6 @@
 //   install.config = {
 //     stripeSecretKey: "sk_test_…",
 //     stripeWebhookSecret: "whsec_…",
-//     stripePublishableKey: "pk_test_…",
 //     ...
 //   }
 //
@@ -176,7 +175,6 @@ export async function createBillingPortalSession(
 export interface InstallStripeConfig {
   stripeSecretKey?: string;
   stripeWebhookSecret?: string;
-  stripePublishableKey?: string;
   defaultCurrency?: "gbp" | "usd" | "eur";
   successUrl?: string;
   cancelUrl?: string;

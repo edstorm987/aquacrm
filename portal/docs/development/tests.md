@@ -653,8 +653,10 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   activation, then browser-walk a fresh install through delivery and a signed
   webhook status update. → issue #43.
 - Plugin-settings coverage now derives the registered inventory from source and
-  fails if the declared consumer list drifts. Twelve manifests declare **43 fields**:
-  **27 are consumed and 16 remain unwired**. Host readers are keyed to a full
+  fails if the declared consumer list drifts. Twelve manifests declare **41 fields**:
+  **28 are consumed and 13 remain unwired** (later 2026-09-02: two dead Finance/
+  Ecommerce declarations removed and Ecommerce's low-stock threshold consumed by the
+  inventory default, pinned by `smoke-ecommerce-low-stock-default` **3/3**). Host readers are keyed to a full
   plugin/field identity plus an exact file/access expression, so the unrelated
   Leads CSV `defaultTags` FormData key can no longer mask Client CRM's unused
   setting. Marketing, Website Editor and
@@ -881,6 +883,18 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   contract. Still add database-backed separate-process and crash tests around the invoice/
   ledger claims and every receipt, Finance, Stripe, activity and event outbox boundary.
   → issue #81.
+- Opportunity money across real processes (2026-09-02): `smoke-commercial-durable-processes`
+  (**3/3**) spawns separate Node processes on one shared file-backed state behind a
+  filesystem barrier and proves same-reference payments converge on one ledger id,
+  different-amount claims are refused, simultaneous invoice allocation never shares a
+  number, and a crash after the ledger claim leaves no half-written payment while the
+  retry resumes the same id. It fails 2/3 against the previous in-process-only lock.
+  → issue #81.
+- Lease fencing under load (2026-09-02): `smoke-product-workspace-lease-fencing` pins the
+  refresh window at 10ms, so on a loaded machine a healthy transaction can outlive the
+  window and legitimately refresh once. The "no unnecessary renewal" pin now applies
+  only when the transaction finished inside the window and otherwise bounds renewals
+  to one, after two canonical runs tripped it while a production build compiled.
 - Mounted Marketing record persistence now has a focused **25/25** package/handler/UI
   gate. It proves every simultaneous asset/profile create survives, same-version asset and
   profile edits yield one 200 plus one visible 409, stale delete is refused, and Channels,

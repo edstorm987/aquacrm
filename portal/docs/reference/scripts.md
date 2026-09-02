@@ -1558,6 +1558,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-commercial-durable-processes-test-ts-0233056ad1"></a>
+
+### `scripts/smoke-commercial-durable-processes.test.ts`
+
+**What it is:** the mutation at the same moment.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-commercial-intelligence-test-ts-1e7c24ce8c"></a>
 
 ### `scripts/smoke-commercial-intelligence.test.ts`
@@ -2635,6 +2647,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on (3):** [`src/built-ins/modules/ecommerce/src/lib/admin/customers.ts`](built-ins.md#file-src-built-ins-modules-ecommerce-src-lib-admin-customers-ts-e59ea9de4b) · [`src/built-ins/modules/ecommerce/src/lib/admin/orders.ts`](built-ins.md#file-src-built-ins-modules-ecommerce-src-lib-admin-orders-ts-305461a854) · [`src/built-ins/modules/ecommerce/src/server/orders.ts`](built-ins.md#file-src-built-ins-modules-ecommerce-src-server-orders-ts-261121cda4)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-ecommerce-low-stock-default-test-ts-aaf54defbe"></a>
+
+### `scripts/smoke-ecommerce-low-stock-default.test.ts`
+
+**What it is:** poison it, and the two dead promises are gone from their manifests.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (5):** [`src/built-ins/modules/ecommerce/src/api/handlers.ts`](built-ins.md#file-src-built-ins-modules-ecommerce-src-api-handlers-ts-acaedc752f) · [`src/built-ins/modules/ecommerce/src/lib/aquaPluginTypes.ts`](built-ins.md#file-src-built-ins-modules-ecommerce-src-lib-aquaplugintypes-ts-8a6368bb64) · [`src/built-ins/modules/ecommerce/src/server/index.ts`](built-ins.md#file-src-built-ins-modules-ecommerce-src-server-index-ts-e03f2af91d) · [`src/built-ins/modules/ecommerce/src/server/ports.ts`](built-ins.md#file-src-built-ins-modules-ecommerce-src-server-ports-ts-11967ebb48) · [`src/lib/plugins/unwiredSettings.ts`](lib.md#file-src-lib-plugins-unwiredsettings-ts-2bbb67e7f7)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 

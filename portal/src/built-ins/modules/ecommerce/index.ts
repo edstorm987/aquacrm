@@ -224,14 +224,6 @@ const ecommercePlugin: AquaPlugin = {
           placeholder: "whsec_...",
           helpText: "Created in dashboard.stripe.com/webhooks for /api/portal/ecommerce/stripe/webhook.",
         },
-        {
-          id: "stripePublishableKey",
-          label: "Stripe publishable key",
-          type: "text",
-          required: false,
-          placeholder: "pk_test_...",
-          helpText: "Surfaced to the storefront for client-side Stripe.js.",
-        },
       ],
     },
   ],
@@ -248,7 +240,6 @@ const ecommercePlugin: AquaPlugin = {
           // handled by the vault, so each client keeps their own Stripe account.
           { id: "stripeSecretKey",     label: "Stripe secret key",      type: "password", placeholder: "sk_live_...", secretVault: { provider: "stripe", field: "secretKey" } },
           { id: "stripeWebhookSecret", label: "Stripe webhook secret",  type: "password", placeholder: "whsec_...", secretVault: { provider: "stripe", field: "webhookSecret" } },
-          { id: "stripePublishableKey", label: "Stripe publishable key", type: "text",     placeholder: "pk_live_..." },
         ],
       },
       {
@@ -270,7 +261,7 @@ const ecommercePlugin: AquaPlugin = {
           { id: "cancelUrl",  label: "Checkout cancel URL",  type: "url",  placeholder: "https://luvandker.com/cart" },
           { id: "defaultTaxRatePercent", label: "Default tax rate %", type: "number", default: 0, helpText: "Inclusive products report the tax portion; exclusive products add it to the checkout total." },
           { id: "giftCardDenominations", label: "Gift-card denominations (minor units)", type: "text", default: "2500,5000,10000", helpText: "Comma-separated server-approved values; for GBP, 2500 means £25." },
-          { id: "lowStockThreshold", label: "Default low-stock threshold", type: "number", default: 5 },
+          { id: "lowStockThreshold", label: "Default low-stock threshold", type: "number", default: 5, helpText: "Used when an inventory adjustment does not set its own low-stock level." },
         ],
       },
     ],

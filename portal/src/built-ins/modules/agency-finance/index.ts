@@ -95,19 +95,6 @@ const manifest: AquaPlugin = {
         ],
       },
       {
-        id: "approval",
-        label: "Approval",
-        fields: [
-          {
-            id: "expenseApprovalThresholdCents",
-            label: "Auto-approve expenses below (cents)",
-            type: "number",
-            default: 0,
-            helpText: "Future round — value stored, not yet enforced. v1 keeps approvals manual.",
-          },
-        ],
-      },
-      {
         id: "online-payments",
         label: "Online payments (Stripe)",
         fields: [

@@ -110,7 +110,6 @@ the per-install config:
 install.config = {
   stripeSecretKey: "sk_test_…",         // one per client
   stripeWebhookSecret: "whsec_…",
-  stripePublishableKey: "pk_test_…",     // surfaced to the storefront
   defaultCurrency: "gbp",
   successUrl: "https://luvandker.com/checkout/success",
   cancelUrl: "https://luvandker.com/cart",

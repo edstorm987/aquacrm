@@ -34,6 +34,53 @@ map stays trustworthy.
 
 ---
 
+## 2026-09-02 — Opportunity money across real processes (#81) and a load-safe lease pin
+
+- **Commercial mutations run in the storage port's exclusive lane.** `withCommercialLock`
+  now hands its work to `storage.runExclusive` — a cross-process, re-hydrating
+  transaction on the file backend and a remote lease on Supabase/Postgres — so the
+  payment-ledger and invoice-number `setIfAbsent` claims are judged against fresh state
+  in every process. The in-process queue remains as ordering inside one server.
+- **Evidence.** New `smoke-commercial-durable-processes` **3/3** with real child
+  processes on one shared state file: same-reference payments (differently cased and
+  spaced) converge on one ledger id; a different amount on that reference is refused;
+  two parties saved at the same instant never share an invoice number; a process that
+  dies after claiming the ledger row leaves no half-written payment and the retry
+  resumes the same id once. Two-sided: the suite fails **2/3** against the previous
+  lock. Commercial/lead-conversion/provider-deadline and Leads Pipeline module suites
+  **83/83**, TypeScript and `git diff --check` clean. The uncontended canonical `npm run smoke:all` on this
+  tree (both slices plus the lease pin) executed **6,518 tests across 1,112 suites:
+  6,516 passed / 0 failed / 2 skipped in 115,408.555333ms**, then the Website Editor
+  gate passed **49/49 files in 12.7s**.
+- **Lease pin made load-safe.** `smoke-product-workspace-lease-fencing` pins a 10ms
+  refresh window; two canonical runs today tripped "a fresh lease does not need an
+  unnecessary renewal" while a production build compiled alongside. A healthy
+  transaction that outlives the window legitimately refreshes once, so the pin now
+  asserts zero renewals only when the transaction finished inside the window and
+  otherwise bounds renewals to one. It passes 3/3 in isolation before and after.
+- **Honest residuals.** Live Supabase/Postgres constraints, provider (Stripe/email)
+  side-effect delivery across processes and lost-acknowledgement browser coverage of the
+  payment modal remain open under #81.
+- Reconciled [TODO](TODO.md), [issue #81](issues.md) and [tests](tests.md); regenerated the
+  consolidated volumes.
+
+## 2026-09-02 — Settings truthfulness: three declarations resolved (#44)
+
+- Finance's `expenseApprovalThresholdCents` (never enforced) and Ecommerce's
+  `stripePublishableKey` (never read; checkout is a server-side session redirect) are
+  removed from their manifests, setup wizard, README and Stripe config type instead of
+  being kept as stored promises. Ecommerce's `lowStockThreshold` is now consumed: the
+  inventory adjustment handler uses it as the default low-stock level for a row that
+  sets none (explicit and existing levels win) and a malformed saved value falls back
+  to the manifest default of 5.
+- Inventory is now **12 manifests / 41 fields: 28 consumed, 13 unwired**. New
+  `smoke-ecommerce-low-stock-default` **3/3**; the derived-inventory, settings-surface,
+  product-lifecycle, tenancy/host-gate and Ecommerce/Finance module suites pass
+  **164/164** together. The canonical figures for this and the #81 change below are
+  recorded in the opportunity-money entry above.
+- Reconciled [TODO](TODO.md), [issue #44](issues.md), [status](status.md) and
+  [tests](tests.md); regenerated the consolidated volumes.
+
 ## 2026-09-02 — Performance checked-mutation cohort (fifth #47 cohort; #128 and #129 browser-accepted)
 
 - **Experiments, reports and milestones now use the checked mutation contract.** Every

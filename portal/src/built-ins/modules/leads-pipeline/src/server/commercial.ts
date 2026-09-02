@@ -26,7 +26,19 @@ const paymentKey = (packId: string, canonicalReference: string) => `${paymentPre
 
 const commercialQueues = new Map<AgencyId, Promise<void>>();
 
-async function withCommercialLock<T>(agencyId: AgencyId, work: () => Promise<T>): Promise<T> {
+/**
+ * One serial lane for every commercial mutation of an agency.
+ *
+ * The in-process queue orders callers inside one server. The storage port's
+ * exclusive lane is what makes the order hold ACROSS processes: on the file
+ * backend it is a cross-process transaction that re-hydrates before `work`
+ * runs, and on Supabase/Postgres it is a remote lease. Inside that lane the
+ * `setIfAbsent` claims below (payment ledger rows, invoice-number slots) are
+ * evaluated against fresh state, so two servers cannot both win the same
+ * reference or number. Before this (issue #81) the queue alone meant "same
+ * process only".
+ */
+async function withCommercialLock<T>(agencyId: AgencyId, storage: PluginStorage, work: () => Promise<T>): Promise<T> {
   const previous = commercialQueues.get(agencyId) ?? Promise.resolve();
   let release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
@@ -34,6 +46,9 @@ async function withCommercialLock<T>(agencyId: AgencyId, work: () => Promise<T>)
   commercialQueues.set(agencyId, queued);
   await previous;
   try {
+    if (typeof storage.runExclusive === "function") {
+      return await storage.runExclusive(`commercial:${agencyId}`, work);
+    }
     return await work();
   } finally {
     release();
@@ -214,7 +229,7 @@ export class CommercialService {
   }
 
   async save(input: SaveCommercialPackInput, actor: UserId): Promise<CommercialPack> {
-    return withCommercialLock(this.agencyId, () => this.saveUnlocked(input, actor));
+    return withCommercialLock(this.agencyId, this.storage, () => this.saveUnlocked(input, actor));
   }
 
   private async saveUnlocked(input: SaveCommercialPackInput, actor: UserId): Promise<CommercialPack> {
@@ -385,7 +400,7 @@ export class CommercialService {
     forVersion: number;
     forFinancialHash: string;
   }): Promise<{ pack: CommercialPack; attached: boolean } | null> {
-    return withCommercialLock(this.agencyId, () => this.attachStripeUnlocked(kind, partyId, checkout));
+    return withCommercialLock(this.agencyId, this.storage, () => this.attachStripeUnlocked(kind, partyId, checkout));
   }
 
   private async attachStripeUnlocked(kind: CommercialPartyKind, partyId: string, checkout: {
@@ -410,7 +425,7 @@ export class CommercialService {
   }
 
   async attachStripeSubscription(kind: CommercialPartyKind, partyId: string, subscriptionId: string): Promise<CommercialPack | null> {
-    return withCommercialLock(this.agencyId, () => this.attachStripeSubscriptionUnlocked(kind, partyId, subscriptionId));
+    return withCommercialLock(this.agencyId, this.storage, () => this.attachStripeSubscriptionUnlocked(kind, partyId, subscriptionId));
   }
 
   private async attachStripeSubscriptionUnlocked(kind: CommercialPartyKind, partyId: string, subscriptionId: string): Promise<CommercialPack | null> {
@@ -485,7 +500,7 @@ export class CommercialService {
     /** Stripe says this subscription is live again — clears the stop record. */
     reopenedAt?: number;
   }): Promise<CommercialPack | null> {
-    return withCommercialLock(this.agencyId, () => this.recordSubscriptionCancellationUnlocked(kind, partyId, outcome));
+    return withCommercialLock(this.agencyId, this.storage, () => this.recordSubscriptionCancellationUnlocked(kind, partyId, outcome));
   }
 
   private async recordSubscriptionCancellationUnlocked(kind: CommercialPartyKind, partyId: string, outcome: {
@@ -529,7 +544,7 @@ export class CommercialService {
   }
 
   async send(kind: CommercialPartyKind, partyId: string, baseUrl: string, actor: UserId): Promise<CommercialPack> {
-    return withCommercialLock(this.agencyId, () => this.sendUnlocked(kind, partyId, baseUrl, actor));
+    return withCommercialLock(this.agencyId, this.storage, () => this.sendUnlocked(kind, partyId, baseUrl, actor));
   }
 
   private async sendUnlocked(kind: CommercialPartyKind, partyId: string, baseUrl: string, actor: UserId): Promise<CommercialPack> {
@@ -632,7 +647,7 @@ export class CommercialService {
   }
 
   async accept(token: string, acceptedBy: string): Promise<CommercialPack | null> {
-    return withCommercialLock(this.agencyId, () => this.acceptUnlocked(token, acceptedBy));
+    return withCommercialLock(this.agencyId, this.storage, () => this.acceptUnlocked(token, acceptedBy));
   }
 
   private async acceptUnlocked(token: string, acceptedBy: string): Promise<CommercialPack | null> {
@@ -674,7 +689,7 @@ export class CommercialService {
   }
 
   async recordPayment(kind: CommercialPartyKind, partyId: string, input: RecordCommercialPaymentInput, actor: UserId): Promise<CommercialPack | null> {
-    return withCommercialLock(this.agencyId, () => this.recordPaymentUnlocked(kind, partyId, input, actor));
+    return withCommercialLock(this.agencyId, this.storage, () => this.recordPaymentUnlocked(kind, partyId, input, actor));
   }
 
   private async recordPaymentUnlocked(kind: CommercialPartyKind, partyId: string, input: RecordCommercialPaymentInput, actor: UserId): Promise<CommercialPack | null> {
@@ -845,7 +860,7 @@ export class CommercialService {
   }
 
   async setFinanceInvoiceId(kind: CommercialPartyKind, partyId: string, financeInvoiceId: string): Promise<void> {
-    return withCommercialLock(this.agencyId, () => this.setFinanceInvoiceIdUnlocked(kind, partyId, financeInvoiceId));
+    return withCommercialLock(this.agencyId, this.storage, () => this.setFinanceInvoiceIdUnlocked(kind, partyId, financeInvoiceId));
   }
 
   private async setFinanceInvoiceIdUnlocked(kind: CommercialPartyKind, partyId: string, financeInvoiceId: string): Promise<void> {
@@ -865,7 +880,7 @@ export class CommercialService {
   // either may still name the recipient; that is a legal-hold record, not a
   // handle the erasure sweep should rewrite.
   async stripIdentityForErasure(kind: CommercialPartyKind, partyId: string): Promise<boolean> {
-    return withCommercialLock(this.agencyId, () => this.stripIdentityForErasureUnlocked(kind, partyId));
+    return withCommercialLock(this.agencyId, this.storage, () => this.stripIdentityForErasureUnlocked(kind, partyId));
   }
 
   private async stripIdentityForErasureUnlocked(kind: CommercialPartyKind, partyId: string): Promise<boolean> {

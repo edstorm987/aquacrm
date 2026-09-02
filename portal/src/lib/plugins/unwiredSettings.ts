@@ -102,6 +102,11 @@
 // an unrelated Leads CSV FormData key had fooled the old repository-wide name
 // match. Registered manifests now declare 43 fields; 27 are consumed and 16
 // remain named below.
+//
+// 2026-09-02 (later): Finance's never-enforced `expenseApprovalThresholdCents`
+// and Ecommerce's never-read `stripePublishableKey` were removed from their
+// manifests rather than kept as promises, and Ecommerce's `lowStockThreshold`
+// now feeds the inventory adjustment default. 41 fields; 28 consumed, 13 below.
 
 export interface UnwiredSetting {
   pluginId: string;
@@ -120,15 +125,12 @@ export const unwiredKey = (pluginId: string, fieldId: string): string => `${plug
 export const UNWIRED_SETTINGS: readonly UnwiredSetting[] = [
   { pluginId: "affiliates", fieldId: "autoApproveAfterDays" },
   { pluginId: "affiliates", fieldId: "payoutCadence" },
-  { pluginId: "agency-finance", fieldId: "expenseApprovalThresholdCents" },
   { pluginId: "agency-hr", fieldId: "leaveAutoRestoreDays" },
   { pluginId: "agency-hr", fieldId: "defaultPtoDaysPerYear" },
   { pluginId: "agency-hr", fieldId: "canStaffEdit" },
   { pluginId: "client-crm", fieldId: "autoCreateOnSignup" },
   { pluginId: "client-crm", fieldId: "defaultTags" },
   { pluginId: "client-crm", fieldId: "customAttributeSchema" },
-  { pluginId: "ecommerce", fieldId: "stripePublishableKey" },
-  { pluginId: "ecommerce", fieldId: "lowStockThreshold" },
   { pluginId: "leads-pipeline", fieldId: "defaultLeadSource" },
   { pluginId: "leads-pipeline", fieldId: "newColumnLabel" },
   { pluginId: "leads-pipeline", fieldId: "fromName" },

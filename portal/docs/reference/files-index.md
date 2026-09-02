@@ -2,7 +2,7 @@
 
 ← Back to [the reference index](00-index.md) · [the map](../WORKSPACE-FILE-TREE.md) · [development.md](../development.md)
 
-Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2652 source files; 0 per-source stubs.**
+Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2654 source files; 0 per-source stubs.**
 
 ## Engines — `src/engines/` (85)
 
@@ -290,7 +290,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/performance/telemetryDisplay.ts`](lib.md#file-src-lib-performance-telemetrydisplay-ts-5be221a37e) — The dash every honest surface in this codebase uses for "no reading".
 - [`src/lib/plugins/pluginHealthConstants.ts`](lib.md#file-src-lib-plugins-pluginhealthconstants-ts-cc93050728) — must not cost the runtime it describes.
 - [`src/lib/plugins/pluginSetupStatus.ts`](lib.md#file-src-lib-plugins-pluginsetupstatus-ts-82a3c6194e) — somebody to complete an impossible form is worse than saying nothing.
-- [`src/lib/plugins/unwiredSettings.ts`](lib.md#file-src-lib-plugins-unwiredsettings-ts-2bbb67e7f7) — remain named below.
+- [`src/lib/plugins/unwiredSettings.ts`](lib.md#file-src-lib-plugins-unwiredsettings-ts-2bbb67e7f7) — now feeds the inventory adjustment default. 41 fields; 28 consumed, 13 below.
 - [`src/lib/portal/clientPortalBuilder.ts`](lib.md#file-src-lib-portal-clientportalbuilder-ts-efd225ebe5)
 - [`src/lib/portal/clientPortalDesign.ts`](lib.md#file-src-lib-portal-clientportaldesign-ts-99f227974c)
 - [`src/lib/portal/customerAccountActivity.ts`](lib.md#file-src-lib-portal-customeraccountactivity-ts-eae6fc884e)
@@ -2082,7 +2082,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/showcase/exit/route.ts`](app.md#file-src-app-showcase-exit-route-ts-2297ba275f)
 - [`src/app/showcase/route.ts`](app.md#file-src-app-showcase-route-ts-4c24dd82df)
 
-## Scripts — `scripts/` (586)
+## Scripts — `scripts/` (588)
 
 - [`scripts/attention-protection.test.ts`](scripts.md#file-scripts-attention-protection-test-ts-d64d01714c)
 - [`scripts/audit-actions.ts`](scripts.md#file-scripts-audit-actions-ts-862ea31175) — What state Actions is actually in — measured, not remembered. For every alert the checks currently …
@@ -2211,6 +2211,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-command-overlay-theme.test.ts`](scripts.md#file-scripts-smoke-command-overlay-theme-test-ts-52381e4072)
 - [`scripts/smoke-command-recommendations.test.ts`](scripts.md#file-scripts-smoke-command-recommendations-test-ts-833e52a81f)
 - [`scripts/smoke-command-sidebar-motion.test.ts`](scripts.md#file-scripts-smoke-command-sidebar-motion-test-ts-b15aa75667)
+- [`scripts/smoke-commercial-durable-processes.test.ts`](scripts.md#file-scripts-smoke-commercial-durable-processes-test-ts-0233056ad1) — the mutation at the same moment.
 - [`scripts/smoke-commercial-intelligence.test.ts`](scripts.md#file-scripts-smoke-commercial-intelligence-test-ts-1e7c24ce8c)
 - [`scripts/smoke-commercial-ledger-boundary.test.ts`](scripts.md#file-scripts-smoke-commercial-ledger-boundary-test-ts-c714e1d595) — UI requires the idempotency reference before it enables submission.
 - [`scripts/smoke-commercial-lifecycle-radar.test.ts`](scripts.md#file-scripts-smoke-commercial-lifecycle-radar-test-ts-b374b45df1)
@@ -2301,6 +2302,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-durable-nonce-store.test.ts`](scripts.md#file-scripts-smoke-durable-nonce-store-test-ts-4c3e61f296) — scenario, demonstrating why production needs Postgres).
 - [`scripts/smoke-ecommerce-authoritative-checkout.test.ts`](scripts.md#file-scripts-smoke-ecommerce-authoritative-checkout-test-ts-a9634143fc)
 - [`scripts/smoke-ecommerce-financial-reporting.test.ts`](scripts.md#file-scripts-smoke-ecommerce-financial-reporting-test-ts-8b883d1135)
+- [`scripts/smoke-ecommerce-low-stock-default.test.ts`](scripts.md#file-scripts-smoke-ecommerce-low-stock-default-test-ts-aaf54defbe) — poison it, and the two dead promises are gone from their manifests.
 - [`scripts/smoke-ecommerce-order-lifecycle.test.ts`](scripts.md#file-scripts-smoke-ecommerce-order-lifecycle-test-ts-e3c92688ab)
 - [`scripts/smoke-ecommerce-product-lifecycle.test.ts`](scripts.md#file-scripts-smoke-ecommerce-product-lifecycle-test-ts-319241a5c4)
 - [`scripts/smoke-ecommerce-public-checkout.test.ts`](scripts.md#file-scripts-smoke-ecommerce-public-checkout-test-ts-4209142448)

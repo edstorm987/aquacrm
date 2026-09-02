@@ -2,7 +2,7 @@
 
 > Source maps, subsystem dossiers, components, routes, state and built-in module notes.
 >
-> Consolidated 2026-09-02 from **23** source documents / **57,073 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-02 from **23** source documents / **57,066 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -25,7 +25,7 @@
 - [`docs/workspace/shared-logic.md`](#source-docs-workspace-shared-logic-md) — 3,911 words · `34a172e29b5e`
 - [`docs/workspace/state-layer.md`](#source-docs-workspace-state-layer-md) — 1,047 words · `b891d38adf8e`
 - [`src/archive/multi-agency/README.md`](#source-src-archive-multi-agency-readme-md) — 43 words · `8655235589a0`
-- [`src/built-ins/modules/ecommerce/README.md`](#source-src-built-ins-modules-ecommerce-readme-md) — 1,118 words · `7725ceb40027`
+- [`src/built-ins/modules/ecommerce/README.md`](#source-src-built-ins-modules-ecommerce-readme-md) — 1,111 words · `41433d51b931`
 - [`src/built-ins/modules/fulfillment/README.md`](#source-src-built-ins-modules-fulfillment-readme-md) — 913 words · `f472689dde20`
 - [`src/built-ins/modules/website-editor/README.md`](#source-src-built-ins-modules-website-editor-readme-md) — 516 words · `8ba4ff6dfe4e`
 - [`src/built-ins/runtime/milesymedia/README.md`](#source-src-built-ins-runtime-milesymedia-readme-md) — 159 words · `5c5839e189b2`
@@ -4751,7 +4751,7 @@ Nothing in this folder is part of the live navigation or API route tree.
 
 ## Source document — `src/built-ins/modules/ecommerce/README.md`
 
-<!-- AQUACRM_SOURCE_START path="src/built-ins/modules/ecommerce/README.md" sha256="7725ceb400276e7a925245869fc071ff60478156d2e1287a483c6c306e20ed59" -->
+<!-- AQUACRM_SOURCE_START path="src/built-ins/modules/ecommerce/README.md" sha256="41433d51b931e2f36a62a1436a8c7816106ec10a3078a71ab38d739ec14be905" -->
 # `@aqua/plugin-ecommerce`
 
 The per-client ecommerce subsystem for the Aqua portal. Lives at
@@ -4864,7 +4864,6 @@ the per-install config:
 install.config = {
   stripeSecretKey: "sk_test_…",         // one per client
   stripeWebhookSecret: "whsec_…",
-  stripePublishableKey: "pk_test_…",     // surfaced to the storefront
   defaultCurrency: "gbp",
   successUrl: "https://luvandker.com/checkout/success",
   cancelUrl: "https://luvandker.com/cart",
