@@ -11,10 +11,11 @@ import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 export interface NewPlanModalProps {
   apiBase: string;
   defaultCurrency: Currency;
+  defaultTrialDays: number;
   onClose: () => void;
 }
 
-export function NewPlanModal({ apiBase, defaultCurrency, onClose }: NewPlanModalProps) {
+export function NewPlanModal({ apiBase, defaultCurrency, defaultTrialDays, onClose }: NewPlanModalProps) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const operationRef = useRef<PlanDraftOperation | null>(null);
@@ -42,7 +43,7 @@ export function NewPlanModal({ apiBase, defaultCurrency, onClose }: NewPlanModal
               .split("\n")
               .map(s => s.trim())
               .filter(Boolean),
-            trialDays: Number(fd.get("trialDays") ?? 0) || undefined,
+            trialDays: Number(fd.get("trialDays") ?? defaultTrialDays),
           };
           if (!draft.name) {
             setError("name required");
@@ -85,7 +86,7 @@ export function NewPlanModal({ apiBase, defaultCurrency, onClose }: NewPlanModal
           </select>
         </label>
         <label>Features (one per line)<textarea name="features" rows={4} /></label>
-        <label>Trial days (0 = no trial)<input name="trialDays" type="number" min="0" defaultValue={0} /></label>
+        <label>Trial days (0 = no trial)<input name="trialDays" type="number" min="0" max="365" step="1" required defaultValue={defaultTrialDays} /></label>
         {error && <p role="alert" className="memberships-form-error">{error}</p>}
         <footer>
           <button type="button" onClick={onClose} disabled={busy}>Cancel</button>

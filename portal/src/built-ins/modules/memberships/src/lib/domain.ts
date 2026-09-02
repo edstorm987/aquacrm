@@ -122,6 +122,10 @@ export interface Subscription {
   planId: string;
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
+  /** @deprecated Read-only compatibility for rows written before full lineage tracking. */
+  retiredStripeSubscriptionId?: string;
+  /** Every retired provider generation, retained to reject delayed webhooks permanently. */
+  retiredStripeSubscriptionIds?: string[];
   billing: Billing;
   status: SubscriptionStatus;
   // ISO 8601 — set whenever Stripe reports current_period_end
@@ -185,4 +189,5 @@ export interface MembershipPaymentRecord {
   eventId: string;
   occurredAt: number;
   updatedAt: number;
+  effectsCompletedAt?: number;
 }

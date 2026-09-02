@@ -49,6 +49,10 @@ class FaultStorage implements StoragePort {
     }
   }
 
+  runProviderExclusive<T>(key: string, operation: () => Promise<T>): Promise<T> {
+    return this.runExclusive(`provider:${key}`, operation);
+  }
+
   async del(key: string): Promise<void> { this.data.delete(key); }
   async list(prefix = ""): Promise<string[]> {
     return [...this.data.keys()].filter(key => key.startsWith(prefix));
@@ -62,7 +66,18 @@ function fakeStripe(): StripePort {
     async retrieveCustomer() { return null; },
     createSubscription: unused,
     cancelSubscription: unused,
-    async retrieveSubscription() { return null; },
+    async retrieveSubscription(id) {
+      return {
+        id,
+        customerId: id.startsWith("sub_generation_")
+          ? "cus_generation_shared"
+          : id.replace(/^sub_/, "cus_"),
+        status: "active",
+        currentPeriodEnd: 1_779_000_000,
+        cancelAtPeriodEnd: false,
+        items: [{ priceId: "price_membership" }],
+      };
+    },
     pauseSubscription: unused,
     resumeSubscription: unused,
     changeSubscriptionPlan: unused,
@@ -125,7 +140,7 @@ function paymentEvent(id: string): StripeWebhookEvent {
   };
 }
 
-function buildWorld(storage: FaultStorage) {
+function buildWorld(storage: FaultStorage, stripe: StripePort = fakeStripe()) {
   storage.data.set("memberships/plans/index", ["plan_paid"]);
   storage.data.set("memberships/plans/plan_paid", {
     id: "plan_paid",
@@ -169,7 +184,7 @@ function buildWorld(storage: FaultStorage) {
     storage,
     activity,
     events,
-    stripe: fakeStripe(),
+    stripe,
     tenant: {
       getClient() { return null; },
       getClientForAgency() { return null; },
@@ -219,6 +234,24 @@ test("failed subscriber delivery remains retryable and completes after a fresh c
   assert.equal(duplicate.applied, false);
 });
 
+test("a completed subscription delivery is acknowledged without calling Stripe again", async () => {
+  const storage = new FaultStorage();
+  const event = subscriptionEvent("evt_completed_without_provider");
+  assert.equal((await buildWorld(storage).services.webhook.applyEvent(event)).ok, true);
+  let retrieves = 0;
+  const unavailableStripe: StripePort = {
+    ...fakeStripe(),
+    async retrieveSubscription() {
+      retrieves += 1;
+      throw new Error("Stripe is unavailable");
+    },
+  };
+  const duplicate = await buildWorld(storage, unavailableStripe).services.webhook.applyEvent(event);
+  assert.equal(duplicate.ok, true);
+  assert.equal(duplicate.duplicate, true);
+  assert.equal(retrieves, 0);
+});
+
 test("metadata is scope-complete and concurrent delivery has one owner", async () => {
   const storage = new FaultStorage();
   const world = buildWorld(storage);
@@ -265,6 +298,265 @@ test("metadata is scope-complete and concurrent delivery has one owner", async (
   );
 });
 
+test("signed checkout expiry releases only its exact hosted session", async () => {
+  const storage = new FaultStorage();
+  const world = buildWorld(storage);
+  const commandKey = `memberships/subscription-command/${USER_ID}`;
+  storage.data.set(commandKey, {
+    id: "checkout-awaiting-expiry",
+    signature: "legacy-checkout-signature",
+    requestSignature: "legacy-checkout-request",
+    kind: "subscribe",
+    stage: "completed",
+    userId: USER_ID,
+    planId: "plan_paid",
+    billing: "monthly",
+    subscribeMode: "checkout",
+    checkout: { id: "cs_expired_exact", url: "https://stripe.test/cs_expired_exact" },
+    subscribeResult: {
+      ok: true,
+      mode: "checkout",
+      checkoutUrl: "https://stripe.test/cs_expired_exact",
+      operationId: "checkout-awaiting-expiry",
+      planId: "plan_paid",
+      billing: "monthly",
+    },
+    createdAt: 1,
+    updatedAt: 1,
+  });
+  const event: StripeWebhookEvent = {
+    id: "evt_checkout_expired_exact",
+    type: "checkout.session.expired",
+    created: 1_777_000_100,
+    data: {
+      object: {
+        id: "cs_expired_exact",
+        metadata: {
+          agencyId: AGENCY_ID,
+          clientId: CLIENT_ID,
+          endCustomerUserId: USER_ID,
+          planId: "plan_paid",
+          billing: "monthly",
+        },
+      },
+    },
+  };
+
+  const result = await world.services.webhook.applyEvent(event);
+  assert.equal(result.ok, true);
+  assert.equal(result.applied, true);
+  assert.equal(
+    (await storage.get<{ checkoutReconciledAt?: number }>(commandKey))?.checkoutReconciledAt !== undefined,
+    true,
+  );
+});
+
+test("late subscription webhooks cannot replace a newer provider generation", async () => {
+  const storage = new FaultStorage();
+  const world = buildWorld(storage);
+  const first = subscriptionEvent("generation_s1");
+  first.created = 1_777_000_100;
+  assert.equal((await world.services.webhook.applyEvent(first)).ok, true);
+
+  const second = subscriptionEvent("generation_s2");
+  second.created = 1_777_000_300;
+  storage.data.set(`memberships/subscription-command/${USER_ID}`, {
+    id: "checkout-generation-s2",
+    signature: "checkout-generation-s2-signature",
+    requestSignature: "checkout-generation-s2-request",
+    kind: "subscribe",
+    stage: "completed",
+    userId: USER_ID,
+    planId: "plan_paid",
+    billing: "monthly",
+    subscribeMode: "checkout",
+    customerId: "cus_generation_shared",
+    retiredProviderSubscriptionIds: ["sub_generation_s1"],
+    checkout: { id: "cs_generation_s2", url: "https://stripe.test/cs_generation_s2" },
+    subscribeResult: {
+      ok: true,
+      mode: "checkout",
+      checkoutUrl: "https://stripe.test/cs_generation_s2",
+      operationId: "checkout-generation-s2",
+      planId: "plan_paid",
+      billing: "monthly",
+    },
+    createdAt: 2,
+    updatedAt: 2,
+  });
+  assert.equal((await world.services.webhook.applyEvent(second)).ok, true);
+  assert.equal(
+    (await world.services.subscriptions.getByUser(USER_ID))?.stripeSubscriptionId,
+    "sub_generation_s2",
+  );
+  assert.deepEqual(
+    (await world.services.subscriptions.getByUser(USER_ID))?.retiredStripeSubscriptionIds,
+    ["sub_generation_s1"],
+  );
+
+  const olderSameSubscription = subscriptionEvent("older_same_subscription", {
+    id: "sub_generation_s2",
+    customer: "cus_generation_s2",
+    status: "canceled",
+  });
+  olderSameSubscription.type = "customer.subscription.deleted";
+  olderSameSubscription.created = 1_777_000_200;
+  assert.equal((await world.services.webhook.applyEvent(olderSameSubscription)).ok, true);
+  assert.equal((await world.services.subscriptions.getByUser(USER_ID))?.status, "active");
+
+  const lateOldGeneration = subscriptionEvent("late_old_generation", {
+    id: "sub_generation_s1",
+    customer: "cus_generation_s1",
+    status: "canceled",
+  });
+  lateOldGeneration.type = "customer.subscription.deleted";
+  lateOldGeneration.created = 1_777_000_400;
+  assert.equal((await world.services.webhook.applyEvent(lateOldGeneration)).ok, true);
+  const current = await world.services.subscriptions.getByUser(USER_ID);
+  assert.equal(current?.stripeSubscriptionId, "sub_generation_s2");
+  assert.equal(current?.status, "active");
+
+  storage.data.set(`memberships/subscribers/${USER_ID}`, {
+    ...current,
+    stripeSubscriptionId: undefined,
+    retiredStripeSubscriptionIds: ["sub_generation_s1", "sub_generation_s2"],
+    updatedAt: (current?.updatedAt ?? 0) + 1,
+  });
+  storage.data.set(`memberships/subscription-command/${USER_ID}`, {
+    id: "checkout-generation-s3",
+    signature: "checkout-generation-s3-signature",
+    requestSignature: "checkout-generation-s3-request",
+    kind: "subscribe",
+    stage: "completed",
+    userId: USER_ID,
+    planId: "plan_paid",
+    billing: "monthly",
+    subscribeMode: "checkout",
+    customerId: "cus_generation_shared",
+    retiredProviderSubscriptionIds: ["sub_generation_s1", "sub_generation_s2"],
+    checkout: { id: "cs_generation_s3", url: "https://stripe.test/cs_generation_s3" },
+    subscribeResult: {
+      ok: true,
+      mode: "checkout",
+      checkoutUrl: "https://stripe.test/cs_generation_s3",
+      operationId: "checkout-generation-s3",
+      planId: "plan_paid",
+      billing: "monthly",
+    },
+    createdAt: 3,
+    updatedAt: 3,
+  });
+
+  const veryLateFirstGeneration = subscriptionEvent("very_late_first_generation", {
+    id: "sub_generation_s1",
+    customer: "cus_generation_shared",
+  });
+  assert.equal((await world.services.webhook.applyEvent(veryLateFirstGeneration)).ok, true);
+  assert.equal(
+    (await world.services.subscriptions.getByUser(USER_ID))?.stripeSubscriptionId,
+    undefined,
+    "a live checkout must not adopt any previously retired provider generation",
+  );
+
+  const third = subscriptionEvent("generation_s3", {
+    customer: "cus_generation_shared",
+  });
+  assert.equal((await world.services.webhook.applyEvent(third)).ok, true);
+  const thirdCurrent = await world.services.subscriptions.getByUser(USER_ID);
+  assert.equal(thirdCurrent?.stripeSubscriptionId, "sub_generation_s3");
+  assert.deepEqual(
+    thirdCurrent?.retiredStripeSubscriptionIds,
+    ["sub_generation_s1", "sub_generation_s2"],
+  );
+});
+
+test("legacy subscription events re-read inside the canonical user provider lane", async () => {
+  const storage = new FaultStorage();
+  let providerStatus = "active";
+  let releaseDiscovery!: () => void;
+  let discoveryStarted!: () => void;
+  const release = new Promise<void>(resolve => { releaseDiscovery = resolve; });
+  const started = new Promise<void>(resolve => { discoveryStarted = resolve; });
+  let firstRetrieve = true;
+  const projection = (status: string): StripeSubscription => ({
+    id: "sub_alias_race",
+    customerId: "cus_alias_race",
+    status,
+    cancelAtPeriodEnd: false,
+    items: [{ priceId: "price_membership" }],
+    metadata: {
+      agencyId: AGENCY_ID,
+      clientId: CLIENT_ID,
+      endCustomerUserId: USER_ID,
+      planId: "plan_paid",
+      billing: "monthly",
+    },
+  });
+  const stripe: StripePort = {
+    ...fakeStripe(),
+    async retrieveSubscription() {
+      if (firstRetrieve) {
+        firstRetrieve = false;
+        const stale = projection("active");
+        discoveryStarted();
+        await release;
+        return stale;
+      }
+      return projection(providerStatus);
+    },
+    async cancelSubscription() {
+      providerStatus = "canceled";
+      return projection(providerStatus);
+    },
+  };
+  const world = buildWorld(storage, stripe);
+  storage.data.set(`memberships/subscribers/${USER_ID}`, {
+    id: "membership_alias_race",
+    agencyId: AGENCY_ID,
+    clientId: CLIENT_ID,
+    endCustomerUserId: USER_ID,
+    planId: "plan_paid",
+    stripeCustomerId: "cus_alias_race",
+    stripeSubscriptionId: "sub_alias_race",
+    billing: "monthly",
+    status: "active",
+    cancelAtPeriodEnd: false,
+    createdAt: 1,
+    updatedAt: 1,
+  });
+
+  const event = subscriptionEvent("alias_race", {
+    id: "sub_alias_race",
+    customer: "cus_alias_race",
+    metadata: {
+      agencyId: AGENCY_ID,
+      clientId: CLIENT_ID,
+      planId: "plan_paid",
+      billing: "monthly",
+    },
+  });
+  const webhook = world.services.webhook.applyEvent(event);
+  await started;
+  const canceled = await world.services.subscriptions.cancel({
+    endCustomerUserId: USER_ID,
+    atPeriodEnd: false,
+    operationId: "cancel-during-legacy-webhook-discovery",
+  });
+  assert.equal(canceled?.status, "canceled");
+  releaseDiscovery();
+  assert.equal((await webhook).ok, true);
+  assert.equal(
+    (await world.services.subscriptions.getByUser(USER_ID))?.status,
+    "canceled",
+    "the stale discovery snapshot must never overwrite the in-lane provider re-read",
+  );
+  const cancellations = world.emitted.filter(entry =>
+    entry.name === "membership.subscription_canceled");
+  assert.equal(cancellations.length, 1);
+  assert.equal((cancellations[0]?.payload as { planId?: string }).planId, "plan_paid");
+  assert.equal((cancellations[0]?.payload as { billing?: string }).billing, "monthly");
+});
+
 test("payment delivery persists scoped ledger state before retry-safe side effects", async () => {
   const storage = new FaultStorage();
   let world = buildWorld(storage);
@@ -309,6 +601,51 @@ test("payment delivery persists scoped ledger state before retry-safe side effec
   assert.equal(duplicate.duplicate, true);
   assert.equal(world.emitted.length, 1);
   assert.equal(world.activityRows.size, 1);
+});
+
+test("payment ledger is paid-dominant and emits each invoice transition once", async () => {
+  const storage = new FaultStorage();
+  const world = buildWorld(storage);
+  const failed = paymentEvent("evt_payment_failed_first");
+  failed.type = "invoice.payment_failed";
+  failed.data.object.amount_due = 2_700;
+  failed.data.object.metadata = { purchaseOrder: "PO-1042" };
+
+  const failedResult = await world.services.webhook.applyEvent(failed);
+  assert.equal(failedResult.applied, true);
+  assert.equal(
+    (await storage.get<{ status: string }>("memberships/payments/in_membership_paid"))?.status,
+    "failed",
+    "unrelated invoice metadata must not shadow scoped subscription metadata",
+  );
+
+  const paid = paymentEvent("evt_payment_paid_after_failure");
+  assert.equal((await world.services.webhook.applyEvent(paid)).applied, true);
+  const paidRecord = await storage.get<{ status: string; amountCents: number }>(
+    "memberships/payments/in_membership_paid",
+  );
+  assert.equal(paidRecord?.status, "paid");
+  assert.equal(paidRecord?.amountCents, 2_500);
+  assert.deepEqual(world.emitted.map(entry => entry.name), [
+    "membership.payment_failed",
+    "membership.payment_succeeded",
+  ]);
+
+  const alternateSuccess = paymentEvent("evt_payment_succeeded_duplicate");
+  alternateSuccess.type = "invoice.payment_succeeded";
+  assert.equal((await world.services.webhook.applyEvent(alternateSuccess)).applied, false);
+
+  const lateFailure = paymentEvent("evt_payment_failed_late");
+  lateFailure.type = "invoice.payment_failed";
+  lateFailure.data.object.amount_due = 2_900;
+  assert.equal((await world.services.webhook.applyEvent(lateFailure)).applied, false);
+  const converged = await storage.get<{ status: string; amountCents: number }>(
+    "memberships/payments/in_membership_paid",
+  );
+  assert.equal(converged?.status, "paid");
+  assert.equal(converged?.amountCents, 2_500);
+  assert.equal(world.emitted.length, 2);
+  assert.equal(world.activityRows.size, 2);
 });
 
 test("mounted webhook maps retryable processing failure to 503", async () => {

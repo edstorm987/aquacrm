@@ -198,6 +198,11 @@ export interface SettingsField {
   options?: { value: string; label: string }[];
   helpText?: string;
   placeholder?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  /** URL value must be a site-relative path (one leading slash, never `//`). */
+  urlPolicy?: "same-origin-path";
 }
 
 // ─── Feature toggles ───────────────────────────────────────────────────────

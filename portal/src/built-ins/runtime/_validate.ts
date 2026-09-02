@@ -9,6 +9,7 @@
 // runtime, marketplace or sidebar would render in an undefined state.
 
 import type { AquaPlugin, NavItem, PluginFeature, SettingsField, SettingsGroup } from "./_types";
+import { numericSettingsValueError } from "./_numericSettings";
 
 const PLUGIN_ID_PATTERN = /^[a-z][a-z0-9-]*$/;
 const SEMVER_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
@@ -228,6 +229,31 @@ function validateSettingsFields(fields: SettingsField[], where: string, errors: 
     if (!VALID_FIELD_TYPES.has(f.type)) errors.push(`${fieldWhere}.type "${f.type}" is unsupported.`);
     if (f.type === "select" && (!Array.isArray(f.options) || f.options.length === 0)) {
       errors.push(`${fieldWhere} (type:"select") must declare options.`);
+    }
+    if (f.urlPolicy !== undefined && (f.type !== "url" || f.urlPolicy !== "same-origin-path")) {
+      errors.push(`${fieldWhere}.urlPolicy is supported only as "same-origin-path" on URL fields.`);
+    }
+    if (f.type === "number") {
+      if (f.min !== undefined && !Number.isFinite(f.min)) errors.push(`${fieldWhere}.min must be finite.`);
+      if (f.max !== undefined && !Number.isFinite(f.max)) errors.push(`${fieldWhere}.max must be finite.`);
+      if (f.min !== undefined && f.max !== undefined && f.min > f.max) {
+        errors.push(`${fieldWhere}.min must not exceed max.`);
+      }
+      if (f.step !== undefined && (!Number.isFinite(f.step) || f.step <= 0)) {
+        errors.push(`${fieldWhere}.step must be a positive finite number.`);
+      }
+      if (f.default !== undefined) {
+        const defaultError = numericSettingsValueError(f.default, f);
+        if (defaultError === "not_a_number") {
+          errors.push(`${fieldWhere}.default must be a finite number.`);
+        } else if (defaultError === "number_below_min") {
+          errors.push(`${fieldWhere}.default must not be below min.`);
+        } else if (defaultError === "number_above_max") {
+          errors.push(`${fieldWhere}.default must not exceed max.`);
+        } else if (defaultError === "number_step_mismatch") {
+          errors.push(`${fieldWhere}.default must match the declared numeric step.`);
+        }
+      }
     }
     // A declared secret must say where it is stored. The default store for a
     // settings value is `install.config`, which is handed to page props and

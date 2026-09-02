@@ -200,6 +200,10 @@ export function assertSubscription(subscription: Subscription): void {
   assertText(subscription.planId, "planId", 200, true);
   assertText(subscription.stripeCustomerId, "stripeCustomerId", 255);
   assertText(subscription.stripeSubscriptionId, "stripeSubscriptionId", 255);
+  assertText(subscription.retiredStripeSubscriptionId, "retiredStripeSubscriptionId", 255);
+  if (subscription.retiredStripeSubscriptionIds !== undefined) {
+    assertUniqueIds(subscription.retiredStripeSubscriptionIds, "retiredStripeSubscriptionIds", 1_000);
+  }
   assertEnum(subscription.billing, "billing", BILLING);
   assertEnum(subscription.status, "status", SUBSCRIPTION_STATUSES);
   assertIsoDate(subscription.currentPeriodEnd, "currentPeriodEnd");
@@ -215,6 +219,37 @@ export function assertProviderId(value: unknown, field: string): void {
 
 export function assertProviderUrl(value: unknown, field: string): void {
   assertUrl(value, field);
+  const raw = value as string;
+  const parsed = new URL(raw);
+  if (raw !== raw.trim()) fail(field, "must not contain surrounding whitespace");
+  if (parsed.protocol !== "https:") {
+    fail(field, "must use https");
+  }
+  if (parsed.username || parsed.password) fail(field, "must not contain credentials");
+}
+
+export function assertProviderCheckoutSession(value: unknown): asserts value is {
+  id: string;
+  url: string;
+  expiresAt?: number;
+} {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    fail("checkout", "must be an object");
+  }
+  const session = value as { id?: unknown; url?: unknown; expiresAt?: unknown };
+  assertProviderId(session.id, "checkout.id");
+  assertProviderUrl(session.url, "checkout.url");
+  if (
+    session.expiresAt !== undefined
+    && (
+      typeof session.expiresAt !== "number"
+      || !Number.isSafeInteger(session.expiresAt)
+      || session.expiresAt < 0
+      || session.expiresAt > 253_402_300_799
+    )
+  ) {
+    fail("checkout.expiresAt", "must be a valid Unix timestamp");
+  }
 }
 
 export function assertProviderSubscription(value: {

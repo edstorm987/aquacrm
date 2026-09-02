@@ -68,12 +68,16 @@ describe("needs-attention alerts reach the Actions queue", () => {
 });
 
 describe("every action in the queue can be acted on", () => {
-  // Half the queue used to offer only a "Source" link, which is a dead end:
-  // it tells you where the record is, not what to do about it.
-  it("gives every generated action the shared controls", () => {
-    assert.match(workspace, /Every generated action carries the same controls/);
-    assert.doesNotMatch(workspace, /action\.origin === "inbox" \? \(\s*<AttentionControls/,
-      "controls must not be limited to inbox-origin actions");
+  it("offers only mutations backed by the generated action's real store", () => {
+    assert.match(workspace, /Only operational inbox alerts can be parked or dismissed/);
+    assert.ok(
+      (workspace.match(/action\.origin === "inbox" \? <AttentionControls/g) ?? []).length >= 2,
+      "provider-backed controls were not limited consistently to inbox alerts",
+    );
+    assert.match(workspace, /Open source <ArrowUpRight/,
+      "pipeline signals lost their truthful source action");
+    assert.match(workspace, /disabled=\{accepting \|\| Boolean\(attentionBusyAction\)\}/,
+      "pipeline signals lost their approval action or share a misleading busy state");
   });
 
   it("never opens an empty evidence panel on a pipeline signal", () => {

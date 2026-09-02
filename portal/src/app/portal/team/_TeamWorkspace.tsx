@@ -36,6 +36,7 @@ import {
 
 import type { DashboardPlanningSnapshot } from "@/server/dashboardPlanning";
 import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
+import { isTaskMutationResult, taskCompleteOperationId } from "@/lib/client/actionsMutationTruth";
 import { formatUkDate, timestampFromValue } from "@/lib/shared/formatDateTime";
 import { TeamChat } from "@/components/people/TeamChat";
 import type {
@@ -180,11 +181,19 @@ function ClockOutReview({ busy, onCancel, onSubmit }: { busy: boolean; onCancel:
 function Actions({ initial, editable }: { initial: TeamData; editable: boolean }) {
   const router = useRouter(); const [tasks, setTasks] = useState(initial.tasks); const [busy, setBusy] = useState(""); const [error, setError] = useState(""); const [filter, setFilter] = useState<"open" | "done">("open");
   async function request(method: string, body: Record<string, unknown>) {
+    const currentTask = typeof body.id === "string" ? tasks.find(task => task.id === body.id) : undefined;
+    const completing = method === "PATCH" && body.status === "done" && currentTask?.status !== "done";
+    const operationId = completing ? taskCompleteOperationId(currentTask!.id, currentTask!.revision ?? 0) : undefined;
+    const requestBody = completing ? { ...body, operationId, expectedRevision: currentTask!.revision ?? 0 } : body;
     setBusy(String(body.id || "new")); setError("");
     try {
-      const result = await checkedJsonMutation<{ ok?: boolean; task?: AgencyTask; tasks?: AgencyTask[] }>("/api/portal/tasks", { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) }, {
+      const result = await checkedJsonMutation<{ ok?: boolean; task?: AgencyTask; tasks?: AgencyTask[]; operationId?: string; replayed?: boolean }>("/api/portal/tasks", { method, headers: { "content-type": "application/json" }, body: JSON.stringify(requestBody) }, {
         fallback: "The task could not be updated.",
-        validate: value => value.ok === true && Boolean(value.task),
+        validate: value => method === "POST" ? value.ok === true && Boolean(value.task) : isTaskMutationResult(value, String(body.id), {
+          status: body.status as AgencyTask["status"] | undefined,
+          operationId,
+          expectedRevision: completing ? currentTask!.revision ?? 0 : undefined,
+        }),
       });
       if (result.tasks) setTasks(result.tasks);
       else if (result.task) setTasks(current => method === "POST" ? [result.task!, ...current] : current.map(item => item.id === result.task!.id ? result.task! : item));

@@ -116,7 +116,7 @@ export const ORIGIN_NEVER_CONTRIBUTES: Readonly<Record<string, readonly Collecti
     "commandCalendarExternalEvents", "commandCalendarEventCreateOperations",
     "dashboardDayPlans", "dashboardWeekPlans", "dashboardWorkSessions",
     "radarMemory", "radarSyntheticProbes", "radarEvidence", "radarInfraHealth",
-    "customKpis", "operationalAlertPreferences", "userChromeLayouts",
+    "customKpis", "operationalAlertSourceEpisodes", "operationalAlertPreferences", "actionMutationReceipts", "userChromeLayouts",
     "assistant", "editorAiConversations",
     "notepadFolders", "notepadNotes", "automationRuns",
     // Private provider-object lifecycle checkpoints are tenant-bound recovery

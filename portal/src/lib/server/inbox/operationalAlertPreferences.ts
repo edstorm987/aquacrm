@@ -7,9 +7,14 @@ import type {
 } from "@/lib/intelligence/operationalAttention";
 import { getState, mutate } from "@/server/storage";
 import type { OperationalAlertPreference } from "@/server/types";
+import { alertOccurrenceKey } from "@/lib/client/actionsMutationTruth";
 
 function preferenceKey(agencyId: string, userId: string, alertId: string): string {
   return `${agencyId}|${userId}|${alertId}`;
+}
+
+export function getOperationalAlertPreference(agencyId: string, userId: string, alertId: string): OperationalAlertPreference | undefined {
+  return getState().operationalAlertPreferences[preferenceKey(agencyId, userId, alertId)];
 }
 
 export function listOperationalAlertViews(
@@ -21,23 +26,26 @@ export function listOperationalAlertViews(
   const preferences = getState().operationalAlertPreferences;
   return alerts.flatMap<OperationalAlertView>(alert => {
     const preference = preferences[preferenceKey(agencyId, userId, alert.id)];
-    const changed = Boolean(preference && alert.occurredAt > preference.alertOccurredAt);
+    const changed = Boolean(preference && (preference.occurrenceKey
+      ? alertOccurrenceKey(alert) !== preference.occurrenceKey
+      : alert.occurredAt > preference.alertOccurredAt));
     // Deferral history survives the alert changing underneath. The job was put
     // off five times; a new figure on the same job does not reset that.
     const history = preference?.deferrals
       ? { deferrals: preference.deferrals, firstDeferredAt: preference.firstDeferredAt }
       : {};
-    if (!preference || changed) return [{ ...alert, ...history, state: "unread" as const, attention: true }];
+    const causal = { causalVersion: preference?.causalVersion ?? 0 };
+    if (!preference || changed) return [{ ...alert, ...history, ...causal, state: "unread" as const, attention: true }];
     if (preference.state === "dismissed") {
       return alert.persistentUntilResolved
-        ? [{ ...alert, ...history, state: "read" as const, attention: false }]
+        ? [{ ...alert, ...history, ...causal, state: "read" as const, attention: false }]
         : [];
     }
     if (preference.state === "parked" && (preference.parkedUntil ?? 0) > now) {
-      return [{ ...alert, ...history, state: "parked" as const, attention: false, parkedUntil: preference.parkedUntil }];
+      return [{ ...alert, ...history, ...causal, state: "parked" as const, attention: false, parkedUntil: preference.parkedUntil }];
     }
-    if (preference.state === "parked") return [{ ...alert, ...history, state: "unread" as const, attention: true }];
-    return [{ ...alert, ...history, state: "read" as const, attention: false }];
+    if (preference.state === "parked" || preference.state === "unread") return [{ ...alert, ...history, ...causal, state: "unread" as const, attention: true }];
+    return [{ ...alert, ...history, ...causal, state: "read" as const, attention: false }];
   });
 }
 
@@ -58,10 +66,6 @@ export function setOperationalAlertPreference({
 }): void {
   const key = preferenceKey(agencyId, userId, alert.id);
   mutate(state => {
-    if (action === "unread") {
-      delete state.operationalAlertPreferences[key];
-      return;
-    }
     const existing = state.operationalAlertPreferences[key];
     // Counted on park only. Reading an item is not putting it off, and
     // dismissing it is a decision — neither should inflate the tally that
@@ -71,8 +75,10 @@ export function setOperationalAlertPreference({
       agencyId,
       userId,
       alertId: alert.id,
-      state: action === "dismiss" ? "dismissed" : action === "park" ? "parked" : "read",
+      state: action === "dismiss" ? "dismissed" : action === "park" ? "parked" : action === "unread" ? "unread" : "read",
+      causalVersion: (existing?.causalVersion ?? 0) + 1,
       alertOccurredAt: alert.occurredAt,
+      occurrenceKey: alertOccurrenceKey(alert),
       updatedAt: now,
       ...(action === "park" && parkedUntil ? { parkedUntil } : {}),
       ...(deferrals ? { deferrals, firstDeferredAt: existing?.firstDeferredAt ?? now } : {}),

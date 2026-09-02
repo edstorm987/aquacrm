@@ -9,6 +9,7 @@ export interface PlansListProps {
   plans: Plan[];
   apiBase: string;
   defaultCurrency: Currency;
+  defaultTrialDays: number;
   canMutate: boolean;
 }
 
@@ -17,7 +18,7 @@ function fmt(cents: number, currency: string): string {
   return `${symbol}${(cents / 100).toFixed(2)}`;
 }
 
-export function PlansList({ plans, apiBase, defaultCurrency, canMutate }: PlansListProps) {
+export function PlansList({ plans, apiBase, defaultCurrency, defaultTrialDays, canMutate }: PlansListProps) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -58,6 +59,7 @@ export function PlansList({ plans, apiBase, defaultCurrency, canMutate }: PlansL
         <NewPlanModal
           apiBase={apiBase}
           defaultCurrency={defaultCurrency}
+          defaultTrialDays={defaultTrialDays}
           onClose={() => setOpen(false)}
         />
       )}

@@ -5,6 +5,15 @@ import { useMemo, useState } from "react";
 import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
 
 import type { Plan, Subscription, SubscriptionStatus } from "../lib/domain";
+import {
+  isMembershipCancelMutationResult,
+  type MembershipCancelMutationResult,
+} from "../lib/mutationResponses";
+import {
+  clearMembershipOperationAfterDefinitiveFailure,
+  clearPendingMembershipOperation,
+  pendingMembershipOperationId,
+} from "../lib/browserOperation";
 
 export interface SubscribersListProps {
   subscribers: Subscription[];
@@ -63,7 +72,7 @@ export function SubscribersList({ subscribers, plans, apiBase, canMutate }: Subs
                 {s.currentPeriodEnd && <p className="memberships-staff-meta">Renews {s.currentPeriodEnd.slice(0, 10)}</p>}
                 {s.cancelAtPeriodEnd && <p className="memberships-staff-meta">Cancels at period end</p>}
                 {canMutate && s.status !== "canceled" && (
-                  <CancelButton apiBase={apiBase} userId={s.endCustomerUserId} />
+                  <CancelButton apiBase={apiBase} subscription={s} />
                 )}
               </article>
             </li>
@@ -74,9 +83,10 @@ export function SubscribersList({ subscribers, plans, apiBase, canMutate }: Subs
   );
 }
 
-function CancelButton({ apiBase, userId }: { apiBase: string; userId: string }) {
+function CancelButton({ apiBase, subscription }: { apiBase: string; subscription: Subscription }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const userId = subscription.endCustomerUserId;
   return (
     <>
       <button
@@ -84,21 +94,29 @@ function CancelButton({ apiBase, userId }: { apiBase: string; userId: string }) 
         disabled={busy}
         onClick={async () => {
           if (!confirm(`Cancel subscription for ${userId}?`)) return;
+          const operationAction = `admin-cancel-${subscription.id}-period-end`;
+          const requestOperationId = pendingMembershipOperationId(apiBase, operationAction);
           setBusy(true); setError(null);
           try {
-            await checkedJsonMutation(`${apiBase}/subscribers/cancel`, {
+            await checkedJsonMutation<MembershipCancelMutationResult>(`${apiBase}/subscribers/cancel`, {
               method: "POST",
               headers: { "content-type": "application/json" },
               body: JSON.stringify({
                 userId,
                 atPeriodEnd: true,
-                operationId: `membership-admin-cancel-${crypto.randomUUID()}`,
+                operationId: requestOperationId,
               }),
             }, {
               fallback: "The subscription could not be cancelled.",
+              validate: payload => isMembershipCancelMutationResult(payload, {
+                ...subscription,
+                requestOperationId,
+              }),
             });
+            clearPendingMembershipOperation(apiBase, operationAction);
             window.location.reload();
           } catch (requestError) {
+            clearMembershipOperationAfterDefinitiveFailure(requestError, apiBase, operationAction);
             setError(mutationErrorMessage(requestError, "The subscription could not be cancelled."));
           } finally {
             setBusy(false);

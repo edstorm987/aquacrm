@@ -4,7 +4,7 @@ import "server-only";
 // can build a `PluginStorage` without tripping on the runtime module.
 
 import { getState, mutate } from "@/server/storage";
-import { withPortalStateTransaction } from "@/server/productWorkspaceCoordinator";
+import { withPortalProviderLease, withPortalStateTransaction } from "@/server/productWorkspaceCoordinator";
 import type { PluginStorage } from "@/built-ins/runtime/_types";
 
 export function makePluginStorage(installId: string): PluginStorage {
@@ -32,6 +32,9 @@ export function makePluginStorage(installId: string): PluginStorage {
     },
     runExclusive<T>(key: string, operation: () => Promise<T>): Promise<T> {
       return withPortalStateTransaction(`plugin:${installId}:${key}`, operation);
+    },
+    runProviderExclusive<T>(key: string, operation: () => Promise<T>): Promise<T> {
+      return withPortalProviderLease(`plugin:${installId}:${key}`, operation);
     },
     async del(key: string): Promise<void> {
       mutate(state => {

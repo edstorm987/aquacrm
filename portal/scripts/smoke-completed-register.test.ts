@@ -52,6 +52,41 @@ describe("finished work leaves a record", () => {
     assert.equal(mod.listCompletedActions(AGENCY).length, 1);
   });
 
+  it("dedupes an exact operation but never collapses distinct operations", () => {
+    const first = mod.recordCompletedAction(AGENCY, {
+      operationId: "alert-done:one",
+      sourceId: "task:1",
+      title: "First occurrence",
+      outcome: "resolved",
+    }, 1_000_000);
+    const replay = mod.recordCompletedAction(AGENCY, {
+      operationId: "alert-done:one",
+      sourceId: "task:1",
+      title: "First occurrence",
+      outcome: "resolved",
+    }, 1_000_500);
+    const successor = mod.recordCompletedAction(AGENCY, {
+      operationId: "alert-done:two",
+      sourceId: "task:1",
+      title: "Second occurrence",
+      outcome: "resolved",
+    }, 1_000_500);
+    assert.equal(replay.id, first.id);
+    assert.notEqual(successor.id, first.id);
+    assert.equal(mod.listCompletedActions(AGENCY).length, 2);
+  });
+
+  it("hashes the complete operation identity instead of a display-length prefix", () => {
+    const prefix = "x".repeat(1_100);
+    const first = mod.recordCompletedAction(AGENCY, {
+      operationId: `${prefix}:one`, sourceId: "long:1", title: "One", outcome: "resolved",
+    });
+    const second = mod.recordCompletedAction(AGENCY, {
+      operationId: `${prefix}:two`, sourceId: "long:1", title: "Two", outcome: "resolved",
+    });
+    assert.notEqual(first.id, second.id);
+  });
+
   it("does log the same source completed again much later", () => {
     // A recurring job genuinely done twice is two pieces of work.
     const now = 1_000_000;
@@ -102,7 +137,8 @@ describe("completions are recorded where work actually finishes", () => {
 
   it("logs only the transition into done, not every save of a done task", () => {
     const route = read("src", "app", "api", "portal", "tasks", "route.ts");
-    assert.match(route, /safePatch\.status === "done" && existing\?\.status !== "done"/);
+    assert.match(route, /safePatch\.status === "done" && \(current\?\.status !== "done" \|\| operationId\)/);
+    assert.match(route, /current\?\.status === "done"[\s\S]{0,160}?already complete/);
   });
 
   it("shows no count badge on the Completed tab", () => {

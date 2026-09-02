@@ -48,6 +48,8 @@ import {
 } from "lucide-react";
 
 import type { AdvisorActionSuggestion } from "@/lib/advisor/advisorActions";
+import { isTaskMutationResult, taskCompleteOperationId } from "@/lib/client/actionsMutationTruth";
+import { checkedJsonMutation } from "@/lib/client/checkedMutation";
 import {
   ATTENTION_PROTECTION_EVENT,
   ATTENTION_PROTECTION_STORAGE_KEY,
@@ -1070,15 +1072,20 @@ export function DashboardCommandCenter({
     setTaskBusyId(taskId);
     setOperationError("");
     try {
-      const response = await fetch("/api/portal/tasks", {
+      const currentTask = taskRows.find(task => task.id === taskId);
+      if (!currentTask) throw new Error("The task is no longer available.");
+      const operationId = taskCompleteOperationId(taskId, currentTask.revision ?? 0);
+      const result = await checkedJsonMutation<{ ok?: boolean; error?: string; task?: AgencyTask; tasks?: AgencyTask[]; operationId?: string; replayed?: boolean }>("/api/portal/tasks", {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ id: taskId, status: "done" }),
-      });
-      const result = await response.json().catch(() => null) as { ok?: boolean; error?: string; task?: AgencyTask } | null;
-      if (!response.ok || !result?.ok || !result.task) throw new Error(result?.error || "The task could not be completed.");
-      setTaskRows(current => current.map(task => task.id === taskId ? result.task! : task));
-      setStatusMessage(`Completed “${result.task.title}”.`);
+        body: JSON.stringify({ id: taskId, status: "done", operationId, expectedRevision: currentTask.revision ?? 0 }),
+      }, { fallback: "The task could not be completed.", validate: value => isTaskMutationResult(value, taskId, {
+        status: "done",
+        operationId,
+        expectedRevision: currentTask.revision ?? 0,
+      }) });
+      setTaskRows(result.tasks as AgencyTask[]);
+      setStatusMessage(`Completed “${result.task!.title}”.`);
     } catch (error) {
       setOperationError(error instanceof Error ? error.message : "The task could not be completed.");
     } finally {

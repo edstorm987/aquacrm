@@ -69,14 +69,27 @@ describe("off-system work can be recorded as done", () => {
   });
 
   it("both records it and clears it from the queue", () => {
-    // Recording without clearing leaves the operator looking at work they
-    // have already finished.
-    assert.match(workspace, /markAttentionDone/);
-    assert.match(workspace, /updateAlert\(alertId, "dismiss"\)/);
+    // The completed endpoint now records and dismisses one occurrence in the
+    // same durable transaction. A second client-side update would split that
+    // decision and could resurrect the row after a lost acknowledgement.
+    const markDone = workspace.slice(
+      workspace.indexOf("async function markAttentionDone"),
+      workspace.indexOf("async function postponeTask"),
+    );
+    assert.match(markDone, /const dismissAlert = action\.origin === "inbox"/);
+    assert.match(markDone, /body: JSON\.stringify\(\{ operationId, dismissAlert,/);
+    assert.match(markDone, /setCrmIntake\(current => current\.filter/);
   });
 
   it("only clears the row once the server confirmed", () => {
-    assert.match(workspace, /if \(!result\.ok\) return;/);
+    const markDone = workspace.slice(
+      workspace.indexOf("async function markAttentionDone"),
+      workspace.indexOf("async function postponeTask"),
+    );
+    const confirmation = markDone.indexOf("await checkedJsonMutation");
+    const localRemoval = markDone.indexOf("setCrmIntake");
+    assert.ok(confirmation >= 0, "completion does not await the checked server contract");
+    assert.ok(localRemoval > confirmation, "the alert is removed before the server confirms completion");
   });
 
   it("records it against the alert so a repeat is recognisable", () => {

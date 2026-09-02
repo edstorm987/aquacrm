@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { before, beforeEach, test } from "node:test";
 import { NextRequest } from "next/server";
+import { taskCompleteOperationId } from "../src/lib/client/actionsMutationTruth";
 
 const require = createRequire(import.meta.url);
 const serverOnlyPath = require.resolve("server-only");
@@ -107,6 +108,39 @@ test("the real task create route rejects invalid enums and calendar chronology",
     { priority: payload.task.priority, recurrence: payload.task.recurrence, startAt: payload.task.startAt, dueAt: payload.task.dueAt },
     { priority: "high", recurrence: "weekly", startAt: 100, dueAt: 500 },
   );
+});
+
+test("concurrent completion and lost-success replay create one completion and one receipt", async () => {
+  const task = tasks.createAgencyTask({ agencyId, title: "Complete once", priority: "normal", createdBy: "owner" });
+  const operationId = taskCompleteOperationId(task.id, task.revision ?? 0);
+  const body = { id: task.id, status: "done", expectedRevision: task.revision ?? 0, operationId };
+  const [first, second] = await Promise.all([route.PATCH(request("PATCH", body)), route.PATCH(request("PATCH", body))]);
+  assert.equal(first.status, 200);
+  assert.equal(second.status, 200);
+  const replay = await route.PATCH(request("PATCH", body));
+  assert.equal(replay.status, 200);
+  const state = storage.getState();
+  assert.equal(Object.values(state.completedActions).filter(entry => entry.sourceId === task.id).length, 1);
+  assert.equal(Object.values(state.actionMutationReceipts).filter(entry => entry.operationId === operationId).length, 1);
+  assert.equal(state.tasks[task.id]?.status, "done");
+});
+
+test("already-done edits stay ordinary and stale completion cannot overwrite a reopened successor", async () => {
+  const task = tasks.createAgencyTask({ agencyId, title: "Edit later", priority: "normal", createdBy: "owner" });
+  const operationId = taskCompleteOperationId(task.id, task.revision ?? 0);
+  const done = await route.PATCH(request("PATCH", { id: task.id, status: "done", expectedRevision: task.revision ?? 0, operationId }));
+  assert.equal(done.status, 200);
+  assert.equal((await route.PATCH(request("PATCH", { id: task.id, status: "done", notes: "one" }))).status, 200);
+  assert.equal((await route.PATCH(request("PATCH", { id: task.id, status: "done", notes: "two" }))).status, 200);
+  assert.equal(Object.values(storage.getState().completedActions).filter(entry => entry.sourceId === task.id).length, 1);
+  assert.equal((await route.PATCH(request("PATCH", { id: task.id, status: "todo" }))).status, 200);
+  const stale = await route.PATCH(request("PATCH", { id: task.id, status: "done", expectedRevision: task.revision ?? 0, operationId }));
+  assert.notEqual(stale.status, 200);
+  assert.equal(storage.getState().tasks[task.id]?.status, "todo");
+  const successor = storage.getState().tasks[task.id]!;
+  const successorOperation = taskCompleteOperationId(task.id, successor.revision ?? 0);
+  assert.equal((await route.PATCH(request("PATCH", { id: task.id, status: "done", expectedRevision: successor.revision ?? 0, operationId: successorOperation }))).status, 200);
+  assert.notEqual((await route.PATCH(request("PATCH", { id: task.id, status: "done", expectedRevision: task.revision ?? 0, operationId }))).status, 200);
 });
 
 test("the real patch route validates the complete candidate before mutating", async () => {
@@ -219,7 +253,7 @@ test("recurrence produces another valid ordered calendar task", () => {
 test("Actions surfaces API validation errors and keeps calendar overlap checks", () => {
   const workspace = readFileSync("src/app/portal/agency/actions/_ActionsWorkspace.tsx", "utf8");
   assert.match(workspace, /const \[taskError, setTaskError\] = useState\(""\)/);
-  assert.match(workspace, /result\?\.error \|\| "The task could not be saved\."/);
+  assert.match(workspace, /mutationErrorMessage\(error, "The task could not be saved\."\)/);
   assert.match(workspace, /result\?\.error \|\| "The task could not be added\."/);
   assert.match(workspace, /\{taskError \? <p role="alert"/);
   assert.match(workspace, /reminderAt: input\.reminderAt \?\? \(editingTask \? 0 : undefined\)/);

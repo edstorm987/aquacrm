@@ -13,7 +13,12 @@ export type {
   SeedReport,
 } from "./plans";
 export { BenefitService } from "./benefits";
-export { SubscriptionService } from "./subscriptions";
+export {
+  MembershipCheckoutPendingReconciliationError,
+  MembershipLegacyOperationRecoveryError,
+  SubscriptionOperationConflictError,
+  SubscriptionService,
+} from "./subscriptions";
 export { WebhookService } from "./webhook";
 export type { WebhookHandleResult } from "./webhook";
 

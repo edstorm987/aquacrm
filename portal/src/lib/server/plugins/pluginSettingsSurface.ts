@@ -35,6 +35,7 @@ import {
 import type { IntegrationProvider } from "@/lib/integrations/catalog";
 import { pluginSettingsFields, vaultTargetOf, type PluginSecretScope } from "./pluginSecretConfig";
 import { describeSetupCompletion, type PluginSetupStatus } from "@/lib/plugins/pluginSetupStatus";
+import { numericSettingsValueError } from "@/built-ins/runtime/_numericSettings";
 
 export type PluginSettingsValue = string | number | boolean | null;
 
@@ -45,6 +46,9 @@ export interface PluginSettingsFieldView {
   helpText?: string;
   placeholder?: string;
   options?: { value: string; label: string }[];
+  min?: number;
+  max?: number;
+  step?: number;
   /** Ordinary fields only. A secret's value is NEVER echoed back. */
   value: PluginSettingsValue;
   secret: boolean;
@@ -123,6 +127,9 @@ export function describePluginSettings(
         ...(field.helpText ? { helpText: field.helpText } : {}),
         ...(field.placeholder ? { placeholder: field.placeholder } : {}),
         ...(field.options ? { options: field.options } : {}),
+        ...(field.min !== undefined ? { min: field.min } : {}),
+        ...(field.max !== undefined ? { max: field.max } : {}),
+        ...(field.step !== undefined ? { step: field.step } : {}),
       };
       if (field.type !== "password") {
         const stored = config[field.id];
@@ -276,7 +283,8 @@ function coerce(field: SettingsField, raw: unknown): unknown {
   switch (field.type) {
     case "number": {
       const value = typeof raw === "number" ? raw : Number(String(raw ?? "").trim());
-      if (!Number.isFinite(value)) throw new PluginSettingsError(`not_a_number:${field.id}`);
+      const error = numericSettingsValueError(value, field);
+      if (error) throw new PluginSettingsError(`${error}:${field.id}`);
       return value;
     }
     case "boolean":
@@ -285,6 +293,22 @@ function coerce(field: SettingsField, raw: unknown): unknown {
       const value = String(raw ?? "");
       const allowed = (field.options ?? []).map(option => option.value);
       if (!allowed.includes(value)) throw new PluginSettingsError(`not_an_option:${field.id}`);
+      return value;
+    }
+    case "url": {
+      const value = typeof raw === "string" ? raw.trim() : String(raw ?? "").trim();
+      if (!value || field.urlPolicy !== "same-origin-path") return value;
+      if (!value.startsWith("/") || value.startsWith("//")) {
+        throw new PluginSettingsError(`same_origin_path_required:${field.id}`);
+      }
+      try {
+        const resolved = new URL(value, "https://aqua.invalid/");
+        if (resolved.origin !== "https://aqua.invalid" || resolved.username || resolved.password) {
+          throw new Error("not same origin");
+        }
+      } catch {
+        throw new PluginSettingsError(`same_origin_path_required:${field.id}`);
+      }
       return value;
     }
     default:

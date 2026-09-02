@@ -433,6 +433,30 @@ export function withPortalStateTransaction<T>(
   return withMemoryLock(key, run);
 }
 
+/**
+ * Cross-process coordination for remote provider calls without opening a
+ * PortalState transaction. The provider lane may contain slow network I/O;
+ * state adoption should use a short withPortalStateTransaction inside it.
+ */
+export function withPortalProviderLease<T>(
+  key: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const backend = getBackendInfo().kind;
+  const lane = `provider:${key}`;
+  if (backend === "supabase" || backend === "postgres") {
+    return withRemoteLock(backend, lane, operation);
+  }
+  if (backend === "file") {
+    const path = getFileBackendDataPath();
+    if (path) {
+      const suffix = crypto.createHash("sha256").update(lane).digest("hex");
+      return withDevFileTransaction(`${path}.provider-${suffix}`, operation);
+    }
+  }
+  return withMemoryLock(lane, operation);
+}
+
 /** Reuse the same durable per-client lease for metadata ledgers that merge by item id. */
 export function withClientMetadataLedgerTransaction<T>(
   input: { agencyId: string; clientId: string; ledger: "requests" | "approvals" | "files" | "payment-plans" | "performance-reports" | "record" | "tasks" },

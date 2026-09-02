@@ -320,6 +320,8 @@ export interface PluginStorage {
   setIfAbsent?<T = unknown>(key: string, value: T): Promise<boolean>;
   /** Refresh, serialize and durably flush one logical mutation across application processes. */
   runExclusive?<T>(key: string, operation: () => Promise<T>): Promise<T>;
+  /** Serialize provider I/O across processes without holding a state transaction. */
+  runProviderExclusive?<T>(key: string, operation: () => Promise<T>): Promise<T>;
   del(key: string): Promise<void>;
   list(prefix?: string): Promise<string[]>;
 }
@@ -497,6 +499,11 @@ export interface SettingsField {
   options?: { value: string; label: string }[];
   helpText?: string;
   placeholder?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  /** URL value must be a site-relative path (one leading slash, never `//`). */
+  urlPolicy?: "same-origin-path";
   plans?: PlanId[];
   // WHERE a `password` field's value is stored. Required for every password
   // field (the registry validator refuses one without it), because the default

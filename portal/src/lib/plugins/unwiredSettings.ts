@@ -96,8 +96,12 @@
 // now declare 45 fields; 22 are consumed and 23 remain named below.
 // Fulfillment then connected its creation-stage default and checklist advance
 // gate, and removed two notification toggles because the module has no delivery
-// port behind them. Registered manifests now declare 43 fields; 24 are
-// consumed and 19 remain named below.
+// port behind them. Memberships then connected all four of its remaining
+// runtime settings across plan creation, billing return, member branding, and
+// annual cadence. A keyed-reader audit then exposed `client-crm/defaultTags`:
+// an unrelated Leads CSV FormData key had fooled the old repository-wide name
+// match. Registered manifests now declare 43 fields; 27 are consumed and 16
+// remain named below.
 
 export interface UnwiredSetting {
   pluginId: string;
@@ -121,16 +125,13 @@ export const UNWIRED_SETTINGS: readonly UnwiredSetting[] = [
   { pluginId: "agency-hr", fieldId: "defaultPtoDaysPerYear" },
   { pluginId: "agency-hr", fieldId: "canStaffEdit" },
   { pluginId: "client-crm", fieldId: "autoCreateOnSignup" },
+  { pluginId: "client-crm", fieldId: "defaultTags" },
   { pluginId: "client-crm", fieldId: "customAttributeSchema" },
   { pluginId: "ecommerce", fieldId: "stripePublishableKey" },
   { pluginId: "ecommerce", fieldId: "lowStockThreshold" },
   { pluginId: "leads-pipeline", fieldId: "defaultLeadSource" },
   { pluginId: "leads-pipeline", fieldId: "newColumnLabel" },
   { pluginId: "leads-pipeline", fieldId: "fromName" },
-  { pluginId: "memberships", fieldId: "billingPortalReturnUrl" },
-  { pluginId: "memberships", fieldId: "defaultTrialDays" },
-  { pluginId: "memberships", fieldId: "memberPortalHeading" },
-  { pluginId: "memberships", fieldId: "showAnnualToggle" },
   { pluginId: "public-funnel", fieldId: "redirectAfterCapture" },
   { pluginId: "public-funnel", fieldId: "issueSessionCookie" },
 ];

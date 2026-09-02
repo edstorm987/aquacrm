@@ -497,6 +497,73 @@ test("read, parked, dismissed, and changed alerts have durable attention semanti
   alertPreferences.setOperationalAlertPreference({ agencyId: agency.id, userId, alert, action: "dismiss", now });
   assert.equal(alertPreferences.listOperationalAlertViews(agency.id, userId, [alert], now).length, 0);
   assert.equal(alertPreferences.listOperationalAlertViews(agency.id, userId, [{ ...alert, occurredAt: now + 1 }], now + 1)[0].attention, true);
+
+  const sourceEpisode = { ...alert, id: "source-unavailable:website-enquiries", occurredAt: now, title: "Source unavailable" };
+  alertPreferences.setOperationalAlertPreference({ agencyId: agency.id, userId, alert: sourceEpisode, action: "dismiss", now });
+  assert.equal(alertPreferences.listOperationalAlertViews(agency.id, userId, [{ ...sourceEpisode }], now + 5_000).length, 0);
+  assert.equal(alertPreferences.listOperationalAlertViews(agency.id, userId, [{ ...sourceEpisode, occurredAt: now + 5_000 }], now + 5_000)[0].attention, true);
+  assert.equal(alertPreferences.listOperationalAlertViews(agency.id, userId, [{ ...sourceEpisode, detail: "A different failure" }], now)[0].attention, true);
+});
+
+test("website-enquiry outages retain one occurrence until recovery and recur afterwards", async () => {
+  await storage.reset();
+  const agency = tenants.createAgency({ name: "Source Episode", slug: "source-episode" });
+  installs.upsertInstall({
+    pluginId: "leads-pipeline",
+    scope: { agencyId: agency.id },
+    enabled: true,
+    config: {},
+    features: {},
+  });
+  const firstObservedAt = Date.parse("2026-08-12T09:00:00Z");
+  const failure = {
+    available: false,
+    data: [],
+    reason: "Website enquiries could not be checked. Retry before treating the enquiry queue as clear.",
+  };
+  const first = (await alerts.listOperationalAlerts(agency.id, firstObservedAt, { websiteEnquiries: failure }))
+    .find(item => item.id === "source-unavailable:website-enquiries");
+  const ongoing = (await alerts.listOperationalAlerts(agency.id, firstObservedAt + 5_000, { websiteEnquiries: failure }))
+    .find(item => item.id === "source-unavailable:website-enquiries");
+
+  assert.ok(first);
+  assert.ok(ongoing);
+  assert.equal(first.occurredAt, firstObservedAt);
+  assert.equal(ongoing.occurredAt, firstObservedAt, "polling the same outage reuses its durable start");
+  assert.equal(Object.keys(storage.getState().operationalAlertSourceEpisodes).length, 1);
+
+  const userId = "source-episode-owner";
+  alertPreferences.setOperationalAlertPreference({ agencyId: agency.id, userId, alert: first, action: "dismiss", now: firstObservedAt });
+  assert.equal(alertPreferences.listOperationalAlertViews(agency.id, userId, [ongoing], firstObservedAt + 5_000).length, 0);
+
+  const recovered = await alerts.listOperationalAlerts(agency.id, firstObservedAt + 10_000, {
+    websiteEnquiries: { available: true, data: [] },
+  });
+  assert.equal(recovered.some(item => item.id === "source-unavailable:website-enquiries"), false);
+  assert.equal(Object.keys(storage.getState().operationalAlertSourceEpisodes).length, 1, "recovery retains its last-observation cursor");
+  assert.equal(
+    storage.getState().operationalAlertSourceEpisodes[`${agency.id}|website-enquiries`]?.available,
+    true,
+    "a confirmed successful read closes the active episode",
+  );
+
+  const delayedOlderFailure = await alerts.listOperationalAlerts(agency.id, firstObservedAt + 5_000, {
+    websiteEnquiries: failure,
+  });
+  assert.equal(
+    delayedOlderFailure.some(item => item.id === "source-unavailable:website-enquiries"),
+    false,
+    "an older delayed worker resurrected an outage after a newer recovery",
+  );
+
+  const nextObservedAt = firstObservedAt + 15_000;
+  const successor = (await alerts.listOperationalAlerts(agency.id, nextObservedAt, { websiteEnquiries: failure }))
+    .find(item => item.id === "source-unavailable:website-enquiries");
+  assert.ok(successor);
+  assert.equal(successor.occurredAt, nextObservedAt, "the same failure after recovery starts a new occurrence");
+  const successorView = alertPreferences.listOperationalAlertViews(agency.id, userId, [successor], nextObservedAt);
+  assert.equal(successorView.length, 1);
+  assert.equal(successorView[0].attention, true, "the prior dismissal cannot suppress the later outage");
 });
 
 test("workspace tab destinations expose shared attention points", () => {

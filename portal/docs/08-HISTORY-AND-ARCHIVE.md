@@ -2,7 +2,7 @@
 
 > The append-only change record, dated handoffs and superseded historical summaries.
 >
-> Consolidated 2026-09-02 from **18** source documents / **131,139 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-02 from **18** source documents / **131,738 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -23,7 +23,7 @@
 - [`docs/context/archive/website-editor-and-migration.md`](#source-docs-context-archive-website-editor-and-migration-md) — 1,159 words · `235e8af731b6`
 - [`docs/context/archive/WHERE-WE-ARE-2026-08-18.md`](#source-docs-context-archive-where-we-are-2026-08-18-md) — 2,192 words · `4056e9a347cb`
 - [`docs/context/archive/WHERE-WE-STAND-2026-08-20.md`](#source-docs-context-archive-where-we-stand-2026-08-20-md) — 2,482 words · `26bf4442580e`
-- [`docs/development/updates.md`](#source-docs-development-updates-md) — 100,983 words · `f564054b3a09`
+- [`docs/development/updates.md`](#source-docs-development-updates-md) — 101,582 words · `5cfc5fc55b8c`
 
 ---
 
@@ -3318,7 +3318,7 @@ Being straight with you about the edges.
 
 ## Source document — `docs/development/updates.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="f564054b3a092dabe4a74c9d7b5c801c4fe02afc355ca6aae47a60d769a7bdd5" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="5cfc5fc55b8c7eb1ea6fcfbf92dfdd672ce1b0c87cb2322fb52736f818bb69d9" -->
 # Updates log
 
 ← Back to [development.md](../development.md) (the law)
@@ -3354,6 +3354,71 @@ map stays trustworthy.
 > If you ship something, log it.
 
 ---
+
+## 2026-09-02 — Final Actions and Memberships reliability checkpoint
+
+- **Actions completion:** task completion/delete, alert Mark Done and notification
+  read/unread/park/dismiss now use revision- or occurrence-bound deterministic
+  receipts, authoritative snapshots and atomic rollback/replay. Mounted Actions,
+  Today, Calendar, Dashboard, Team and notification controls retain refused work,
+  settle busy state and gate success on strict response contracts. The focused gate
+  passes **54/54** and independent review is clean; issue #47 stays partial only for
+  the other named mutation families and their acceptance matrix.
+- **Membership lifecycle and webhooks:** each mounted operation remains bound to its
+  archived canonical command and immutable provider terms after newer work. Every
+  retired Stripe generation is preserved; paid changes/cancellation hold one provider
+  lane through final authoritative adoption; pause/resume maps collection state; and
+  terminal cancellation is published once. Completed webhook delivery dedupes before
+  Stripe I/O, current provider state is re-read inside that same lane, exact Checkout
+  expiry cannot release another session, late generations are fenced, and a paid-
+  dominant invoice ledger records side-effect completion. Lifecycle is **16/16**,
+  webhooks **9/9**, focused Memberships **65/65**, adjacent Memberships/company/
+  Ecommerce **90/90** and the complete changed-surface gate **145/145**.
+- **Truthful settings:** all four Memberships declarations now affect runtime; the
+  source-derived inventory is **43 fields: 27 consumed / 16 unwired**. Remaining
+  unconsumed declarations stay open under #44 rather than being presented as done.
+- **Production build and browser:** exact build `bcNH7NEvlzmp6z1VXtmch` compiled in
+  **79s**, completed TypeScript in **41s** and generated **245/245** pages in
+  **416ms**. Playwright Chromium passed **40/40** stories, **10/10** at 390×844,
+  768×1024, 1024×768 and 1280×800, with zero unexpected console/page/network/
+  HTTP failures and zero overflow. A narrow tablet Actions title was polished,
+  rebuilt and rerun; source and all 37 retained `.data` files stayed unchanged during
+  the exact-build acceptance.
+- **Canonical repository gate:** `npm run smoke:all` ran **6,474 tests across 1,096
+  suites: 6,472 passed / 0 failed / 2 skipped in 84,567.504209ms**; Website Editor
+  then passed **49/49 files in 9.3s**. TypeScript and diff checks pass, and the authored
+  consolidated volumes were regenerated.
+- **Honest residuals:** live Stripe/provider delivery, deployed geo/CDN and cold-machine
+  timings, unapplied Supabase migrations, user-owned configuration decisions, the
+  remaining 16 settings and the other #47 mutation families are not converted into
+  false local-completion claims.
+- Reconciled [TODO](TODO.md), [issues #44/#47/#122/#123](issues.md),
+  [status](status.md) and [tests](tests.md); earlier entries below remain historical.
+
+## 2026-09-02 — Actions mutation recovery and Memberships settings truth
+
+- **Actions source/behaviour cohort:** task completion now binds the exact revision;
+  task deletion, attention completion and notification decisions carry deterministic
+  receipts, authoritative snapshots and stale-successor checks. The affected Actions,
+  Today, Calendar, Dashboard, Team and notification controls validate exact success,
+  retain refused state, settle busy indicators and expose retryable diagnostics.
+  Atomic route-recovery coverage includes competing decisions, lost acknowledgements,
+  long completion registers, cross-actor outcomes and commit rollback. Final aggregate
+  counts and the prepared mobile/desktop browser matrix remain part of the release
+  checkpoint, so issue #47 stays partial.
+- **Memberships settings:** all four formerly-unwired settings now have runtime
+  consumers: default trial days, the billing-portal return target, member-portal
+  heading and annual-cadence visibility. Whole-day bounds use the same exact numeric
+  grid at manifest/write/runtime layers; annual submission also requires the feature
+  and an eligible active plan. Provider navigation and subscription success envelopes
+  are strict, and checkout intent includes provider-affecting inputs plus expiry.
+  The keyed inventory is now **43 fields: 27 consumed / 16 unwired**; Memberships
+  is removed from #44's remaining list. The audit also restored
+  `client-crm/defaultTags` to the honest unwired set after the old repository-wide
+  name match confused it with an unrelated Leads CSV FormData key.
+- Reconciled [TODO](TODO.md), [issues #44/#47](issues.md), [status](status.md) and
+  [tests](tests.md). This entry records verified source/focused scope only; production
+  build, canonical full-suite and browser figures will be added after those gates run.
 
 ## 2026-09-02 — Canonical post-fix release evidence and documentation reconciliation
 

@@ -24,6 +24,8 @@ import {
   NotificationAttentionCoordinator,
   notificationActivationRefreshDue,
 } from "@/lib/intelligence/notificationAttentionCoordination";
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
+import { alertActionOperationId, alertOccurrenceKey, isAlertActionResult } from "@/lib/client/actionsMutationTruth";
 
 interface AttentionContextValue {
   alerts: OperationalAlertView[];
@@ -33,7 +35,17 @@ interface AttentionContextValue {
   error: string;
   setFocusProtectionEnabled: (enabled: boolean) => void;
   refreshAlerts: () => Promise<boolean>;
-  updateAlert: (alertId: string, action: OperationalAlertAction, parkedUntil?: number) => Promise<boolean>;
+  updateAlert: (
+    alertId: string,
+    action: OperationalAlertAction,
+    parkedUntil?: number,
+    expectation?: OperationalAlertMutationExpectation,
+  ) => Promise<boolean>;
+}
+
+export interface OperationalAlertMutationExpectation {
+  occurrenceKey: string;
+  causalVersion: number;
 }
 
 const AttentionContext = createContext<AttentionContextValue | null>(null);
@@ -165,30 +177,56 @@ export function NotificationAttentionProvider({
     return () => window.clearTimeout(timer);
   }, [alerts, refreshAlerts]);
 
-  async function updateAlert(alertId: string, action: OperationalAlertAction, parkedUntil?: number): Promise<boolean> {
+  async function updateAlert(
+    alertId: string,
+    action: OperationalAlertAction,
+    parkedUntil?: number,
+    expectation?: OperationalAlertMutationExpectation,
+  ): Promise<boolean> {
     if (!enabled) return false;
     const coordinator = coordinatorRef.current;
+    // Capture the authoritative occurrence before optimistic dismiss removes
+    // the alert from alertsRef. Performance mode deliberately starts the
+    // shared chrome with an empty alert snapshot; an Actions card therefore
+    // supplies the exact server-rendered occurrence it represents. Other
+    // surfaces refresh on demand when their local snapshot is unexpectedly
+    // empty.
+    let targetAlert = alertsRef.current.find(alert => alert.id === alertId);
+    if (!targetAlert && !expectation) {
+      await refreshAlerts();
+      targetAlert = alertsRef.current.find(alert => alert.id === alertId);
+    }
+    if (!targetAlert && !expectation) return false;
+    if (targetAlert && expectation && (
+      alertOccurrenceKey(targetAlert) !== expectation.occurrenceKey
+      || (targetAlert.causalVersion ?? 0) !== expectation.causalVersion
+    )) return false;
+    const expectedOccurrenceKey = expectation?.occurrenceKey ?? alertOccurrenceKey(targetAlert!);
+    const expectedVersion = expectation?.causalVersion ?? targetAlert?.causalVersion ?? 0;
+    if (coordinator.pendingAlertIds().includes(alertId)) return false;
     const mutation = coordinator.beginMutation(alertsRef.current, alertId, action, parkedUntil);
     setError("");
     commitAlerts(mutation.alerts);
     syncBusyAlerts();
     try {
-      const response = await fetch("/api/portal/notifications", {
+      const operationId = alertActionOperationId(alertId, action, expectedOccurrenceKey, expectedVersion, parkedUntil);
+      const payload = await checkedJsonMutation<{ ok?: boolean; operationId?: string; alertId?: string; action?: string; alerts?: OperationalAlertView[] }>("/api/portal/notifications", {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         keepalive: true,
-        body: JSON.stringify({ alertId, action, parkedUntil }),
+        body: JSON.stringify({ operationId, alertId, action, expectedOccurrenceKey, expectedVersion, parkedUntil }),
+      }, {
+        fallback: "The notification could not be updated.",
+        validate: result => isAlertActionResult(result, { operationId, alertId, action, expectedVersion, parkedUntil }),
       });
-      const payload = await response.json().catch(() => null) as { alerts?: OperationalAlertView[]; error?: string } | null;
-      if (!response.ok || !payload?.alerts) throw new Error(payload?.error || "The notification could not be updated.");
-      const result = coordinator.acceptMutation(mutation.token, alertsRef.current, scopeAlerts(payload.alerts));
+      const result = coordinator.acceptMutation(mutation.token, alertsRef.current, scopeAlerts(payload.alerts!));
       if (coordinator === coordinatorRef.current && result.applied) commitAlerts(result.alerts);
       return true;
     } catch (cause) {
       const result = coordinator.rejectMutation(mutation.token, alertsRef.current);
       if (coordinator === coordinatorRef.current && result.applied) commitAlerts(result.alerts);
       if (coordinator === coordinatorRef.current && result.exposeFailure) {
-        setError(cause instanceof Error ? cause.message : "The notification could not be updated.");
+        setError(mutationErrorMessage(cause, "The notification could not be updated."));
       }
       return false;
     } finally {

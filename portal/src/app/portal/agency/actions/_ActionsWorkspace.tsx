@@ -10,7 +10,7 @@ import {
   promoteForDeferrals,
   type ProtectedAttentionWindow,
 } from "@/lib/intelligence/attentionProtection";
-import { AttentionControls } from "@/components/attention/AttentionControls";
+import { AttentionControls, type AttentionBusyAction } from "@/components/attention/AttentionControls";
 import type { ResolutionKind } from "@/lib/inbox/resolutionExplain";
 import { EvidenceCard } from "@/components/attention/EvidenceCard";
 import { CompletedRegister } from "@/components/attention/CompletedRegister";
@@ -22,7 +22,8 @@ import { TaskTemplateModal } from "@/components/attention/TaskTemplates";
 import { TodayView } from "./_TodayView";
 import { dateInputValue, formatUkDate } from "@/lib/shared/formatDateTime";
 import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
-import type { AgencyTask, AgencyTaskOrigin, AgencyTaskPriority, AgencyTaskRecurrence, AgencyTaskStatus, CommandCalendarConnection, CommandCalendarEntry, CommandCalendarEntryType, CommandCalendarExternalEvent, CommandCalendarSource, ExternalAssistantActionProposal, PortalFormFieldDefinition, SopDocument } from "@/server/types";
+import { alertDoneOperationId, alertOccurrenceKey, isAttentionCompletionResult, isTaskDeleteResult, isTaskMutationResult, taskCompleteOperationId, taskDeleteOperationId } from "@/lib/client/actionsMutationTruth";
+import type { AgencyTask, AgencyTaskOrigin, AgencyTaskPriority, AgencyTaskRecurrence, AgencyTaskStatus, CommandCalendarConnection, CommandCalendarEntry, CommandCalendarEntryType, CommandCalendarExternalEvent, CommandCalendarSource, CompletedAction, ExternalAssistantActionProposal, PortalFormFieldDefinition, SopDocument } from "@/server/types";
 import { useNotificationAttention } from "@/components/chrome/NotificationAttentionProvider";
 import { PortalCustomFields, type PortalCustomFieldValues } from "@/components/forms/PortalCustomFields";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
@@ -54,6 +55,9 @@ export type GeneratedAction = {
    * above, which is the badge label ("Needs attention"), not a classification.
    */
   resolutionKind?: ResolutionKind;
+  causalVersion?: number;
+  /** Exact source-alert identity used by the server's causal mutation check. */
+  alertOccurrenceKey?: string;
 };
 
 export type TeamMember = { id: string; name: string; email: string };
@@ -137,6 +141,11 @@ export function ActionsWorkspace({
   const [taskError, setTaskError] = useState("");
   const [liveRecommendations, setLiveRecommendations] = useState(commandRecommendations);
   const [proposalBusyId, setProposalBusyId] = useState<string | null>(null);
+  const taskMutationIds = useRef(new Set<string>());
+  const [busyTaskIds, setBusyTaskIds] = useState<ReadonlySet<string>>(() => new Set());
+  const attentionMutationIds = useRef(new Set<string>());
+  const [attentionBusyById, setAttentionBusyById] = useState<ReadonlyMap<string, AttentionBusyAction>>(() => new Map());
+  const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
   const openTasks = tasks.filter(task => task.status !== "done");
   const sourceTasks = tasks.filter(task => source === "all" || taskOrigin(task) === source);
   const visibleTasks = useMemo(
@@ -219,26 +228,78 @@ export function ActionsWorkspace({
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "center" })));
   }, [editing, unifiedWindow]);
 
+  function beginTaskMutation(id: string): boolean {
+    if (taskMutationIds.current.has(id)) return false;
+    taskMutationIds.current.add(id);
+    setBusyTaskIds(new Set(taskMutationIds.current));
+    return true;
+  }
+
+  function finishTaskMutation(id: string): void {
+    taskMutationIds.current.delete(id);
+    setBusyTaskIds(new Set(taskMutationIds.current));
+  }
+
+  function beginAttentionMutation(alertId: string, action: AttentionBusyAction): boolean {
+    if (attentionMutationIds.current.has(alertId)) return false;
+    attentionMutationIds.current.add(alertId);
+    setAttentionBusyById(current => new Map(current).set(alertId, action));
+    return true;
+  }
+
+  function finishAttentionMutation(alertId: string): void {
+    attentionMutationIds.current.delete(alertId);
+    setAttentionBusyById(current => {
+      const next = new Map(current);
+      next.delete(alertId);
+      return next;
+    });
+  }
+
   async function patchTask(id: string, patch: Partial<AgencyTask>) {
+    if (!beginTaskMutation(id)) return;
     setTaskError("");
     try {
-      const response = await fetch("/api/portal/tasks", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id, ...patch }) });
-      const result = await response.json().catch(() => null) as { ok?: boolean; error?: string; field?: string; task?: AgencyTask; tasks?: AgencyTask[] } | null;
-      if (!response.ok || !result?.ok || !result.task) throw new Error(result?.error || "The task could not be saved.");
+      const currentTask = tasks.find(task => task.id === id);
+      const completing = patch.status === "done" && currentTask?.status !== "done";
+      const expectedRevision = currentTask?.revision ?? 0;
+      const operationId = completing ? taskCompleteOperationId(id, expectedRevision) : undefined;
+      const result = await checkedJsonMutation<{ ok?: boolean; task?: AgencyTask; tasks?: AgencyTask[]; operationId?: string; replayed?: boolean }>("/api/portal/tasks", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id, ...patch, operationId, expectedRevision }) }, {
+        fallback: "The task could not be saved.",
+        validate: payload => isTaskMutationResult(payload, id, {
+          status: patch.status,
+          operationId,
+          expectedRevision: completing ? expectedRevision : undefined,
+        }),
+      });
       setTasks(result.tasks ?? (current => current.map(task => task.id === id ? result.task as AgencyTask : task)));
       void attention?.refreshAlerts();
       router.refresh();
     } catch (error) {
-      setTaskError(error instanceof Error ? error.message : "The task could not be saved.");
+      setTaskError(mutationErrorMessage(error, "The task could not be saved."));
+    } finally {
+      finishTaskMutation(id);
     }
   }
 
   async function deleteTask(id: string) {
-    const response = await fetch(`/api/portal/tasks?id=${encodeURIComponent(id)}`, { method: "DELETE" });
-    if (response.ok) {
-      setTasks(current => current.filter(task => task.id !== id));
+    if (!beginTaskMutation(id)) return;
+    setDeletingTaskId(id);
+    setTaskError("");
+    try {
+      const operationId = taskDeleteOperationId(id);
+      const result = await checkedJsonMutation<{ ok?: boolean; taskId?: string; operationId?: string; tasks?: AgencyTask[] }>(`/api/portal/tasks?id=${encodeURIComponent(id)}&operationId=${encodeURIComponent(operationId)}`, { method: "DELETE" }, {
+        fallback: "The task could not be removed.",
+        validate: payload => isTaskDeleteResult(payload, id) && payload.operationId === operationId && Array.isArray(payload.tasks),
+      });
+      setTasks(result.tasks as AgencyTask[]);
       void attention?.refreshAlerts();
       router.refresh();
+    } catch (error) {
+      setTaskError(mutationErrorMessage(error, "The task could not be removed."));
+    } finally {
+      finishTaskMutation(id);
+      setDeletingTaskId(current => current === id ? null : current);
     }
   }
 
@@ -307,11 +368,34 @@ export function ActionsWorkspace({
   // item parked here is parked there too. Two independent stores would let the
   // same alert be live in one place and parked in the other.
   async function handleAttentionAction(action: GeneratedAction, kind: "park" | "dismiss", until?: number) {
-    const alertId = action.id.startsWith("attention:") ? action.id.slice("attention:".length) : action.id;
-    const ok = await notificationAttention?.updateAlert(alertId, kind, until);
-    // Only drop it from view once the server confirmed — otherwise a failed
-    // call silently looks like success and the item comes back on refresh.
-    if (ok) setCrmIntake(current => current.filter(item => item.id !== action.id));
+    const alertId = alertIdOf(action);
+    if (!beginAttentionMutation(alertId, kind)) return;
+    if (notificationAttention?.isAlertBusy(alertId)) {
+      finishAttentionMutation(alertId);
+      return;
+    }
+    setAcceptanceError("");
+    try {
+      const occurrenceKey = action.alertOccurrenceKey
+        ?? alertOccurrenceKey({
+          id: alertId,
+          title: action.title,
+          detail: action.detail,
+          href: action.href,
+          occurredAt: action.dueAt ?? 0,
+          kind: action.resolutionKind,
+        });
+      const ok = await notificationAttention?.updateAlert(alertId, kind, until, {
+        occurrenceKey,
+        causalVersion: action.causalVersion ?? 0,
+      });
+      // Only drop it from view once the server confirmed — otherwise a failed
+      // call silently looks like success and the item comes back on refresh.
+      if (ok) setCrmIntake(current => current.filter(item => item.id !== action.id));
+      else setAcceptanceError("The attention action could not be saved. The card is still here; try again.");
+    } finally {
+      finishAttentionMutation(alertId);
+    }
   }
 
   // Off-system work is finished elsewhere; all Aqua can do is record it.
@@ -320,19 +404,38 @@ export function ActionsWorkspace({
   // operator looking at work they have already done.
   async function markAttentionDone(action: GeneratedAction) {
     const alertId = alertIdOf(action);
-    setAddingSuggestionId(action.id);
+    if (!beginAttentionMutation(alertId, "mark-done")) return;
+    setAcceptanceError("");
     try {
-      const response = await fetch("/api/portal/attention/completed", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ sourceId: alertId, title: action.title, detail: action.detail }),
-      });
-      const result = await response.json() as { ok: boolean };
-      if (!result.ok) return;
-      await notificationAttention?.updateAlert(alertId, "dismiss");
+      const occurrenceKey = action.alertOccurrenceKey
+        ?? alertOccurrenceKey({
+          id: alertId,
+          title: action.title,
+          detail: action.detail,
+          href: action.href,
+          occurredAt: action.dueAt ?? 0,
+          kind: action.resolutionKind,
+        });
+      const dismissAlert = action.origin === "inbox";
+      const expectedVersion = action.causalVersion ?? 0;
+      const operationId = alertDoneOperationId(alertId, occurrenceKey, dismissAlert, expectedVersion);
+      await checkedJsonMutation<{ ok?: boolean; operationId?: string; alertId?: string; sourceId?: string; entry?: CompletedAction; completed?: CompletedAction[] }>("/api/portal/attention/completed", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ operationId, dismissAlert, expectedOccurrenceKey: occurrenceKey, expectedVersion, sourceId: alertId, title: action.title, detail: action.detail }),
+        }, {
+          fallback: "The completion could not be recorded.",
+          validate: payload => payload.operationId === operationId && payload.alertId === alertId && isAttentionCompletionResult(payload, alertId),
+        });
       setCrmIntake(current => current.filter(item => item.id !== action.id));
+      void attention?.refreshAlerts();
+      router.refresh();
+    } catch (error) {
+      setAcceptanceError(error instanceof Error
+        ? error.message
+        : "The action could not be completed. Try again.");
     } finally {
-      setAddingSuggestionId(null);
+      finishAttentionMutation(alertId);
     }
   }
 
@@ -457,6 +560,10 @@ export function ActionsWorkspace({
       editing={editing}
       addingId={addingSuggestionId}
       proposalBusyId={proposalBusyId}
+      busyTaskIds={busyTaskIds}
+      deletingTaskId={deletingTaskId}
+      attentionBusyActionFor={action => attentionBusyById.get(alertIdOf(action))
+        ?? (notificationAttention?.isAlertBusy(alertIdOf(action)) ? "saving" : undefined)}
       advisorConfigured={advisorConfigured}
       advisorBusy={advisorBusy}
       advisorError={advisorError}
@@ -475,7 +582,7 @@ export function ActionsWorkspace({
       {source === "radar" ? <CommandRecommendations recommendations={liveRecommendations} generatedAt={recommendationsGeneratedAt} addingId={addingSuggestionId} onAdd={suggestion => acceptSuggestion(suggestion, "radar")} /> : null}
       {source === "advisor" ? <ExternalAiProposalInbox proposals={externalProposals} team={team} busyId={proposalBusyId} onDecision={decideExternalProposal} /> : null}
       {source === "advisor" ? <AdvisorPanel configured={advisorConfigured} suggestions={advisorSuggestions} busy={advisorBusy} reviewedAt={advisorReviewedAt} error={advisorError} addingId={addingSuggestionId} onReview={requestAdvisorReview} onAdd={suggestion => acceptSuggestion(suggestion, "advisor")} onDismiss={id => setAdvisorSuggestions(current => current.filter(item => item.id !== id))} /> : null}
-      {source === "crm" ? <CrmIntake actions={crmIntake} addingId={addingSuggestionId} onAccept={acceptCrmAction} onAttentionAction={handleAttentionAction} onMarkDone={markAttentionDone} /> : null}
+      {source === "crm" ? <CrmIntake actions={crmIntake} addingId={addingSuggestionId} attentionBusyActionFor={action => attentionBusyById.get(alertIdOf(action)) ?? (notificationAttention?.isAlertBusy(alertIdOf(action)) ? "saving" : undefined)} onAccept={acceptCrmAction} onAttentionAction={handleAttentionAction} onMarkDone={markAttentionDone} /> : null}
       {source === "today" ? <TodayView
         tasks={tasks}
         entries={calendarEntries}
@@ -485,6 +592,7 @@ export function ActionsWorkspace({
         // upstream against alerts already accepted as tasks, so no double count.
         attentionActions={crmIntake.filter(action => action.origin === "inbox")}
         busyId={addingSuggestionId}
+        attentionBusyActionFor={action => attentionBusyById.get(alertIdOf(action)) ?? (notificationAttention?.isAlertBusy(alertIdOf(action)) ? "saving" : undefined)}
         onComplete={task => void completeTask(task)}
         onPostpone={(task, until) => void postponeTask(task, until)}
         // Both resolution paths kept intact: an alert clears through the
@@ -497,7 +605,7 @@ export function ActionsWorkspace({
 
       <section data-resolution-focus="task" aria-label="Accepted actions" className="grid gap-3">
         <div className="flex flex-wrap items-end justify-between gap-2 border-b border-black/10 pb-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-black/40">Accepted actions</p><h2 className="mt-1 text-lg font-semibold text-black/80">{`${sourceLabel(source)} tasks`}</h2></div><span className="text-xs text-black/40">{visibleTasks.length} shown</span></div>
-        {visibleTasks.map(task => <TaskCard key={task.id} task={task} team={team} clients={clients} sops={sops} customFields={taskCustomFields} expanded={editing === task.id} onToggle={() => setEditing(current => current === task.id ? null : task.id)} onPatch={patch => patchTask(task.id, patch)} onDelete={() => deleteTask(task.id)} />)}
+        {visibleTasks.map(task => <TaskCard key={task.id} task={task} team={team} clients={clients} sops={sops} customFields={taskCustomFields} busy={busyTaskIds.has(task.id)} deleting={deletingTaskId === task.id} expanded={editing === task.id} onToggle={() => setEditing(current => current === task.id ? null : task.id)} onPatch={patch => patchTask(task.id, patch)} onDelete={() => deleteTask(task.id)} />)}
         {!visibleTasks.length ? <div className="py-12 text-center"><Check className="mx-auto text-emerald-600" size={24} /><h2 className="mt-3 text-sm font-semibold text-black/70">No accepted tasks in this view</h2><p className="mt-1 text-xs text-black/42">Create one manually or approve a suggested task above.</p></div> : null}
       </section>
     </> : <CalendarView
@@ -513,6 +621,7 @@ export function ActionsWorkspace({
       onToday={() => setMonth(startOfMonth(new Date()))}
       onTaskCreated={task => setTasks(current => [task, ...current.filter(item => item.id !== task.id)])}
       onTaskUpdated={task => setTasks(current => current.map(item => item.id === task.id ? task : item))}
+      onTasksChange={setTasks}
       onEntriesChange={setCalendarEntries}
       onIntegrationChange={setCalendarIntegration}
     />}
@@ -548,6 +657,9 @@ function UnifiedActionQueue({
   editing,
   addingId,
   proposalBusyId,
+  busyTaskIds,
+  deletingTaskId,
+  attentionBusyActionFor,
   advisorConfigured,
   advisorBusy,
   advisorError,
@@ -571,6 +683,9 @@ function UnifiedActionQueue({
   editing: string | null;
   addingId: string | null;
   proposalBusyId: string | null;
+  busyTaskIds: ReadonlySet<string>;
+  deletingTaskId: string | null;
+  attentionBusyActionFor: (action: GeneratedAction) => AttentionBusyAction | undefined;
   advisorConfigured: boolean;
   advisorBusy: boolean;
   advisorError: string;
@@ -598,10 +713,10 @@ function UnifiedActionQueue({
     {window.protected ? <ActionReserveSummary window={window} onOpenSource={onOpenSource} /> : null}
     {advisorError ? <p role="alert" className="border-l-2 border-red-500 pl-3 text-xs leading-5 text-red-700">{advisorError}</p> : null}
     {window.focus.map(item => {
-      if (item.type === "task") return <TaskCard key={item.id} task={item.task} team={team} clients={clients} sops={sops} customFields={taskCustomFields} expanded={editing === item.id} onToggle={() => onEdit(item.id)} onPatch={patch => onPatch(item.id, patch)} onDelete={() => onDelete(item.id)} />;
+      if (item.type === "task") return <TaskCard key={item.id} task={item.task} team={team} clients={clients} sops={sops} customFields={taskCustomFields} busy={busyTaskIds.has(item.id)} deleting={deletingTaskId === item.id} expanded={editing === item.id} onToggle={() => onEdit(item.id)} onPatch={patch => onPatch(item.id, patch)} onDelete={() => onDelete(item.id)} />;
       if (item.type === "suggestion") return <UnifiedSuggestionCard key={item.id} suggestion={item.suggestion} source={item.source} busy={addingId === item.id} onAccept={() => onAcceptSuggestion(item.suggestion, item.source)} onDismiss={item.source === "advisor" ? () => onDismissAdvisor(item.id) : undefined} />;
       if (item.type === "proposal") return <ExternalProposalRow key={item.id} proposal={item.proposal} team={team} busy={proposalBusyId === item.id} onDecision={onProposalDecision} unified />;
-      return <UnifiedCrmCard key={item.id} action={item.action} busy={addingId === item.id} onAccept={() => onAcceptCrm(item.action)} onAttentionAction={onAttentionAction} onMarkDone={onMarkDone} />;
+      return <UnifiedCrmCard key={item.id} action={item.action} accepting={addingId === item.id} attentionBusyAction={attentionBusyActionFor(item.action)} onAccept={() => onAcceptCrm(item.action)} onAttentionAction={onAttentionAction} onMarkDone={onMarkDone} />;
     })}
     {!window.focus.length ? <div className="rounded-lg border border-dashed border-black/12 bg-white py-12 text-center"><Check className="mx-auto text-emerald-600" size={24} /><h2 className="mt-3 text-sm font-semibold text-black/70">The unified queue is clear</h2><p className="mt-1 text-xs text-black/42">New tasks and approval candidates will be ranked here automatically.</p></div> : null}
   </section>;
@@ -629,7 +744,7 @@ function UnifiedSuggestionCard({ suggestion, source, busy, onAccept, onDismiss }
   </article>;
 }
 
-function UnifiedCrmCard({ action, busy, onAccept, onAttentionAction, onMarkDone }: { action: GeneratedAction; busy: boolean; onAccept: () => void; onAttentionAction?: (action: GeneratedAction, kind: "park" | "dismiss", until?: number) => Promise<void>; onMarkDone?: (action: GeneratedAction) => Promise<void> }) {
+function UnifiedCrmCard({ action, accepting, attentionBusyAction, onAccept, onAttentionAction, onMarkDone }: { action: GeneratedAction; accepting: boolean; attentionBusyAction?: AttentionBusyAction; onAccept: () => void; onAttentionAction?: (action: GeneratedAction, kind: "park" | "dismiss", until?: number) => Promise<void>; onMarkDone?: (action: GeneratedAction) => Promise<void> }) {
   const [showEvidence, setShowEvidence] = useState(false);
   const alertId = alertIdOf(action);
   return <article data-resolution-record={action.id} className={`mm-surface-card mm-hover-lift scroll-mt-24 rounded-lg border bg-white transition ${action.priority === "urgent" ? "border-red-200" : "border-black/10"}`}>
@@ -637,24 +752,22 @@ function UnifiedCrmCard({ action, busy, onAccept, onAttentionAction, onMarkDone 
       <span className="grid size-9 place-items-center rounded-md bg-sky-50 text-sky-700"><Workflow size={16} /></span>
       <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="text-sm text-black/82">{action.title}</strong><SourceBadge origin={action.origin ?? "crm"} /><Pill>{action.kind}</Pill><Priority value={action.priority} /><DeferralNote deferrals={action.deferrals} firstDeferredAt={action.firstDeferredAt} /><ApprovalBadge /></div><p className="mt-1 text-xs leading-5 text-black/48">{action.detail}{action.dueAt ? ` · Due ${formatUkDate(action.dueAt, { day: "numeric", month: "short" })}` : ""}</p></div>
       <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-        {/* Inbox work carries the same controls it has in Master Inbox.
-            The operator should not have to learn a second set of buttons for
-            the same job depending on which screen they opened it from. */}
-        {/* Every generated action carries the same controls. A pipeline signal
-            is no less actionable than an inbox one, and giving it only a
-            "Source" link made half the queue feel like a dead end. */}
-        <AttentionControls
+        {/* Only operational inbox alerts can be parked or dismissed. Pipeline
+            signals have no alert-store record, so presenting those controls
+            would promise mutations the server cannot perform. */}
+        {action.origin === "inbox" ? <AttentionControls
           title={action.title}
           kind={action.resolutionKind ?? "in-app"}
           resolveHref={action.href}
-          busy={busy}
+          busy={accepting}
+          busyAction={attentionBusyAction}
           evidenceOpen={showEvidence}
           onToggleEvidence={() => setShowEvidence(open => !open)}
           onMarkDone={onMarkDone ? () => void onMarkDone(action) : undefined}
           onPark={onAttentionAction ? (until: number) => void onAttentionAction(action, "park", until) : undefined}
           onDismiss={onAttentionAction ? () => void onAttentionAction(action, "dismiss") : undefined}
-        />
-        <button type="button" onClick={onAccept} disabled={busy} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-brand px-3 text-xs font-semibold text-white disabled:opacity-55">{busy ? <LoaderCircle className="animate-spin" size={13} /> : <Check size={13} />}{busy ? "Accepting..." : "Accept"}</button>
+        /> : <Link href={action.href} className="inline-flex min-h-9 items-center gap-1.5 px-2 text-xs font-medium text-black/50 hover:text-black">Open source <ArrowUpRight size={13} /></Link>}
+        <button type="button" onClick={onAccept} disabled={accepting || Boolean(attentionBusyAction)} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-brand px-3 text-xs font-semibold text-white disabled:opacity-55">{accepting ? <LoaderCircle className="animate-spin" size={13} /> : <Check size={13} />}{accepting ? "Accepting..." : "Accept"}</button>
       </div>
     </div>
   </article>;
@@ -664,13 +777,13 @@ function ApprovalBadge() {
   return <span title="This is a recommendation, not committed work. Accept it to assign ownership and track resolution." className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700"><Info size={10} />Approval required</span>;
 }
 
-function CrmIntake({ actions, addingId, onAccept, onAttentionAction, onMarkDone }: { actions: GeneratedAction[]; addingId: string | null; onAccept: (action: GeneratedAction) => void; onAttentionAction?: (action: GeneratedAction, kind: "park" | "dismiss", until?: number) => Promise<void>; onMarkDone?: (action: GeneratedAction) => Promise<void> }) {
+function CrmIntake({ actions, addingId, attentionBusyActionFor, onAccept, onAttentionAction, onMarkDone }: { actions: GeneratedAction[]; addingId: string | null; attentionBusyActionFor: (action: GeneratedAction) => AttentionBusyAction | undefined; onAccept: (action: GeneratedAction) => void; onAttentionAction?: (action: GeneratedAction, kind: "park" | "dismiss", until?: number) => Promise<void>; onMarkDone?: (action: GeneratedAction) => Promise<void> }) {
   return <section aria-labelledby="crm-intake-heading" className="overflow-hidden rounded-lg border border-sky-200/70 bg-white">
     <header className="flex flex-wrap items-start justify-between gap-3 border-b border-sky-100 bg-sky-50/55 px-4 py-4 sm:px-5">
       <div className="flex min-w-0 items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-md bg-sky-100 text-sky-700"><Workflow size={18} /></span><div><p className="text-xs font-semibold uppercase tracking-wide text-sky-700">CRM intake</p><h2 id="crm-intake-heading" className="mt-1 text-lg font-semibold text-black/82">{actions.length} live signal{actions.length === 1 ? "" : "s"} awaiting approval</h2><p className="mt-1 text-xs leading-5 text-black/48">AquaCRM can spot the work, but it does not enter your committed list until you accept it.</p></div></div>
       <Pill>Approval required</Pill>
     </header>
-    <div className="divide-y divide-black/[0.07]">{actions.map(action => <GeneratedCard key={action.id} action={action} busy={addingId === action.id} onAccept={() => onAccept(action)} onAttentionAction={onAttentionAction} onMarkDone={onMarkDone} />)}{!actions.length ? <div className="px-5 py-7 text-center"><Check className="mx-auto text-emerald-600" size={20} /><p className="mt-2 text-sm font-semibold text-black/68">CRM intake is clear</p><p className="mt-1 text-xs text-black/42">New follow-ups and workspace signals will wait here for your approval.</p></div> : null}</div>
+    <div className="divide-y divide-black/[0.07]">{actions.map(action => <GeneratedCard key={action.id} action={action} accepting={addingId === action.id} attentionBusyAction={attentionBusyActionFor(action)} onAccept={() => onAccept(action)} onAttentionAction={onAttentionAction} onMarkDone={onMarkDone} />)}{!actions.length ? <div className="px-5 py-7 text-center"><Check className="mx-auto text-emerald-600" size={20} /><p className="mt-2 text-sm font-semibold text-black/68">CRM intake is clear</p><p className="mt-1 text-xs text-black/42">New follow-ups and workspace signals will wait here for your approval.</p></div> : null}</div>
   </section>;
 }
 
@@ -811,22 +924,22 @@ function AdvisorPanel({ configured, suggestions, busy, reviewedAt, error, adding
   </section>;
 }
 
-function TaskCard({ task, team, clients, sops, customFields, expanded, onToggle, onPatch, onDelete }: { task: AgencyTask; team: TeamMember[]; clients: ActionClient[]; sops: SopDocument[]; customFields: PortalFormFieldDefinition[]; expanded: boolean; onToggle: () => void; onPatch: (patch: Partial<AgencyTask>) => void; onDelete: () => void }) {
+function TaskCard({ task, team, clients, sops, customFields, busy, deleting, expanded, onToggle, onPatch, onDelete }: { task: AgencyTask; team: TeamMember[]; clients: ActionClient[]; sops: SopDocument[]; customFields: PortalFormFieldDefinition[]; busy: boolean; deleting: boolean; expanded: boolean; onToggle: () => void; onPatch: (patch: Partial<AgencyTask>) => void; onDelete: () => void }) {
   const owner = team.find(member => member.id === task.assigneeUserId);
   const client = clients.find(item => item.id === task.clientId);
   const attachedSops = sops.filter(sop => task.sopIds?.includes(sop.id));
   const isOverdue = task.status !== "done" && task.dueAt && task.dueAt < startOfDay(Date.now());
   return <article id={`task-${task.id}`} className={`mm-surface-card mm-hover-lift scroll-mt-24 rounded-lg border bg-white transition target:border-cyan-300 target:ring-2 target:ring-cyan-100 ${isOverdue ? "border-red-200" : "border-black/10"}`}>
     <div className="grid min-h-20 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 p-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:p-4">
-      <button type="button" onClick={() => onPatch({ status: task.status === "done" ? "todo" : "done" })} title={task.status === "done" ? "Reopen task" : "Complete task"} className={`grid size-9 place-items-center rounded-full border ${task.status === "done" ? "border-emerald-600 bg-emerald-600 text-white" : "border-black/15 text-transparent hover:text-black/25"}`}><Check size={16} /></button>
+      <button type="button" disabled={busy} onClick={() => onPatch({ status: task.status === "done" ? "todo" : "done" })} title={task.status === "done" ? "Reopen task" : "Complete task"} className={`grid size-9 place-items-center rounded-full border disabled:opacity-45 ${task.status === "done" ? "border-emerald-600 bg-emerald-600 text-white" : "border-black/15 text-transparent hover:text-black/25"}`}>{busy ? <LoaderCircle size={16} className="animate-spin text-black/45" /> : <Check size={16} />}</button>
       <button type="button" onClick={onToggle} className="min-w-0 text-left"><span className="flex flex-wrap items-center gap-2"><strong className={`text-sm ${task.status === "done" ? "text-black/40 line-through" : "text-black/82"}`}>{task.title}</strong><SourceBadge origin={taskOrigin(task)} /><Priority value={task.priority} />{task.status === "in-progress" ? <Pill>In progress</Pill> : null}{task.reconciliation ? <ReconciliationBadge status={task.reconciliation.status} /> : null}{attachedSops.length ? <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-medium text-teal-700"><BookOpen size={11} />{attachedSops.length} {attachedSops.length === 1 ? "SOP" : "SOPs"}</span> : null}</span><span className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-black/45">{client ? <span className="inline-flex items-center gap-1 font-medium text-sky-700"><Building2 size={13} />{client.name}</span> : null}{owner ? <span className="inline-flex items-center gap-1"><UserRound size={13} />{owner.name}</span> : <span>Unassigned</span>}{task.startAt || task.dueAt ? <span className={`inline-flex items-center gap-1 ${isOverdue ? "font-medium text-red-700" : ""}`}><Clock3 size={13} />{dateRange(task.startAt, task.dueAt)}</span> : <span>No date</span>}{task.reminderAt ? <span className="inline-flex items-center gap-1"><Bell size={12} />{formatDateTime(task.reminderAt)}</span> : null}{task.recurrence ? <span className="inline-flex items-center gap-1 capitalize"><Repeat2 size={12} />{task.recurrence}</span> : null}</span></button>
       <button type="button" onClick={onToggle} className="col-start-2 inline-flex w-fit items-center gap-1.5 rounded-md border border-black/10 px-3 py-2 text-xs font-medium text-black/55 sm:col-start-auto">{expanded ? <X size={13} /> : <Pencil size={13} />}{expanded ? "Close" : "Edit"}</button>
     </div>
-    {expanded ? <TaskEditor task={task} team={team} clients={clients} sops={sops} customFields={customFields} onPatch={onPatch} onDelete={onDelete} /> : null}
+    {expanded ? <TaskEditor task={task} team={team} clients={clients} sops={sops} customFields={customFields} busy={busy} deleting={deleting} onPatch={onPatch} onDelete={onDelete} /> : null}
   </article>;
 }
 
-function TaskEditor({ task, team, clients, sops, customFields, onPatch, onDelete }: { task: AgencyTask; team: TeamMember[]; clients: ActionClient[]; sops: SopDocument[]; customFields: PortalFormFieldDefinition[]; onPatch: (patch: Partial<AgencyTask>) => void; onDelete: () => void }) {
+function TaskEditor({ task, team, clients, sops, customFields, busy, deleting, onPatch, onDelete }: { task: AgencyTask; team: TeamMember[]; clients: ActionClient[]; sops: SopDocument[]; customFields: PortalFormFieldDefinition[]; busy: boolean; deleting: boolean; onPatch: (patch: Partial<AgencyTask>) => void; onDelete: () => void }) {
   const [draft, setDraft] = useState({ title: task.title, notes: task.notes ?? "", status: task.status, priority: task.priority, assigneeUserId: task.assigneeUserId ?? "", clientId: task.clientId ?? "", startAt: dateInput(task.startAt), dueAt: dateInput(task.dueAt), reminderAt: dateTimeInput(task.reminderAt), recurrence: task.recurrence ?? "none" as AgencyTaskRecurrence, sopIds: task.sopIds ?? [], customFields: task.customFields ?? {} as PortalCustomFieldValues });
   return <div className="grid gap-3 border-t border-black/10 bg-black/[0.015] p-4">
     <input value={draft.title} onChange={event => setDraft(current => ({ ...current, title: event.target.value }))} className="min-h-10 rounded-md border border-black/15 bg-white px-3 text-sm font-medium" />
@@ -853,20 +966,20 @@ function TaskEditor({ task, team, clients, sops, customFields, onPatch, onDelete
       </div>
     </section> : null}
     <SopPicker sops={sops} selected={draft.sopIds} onChange={sopIds => setDraft(current => ({ ...current, sopIds }))} />
-    <div className="flex justify-between gap-3"><button type="button" onClick={onDelete} className="inline-flex min-h-10 items-center gap-2 px-2 text-xs font-medium text-red-700"><Trash2 size={14} />Delete</button><button type="button" onClick={() => onPatch({ title: draft.title, notes: draft.notes, status: draft.status, priority: draft.priority, assigneeUserId: draft.assigneeUserId, clientId: draft.clientId, startAt: toTimestamp(draft.startAt), dueAt: toTimestamp(draft.dueAt, true), reminderAt: toDateTimeTimestamp(draft.reminderAt) ?? 0, recurrence: draft.recurrence, sopIds: draft.sopIds, customFields: draft.customFields })} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-xs font-semibold text-white"><Save size={14} /> Save changes</button></div>
+    <div className="flex justify-between gap-3"><button type="button" disabled={busy} onClick={onDelete} className="inline-flex min-h-10 items-center gap-2 px-2 text-xs font-medium text-red-700 disabled:opacity-45">{deleting ? <LoaderCircle size={14} className="animate-spin" /> : <Trash2 size={14} />}{deleting ? "Deleting…" : "Delete"}</button><button type="button" disabled={busy} onClick={() => onPatch({ title: draft.title, notes: draft.notes, status: draft.status, priority: draft.priority, assigneeUserId: draft.assigneeUserId, clientId: draft.clientId, startAt: toTimestamp(draft.startAt), dueAt: toTimestamp(draft.dueAt, true), reminderAt: toDateTimeTimestamp(draft.reminderAt) ?? 0, recurrence: draft.recurrence, sopIds: draft.sopIds, customFields: draft.customFields })} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-xs font-semibold text-white disabled:opacity-45">{busy && !deleting ? <LoaderCircle size={14} className="animate-spin" /> : <Save size={14} />}{busy && !deleting ? "Saving…" : "Save changes"}</button></div>
   </div>;
 }
 
-function GeneratedCard({ action, busy, onAccept, onAttentionAction, onMarkDone }: { action: GeneratedAction; busy: boolean; onAccept: () => void; onAttentionAction?: (action: GeneratedAction, kind: "park" | "dismiss", until?: number) => Promise<void>; onMarkDone?: (action: GeneratedAction) => Promise<void> }) {
+function GeneratedCard({ action, accepting, attentionBusyAction, onAccept, onAttentionAction, onMarkDone }: { action: GeneratedAction; accepting: boolean; attentionBusyAction?: AttentionBusyAction; onAccept: () => void; onAttentionAction?: (action: GeneratedAction, kind: "park" | "dismiss", until?: number) => Promise<void>; onMarkDone?: (action: GeneratedAction) => Promise<void> }) {
   const [showEvidence, setShowEvidence] = useState(false);
   const alertId = action.id.startsWith("attention:") ? action.id.slice("attention:".length) : action.id;
   return <div data-resolution-record={action.id} className="scroll-mt-24">
-    <article className="grid gap-3 scroll-mt-24 px-4 py-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:px-5"><span className={`grid size-9 place-items-center rounded-md ${action.priority === "urgent" ? "bg-red-50 text-red-600" : action.priority === "high" ? "bg-amber-50 text-amber-700" : "bg-sky-50 text-sky-700"}`}><Workflow size={15} /></span><div className="min-w-0"><span className="flex flex-wrap items-center gap-2"><strong className="text-sm text-black/82">{action.title}</strong><Pill>{action.kind}</Pill><Priority value={action.priority} /><DeferralNote deferrals={action.deferrals} firstDeferredAt={action.firstDeferredAt} /></span><p className="mt-1 text-xs leading-5 text-black/45">{action.detail}{action.dueAt ? ` · ${formatUkDate(action.dueAt, { dateStyle: "medium" })}` : ""}</p></div><div className="col-start-2 flex flex-wrap items-center gap-2 sm:col-start-auto sm:justify-end">{action.origin === "inbox" ? <AttentionControls title={action.title} kind={action.resolutionKind ?? "in-app"} resolveHref={action.href} busy={busy} evidenceOpen={showEvidence} onToggleEvidence={() => setShowEvidence(open => !open)} onMarkDone={() => void onMarkDone?.(action)} onPark={(until: number) => void onAttentionAction?.(action, "park", until)} onDismiss={() => void onAttentionAction?.(action, "dismiss")} /> : <Link href={action.href} className="inline-flex min-h-9 items-center gap-1.5 px-2 text-xs font-medium text-black/50 hover:text-black">Open source <ArrowUpRight size={13} /></Link>}<button type="button" onClick={onAccept} disabled={busy} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-brand px-3 text-xs font-semibold text-white disabled:opacity-55">{busy ? <LoaderCircle className="animate-spin" size={13} /> : <Check size={13} />}{busy ? "Accepting..." : "Accept task"}</button></div></article>
+    <article className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3 scroll-mt-24 px-4 py-4 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center lg:px-5"><span className={`grid size-9 place-items-center rounded-md ${action.priority === "urgent" ? "bg-red-50 text-red-600" : action.priority === "high" ? "bg-amber-50 text-amber-700" : "bg-sky-50 text-sky-700"}`}><Workflow size={15} /></span><div className="min-w-0"><span className="flex flex-wrap items-center gap-2"><strong className="text-sm text-black/82">{action.title}</strong><Pill>{action.kind}</Pill><Priority value={action.priority} /><DeferralNote deferrals={action.deferrals} firstDeferredAt={action.firstDeferredAt} /></span><p className="mt-1 text-xs leading-5 text-black/45">{action.detail}{action.dueAt ? ` · ${formatUkDate(action.dueAt, { dateStyle: "medium" })}` : ""}</p></div><div className="col-start-2 flex flex-wrap items-center gap-2 lg:col-start-auto lg:justify-end">{action.origin === "inbox" ? <AttentionControls title={action.title} kind={action.resolutionKind ?? "in-app"} resolveHref={action.href} busy={accepting} busyAction={attentionBusyAction} evidenceOpen={showEvidence} onToggleEvidence={() => setShowEvidence(open => !open)} onMarkDone={() => void onMarkDone?.(action)} onPark={(until: number) => void onAttentionAction?.(action, "park", until)} onDismiss={() => void onAttentionAction?.(action, "dismiss")} /> : <Link href={action.href} className="inline-flex min-h-9 items-center gap-1.5 px-2 text-xs font-medium text-black/50 hover:text-black">Open source <ArrowUpRight size={13} /></Link>}<button type="button" onClick={onAccept} disabled={accepting || Boolean(attentionBusyAction)} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-brand px-3 text-xs font-semibold text-white disabled:opacity-55">{accepting ? <LoaderCircle className="animate-spin" size={13} /> : <Check size={13} />}{accepting ? "Accepting..." : "Accept task"}</button></div></article>
     {showEvidence ? <div className="border-t border-black/[0.07] bg-black/[0.012]"><EvidenceCard alertId={alertId} fallback={{ title: action.title, detail: action.detail, href: action.href }} /></div> : null}
   </div>;
 }
 
-function CalendarView({ month, tasks, actions, entries, integration, team, customFields, onNavigate, onToday, onTaskCreated, onTaskUpdated, onEntriesChange, onIntegrationChange }: { month: Date; tasks: AgencyTask[]; actions: GeneratedAction[]; entries: CommandCalendarEntry[]; integration: CalendarIntegrationState; team: TeamMember[]; clients: ActionClient[]; customFields: PortalFormFieldDefinition[]; onNavigate: (months: number) => void; onToday: () => void; onTaskCreated: (task: AgencyTask) => void; onTaskUpdated: (task: AgencyTask) => void; onEntriesChange: React.Dispatch<React.SetStateAction<CommandCalendarEntry[]>>; onIntegrationChange: React.Dispatch<React.SetStateAction<CalendarIntegrationState>> }) {
+function CalendarView({ month, tasks, actions, entries, integration, team, customFields, onNavigate, onToday, onTaskCreated, onTaskUpdated, onTasksChange, onEntriesChange, onIntegrationChange }: { month: Date; tasks: AgencyTask[]; actions: GeneratedAction[]; entries: CommandCalendarEntry[]; integration: CalendarIntegrationState; team: TeamMember[]; clients: ActionClient[]; customFields: PortalFormFieldDefinition[]; onNavigate: (months: number) => void; onToday: () => void; onTaskCreated: (task: AgencyTask) => void; onTaskUpdated: (task: AgencyTask) => void; onTasksChange: React.Dispatch<React.SetStateAction<AgencyTask[]>>; onEntriesChange: React.Dispatch<React.SetStateAction<CommandCalendarEntry[]>>; onIntegrationChange: React.Dispatch<React.SetStateAction<CalendarIntegrationState>> }) {
   const router = useRouter();
   const [selectedDate, setSelectedDate] = useState(dateKey(Date.now()));
   const [quarterMode, setQuarterMode] = useState(false);
@@ -874,6 +987,8 @@ function CalendarView({ month, tasks, actions, entries, integration, team, custo
   const [editingEntry, setEditingEntry] = useState<CommandCalendarEntry | null>(null);
   const [editingTask, setEditingTask] = useState<AgencyTask | null>(null);
   const [busy, setBusy] = useState(false);
+  const completingItemIds = useRef(new Set<string>());
+  const [busyCompletionIds, setBusyCompletionIds] = useState<ReadonlySet<string>>(() => new Set());
   const [error, setError] = useState("");
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -1017,6 +1132,9 @@ function CalendarView({ month, tasks, actions, entries, integration, team, custo
   }
 
   async function completeItem(item: CommandCalendarEntry | AgencyTask) {
+    if (completingItemIds.current.has(item.id)) return;
+    completingItemIds.current.add(item.id);
+    setBusyCompletionIds(new Set(completingItemIds.current));
     setIntegrationError("");
     try {
       if ("type" in item) {
@@ -1026,19 +1144,29 @@ function CalendarView({ month, tasks, actions, entries, integration, team, custo
         });
         onEntriesChange(current => current.map(entry => entry.id === item.id ? result.entry! : entry)); router.refresh();
       } else {
-        const result = await checkedJsonMutation<{ ok?: boolean; task?: AgencyTask }>("/api/portal/tasks", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: item.id, status: item.status === "done" ? "todo" : "done" }) }, {
+        const status = item.status === "done" ? "todo" : "done";
+        const operationId = status === "done" ? taskCompleteOperationId(item.id, item.revision ?? 0) : undefined;
+        const result = await checkedJsonMutation<{ ok?: boolean; task?: AgencyTask; tasks?: AgencyTask[]; operationId?: string; replayed?: boolean }>("/api/portal/tasks", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: item.id, status, operationId, expectedRevision: item.revision ?? 0 }) }, {
           fallback: "Task could not be updated.",
-          validate: value => value.ok === true && Boolean(value.task),
+          validate: value => isTaskMutationResult(value, item.id, {
+            status,
+            operationId,
+            expectedRevision: status === "done" ? item.revision ?? 0 : undefined,
+          }),
         });
-        onTaskUpdated(result.task!); router.refresh();
+        onTasksChange(result.tasks as AgencyTask[]); router.refresh();
       }
     } catch (cause) { setIntegrationError(mutationErrorMessage(cause, "The item could not be updated.")); }
+    finally {
+      completingItemIds.current.delete(item.id);
+      setBusyCompletionIds(new Set(completingItemIds.current));
+    }
   }
 
   return <section className="mm-actions-calendar rounded-lg border border-black/10 bg-white p-3 sm:p-4" data-calendar-surface="command">
     <div className="mm-actions-calendar-toolbar flex flex-wrap items-center justify-between gap-3 pb-3"><div><p className="mm-actions-calendar-kicker text-[10px] font-semibold uppercase text-black/35">Command Calendar · Aqua plans + connected work calendars</p><h2 className="mt-1 text-lg font-semibold text-black/80">{periodLabel}</h2><p className="mt-1 text-[10px] text-black/38">{integration.connections.length ? `${integration.connections.length} Google account${integration.connections.length === 1 ? "" : "s"} · ${integration.sources.filter(source => source.selected).length} calendars visible${lastSyncedAt ? ` · synced ${relativeTime(lastSyncedAt)}` : ""}` : "Aqua Calendar only"}</p></div><div className="flex flex-wrap gap-1"><button onClick={() => onNavigate(quarterMode ? -3 : -1)} aria-label={quarterMode ? "Previous quarter" : "Previous month"} className="grid size-9 place-items-center rounded-md border border-black/10"><ChevronLeft size={16} /></button><button onClick={() => { setSelectedDate(dateKey(Date.now())); onToday(); }} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-medium"><CalendarDays size={13} /> Today</button><button onClick={() => setQuarterMode(value => !value)} aria-pressed={quarterMode} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-medium"><CalendarRange size={13} />{quarterMode ? "Month" : "Quarter"}</button><button onClick={() => onNavigate(quarterMode ? 3 : 1)} aria-label={quarterMode ? "Next quarter" : "Next month"} className="grid size-9 place-items-center rounded-md border border-black/10"><ChevronRight size={16} /></button><button type="button" onClick={() => setSourcesOpen(true)} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-semibold"><Settings2 size={14} />Calendars{integration.connections.some(connection => connection.status === "error" || connection.status === "revoked") ? <i className="size-1.5 rounded-full bg-red-500" /> : null}</button>{integration.connections.length ? <button type="button" disabled={syncing} onClick={() => void syncCalendars()} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-semibold disabled:opacity-50"><RefreshCw size={14} className={syncing ? "animate-spin" : ""} />{syncing ? "Syncing" : "Sync"}</button> : null}<button type="button" onClick={() => openNew()} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-black px-3 text-xs font-semibold text-white"><Plus size={14} />Add</button></div></div>
     {connectionNotice || integrationError ? <div role={integrationError ? "alert" : "status"} className={`mb-3 flex items-center gap-2 border-l-2 px-3 py-2 text-xs ${integrationError ? "border-red-500 bg-red-50 text-red-700" : "border-emerald-500 bg-emerald-50 text-emerald-700"}`}>{integrationError ? <CloudOff size={14} /> : <CalendarCheck2 size={14} />}{integrationError || `Connected ${connectionNotice}. Calendar events are now on the command plot.`}</div> : null}
-    {quarterMode ? <div className="mm-calendar-quarter-grid grid gap-3 lg:grid-cols-3">{quarterMonths.map(quarterMonth => <MiniMonth key={quarterMonth.toISOString()} month={quarterMonth} selectedDate={selectedDate} tasks={tasks} actions={actions} entries={entries} externalEvents={visibleExternalEvents} onSelect={day => { setSelectedDate(dateKey(day.getTime())); onNavigate((day.getFullYear() - month.getFullYear()) * 12 + day.getMonth() - month.getMonth()); setQuarterMode(false); }} />)}</div> : <div className="mm-calendar-command-layout grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]"><div className="mm-actions-calendar-scroll overflow-x-auto overscroll-x-contain"><CalendarGrid month={month} days={days} selectedDate={selectedDate} tasks={tasks} actions={actions} entries={entries} externalEvents={visibleExternalEvents} sources={integration.sources} team={team} onSelect={selectDay} /></div><aside className="mm-calendar-day-inspector min-w-0 border border-black/10 bg-black/[0.015]"><header className="flex items-start justify-between gap-3 border-b border-black/10 p-4"><div><p className="text-[10px] font-semibold uppercase text-black/40">Selected day</p><h3 className="mt-1 text-lg font-semibold text-black/80">{selected.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</h3><p className="mt-1 text-xs text-black/42">{selectedTasks.length + selectedActions.length + selectedEntries.length + selectedExternalEvents.length} plotted item{selectedTasks.length + selectedActions.length + selectedEntries.length + selectedExternalEvents.length === 1 ? "" : "s"}</p></div><button onClick={() => openNew()} aria-label="Add to selected day" className="grid size-9 place-items-center rounded-md border border-black/10"><Plus size={15} /></button></header><div className="grid gap-2 p-3">{selectedTasks.map(task => <DayAgendaRow key={task.id} type="task" title={task.title} detail={`${calendarTime(task.startAt ?? task.dueAt)} · ${task.priority}`} complete={task.status === "done"} onComplete={() => void completeItem(task)} onOpen={() => { setEditingTask(task); setEditingEntry(null); setEditorOpen(true); }} />)}{selectedEntries.map(entry => <DayAgendaRow key={entry.id} type={entry.type} title={entry.title} detail={entryDetail(entry)} complete={entry.status === "completed"} onComplete={() => void completeItem(entry)} onOpen={() => { setEditingEntry(entry); setEditingTask(null); setEditorOpen(true); }} />)}{selectedExternalEvents.map(event => <ExternalCalendarAgendaRow key={event.id} event={event} source={integration.sources.find(source => source.id === event.sourceId)} />)}{selectedActions.map(action => <Link key={action.id} href={action.href} className="flex min-w-0 gap-3 border border-black/8 bg-white p-3"><span className="grid size-8 shrink-0 place-items-center bg-amber-50 text-amber-700"><Workflow size={14} /></span><span className="min-w-0"><strong className="block truncate text-xs text-black/75">{action.title}</strong><span className="mt-1 block text-[10px] text-black/40">CRM signal · {calendarTime(action.dueAt)}</span></span></Link>)}{!selectedTasks.length && !selectedEntries.length && !selectedExternalEvents.length && !selectedActions.length ? <div className="py-8 text-center"><CalendarDays className="mx-auto text-black/18" size={22} /><p className="mt-2 text-sm font-semibold text-black/55">Clear day</p><button onClick={() => openNew()} className="mt-3 inline-flex min-h-6 items-center text-xs font-semibold text-brand">Plan something</button></div> : null}</div></aside></div>}
+    {quarterMode ? <div className="mm-calendar-quarter-grid grid gap-3 lg:grid-cols-3">{quarterMonths.map(quarterMonth => <MiniMonth key={quarterMonth.toISOString()} month={quarterMonth} selectedDate={selectedDate} tasks={tasks} actions={actions} entries={entries} externalEvents={visibleExternalEvents} onSelect={day => { setSelectedDate(dateKey(day.getTime())); onNavigate((day.getFullYear() - month.getFullYear()) * 12 + day.getMonth() - month.getMonth()); setQuarterMode(false); }} />)}</div> : <div className="mm-calendar-command-layout grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]"><div className="mm-actions-calendar-scroll overflow-x-auto overscroll-x-contain"><CalendarGrid month={month} days={days} selectedDate={selectedDate} tasks={tasks} actions={actions} entries={entries} externalEvents={visibleExternalEvents} sources={integration.sources} team={team} onSelect={selectDay} /></div><aside className="mm-calendar-day-inspector min-w-0 border border-black/10 bg-black/[0.015]"><header className="flex items-start justify-between gap-3 border-b border-black/10 p-4"><div><p className="text-[10px] font-semibold uppercase text-black/40">Selected day</p><h3 className="mt-1 text-lg font-semibold text-black/80">{selected.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</h3><p className="mt-1 text-xs text-black/42">{selectedTasks.length + selectedActions.length + selectedEntries.length + selectedExternalEvents.length} plotted item{selectedTasks.length + selectedActions.length + selectedEntries.length + selectedExternalEvents.length === 1 ? "" : "s"}</p></div><button onClick={() => openNew()} aria-label="Add to selected day" className="grid size-9 place-items-center rounded-md border border-black/10"><Plus size={15} /></button></header><div className="grid gap-2 p-3">{selectedTasks.map(task => <DayAgendaRow key={task.id} type="task" title={task.title} detail={`${calendarTime(task.startAt ?? task.dueAt)} · ${task.priority}`} complete={task.status === "done"} busy={busyCompletionIds.has(task.id)} onComplete={() => void completeItem(task)} onOpen={() => { setEditingTask(task); setEditingEntry(null); setEditorOpen(true); }} />)}{selectedEntries.map(entry => <DayAgendaRow key={entry.id} type={entry.type} title={entry.title} detail={entryDetail(entry)} complete={entry.status === "completed"} busy={busyCompletionIds.has(entry.id)} onComplete={() => void completeItem(entry)} onOpen={() => { setEditingEntry(entry); setEditingTask(null); setEditorOpen(true); }} />)}{selectedExternalEvents.map(event => <ExternalCalendarAgendaRow key={event.id} event={event} source={integration.sources.find(source => source.id === event.sourceId)} />)}{selectedActions.map(action => <Link key={action.id} href={action.href} className="flex min-w-0 gap-3 border border-black/8 bg-white p-3"><span className="grid size-8 shrink-0 place-items-center bg-amber-50 text-amber-700"><Workflow size={14} /></span><span className="min-w-0"><strong className="block truncate text-xs text-black/75">{action.title}</strong><span className="mt-1 block text-[10px] text-black/40">CRM signal · {calendarTime(action.dueAt)}</span></span></Link>)}{!selectedTasks.length && !selectedEntries.length && !selectedExternalEvents.length && !selectedActions.length ? <div className="py-8 text-center"><CalendarDays className="mx-auto text-black/18" size={22} /><p className="mt-2 text-sm font-semibold text-black/55">Clear day</p><button onClick={() => openNew()} className="mt-3 inline-flex min-h-6 items-center text-xs font-semibold text-brand">Plan something</button></div> : null}</div></aside></div>}
     <div className="mm-calendar-command-footer mt-4 grid gap-3 border-t border-black/10 pt-4 lg:grid-cols-[1fr_auto]"><div><p className="text-[10px] font-semibold uppercase text-black/38">Due reminders · next 7 days</p><div className="mt-2 flex flex-wrap gap-2">{dueReminders.slice(0,6).map(item => <button key={item.id} type="button" onClick={() => { setSelectedDate(dateKey(Number(item.reminderAt))); onNavigate((new Date(Number(item.reminderAt)).getFullYear() - month.getFullYear()) * 12 + new Date(Number(item.reminderAt)).getMonth() - month.getMonth()); }} className="inline-flex min-h-8 items-center gap-1.5 border border-black/10 px-2.5 text-[10px] font-medium text-black/58"><AlarmClock size={12} />{item.title} · {calendarTime(Number(item.reminderAt), true)}</button>)}{!dueReminders.length ? <span className="text-xs text-black/35">No reminders due in the next seven days.</span> : null}</div></div><div className="grid grid-cols-3 gap-2 text-center text-[10px]"><CalendarMetric label="Open tasks" value={tasks.filter(task => task.status !== "done").length} /><CalendarMetric label="Goals" value={entries.filter(entry => entry.type === "goal" && entry.status === "planned").length} /><CalendarMetric label="Targets" value={entries.filter(entry => entry.type === "target" && entry.status === "planned").length} /></div></div>
     {editorOpen ? <CalendarEditor selectedDate={selectedDate} entry={editingEntry} task={editingTask} customFields={customFields} writableSources={integration.sources.filter(source => source.selected && source.writable)} busy={busy} error={error} onClose={() => { if (!busy) { setEditorOpen(false); setEditingEntry(null); setEditingTask(null); setGoogleCreateOperationId(null); setGoogleCreateRequestKey(null); setError(""); } }} onSave={saveEntry} onDelete={editingEntry ? removeEntry : undefined} /> : null}
     {sourcesOpen ? <CalendarSourcesDialog integration={integration} syncing={syncing} busyId={connectionBusyId} error={integrationError} onClose={() => setSourcesOpen(false)} onToggle={sourceId => void toggleCalendarSource(sourceId)} onSync={connectionId => void syncCalendars(connectionId)} onDisconnect={connectionId => void disconnectCalendar(connectionId)} /> : null}
@@ -1529,7 +1657,7 @@ function CalendarSourcesDialog({ integration, syncing, busyId, error, onClose, o
   return <div className="fixed inset-0 z-[105] grid items-end bg-black/45 sm:items-center sm:p-6"><button type="button" className="absolute inset-0" aria-label="Close calendar sources" onClick={onClose} /><section role="dialog" ref={dialogRef} aria-modal="true" aria-labelledby="calendar-sources-heading" className="mm-calendar-sources relative mx-auto flex max-h-[94dvh] w-full max-w-3xl flex-col overflow-hidden rounded-t-lg bg-white shadow-2xl sm:rounded-lg"><header className="flex items-start justify-between gap-4 border-b border-black/10 p-5"><div><p className="text-[10px] font-semibold uppercase text-brand">Unified calendar layer</p><h2 id="calendar-sources-heading" className="mt-1 text-xl font-semibold text-black/85">Calendars and accounts</h2><p className="mt-2 max-w-xl text-xs leading-5 text-black/45">Overlay several Google work accounts with Aqua tasks, goals and plans. Account grants are separate, encrypted and independently removable.</p></div><button type="button" onClick={onClose} aria-label="Close calendars and accounts" className="grid size-9 shrink-0 place-items-center rounded-md border border-black/10"><X size={16} aria-hidden /></button></header><div className="grid flex-1 gap-4 overflow-y-auto p-4 sm:p-5">{!integration.configured ? <div className="border-l-2 border-amber-500 bg-amber-50 p-4"><strong className="text-sm text-amber-900">Google Calendar needs credentials</strong><p className="mt-1 text-xs leading-5 text-amber-800/75">Add the Calendar OAuth client ID, secret and callback URI from <code>.env.example</code>. Aqua Calendar remains fully usable meanwhile.</p></div> : null}{integration.connections.map(connection => { const sources = integration.sources.filter(source => source.connectionId === connection.id); return <article key={connection.id} className="overflow-hidden rounded-md border border-black/10"><header className="flex flex-wrap items-center justify-between gap-3 bg-black/[0.025] px-4 py-3"><div className="flex min-w-0 items-center gap-3"><span className={`grid size-9 shrink-0 place-items-center rounded-md ${connection.status === "error" || connection.status === "revoked" ? "bg-red-50 text-red-700" : "bg-blue-50 text-blue-700"}`}>{connection.status === "error" || connection.status === "revoked" ? <CloudOff size={16} /> : <Cloud size={16} />}</span><div className="min-w-0"><strong className="block truncate text-sm text-black/78">{connection.accountName || connection.accountEmail}</strong><span className="block truncate text-[10px] text-black/40">{connection.accountEmail} · {connection.lastSyncedAt ? `synced ${relativeTime(connection.lastSyncedAt)}` : "not synced yet"}{connection.canRefresh ? " · background refresh ready" : " · reconnect when access expires"}</span></div></div><div className="flex items-center gap-1"><button type="button" disabled={syncing} onClick={() => onSync(connection.id)} title="Sync this account" className="grid size-9 place-items-center rounded-md border border-black/10 text-black/55 disabled:opacity-40"><RefreshCw size={14} className={syncing ? "animate-spin" : ""} /></button><button type="button" disabled={busyId === connection.id} onClick={() => onDisconnect(connection.id)} title="Disconnect account" className="grid size-9 place-items-center rounded-md border border-black/10 text-red-600 disabled:opacity-40">{busyId === connection.id ? <LoaderCircle size={14} className="animate-spin" /> : <Trash2 size={14} />}</button></div></header>{connection.lastError ? <p className="border-t border-red-100 bg-red-50 px-4 py-2 text-[10px] leading-4 text-red-700">{connection.lastError}</p> : null}<div className="divide-y divide-black/[0.07]">{sources.map(source => <label key={source.id} className="flex min-h-12 cursor-pointer items-center gap-3 px-4 py-2.5 hover:bg-black/[0.02]"><input type="checkbox" checked={source.selected} onChange={() => onToggle(source.id)} /><i className="size-3 shrink-0 rounded-sm" style={{ backgroundColor: source.color }} /><span className="min-w-0 flex-1"><strong className="block truncate text-xs font-semibold text-black/68">{source.name}</strong><span className="block truncate text-[9px] text-black/35">{[source.primary ? "Primary" : "Google calendar", source.timeZone, source.writable ? "Can edit at Google" : "Read only"].filter(Boolean).join(" · ")}</span></span><span className="text-[9px] font-semibold uppercase text-black/30">{integration.events.filter(event => event.sourceId === source.id).length} events</span></label>)}{!sources.length ? <p className="px-4 py-5 text-xs text-black/40">No calendars were returned by this account.</p> : null}</div></article>; })}{!integration.connections.length ? <div className="grid place-items-center border border-dashed border-black/15 px-5 py-10 text-center"><Cloud className="text-black/20" size={26} /><strong className="mt-3 text-sm text-black/65">Your first work calendar can join the plot</strong><p className="mt-1 max-w-sm text-xs leading-5 text-black/40">Connect Google, choose exactly which calendars are visible, then add another account whenever you need it.</p></div> : null}{error ? <p role="alert" className="border-l-2 border-red-500 bg-red-50 p-3 text-xs text-red-700">{error}</p> : null}</div><footer className="flex flex-wrap items-center justify-between gap-3 border-t border-black/10 bg-black/[0.018] p-4 sm:px-5"><div><strong className="block text-xs text-black/60">Aqua Calendar is always available</strong><span className="text-[10px] text-black/35">Tasks, notes, goals and targets stay owned by AquaCRM.</span></div>{integration.configured ? <a href="/api/portal/calendar/google/start?returnUrl=%2Fportal%2Fagency%2Fcalendar" className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-xs font-semibold text-white"><Plus size={14} />Connect another Google account</a> : null}</footer></section></div>;
 }
 
-function DayAgendaRow({ type, title, detail, complete, onComplete, onOpen }: { type: string; title: string; detail: string; complete: boolean; onComplete: () => void; onOpen: () => void }) { const Icon = type === "task" ? CheckCircle2 : type === "work-block" ? BriefcaseBusiness : type === "reminder" ? AlarmClock : type === "note" ? NotebookPen : type === "goal" || type === "target" ? Target : CalendarDays; return <div className="flex min-w-0 items-center gap-2 border border-black/8 bg-white p-2.5"><button type="button" onClick={onComplete} aria-label={complete ? `Reopen ${title}` : `Complete ${title}`} className={`grid size-8 shrink-0 place-items-center ${complete ? "bg-emerald-50 text-emerald-700" : "bg-black/[0.035] text-black/45"}`}><Icon size={14} /></button><button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left"><strong className={`block truncate text-xs ${complete ? "text-black/38 line-through" : "text-black/75"}`}>{title}</strong><span className="mt-1 block truncate text-[10px] capitalize text-black/40">{type.replace("-", " ")} · {detail}</span></button><ChevronRight size={13} className="shrink-0 text-black/25" /></div>; }
+function DayAgendaRow({ type, title, detail, complete, busy, onComplete, onOpen }: { type: string; title: string; detail: string; complete: boolean; busy: boolean; onComplete: () => void; onOpen: () => void }) { const Icon = type === "task" ? CheckCircle2 : type === "work-block" ? BriefcaseBusiness : type === "reminder" ? AlarmClock : type === "note" ? NotebookPen : type === "goal" || type === "target" ? Target : CalendarDays; return <div className="flex min-w-0 items-center gap-2 border border-black/8 bg-white p-2.5"><button type="button" disabled={busy} aria-busy={busy} onClick={onComplete} aria-label={complete ? `Reopen ${title}` : `Complete ${title}`} className={`grid size-8 shrink-0 place-items-center disabled:opacity-50 ${complete ? "bg-emerald-50 text-emerald-700" : "bg-black/[0.035] text-black/45"}`}>{busy ? <LoaderCircle size={14} className="animate-spin" /> : <Icon size={14} />}</button><button type="button" disabled={busy} onClick={onOpen} className="min-w-0 flex-1 text-left disabled:opacity-50"><strong className={`block truncate text-xs ${complete ? "text-black/38 line-through" : "text-black/75"}`}>{title}</strong><span className="mt-1 block truncate text-[10px] capitalize text-black/40">{type.replace("-", " ")} · {detail}</span></button><ChevronRight size={13} className="shrink-0 text-black/25" /></div>; }
 
 function CalendarMetric({ label, value }: { label: string; value: number }) { return <div className="min-w-20 border border-black/10 px-2 py-2"><strong className="block text-sm text-black/72">{value}</strong><span className="text-[8px] uppercase text-black/35">{label}</span></div>; }
 

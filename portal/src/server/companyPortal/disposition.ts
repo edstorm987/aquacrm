@@ -272,6 +272,12 @@ export const PROMOTION_DISPOSITION = {
     keying: "own-id",
     reason: "A record of what was finished in the origin tenant. Moving it would move somebody else's audit trail.",
   },
+  actionMutationReceipts: {
+    disposition: "leave",
+    ownership: "history",
+    keying: "own-id",
+    reason: "Mutation receipts bind retries to the origin agency and user and must never cross a promotion boundary.",
+  },
 
   // ─── Pipelines ──────────────────────────────────────────────────────────
   pipelines: {
@@ -720,6 +726,12 @@ export const PROMOTION_DISPOSITION = {
     reason:
       "APP-WIDE with no tenant key at all (`types.ts:3168-3169`) — one DB/storage probe for the whole deployment. Leave strictly alone: there is nothing here to promote.",
   },
+  operationalAlertSourceEpisodes: {
+    disposition: "leave",
+    ownership: "agency-scoped",
+    keying: "agency-composite",
+    reason: "Keyed `${agencyId}|${sourceId}` — a transient observation of this tenant's current source outage. A promoted portal measures its own source availability and starts with no inherited episode.",
+  },
   operationalAlertPreferences: {
     disposition: "leave",
     ownership: "agency-scoped",
@@ -909,7 +921,7 @@ type _NoStaleCollections = AssertNever<StaleCollections>;
 // 94 → 95 on 2026-08-31: `websiteDemoSignups`, the public AquaCRM demo gate's
 // consent records. Classified `na` before the number moved — they carry no
 // tenant key and live outside the live data realm entirely.
-export const PROMOTION_COLLECTION_COUNT = 96;
+export const PROMOTION_COLLECTION_COUNT = 98;
 
 /** Every classified collection name, in `PortalState` order. */
 export const PROMOTION_COLLECTIONS = Object.keys(PROMOTION_DISPOSITION) as Array<

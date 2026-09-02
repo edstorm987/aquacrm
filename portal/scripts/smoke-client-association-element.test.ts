@@ -46,6 +46,7 @@ import { createAgency, createClient } from "../src/server/tenants";
 import { createUser } from "../src/server/users";
 import { createAccessGrant } from "../src/server/accessControl";
 import { createAgencyTask } from "../src/server/tasks";
+import { taskDeleteOperationId } from "../src/lib/client/actionsMutationTruth";
 import { DELETE as tasksDelete } from "../src/app/api/portal/tasks/route";
 import { POST as checklistPost } from "../src/app/api/portal/tasks/checklist/route";
 import { POST as templatesPost } from "../src/app/api/portal/tasks/templates/route";
@@ -171,11 +172,12 @@ describe("the three surfaces actually enforce it", () => {
 
   it("the Actions list filters rows whose client the reader may not see", () => {
     const src = read("src/app/api/portal/tasks/route.ts");
-    assert.match(src, /canReadClientAssociation\(actor, "agency-task", task\.clientId\)/,
+    const getHandler = src.slice(src.indexOf("export async function GET"), src.indexOf("export async function POST"));
+    assert.match(getHandler, /canReadClientAssociation\(actor, "agency-task", task\.clientId\)/,
       "the Actions list stopped filtering by client visibility");
     // Resolved ONCE, not per row.
-    assert.match(src, /const actor = await requireCurrentAccessActor\(\);/);
-    assert.equal((src.match(/requireCurrentAccessActor\(\)/g) ?? []).length, 1,
+    assert.match(getHandler, /const actor = await requireCurrentAccessActor\(\);/);
+    assert.equal((getHandler.match(/requireCurrentAccessActor\(\)/g) ?? []).length, 1,
       "the actor is being resolved more than once — that is a per-row session read");
   });
 
@@ -273,7 +275,7 @@ describe("every Action surface answers to the association, not just the ones tha
   });
 
   const deleteTask = (id: string) => withSession(token, () => tasksDelete(new NextRequest(
-    `http://localhost/api/portal/tasks?id=${encodeURIComponent(id)}`,
+    `http://localhost/api/portal/tasks?id=${encodeURIComponent(id)}&operationId=${encodeURIComponent(taskDeleteOperationId(id))}`,
     { method: "DELETE", headers: { cookie: `${SESSION_COOKIE_NAME}=${token}` } },
   )));
 

@@ -14,6 +14,8 @@ import { drainOutbox, recordOutboxEvent } from "./outbox";
 import type { AgencyTaskOrigin, CompletedAction, CompletedActionOutcome } from "./types";
 
 export interface RecordCompletedActionInput {
+  /** Exact mutation identity; distinct operations must never share an audit row. */
+  operationId?: string;
   sourceId: string;
   title: string;
   detail?: string;
@@ -40,12 +42,29 @@ export function recordCompletedAction(
   input: RecordCompletedActionInput,
   now = Date.now(),
 ): CompletedAction {
-  const recent = listCompletedActions(agencyId).find(entry =>
-    entry.sourceId === input.sourceId && now - entry.completedAt < 60_000);
-  if (recent) return recent;
+  // Hash the complete identity. Alert operation ids include an encoded
+  // semantic occurrence and can legitimately exceed a display-field limit;
+  // truncating here would merge different suffixes into one register row.
+  const operationId = input.operationId?.trim() || undefined;
+  const stableId = operationId
+    ? `done_${crypto.createHash("sha256").update(`${agencyId}\u0000${operationId}`).digest("hex").slice(0, 24)}`
+    : undefined;
+  if (stableId) {
+    const existing = findCompletedAction(agencyId, stableId);
+    if (existing) {
+      if (existing.sourceId !== input.sourceId || existing.outcome !== input.outcome) {
+        throw new Error("That completion operation belongs to a different register entry.");
+      }
+      return existing;
+    }
+  } else {
+    const recent = listCompletedActions(agencyId).find(entry =>
+      entry.sourceId === input.sourceId && entry.outcome === input.outcome && now - entry.completedAt < 60_000);
+    if (recent) return recent;
+  }
 
   const entry: CompletedAction = {
-    id: `done_${crypto.randomBytes(8).toString("hex")}`,
+    id: stableId ?? `done_${crypto.randomBytes(8).toString("hex")}`,
     agencyId,
     sourceId: input.sourceId,
     title: input.title.trim().slice(0, 240) || "Untitled action",
@@ -75,6 +94,12 @@ export function listCompletedActions(agencyId: string, limit = 200): CompletedAc
     .filter(entry => entry.agencyId === agencyId)
     .sort((a, b) => b.completedAt - a.completedAt)
     .slice(0, limit);
+}
+
+/** Exact receipt lookup; unlike the presentation list this is never truncated. */
+export function findCompletedAction(agencyId: string, id: string): CompletedAction | undefined {
+  const entry = getState().completedActions[id];
+  return entry?.agencyId === agencyId ? entry : undefined;
 }
 
 /** Whether this exact thing has been dealt with before, and when. */

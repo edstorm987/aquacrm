@@ -2,7 +2,7 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-09-02 from **21** source documents / **35,894 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-02 from **21** source documents / **35,932 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -25,7 +25,7 @@
 - [`docs/development/CLOUD-RESUME.md`](#source-docs-development-cloud-resume-md) — 500 words · `03458cdf18bf`
 - [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 2,095 words · `379784a12461`
 - [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,643 words · `38954d1ad66e`
-- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 2,057 words · `8d2d0f36b8ae`
+- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 2,095 words · `2f401b990c0d`
 - [`README.md`](#source-readme-md) — 437 words · `78865db66238`
 
 ---
@@ -3843,7 +3843,7 @@ Path prefix: /private/tmp/claude-501/.../scratchpad/
 
 ## Source document — `docs/development/TODO.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="8d2d0f36b8aed17bbd24ff16749866a6ac69da7674b9f61e2e3252adfb47afdd" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="2f401b990c0d8986e034f24e1efb558d1c25adf934d4cdb22c162f575feb53b9" -->
 # TODO — the one list
 
 **This is the only task list.** `checklist.md` and `todo-retired.md` are retired; they held the
@@ -3923,8 +3923,8 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Make Aqua Tag form ingestion durable and order-independent → [#87](issues.md)
 - [~] Dev Team document bytes and attribution now recover together after process death; constrain the final non-cooperating direct-writer check/rename window → [#88](issues.md)
 - [~] Client schedules and Finance Plans are converged; mounted browser acceptance remains → [#121](issues.md)
-- [~] Membership subscription and plan-price changes now use durable provider-backed commands outside storage transactions; mounted/live acceptance remains → [#122](issues.md)
-- [~] Membership webhooks now use a retryable scoped inbox; live-provider acceptance remains → [#123](issues.md)
+- [~] Membership subscription and plan-price changes retain durable operation history, fence provider work through authoritative state adoption and preserve every provider generation; finish the full mounted lifecycle and live Stripe acceptance → [#122](issues.md)
+- [~] Membership webhooks dedupe completed deliveries before provider I/O, re-read authoritative provider state inside the lifecycle lane and use a retryable scoped inbox plus paid-dominant payment ledger; signed live-provider acceptance remains → [#123](issues.md)
 - [~] Affiliate commissions now have one recoverable payout owner; mounted/live-provider acceptance remains → [#124](issues.md)
 - [~] Affiliate currency/refund accounting is code- and behaviour-complete; mounted/live acceptance remains → [#125](issues.md)
 - [~] Membership/Affiliate runtime validation is code- and behaviour-complete; mounted acceptance remains → [#126](issues.md)
@@ -3949,8 +3949,8 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 
 - [~] Reference validation remains a broad open class; the audited client-route slice is fixed → [#20](issues.md)
 - [~] Canonical staff workspace capability policy, reusable-role authoring and Staff Technical Hidden/View/Use/Manage plus same-cookie downgrade enforcement are source/isolated-browser proven; finish provider-backed live-persona/shared-credential acceptance → [#25](issues.md)
-- [~] Shared plugin settings is operable and Marketing, Website Editor and Fulfillment are truthful; wire/remove the remaining 19 unconsumed fields → [#44](issues.md)
-- [~] Finance, Dev Team, Governance and Fulfilment mutation controls use checked response contracts; Fulfilment forced-failure mobile/desktop browser proof is green, while Actions and the remaining cohorts/acceptance matrix stay open → [#47](issues.md)
+- [~] Shared plugin settings is operable and Marketing, Website Editor, Fulfillment and Memberships are truthful; Memberships is exact-build browser-proven, while 16 unconsumed fields still need wiring/removal → [#44](issues.md)
+- [~] Finance, Dev Team, Governance, Fulfilment and Actions mutation controls use checked response contracts; Actions is source/behaviour and four-viewport exact-build browser-proven, while the remaining cohorts/acceptance matrix stay open → [#47](issues.md)
 - [~] Finish Notepad autosave browser acceptance → [#54](issues.md)
 - [~] Mounted acceptance remains for settled utility controls → [#61](issues.md)
 - [~] Agency Marketing campaign rows, channel indexes and reports are cross-process/crash-atomic on the file backend; finish native Supabase/Postgres constraints and live-provider acceptance → [#84](issues.md)

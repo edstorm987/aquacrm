@@ -32,6 +32,7 @@ import { formatUkDate } from "@/lib/shared/formatDateTime";
 import { cleanClientPaymentPlans } from "@/lib/clients/clientPaymentPlans";
 import { clientWorkspaceDisplayName } from "@/lib/clients/clientWorkspace";
 import { readOrUnavailable, type ReadResult } from "@/lib/readAvailability";
+import { observeOperationalAlertSourceAvailability } from "@/lib/server/inbox/operationalAlertSourceEpisodes";
 
 export type { OperationalAlert, OperationalAlertSeverity } from "@/lib/intelligence/operationalAttention";
 
@@ -480,7 +481,13 @@ export async function listOperationalAlerts(
           ),
     ]);
     const websiteEnquiries = websiteEnquiryRead.data;
-    if (!websiteEnquiryRead.available) {
+    const websiteEnquiryOutage = await observeOperationalAlertSourceAvailability({
+      agencyId,
+      sourceId: "website-enquiries",
+      available: websiteEnquiryRead.available,
+      observedAt: now,
+    });
+    if (!websiteEnquiryRead.available && websiteEnquiryOutage.active) {
       // Keep the rest of the operational feed usable, but put the missing
       // measurement in the feed itself. An omitted source is not a zero-count
       // source and must never look like an all-clear.
@@ -491,7 +498,7 @@ export async function listOperationalAlerts(
         title: "Website enquiries could not be checked",
         detail: websiteEnquiryRead.reason ?? "The enquiry source is temporarily unavailable. Retry before treating the queue as clear.",
         href: "/portal/agency/inbox?view=forms",
-        occurredAt: now,
+        occurredAt: websiteEnquiryOutage.startedAt ?? now,
       });
     }
     const websiteEnquiryById = new Map(websiteEnquiries.map(enquiry => [enquiry.id, enquiry]));

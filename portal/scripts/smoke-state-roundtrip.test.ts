@@ -81,7 +81,7 @@ test("every PortalState collection has an empty() default", () => {
   );
 });
 
-test("a blob's optional collections survive hydration end to end", async () => {
+test("a blob's additive collections survive hydration end to end", async () => {
   const { mkdtempSync, writeFileSync } = await import("node:fs");
   const { tmpdir } = await import("node:os");
 
@@ -93,6 +93,9 @@ test("a blob's optional collections survive hydration end to end", async () => {
     websiteSources: { "src-1": { id: "src-1", agencyId: "agency-1" } },
     websiteSiteConfigs: { "src-1": { injections: ["SENTINEL"] } },
     enquiryContactDetails: { "enq-1": { phone: "SENTINEL" } },
+    operationalAlertSourceEpisodes: {
+      "agency-1|website-enquiries": { agencyId: "agency-1", sourceId: "website-enquiries", startedAt: 123 },
+    },
   }));
 
   // Point THIS process at its own file before storage is first imported.
@@ -103,7 +106,7 @@ test("a blob's optional collections survive hydration end to end", async () => {
   await storage.ensureHydrated();
   const state = storage.getState() as unknown as Record<string, Record<string, unknown>>;
 
-  for (const key of ["agencyMasterTagKeys", "websiteSources", "websiteSiteConfigs", "enquiryContactDetails"]) {
+  for (const key of ["agencyMasterTagKeys", "websiteSources", "websiteSiteConfigs", "enquiryContactDetails", "operationalAlertSourceEpisodes"]) {
     assert.equal(
       Object.keys(state[key] ?? {}).length,
       1,
@@ -111,4 +114,8 @@ test("a blob's optional collections survive hydration end to end", async () => {
     );
   }
   assert.equal(state.agencyMasterTagKeys["agency-1"], "aqua_master_SENTINEL");
+  assert.equal(
+    (state.operationalAlertSourceEpisodes["agency-1|website-enquiries"] as { startedAt?: unknown }).startedAt,
+    123,
+  );
 });

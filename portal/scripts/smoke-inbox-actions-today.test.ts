@@ -29,7 +29,7 @@ describe("Today receives the needs-attention alerts", () => {
 
 describe("Today renders alerts with their OWN controls", () => {
   it("imports and renders AttentionControls, not a task checkbox, for alerts", () => {
-    assert.match(today, /import \{ AttentionControls \} from "@\/components\/attention\/AttentionControls"/);
+    assert.match(today, /import \{ AttentionControls, type AttentionBusyAction \} from "@\/components\/attention\/AttentionControls"/);
     assert.match(today, /<AttentionControls/);
   });
 
@@ -49,7 +49,8 @@ describe("both resolution paths stay intact", () => {
     assert.match(workspace, /onAttentionAction=\{handleAttentionAction\}/);
     assert.match(workspace, /onMarkAttentionDone=\{markAttentionDone\}/);
     // The alert park/dismiss goes to the operational-alert provider.
-    assert.match(workspace, /notificationAttention\?\.updateAlert\(alertId, kind, until\)/);
+    assert.match(workspace, /notificationAttention\?\.updateAlert\(alertId, kind, until, \{/);
+    assert.match(workspace, /occurrenceKey,[\s\S]{0,80}causalVersion:/);
   });
 
   it("tasks still clear their own way (complete / postpone)", () => {

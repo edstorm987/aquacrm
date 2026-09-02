@@ -21,10 +21,11 @@ import type {
   StripeWebhookEvent,
 } from "./ports";
 import type { SubscriptionService } from "./subscriptions";
+import { withMembershipDependencyLock } from "./dependencies";
 
 const deliveryKey = (eventId: string): string => `memberships/webhook/seen/${eventId}`;
 const paymentKey = (invoiceId: string): string => `memberships/payments/${invoiceId}`;
-const localTails = new Map<string, Promise<void>>();
+const localProviderTails = new Map<string, Promise<void>>();
 
 export interface WebhookHandleResult {
   ok: boolean;
@@ -36,18 +37,26 @@ export interface WebhookHandleResult {
   error?: string;
 }
 
-async function localExclusive<T>(key: string, operation: () => Promise<T>): Promise<T> {
-  const previous = localTails.get(key) ?? Promise.resolve();
+function isSubscriptionEvent(type: string): boolean {
+  return type === "customer.subscription.created"
+    || type === "customer.subscription.updated"
+    || type === "customer.subscription.deleted"
+    || type === "customer.subscription.paused"
+    || type === "customer.subscription.resumed";
+}
+
+async function localProviderExclusive<T>(key: string, operation: () => Promise<T>): Promise<T> {
+  const previous = localProviderTails.get(key) ?? Promise.resolve();
   let release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
-  const tail = previous.then(() => gate);
-  localTails.set(key, tail);
-  await previous;
+  const tail = previous.catch(() => undefined).then(() => gate);
+  localProviderTails.set(key, tail);
+  await previous.catch(() => undefined);
   try {
     return await operation();
   } finally {
     release();
-    if (localTails.get(key) === tail) localTails.delete(key);
+    if (localProviderTails.get(key) === tail) localProviderTails.delete(key);
   }
 }
 
@@ -76,83 +85,87 @@ export class WebhookService {
   // Separate entry point for replay tooling that already verified the event.
   async applyEvent(event: StripeWebhookEvent): Promise<WebhookHandleResult> {
     try {
-      return await this.withEventLock(event.id, async () => {
-        const stored = await this.storage.get<WebhookEventSeen | MembershipWebhookDelivery>(
-          deliveryKey(event.id),
-        );
-        if (stored && "status" in stored && stored.status === "completed") {
-          return {
-            ok: true,
-            eventId: event.id,
+      const completed = await this.completedDelivery(event);
+      if (completed) return completed;
+      return await this.withProviderEventLock(event, providerSubscription =>
+        this.withEventLock(event.id, async () => {
+          const stored = await this.storage.get<WebhookEventSeen | MembershipWebhookDelivery>(
+            deliveryKey(event.id),
+          );
+          if (stored && "status" in stored && stored.status === "completed") {
+            return {
+              ok: true,
+              eventId: event.id,
+              type: event.type,
+              duplicate: true,
+              applied: false,
+            };
+          }
+
+          const ts = now();
+          let delivery: MembershipWebhookDelivery = {
+            id: event.id,
             type: event.type,
-            duplicate: true,
-            applied: false,
-          };
-        }
-
-        const ts = now();
-        let delivery: MembershipWebhookDelivery = {
-          id: event.id,
-          type: event.type,
-          receivedAt: stored?.receivedAt ?? ts,
-          status: "processing",
-          // A legacy pre-work "seen" marker has no status. Reprocess it once:
-          // state adoption and payment ledger/activity are now idempotent, while
-          // treating it as complete would preserve the exact poisoned-retry bug.
-          attempts: stored && "attempts" in stored ? stored.attempts + 1 : 1,
-          updatedAt: ts,
-        };
-        await this.storage.set(deliveryKey(event.id), delivery);
-
-        try {
-          const applied = await this.applyVerifiedEvent(event);
-          delivery = {
-            ...delivery,
-            status: "completed",
-            applied,
-            completedAt: now(),
-            updatedAt: now(),
-            lastError: undefined,
+            receivedAt: stored?.receivedAt ?? ts,
+            status: "processing",
+            // A legacy pre-work "seen" marker has no status. Reprocess it once:
+            // state adoption and payment ledger/activity are now idempotent, while
+            // treating it as complete would preserve the exact poisoned-retry bug.
+            attempts: stored && "attempts" in stored ? stored.attempts + 1 : 1,
+            updatedAt: ts,
           };
           await this.storage.set(deliveryKey(event.id), delivery);
-          return {
-            ok: true,
-            eventId: event.id,
-            type: event.type,
-            duplicate: false,
-            applied,
-          };
-        } catch (err) {
-          const error = err instanceof Error ? err.message : String(err);
-          delivery = {
-            ...delivery,
-            status: "failed",
-            applied: false,
-            lastError: error,
-            updatedAt: now(),
-          };
+
           try {
+            const applied = await this.applyVerifiedEvent(event, providerSubscription);
+            delivery = {
+              ...delivery,
+              status: "completed",
+              applied,
+              completedAt: now(),
+              updatedAt: now(),
+              lastError: undefined,
+            };
             await this.storage.set(deliveryKey(event.id), delivery);
-          } catch (recordError) {
+            return {
+              ok: true,
+              eventId: event.id,
+              type: event.type,
+              duplicate: false,
+              applied,
+            };
+          } catch (err) {
+            const error = err instanceof Error ? err.message : String(err);
+            delivery = {
+              ...delivery,
+              status: "failed",
+              applied: false,
+              lastError: error,
+              updatedAt: now(),
+            };
+            try {
+              await this.storage.set(deliveryKey(event.id), delivery);
+            } catch (recordError) {
+              return {
+                ok: false,
+                eventId: event.id,
+                type: event.type,
+                applied: false,
+                retryable: true,
+                error: `${error}; failed to persist retry state: ${recordError instanceof Error ? recordError.message : String(recordError)}`,
+              };
+            }
             return {
               ok: false,
               eventId: event.id,
               type: event.type,
               applied: false,
               retryable: true,
-              error: `${error}; failed to persist retry state: ${recordError instanceof Error ? recordError.message : String(recordError)}`,
+              error,
             };
           }
-          return {
-            ok: false,
-            eventId: event.id,
-            type: event.type,
-            applied: false,
-            retryable: true,
-            error,
-          };
-        }
-      });
+        }),
+      );
     } catch (err) {
       return {
         ok: false,
@@ -165,20 +178,94 @@ export class WebhookService {
     }
   }
 
-  private async withEventLock<T>(eventId: string, operation: () => Promise<T>): Promise<T> {
-    const key = `membership-webhook:${eventId}`;
-    if (this.storage.runExclusive) return this.storage.runExclusive(key, operation);
-    return localExclusive(`${this.agencyId}:${this.clientId}:${key}`, operation);
+  private completedDelivery(event: StripeWebhookEvent): Promise<WebhookHandleResult | null> {
+    return this.withEventLock(event.id, async () => {
+      const stored = await this.storage.get<WebhookEventSeen | MembershipWebhookDelivery>(
+        deliveryKey(event.id),
+      );
+      return stored && "status" in stored && stored.status === "completed"
+        ? {
+            ok: true,
+            eventId: event.id,
+            type: event.type,
+            duplicate: true,
+            applied: false,
+          }
+        : null;
+    });
   }
 
-  private async applyVerifiedEvent(event: StripeWebhookEvent): Promise<boolean> {
+  private async withEventLock<T>(eventId: string, operation: () => Promise<T>): Promise<T> {
+    void eventId;
+    // All subscription, checkout and plan-reference mutations share the same
+    // durable install lane. Per-event keys allowed two different event ids to
+    // race on the same subscriber row in production.
+    return withMembershipDependencyLock(this.storage, this.agencyId, this.clientId, operation);
+  }
+
+  private async withProviderEventLock<T>(
+    event: StripeWebhookEvent,
+    operation: (providerSubscription?: StripeSubscription) => Promise<T>,
+  ): Promise<T> {
+    if (!isSubscriptionEvent(event.type) && event.type !== "checkout.session.expired") {
+      return operation(undefined);
+    }
+    const metadata = metadataFrom(event.data.object);
+    let subject = optionalString(metadata.endCustomerUserId);
+    if (isSubscriptionEvent(event.type) && !subject) {
+      // Legacy event bodies may predate identity metadata. Discover the
+      // canonical user, then re-read only after acquiring the same lane used
+      // by UI lifecycle commands; the discovery snapshot is never applied.
+      const discovered = await this.retrieveAuthoritativeSubscription(event);
+      subject = optionalString(discovered.metadata?.endCustomerUserId);
+      if (!subject) {
+        throw new Error("Membership authoritative subscription metadata.endCustomerUserId is required.");
+      }
+    }
+    subject ??= requiredString(event.data.object.id, "Membership provider event object id");
+    const key = `membership-subscription-provider:${this.agencyId}:${this.clientId}:${subject}`;
+    const run = async () => {
+      if (!isSubscriptionEvent(event.type)) return operation(undefined);
+      const current = await this.retrieveAuthoritativeSubscription(event);
+      const authoritativeSubject = optionalString(current.metadata?.endCustomerUserId);
+      if (authoritativeSubject && authoritativeSubject !== subject) {
+        throw new Error("Membership authoritative subscription identity changed during reconciliation; retry delivery.");
+      }
+      return operation(current);
+    };
+    return this.storage.runProviderExclusive
+      ? this.storage.runProviderExclusive(key, run)
+      : localProviderExclusive(key, run);
+  }
+
+  private async retrieveAuthoritativeSubscription(
+    event: StripeWebhookEvent,
+  ): Promise<StripeSubscription> {
+    const eventSubscription = parseStripeSubscription(event.data.object);
+    const current = await this.stripe.retrieveSubscription(eventSubscription.id);
+    if (!current) {
+      throw new Error(`Membership Stripe subscription ${eventSubscription.id} could not be retrieved.`);
+    }
+    return current;
+  }
+
+  private async applyVerifiedEvent(
+    event: StripeWebhookEvent,
+    providerSubscription?: StripeSubscription,
+  ): Promise<boolean> {
     switch (event.type) {
       case "customer.subscription.created":
       case "customer.subscription.updated":
       case "customer.subscription.deleted":
       case "customer.subscription.paused":
       case "customer.subscription.resumed": {
-        const metadata = metadataFrom(event.data.object);
+        if (!providerSubscription) {
+          throw new Error("Membership webhook is missing authoritative provider state.");
+        }
+        const metadata = {
+          ...metadataFrom(event.data.object),
+          ...(providerSubscription.metadata ?? {}),
+        };
         this.assertScope(metadata);
         const userId = requiredMetadata(metadata, "endCustomerUserId");
         const planId = requiredMetadata(metadata, "planId");
@@ -186,8 +273,7 @@ export class WebhookService {
         if (billing !== "monthly" && billing !== "annual") {
           throw new Error("Membership webhook metadata.billing must be monthly or annual.");
         }
-        const stripeSub = parseStripeSubscription(event.data.object);
-        const subscription = await this.subscriptions.upsertFromStripe(stripeSub, {
+        const subscription = await this.subscriptions.upsertFromStripeWithinDependencyGraph(providerSubscription, {
           ...metadata,
           endCustomerUserId: userId,
           planId,
@@ -198,13 +284,31 @@ export class WebhookService {
         }
         return true;
       }
+      case "checkout.session.expired": {
+        const metadata = metadataFrom(event.data.object);
+        this.assertScope(metadata);
+        const userId = requiredMetadata(metadata, "endCustomerUserId");
+        const planId = requiredMetadata(metadata, "planId");
+        const billing = requiredMetadata(metadata, "billing");
+        if (billing !== "monthly" && billing !== "annual") {
+          throw new Error("Membership webhook metadata.billing must be monthly or annual.");
+        }
+        const checkoutId = requiredString(
+          event.data.object.id,
+          "Membership checkout webhook id",
+        );
+        return this.subscriptions.expireCheckoutWithinDependencyGraph(
+          userId,
+          checkoutId,
+          planId,
+          billing,
+        );
+      }
       case "invoice.payment_failed":
-        await this.applyPaymentEvent(event, "failed");
-        return true;
+        return this.applyPaymentEvent(event, "failed");
       case "invoice.paid":
       case "invoice.payment_succeeded":
-        await this.applyPaymentEvent(event, "paid");
-        return true;
+        return this.applyPaymentEvent(event, "paid");
       default:
         return false;
     }
@@ -213,7 +317,7 @@ export class WebhookService {
   private async applyPaymentEvent(
     event: StripeWebhookEvent,
     status: MembershipPaymentRecord["status"],
-  ): Promise<void> {
+  ): Promise<boolean> {
     const invoice = event.data.object;
     const metadata = metadataFrom(invoice);
     this.assertScope(metadata);
@@ -226,7 +330,7 @@ export class WebhookService {
     const occurredAt = Number.isFinite(event.created) && event.created > 0
       ? event.created * 1_000
       : now();
-    const record: MembershipPaymentRecord = {
+    const incoming: MembershipPaymentRecord = {
       agencyId: this.agencyId,
       clientId: this.clientId,
       invoiceId,
@@ -239,18 +343,24 @@ export class WebhookService {
       occurredAt,
       updatedAt: now(),
     };
-    await this.storage.set(paymentKey(invoiceId), record);
-    const eventName = status === "paid"
+    const existing = await this.storage.get<MembershipPaymentRecord>(paymentKey(invoiceId));
+    const shouldAdvance = !existing
+      || (existing.status === "failed" && status === "paid");
+    const record = shouldAdvance ? incoming : existing;
+    if (shouldAdvance) await this.storage.set(paymentKey(invoiceId), record);
+    if (record.effectsCompletedAt !== undefined) return false;
+
+    const eventName = record.status === "paid"
       ? "membership.payment_succeeded"
       : "membership.payment_failed";
     await this.activity.logActivity({
-      idempotencyKey: `memberships:webhook:${event.id}:payment-activity`,
+      idempotencyKey: `memberships:webhook:${record.eventId}:payment-activity`,
       agencyId: this.agencyId,
       clientId: this.clientId,
       actorUserId: optionalString(metadata.endCustomerUserId),
       category: "memberships",
       action: eventName,
-      message: status === "paid"
+      message: record.status === "paid"
         ? `Membership invoice ${invoiceId} was paid.`
         : `Membership invoice ${invoiceId} payment failed.`,
       metadata: { ...record },
@@ -258,8 +368,14 @@ export class WebhookService {
     this.events.emit(
       { agencyId: this.agencyId, clientId: this.clientId },
       eventName,
-      { ...record, webhookEventId: event.id },
+      { ...record, webhookEventId: record.eventId },
     );
+    await this.storage.set(paymentKey(invoiceId), {
+      ...record,
+      effectsCompletedAt: now(),
+      updatedAt: now(),
+    });
+    return true;
   }
 
   private assertScope(metadata: Record<string, string>): void {
@@ -277,13 +393,14 @@ function metadataFrom(obj: Record<string, unknown>): Record<string, string> {
     (obj.subscription_details as Record<string, unknown> | undefined)?.metadata,
     ((obj.parent as Record<string, unknown> | undefined)?.subscription_details as Record<string, unknown> | undefined)?.metadata,
   ];
-  for (const candidate of candidates) {
+  const metadata: Record<string, string> = {};
+  for (const candidate of [...candidates].reverse()) {
     if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) continue;
     const entries = Object.entries(candidate as Record<string, unknown>)
       .filter((entry): entry is [string, string] => typeof entry[1] === "string");
-    if (entries.length > 0) return Object.fromEntries(entries);
+    Object.assign(metadata, Object.fromEntries(entries));
   }
-  return {};
+  return metadata;
 }
 
 function requiredMetadata(metadata: Record<string, string>, key: string): string {

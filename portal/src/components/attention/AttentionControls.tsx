@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Check, ChevronDown, Clock3, Search, X } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, Clock3, LoaderCircle, Search, X } from "lucide-react";
 
 import type { ResolutionKind } from "@/lib/inbox/resolutionExplain";
+
+export type AttentionBusyAction = "mark-done" | "park" | "dismiss" | "saving";
 
 /**
  * Resolve / Evidence / Remind later / Dismiss — the controls an attention item
@@ -21,6 +23,7 @@ export function AttentionControls({
   resolveHref,
   evidenceHref,
   busy = false,
+  busyAction,
   onToggleEvidence,
   evidenceOpen,
   onResolve,
@@ -52,6 +55,8 @@ export function AttentionControls({
    */
   evidenceHref?: string;
   busy?: boolean;
+  /** The mutation actually in flight, so the clicked control owns the spinner. */
+  busyAction?: AttentionBusyAction;
   /**
    * Expands the records in place. Preferred over `evidenceHref`: navigating
    * away costs the operator their place in the queue and makes them
@@ -65,6 +70,7 @@ export function AttentionControls({
   /** Records that off-system work was carried out. */
   onMarkDone?: () => void;
 }) {
+  const mutationBusy = busy || Boolean(busyAction);
   const resolveClasses =
     "inline-flex min-h-9 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85 disabled:opacity-40";
   // Only offer Resolve where something can actually be resolved on a screen.
@@ -73,11 +79,17 @@ export function AttentionControls({
   return (
     <span className="flex flex-wrap items-center gap-2 lg:justify-end">
       {canResolve && onResolve ? (
-        <button type="button" disabled={busy} onClick={onResolve} className={resolveClasses}>
+        <button type="button" disabled={mutationBusy} onClick={onResolve} className={resolveClasses}>
           <span>Resolve</span><ArrowRight size={13} aria-hidden />
         </button>
       ) : canResolve && resolveHref ? (
-        <Link href={resolveHref} className={resolveClasses}>
+        <Link
+          href={resolveHref}
+          aria-disabled={mutationBusy}
+          tabIndex={mutationBusy ? -1 : undefined}
+          onClick={event => { if (mutationBusy) event.preventDefault(); }}
+          className={`${resolveClasses} ${mutationBusy ? "pointer-events-none opacity-40" : ""}`}
+        >
           <span>Resolve</span><ArrowRight size={13} aria-hidden />
         </Link>
       ) : null}
@@ -85,6 +97,7 @@ export function AttentionControls({
       {onToggleEvidence ? (
         <button
           type="button"
+          disabled={mutationBusy}
           onClick={onToggleEvidence}
           aria-expanded={evidenceOpen}
           title="Show the exact records behind this"
@@ -104,7 +117,10 @@ export function AttentionControls({
         <Link
           href={evidenceHref}
           title="Open the exact records behind this"
-          className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/15 px-3 text-xs font-semibold text-black/65 hover:bg-black/[0.035]"
+          aria-disabled={mutationBusy}
+          tabIndex={mutationBusy ? -1 : undefined}
+          onClick={event => { if (mutationBusy) event.preventDefault(); }}
+          className={`inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/15 px-3 text-xs font-semibold text-black/65 hover:bg-black/[0.035] ${mutationBusy ? "pointer-events-none opacity-40" : ""}`}
         >
           <Search size={13} aria-hidden />Evidence
         </Link>
@@ -115,27 +131,29 @@ export function AttentionControls({
       {kind === "off-system" && onMarkDone ? (
         <button
           type="button"
-          disabled={busy}
+          disabled={mutationBusy}
           onClick={onMarkDone}
           title="Record that this was dealt with outside Aqua"
           className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85 disabled:opacity-40"
         >
-          <Check size={13} aria-hidden />Mark done
+          {busyAction === "mark-done" ? <LoaderCircle className="animate-spin" size={13} aria-hidden /> : <Check size={13} aria-hidden />}
+          {busyAction === "mark-done" ? "Marking done…" : "Mark done"}
         </button>
       ) : null}
 
-      {onPark ? <RemindLaterMenu disabled={busy} title={title} onPark={onPark} /> : null}
+      {onPark ? <RemindLaterMenu disabled={mutationBusy} saving={busyAction === "park"} title={title} onPark={onPark} /> : null}
 
       {onDismiss ? (
         <button
           type="button"
-          disabled={busy}
+          disabled={mutationBusy}
           onClick={onDismiss}
           title="Hide until the underlying issue changes"
           aria-label={`Dismiss ${title} until it changes`}
           className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-medium text-black/50 hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:opacity-40"
         >
-          <X size={13} aria-hidden />Dismiss
+          {busyAction === "dismiss" ? <LoaderCircle className="animate-spin" size={13} aria-hidden /> : <X size={13} aria-hidden />}
+          {busyAction === "dismiss" ? "Dismissing…" : "Dismiss"}
         </button>
       ) : null}
     </span>
@@ -144,10 +162,12 @@ export function AttentionControls({
 
 export function RemindLaterMenu({
   disabled,
+  saving = false,
   title,
   onPark,
 }: {
   disabled: boolean;
+  saving?: boolean;
   title: string;
   onPark: (until: number) => void;
 }) {
@@ -159,25 +179,38 @@ export function RemindLaterMenu({
     <details className="group/remind relative">
       <summary
         aria-label={`Remind me later about ${title}`}
+        aria-disabled={disabled}
+        onClick={event => {
+          if (!disabled) return;
+          event.preventDefault();
+          event.stopPropagation();
+        }}
+        onKeyDown={event => {
+          if (!disabled || (event.key !== "Enter" && event.key !== " ")) return;
+          event.preventDefault();
+          event.stopPropagation();
+        }}
         className={`inline-flex min-h-9 cursor-pointer list-none items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-medium text-black/55 hover:bg-black/[0.035] [&::-webkit-details-marker]:hidden ${disabled ? "pointer-events-none opacity-40" : ""}`}
       >
-        <Clock3 size={13} aria-hidden />Remind later
+        {saving ? <LoaderCircle className="animate-spin" size={13} aria-hidden /> : <Clock3 size={13} aria-hidden />}
+        {saving ? "Saving reminder…" : "Remind later"}
         <ChevronDown size={12} aria-hidden className="transition group-open/remind:rotate-180" />
       </summary>
       <div className="absolute right-0 top-10 z-30 w-44 overflow-hidden rounded-md border border-black/10 bg-white py-1 shadow-xl">
-        <ReminderChoice label="In 1 hour" onClick={() => onPark(now + 60 * 60 * 1000)} />
-        <ReminderChoice label="Tomorrow at 09:00" onClick={() => onPark(tomorrow.getTime())} />
-        <ReminderChoice label="In 3 days" onClick={() => onPark(now + 3 * 24 * 60 * 60 * 1000)} />
-        <ReminderChoice label="In 7 days" onClick={() => onPark(now + 7 * 24 * 60 * 60 * 1000)} />
+        <ReminderChoice disabled={disabled} label="In 1 hour" onClick={() => onPark(now + 60 * 60 * 1000)} />
+        <ReminderChoice disabled={disabled} label="Tomorrow at 09:00" onClick={() => onPark(tomorrow.getTime())} />
+        <ReminderChoice disabled={disabled} label="In 3 days" onClick={() => onPark(now + 3 * 24 * 60 * 60 * 1000)} />
+        <ReminderChoice disabled={disabled} label="In 7 days" onClick={() => onPark(now + 7 * 24 * 60 * 60 * 1000)} />
       </div>
     </details>
   );
 }
 
-function ReminderChoice({ label, onClick }: { label: string; onClick: () => void }) {
+function ReminderChoice({ disabled, label, onClick }: { disabled: boolean; label: string; onClick: () => void }) {
   return (
     <button
       type="button"
+      disabled={disabled}
       onClick={onClick}
       className="block min-h-9 w-full px-3 text-left text-xs text-black/60 hover:bg-black/[0.04] hover:text-black"
     >

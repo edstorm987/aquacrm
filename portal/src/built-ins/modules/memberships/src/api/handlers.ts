@@ -15,12 +15,22 @@ import {
   PlanPriceProvisioningRetryableError,
   PlanValidationError,
 } from "../server/plans";
+import {
+  MembershipCheckoutPendingReconciliationError,
+  MembershipLegacyOperationRecoveryError,
+  SubscriptionOperationConflictError,
+} from "../server/subscriptions";
 import type {
   CreateBenefitInput,
   CreatePlanInput,
   UpdateBenefitPatch,
   UpdatePlanPatch,
 } from "../lib/domain";
+import {
+  applyDefaultTrialDays,
+  normalizeMembershipSettings,
+  resolveBillingPortalReturnUrl,
+} from "../lib/settings";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -100,7 +110,9 @@ export async function createPlanHandler(req: Request, ctx: PluginCtx): Promise<R
   }
   const operationId = operationIdFromRequest(req, body.operationId);
   if (!operationId) return badRequest("operationId or Idempotency-Key header is required.");
-  const { operationId: _operationId, ...input } = body;
+  const { operationId: _operationId, ...suppliedInput } = body;
+  const settings = normalizeMembershipSettings(ctx.install);
+  const input = applyDefaultTrialDays(suppliedInput, settings.defaultTrialDays);
   if ((input.priceMonthly > 0 || (input.priceAnnual ?? 0) > 0)
     && !isStripeAvailable({ agencyId: ctx.agencyId, clientId: ctx.clientId! })) {
     return unprocessable("Stripe not configured for this client. Configure via the ecommerce plugin first.");
@@ -266,16 +278,23 @@ export async function adminCancelSubscriberHandler(req: Request, ctx: PluginCtx)
   const guard = methodGuard(req, "POST");
   if (guard) return guard;
   const body = await safeJson<{ userId: string; atPeriodEnd?: boolean; operationId?: string }>(req);
-  if (!body?.userId) return badRequest("userId required.");
+  if (!body?.userId || !body.operationId?.trim()) return badRequest("userId + operationId required.");
   try {
     const sub = await buildContainer(ctx).subscriptions.cancel({
       endCustomerUserId: body.userId,
       atPeriodEnd: body.atPeriodEnd ?? true,
       operationId: body.operationId,
     });
-    return sub ? json({ ok: true, subscription: sub }) : notFound("subscription not found");
+    return sub
+      ? json({ ok: true, subscription: sub, requestOperationId: body.operationId })
+      : notFound("subscription not found");
   } catch (err) {
-    return retryableFailure(err instanceof Error ? err.message : String(err));
+    if (err instanceof SubscriptionOperationConflictError) return conflict(err.message, err.operationId);
+    if (
+      err instanceof MembershipCheckoutPendingReconciliationError
+      || err instanceof MembershipLegacyOperationRecoveryError
+    ) return retryableFailure(err.message, err.operationId);
+    return retryableFailure(err instanceof Error ? err.message : String(err), body.operationId);
   }
 }
 
@@ -317,7 +336,16 @@ export async function meSubscribeHandler(req: Request, ctx: PluginCtx): Promise<
     cancelUrl?: string;
     operationId?: string;
   }>(req);
-  if (!body?.planId || !body.billing) return badRequest("planId + billing required.");
+  if (!body?.planId || !body.billing || !body.operationId?.trim()) {
+    return badRequest("planId + billing + operationId required.");
+  }
+  if (body.billing !== "monthly" && body.billing !== "annual") {
+    return badRequest("billing must be monthly or annual.");
+  }
+  const settings = normalizeMembershipSettings(ctx.install);
+  if (body.billing === "annual" && (!settings.annualBillingEnabled || !settings.showAnnualToggle)) {
+    return unprocessable("Annual billing is disabled for this memberships install.");
+  }
   const successUrl = body.successUrl ?? `${appOrigin(req)}/portal/customer/memberships?subscribed=1`;
   const cancelUrl = body.cancelUrl ?? `${appOrigin(req)}/portal/customer/memberships?canceled=1`;
   try {
@@ -336,6 +364,9 @@ export async function meSubscribeHandler(req: Request, ctx: PluginCtx): Promise<
         mode: "checkout",
         checkoutUrl: result.checkoutUrl,
         operationId: result.operationId,
+        requestOperationId: body.operationId,
+        planId: result.planId,
+        billing: result.billing,
       });
     }
     return json({
@@ -343,9 +374,17 @@ export async function meSubscribeHandler(req: Request, ctx: PluginCtx): Promise<
       mode: result.mode,
       subscription: result.subscription,
       operationId: result.operationId,
+      requestOperationId: body.operationId,
+      planId: result.planId,
+      billing: result.billing,
     });
   } catch (err) {
-    return retryableFailure(err instanceof Error ? err.message : String(err));
+    if (err instanceof SubscriptionOperationConflictError) return conflict(err.message, err.operationId);
+    if (
+      err instanceof MembershipCheckoutPendingReconciliationError
+      || err instanceof MembershipLegacyOperationRecoveryError
+    ) return retryableFailure(err.message, err.operationId);
+    return retryableFailure(err instanceof Error ? err.message : String(err), body.operationId);
   }
 }
 
@@ -355,15 +394,23 @@ export async function meCancelHandler(req: Request, ctx: PluginCtx): Promise<Res
   const url = new URL(req.url);
   const immediate = url.searchParams.get("immediate") === "1";
   const body = await safeJson<{ operationId?: string }>(req);
+  if (!body?.operationId?.trim()) return badRequest("operationId required.");
   try {
     const sub = await buildContainer(ctx).subscriptions.cancel({
       endCustomerUserId: ctx.actor,
       atPeriodEnd: !immediate,
       operationId: body?.operationId,
     });
-    return sub ? json({ ok: true, subscription: sub }) : notFound("subscription not found");
+    return sub
+      ? json({ ok: true, subscription: sub, requestOperationId: body.operationId })
+      : notFound("subscription not found");
   } catch (err) {
-    return retryableFailure(err instanceof Error ? err.message : String(err));
+    if (err instanceof SubscriptionOperationConflictError) return conflict(err.message, err.operationId);
+    if (
+      err instanceof MembershipCheckoutPendingReconciliationError
+      || err instanceof MembershipLegacyOperationRecoveryError
+    ) return retryableFailure(err.message, err.operationId);
+    return retryableFailure(err instanceof Error ? err.message : String(err), body.operationId);
   }
 }
 
@@ -371,7 +418,12 @@ export async function mePortalHandler(req: Request, ctx: PluginCtx): Promise<Res
   const guard = methodGuard(req, "POST");
   if (guard) return guard;
   const body = await safeJson<{ returnUrl?: string }>(req);
-  const returnUrl = body?.returnUrl ?? `${appOrigin(req)}/portal/customer/memberships`;
+  const settings = normalizeMembershipSettings(ctx.install);
+  const returnUrl = resolveBillingPortalReturnUrl({
+    requestUrl: req.url,
+    explicitReturnUrl: body?.returnUrl,
+    configuredReturnUrl: settings.billingPortalReturnUrl,
+  });
   const url = await buildContainer(ctx).subscriptions.billingPortalUrl(ctx.actor, returnUrl);
   return url ? json({ ok: true, url }) : notFound("subscription not found or no Stripe customer");
 }

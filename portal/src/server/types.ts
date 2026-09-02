@@ -3935,7 +3935,10 @@ export interface OperationalAlertPreference {
   agencyId: string;
   userId: string;
   alertId: string;
-  state: "read" | "parked" | "dismissed";
+  state: "unread" | "read" | "parked" | "dismissed";
+  causalVersion?: number;
+  /** Collision-safe semantic occurrence identity captured with this intent. */
+  occurrenceKey?: string;
   alertOccurredAt: number;
   updatedAt: number;
   parkedUntil?: number;
@@ -3949,6 +3952,21 @@ export interface OperationalAlertPreference {
    */
   deferrals?: number;
   firstDeferredAt?: number;
+}
+
+/**
+ * The currently observed failure episode for one operational-alert source.
+ *
+ * The record also retains the last healthy observation as a cursor. Its
+ * durable `startedAt` anchors an active alert occurrence, while `observedAt`
+ * prevents an older delayed worker from resurrecting a failure after recovery.
+ */
+export interface OperationalAlertSourceEpisode {
+  agencyId: string;
+  sourceId: string;
+  available?: boolean;
+  observedAt?: number;
+  startedAt?: number;
 }
 
 // ─── People ──────────────────────────────────────────────────────────────
@@ -4769,6 +4787,7 @@ export interface PortalState {
   organisations: Record<string, Organisation>;
   // What has actually been finished. See CompletedAction.
   completedActions: Record<string, CompletedAction>;
+  actionMutationReceipts: Record<string, ActionMutationReceipt>;
   // T1 R034 — multi-pipeline kanban model. Optional in parsed blobs
   // (legacy state lacks these fields); storage parser injects defaults.
   pipelines: Record<string, Pipeline>;
@@ -4857,6 +4876,8 @@ export interface PortalState {
   customKpis: Record<string, CustomKpiDefinition[]>;
   /** Latest Infra sweep snapshot (radar upgrade Stage 4). App-wide DB/storage health — one probe, not per-agency. */
   radarInfraHealth?: import("@/engines/data/radar/businessRadar").RadarInfraHealthSnapshot;
+  /** `${agencyId}|${sourceId}` → current episode plus last-observation cursor. */
+  operationalAlertSourceEpisodes: Record<string, OperationalAlertSourceEpisode>;
   operationalAlertPreferences: Record<string, OperationalAlertPreference>;
   /**
    * Each person's own chrome: their sidebar order and their saved tabs.
@@ -4890,4 +4911,16 @@ export interface PortalState {
   // Durable domain events, recorded atomically with their domain mutation and
   // drained to the in-memory bus. See `server/outbox.ts`.
   outbox: Record<string, OutboxEvent>;
+}
+
+export interface ActionMutationReceipt {
+  operationId: string;
+  kind: "task-delete" | "task-complete" | "alert-action" | "alert-done";
+  agencyId: string;
+  userId: string;
+  targetId: string;
+  action?: string;
+  parkedUntil?: number;
+  completedActionId?: string;
+  createdAt: number;
 }

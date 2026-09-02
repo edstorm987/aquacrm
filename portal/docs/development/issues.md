@@ -1381,8 +1381,15 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     seeding now names Silver/Gold failures instead of silently leaving only Bronze.
     Provider commands carry durable identities, Stripe metadata is scope-complete,
     concurrent delivery has one owner and the mounted signed-webhook route returns
-    503 for retryable processing failures. Focused lifecycle, webhook-inbox and module
-    proof passes **21/21** on 2026-09-01. Remaining acceptance needs a real Stripe
+    503 for retryable processing failures. The current checkout command additionally
+    fingerprints every provider-affecting input (mode, price, trial, return targets
+    and existing subscription identity), rejects same-operation intent drift and
+    lets a new operation replace only an expired Checkout result. Stripe expiry is
+    retained, provider destinations must be credential-free HTTPS, and mounted
+    customer controls refuse malformed or wrong-plan/cadence 2xx responses before
+    navigation or reload. Focused lifecycle, webhook-inbox and module proof passed
+    **21/21** on 2026-09-01; record the post-review Memberships aggregate before the
+    next release checkpoint. Remaining acceptance needs a real Stripe
     test account: paid plan creation → hosted checkout → signed webhook → portal
     change/pause/resume/cancel → reload/reconciliation. Do not close this from an
     injected SDK client alone.
@@ -1635,8 +1642,8 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     delivery webhook visible in Logs. Do not mark this complete from mocks alone.
 
 44. **P2 PARTLY REPAIRED 2026-09-02 — the shared settings product is reachable
-    across registered families, and Marketing, Website Editor and Fulfillment now
-    have truthful operational settings.** The
+    across registered families, and Marketing, Website Editor, Fulfillment and
+    Memberships now have truthful operational settings.** The
     agency hub exposes Finance, HR, Marketing and Email settings; the client settings
     surface exposes CRM, Affiliates, Ecommerce and Memberships. Marketing's own
     Settings page also mounts the canonical panel, retains only `defaultCurrency`,
@@ -1650,14 +1657,34 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     configured/explicit phases are rejected before client creation, and a disabled
     checklist gate records the override and open-item count.
 
-    The source-derived inventory is now **12 registered manifests / 43 fields**:
-    **24 have runtime consumers and 19 do not**. Remaining unconsumed declarations
-    are HR (3), Memberships (4), Leads Pipeline (3), Public Funnel (2), Ecommerce
-    (2), Affiliates (2), Client CRM (2) and Finance (1). Wire or remove every
+    Memberships now consumes all four declarations that were previously labelled
+    unwired. `defaultTrialDays` is bounded to whole days 0–365 and reaches plan
+    creation before its durable intent fingerprint; `billingPortalReturnUrl` is
+    resolved to an absolute same-origin HTTP(S) provider return target;
+    `memberPortalHeading` reaches the customer page; and `showAnnualToggle` joins
+    the installed annual-billing feature and a genuinely eligible active plan before
+    annual cadence appears or can be submitted. The settings writer and runtime use
+    one exact numeric grid, so near-integer values cannot save and later normalise to
+    a different result.
+
+    The keyed source-derived inventory is now **12 registered manifests / 43 fields**:
+    **27 have runtime consumers and 16 do not**. Remaining unconsumed declarations
+    are HR (3), Leads Pipeline (3), Public Funnel (2), Ecommerce (2), Affiliates
+    (2), Client CRM (3) and Finance (1). `client-crm/defaultTags` was restored to
+    this list after the old repository-wide field-name match confused it with an
+    unrelated Leads CSV FormData key; host readers are now keyed to the full plugin/
+    field identity and exact access path. Wire or remove every
     remaining declaration and behaviour-prove each retained field;
     `bos-auth-gate/loginPath` is separately dormant and outside this registered
-    surface. Focused settings/lifecycle proof and the source-derived unwired-settings
-    ratchet are green; mounted save/reload/changed-outcome acceptance remains.
+    surface. Dedicated settings/runtime coverage now exercises the Memberships
+    consumers, numeric boundary, exact annual gate, provider return target and
+    actual handler/page wiring. Focused Memberships passes **65/65**, adjacent
+    Memberships/company/Ecommerce **90/90** and the complete changed-surface gate
+    **145/145**. Exact production build `bcNH7NEvlzmp6z1VXtmch` browser-proves the
+    Memberships settings save/reload/default-trial/annual-gate, exact two-POST stable
+    operation/provider binding and billing refusal/success stories across four
+    viewports with zero unexpected diagnostics or overflow. The issue remains partial
+    because the 16 declarations named above are still unconsumed.
 
     _Original finding, retained for context:_ Twelve built-ins declare **51** fields in `settings.groups`, and the
     generic `PluginSettingsPanel` plus validated `/api/portal/plugins/settings`
@@ -1725,8 +1752,8 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     incomplete UI on the mounted server.
 
 47. **P2 PARTLY REPAIRED 2026-09-02 — checked response contracts now cover the
-    first broad cohort plus Finance, Dev Team, Governance and Fulfilment writes;
-    Actions and remaining cohorts/acceptance stay open.** A focused UI scan found **13** direct `await fetch(...)` calls
+    first broad cohort plus Finance, Dev Team, Governance, Fulfilment and Actions
+    writes; remaining cohorts/acceptance stay open.** A focused UI scan found **13** direct `await fetch(...)` calls
     whose response is never inspected. These are not harmless telemetry calls: they
     include HR leave approval/rejection, Membership admin and customer cancellation,
     Affiliate approval/attribution/manual-payout/referral-code actions, Ecommerce
@@ -1852,9 +1879,31 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     forced-failure browser acceptance at both **390px and 1280px**: an injected
     refusal produced a visible alert, did not reload or run the success continuation,
     rolled back or retained the affected state as appropriate, and a retry succeeded.
-    This closes that representative source/browser cohort, not issue #47 as a whole:
-    Actions remains open, as do the remaining unconverted families and their complete
+    This closed that representative source/browser cohort, not issue #47 as a whole:
+    at that checkpoint Actions remained open, as did the remaining unconverted families and their complete
     forced-failure/transport/malformed-response browser matrix.
+
+    **Fourth implementation cohort — 2026-09-02.** Actions is source/behaviour
+    complete for the audited mutation family. Task completion is bound to the exact
+    task revision; task deletion, alert Mark Done and notification read/unread/park/
+    dismiss use deterministic operation receipts and return authoritative filtered
+    snapshots. Alert mutations bind the semantic source occurrence plus a per-user
+    causal version, serialise competing decisions and reject stale successors. Task,
+    completion-register, preference and receipt writes share an atomic transaction,
+    so an injected commit failure rolls the whole decision back and a lost success
+    can replay without duplicating completed work. Mounted Actions, Today, Calendar,
+    Dashboard, Team and notification controls validate the exact success shape, keep
+    refused work visible, prevent duplicate clicks and expose retryable busy/error
+    state. The final focused Actions gate is **54/54**; the complete Actions+
+    Memberships changed-surface gate is **145/145**, TypeScript and diff checks pass,
+    and independent review found no remaining source defect. Exact production build
+    `bcNH7NEvlzmp6z1VXtmch` passes all **40/40** Actions+Memberships stories at
+    **390×844, 768×1024, 1024×768 and 1280×800**, including malformed/lost-success/
+    stale retry and settled-busy paths, with zero unexpected console, page, network,
+    HTTP or overflow failures. The wider issue remains partial.
+    Issue #47 remains partial because Client Centre, phase, SOP, Company, Performance
+    and other unconverted families still need the same source and complete forced-
+    failure/transport/malformed-response browser treatment.
 
 48. **✅ RESOLVED 2026-08-26 — Health Check result sharing carries the completed
     state.** Progress-save and final result actions now use one testable seven-day
@@ -3163,7 +3212,7 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     claimed. Complete create → assign → invoice/pay → move/cancel → reload in an isolated mounted
     browser before upgrading this item to fully accepted.
 
-122. **🟠 CODE + BEHAVIOUR RESOLVED 2026-09-02; mounted/live-provider acceptance remains.**
+122. **🟠 CODE + BEHAVIOUR RESOLVED 2026-09-02; full mounted/live-provider acceptance remains.**
     Membership subscription changes run under one per-user cross-process command. The command
     is persisted before provider work, carries stable customer/Checkout/change/cancel idempotency
     identities, records accepted provider results before local adoption and resumes the same
@@ -3172,12 +3221,19 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     free→paid replays one hosted Checkout; free end-of-period cancellation is normalised to an
     immediate terminal row because no provider period/webhook exists. The customer portal exposes
     plan-switch actions, customer/admin requests carry operation ids, and provider failures return
-    retryable 503 without optimistic reload. The dedicated gate proves paid→free provider failure
-    leaves both sides unchanged, retry/replay cancels once, free cancellation terminates, Checkout
-    replay returns one session, provider-success/local-write failure is adopted after reload, and
-    two concurrent paid changes call the provider once: **2/2**. The widened Membership/customer/
-    discount chain passes **49/49**; package plus lifecycle passes **11/11**, TypeScript and diff
-    checks pass. Plan creation and price-changing updates now use the same durable-
+    retryable 503 without optimistic reload. Every mounted operation id is durably bound to its
+    archived canonical command rather than whichever command is active later, so historical retries
+    replay their original exact result and incomplete legacy history fails closed. Subscription rows
+    retain every retired Stripe subscription id, preventing an old Checkout or webhook generation
+    from replacing a resumed or newer provider generation. Provider-backed paid plan changes and
+    cancellations acquire the shared per-user provider lane before provider I/O and retain it through
+    dependency-graph adoption or final cancellation. Pause/resume maps provider collection state;
+    the cancellation finalizer sequence-fences the current generation and publishes one terminal
+    activity/event even when an at-period-end request returns terminal immediately. The original
+    dedicated gate proves paid→free provider failure leaves both sides unchanged, retry/replay
+    cancels once, free cancellation terminates, Checkout replay returns one session, provider-success/
+    local-write failure is adopted after reload, and two concurrent paid changes call the provider
+    once. Plan creation and price-changing updates use the same durable-
     command pattern: the intent owns the plan id and exact base/candidate snapshots,
     monthly and annual Stripe Price outcomes checkpoint separately with stable per-
     cadence provider keys, and provider I/O runs outside the PortalState transaction.
@@ -3185,23 +3241,29 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     revalidates the exact target and benefit references, stale targets become terminal
     conflicts without overwriting intervening edits, and a pending update blocks plan
     deletion. The real foundation adapter forwards those keys to Stripe. The dedicated
-    plan-price provisioning gate passes **11/11**. A provider
+    plan-price provisioning gate passes **11/11**, and the expanded subscription lifecycle itself
+    passes **16/16**. The final focused Memberships aggregate is
+    **65/65**, the adjacent Memberships/company/Ecommerce gate is **90/90**, and the complete
+    changed-surface gate is **145/145**; TypeScript/diff pass and independent review is clean. A provider
     success made stale by a legitimate intervening edit is retained for reconciliation
     rather than automatically deactivated; mounted/live Stripe acceptance remains.
 
-123. **🟠 CODE + BEHAVIOUR RESOLVED 2026-08-26; live-provider acceptance remains.** The old
+123. **🟠 CODE + BEHAVIOUR RESOLVED 2026-09-02; live-provider acceptance remains.** The old
     pre-work seen flag is now a durable per-event inbox row with processing/failed/completed state
-    and attempt count, serialised by the plugin storage's cross-process transaction. Only a
-    completed row dedupes; failed, interrupted and legacy pre-seen rows run again. Subscription
-    events require agency, client, customer, plan and valid billing metadata, refuse cross-install
-    scope and must return a resolved subscriber before completion. Invoice paid/failed events
-    validate scope/identity/amount, persist a scoped invoice payment record, write idempotent
-    activity and emit with the real agency/client plus webhook event id. The HTTP route maps
-    verified processing failures to retryable 503 while bad signatures remain 400. The dedicated
-    gate faults subscriber persistence and payment activity, reloads a fresh container, races two
-    deliveries, exercises legacy markers and refuses missing/wrong scope: **4/4**. Combined #122–
-    #123 dedicated proof passes **6/6**, widened Membership/customer/discount **53/53**, package
-    plus dedicated **15/15**, TypeScript/diff pass. No signed live-provider delivery is claimed.
+    and attempt count, serialised by the plugin storage's cross-process transaction. A completed row
+    is checked before Stripe retrieval, so exact redelivery performs no provider call; failed,
+    interrupted and legacy pre-seen rows run again. Subscription events require agency, client,
+    customer, plan and valid billing metadata, refuse cross-install scope and re-read current Stripe
+    state inside the same per-user provider lane as UI lifecycle commands. A legacy event may
+    discover its user only to choose that lane; its discovery snapshot is never applied. Late
+    provider generations cannot replace the current subscriber. Invoice paid/failed events validate
+    scope/identity/amount and use one paid-dominant per-invoice ledger: failed may advance to paid,
+    paid cannot regress, and the durable row's event owns idempotent activity/event effects plus their
+    completion marker. The HTTP route maps verified processing failures to retryable 503 while bad
+    signatures remain 400. The expanded webhook gate passes **9/9**. The final focused Memberships
+    aggregate is **65/65**, adjacent
+    Memberships/company/Ecommerce is **90/90**, and the complete changed-surface gate is **145/145**;
+    TypeScript/diff pass and independent review is clean. No signed live-provider delivery is claimed.
 
 124. **🟠 CODE + BEHAVIOUR RESOLVED 2026-08-26; mounted/live-Connect acceptance remains.**
     Scheduling now runs under one affiliate-scoped cross-process transaction and persists a

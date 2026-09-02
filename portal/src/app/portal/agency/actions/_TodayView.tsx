@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Bell, CalendarDays, CalendarPlus, Check, ChevronDown, Clock3, LoaderCircle } from "lucide-react";
 
-import { AttentionControls } from "@/components/attention/AttentionControls";
+import { AttentionControls, type AttentionBusyAction } from "@/components/attention/AttentionControls";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
 import type { GeneratedAction } from "./_ActionsWorkspace";
 import type { AgencyTask, CommandCalendarEntry } from "@/server/types";
@@ -25,6 +25,7 @@ export function TodayView({
   entries,
   attentionActions = [],
   busyId,
+  attentionBusyActionFor = () => undefined,
   onComplete,
   onPostpone,
   onAttentionAction,
@@ -43,6 +44,7 @@ export function TodayView({
    */
   attentionActions?: GeneratedAction[];
   busyId: string | null;
+  attentionBusyActionFor?: (action: GeneratedAction) => AttentionBusyAction | undefined;
   onComplete: (task: AgencyTask) => void;
   onPostpone: (task: AgencyTask, until: number) => void;
   onAttentionAction?: (action: GeneratedAction, kind: "park" | "dismiss", until?: number) => void | Promise<void>;
@@ -121,6 +123,7 @@ export function TodayView({
                   resolveHref={action.href}
                   evidenceHref={action.evidenceHref}
                   busy={busyId === action.id}
+                  busyAction={attentionBusyActionFor(action)}
                   onMarkDone={onMarkAttentionDone ? () => void onMarkAttentionDone(action) : undefined}
                   onPark={onAttentionAction ? (until: number) => void onAttentionAction(action, "park", until) : undefined}
                   onDismiss={onAttentionAction ? () => void onAttentionAction(action, "dismiss") : undefined}

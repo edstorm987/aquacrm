@@ -2,11 +2,9 @@
 //
 // The install block below used to be the whole page: currency and trial
 // defaults printed as text, with no control anywhere that could change them.
-// `defaultCurrency` is read for real — `PlansPage` seeds the new-plan modal
-// from it — so that value was true and simply unreachable. `defaultTrialDays`
-// is not: the modal defaults trial length to 0 and `seedDefaults` hardcodes
-// 7/14, so printing it here was the only thing that made it look read. It is in
-// `UNWIRED_SETTINGS`, so the panel labels it "Not connected".
+// The canonical panel now edits both values: `PlansPage` seeds the new-plan
+// modal from `defaultCurrency` and `defaultTrialDays`, and the create handler
+// applies the trial default before deriving the durable operation fingerprint.
 //
 // Memberships is `scopePolicy: "client"`, so the agency Settings hub
 // deliberately does not edit it — a plan's currency belongs to a client, not to

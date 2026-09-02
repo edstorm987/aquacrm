@@ -17,9 +17,11 @@
 
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { describePluginSettings } from "@/lib/server/plugins/pluginSettingsSurface";
+import { canEditPluginSettings } from "@/lib/server/plugins/pluginSettingsAccess";
 import { PluginSettingsPanel } from "@/components/workspaces/PluginSettingsPanel";
 
 export default async function SettingsPage(props: PluginPageProps) {
+  const canEdit = await canEditPluginSettings();
   const settings = describePluginSettings(props.install.pluginId, {
     agencyId: props.agencyId,
     ...(props.clientId ? { clientId: props.clientId } : {}),
@@ -35,7 +37,7 @@ export default async function SettingsPage(props: PluginPageProps) {
       </header>
 
       {settings ? (
-        <PluginSettingsPanel initial={settings} clientId={props.clientId} />
+        <PluginSettingsPanel initial={settings} clientId={props.clientId} canEdit={canEdit} />
       ) : (
         <p className="rounded-md border border-black/10 bg-black/[0.02] px-4 py-3 text-sm text-black/55">
           This store has no settings to show — the ecommerce module is not registered here.

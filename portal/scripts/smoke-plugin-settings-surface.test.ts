@@ -50,14 +50,14 @@ async function agencyWith(pluginId: string, config: Record<string, unknown> = {}
 }
 
 /** A plausible value for a field, by declared type. */
-function sampleFor(field: { id: string; type: string; options?: { value: string }[] }): unknown {
+function sampleFor(field: { id: string; type: string; options?: { value: string }[]; urlPolicy?: string }): unknown {
   switch (field.type) {
     case "number": return 7;
     case "boolean": return true;
     case "select": return field.options?.[0]?.value ?? "";
     case "password": return `secret-for-${field.id}`;
     case "email": return "someone@example.test";
-    case "url": return "https://example.test";
+    case "url": return field.urlPolicy === "same-origin-path" ? "/settings-test" : "https://example.test";
     case "color": return "#112233";
     default: return `value-for-${field.id}`;
   }
@@ -312,6 +312,50 @@ describe("declared secrets must say where they are stored", () => {
   });
 });
 
+describe("numeric settings defaults use the same grid contract as writes", () => {
+  it("rejects an off-grid manifest default that the settings writer would reject", () => {
+    const memberships = getPlugin("memberships");
+    assert.ok(memberships);
+    const broken = {
+      ...memberships,
+      settings: {
+        ...memberships.settings,
+        groups: memberships.settings.groups.map(group => ({
+          ...group,
+          fields: group.fields.map(field => field.id === "defaultTrialDays"
+            ? { ...field, default: 1.5 }
+            : field),
+        })),
+      },
+    };
+    const result = validatePlugin(broken);
+    assert.equal(result.ok, false);
+    assert.ok(
+      result.errors.some(error => error.includes("default must match the declared numeric step")),
+      result.errors.join(" | "),
+    );
+  });
+
+  it("accepts an ordinary decimal default on a decimal grid", () => {
+    const memberships = getPlugin("memberships");
+    assert.ok(memberships);
+    const validDecimalGrid = {
+      ...memberships,
+      settings: {
+        ...memberships.settings,
+        groups: memberships.settings.groups.map(group => ({
+          ...group,
+          fields: group.fields.map(field => field.id === "defaultTrialDays"
+            ? { ...field, min: 0.1, max: 0.9, step: 0.2, default: 0.3 }
+            : field),
+        })),
+      },
+    };
+    const result = validatePlugin(validDecimalGrid);
+    assert.equal(result.ok, true, result.errors.join(" | "));
+  });
+});
+
 // ─── 4. Client-scoped modules, edited in the client workspace ─────────────
 
 // `lib/chrome/settingsModules.ts` keeps the four `scopePolicy: "client"`
@@ -391,7 +435,7 @@ describe("a settings panel never offers a Save the endpoint will refuse", () => 
   });
 
   it("every client-scoped settings page gates the panel on that list", () => {
-    for (const moduleId of ["memberships", "client-crm", "affiliates"]) {
+    for (const moduleId of ["memberships", "client-crm", "affiliates", "ecommerce"]) {
       const page = src(`src/built-ins/modules/${moduleId}/src/pages/SettingsPage.tsx`);
       assert.match(page, /canEditPluginSettings\(\)/,
         `${moduleId}: the settings page renders the panel without asking whether this viewer can save`);

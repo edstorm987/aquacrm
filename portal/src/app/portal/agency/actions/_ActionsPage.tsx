@@ -21,6 +21,7 @@ import { AGENCY_ROLES } from "@/server/types";
 import { listUsersForAgency } from "@/server/users";
 import { containerFor } from "@aqua/plugin-leads-pipeline/server";
 import { getPortalFormFields } from "@/server/portalEditor";
+import { alertOccurrenceKey } from "@/lib/client/actionsMutationTruth";
 
 import type { ActionsView, GeneratedAction } from "./_ActionsWorkspace";
 import { LazyActionsWorkspace } from "./_LazyActionsWorkspace";
@@ -158,6 +159,8 @@ export async function assembleAgencyActions() {
       resolutionKind: alert.kind,
       deferrals: alert.deferrals,
       firstDeferredAt: alert.firstDeferredAt,
+      causalVersion: alert.causalVersion,
+      alertOccurrenceKey: alertOccurrenceKey(alert),
       // Evidence lands on the record itself. The trailing segment of an alert
       // id is the record that tripped it (`task:task_abc`,
       // `invoice:cli_1:INV-9`), so annotated rows get an exact hit and pages

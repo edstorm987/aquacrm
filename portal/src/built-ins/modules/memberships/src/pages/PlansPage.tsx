@@ -4,6 +4,7 @@ import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
 import { PlansList } from "../components/PlansList";
 import type { Currency } from "../lib/domain";
+import { normalizeMembershipSettings } from "../lib/settings";
 
 export const API_BASE = "/api/portal/memberships";
 
@@ -19,11 +20,13 @@ export default async function PlansPage(props: PluginPageProps) {
   });
   const plans = await c.plans.list();
   const defaultCurrency = (props.install.config.defaultCurrency as Currency | undefined) ?? "usd";
+  const settings = normalizeMembershipSettings(props.install);
   return (
     <PlansList
       plans={plans}
       apiBase={API_BASE}
       defaultCurrency={defaultCurrency}
+      defaultTrialDays={settings.defaultTrialDays}
       canMutate
     />
   );

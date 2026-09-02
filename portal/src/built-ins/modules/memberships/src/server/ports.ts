@@ -33,6 +33,8 @@ export interface StoragePort {
   set<T = unknown>(key: string, value: T): Promise<void>;
   /** Serialize and durably flush a logical operation across application processes. */
   runExclusive?<T>(key: string, operation: () => Promise<T>): Promise<T>;
+  /** Serialize provider I/O across processes without holding a storage transaction. */
+  runProviderExclusive?<T>(key: string, operation: () => Promise<T>): Promise<T>;
   del(key: string): Promise<void>;
   list(prefix?: string): Promise<string[]>;
 }
@@ -155,8 +157,10 @@ export interface StripeSubscription {
   status: string;                  // raw Stripe status — caller maps to SubscriptionStatus
   currentPeriodEnd?: number;       // unix seconds
   cancelAtPeriodEnd: boolean;
+  collectionPaused?: boolean;
   trialEnd?: number;               // unix seconds
   items: { priceId: string }[];
+  metadata?: Record<string, string>;
 }
 
 export interface StripeCheckoutSessionInput {
@@ -175,6 +179,8 @@ export interface StripeCheckoutSessionInput {
 export interface StripeCheckoutSession {
   id: string;
   url: string;
+  /** Stripe Checkout expiry as Unix seconds. */
+  expiresAt?: number;
 }
 
 export interface StripeBillingPortalInput {
@@ -221,6 +227,7 @@ export interface StripePort {
   changeSubscriptionPlan(args: {
     id: string;
     newPriceId: string;
+    metadata: Record<string, string>;
     idempotencyKey?: string;
   }): Promise<StripeSubscription>;
 

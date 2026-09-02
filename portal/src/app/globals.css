@@ -1765,6 +1765,42 @@ html[data-color-mode="light"] .mm-command-transition__reticle {
    editing one line of plugin code. */
 
 /* List header — flex row with title + actions. */
+.memberships-cadence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0;
+  padding: 0;
+  border: 0;
+}
+.memberships-cadence legend {
+  width: 100%;
+  margin-bottom: 0.125rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--brand-ink, #0f172a) 72%, transparent);
+}
+.memberships-cadence label {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.875rem;
+  border: 1px solid color-mix(in srgb, var(--brand-ink, #0f172a) 14%, transparent);
+  border-radius: 999px;
+  background: var(--brand-surface, #fff);
+  color: color-mix(in srgb, var(--brand-ink, #0f172a) 72%, transparent);
+  cursor: pointer;
+}
+.memberships-cadence label[data-selected="true"] {
+  border-color: var(--brand-primary, #111);
+  box-shadow: 0 0 0 1px var(--brand-primary, #111);
+  color: var(--brand-ink, #0f172a);
+}
+.memberships-cadence input {
+  accent-color: var(--brand-primary, #111);
+}
+
 [class$="-list-header"] {
   display: flex;
   flex-wrap: wrap;

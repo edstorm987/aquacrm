@@ -130,10 +130,27 @@ function inventoryFor(planId: string, dependants: PlanDependant[]): PlanDependen
 }
 
 interface StoredSubscriptionCommand {
+  id?: string;
   kind?: string;
   stage?: string;
   userId?: string;
   planId?: string;
+  subscribeMode?: string;
+  subscribeResult?: { mode?: string };
+  checkoutReconciledAt?: number;
+  createdAt?: number;
+  checkout?: { expiresAt?: number };
+}
+
+function subscriptionCommandCanMaterialise(command: StoredSubscriptionCommand): boolean {
+  if (command.stage === "pending" || command.stage === "provider_applied") return true;
+  if (command.stage !== "completed") return true;
+  // A Checkout URL expiring does not prove the payment failed. The buyer can
+  // complete immediately before expiry while the webhook is delayed until
+  // afterwards. Keep the plan until an authoritative provider reconciliation
+  // records a terminal outcome; ordinary plan retirement uses archive.
+  return !command.checkoutReconciledAt
+    && (command.subscribeMode === "checkout" || command.subscribeResult?.mode === "checkout");
 }
 
 interface StoredPlanPriceCommand {
@@ -152,16 +169,24 @@ async function pendingCommandDependants(
   seenUsers: Set<string>,
 ): Promise<PlanDependant[]> {
   const dependants: PlanDependant[] = [];
-  const keys = await storage.list("memberships/subscription-command/");
-  for (const key of keys) {
+  const activeKeys = await storage.list("memberships/subscription-command/");
+  const archivedKeys = await storage.list("memberships/subscription-operation-commands/");
+  for (const key of new Set([...activeKeys, ...archivedKeys])) {
     const command = await storage.get<StoredSubscriptionCommand>(key);
-    if (command?.kind !== "subscribe" || command.planId !== planId || !command.userId || seenUsers.has(command.userId)) continue;
+    if (
+      command?.kind !== "subscribe"
+      || command.planId !== planId
+      || !command.userId
+      || seenUsers.has(command.userId)
+      || !subscriptionCommandCanMaterialise(command)
+    ) continue;
     seenUsers.add(command.userId);
     dependants.push({
       kind: "subscription-command",
       userId: command.userId,
       status: "pending",
       billable: false,
+      operationId: command.id,
     });
   }
   return dependants;

@@ -932,7 +932,9 @@ export const PORTAL_STATE_COVERAGE: Readonly<Record<string, CollectionClassifica
 
   // Communication & attention
   completedActions: { entity: "action", plane: "operational", note: "Cleared-attention history." },
+  operationalAlertSourceEpisodes: { entity: "evidenceItem", plane: "operational", note: "Per-tenant source availability cursor and active outage start; the cursor prevents delayed observations from resurrecting a recovered outage." },
   operationalAlertPreferences: { plane: "config", note: "Per-operator alert tuning." },
+  actionMutationReceipts: { entity: "action", plane: "operational", note: "Tenant-scoped idempotency receipts for authoritative Action mutations." },
 
   // Delivery
   phases: { entity: "fulfilmentItem", plane: "operational", note: "Phase instances with checklists." },

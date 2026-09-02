@@ -30,6 +30,7 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { before, describe, it } from "node:test";
+import ts from "typescript";
 
 import { UNWIRED_SETTINGS, isSettingUnwired, unwiredKey } from "../src/lib/plugins/unwiredSettings";
 import { listPlugins } from "../src/built-ins/runtime/_registry";
@@ -57,6 +58,48 @@ import type { AquaPlugin } from "../src/built-ins/runtime/_types";
  */
 const NOT_A_READER = /lib\/plugins\/unwiredSettings\.ts$|lib\/integrations\/catalog\.ts$/;
 
+interface HostReader {
+  path: string;
+  pattern: RegExp;
+}
+
+/**
+ * A host-side read only counts when the full plugin/field identity names the
+ * exact file and access expression. Matching a bare quoted field id across all
+ * host source confused Client CRM's `defaultTags` setting with an unrelated
+ * Leads CSV FormData key of the same name.
+ */
+const HOST_READERS: Readonly<Record<string, readonly HostReader[]>> = {
+  "fulfillment/defaultStage": [{
+    path: "src/app/api/portal/fulfillment/clients/route.ts",
+    pattern: /fulfillmentInstall\??\.config\.defaultStage\b/,
+  }],
+  "agency-finance/defaultCurrency": [{
+    path: "src/engines/data/server/kpi/companyHealthSnapshot.ts",
+    pattern: /financeInstall\.config\.defaultCurrency\b/,
+  }],
+};
+
+function withoutComments(source: string): string {
+  const scanner = ts.createScanner(ts.ScriptTarget.Latest, false, ts.LanguageVariant.JSX, source);
+  let cursor = 0;
+  let output = "";
+  for (let token = scanner.scan(); token !== ts.SyntaxKind.EndOfFileToken; token = scanner.scan()) {
+    if (token !== ts.SyntaxKind.SingleLineCommentTrivia && token !== ts.SyntaxKind.MultiLineCommentTrivia) continue;
+    const start = scanner.getTokenPos();
+    const end = scanner.getTextPos();
+    output += source.slice(cursor, start);
+    output += source.slice(start, end).replace(/[^\r\n]/g, " ");
+    cursor = end;
+  }
+  return output + source.slice(cursor);
+}
+
+function hostReads(key: string): boolean {
+  return (HOST_READERS[key] ?? []).some(reader =>
+    reader.pattern.test(withoutComments(readFileSync(reader.path, "utf8"))));
+}
+
 function readTree(dir: string, skip: RegExp): string[] {
   const out: string[] = [];
   let entries;
@@ -78,13 +121,9 @@ function moduleSource(id: string): string {
   return files.join("\n");
 }
 
-let hostSource = "";
 let plugins: AquaPlugin[] = [];
 
 before(() => {
-  hostSource = ["src/lib", "src/app", "src/server", "src/built-ins/runtime"]
-    .flatMap(dir => readTree(dir, /built-ins\/modules/))
-    .join("\n");
   plugins = listPlugins().filter(plugin => !plugin.id.startsWith("zz-"));
 });
 
@@ -93,16 +132,17 @@ function sweep(): { total: number; unwired: string[] } {
   const unwired: string[] = [];
   let total = 0;
   for (const plugin of plugins) {
-    const own = moduleSource(plugin.id);
+    const own = withoutComments(moduleSource(plugin.id));
     for (const group of plugin.settings?.groups ?? []) {
       for (const field of group.fields ?? []) {
         total += 1;
         // Remove the declaring line(s) before asking whether anything reads it.
         const withoutDeclaration = own.replace(new RegExp(`id:\\s*["']${field.id}["']`, "g"), "");
+        const key = unwiredKey(plugin.id, field.id);
         const read = new RegExp(`["']${field.id}["']`).test(withoutDeclaration)
           || new RegExp(`\\.${field.id}\\b`).test(withoutDeclaration)
-          || new RegExp(`["']${field.id}["']`).test(hostSource);
-        if (!read) unwired.push(unwiredKey(plugin.id, field.id));
+          || hostReads(key);
+        if (!read) unwired.push(key);
       }
     }
   }
@@ -113,13 +153,9 @@ describe("settings fields that nothing reads", () => {
   it("the detector is measuring something", () => {
     const { total } = sweep();
     assert.ok(total > 40, `expected the modules' declared settings fields, counted ${total}`);
-    assert.ok(hostSource.length > 500_000, "the host source must actually be loaded");
-    // …and the list file must NOT be in it, or the detector disarms itself.
-    assert.ok(
-      !hostSource.includes("UNWIRED_SETTING_NOTICE"),
-      "unwiredSettings.ts is being scanned as a reader — it names every id, so every field would "
-      + "look wired and this sweep would report a clean bill of health it did not earn",
-    );
+    for (const [key, readers] of Object.entries(HOST_READERS)) {
+      assert.ok(readers.length > 0 && hostReads(key), `${key} has stale host-reader evidence`);
+    }
     // And a field that IS read must classify as read, or every result is noise.
     //
     // The anchor must be a field read by CODE. It used to be
@@ -133,6 +169,10 @@ describe("settings fields that nothing reads", () => {
     assert.ok(
       !unwired.includes("affiliates/defaultPayoutMethod"),
       "a field the module genuinely reads must not be reported unwired — the detector is inverted",
+    );
+    assert.ok(
+      unwired.includes("client-crm/defaultTags"),
+      "an unrelated Leads CSV FormData key must not make Client CRM defaultTags look consumed",
     );
   });
 

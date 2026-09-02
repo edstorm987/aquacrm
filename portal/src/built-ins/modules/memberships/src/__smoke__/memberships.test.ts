@@ -427,6 +427,16 @@ describe("memberships smoke", () => {
 
   test("step 6: webhook customer.subscription.deleted cancels subscription", async () => {
     const sub = (await services.subscriptions.getByUser(CUSTOMER_USER_ID))!;
+    const providerSub = [...world.inspect.subsByCustomer.values()]
+      .find(candidate => candidate.id === sub.stripeSubscriptionId)!;
+    // Reconciliation now deliberately re-reads Stripe instead of trusting a
+    // potentially delayed event body. Mirror the provider's terminal state so
+    // this deletion fixture represents an actual completed cancellation.
+    world.inspect.subsByCustomer.set(providerSub.customerId, {
+      ...providerSub,
+      status: "canceled",
+      cancelAtPeriodEnd: false,
+    });
     const rawBody = JSON.stringify({
       id: "evt_002",
       type: "customer.subscription.deleted",
@@ -437,7 +447,7 @@ describe("memberships smoke", () => {
           customer: sub.stripeCustomerId,
           status: "canceled",
           current_period_end: sub.currentPeriodEnd ? Math.floor(Date.parse(sub.currentPeriodEnd) / 1000) : 0,
-          cancel_at_period_end: true,
+          cancel_at_period_end: false,
           items: { data: [{ price: { id: "price_1" } }] },
           metadata: {
             agencyId: AGENCY_ID,

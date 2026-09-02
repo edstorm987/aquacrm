@@ -24,6 +24,9 @@ export interface PluginSettingsFieldView {
   helpText?: string;
   placeholder?: string;
   options?: { value: string; label: string }[];
+  min?: number;
+  max?: number;
+  step?: number;
   value: string | number | boolean | null;
   secret: boolean;
   configured: boolean;
@@ -353,6 +356,9 @@ function renderInput(
       value={value}
       placeholder={field.placeholder}
       autoComplete={field.secret ? "new-password" : undefined}
+      min={field.type === "number" ? field.min : undefined}
+      max={field.type === "number" ? field.max : undefined}
+      step={field.type === "number" ? field.step : undefined}
       aria-describedby={described}
       onChange={event => onChange(event.target.value)}
       className={`${control} mt-1`}
@@ -366,6 +372,9 @@ function explain(error: string | undefined): string {
     return `${error.slice("missing_field:".length)} is also required before this connection can be saved.`;
   }
   if (error.startsWith("not_a_number:")) return `${error.slice("not_a_number:".length)} must be a number.`;
+  if (error.startsWith("number_below_min:")) return `${error.slice("number_below_min:".length)} is below the minimum allowed value.`;
+  if (error.startsWith("number_above_max:")) return `${error.slice("number_above_max:".length)} is above the maximum allowed value.`;
+  if (error.startsWith("number_step_mismatch:")) return `${error.slice("number_step_mismatch:".length)} does not match the offered increment.`;
   if (error.startsWith("not_an_option:")) return `${error.slice("not_an_option:".length)} is not one of the offered choices.`;
   if (error.startsWith("no_vault_target:")) {
     return `${error.slice("no_vault_target:".length)} is declared as a secret but the plugin does not say where to store it, so it cannot be saved.`;

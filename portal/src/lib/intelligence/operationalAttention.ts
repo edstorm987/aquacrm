@@ -55,6 +55,8 @@ export interface OperationalAlertView extends OperationalAlert {
   /** How many times this has been put off. See OperationalAlertPreference. */
   deferrals?: number;
   firstDeferredAt?: number;
+  /** Monotonic user-alert intent version; prevents read/unread/read ABA replay. */
+  causalVersion?: number;
 }
 
 export type OperationalAlertAction = "read" | "unread" | "park" | "dismiss";

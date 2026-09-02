@@ -10,6 +10,7 @@
 import type { PluginPageProps } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
 import { MyMembershipPanel } from "../components/MyMembershipPanel";
+import { canShowAnnualCadence, normalizeMembershipSettings } from "../lib/settings";
 
 export const API_BASE = "/api/portal/memberships";
 
@@ -32,6 +33,7 @@ export default async function MyMembershipPage(props: PluginPageProps) {
         c.benefits.getBenefitsForUser(props.actor),
       ])
     : [null, []];
+  const settings = normalizeMembershipSettings(props.install);
 
   return (
     <MyMembershipPanel
@@ -40,6 +42,9 @@ export default async function MyMembershipPage(props: PluginPageProps) {
       benefits={benefits}
       availablePlans={plans}
       apiBase={API_BASE}
+      memberPortalHeading={settings.memberPortalHeading}
+      showAnnualCadence={canShowAnnualCadence(settings, plans)}
+      annualBillingEnabled={settings.annualBillingEnabled}
     />
   );
 }

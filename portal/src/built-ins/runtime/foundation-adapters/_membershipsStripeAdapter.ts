@@ -47,8 +47,10 @@ interface RawStripeSubscription {
   customer: string | { id: string };
   status: string;
   cancel_at_period_end?: boolean;
+  pause_collection?: unknown;
   current_period_end?: number;
   trial_end?: number | null;
+  metadata?: Record<string, string>;
   items?: { data?: { id?: string; price?: { id: string }; current_period_end?: number }[] };
 }
 
@@ -74,7 +76,11 @@ export interface StripeClientLike {
   };
   checkout: {
     sessions: {
-      create(params: Record<string, unknown>, options?: CallOptions): Promise<{ id: string; url: string | null }>;
+      create(params: Record<string, unknown>, options?: CallOptions): Promise<{
+        id: string;
+        url: string | null;
+        expires_at?: number;
+      }>;
     };
   };
   billingPortal: {
@@ -150,7 +156,9 @@ function subscriptionFromRaw(raw: RawStripeSubscription): StripeSubscription {
     status: raw.status,
     currentPeriodEnd: periodEnd,
     cancelAtPeriodEnd: raw.cancel_at_period_end === true,
+    collectionPaused: Boolean(raw.pause_collection),
     trialEnd: typeof raw.trial_end === "number" ? raw.trial_end : undefined,
+    metadata: raw.metadata,
     items: items
       .map(item => item.price?.id)
       .filter((id): id is string => typeof id === "string")
@@ -228,14 +236,19 @@ export function makeMembershipsStripePort(
 
     async resumeSubscription(id: string): Promise<StripeSubscription> {
       const stripe = await client();
-      // `null` clears the pause — Stripe resumes collection immediately.
-      const raw = await stripe.subscriptions.update(id, { pause_collection: null });
+      // Resume both meanings exposed by the service: paused collection and a
+      // period-end cancellation the member chose to undo.
+      const raw = await stripe.subscriptions.update(id, {
+        pause_collection: null,
+        cancel_at_period_end: false,
+      });
       return subscriptionFromRaw(raw);
     },
 
     async changeSubscriptionPlan(args: {
       id: string;
       newPriceId: string;
+      metadata: Record<string, string>;
       idempotencyKey?: string;
     }): Promise<StripeSubscription> {
       const stripe = await client();
@@ -248,6 +261,7 @@ export function makeMembershipsStripePort(
         {
           items: [{ id: itemId, price: args.newPriceId }],
           proration_behavior: "create_prorations",
+          metadata: args.metadata,
         },
         args.idempotencyKey ? { idempotencyKey: args.idempotencyKey } : undefined,
       );
@@ -274,7 +288,11 @@ export function makeMembershipsStripePort(
         input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : undefined,
       );
       if (!session.url) throw new Error("Stripe did not return a checkout URL.");
-      return { id: session.id, url: session.url };
+      return {
+        id: session.id,
+        url: session.url,
+        ...(typeof session.expires_at === "number" ? { expiresAt: session.expires_at } : {}),
+      };
     },
 
     async createBillingPortalSession(

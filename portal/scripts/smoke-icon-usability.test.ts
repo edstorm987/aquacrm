@@ -47,7 +47,7 @@ describe("icon-led workspace usability", () => {
     const inbox = read("src/app/portal/agency/inbox/_MasterInbox.tsx");
     const sops = read("src/app/portal/agency/sop-library/_SopLibrary.tsx");
 
-    assert.match(actions, /<Save size=\{14\} \/> Save changes/);
+    assert.match(actions, /<Save size=\{14\} \/>[\s\S]{0,80}"Save changes"/);
     assert.match(actions, /<Pencil size=\{13\} \/>/);
     assert.match(actions, /<CalendarDays size=\{13\} \/> Today/);
     assert.match(people, /<X size=\{14\} \/> Clear/);
