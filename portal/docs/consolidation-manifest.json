@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-02T20:46:53.180Z",
+  "generatedAt": "2026-09-02T20:47:48.786Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -79,9 +79,9 @@
       "path": "CLAUDE.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-claude-md",
-      "sha256": "50ab6e81011640064fc14538d53a2828c1427e44f12108b804c8d5564dca3c49",
-      "words": 3889,
-      "bytes": 28763
+      "sha256": "8e641d8c8fa2d1e6db5ffd5af6286f323da306086f10f20a1345e19ad695a872",
+      "words": 4053,
+      "bytes": 30032
     },
     {
       "path": "docs/architecture-noobie.md",

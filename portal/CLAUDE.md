@@ -255,6 +255,23 @@ live-PostgreSQL-migration, cold-machine or broad human-usability proof.*
   tests across 1,093 suites: 6,415 passed / 0 failed / 2 skipped in
   94,027.354917ms**; the subsequent Website Editor runner passed **49/49 files
   in 11.8s**.
+- **Later on 2 September 2026 — five further checkpoints landed on `main`** (read
+  `docs/development/updates.md` for each): `a25ebf1` Performance checked-mutation
+  cohort (fifth #47 cohort; #128 and #129 closed on exact build
+  `H-vbnKm_hrkDkN8fgxwqF`, **119/119** Playwright stories at seven viewports);
+  `44a594d` settings truthfulness slice one plus opportunity money across real
+  processes (#81 file-backend half) and a load-safe lease pin; `2f5fea9` Leads
+  Pipeline settings consumed; `fdba9c7` settings truthfulness final pass
+  (**12 manifests / 35 fields: 32 consumed, 3 unwired** — the three that remain are
+  safety-shaped controls awaiting a security decision); `141f46f` Marketing record
+  compare-and-set proven across real processes (#82 file-backend half). The final
+  uncontended canonical `npm run smoke:all` on that tree executed **6,529 tests
+  across 1,115 suites: 6,527 passed / 0 failed / 2 skipped**, then the Website Editor
+  gate passed **49/49 files**. Two canonical pins are load-sensitive
+  (`smoke-product-workspace-lease-fencing`, now elapsed-time aware, and the
+  close-deal true-race assertion): rerun a lone timing failure in isolation before
+  treating it as yours. Retained `.data` (37 files) was byte-identical throughout.
+
 - The latest isolated production benchmark built in **158,476.1ms** with a
   **1,584,943,643-byte** dist. Fresh-process first HTTP / repeat max was auth
   **765.9/9.2ms**, public **641.4/6.0ms**, Agency **949.4/53.1ms**, Dev Team

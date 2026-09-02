@@ -2,12 +2,12 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-09-02 from **21** source documents / **36,017 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-02 from **21** source documents / **36,181 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
 - [`AGENTS.md`](#source-agents-md) — 95 words · `63f2c50380ed`
-- [`CLAUDE.md`](#source-claude-md) — 3,889 words · `50ab6e810116`
+- [`CLAUDE.md`](#source-claude-md) — 4,053 words · `8e641d8c8fa2`
 - [`docs/data/adr/ADR-001-semantic-registry-in-code.md`](#source-docs-data-adr-adr-001-semantic-registry-in-code-md) — 217 words · `f092ef6a564d`
 - [`docs/data/adr/ADR-002-domain-modules-are-the-repository-seam.md`](#source-docs-data-adr-adr-002-domain-modules-are-the-repository-seam-md) — 218 words · `361439671762`
 - [`docs/data/adr/ADR-003-one-calculation-path-per-metric.md`](#source-docs-data-adr-adr-003-one-calculation-path-per-metric-md) — 233 words · `9143b1627c97`
@@ -52,7 +52,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## Source document — `CLAUDE.md`
 
-<!-- AQUACRM_SOURCE_START path="CLAUDE.md" sha256="50ab6e81011640064fc14538d53a2828c1427e44f12108b804c8d5564dca3c49" -->
+<!-- AQUACRM_SOURCE_START path="CLAUDE.md" sha256="8e641d8c8fa2d1e6db5ffd5af6286f323da306086f10f20a1345e19ad695a872" -->
 @AGENTS.md
 
 # AquaCRM Claude Handoff
@@ -310,6 +310,23 @@ live-PostgreSQL-migration, cold-machine or broad human-usability proof.*
   tests across 1,093 suites: 6,415 passed / 0 failed / 2 skipped in
   94,027.354917ms**; the subsequent Website Editor runner passed **49/49 files
   in 11.8s**.
+- **Later on 2 September 2026 — five further checkpoints landed on `main`** (read
+  `docs/development/updates.md` for each): `a25ebf1` Performance checked-mutation
+  cohort (fifth #47 cohort; #128 and #129 closed on exact build
+  `H-vbnKm_hrkDkN8fgxwqF`, **119/119** Playwright stories at seven viewports);
+  `44a594d` settings truthfulness slice one plus opportunity money across real
+  processes (#81 file-backend half) and a load-safe lease pin; `2f5fea9` Leads
+  Pipeline settings consumed; `fdba9c7` settings truthfulness final pass
+  (**12 manifests / 35 fields: 32 consumed, 3 unwired** — the three that remain are
+  safety-shaped controls awaiting a security decision); `141f46f` Marketing record
+  compare-and-set proven across real processes (#82 file-backend half). The final
+  uncontended canonical `npm run smoke:all` on that tree executed **6,529 tests
+  across 1,115 suites: 6,527 passed / 0 failed / 2 skipped**, then the Website Editor
+  gate passed **49/49 files**. Two canonical pins are load-sensitive
+  (`smoke-product-workspace-lease-fencing`, now elapsed-time aware, and the
+  close-deal true-race assertion): rerun a lone timing failure in isolation before
+  treating it as yours. Retained `.data` (37 files) was byte-identical throughout.
+
 - The latest isolated production benchmark built in **158,476.1ms** with a
   **1,584,943,643-byte** dist. Fresh-process first HTTP / repeat max was auth
   **765.9/9.2ms**, public **641.4/6.0ms**, Agency **949.4/53.1ms**, Dev Team
