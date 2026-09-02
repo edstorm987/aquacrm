@@ -54,6 +54,34 @@ import { AutomationService } from "./automations";
 
 // ─── Container ────────────────────────────────────────────────────────────
 
+/**
+ * The operator-facing manifest settings this module consumes, normalised from
+ * `install.config` (issue #44). `defaultTags` is applied to a Contact created
+ * without tags of its own; `autoCreateOnSignup` gates whether the customer
+ * profile page creates a Contact for a signed-in customer who has none.
+ */
+export interface ClientCrmSettings {
+  defaultTags: string[];
+  autoCreateOnSignup: boolean;
+}
+
+export function readClientCrmSettings(config: unknown): ClientCrmSettings {
+  const record = config && typeof config === "object" ? (config as Record<string, unknown>) : {};
+  const raw = typeof record.defaultTags === "string" ? record.defaultTags : "";
+  const seen = new Set<string>();
+  const defaultTags: string[] = [];
+  for (const tag of raw.split(",").map(value => value.trim().slice(0, 60)).filter(Boolean)) {
+    const key = tag.toLocaleLowerCase("en-GB");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    defaultTags.push(tag);
+  }
+  return {
+    defaultTags,
+    autoCreateOnSignup: record.autoCreateOnSignup !== false,
+  };
+}
+
 export interface ClientCrmDeps {
   agencyId: AgencyId;
   clientId: ClientId;
@@ -65,6 +93,7 @@ export interface ClientCrmDeps {
   pluginInstalls: PluginInstallStorePort;
   membershipBenefits?: MembershipBenefitsPort;
   ecommerceOrders?: EcommerceOrdersPort;
+  settings?: ClientCrmSettings;
 }
 
 export interface ClientCrmContainer {
@@ -81,7 +110,7 @@ export interface ClientCrmContainer {
 export function buildClientCrmContainer(deps: ClientCrmDeps): ClientCrmContainer {
   const storage = deps.storage as StoragePort;
   const contacts = new ContactService(
-    deps.agencyId, deps.clientId, storage, deps.user, deps.activity, deps.events,
+    deps.agencyId, deps.clientId, storage, deps.user, deps.activity, deps.events, deps.settings,
   );
   const segments = new SegmentService(
     deps.agencyId, deps.clientId, storage, deps.activity, deps.events,

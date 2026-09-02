@@ -1078,6 +1078,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-client-crm-settings-consumers-test-ts-d6a2425257"></a>
+
+### `scripts/smoke-client-crm-settings-consumers.test.ts`
+
+**What it is:** remain listed as unwired on purpose.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (4):** [`src/built-ins/modules/client-crm/src/lib/aquaPluginTypes.ts`](built-ins.md#file-src-built-ins-modules-client-crm-src-lib-aquaplugintypes-ts-283533f57f) · [`src/built-ins/modules/client-crm/src/server/index.ts`](built-ins.md#file-src-built-ins-modules-client-crm-src-server-index-ts-a57bc87b5c) · [`src/built-ins/modules/client-crm/src/server/ports.ts`](built-ins.md#file-src-built-ins-modules-client-crm-src-server-ports-ts-650fd8da05) · [`src/lib/plugins/unwiredSettings.ts`](lib.md#file-src-lib-plugins-unwiredsettings-ts-2bbb67e7f7)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-client-delight-route-test-ts-67f5d33728"></a>
 
 ### `scripts/smoke-client-delight-route.test.ts`

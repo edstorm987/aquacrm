@@ -2,7 +2,7 @@
 
 > Verified findings, independent reviews, browser audits and the testing record.
 >
-> Consolidated 2026-09-02 from **11** source documents / **118,383 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-02 from **11** source documents / **118,635 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -13,8 +13,8 @@
 - [`docs/development/findings/2026-08-22-app-audit-salvage.md`](#source-docs-development-findings-2026-08-22-app-audit-salvage-md) — 1,294 words · `16f6f10e5bc4`
 - [`docs/development/findings/2026-08-22-stripe-can-never-be-configured.md`](#source-docs-development-findings-2026-08-22-stripe-can-never-be-configured-md) — 466 words · `e91f13c8620f`
 - [`docs/development/findings/2026-08-22-surfaces-that-state-a-falsehood.md`](#source-docs-development-findings-2026-08-22-surfaces-that-state-a-falsehood-md) — 892 words · `dfeb4a6302c1`
-- [`docs/development/issues.md`](#source-docs-development-issues-md) — 42,642 words · `aad22ffa0da2`
-- [`docs/development/tests.md`](#source-docs-development-tests-md) — 14,648 words · `8de719463365`
+- [`docs/development/issues.md`](#source-docs-development-issues-md) — 42,854 words · `68b214962945`
+- [`docs/development/tests.md`](#source-docs-development-tests-md) — 14,688 words · `3b3420b0197f`
 - [`docs/development/ultra-review-2026-08-24.md`](#source-docs-development-ultra-review-2026-08-24-md) — 15,503 words · `6725e738af21`
 - [`docs/development/visual-browser-audit-2026-08-23.md`](#source-docs-development-visual-browser-audit-2026-08-23-md) — 3,582 words · `3ee9b61d74e3`
 
@@ -2001,7 +2001,7 @@ _Captured from the Dev Team portal. Findings are the input side: review them, tu
 
 ## Source document — `docs/development/issues.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/issues.md" sha256="aad22ffa0da2b0aacffdfbe3f9ef8100bc25d905582b00819ccd4c0d5c4086c9" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/issues.md" sha256="68b2149629457123c0de97fef2217a3ade52dfb2663c0a1b88b25d65902adc2c" -->
 # Issues & risks
 
 ← Back to [development.md](../development.md) (the law)
@@ -3723,6 +3723,27 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     every removal named. The agency Settings hub now lists a "Leads pipeline" door,
     since a module that reads its settings must offer somewhere to edit them, and the
     targeted install-repair mirror of the manifest defaults matches the new manifest.
+
+    **Final pass on 2026-09-02 — seven more resolved; three remain by design.** Five
+    declarations whose own help text admitted "value stored, not enforced" are removed
+    rather than kept as promises: HR's `leaveAutoRestoreDays` and `defaultPtoDaysPerYear`
+    (the HR "General" group with them), Affiliates' `payoutCadence` (nothing schedules
+    payouts) and `autoApproveAfterDays` (never enforced), and Client CRM's freeform
+    `customAttributeSchema` (nothing reads it). Client CRM's two retained fields now
+    have real consumers, read from `install.config` into the module container:
+    `defaultTags` is applied to a Contact created without tags of its own (manual,
+    signup or order; explicit tags win; blank applies none) and `autoCreateOnSignup`
+    gates whether the customer profile page creates a Contact for a signed-in customer
+    who has none (off still links an existing Contact). The keyed inventory is now
+    **12 manifests / 35 fields: 32 consumed, 3 unwired**. The three that remain —
+    `agency-hr/canStaffEdit`, `public-funnel/redirectAfterCapture` and
+    `public-funnel/issueSessionCookie` — are safety-shaped access/session controls
+    whose honest wiring is a security decision, so they stay labelled "Not
+    connected" rather than being wired or removed here. `smoke-client-crm-settings-
+    consumers` (**4/4**) pins the reader, the tag and signup behaviour, the removals
+    and the exact remaining list; the derived-inventory sweep's negative anchor flips
+    to prove the module's own reader is what consumes `defaultTags`, and its floor is
+    restated to 35 with every removal named.
 
     _Original finding, retained for context:_ Twelve built-ins declare **51** fields in `settings.groups`, and the
     generic `PluginSettingsPanel` plus validated `/api/portal/plugins/settings`
@@ -6153,7 +6174,7 @@ Keep the item's number, other docs link to it._
 
 ## Source document — `docs/development/tests.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/tests.md" sha256="8de71946336545b9bd65dea191c4b84cb9a9eccd63759f5a3df2d938688cea51" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/tests.md" sha256="3b3420b0197f806d8838890a724fb87773bc4fa01535793eed371d7fdcff1786" -->
 # Tests
 
 ← Back to [development.md](../development.md) (the law)
@@ -6809,8 +6830,12 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   activation, then browser-walk a fresh install through delivery and a signed
   webhook status update. → issue #43.
 - Plugin-settings coverage now derives the registered inventory from source and
-  fails if the declared consumer list drifts. Twelve manifests declare **40 fields**:
-  **30 are consumed and 10 remain unwired** (later 2026-09-02: three dead Finance/
+  fails if the declared consumer list drifts. Twelve manifests declare **35 fields**:
+  **32 are consumed and 3 remain unwired** — the HR staff-edit permission and Public
+  Funnel's redirect and session cookie, safety-shaped controls left for a security
+  decision (final 2026-09-02 pass: five stored-only promises removed and Client CRM's
+  default tags and signup mirror consumed, pinned by
+  `smoke-client-crm-settings-consumers` **4/4**; earlier that day: three dead Finance/
   Ecommerce/Leads declarations removed; Ecommerce's low-stock threshold consumed by the
   inventory default, pinned by `smoke-ecommerce-low-stock-default` **3/3**; Leads
   Pipeline's default source and capture-column label consumed by the real import

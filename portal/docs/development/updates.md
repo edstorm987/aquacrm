@@ -34,6 +34,27 @@ map stays trustworthy.
 
 ---
 
+## 2026-09-02 — Settings truthfulness: final pass (#44)
+
+- Five declarations whose own help text admitted "value stored, not enforced" are
+  removed rather than kept as promises: HR's leave auto-restore and PTO budget,
+  Affiliates' payout cadence and auto-approve window, Client CRM's freeform
+  custom-attribute schema. Client CRM's `defaultTags` now applies to a Contact created
+  without tags of its own and `autoCreateOnSignup` gates the profile-page mirror of a
+  signed-in customer into a Contact (off still links an existing one); both are read
+  from `install.config` into the module container.
+- Inventory is now **12 manifests / 35 fields: 32 consumed, 3 unwired**. The three
+  that remain (HR staff-edit permission, Public Funnel redirect and session cookie)
+  are safety-shaped access/session controls and stay labelled "Not connected"
+  pending a security decision. New `smoke-client-crm-settings-consumers` **4/4**;
+  the derived-inventory sweep's negative anchor flips to the module's own reader and
+  its floor is restated to 35. Affected settings/hub/module suites **67/67**. The uncontended canonical
+  `npm run smoke:all` on this tree executed **6,526 tests across 1,114 suites: 6,524
+  passed / 0 failed / 2 skipped in 118,293.1055ms**, then the Website Editor gate
+  passed **49/49 files in 12.8s**.
+- Reconciled [TODO](TODO.md), [issue #44](issues.md), [status](status.md) and
+  [tests](tests.md); regenerated the symbol reference and consolidated volumes.
+
 ## 2026-09-02 — Settings truthfulness: Leads Pipeline's three resolved (#44)
 
 - `defaultLeadSource` now applies to CSV lead imports without an override (blank

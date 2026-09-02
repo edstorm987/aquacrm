@@ -2,7 +2,7 @@
 
 ← Back to [the reference index](00-index.md) · [the map](../WORKSPACE-FILE-TREE.md) · [development.md](../development.md)
 
-Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2655 source files; 0 per-source stubs.**
+Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2656 source files; 0 per-source stubs.**
 
 ## Engines — `src/engines/` (85)
 
@@ -290,7 +290,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/performance/telemetryDisplay.ts`](lib.md#file-src-lib-performance-telemetrydisplay-ts-5be221a37e) — The dash every honest surface in this codebase uses for "no reading".
 - [`src/lib/plugins/pluginHealthConstants.ts`](lib.md#file-src-lib-plugins-pluginhealthconstants-ts-cc93050728) — must not cost the runtime it describes.
 - [`src/lib/plugins/pluginSetupStatus.ts`](lib.md#file-src-lib-plugins-pluginsetupstatus-ts-82a3c6194e) — somebody to complete an impossible form is worse than saying nothing.
-- [`src/lib/plugins/unwiredSettings.ts`](lib.md#file-src-lib-plugins-unwiredsettings-ts-2bbb67e7f7) — 40 fields; 30 consumed, 10 below.
+- [`src/lib/plugins/unwiredSettings.ts`](lib.md#file-src-lib-plugins-unwiredsettings-ts-2bbb67e7f7) — honest wiring is an access/session decision, not a settings chore.
 - [`src/lib/portal/clientPortalBuilder.ts`](lib.md#file-src-lib-portal-clientportalbuilder-ts-efd225ebe5)
 - [`src/lib/portal/clientPortalDesign.ts`](lib.md#file-src-lib-portal-clientportaldesign-ts-99f227974c)
 - [`src/lib/portal/customerAccountActivity.ts`](lib.md#file-src-lib-portal-customeraccountactivity-ts-eae6fc884e)
@@ -2082,7 +2082,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/showcase/exit/route.ts`](app.md#file-src-app-showcase-exit-route-ts-2297ba275f)
 - [`src/app/showcase/route.ts`](app.md#file-src-app-showcase-route-ts-4c24dd82df)
 
-## Scripts — `scripts/` (589)
+## Scripts — `scripts/` (590)
 
 - [`scripts/attention-protection.test.ts`](scripts.md#file-scripts-attention-protection-test-ts-d64d01714c)
 - [`scripts/audit-actions.ts`](scripts.md#file-scripts-audit-actions-ts-862ea31175) — What state Actions is actually in — measured, not remembered. For every alert the checks currently …
@@ -2171,6 +2171,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-client-attention.test.ts`](scripts.md#file-scripts-smoke-client-attention-test-ts-effe886237)
 - [`scripts/smoke-client-contracts.test.ts`](scripts.md#file-scripts-smoke-client-contracts-test-ts-6040e786b4)
 - [`scripts/smoke-client-crm-journey.test.ts`](scripts.md#file-scripts-smoke-client-crm-journey-test-ts-e5576b17a1) — nav link and refused the API while the page rendered the board anyway.
+- [`scripts/smoke-client-crm-settings-consumers.test.ts`](scripts.md#file-scripts-smoke-client-crm-settings-consumers-test-ts-d6a2425257) — remain listed as unwired on purpose.
 - [`scripts/smoke-client-delight-route.test.ts`](scripts.md#file-scripts-smoke-client-delight-route-test-ts-67f5d33728) — agency-finance install. Nothing here is stubbed except the request scope.
 - [`scripts/smoke-client-delivery-package.test.ts`](scripts.md#file-scripts-smoke-client-delivery-package-test-ts-4003cb0559)
 - [`scripts/smoke-client-dev-workspace.test.ts`](scripts.md#file-scripts-smoke-client-dev-workspace-test-ts-3fe4ffcd02) — does not promote the person anywhere else.

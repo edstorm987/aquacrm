@@ -113,6 +113,15 @@
 // column label; `fromName` was removed — the email sender requires a verified
 // name+address identity, so a bare display name could never be honoured.
 // 40 fields; 30 consumed, 10 below.
+//
+// 2026-09-02 (final pass): five declarations whose own help text admitted "value
+// stored, not enforced" were removed — HR's leave auto-restore and PTO budget,
+// Affiliates' payout cadence and auto-approve window, Client CRM's freeform
+// custom-attribute schema — and Client CRM's `defaultTags` (applied to Contacts
+// created without tags) and `autoCreateOnSignup` (gates the profile-page mirror
+// of a signed-in customer into a Contact) now have consumers. 35 fields; 32
+// consumed, 3 below. The three that remain are safety-shaped controls whose
+// honest wiring is an access/session decision, not a settings chore.
 
 export interface UnwiredSetting {
   pluginId: string;
@@ -129,14 +138,7 @@ export const unwiredKey = (pluginId: string, fieldId: string): string => `${plug
  * against a fresh sweep reads cleanly.
  */
 export const UNWIRED_SETTINGS: readonly UnwiredSetting[] = [
-  { pluginId: "affiliates", fieldId: "autoApproveAfterDays" },
-  { pluginId: "affiliates", fieldId: "payoutCadence" },
-  { pluginId: "agency-hr", fieldId: "leaveAutoRestoreDays" },
-  { pluginId: "agency-hr", fieldId: "defaultPtoDaysPerYear" },
   { pluginId: "agency-hr", fieldId: "canStaffEdit" },
-  { pluginId: "client-crm", fieldId: "autoCreateOnSignup" },
-  { pluginId: "client-crm", fieldId: "defaultTags" },
-  { pluginId: "client-crm", fieldId: "customAttributeSchema" },
   { pluginId: "public-funnel", fieldId: "redirectAfterCapture" },
   { pluginId: "public-funnel", fieldId: "issueSessionCookie" },
 ];

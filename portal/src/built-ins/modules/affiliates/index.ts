@@ -161,31 +161,6 @@ const manifest: AquaPlugin = {
               { value: "stripe-connect", label: "Stripe Connect (deferred — placeholder)" },
             ],
           },
-          {
-            id: "payoutCadence",
-            label: "Payout cadence",
-            type: "select",
-            default: "monthly",
-            options: [
-              { value: "weekly", label: "Weekly" },
-              { value: "biweekly", label: "Bi-weekly" },
-              { value: "monthly", label: "Monthly" },
-              { value: "quarterly", label: "Quarterly" },
-            ],
-          },
-        ],
-      },
-      {
-        id: "approval",
-        label: "Approval",
-        fields: [
-          {
-            id: "autoApproveAfterDays",
-            label: "Auto-approve attributions after N days (0 = manual only)",
-            type: "number",
-            default: 0,
-            helpText: "Future round — value stored but not yet enforced. Approvals stay manual in v1.",
-          },
         ],
       },
     ],

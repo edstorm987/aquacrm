@@ -1720,6 +1720,27 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     since a module that reads its settings must offer somewhere to edit them, and the
     targeted install-repair mirror of the manifest defaults matches the new manifest.
 
+    **Final pass on 2026-09-02 — seven more resolved; three remain by design.** Five
+    declarations whose own help text admitted "value stored, not enforced" are removed
+    rather than kept as promises: HR's `leaveAutoRestoreDays` and `defaultPtoDaysPerYear`
+    (the HR "General" group with them), Affiliates' `payoutCadence` (nothing schedules
+    payouts) and `autoApproveAfterDays` (never enforced), and Client CRM's freeform
+    `customAttributeSchema` (nothing reads it). Client CRM's two retained fields now
+    have real consumers, read from `install.config` into the module container:
+    `defaultTags` is applied to a Contact created without tags of its own (manual,
+    signup or order; explicit tags win; blank applies none) and `autoCreateOnSignup`
+    gates whether the customer profile page creates a Contact for a signed-in customer
+    who has none (off still links an existing Contact). The keyed inventory is now
+    **12 manifests / 35 fields: 32 consumed, 3 unwired**. The three that remain —
+    `agency-hr/canStaffEdit`, `public-funnel/redirectAfterCapture` and
+    `public-funnel/issueSessionCookie` — are safety-shaped access/session controls
+    whose honest wiring is a security decision, so they stay labelled "Not
+    connected" rather than being wired or removed here. `smoke-client-crm-settings-
+    consumers` (**4/4**) pins the reader, the tag and signup behaviour, the removals
+    and the exact remaining list; the derived-inventory sweep's negative anchor flips
+    to prove the module's own reader is what consumes `defaultTags`, and its floor is
+    restated to 35 with every removal named.
+
     _Original finding, retained for context:_ Twelve built-ins declare **51** fields in `settings.groups`, and the
     generic `PluginSettingsPanel` plus validated `/api/portal/plugins/settings`
     endpoint exist, but only Agency Finance imports and mounts that panel. HR,

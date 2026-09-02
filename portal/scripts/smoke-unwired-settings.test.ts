@@ -157,7 +157,11 @@ describe("settings fields that nothing reads", () => {
     // threshold, Ecommerce's unread publishable key and Leads Pipeline's
     // unhonourable from-name. Each removal is pinned by its own suite; this
     // floor only proves the sweep still sees the manifests at all.
-    assert.ok(total >= 40, `expected the modules' declared settings fields, counted ${total}`);
+    // 35 after the final 2026-09-02 pass removed HR's leave auto-restore and PTO
+    // budget, Affiliates' payout cadence and auto-approve window, and Client
+    // CRM's freeform custom-attribute schema — all self-described as stored but
+    // not enforced.
+    assert.ok(total >= 35, `expected the modules' declared settings fields, counted ${total}`);
     for (const [key, readers] of Object.entries(HOST_READERS)) {
       assert.ok(readers.length > 0 && hostReads(key), `${key} has stale host-reader evidence`);
     }
@@ -175,10 +179,19 @@ describe("settings fields that nothing reads", () => {
       !unwired.includes("affiliates/defaultPayoutMethod"),
       "a field the module genuinely reads must not be reported unwired — the detector is inverted",
     );
+    // `client-crm/defaultTags` was the guard's negative anchor until 2026-09-02:
+    // an unrelated Leads CSV FormData key had once made it look consumed. It is
+    // now genuinely read — `readClientCrmSettings` in the module's own server
+    // index applies it to new Contacts — so the anchor flips: it must classify
+    // as wired BECAUSE the module reads it, and the file that reads it must be
+    // the module's own, not the Leads importer.
     assert.ok(
-      unwired.includes("client-crm/defaultTags"),
-      "an unrelated Leads CSV FormData key must not make Client CRM defaultTags look consumed",
+      !unwired.includes("client-crm/defaultTags"),
+      "Client CRM defaultTags is applied to new Contacts and must classify as wired",
     );
+    const crmReader = readFileSync("src/built-ins/modules/client-crm/src/server/index.ts", "utf8");
+    assert.match(crmReader, /record\.defaultTags/, "the Client CRM settings reader is what consumes defaultTags");
+    assert.match(crmReader, /record\.autoCreateOnSignup/, "the Client CRM settings reader is what consumes autoCreateOnSignup");
   });
 
   it("the declared list matches the code, in both directions", () => {

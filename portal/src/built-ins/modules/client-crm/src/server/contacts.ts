@@ -35,6 +35,7 @@ export class ContactService {
     private user: UserPort,
     private activity: ActivityLogPort,
     private events: EventBusPort,
+    private settings?: { defaultTags?: string[]; autoCreateOnSignup?: boolean },
   ) {}
 
   async list(filter?: ContactFilter): Promise<Contact[]> {
@@ -88,7 +89,9 @@ export class ContactService {
       source: input.source ?? sourceDefault,
       status: "active",
       segmentIds: input.segmentIds ?? [],
-      tags: input.tags ?? [],
+      // The `defaultTags` setting applies only when the caller supplied no tags
+      // of its own; an explicit (even empty-after-trim) list is the caller's.
+      tags: input.tags && input.tags.length ? input.tags : [...(this.settings?.defaultTags ?? [])],
       attributes: input.attributes ?? {},
       firstSeenAt: ts,
       createdAt: ts,
@@ -203,7 +206,10 @@ export class ContactService {
     if (!profile) return null;
     const existing = await this.getByEmail(profile.email);
     if (!existing) {
-      // No matching contact → create one from the User profile.
+      // No matching contact. The `autoCreateOnSignup` setting decides whether
+      // one is created from the User profile; when it is off, a signed-in
+      // customer with no Contact simply has none until the agency adds one.
+      if (this.settings?.autoCreateOnSignup === false) return null;
       return this.create({
         email: profile.email,
         name: profile.name,

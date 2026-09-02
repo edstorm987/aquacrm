@@ -13,7 +13,7 @@ import type {
   UserPort,
 } from "./ports";
 import type { ClientCrmContainer } from "./index";
-import { buildClientCrmContainer } from "./index";
+import { buildClientCrmContainer, readClientCrmSettings } from "./index";
 
 export interface ClientCrmFoundation {
   tenant: TenantPort;
@@ -71,6 +71,7 @@ export function containerFor(args: ContainerForArgs): ClientCrmContainer {
     pluginInstalls: f.pluginInstalls,
     membershipBenefits: f.membershipBenefits,
     ecommerceOrders: f.ecommerceOrders,
+    settings: readClientCrmSettings(args.install?.config),
   });
 }
 

@@ -105,26 +105,6 @@ const manifest: AquaPlugin = {
   settings: {
     groups: [
       {
-        id: "general",
-        label: "General",
-        fields: [
-          {
-            id: "leaveAutoRestoreDays",
-            label: "Auto-restore status after approved leave (days)",
-            type: "number",
-            default: 0,
-            helpText: "When set > 0, an approved leave will flip the staff member back to active that many days after endDate. v1 only stores the value; the scheduler is a future round.",
-          },
-          {
-            id: "defaultPtoDaysPerYear",
-            label: "Default PTO budget per staff member (days)",
-            type: "number",
-            default: 25,
-            helpText: "Informational — v1 doesn't enforce a balance.",
-          },
-        ],
-      },
-      {
         id: "permissions",
         label: "Permissions",
         fields: [

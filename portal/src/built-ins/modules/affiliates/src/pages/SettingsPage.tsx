@@ -2,12 +2,12 @@
 //
 // This page listed the install's configured values in a read-only <dl> —
 // "Default commission %: 10" — with no control anywhere in the product that
-// could change any of them. Two of the three `general` fields are genuinely
-// consumed — `defaultCommissionPercent` (commission resolution) and
-// `defaultPayoutMethod` (payout creation) — so those numbers were real and
-// simply unreachable. `payoutCadence` is NOT consumed: nothing schedules
-// payouts by it, and printing it here was the only thing that made it look
-// read. It is in `UNWIRED_SETTINGS`, so the panel labels it "Not connected".
+// could change any of them. Both `general` fields are genuinely consumed —
+// `defaultCommissionPercent` (commission resolution) and `defaultPayoutMethod`
+// (payout creation) — so those numbers were real and simply unreachable. The
+// former `payoutCadence` (nothing scheduled payouts by it) and the "auto-approve
+// after N days" declaration (never enforced) were removed on 2026-09-02 rather
+// than kept as stored promises.
 //
 // The agency Settings hub deliberately refuses to edit them (see
 // `lib/chrome/settingsModules.ts`): affiliates is `scopePolicy: "client"`, so

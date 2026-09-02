@@ -653,8 +653,12 @@ file is safe. What genuinely crosses files is the **filesystem** (`.data/portal-
   activation, then browser-walk a fresh install through delivery and a signed
   webhook status update. → issue #43.
 - Plugin-settings coverage now derives the registered inventory from source and
-  fails if the declared consumer list drifts. Twelve manifests declare **40 fields**:
-  **30 are consumed and 10 remain unwired** (later 2026-09-02: three dead Finance/
+  fails if the declared consumer list drifts. Twelve manifests declare **35 fields**:
+  **32 are consumed and 3 remain unwired** — the HR staff-edit permission and Public
+  Funnel's redirect and session cookie, safety-shaped controls left for a security
+  decision (final 2026-09-02 pass: five stored-only promises removed and Client CRM's
+  default tags and signup mirror consumed, pinned by
+  `smoke-client-crm-settings-consumers` **4/4**; earlier that day: three dead Finance/
   Ecommerce/Leads declarations removed; Ecommerce's low-stock threshold consumed by the
   inventory default, pinned by `smoke-ecommerce-low-stock-default` **3/3**; Leads
   Pipeline's default source and capture-column label consumed by the real import

@@ -166,7 +166,8 @@ describe("Leads Pipeline settings are consumed", () => {
     for (const fieldId of ["defaultLeadSource", "newColumnLabel", "fromName"]) {
       assert.equal(UNWIRED_SETTINGS.some(entry => entry.pluginId === "leads-pipeline" && entry.fieldId === fieldId), false, `${fieldId} must no longer be listed as unwired`);
     }
-    assert.equal(UNWIRED_SETTINGS.length, 10);
+    // The exact remaining list is pinned by the newest settings-consumer suite.
+    assert.ok(UNWIRED_SETTINGS.length <= 10);
     const handlerSource = readFileSync("src/built-ins/modules/leads-pipeline/src/api/handlers.ts", "utf8");
     assert.match(handlerSource, /settings: readLeadsPipelineSettings\(ctx\.install\.config\)/);
     assert.match(handlerSource, /defaultSource: defaultSource\?\.trim\(\) \|\| settingsDefaultSource,/);
