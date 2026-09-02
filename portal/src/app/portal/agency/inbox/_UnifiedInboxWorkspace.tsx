@@ -284,6 +284,7 @@ function SocialThread({ item, onBack }: { item: InboxConversationThread; onBack:
   const [attachments, setAttachments] = useState<InboxOutboundAttachment[]>([]);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [draftOperation, setDraftOperation] = useState<{ payloadKey: string; operationId: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -298,13 +299,24 @@ function SocialThread({ item, onBack }: { item: InboxConversationThread; onBack:
 
   async function send() {
     if (!draft.trim() && !attachments.length) return;
+    const payloadKey = JSON.stringify([
+      item.id,
+      draft.trim().slice(0, 2_000),
+      attachments.map(attachment => attachment.token),
+    ]);
+    const operationId = mode === "reply"
+      ? draftOperation?.payloadKey === payloadKey
+        ? draftOperation.operationId
+        : globalThis.crypto.randomUUID()
+      : undefined;
+    if (operationId) setDraftOperation({ payloadKey, operationId });
     setBusy(true);
     setError("");
     try {
       await checkedJsonMutation("/api/portal/inbox/messages", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ conversationId: item.id, text: draft, internal: mode === "note", attachments: mode === "reply" ? attachments : [] }),
+        body: JSON.stringify({ conversationId: item.id, text: draft, internal: mode === "note", attachments: mode === "reply" ? attachments : [], operationId }),
       }, { fallback: "The message could not be sent." });
     } catch (requestError) {
       setBusy(false);
@@ -314,6 +326,7 @@ function SocialThread({ item, onBack }: { item: InboxConversationThread; onBack:
     setBusy(false);
     setDraft("");
     setAttachments([]);
+    setDraftOperation(null);
     router.refresh();
   }
 

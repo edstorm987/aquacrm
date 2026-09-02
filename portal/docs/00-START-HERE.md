@@ -2,7 +2,7 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-09-01 from **21** source documents / **34,896 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-02 from **21** source documents / **34,896 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -25,7 +25,7 @@
 - [`docs/development/CLOUD-RESUME.md`](#source-docs-development-cloud-resume-md) — 500 words · `03458cdf18bf`
 - [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 2,209 words · `f8dfdfa9cfad`
 - [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,643 words · `38954d1ad66e`
-- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 1,942 words · `ea307078c24b`
+- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 1,942 words · `d06735360396`
 - [`README.md`](#source-readme-md) — 437 words · `78865db66238`
 
 ---
@@ -3731,7 +3731,7 @@ Path prefix: /private/tmp/claude-501/.../scratchpad/
 
 ## Source document — `docs/development/TODO.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="ea307078c24bb61fbfe44a2553c3cb82ab10e0fbbe12c61c0f7702c3eea3fd4b" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="d06735360396d2a067ae939ae5cba522f3c0ab4da81ecc041ecb3d1b22873d24" -->
 # TODO — the one list
 
 **This is the only task list.** `checklist.md` and `todo-retired.md` are retired; they held the
@@ -3781,7 +3781,7 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Website Editor now has consent-aware Contact capture, published Blog summaries and a narrow anonymous Ecommerce facade; finish the remaining visitor backends, operator handoff and live-browser acceptance → [#29](issues.md) `⚠ disputed`
 - [~] Paid Memberships foundation is real; finish live Stripe lifecycle acceptance → [#33](issues.md)
 - [~] Build custom portal now reaches the canonical provisioner; mounted provision/reload acceptance remains → [#36](issues.md)
-- [~] Private-upload attach, staged-abandonment cleanup and recoverable client/legal/SOP/development deletion are implemented locally; finish payload-bound replay/claim rollback plus mounted, distributed and live Supabase/Blob acceptance → [#38](issues.md)
+- [~] Private-upload ownership now has exact payload/provider/key binding, fenced claims and safe definite-refusal release locally; finish live-provider, distributed/process-kill, mounted failure/retry and operator-reconciliation acceptance → [#38](issues.md)
 - [~] Close the deal is reviewable and truthful; finish mounted agency/customer acceptance → [#39](issues.md)
 - [~] Proposal/receipt delivery is truthful; finish live-provider refusal/retry acceptance → [#40](issues.md)
 - [~] Proposal acceptance is version-bound; finish mounted public acceptance → [#41](issues.md)

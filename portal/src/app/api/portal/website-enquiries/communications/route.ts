@@ -13,7 +13,14 @@ import { sendTransactionalEmail } from "@/lib/server/email/transactionalEmail";
 import { recordWebsiteEnquiryLeadContact } from "@/lib/server/websiteEnquiryLeadSync";
 import type { InboxOutboundAttachment } from "@/lib/inbox/media";
 import { inboxMediaUrl, readInboxMediaBytes, verifyInboxMediaToken } from "@/lib/server/inbox/inboxMedia";
-import { claimStagedPrivateUploadsForOwnership, commitStagedPrivateUploadOwnership, PrivateObjectLifecycleClaimError } from "@/lib/server/privateObjectLifecycle";
+import {
+  claimStagedPrivateUploadsForOwnership,
+  commitStagedPrivateUploadOwnership,
+  privateObjectRequestHash,
+  PrivateObjectLifecycleClaimError,
+  releaseStagedPrivateUploadOwnershipClaim,
+  type StagedPrivateUploadBinding,
+} from "@/lib/server/privateObjectLifecycle";
 import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
 import { loadOwnedEnquiry } from "@/lib/supabase/ownedEnquiry";
 import { isTradingBrandSlug, tradingBrandDefinition } from "@/lib/brands/tradingBrands";
@@ -52,6 +59,13 @@ type StoredReply = {
   attachments: InboxOutboundAttachment[];
 };
 
+class WebsiteEnquiryOwnerRefusedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "WebsiteEnquiryOwnerRefusedError";
+  }
+}
+
 export async function POST(request: Request) {
   try {
     await ensureHydrated({ fresh: true });
@@ -68,9 +82,14 @@ export async function POST(request: Request) {
     const channelInput = clean(body?.channel, 20);
     const senderId = clean(body?.senderId, 240);
     const messageInput = clean(body?.message, 8_000);
-    const attachmentTokens = Array.isArray(body?.attachments)
-      ? body.attachments.flatMap(item => item && typeof item === "object" && typeof (item as { token?: unknown }).token === "string" ? [(item as { token: string }).token] : []).slice(0, 10)
-      : [];
+    if (body?.attachments !== undefined && !Array.isArray(body.attachments)) {
+      return NextResponse.json({ ok: false, error: "Attachments must be a list." }, { status: 400 });
+    }
+    const requestedAttachments = Array.isArray(body?.attachments) ? body.attachments : [];
+    const attachmentTokens = requestedAttachments.flatMap(item =>
+      item && typeof item === "object" && typeof (item as { token?: unknown }).token === "string"
+        ? [(item as { token: string }).token]
+        : []);
     if (!enquiryId || !CHANNELS.has(channelInput as MessageChannel) || !senderId || (!messageInput && !attachmentTokens.length)) {
       return NextResponse.json({ ok: false, error: "Enquiry, channel, send-as account and a message or attachment are required." }, { status: 400 });
     }
@@ -87,22 +106,40 @@ export async function POST(request: Request) {
     const targetClientId = storedClientId && getClientForAgency(session.agencyId, storedClientId) ? storedClientId : undefined;
     const sender = resolveCommunicationSender(session.agencyId, senderId, channel, targetClientId);
     if (!sender) return NextResponse.json({ ok: false, error: "The selected send-as account is not available for this client." }, { status: 409 });
-    const media = await Promise.all(attachmentTokens.map(async token => {
+    if (requestedAttachments.length > 10 || attachmentTokens.length !== requestedAttachments.length) {
+      return NextResponse.json({ ok: false, error: "An attachment is invalid or has expired." }, { status: 400 });
+    }
+    const verifiedMedia = attachmentTokens.flatMap(token => {
       const payload = verifyInboxMediaToken(token);
-      if (!payload || payload.agencyId !== session.agencyId || payload.targetKind !== "website" || payload.targetId !== enquiry.id) throw new Error("An attachment is invalid or has expired.");
+      if (!payload || payload.agencyId !== session.agencyId || payload.targetKind !== "website" || payload.targetId !== enquiry.id) return [];
+      return [{ payload, token }];
+    });
+    if (verifiedMedia.length !== attachmentTokens.length) {
+      return NextResponse.json({ ok: false, error: "An attachment is invalid or has expired." }, { status: 400 });
+    }
+    const attachmentIds = verifiedMedia.map(item => item.payload.id);
+    const storageIdentities = verifiedMedia.map(item => `${item.payload.storageProvider}\u0000${item.payload.storageKey}`);
+    if (new Set(attachmentIds).size !== attachmentIds.length || new Set(storageIdentities).size !== storageIdentities.length) {
+      return NextResponse.json({ ok: false, error: "Duplicate attachments are not allowed." }, { status: 400 });
+    }
+    const media = await Promise.all(verifiedMedia.map(async ({ payload, token }) => {
       const content = await readInboxMediaBytes(payload);
       if (!content) throw new Error(`Attachment ${payload.name} could not be loaded.`);
       const attachment: InboxOutboundAttachment = { id: payload.id, name: payload.name, size: payload.size, contentType: payload.contentType, kind: payload.kind, token, url: inboxMediaUrl(new URL(request.url).origin, token) };
-      return { attachment, content };
+      const binding: StagedPrivateUploadBinding = {
+        objectId: payload.id,
+        storageProvider: payload.storageProvider,
+        storageKey: payload.storageKey,
+      };
+      return { attachment, binding, content };
     }));
     const attachments = media.map(item => item.attachment);
+    const stagedBindings = media.map(item => item.binding);
     const message = messageInput || `Sent ${attachments.length === 1 ? "an attachment" : `${attachments.length} attachments`}.`;
     const recipient = channel === "email" ? enquiry.email?.trim().toLowerCase() ?? "" : normalisePhone(enquiry.phone ?? "") ?? "";
     if (channel === "email" ? !EMAIL.test(recipient) : !recipient) {
       return NextResponse.json({ ok: false, error: `This enquiry has no valid ${channel === "email" ? "email address" : "phone number"}.` }, { status: 400 });
     }
-    if (attachments.length) await claimStagedPrivateUploadsForOwnership({ agencyId: session.agencyId, purpose: "inbox-media", objectIds: attachments.map(item => item.id) });
-
     const brandName = isTradingBrandSlug(enquiry.brand_slug)
       ? tradingBrandDefinition(enquiry.brand_slug).name
       : enquiry.brand_slug.replaceAll("-", " ");
@@ -111,6 +148,16 @@ export async function POST(request: Request) {
     const replyId = `reply_${createHash("sha256")
       .update([enquiry.id, channel, sender.id, message, attachments.map(item => item.id).join(","), Math.floor(sentAt / 600_000)].join("\u0000"))
       .digest("hex").slice(0, 24)}`;
+    const stagedClaimId = attachments.length
+      ? privateObjectRequestHash(["website-enquiry-reply-owner", session.agencyId, enquiry.id, replyId])
+      : "";
+    if (attachments.length) await claimStagedPrivateUploadsForOwnership({
+      agencyId: session.agencyId,
+      purpose: "inbox-media",
+      objectIds: attachmentIds,
+      expectedBindings: stagedBindings,
+      claimId: stagedClaimId,
+    });
     const existingReplies = Array.isArray(enquiry.metadata?.inboxReplies)
       ? enquiry.metadata.inboxReplies.filter(item => item && typeof item === "object") as StoredReply[]
       : [];
@@ -119,7 +166,9 @@ export async function POST(request: Request) {
       if (attachments.length) await commitStagedPrivateUploadOwnership({
         agencyId: session.agencyId,
         purpose: "inbox-media",
-        objectIds: attachments.map(item => item.id),
+        objectIds: attachmentIds,
+        expectedBindings: stagedBindings,
+        claimId: stagedClaimId,
         commit: async () => ({ ownerId: replay.id, value: undefined }),
       });
       await flushPendingWrites();
@@ -172,18 +221,35 @@ export async function POST(request: Request) {
     };
     const persistReply = async () => {
       const { error: updateError } = await supabase.from("brand_enquiries").update({ metadata: nextMetadata }).eq("id", enquiry.id);
-      if (updateError) throw new Error(`Could not record the communication: ${updateError.message}`);
+      if (updateError) throw new WebsiteEnquiryOwnerRefusedError(`Could not record the communication: ${updateError.message}`);
     };
     if (attachments.length) {
-      await commitStagedPrivateUploadOwnership({
-        agencyId: session.agencyId,
-        purpose: "inbox-media",
-        objectIds: attachments.map(item => item.id),
-        commit: async () => {
-          await persistReply();
-          return { ownerId: reply.id, value: undefined };
-        },
-      });
+      try {
+        await commitStagedPrivateUploadOwnership({
+          agencyId: session.agencyId,
+          purpose: "inbox-media",
+          objectIds: attachmentIds,
+          expectedBindings: stagedBindings,
+          claimId: stagedClaimId,
+          commit: async () => {
+            await persistReply();
+            return { ownerId: reply.id, value: undefined };
+          },
+        });
+      } catch (error) {
+        // A structured Supabase update refusal proves no owner row was written.
+        // Network/transport exceptions stay claimed because their outcome is ambiguous.
+        if (error instanceof WebsiteEnquiryOwnerRefusedError) {
+          await releaseStagedPrivateUploadOwnershipClaim({
+            agencyId: session.agencyId,
+            purpose: "inbox-media",
+            objectIds: attachmentIds,
+            expectedBindings: stagedBindings,
+            claimId: stagedClaimId,
+          });
+        }
+        throw error;
+      }
     } else {
       await persistReply();
     }

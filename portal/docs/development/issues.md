@@ -1495,9 +1495,9 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     Prove failures after folder creation, initial commit, repository creation, push,
     deployment creation and client persistence, then retry without duplicates.
 
-38. **P1 PARTLY REPAIRED 2026-09-01 — final owner writes, staged abandonment,
-    recoverable deletion and mounted batch retry now preserve explicit truth;
-    live/distributed acceptance remains.** State-backed final uploads flush their owner
+38. **P1 PARTLY REPAIRED 2026-09-02 — final owner writes, staged abandonment,
+    exact replay/claim binding, recoverable deletion and mounted batch retry now
+    preserve explicit truth; live/distributed acceptance remains.** State-backed final uploads flush their owner
     row inside a shared attach boundary, roll the exact row/audit back on a refused
     flush, durably confirm that rollback before compensating the binary, and keep
     the binary when rollback cannot be proved. Call recordings use the same boundary
@@ -1518,22 +1518,41 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     completed counts across reload and reset attachment completion when an asset is
     removed. Anonymous Careers failures log provider/database detail server-side under
     an opaque incident id but expose only one stable generic DTO—never `storageKey`,
-    `attached.detail` or raw failure text. The focused private-upload/workspace set
-    passes **31/31**, with TypeScript and diff checks clean.
+    `attached.detail` or raw failure text. The focused private-object lifecycle set
+    passes **33/33**.
 
     Inbox, expense and campaign staging now persist lifecycle intent before provider
-    I/O and confirm the exact returned key. Inbox replies, enquiry replies, client
-    requests, expense create/update and campaign create/update claim staged objects
-    before owner commit and complete ownership inside the shared lifecycle lane. The
+    I/O and confirm the exact returned key. Claim and commit validate the complete
+    expected binding set—provider, storage key and cardinality—and a claim id fences
+    unrelated callers while allowing only the same explicit replay. Inbox replies,
+    enquiry replies, client requests, expense create/update and campaign create/update
+    claim staged objects before owner commit and complete ownership inside the shared
+    lifecycle lane. A deterministic refusal before any owner write releases that exact
+    claim; ambiguous storage/post-write outcomes retain it for reconciliation. The
     scheduled sweep serialises with adoption, persists `sweeping` before destructive
-    provider I/O, adopts already-persisted PortalState owners and retains ambiguous
-    `claiming` checkpoints instead of guessing that they are abandoned. Legal, SOP
+    provider I/O, adopts already-persisted PortalState owners and marks an expired
+    ambiguous claim for recovery instead of renewing or deleting it. Legal, SOP
     and Development deletion use durable sanitised recovery checkpoints; ordinary
     readers hide pending deletes and dedicated retry-only UI exposes failures. The
     authoritative Legal/SOP/Development update and bulk-rewrite siblings now share
     the same agency deletion lane, including SOP category retirement and Development
-    workflow/reference migration. Focused gates pass **31/31 private lifecycle,
+    workflow/reference migration. Focused gates pass **33/33 private lifecycle,
     21/21 Legal and 18/18 SOP**.
+
+    Social reply retries now bind one stable operation id to the exact conversation,
+    text and attachment-token payload. Both mounted inbox implementations rotate the
+    operation id when that payload changes; server preflight and the atomic store check
+    reject a mismatched replay. A durable matching social owner can recover its staged
+    object to `ready`, including a later connection-readiness refusal, without creating
+    another message. Expense create uses an exact durable intent, derives canonical
+    attachment URLs from server-owned provider/key metadata and makes persisted
+    attachments authoritative on replay; create/update validation refusals release
+    only their exact claims. Campaign create/update similarly bind exact asset identity,
+    fence ready-object reuse and release definite pre-write refusals. Website enquiry
+    and client-request routes reject malformed or duplicate upload tokens and require
+    exact signed provider/key binding; client workspace-busy refusal also releases the
+    just-acquired exact claim. Focused Finance and Meta gates pass **39/39** and **6/6**;
+    the complete changed-surface gate passes **85/85**.
 
     Finance obligation create/update and Company governance PUT now perform their final
     legal-document availability checks and complete persistence in the same agency
@@ -1550,12 +1569,8 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     failure/retry walk has been completed. Retained cross-store claims still need
     automatic owner reconciliation and operator UI, the direct call-recording database
     update still needs an ambiguity-safe reconcile/rollback contract, and the separate
-    SOP-retirement policy can strand references. Payload binding also remains: a retry-
-    only social reply or expense command can claim newly supplied staged objects while
-    replaying an older owner, failed owner writes can retain `claiming` rows without an
-    explicit rollback identity, and Finance/campaign claims do not yet prove that the
-    owner persisted the same provider/key metadata that was staged. The focused
-    lifecycle proof is not a substitute for deployed multi-instance/provider acceptance.
+    SOP-retirement policy can strand references. The focused lifecycle, Finance and
+    Meta proofs are not substitutes for deployed multi-instance/provider acceptance.
 
     _Original finding, retained for the remaining scope:_ All nine private-upload routes write Supabase,
     Vercel Blob or local storage before the durable record or final user action.

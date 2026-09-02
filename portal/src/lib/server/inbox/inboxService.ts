@@ -12,6 +12,7 @@ import {
   failInboxWebhookEvent,
   findPrivateConnectionByExternalAccount,
   getInboxConversation,
+  getInboxMessage,
   getPrivateInboxConnection,
   listInboxSnapshot,
   markExternalMessageDeleted,
@@ -57,6 +58,47 @@ export class InboxReplyDeliveryError extends Error {
     this.name = "InboxReplyDeliveryError";
     this.reply = reply;
   }
+}
+
+export interface InboxReplyOperationIdentityInput {
+  agencyId: string;
+  conversationId: string;
+  operationId: string;
+  text: string;
+  attachments?: InboxAttachment[];
+}
+
+function inboxReplyOperationIdentity(input: InboxReplyOperationIdentityInput) {
+  const text = input.text.trim().slice(0, 2_000);
+  const attachments = (input.attachments ?? []).filter(item => item.url).slice(0, 10);
+  const messageId = `msg_reply_${createHash("sha256")
+    .update(`${input.agencyId}\u0000${input.conversationId}\u0000${input.operationId}`)
+    .digest("hex")
+    .slice(0, 32)}`;
+  const payloadHash = createHash("sha256").update(JSON.stringify({ text, attachments })).digest("hex");
+  return { text, attachments, messageId, payloadHash };
+}
+
+/**
+ * Reject a known changed replay before its attachments enter the lifecycle
+ * claim lane. The store still repeats this check atomically for a concurrent
+ * first writer; that race remains retained for reconciliation rather than
+ * releasing an object a winning owner may cite.
+ */
+export async function preflightInboxReplyOperation(input: InboxReplyOperationIdentityInput & {
+  retryOnly?: boolean;
+}): Promise<{ existingOwnerId?: string }> {
+  if (!/^[a-zA-Z0-9._:-]{8,128}$/.test(input.operationId)) throw new Error("inbox_reply_operation_invalid");
+  const identity = inboxReplyOperationIdentity(input);
+  const existing = await getInboxMessage(input.agencyId, identity.messageId);
+  if (!existing) return {};
+  const operation = readInboxReplyOperation(existing);
+  if (!operation || operation.operationId !== input.operationId) throw new Error("inbox_reply_operation_conflict");
+  const retryAssertsPayload = Boolean(identity.text || identity.attachments.length);
+  if ((!input.retryOnly || retryAssertsPayload) && operation.payloadHash !== identity.payloadHash) {
+    throw new Error("inbox_reply_operation_payload_conflict");
+  }
+  return { existingOwnerId: existing.id };
 }
 
 type MetaWebhookPayload = {
@@ -296,8 +338,8 @@ export async function sendInboxReply(input: {
   operationId?: string;
   retryOnly?: boolean;
 }): Promise<InboxMessage> {
-  const text = input.text.trim().slice(0, 2_000);
-  const attachments = (input.attachments ?? []).filter(item => item.url).slice(0, 10);
+  let text = input.text.trim().slice(0, 2_000);
+  let attachments = (input.attachments ?? []).filter(item => item.url).slice(0, 10);
   const suppliedOperationId = input.operationId?.trim();
   if (suppliedOperationId && !/^[a-zA-Z0-9._:-]{8,128}$/.test(suppliedOperationId)) throw new Error("inbox_reply_operation_invalid");
   if (input.retryOnly && !suppliedOperationId) throw new Error("inbox_reply_operation_required");
@@ -312,11 +354,15 @@ export async function sendInboxReply(input: {
 
   const now = Date.now();
   const operationId = suppliedOperationId ?? randomUUID();
-  const messageId = `msg_reply_${createHash("sha256")
-    .update(`${input.agencyId}\u0000${conversation.id}\u0000${operationId}`)
-    .digest("hex")
-    .slice(0, 32)}`;
-  const payloadHash = createHash("sha256").update(JSON.stringify({ text, attachments })).digest("hex");
+  const identity = inboxReplyOperationIdentity({
+    agencyId: input.agencyId,
+    conversationId: conversation.id,
+    operationId,
+    text,
+    attachments,
+  });
+  ({ text, attachments } = identity);
+  const { messageId, payloadHash } = identity;
   const parts = [
     ...(text ? [{ id: "text", kind: "text" as const, status: "pending" as const, attempts: 0, updatedAt: now }] : []),
     ...attachments.map((_, attachmentIndex) => ({

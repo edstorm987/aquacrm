@@ -31,6 +31,13 @@ export class PrivateObjectLifecycleClaimError extends Error {
   }
 }
 
+/** Exact provider identity the eventual owner is allowed to persist. */
+export interface StagedPrivateUploadBinding {
+  objectId?: string;
+  storageProvider: StoredPrivateUpload["storageProvider"];
+  storageKey: string;
+}
+
 export function privateObjectLifecycleLockKey(agencyId: string): string {
   return `private-object-lifecycle:${agencyId}`;
 }
@@ -170,6 +177,8 @@ export async function claimStagedPrivateUploadsForOwnership(input: {
   purpose: string;
   objectIds?: readonly string[];
   storageKeys?: readonly string[];
+  expectedBindings?: readonly StagedPrivateUploadBinding[];
+  claimId?: string;
   now?: number;
   leaseMs?: number;
 }): Promise<number> {
@@ -191,6 +200,8 @@ export async function claimStagedPrivateUploadsForOwnership(input: {
     if (matches.some(record => record.state === "sweeping" || record.state === "delete-failed" || record.state === "deleting")) {
       throw new PrivateObjectLifecycleClaimError();
     }
+    assertStagedPrivateUploadBindings(matches, input.expectedBindings);
+    assertStagedPrivateUploadClaimIdentity(matches, input.claimId, "claim");
     const matchIds = new Set(matches.map(record => record.id));
     mutate(state => {
       for (const [id, record] of Object.entries(state.privateObjectLifecycles)) {
@@ -198,6 +209,8 @@ export async function claimStagedPrivateUploadsForOwnership(input: {
         state.privateObjectLifecycles[id] = {
           ...record,
           state: "claiming",
+          ...(input.claimId ? { claimId: input.claimId } : {}),
+          claimRecoveryRequiredAt: undefined,
           error: undefined,
           updatedAt: now,
           expiresAt: now + (input.leaseMs ?? STAGED_LEASE_MS),
@@ -219,6 +232,8 @@ export async function commitStagedPrivateUploadOwnership<T>(input: {
   purpose: string;
   objectIds?: readonly string[];
   storageKeys?: readonly string[];
+  expectedBindings?: readonly StagedPrivateUploadBinding[];
+  claimId?: string;
   commit: () => Promise<{ ownerId: string; value: T }>;
   now?: number;
 }): Promise<T> {
@@ -238,6 +253,11 @@ export async function commitStagedPrivateUploadOwnership<T>(input: {
       || matches.some(record => record.state !== "claiming" && record.state !== "ready")) {
       throw new PrivateObjectLifecycleClaimError();
     }
+    // Re-check immediately beside the owner mutation. A provider confirmation
+    // or stale client payload must never let lifecycle object A become ready
+    // while the durable owner points at provider/key B.
+    assertStagedPrivateUploadBindings(matches, input.expectedBindings);
+    assertStagedPrivateUploadClaimIdentity(matches, input.claimId, "finalise");
     const committed = await input.commit();
     markStagedPrivateUploadsReadyUnlocked({
       agencyId: input.agencyId,
@@ -249,6 +269,146 @@ export async function commitStagedPrivateUploadOwnership<T>(input: {
     });
     return committed.value;
   });
+}
+
+/**
+ * Finish a known-committed cross-store owner after its ordinary acknowledgement
+ * was lost. Only the exact durable claim may recover the bytes; a later owner
+ * operation cannot adopt them by guessing object ids.
+ */
+export async function recoverStagedPrivateUploadOwnershipClaim(input: {
+  agencyId: string;
+  purpose: string;
+  objectIds?: readonly string[];
+  storageKeys?: readonly string[];
+  expectedBindings?: readonly StagedPrivateUploadBinding[];
+  claimId: string;
+  ownerId: string;
+  now?: number;
+}): Promise<number> {
+  return withPortalStateTransaction(privateObjectLifecycleLockKey(input.agencyId), () => {
+    const matches = selectedStagedPrivateUploads(input);
+    assertStagedPrivateUploadBindings(matches, input.expectedBindings);
+    assertStagedPrivateUploadClaimIdentity(matches, input.claimId, "finalise");
+    if (matches.some(record => record.state !== "claiming" && record.state !== "ready")) {
+      throw new PrivateObjectLifecycleClaimError();
+    }
+    return markStagedPrivateUploadsReadyUnlocked(input);
+  });
+}
+
+/**
+ * Release a claim only after the caller has proved that its owner write was
+ * refused before commit. Ambiguous outcomes deliberately do not call this:
+ * retaining the exact claim is safer than deleting a potentially owned file.
+ */
+export async function releaseStagedPrivateUploadOwnershipClaim(input: {
+  agencyId: string;
+  purpose: string;
+  objectIds?: readonly string[];
+  storageKeys?: readonly string[];
+  expectedBindings?: readonly StagedPrivateUploadBinding[];
+  claimId: string;
+  now?: number;
+}): Promise<number> {
+  return withPortalStateTransaction(privateObjectLifecycleLockKey(input.agencyId), () => {
+    const matches = selectedStagedPrivateUploads(input);
+    assertStagedPrivateUploadBindings(matches, input.expectedBindings);
+    assertStagedPrivateUploadClaimIdentity(matches, input.claimId, "finalise");
+    if (matches.some(record => record.state !== "claiming" && record.state !== "ready")) {
+      throw new PrivateObjectLifecycleClaimError();
+    }
+    const matchIds = new Set(matches.filter(record => record.state === "claiming").map(record => record.id));
+    const now = input.now ?? Date.now();
+    let released = 0;
+    mutate(state => {
+      for (const id of matchIds) {
+        const current = state.privateObjectLifecycles[id];
+        if (!current || current.state !== "claiming" || current.claimId !== input.claimId) continue;
+        state.privateObjectLifecycles[id] = {
+          ...current,
+          state: "uploading",
+          claimId: undefined,
+          claimRecoveryRequiredAt: undefined,
+          error: undefined,
+          updatedAt: now,
+          expiresAt: now + STAGED_LEASE_MS,
+        };
+        released += 1;
+      }
+    });
+    return released;
+  });
+}
+
+function selectedStagedPrivateUploads(input: {
+  agencyId: string;
+  purpose: string;
+  objectIds?: readonly string[];
+  storageKeys?: readonly string[];
+}): PrivateObjectLifecycle[] {
+  const wantedIds = new Set((input.objectIds ?? []).filter(Boolean));
+  const wantedKeys = new Set((input.storageKeys ?? []).filter(Boolean));
+  if (!wantedIds.size && !wantedKeys.size) throw new PrivateObjectLifecycleClaimError();
+  const matches = Object.values(getState().privateObjectLifecycles).filter(record =>
+    record.operation === "stage"
+    && record.agencyId === input.agencyId
+    && record.purpose === input.purpose
+    && (wantedIds.has(record.objectId) || wantedKeys.has(record.storageKey)));
+  const matchedIds = new Set(matches.map(record => record.objectId));
+  const matchedKeys = new Set(matches.map(record => record.storageKey));
+  if ([...wantedIds].some(id => !matchedIds.has(id)) || [...wantedKeys].some(key => !matchedKeys.has(key))) {
+    throw new PrivateObjectLifecycleClaimError();
+  }
+  return matches;
+}
+
+function assertStagedPrivateUploadClaimIdentity(
+  matches: readonly PrivateObjectLifecycle[],
+  claimId: string | undefined,
+  phase: "claim" | "finalise",
+): void {
+  if (claimId !== undefined && !claimId.trim()) throw new PrivateObjectLifecycleClaimError();
+  if (matches.some(record => {
+    if (record.state === "ready") {
+      // A ready object already has an owner. Only the same explicitly fenced
+      // operation may replay it; legacy/no-id callers may never adopt it.
+      return !claimId || !record.claimId || record.claimId !== claimId;
+    }
+    if (record.state !== "claiming") return false;
+    if (phase === "claim") {
+      // A second claimant is never implicit. Same-operation re-entry requires
+      // an explicit identity; this also closes two no-id claims racing between
+      // the separate claim and commit transactions.
+      return !claimId || !record.claimId || record.claimId !== claimId;
+    }
+    // Existing legacy callers may finalise the no-id claim they just wrote,
+    // but any identified claim must be matched exactly.
+    return (record.claimId !== undefined || claimId !== undefined)
+      && record.claimId !== claimId;
+  })) {
+    throw new PrivateObjectLifecycleClaimError("These uploads are already reserved by another owner operation.");
+  }
+}
+
+function assertStagedPrivateUploadBindings(
+  matches: readonly PrivateObjectLifecycle[],
+  expectedBindings: readonly StagedPrivateUploadBinding[] | undefined,
+): void {
+  if (expectedBindings === undefined) return;
+  if (expectedBindings.length !== matches.length) throw new PrivateObjectLifecycleClaimError();
+
+  const used = new Set<string>();
+  for (const binding of expectedBindings) {
+    if (!binding.storageKey || !binding.storageProvider) throw new PrivateObjectLifecycleClaimError();
+    const match = matches.find(record =>
+      !used.has(record.id)
+      && (binding.objectId ? record.objectId === binding.objectId : record.storageKey === binding.storageKey)
+      && record.storageProvider === binding.storageProvider
+      && record.storageKey === binding.storageKey);
+    if (!match) throw new PrivateObjectLifecycleClaimError();
+    used.add(match.id);
+  }
 }
 
 export interface PreparedPrivateObjectDeletion<T> {
@@ -441,14 +601,17 @@ export async function processPrivateObjectLifecycleSweep(options: {
         // store owners cannot all be discovered by scanning PortalState, so an
         // expired claim is retained for safe recovery rather than guessed away.
         if (latest.state === "claiming") {
+          // A previous sweep already made this ambiguity explicit. Do not keep
+          // extending its lease and manufacturing new recovery work forever.
+          if (latest.claimRecoveryRequiredAt !== undefined) continue;
           mutate(state => {
             const current = state.privateObjectLifecycles[latest.id];
             if (!current || current.state !== "claiming") return;
             state.privateObjectLifecycles[latest.id] = {
               ...current,
               error: "Ownership finalisation requires recovery; storage was retained.",
+              claimRecoveryRequiredAt: now,
               updatedAt: now,
-              expiresAt: now + STAGED_LEASE_MS,
             };
           });
           totals.retainedClaims += 1;

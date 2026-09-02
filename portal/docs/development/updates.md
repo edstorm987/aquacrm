@@ -34,6 +34,29 @@ map stays trustworthy.
 
 ---
 
+## 2026-09-02 — Exact private-upload ownership and replay integrity
+
+- Lifecycle claim/commit now binds the exact provider, storage key and cardinality and
+  fences callers with an explicit claim id. Definite refusals before an owner write
+  release only that claim; ambiguous or post-write outcomes remain retained for
+  reconciliation, and a durable matching social owner can recover to `ready`.
+- Social retries bind a stable operation id to the exact conversation/text/attachment
+  payload in both mounted inbox implementations. Expenses use exact create intents,
+  server-derived canonical URLs and authoritative persisted attachments; campaigns
+  enforce exact asset identity and refusal handling. Website/client routes reject
+  malformed, duplicate or mismatched upload bindings, including exact release on a
+  client workspace-busy refusal.
+- Focused private lifecycle, Finance and Meta gates pass **33/33**, **39/39** and
+  **6/6**; the complete changed-surface gate is **85/85**. The final repository run
+  is **6,243 tests across 1,074 suites: 6,241 passed / 0 failed / 2 skipped**;
+  Website Editor is **49/49**, TypeScript and diff checks pass, and the production
+  build generated **245/245** pages after a **43s** compile and **11.4s** TypeScript
+  phase. Issue #38 remains partly repaired pending live providers, distributed and
+  process-kill lease proof, mounted forced-failure/retry, automatic retained-claim
+  operator reconciliation, direct call-recording ambiguity and SOP-retirement policy.
+- Reconciled [TODO](TODO.md), [issues](issues.md), [status](status.md) and
+  [tests](tests.md) for this wave and regenerated the authored documentation volumes.
+
 ## 2026-09-01 — Final hardening and production-browser release gate
 
 - **Lifecycle and truth boundaries:** private-object lifecycle is **31/31**, Legal is

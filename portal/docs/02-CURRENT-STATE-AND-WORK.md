@@ -2,7 +2,7 @@
 
 > The current checklist, status, roadmap, goals, decisions and working queue.
 >
-> Consolidated 2026-09-01 from **7** source documents / **85,504 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-02 from **7** source documents / **85,533 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -11,7 +11,7 @@
 - [`docs/development/goals.md`](#source-docs-development-goals-md) — 506 words · `28009372c4ab`
 - [`docs/development/notes.md`](#source-docs-development-notes-md) — 1,730 words · `f68ea59936dd`
 - [`docs/development/roadmap.md`](#source-docs-development-roadmap-md) — 21,139 words · `de9dbcb19413`
-- [`docs/development/status.md`](#source-docs-development-status-md) — 20,504 words · `7f97f40ece79`
+- [`docs/development/status.md`](#source-docs-development-status-md) — 20,533 words · `586248861a9f`
 - [`docs/development/todo-retired.md`](#source-docs-development-todo-retired-md) — 15,920 words · `4bde57e97f03`
 
 ---
@@ -4348,24 +4348,30 @@ This remains a truthful record of the first pass, **not a current performance cl
 
 ## Source document — `docs/development/status.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/status.md" sha256="7f97f40ece790b327e78c99cacb8421a0d7b108a62dc3562c47b064916efb223" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/status.md" sha256="586248861a9f59e11777685e10e74e611cca29ed1b36ff307051dee194689585" -->
 # Status & verification register
 
 ← Back to [development.md](../development.md) (the law)
 
 > **Current checkpoint: [TODO.md](TODO.md).** This register explains
 > verification depth and keeps dated feature evidence; it is not a second
-> "where we stand" summary. **The final Node smoke checkpoint is 6,225 tests
-> across 1,072 suites: 6,223 passed / 0 failed / 0 cancelled / 2 skipped.**
-> Website Editor is **49/49 files**; combined accounting is **6,274 executed
-> units / 6,272 passed / 0 failed / 2 skipped**. The final
+> "where we stand" summary. **The final Node smoke checkpoint is 6,243 tests
+> across 1,074 suites: 6,241 passed / 0 failed / 0 cancelled / 2 skipped.**
+> Website Editor is **49/49 files**; combined accounting is **6,292 executed
+> units / 6,290 passed / 0 failed / 2 skipped**. The final
 > production-browser matrix completed
 > all **1,326** required checks as **1,175 passed / 0 failed / 151 observations /
 > 0 missing**, and the local production webpack build generated **245/245** static
-> pages (compile **51s**, TypeScript **17.3s**, wall **96.47s**).
+> pages (compile **43s**, TypeScript **11.4s**, wall approximately **68.1s**).
 > Historical August deployment evidence below describes the release that was
 > actually deployed then; a later local build or GitHub push is not by itself a
 > new Vercel deployment.
+>
+> **2026-09-02 private-upload integrity checkpoint:** exact lifecycle binding/claim
+> fencing and the Finance/Meta owner-replay paths pass **33/33**, **39/39** and
+> **6/6** respectively; the complete changed-surface gate is **85/85**. The full
+> suite and production build above include this wave. The production-browser matrix
+> remains the earlier checkpoint and is not a live-provider acceptance claim.
 >
 > **2026-08-24 scope correction:** the first documentation pass was
 > non-security-only. A later read-only review added a live-proven P0 session-
@@ -4399,9 +4405,9 @@ the same thing.
   representative 1280/768/375 layouts. Treat those routes as **render/navigation verified only**;
   saves, providers, alternate personas, failure injection and persistence are unconfirmed unless a
   row carries exact evidence.
-- **Final Node smoke checkpoint: 6,225 tests across 1,072 suites — 6,223 passed /
+- **Final Node smoke checkpoint: 6,243 tests across 1,074 suites — 6,241 passed /
   0 failed / 0 cancelled / 2 skipped.** Website Editor passed **49/49 files**;
-  combined accounting is **6,274 executed units / 6,272 passed / 0 failed /
+  combined accounting is **6,292 executed units / 6,290 passed / 0 failed /
   2 skipped**. This establishes **shape + pure-logic correctness**, not usability.
 - A 2026-08-24 focused non-security rerun passed **98/98** across Editor AI,
   editor project boundaries, showcase reset and adjacent audit regressions. It
@@ -4597,7 +4603,7 @@ not rerun.
 | Plugin health monitoring | **P1 — hooks exist but are never executed or persisted.** No runtime path calls manifest healthchecks, the install patch contract cannot store their result, and Radar treats absent health as zero failures/healthy with `installedAt` standing in for check time. | Add a timeout-bounded lifecycle/periodic runner, persist per-install result and age, distinguish never-run/stale/throwing, and prove Radar cannot go green without recent coverage of every enabled install. |
 | Client custom-portal build | **P1 — the primary wizard has no backend.** For a product-assigned client without a materialised folder, “Build custom portal” calls two `/api/portal/portal-export/*` paths, but no such app route or registered module exists. The preset 404 is swallowed and submit cannot create the promised workspace. | Implement/register canonical materialisation (or use the existing portal provisioner), expose readiness before opening, honour selections, and prove create → persisted portal → reload → open. |
 | Client project lifecycle | **P1 — provision, publish and deploy lack partial-success recovery.** Provisioning creates and commits a local folder before client metadata; GitHub and Vercel create external resources before metadata. A later failure leaves an untracked folder/repository/deployment, and retry may suffix, collide or duplicate. | Persist operation intent/path/provider results, reuse existing work or compensate safely, add reconciliation, and prove retries after every local, external and client-persistence failure point. |
-| Private uploads | **P1 partly repaired with one shared recoverable lifecycle.** Staging persists intent before provider I/O and confirms the exact key. Inbox/enquiry/client-request/expense/campaign owners claim before commit and complete owner+ready state in one lifecycle lane. The sweep serialises with adoption, persists destructive intent first, adopts discovered owners and retains ambiguous claims. Legal/SOP/Development deletion, owner updates and bulk reference rewrites share one agency lifecycle lane; ordinary reads hide pending sensitive rows and retry-only UI exposes failures. Finance obligation and Company governance citation writes share the legal-delete lane. Generic Postgres nested PortalState transactions reuse only their active backend/realm/key lease and drain reentrant work before release. | Private lifecycle **31/31**, Legal **21/21**, SOP **18/18**, Postgres/client composition **7/7** and the earlier widened Finance/legal checkpoint **167/167** pass. Still required: payload-bound replay/claim rollback, live Supabase/Vercel Blob/local-production providers, real process-kill/multi-process DB leases, mounted forced-failure/retry, automatic cross-store claim reconciliation/operator UI, direct call-recording ambiguity recovery and the separate SOP-retirement policy. |
+| Private uploads | **P1 partly repaired with one shared recoverable lifecycle.** Claim/commit now require the exact provider/key/cardinality binding and claim ids fence unrelated callers. Stable payload-bound social retries work across both mounted inbox implementations; known owners recover to ready. Expense intents/URLs/attachments and campaign asset identity are authoritative, while website/client routes reject malformed, duplicate or mismatched bindings. Definite pre-owner-write refusals release only the exact claim; ambiguous or post-write outcomes retain it. Existing recoverable deletion, legal/SOP/Development lanes and reentrant Postgres transaction work remain intact. | Private lifecycle **33/33**, Finance **39/39**, Meta **6/6**, Legal **21/21**, SOP **18/18** and Postgres/client composition **7/7** pass. Still required: live Supabase/Vercel Blob/local-production providers, real process-kill/multi-process DB leases, mounted forced-failure/retry, automatic retained-claim reconciliation/operator UI, direct call-recording ambiguity recovery and the separate SOP-retirement policy. |
 | Close the deal | **P1 — agreement status and delivery are not truthful.** The form can create a title-only contract directly as sent; the customer portal can accept it without terms/document, and the success UI claims “Contract sent” although the route never invokes transactional delivery. | Require a reviewable version, route through canonical publish/send semantics, return the delivery outcome, and browser-prove the exact version from close through customer acceptance. |
 | Commercial proposal delivery | **P1 — explicit email failure is recorded as sent.** Leads Pipeline receives `delivered:false` from its real Email Sender adapter but still marks proposal/invoice sent and stamps payment receipts as sent. | Persist queued/delivered/failed separately, advance milestones only on delivery, retain message/error state for retry, and prove provider refusal plus successful retry. |
 | Commercial proposal integrity | **P1 — acceptance/payment are not version-bound.** A draft public token can be accepted; later edits overwrite an accepted pack while retaining accepted status/time, and price/cadence edits retain the prior Stripe Checkout URL. | Create immutable sent versions, require sent state for acceptance, record accepted version/hash, draft amendments, invalidate stale Checkout, and prove public refusal/stability in browser tests. |

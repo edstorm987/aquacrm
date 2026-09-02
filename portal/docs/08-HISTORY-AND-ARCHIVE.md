@@ -2,7 +2,7 @@
 
 > The append-only change record, dated handoffs and superseded historical summaries.
 >
-> Consolidated 2026-09-01 from **18** source documents / **129,992 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-02 from **18** source documents / **130,206 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -23,7 +23,7 @@
 - [`docs/context/archive/website-editor-and-migration.md`](#source-docs-context-archive-website-editor-and-migration-md) — 1,159 words · `235e8af731b6`
 - [`docs/context/archive/WHERE-WE-ARE-2026-08-18.md`](#source-docs-context-archive-where-we-are-2026-08-18-md) — 2,192 words · `4056e9a347cb`
 - [`docs/context/archive/WHERE-WE-STAND-2026-08-20.md`](#source-docs-context-archive-where-we-stand-2026-08-20-md) — 2,482 words · `26bf4442580e`
-- [`docs/development/updates.md`](#source-docs-development-updates-md) — 99,836 words · `fda55e792593`
+- [`docs/development/updates.md`](#source-docs-development-updates-md) — 100,050 words · `f8d508e8652d`
 
 ---
 
@@ -3318,7 +3318,7 @@ Being straight with you about the edges.
 
 ## Source document — `docs/development/updates.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="fda55e792593ede87ea63b9ad24fb934b34ef1a00c2107ccab36905eff0daa8f" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="f8d508e8652d2d3964f7d9fa8dcaf08c2e91d357bdee696fe3e8940eda1e94d6" -->
 # Updates log
 
 ← Back to [development.md](../development.md) (the law)
@@ -3354,6 +3354,29 @@ map stays trustworthy.
 > If you ship something, log it.
 
 ---
+
+## 2026-09-02 — Exact private-upload ownership and replay integrity
+
+- Lifecycle claim/commit now binds the exact provider, storage key and cardinality and
+  fences callers with an explicit claim id. Definite refusals before an owner write
+  release only that claim; ambiguous or post-write outcomes remain retained for
+  reconciliation, and a durable matching social owner can recover to `ready`.
+- Social retries bind a stable operation id to the exact conversation/text/attachment
+  payload in both mounted inbox implementations. Expenses use exact create intents,
+  server-derived canonical URLs and authoritative persisted attachments; campaigns
+  enforce exact asset identity and refusal handling. Website/client routes reject
+  malformed, duplicate or mismatched upload bindings, including exact release on a
+  client workspace-busy refusal.
+- Focused private lifecycle, Finance and Meta gates pass **33/33**, **39/39** and
+  **6/6**; the complete changed-surface gate is **85/85**. The final repository run
+  is **6,243 tests across 1,074 suites: 6,241 passed / 0 failed / 2 skipped**;
+  Website Editor is **49/49**, TypeScript and diff checks pass, and the production
+  build generated **245/245** pages after a **43s** compile and **11.4s** TypeScript
+  phase. Issue #38 remains partly repaired pending live providers, distributed and
+  process-kill lease proof, mounted forced-failure/retry, automatic retained-claim
+  operator reconciliation, direct call-recording ambiguity and SOP-retirement policy.
+- Reconciled [TODO](TODO.md), [issues](issues.md), [status](status.md) and
+  [tests](tests.md) for this wave and regenerated the authored documentation volumes.
 
 ## 2026-09-01 — Final hardening and production-browser release gate
 

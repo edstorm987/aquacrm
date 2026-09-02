@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
+import { withSession } from "./dev-console-request-scope";
 
 const root = mkdtempSync(join(tmpdir(), "aquacrm-meta-reply-parts-"));
 const inboxFile = join(root, "inbox.json");
@@ -24,6 +25,7 @@ const servicePromise = import("../src/lib/server/inbox/inboxService");
 const replyDeliveryPromise = import("../src/lib/inbox/replyDelivery");
 
 let conversationId = "";
+let sessionToken = "";
 
 test.before(async () => {
   const storage = await import("../src/server/storage");
@@ -32,12 +34,22 @@ test.before(async () => {
   const store = await storePromise;
   const service = await servicePromise;
   await storage.ensureHydrated();
-  users.createUser({
+  const owner = users.createUser({
     email: process.env.FOUNDER_EMAIL ?? "edwardhallam07@gmail.com",
     name: "Reply-parts founder",
     role: "agency-owner",
     agencyId: "agn_reply_parts",
     password: "reply-parts-founder-password",
+  });
+  const auth = await import("../src/lib/server/auth/auth");
+  sessionToken = auth.issueSession({
+    userId: owner.id,
+    email: owner.email,
+    role: owner.role,
+    agencyId: owner.agencyId,
+    agencyIds: [owner.agencyId!],
+    activeAgencyId: owner.agencyId,
+    sessionRev: owner.sessionRev ?? 0,
   });
   await store.saveInboxConnection({
     id: "chn_reply_parts",
@@ -170,6 +182,204 @@ test("the same operation id refuses a changed payload before another provider ca
   );
 });
 
+test("retry-only attachment replay is payload-bound before a changed upload is claimed", async () => {
+  const { NextRequest } = await import("next/server");
+  const route = await import("../src/app/api/portal/inbox/messages/route");
+  const lifecycle = await import("../src/lib/server/privateObjectLifecycle");
+  const inboxMedia = await import("../src/lib/server/inbox/inboxMedia");
+  const storage = await import("../src/server/storage");
+  const originalFetch = globalThis.fetch;
+  let providerCalls = 0;
+  globalThis.fetch = async () => {
+    providerCalls += 1;
+    return Response.json({ message_id: `provider-bound-${providerCalls}` });
+  };
+
+  const stage = async (id: string) => {
+    const storageKey = `agn_reply_parts/social/${conversationId}/${id}.pdf`;
+    const requestHash = lifecycle.privateObjectRequestHash(["reply-bound", id, storageKey]);
+    await lifecycle.beginStagedPrivateUpload({
+      agencyId: "agn_reply_parts",
+      purpose: "inbox-media",
+      objectId: id,
+      requestHash,
+      planned: { storageProvider: "local", storageKey },
+      localDirectory: "inbox-media",
+    });
+    await lifecycle.confirmStagedPrivateUpload({
+      agencyId: "agn_reply_parts",
+      purpose: "inbox-media",
+      objectId: id,
+      requestHash,
+      stored: { storageProvider: "local", storageKey },
+    });
+    return inboxMedia.signInboxMediaToken({
+      agencyId: "agn_reply_parts",
+      targetKind: "social",
+      targetId: conversationId,
+      id,
+      name: `${id}.pdf`,
+      size: 12,
+      contentType: "application/pdf",
+      kind: "file",
+      storageProvider: "local",
+      storageKey,
+    });
+  };
+  const post = (body: Record<string, unknown>) => withSession(sessionToken, () => route.POST(new NextRequest(
+    "https://reply-parts.aquacrm.test/api/portal/inbox/messages",
+    { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) },
+  )));
+
+  try {
+    const originalToken = await stage("ima_bound_original");
+    const base = {
+      conversationId,
+      text: "Bound attachment",
+      attachments: [{ token: originalToken }],
+      operationId: "reply-operation-bound-1",
+    };
+    const first = await post(base);
+    assert.equal(first.status, 200, await first.text());
+    assert.equal(providerCalls, 2, "text and attachment should each be delivered once");
+
+    const replay = await post({ ...base, retryOnly: true });
+    assert.equal(replay.status, 200, await replay.text());
+    assert.equal(providerCalls, 2, "a lost-success replay must perform zero new provider calls");
+
+    const malformed = await post({ ...base, attachments: "not-an-attachment-list", retryOnly: true });
+    assert.equal(malformed.status, 400);
+    assert.equal((await malformed.json() as { error?: string }).error, "inbox_attachment_invalid");
+    assert.equal(providerCalls, 2, "malformed attachment input must not become a payloadless replay");
+
+    const changedId = "ima_bound_changed";
+    const changedToken = await stage(changedId);
+    const changed = await post({ ...base, attachments: [{ token: changedToken }], retryOnly: true });
+    assert.equal(changed.status, 400);
+    assert.equal((await changed.json() as { error?: string }).error, "inbox_reply_operation_payload_conflict");
+    assert.equal(providerCalls, 2, "a changed attachment must conflict before provider delivery");
+    const changedLifecycle = Object.values(storage.getState().privateObjectLifecycles)
+      .find(record => record.objectId === changedId);
+    assert.equal(changedLifecycle?.state, "uploading", "a definitely refused owner must release only its staged claim");
+    assert.equal(changedLifecycle?.claimId, undefined);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("a known lost-success owner is recovered before a later connection refusal", async () => {
+  const { NextRequest } = await import("next/server");
+  const route = await import("../src/app/api/portal/inbox/messages/route");
+  const lifecycle = await import("../src/lib/server/privateObjectLifecycle");
+  const inboxMedia = await import("../src/lib/server/inbox/inboxMedia");
+  const storage = await import("../src/server/storage");
+  const service = await servicePromise;
+  const store = await storePromise;
+  const originalFetch = globalThis.fetch;
+  const objectId = "ima_known_owner";
+  const operationId = "reply-operation-known-owner-1";
+  const storageKey = `agn_reply_parts/social/${conversationId}/${objectId}.pdf`;
+  const requestHash = lifecycle.privateObjectRequestHash(["reply-known-owner", objectId, storageKey]);
+  const claimId = lifecycle.privateObjectRequestHash([
+    "inbox-reply-owner",
+    "agn_reply_parts",
+    conversationId,
+    operationId,
+  ]);
+  const binding = { objectId, storageProvider: "local" as const, storageKey };
+  const token = inboxMedia.signInboxMediaToken({
+    agencyId: "agn_reply_parts",
+    targetKind: "social",
+    targetId: conversationId,
+    id: objectId,
+    name: `${objectId}.pdf`,
+    size: 12,
+    contentType: "application/pdf",
+    kind: "file",
+    storageProvider: "local",
+    storageKey,
+  });
+  const attachment = {
+    type: "file" as const,
+    url: inboxMedia.inboxMediaUrl("https://reply-parts.aquacrm.test", token),
+    title: `${objectId}.pdf`,
+    mimeType: "application/pdf",
+  };
+
+  globalThis.fetch = async () => Response.json({ message_id: "provider-known-owner" });
+  try {
+    await lifecycle.beginStagedPrivateUpload({
+      agencyId: "agn_reply_parts",
+      purpose: "inbox-media",
+      objectId,
+      requestHash,
+      planned: { storageProvider: "local", storageKey },
+      localDirectory: "inbox-media",
+    });
+    await lifecycle.confirmStagedPrivateUpload({
+      agencyId: "agn_reply_parts",
+      purpose: "inbox-media",
+      objectId,
+      requestHash,
+      stored: { storageProvider: "local", storageKey },
+    });
+    await lifecycle.claimStagedPrivateUploadsForOwnership({
+      agencyId: "agn_reply_parts",
+      purpose: "inbox-media",
+      objectIds: [objectId],
+      expectedBindings: [binding],
+      claimId,
+    });
+
+    // Simulate the owner write succeeding while the route loses the readiness
+    // acknowledgement before it can finalize the staged object.
+    const owner = await service.sendInboxReply({
+      agencyId: "agn_reply_parts",
+      conversationId,
+      text: "Known owner attachment",
+      attachments: [attachment],
+      actorUserId: "usr_reply_parts",
+      operationId,
+    });
+    const beforeRetry = Object.values(storage.getState().privateObjectLifecycles)
+      .find(record => record.objectId === objectId);
+    assert.equal(beforeRetry?.state, "claiming");
+    assert.equal(beforeRetry?.claimId, claimId);
+
+    await store.updateInboxConnection("agn_reply_parts", "chn_reply_parts", {
+      status: "needs-attention",
+      lastError: "provider temporarily unavailable",
+    });
+    const response = await withSession(sessionToken, () => route.POST(new NextRequest(
+      "https://reply-parts.aquacrm.test/api/portal/inbox/messages",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          conversationId,
+          text: "Known owner attachment",
+          attachments: [{ token }],
+          operationId,
+          retryOnly: true,
+        }),
+      },
+    )));
+    assert.equal(response.status, 400);
+    assert.equal((await response.json() as { error?: string }).error, "inbox_connection_not_ready");
+    const recovered = Object.values(storage.getState().privateObjectLifecycles)
+      .find(record => record.objectId === objectId);
+    assert.equal(recovered?.state, "ready", "the persisted owner must win over the later provider refusal");
+    assert.equal(recovered?.ownerId, owner.id);
+    assert.equal(recovered?.claimId, claimId);
+  } finally {
+    await store.updateInboxConnection("agn_reply_parts", "chn_reply_parts", {
+      status: "connected",
+      lastError: undefined,
+    });
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("an expired in-flight part becomes uncertain instead of being claimed for duplicate send", async () => {
   const store = await storePromise;
   const { readInboxReplyOperation } = await replyDeliveryPromise;
@@ -209,6 +419,7 @@ test("database and UI contracts pin per-part leases, partial truth and retry-onl
   const migration = readFileSync(resolve("../supabase/migrations/20260825110000_resumable_meta_reply_parts.sql"), "utf8");
   const route = readFileSync(resolve("src/app/api/portal/inbox/messages/route.ts"), "utf8");
   const ui = readFileSync(resolve("src/app/portal/agency/inbox/_SocialInboxWorkspace.tsx"), "utf8");
+  const unifiedUi = readFileSync(resolve("src/app/portal/agency/inbox/_UnifiedInboxWorkspace.tsx"), "utf8");
   assert.match(migration, /for update/i);
   assert.match(migration, /claim_inbox_reply_part/);
   assert.match(migration, /settle_inbox_reply_part/);
@@ -216,7 +427,14 @@ test("database and UI contracts pin per-part leases, partial truth and retry-onl
   assert.match(migration, /revoke all on function public\.claim_inbox_reply_part/);
   assert.match(route, /retryOnly/);
   assert.match(route, /InboxReplyDeliveryError/);
+  assert.match(route, /expectedBindings: stagedBindings/);
+  assert.match(route, /releaseStagedPrivateUploadOwnershipClaim/);
+  assert.match(route, /recoverStagedPrivateUploadOwnershipClaim/);
   assert.match(ui, /Retry remaining/);
   assert.match(ui, /Partially sent/);
   assert.match(ui, /operationId: progress\.operation\.operationId/);
+  assert.match(ui, /const payloadKey = JSON\.stringify\(\[selected\.id, draft\.trim\(\)\.slice\(0, 2_000\)\]\)/);
+  assert.match(ui, /draftOperation\?\.payloadKey === payloadKey/);
+  assert.match(unifiedUi, /attachments\.map\(attachment => attachment\.token\)/);
+  assert.match(unifiedUi, /draftOperation\?\.payloadKey === payloadKey/);
 });

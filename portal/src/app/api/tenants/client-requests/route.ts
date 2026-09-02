@@ -9,7 +9,14 @@ import { triageWebsiteEnquiry, type WebsiteEnquiryPriority } from "@/lib/server/
 import { triggerAutomations } from "@/server/automations";
 import type { InboxOutboundAttachment } from "@/lib/inbox/media";
 import { inboxMediaUrl, verifyInboxMediaToken } from "@/lib/server/inbox/inboxMedia";
-import { claimStagedPrivateUploadsForOwnership, commitStagedPrivateUploadOwnership, PrivateObjectLifecycleClaimError } from "@/lib/server/privateObjectLifecycle";
+import {
+  claimStagedPrivateUploadsForOwnership,
+  commitStagedPrivateUploadOwnership,
+  privateObjectRequestHash,
+  PrivateObjectLifecycleClaimError,
+  releaseStagedPrivateUploadOwnershipClaim,
+  type StagedPrivateUploadBinding,
+} from "@/lib/server/privateObjectLifecycle";
 import { cleanClientRequests } from "@/lib/clients/clientRequests";
 import { synchroniseClientRequestLedgerEvents } from "@/lib/server/clients/clientRecordLedger";
 import { ProductWorkspaceBusyError, withClientMetadataLedgerTransaction } from "@/server/productWorkspaceCoordinator";
@@ -184,24 +191,57 @@ interface UpdateBody {
   attachments?: Array<{ token?: string }>;
 }
 
+interface ClientRequestStagedClaim {
+  agencyId: string;
+  objectIds: string[];
+  expectedBindings: StagedPrivateUploadBinding[];
+  claimId: string;
+}
+
+async function releaseClientRequestStagedClaim(claim: ClientRequestStagedClaim): Promise<void> {
+  await releaseStagedPrivateUploadOwnershipClaim({
+    agencyId: claim.agencyId,
+    purpose: "inbox-media",
+    objectIds: claim.objectIds,
+    expectedBindings: claim.expectedBindings,
+    claimId: claim.claimId,
+  });
+}
+
 export async function PATCH(req: Request) {
+  let stagedClaim: ClientRequestStagedClaim | null = null;
   try {
     await ensureHydrated();
     const body = await req.json().catch(() => null) as UpdateBody | null;
     const replyInput = body?.reply?.trim().slice(0, 4_000) ?? "";
     const targetId = body?.clientId && body.requestId ? `${body.clientId}:${body.requestId}` : "";
-    const attachments = (body?.attachments ?? []).flatMap(item => {
+    if (body?.attachments !== undefined && !Array.isArray(body.attachments)) {
+      return NextResponse.json({ ok: false, error: "Attachments must be a list." }, { status: 400 });
+    }
+    const requestedAttachments = Array.isArray(body?.attachments) ? body.attachments : [];
+    const attachmentPayloads = requestedAttachments.flatMap(item => {
       const token = typeof item?.token === "string" ? item.token : "";
       const payload = token ? verifyInboxMediaToken(token) : null;
       if (!payload || payload.targetKind !== "client" || payload.targetId !== targetId) return [];
-      return [{ id: payload.id, name: payload.name, size: payload.size, contentType: payload.contentType, kind: payload.kind, token, url: inboxMediaUrl(new URL(req.url).origin, token) }];
-    }).slice(0, 10);
-    const reply = replyInput || (attachments.length ? `Sent ${attachments.length === 1 ? "an attachment" : `${attachments.length} attachments`}.` : "");
-    if (!body?.clientId || !body.requestId || (!body.status && !reply)) {
+      return [{ payload, token }];
+    });
+    if (!body?.clientId || !body.requestId) {
       return NextResponse.json({ ok: false, error: "clientId, requestId, and a status or reply are required" }, { status: 400 });
+    }
+    if (requestedAttachments.length > 10 || attachmentPayloads.length !== requestedAttachments.length) {
+      return NextResponse.json({ ok: false, error: "An attachment is invalid or has expired." }, { status: 400 });
+    }
+    const attachmentIds = attachmentPayloads.map(item => item.payload.id);
+    const storageIdentities = attachmentPayloads.map(item => `${item.payload.storageProvider}\u0000${item.payload.storageKey}`);
+    if (new Set(attachmentIds).size !== attachmentIds.length || new Set(storageIdentities).size !== storageIdentities.length) {
+      return NextResponse.json({ ok: false, error: "Duplicate attachments are not allowed." }, { status: 400 });
     }
     if (body.status && !["open", "reviewed", "closed"].includes(body.status)) {
       return NextResponse.json({ ok: false, error: "invalid status" }, { status: 400 });
+    }
+    const reply = replyInput || (attachmentPayloads.length ? `Sent ${attachmentPayloads.length === 1 ? "an attachment" : `${attachmentPayloads.length} attachments`}.` : "");
+    if (!body.status && !reply) {
+      return NextResponse.json({ ok: false, error: "clientId, requestId, and a status or reply are required" }, { status: 400 });
     }
 
     const clientId = body.clientId;
@@ -214,8 +254,49 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
     }
     await requireCurrentClientWorkspaceElementAccess(clientId, "client.communications", "use");
-    if (attachments.length) await claimStagedPrivateUploadsForOwnership({ agencyId: session.agencyId, purpose: "inbox-media", objectIds: attachments.map(attachment => attachment.id) });
-    let attachmentOwnerId = body.requestId;
+    if (attachmentPayloads.some(item => item.payload.agencyId !== session.agencyId)) {
+      return NextResponse.json({ ok: false, error: "An attachment is invalid." }, { status: 400 });
+    }
+    const attachments: InboxOutboundAttachment[] = attachmentPayloads.map(({ payload, token }) => ({
+      id: payload.id,
+      name: payload.name,
+      size: payload.size,
+      contentType: payload.contentType,
+      kind: payload.kind,
+      token,
+      url: inboxMediaUrl(new URL(req.url).origin, token),
+    }));
+    const stagedBindings: StagedPrivateUploadBinding[] = attachmentPayloads.map(({ payload }) => ({
+      objectId: payload.id,
+      storageProvider: payload.storageProvider,
+      storageKey: payload.storageKey,
+    }));
+    const preflightClient = getClientForAgency(session.agencyId, clientId);
+    const preflightMeta = (preflightClient?.metadata ?? {}) as { clientRequests?: ClientRequest[] };
+    const preflightRequests = cleanClientRequests(preflightMeta.clientRequests);
+    if (!preflightRequests.some(item => item.id === body.requestId)) {
+      return NextResponse.json({ ok: false, error: "request not found" }, { status: 404 });
+    }
+    const replyOwnerId = reply ? makeId().replace(/^req_/, "rep_") : undefined;
+    const attachmentOwnerId = replyOwnerId ?? body.requestId;
+    const stagedClaimId = attachments.length
+      ? privateObjectRequestHash(["client-request-reply-owner", session.agencyId, clientId, body.requestId, attachmentOwnerId])
+      : "";
+    if (attachments.length) {
+      await claimStagedPrivateUploadsForOwnership({
+        agencyId: session.agencyId,
+        purpose: "inbox-media",
+        objectIds: attachmentIds,
+        expectedBindings: stagedBindings,
+        claimId: stagedClaimId,
+      });
+      stagedClaim = {
+        agencyId: session.agencyId,
+        objectIds: attachmentIds,
+        expectedBindings: stagedBindings,
+        claimId: stagedClaimId,
+      };
+    }
     const persistRequest = () => withClientMetadataLedgerTransaction({
       agencyId: session.agencyId,
       clientId,
@@ -223,7 +304,6 @@ export async function PATCH(req: Request) {
     }, async () => {
     const client = getClientForAgency(session.agencyId, clientId);
     if (!client) return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
-    if (attachments.some(attachment => verifyInboxMediaToken(attachment.token)?.agencyId !== session.agencyId)) return NextResponse.json({ ok: false, error: "An attachment is invalid." }, { status: 400 });
 
     const meta = (client.metadata ?? {}) as { clientRequests?: ClientRequest[] };
     const requests = cleanClientRequests(meta.clientRequests);
@@ -235,15 +315,13 @@ export async function PATCH(req: Request) {
     const nextStatus = body.status ?? (fromMilesymedia ? "reviewed" : "open");
     const replies = Array.isArray(existing.replies) ? [...existing.replies] : [];
     if (reply) {
-      const replyId = makeId().replace(/^req_/, "rep_");
       replies.push({
-        id: replyId,
+        id: replyOwnerId!,
         message: reply,
         from: fromMilesymedia ? "milesymedia" : "customer",
         createdAt: now,
         attachments,
       });
-      attachmentOwnerId = replyId;
     }
     const changed: ClientRequest = {
       ...existing,
@@ -280,7 +358,9 @@ export async function PATCH(req: Request) {
       return await commitStagedPrivateUploadOwnership({
         agencyId: session.agencyId,
         purpose: "inbox-media",
-        objectIds: attachments.map(attachment => attachment.id),
+        objectIds: attachmentIds,
+        expectedBindings: stagedBindings,
+        claimId: stagedClaimId,
         commit: async () => {
           const value = await persistRequest();
           if (!value.ok) {
@@ -291,7 +371,15 @@ export async function PATCH(req: Request) {
         },
       });
     } catch (error) {
-      if (ownerRefusal) return ownerRefusal;
+      if (ownerRefusal) {
+        try {
+          await releaseClientRequestStagedClaim(stagedClaim!);
+        } catch (releaseError) {
+          console.error("[client-requests] refused owner claim could not be released:", releaseError);
+          return NextResponse.json({ ok: false, error: "storage_unavailable" }, { status: 503 });
+        }
+        return ownerRefusal;
+      }
       throw error;
     }
   } catch (error) {
@@ -299,6 +387,17 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ ok: false, code: error.code, error: error.message }, { status: 409 });
     }
     if (error instanceof ProductWorkspaceBusyError) {
+      if (stagedClaim) {
+        try {
+          // ProductWorkspaceBusyError is raised while acquiring the client
+          // ledger lease, before its owner callback can run. This is therefore
+          // a definite refusal and only this exact claim is safe to release.
+          await releaseClientRequestStagedClaim(stagedClaim);
+        } catch (releaseError) {
+          console.error("[client-requests] busy owner claim could not be released:", releaseError);
+          return NextResponse.json({ ok: false, error: "storage_unavailable" }, { status: 503 });
+        }
+      }
       return NextResponse.json({ ok: false, error: error.message }, { status: 409 });
     }
     return authErrorResponse(error);

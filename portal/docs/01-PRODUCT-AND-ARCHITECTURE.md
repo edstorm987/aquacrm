@@ -2,7 +2,7 @@
 
 > Product shape, portal model, brand architecture and plain-English system explanations.
 >
-> Consolidated 2026-09-01 from **2** source documents / **6,068 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-02 from **2** source documents / **6,068 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 

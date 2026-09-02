@@ -320,6 +320,160 @@ test("an expired ownership claim is retained and never sent to the provider", as
   assert.match(record?.error ?? "", /recovery/);
 });
 
+test("a refused owner write releases only its exact claim for later abandonment cleanup", async () => {
+  const agencyId = `agency_claim_release_${Date.now()}`;
+  const objectId = "refused_owner_attachment";
+  const storageKey = `${agencyId}/refused-owner.pdf`;
+  const requestHash = lifecycle.privateObjectRequestHash([agencyId, objectId, storageKey]);
+  const expectedBindings = [{ objectId, storageProvider: "local" as const, storageKey }];
+  await lifecycle.beginStagedPrivateUpload({
+    agencyId,
+    purpose: "inbox-media",
+    objectId,
+    requestHash,
+    planned: { storageProvider: "local", storageKey },
+    localDirectory: LOCAL_DIR,
+    now: 1_000,
+  });
+  await lifecycle.claimStagedPrivateUploadsForOwnership({
+    agencyId,
+    purpose: "inbox-media",
+    objectIds: [objectId],
+    expectedBindings,
+    claimId: "owner-operation-refused",
+    now: 1_001,
+  });
+  await assert.rejects(
+    lifecycle.commitStagedPrivateUploadOwnership({
+      agencyId,
+      purpose: "inbox-media",
+      objectIds: [objectId],
+      expectedBindings,
+      claimId: "owner-operation-refused",
+      commit: async () => { throw new Error("owner_refused_before_commit"); },
+    }),
+    /owner_refused_before_commit/,
+  );
+  assert.equal(Object.values(portalStorage.getState().privateObjectLifecycles).find(item => item.objectId === objectId)?.state, "claiming");
+  await assert.rejects(
+    lifecycle.releaseStagedPrivateUploadOwnershipClaim({
+      agencyId,
+      purpose: "inbox-media",
+      objectIds: [objectId],
+      expectedBindings,
+      claimId: "different-owner-operation",
+      now: 1_002,
+    }),
+    /another owner operation/,
+  );
+  const released = await lifecycle.releaseStagedPrivateUploadOwnershipClaim({
+    agencyId,
+    purpose: "inbox-media",
+    objectIds: [objectId],
+    expectedBindings,
+    claimId: "owner-operation-refused",
+    now: 1_003,
+  });
+  assert.equal(released, 1);
+  const record = Object.values(portalStorage.getState().privateObjectLifecycles).find(item => item.objectId === objectId);
+  assert.equal(record?.state, "uploading");
+  assert.equal(record?.claimId, undefined);
+
+  let removed = false;
+  const swept = await lifecycle.processPrivateObjectLifecycleSweep({
+    now: 1_003 + 24 * 60 * 60_000 + 1,
+    providers: { local: async () => { removed = true; } },
+  });
+  assert.equal(swept.cleaned, 1);
+  assert.equal(removed, true, "released bytes should return to ordinary staged cleanup");
+});
+
+test("an ambiguous owner outcome is retained once and only its exact claim can recover", async () => {
+  const agencyId = `agency_claim_ambiguous_${Date.now()}`;
+  const objectId = "ambiguous_owner_attachment";
+  const storageKey = `${agencyId}/ambiguous-owner.pdf`;
+  const requestHash = lifecycle.privateObjectRequestHash([agencyId, objectId, storageKey]);
+  const expectedBindings = [{ objectId, storageProvider: "local" as const, storageKey }];
+  await lifecycle.beginStagedPrivateUpload({
+    agencyId,
+    purpose: "inbox-media",
+    objectId,
+    requestHash,
+    planned: { storageProvider: "local", storageKey },
+    localDirectory: LOCAL_DIR,
+    now: 2_000,
+    leaseMs: 1,
+  });
+  await lifecycle.claimStagedPrivateUploadsForOwnership({
+    agencyId,
+    purpose: "inbox-media",
+    objectIds: [objectId],
+    expectedBindings,
+    claimId: "owner-operation-ambiguous",
+    now: 2_001,
+    leaseMs: 1,
+  });
+  await assert.rejects(
+    lifecycle.commitStagedPrivateUploadOwnership({
+      agencyId,
+      purpose: "inbox-media",
+      objectIds: [objectId],
+      expectedBindings,
+      claimId: "owner-operation-ambiguous",
+      commit: async () => { throw new Error("owner_result_unknown"); },
+    }),
+    /owner_result_unknown/,
+  );
+
+  let providerTouches = 0;
+  const firstSweep = await lifecycle.processPrivateObjectLifecycleSweep({
+    now: 2_003,
+    providers: { local: async () => { providerTouches += 1; } },
+  });
+  assert.equal(firstSweep.retainedClaims, 1);
+  const retained = Object.values(portalStorage.getState().privateObjectLifecycles).find(item => item.objectId === objectId);
+  assert.equal(retained?.state, "claiming");
+  assert.equal(retained?.claimId, "owner-operation-ambiguous");
+  assert.equal(retained?.claimRecoveryRequiredAt, 2_003);
+  assert.equal(retained?.expiresAt, 2_002, "the sweep must not renew an ambiguous claim forever");
+
+  const secondSweep = await lifecycle.processPrivateObjectLifecycleSweep({
+    now: 9_000,
+    providers: { local: async () => { providerTouches += 1; } },
+  });
+  assert.equal(secondSweep.retainedClaims, 0, "an already-marked claim must not manufacture repeated recovery work");
+  assert.equal(providerTouches, 0, "ambiguous ownership must never trigger binary deletion");
+  const stillRetained = Object.values(portalStorage.getState().privateObjectLifecycles).find(item => item.objectId === objectId);
+  assert.equal(stillRetained?.updatedAt, 2_003);
+  assert.equal(stillRetained?.expiresAt, 2_002);
+
+  await assert.rejects(
+    lifecycle.recoverStagedPrivateUploadOwnershipClaim({
+      agencyId,
+      purpose: "inbox-media",
+      objectIds: [objectId],
+      expectedBindings,
+      claimId: "different-owner-operation",
+      ownerId: "message_wrong",
+      now: 9_001,
+    }),
+    /another owner operation/,
+  );
+  const recovered = await lifecycle.recoverStagedPrivateUploadOwnershipClaim({
+    agencyId,
+    purpose: "inbox-media",
+    objectIds: [objectId],
+    expectedBindings,
+    claimId: "owner-operation-ambiguous",
+    ownerId: "message_committed",
+    now: 9_002,
+  });
+  assert.equal(recovered, 1);
+  const ready = Object.values(portalStorage.getState().privateObjectLifecycles).find(item => item.objectId === objectId);
+  assert.equal(ready?.state, "ready");
+  assert.equal(ready?.ownerId, "message_committed");
+});
+
 test("PortalState owner persistence and readiness commit without a rehydrate gap", async () => {
   const agencyId = `agency_owner_commit_${Date.now()}`;
   const objectId = "expense_commit";

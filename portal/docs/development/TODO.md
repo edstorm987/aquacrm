@@ -47,7 +47,7 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Website Editor now has consent-aware Contact capture, published Blog summaries and a narrow anonymous Ecommerce facade; finish the remaining visitor backends, operator handoff and live-browser acceptance → [#29](issues.md) `⚠ disputed`
 - [~] Paid Memberships foundation is real; finish live Stripe lifecycle acceptance → [#33](issues.md)
 - [~] Build custom portal now reaches the canonical provisioner; mounted provision/reload acceptance remains → [#36](issues.md)
-- [~] Private-upload attach, staged-abandonment cleanup and recoverable client/legal/SOP/development deletion are implemented locally; finish payload-bound replay/claim rollback plus mounted, distributed and live Supabase/Blob acceptance → [#38](issues.md)
+- [~] Private-upload ownership now has exact payload/provider/key binding, fenced claims and safe definite-refusal release locally; finish live-provider, distributed/process-kill, mounted failure/retry and operator-reconciliation acceptance → [#38](issues.md)
 - [~] Close the deal is reviewable and truthful; finish mounted agency/customer acceptance → [#39](issues.md)
 - [~] Proposal/receipt delivery is truthful; finish live-provider refusal/retry acceptance → [#40](issues.md)
 - [~] Proposal acceptance is version-bound; finish mounted public acceptance → [#41](issues.md)

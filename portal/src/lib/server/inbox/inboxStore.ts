@@ -544,7 +544,12 @@ function assertReplyOperationMatch(existing: InboxMessage, input: InboxReplyOper
     || operation.operationId !== input.operation.operationId) {
     throw new Error("inbox_reply_operation_conflict");
   }
-  if (!input.retryOnly && operation.payloadHash !== input.operation.payloadHash) {
+  // A retry-only request from the mounted "Retry remaining" control carries
+  // no payload and resumes the durable one. If a caller does supply text or an
+  // attachment, however, it is a replay assertion and must match exactly. This
+  // prevents newly staged binaries being claimed for an older sent message.
+  const retryAssertsPayload = Boolean(input.message.text || input.message.attachments.length);
+  if ((!input.retryOnly || retryAssertsPayload) && operation.payloadHash !== input.operation.payloadHash) {
     throw new Error("inbox_reply_operation_payload_conflict");
   }
   return existing;
@@ -1108,6 +1113,20 @@ export async function saveInboxMessage(input: Omit<InboxMessage, "id" | "created
     : await query.upsert(messageRow(next), { onConflict: "id" }).select("*").single();
   if (result.error) throw new Error(`inbox_message_save_failed:${result.error.message}`);
   return messageFromRow(result.data);
+}
+
+/** Narrow by-id read used to reject a changed operation payload before any staged binary is claimed. */
+export async function getInboxMessage(agencyId: string, messageId: string): Promise<InboxMessage | null> {
+  if (!useSupabase()) {
+    return readLocal().messages.find(message => message.id === messageId && message.agencyId === agencyId) ?? null;
+  }
+  const { data, error } = await db().from("inbox_messages")
+    .select("*")
+    .eq("agency_id", agencyId)
+    .eq("id", messageId)
+    .maybeSingle();
+  if (error) throw new Error(`inbox_message_lookup_failed:${error.message}`);
+  return data ? messageFromRow(data) : null;
 }
 
 export async function updateInboxMessage(

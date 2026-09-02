@@ -5,7 +5,13 @@
 // rule violation.
 
 import type { PluginCtx } from "../lib/aquaPluginTypes";
-import { claimStagedPrivateUploadsForOwnership, commitStagedPrivateUploadOwnership } from "@/lib/server/privateObjectLifecycle";
+import {
+  claimStagedPrivateUploadsForOwnership,
+  commitStagedPrivateUploadOwnership,
+  privateObjectRequestHash,
+  releaseStagedPrivateUploadOwnershipClaim,
+  type StagedPrivateUploadBinding,
+} from "@/lib/server/privateObjectLifecycle";
 import { containerFor } from "../server/foundationAdapter";
 import { addCard, getPipelineBySlug, listCardsByAgency, moveCard } from "@/server/pipelines";
 import { createClient, getClientForAgency, listClients, updateClient } from "@/server/tenants";
@@ -30,6 +36,7 @@ import { stripeHttpRequest } from "@/lib/server/integrations/stripeHttp";
 import { recordWebsiteEnquiryResponse } from "@/lib/server/websiteEnquiries";
 import type {
   AudienceFilter,
+  CampaignCreativeAsset,
   Contact,
   CommercialPack,
   CustomFieldDefinition,
@@ -2183,6 +2190,62 @@ export async function listCampaignsHandler(req: Request, ctx: PluginCtx): Promis
   return json({ ok: true, campaigns });
 }
 
+function campaignAssetLifecycleBinding(asset: CampaignCreativeAsset): StagedPrivateUploadBinding[] {
+  return [{
+    ...(asset.id ? { objectId: asset.id } : {}),
+    storageProvider: asset.storageProvider,
+    storageKey: asset.storageKey,
+  }];
+}
+
+/**
+ * Observe the exact first durable campaign-row write without changing the
+ * campaign service contract. An error before this boundary is a definite
+ * owner refusal and may release the staged object; a write attempt or any
+ * later error is ambiguous and must retain the claim for reconciliation.
+ */
+function campaignContainerWithOwnerWriteProbe(ctx: PluginCtx, onOwnerWriteAttempt: () => void) {
+  const source = ctx.storage;
+  const storage: PluginCtx["storage"] = {
+    get<T = unknown>(key: string) { return source.get<T>(key); },
+    async set<T = unknown>(key: string, value: T) {
+      if (key.startsWith("campaign:")) onOwnerWriteAttempt();
+      await source.set(key, value);
+    },
+    del(key: string) { return source.del(key); },
+    list(prefix?: string) { return source.list(prefix); },
+  };
+  if (source.setIfAbsent) {
+    storage.setIfAbsent = <T = unknown>(key: string, value: T) => source.setIfAbsent!(key, value);
+  }
+  return containerFor({ agencyId: ctx.agencyId, storage });
+}
+
+async function releaseDefiniteCampaignOwnerRefusal(input: {
+  ctx: PluginCtx;
+  asset: CampaignCreativeAsset;
+  expectedBindings: readonly StagedPrivateUploadBinding[];
+  claimId: string;
+}): Promise<void> {
+  await releaseStagedPrivateUploadOwnershipClaim({
+    agencyId: input.ctx.agencyId,
+    purpose: "campaign-asset",
+    ...(input.asset.id ? { objectIds: [input.asset.id] } : { storageKeys: [input.asset.storageKey] }),
+    expectedBindings: input.expectedBindings,
+    claimId: input.claimId,
+  });
+}
+
+function sameCampaignAssetIdentity(
+  left: CampaignCreativeAsset | undefined,
+  right: CampaignCreativeAsset | undefined,
+): boolean {
+  return Boolean(left && right
+    && left.id === right.id
+    && left.storageProvider === right.storageProvider
+    && left.storageKey === right.storageKey);
+}
+
 export async function createCampaignHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
   const body = await safeJson<CreateCampaignInput>(req);
@@ -2195,20 +2258,33 @@ export async function createCampaignHandler(req: Request, ctx: PluginCtx): Promi
   if (!body.audienceFilter) {
     return badRequest("audienceFilter required (at minimum {}).");
   }
+  const stagedAsset = body.creative?.asset;
+  const expectedBindings = stagedAsset?.storageKey ? campaignAssetLifecycleBinding(stagedAsset) : undefined;
+  const claimId = stagedAsset?.storageKey
+    ? privateObjectRequestHash(["campaign-create-owner", ctx.agencyId, randomUUID(), expectedBindings])
+    : undefined;
+  let stagedClaimed = false;
+  let ownerWriteAttempted = false;
   try {
-    const campaigns = buildContainer(ctx).campaigns;
-    const stagedAsset = body.creative?.asset;
-    if (stagedAsset?.storageKey) await claimStagedPrivateUploadsForOwnership({
-      agencyId: ctx.agencyId,
-      purpose: "campaign-asset",
-      ...(stagedAsset.id ? { objectIds: [stagedAsset.id] } : { storageKeys: [stagedAsset.storageKey] }),
-    });
+    const campaigns = campaignContainerWithOwnerWriteProbe(ctx, () => { ownerWriteAttempted = true; }).campaigns;
+    if (stagedAsset?.storageKey) {
+      await claimStagedPrivateUploadsForOwnership({
+        agencyId: ctx.agencyId,
+        purpose: "campaign-asset",
+        ...(stagedAsset.id ? { objectIds: [stagedAsset.id] } : { storageKeys: [stagedAsset.storageKey] }),
+        expectedBindings,
+        claimId,
+      });
+      stagedClaimed = true;
+    }
     const create = () => campaigns.create(body, ctx.actor);
     const c = stagedAsset?.storageKey
       ? await commitStagedPrivateUploadOwnership({
         agencyId: ctx.agencyId,
         purpose: "campaign-asset",
         ...(stagedAsset.id ? { objectIds: [stagedAsset.id] } : { storageKeys: [stagedAsset.storageKey] }),
+        expectedBindings,
+        claimId,
         commit: async () => {
           const value = await create();
           return { ownerId: value.id, value };
@@ -2217,6 +2293,14 @@ export async function createCampaignHandler(req: Request, ctx: PluginCtx): Promi
       : await create();
     return json({ ok: true, campaign: c }, 201);
   } catch (err) {
+    if (stagedClaimed && !ownerWriteAttempted && stagedAsset?.storageKey && expectedBindings && claimId) {
+      try {
+        await releaseDefiniteCampaignOwnerRefusal({ ctx, asset: stagedAsset, expectedBindings, claimId });
+      } catch (releaseError) {
+        console.error("[campaigns] refused create claim could not be released:", releaseError);
+        return json({ ok: false, error: "campaign_asset_claim_release_failed" }, 503);
+      }
+    }
     return unprocessable(err instanceof Error ? err.message : String(err));
   }
 }
@@ -2228,23 +2312,42 @@ export async function updateCampaignHandler(req: Request, ctx: PluginCtx): Promi
   if (!id) return badRequest("id required.");
   const body = await safeJson<UpdateCampaignPatch>(req);
   if (!body) return badRequest("body required.");
+  let stagedAsset: CampaignCreativeAsset | undefined;
+  let expectedBindings: StagedPrivateUploadBinding[] | undefined;
+  let claimId: string | undefined;
+  let stagedClaimed = false;
+  let ownerWriteAttempted = false;
   try {
-    const campaigns = buildContainer(ctx).campaigns;
+    const campaigns = campaignContainerWithOwnerWriteProbe(ctx, () => { ownerWriteAttempted = true; }).campaigns;
     const existing = await campaigns.get(id);
     if (!existing) return notFound("campaign_not_found");
-    const stagedAsset = body.creative?.asset;
-    const isNewAsset = Boolean(stagedAsset?.storageKey && stagedAsset.storageKey !== existing.creative?.asset?.storageKey);
-    if (stagedAsset?.storageKey && isNewAsset) await claimStagedPrivateUploadsForOwnership({
-      agencyId: ctx.agencyId,
-      purpose: "campaign-asset",
-      ...(stagedAsset.id ? { objectIds: [stagedAsset.id] } : { storageKeys: [stagedAsset.storageKey] }),
-    });
+    stagedAsset = body.creative?.asset;
+    const isNewAsset = Boolean(stagedAsset?.storageKey
+      && !sameCampaignAssetIdentity(stagedAsset, existing.creative?.asset));
+    expectedBindings = stagedAsset?.storageKey && isNewAsset
+      ? campaignAssetLifecycleBinding(stagedAsset)
+      : undefined;
+    claimId = expectedBindings
+      ? privateObjectRequestHash(["campaign-update-owner", ctx.agencyId, id, existing.updatedAt, randomUUID(), expectedBindings])
+      : undefined;
+    if (stagedAsset?.storageKey && isNewAsset) {
+      await claimStagedPrivateUploadsForOwnership({
+        agencyId: ctx.agencyId,
+        purpose: "campaign-asset",
+        ...(stagedAsset.id ? { objectIds: [stagedAsset.id] } : { storageKeys: [stagedAsset.storageKey] }),
+        expectedBindings,
+        claimId,
+      });
+      stagedClaimed = true;
+    }
     const update = () => campaigns.update(id, body, ctx.actor);
     const c = stagedAsset?.storageKey && isNewAsset
       ? await commitStagedPrivateUploadOwnership({
         agencyId: ctx.agencyId,
         purpose: "campaign-asset",
         ...(stagedAsset.id ? { objectIds: [stagedAsset.id] } : { storageKeys: [stagedAsset.storageKey] }),
+        expectedBindings,
+        claimId,
         commit: async () => {
           const value = await update();
           if (!value) throw new Error("campaign_not_found");
@@ -2255,6 +2358,14 @@ export async function updateCampaignHandler(req: Request, ctx: PluginCtx): Promi
     if (!c) return notFound("campaign_not_found");
     return json({ ok: true, campaign: c });
   } catch (err) {
+    if (stagedClaimed && !ownerWriteAttempted && stagedAsset?.storageKey && expectedBindings && claimId) {
+      try {
+        await releaseDefiniteCampaignOwnerRefusal({ ctx, asset: stagedAsset, expectedBindings, claimId });
+      } catch (releaseError) {
+        console.error("[campaigns] refused update claim could not be released:", releaseError);
+        return json({ ok: false, error: "campaign_asset_claim_release_failed" }, 503);
+      }
+    }
     return unprocessable(err instanceof Error ? err.message : String(err));
   }
 }

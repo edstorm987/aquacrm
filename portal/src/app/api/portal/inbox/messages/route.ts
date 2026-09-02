@@ -1,15 +1,47 @@
+import { randomUUID } from "node:crypto";
+
 import { NextResponse, type NextRequest } from "next/server";
 
 import { requireRole, authErrorResponse } from "@/lib/server/auth/auth";
-import { addInboxNote, InboxReplyDeliveryError, sendInboxReply } from "@/lib/server/inbox/inboxService";
+import {
+  addInboxNote,
+  InboxReplyDeliveryError,
+  preflightInboxReplyOperation,
+  sendInboxReply,
+} from "@/lib/server/inbox/inboxService";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { inboxMediaUrl, verifyInboxMediaToken } from "@/lib/server/inbox/inboxMedia";
-import { claimStagedPrivateUploadsForOwnership, commitStagedPrivateUploadOwnership, markStagedPrivateUploadsReady, PrivateObjectLifecycleClaimError } from "@/lib/server/privateObjectLifecycle";
+import {
+  claimStagedPrivateUploadsForOwnership,
+  commitStagedPrivateUploadOwnership,
+  privateObjectRequestHash,
+  PrivateObjectLifecycleClaimError,
+  recoverStagedPrivateUploadOwnershipClaim,
+  releaseStagedPrivateUploadOwnershipClaim,
+  type StagedPrivateUploadBinding,
+} from "@/lib/server/privateObjectLifecycle";
+
+const DEFINITE_OWNER_REFUSALS = new Set([
+  "inbox_reply_operation_invalid",
+  "inbox_reply_operation_required",
+  "inbox_reply_empty",
+  "inbox_conversation_not_found",
+  "meta_reply_window_closed",
+  "inbox_connection_not_ready",
+  "meta_not_configured",
+  "inbox_reply_operation_not_found",
+  "inbox_reply_operation_conflict",
+]);
 
 export async function POST(request: NextRequest) {
   await ensureHydrated();
   let stagedIds: string[] = [];
+  let stagedBindings: StagedPrivateUploadBinding[] = [];
   let stagedAgencyId = "";
+  let stagedClaimId = "";
+  let stagedClaimed = false;
+  let stagedKnownOwnerId = "";
+  let stagedPreflightInput: Parameters<typeof preflightInboxReplyOperation>[0] | undefined;
   try {
     const session = await requireRole(["agency-owner", "agency-manager", "agency-staff"]);
     const body = await request.json() as {
@@ -20,21 +52,60 @@ export async function POST(request: NextRequest) {
       operationId?: string;
       retryOnly?: boolean;
     };
-    const attachmentPayloads = (body.attachments ?? []).flatMap(item => {
+    if (body.attachments !== undefined && !Array.isArray(body.attachments)) {
+      return NextResponse.json({ ok: false, error: "inbox_attachment_invalid" }, { status: 400 });
+    }
+    const requestedAttachments = body.attachments ?? [];
+    const attachmentPayloads = requestedAttachments.flatMap(item => {
       const token = typeof item?.token === "string" ? item.token : "";
       const payload = token ? verifyInboxMediaToken(token) : null;
       if (!payload || payload.agencyId !== session.agencyId || payload.targetKind !== "social" || payload.targetId !== body.conversationId) return [];
       return [{ payload, token }];
     }).slice(0, 10);
+    if (attachmentPayloads.length !== requestedAttachments.length) {
+      return NextResponse.json({ ok: false, error: "inbox_attachment_invalid" }, { status: 400 });
+    }
     const attachments = attachmentPayloads.map(({ payload, token }) => ({ type: payload.kind, url: inboxMediaUrl(request.nextUrl.origin, token), title: payload.name, mimeType: payload.contentType }));
     stagedIds = attachmentPayloads.map(item => item.payload.id);
+    if (new Set(stagedIds).size !== stagedIds.length) {
+      return NextResponse.json({ ok: false, error: "inbox_attachment_duplicate" }, { status: 400 });
+    }
+    stagedBindings = attachmentPayloads.map(({ payload }) => ({
+      objectId: payload.id,
+      storageProvider: payload.storageProvider,
+      storageKey: payload.storageKey,
+    }));
     stagedAgencyId = session.agencyId;
     if (!body.conversationId || (!body.retryOnly && !body.text?.trim() && !attachments.length)) {
       return NextResponse.json({ ok: false, error: "conversation_and_message_required" }, { status: 400 });
     }
     if (body.internal && body.retryOnly) return NextResponse.json({ ok: false, error: "inbox_note_retry_invalid" }, { status: 400 });
     if (body.internal && stagedIds.length) return NextResponse.json({ ok: false, error: "inbox_note_attachments_invalid" }, { status: 400 });
-    if (stagedIds.length) await claimStagedPrivateUploadsForOwnership({ agencyId: session.agencyId, purpose: "inbox-media", objectIds: stagedIds });
+    const operationId = body.operationId?.trim() || (!body.internal && stagedIds.length ? randomUUID() : body.operationId);
+    if (!body.internal && operationId) {
+      stagedPreflightInput = {
+        agencyId: session.agencyId,
+        conversationId: body.conversationId,
+        operationId,
+        text: body.text ?? "",
+        attachments,
+        retryOnly: body.retryOnly,
+      };
+      stagedKnownOwnerId = (await preflightInboxReplyOperation(stagedPreflightInput)).existingOwnerId ?? "";
+    }
+    stagedClaimId = stagedIds.length
+      ? privateObjectRequestHash(["inbox-reply-owner", session.agencyId, body.conversationId, operationId])
+      : "";
+    if (stagedIds.length) {
+      await claimStagedPrivateUploadsForOwnership({
+        agencyId: session.agencyId,
+        purpose: "inbox-media",
+        objectIds: stagedIds,
+        expectedBindings: stagedBindings,
+        claimId: stagedClaimId,
+      });
+      stagedClaimed = true;
+    }
     const persistMessage = () => body.internal
       ? addInboxNote({ agencyId: session.agencyId, conversationId: body.conversationId!, text: body.text ?? "", actorUserId: session.userId, actorEmail: session.email })
       : sendInboxReply({
@@ -45,7 +116,7 @@ export async function POST(request: NextRequest) {
         actorUserId: session.userId,
         actorEmail: session.email,
         origin: request.nextUrl.origin,
-        operationId: body.operationId,
+        operationId,
         retryOnly: body.retryOnly,
       });
     const message = stagedIds.length
@@ -53,6 +124,8 @@ export async function POST(request: NextRequest) {
         agencyId: session.agencyId,
         purpose: "inbox-media",
         objectIds: stagedIds,
+        expectedBindings: stagedBindings,
+        claimId: stagedClaimId,
         commit: async () => {
           const value = await persistMessage();
           return { ownerId: value.id, value };
@@ -66,10 +139,47 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, code: cause.code, error: cause.message }, { status: 409 });
     }
     if (cause instanceof Error && cause.message.includes("auth")) return authErrorResponse(cause);
+    let recoveredKnownOwner = false;
+    let definiteReleaseIsSafe = true;
+    if (stagedClaimed && stagedAgencyId && stagedClaimId && !stagedKnownOwnerId && stagedPreflightInput) {
+      try {
+        // Close the race between the first preflight and the atomic inbox-store
+        // assertion. A concurrent exact owner may have appeared after the
+        // first read; conflicting/failed rechecks remain claimed, never released.
+        stagedKnownOwnerId = (await preflightInboxReplyOperation(stagedPreflightInput)).existingOwnerId ?? "";
+      } catch (lookupError) {
+        definiteReleaseIsSafe = false;
+        console.warn("[inbox] reply owner recheck was inconclusive; retaining staged claim:", lookupError);
+      }
+    }
+    if (stagedClaimed && stagedAgencyId && stagedClaimId && stagedKnownOwnerId) {
+      try {
+        await recoverStagedPrivateUploadOwnershipClaim({
+          agencyId: stagedAgencyId,
+          purpose: "inbox-media",
+          objectIds: stagedIds,
+          expectedBindings: stagedBindings,
+          claimId: stagedClaimId,
+          ownerId: stagedKnownOwnerId,
+        });
+        await flushPendingWrites();
+        recoveredKnownOwner = true;
+      } catch (persistError) {
+        console.error("[inbox] known reply owner could not be recovered:", persistError);
+        return NextResponse.json({ ok: false, error: "storage_unavailable" }, { status: 503 });
+      }
+    }
     if (cause instanceof InboxReplyDeliveryError) {
-      if (stagedIds.length && stagedAgencyId) {
-        await markStagedPrivateUploadsReady({ agencyId: stagedAgencyId, purpose: "inbox-media", objectIds: stagedIds, ownerId: cause.reply.id });
+      if (stagedClaimed && stagedAgencyId && stagedClaimId && !recoveredKnownOwner) {
         try {
+          await recoverStagedPrivateUploadOwnershipClaim({
+            agencyId: stagedAgencyId,
+            purpose: "inbox-media",
+            objectIds: stagedIds,
+            expectedBindings: stagedBindings,
+            claimId: stagedClaimId,
+            ownerId: cause.reply.id,
+          });
           await flushPendingWrites();
         } catch (persistError) {
           console.error("[inbox] reply recovery checkpoint could not be persisted:", persistError);
@@ -80,6 +190,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: cause.message, message: cause.reply }, { status });
     }
     const error = cause instanceof Error ? cause.message : "inbox_message_failed";
+    if (stagedClaimed
+      && stagedAgencyId
+      && stagedClaimId
+      && !recoveredKnownOwner
+      && definiteReleaseIsSafe
+      && DEFINITE_OWNER_REFUSALS.has(error)) {
+      try {
+        await releaseStagedPrivateUploadOwnershipClaim({
+          agencyId: stagedAgencyId,
+          purpose: "inbox-media",
+          objectIds: stagedIds,
+          expectedBindings: stagedBindings,
+          claimId: stagedClaimId,
+        });
+      } catch (recoveryError) {
+        console.error("[inbox] refused owner claim could not be released:", recoveryError);
+        return NextResponse.json({ ok: false, error: "storage_unavailable" }, { status: 503 });
+      }
+    }
     const status = error === "meta_reply_window_closed" ? 409 : 400;
     return NextResponse.json({ ok: false, error }, { status });
   }

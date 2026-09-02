@@ -35,6 +35,7 @@ import type {
   UserId,
 } from "../src/built-ins/modules/agency-finance/src/lib/tenancy";
 import type { PluginStorage } from "../src/built-ins/modules/agency-finance/src/lib/aquaPluginTypes";
+import type { ExpenseAttachment } from "../src/built-ins/modules/agency-finance/src/lib/domain";
 import type {
   ActivityLogPort,
   EventBusPort,
@@ -44,6 +45,7 @@ import type {
 } from "../src/built-ins/modules/agency-finance/src/server/ports";
 import { containerWithDeps } from "../src/built-ins/modules/agency-finance/src/server/foundationAdapter";
 import { deriveRecordId, normaliseIdempotencyKey } from "../src/built-ins/modules/agency-finance/src/lib/idempotency";
+import { canonicalExpenseAttachment } from "../src/built-ins/modules/agency-finance/src/lib/expenseAttachments";
 
 // The handlers below are not pure module code: each one asks the ACCESS KERNEL
 // whether this caller may touch this client's `client.commercial` element, and
@@ -631,7 +633,7 @@ test("recording an expense writes only the row + the index — no unread seconda
 // nuance, which for expenses is sharper than for payments: two receipts at the
 // IDENTICAL amount on the same day are routinely both real.
 
-import { createExpenseHandler } from "../src/built-ins/modules/agency-finance/src/api/handlers";
+import { createExpenseHandler, updateExpenseHandler } from "../src/built-ins/modules/agency-finance/src/api/handlers";
 import { createPaymentHandler, createIncomeHandler } from "../src/built-ins/modules/agency-finance/src/api/handlers-r007";
 
 async function expenseCategory(services: ReturnType<typeof containerWithDeps>, name = "Contractors"): Promise<string> {
@@ -689,9 +691,9 @@ test("a parallel double-submit of the same expense records ONCE", async () => {
     services.expenses.createDetailed(input, ACTOR),
     services.expenses.createDetailed(input, ACTOR),
   ]);
-  // Both raced past the fast-path read; the derived id is what collapses them.
-  assert.equal(a.deduped, false);
-  assert.equal(b.deduped, false);
+  // The request reservation now serialises the same key: exactly one request
+  // creates and the other truthfully reports that it adopted the winner.
+  assert.deepEqual([a.deduped, b.deduped].sort(), [false, true]);
 
   const all = await services.expenses.list();
   assert.equal(all.length, 1, "no double-count even under a parallel race");
@@ -733,6 +735,8 @@ test("expenses.create still returns the plain expense every existing caller expe
 
 const jsonPost = (path: string, body: unknown): Request =>
   new Request(`http://localhost/${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+const jsonPatch = (path: string, body: unknown): Request =>
+  new Request(`http://localhost/${path}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 
 // These three handlers resolve the agency's default currency off the install
 // record, so the ctx needs one (the mark-paid handler above does not).
@@ -740,6 +744,68 @@ const withInstall = (ctx: PluginCtx): PluginCtx => ({
   ...ctx,
   install: { id: "install_idem_smoke", config: { defaultCurrency: "gbp", ukDefaultCurrencyV1: true } },
 } as unknown as PluginCtx);
+
+let expenseAttachmentSequence = 0;
+
+function expenseAttachment(label: string): ExpenseAttachment {
+  expenseAttachmentSequence += 1;
+  const id = `exa_replay_${label}_${expenseAttachmentSequence}`;
+  return canonicalExpenseAttachment({
+    id,
+    name: `${label}.pdf`,
+    url: "browser-supplied-value-is-not-authoritative",
+    size: 1_024,
+    contentType: "application/pdf",
+    storageProvider: "local",
+    storageKey: `${AGENCY_ID}/expenses/${id}.pdf`,
+    uploadedAt: 1_700_000_000_000 + expenseAttachmentSequence,
+  });
+}
+
+async function stageExpenseAttachment(attachment: ExpenseAttachment): Promise<void> {
+  const lifecycle = await import("../src/lib/server/privateObjectLifecycle");
+  const requestHash = lifecycle.privateObjectRequestHash([
+    AGENCY_ID,
+    attachment.id,
+    attachment.storageProvider,
+    attachment.storageKey,
+  ]);
+  await lifecycle.beginStagedPrivateUpload({
+    agencyId: AGENCY_ID,
+    purpose: "expense-attachment",
+    objectId: attachment.id,
+    requestHash,
+    planned: { storageProvider: attachment.storageProvider, storageKey: attachment.storageKey },
+    localDirectory: "expense-attachments",
+  });
+  await lifecycle.confirmStagedPrivateUpload({
+    agencyId: AGENCY_ID,
+    purpose: "expense-attachment",
+    objectId: attachment.id,
+    requestHash,
+    stored: { storageProvider: attachment.storageProvider, storageKey: attachment.storageKey },
+  });
+}
+
+async function expenseAttachmentLifecycle(objectId: string) {
+  const { getState } = await import("../src/server/storage");
+  return Object.values(getState().privateObjectLifecycles).find(record =>
+    record.agencyId === AGENCY_ID
+    && record.purpose === "expense-attachment"
+    && record.objectId === objectId);
+}
+
+async function removeExpenseAttachmentLifecycles(objectIds: readonly string[]): Promise<void> {
+  const { mutate } = await import("../src/server/storage");
+  const wanted = new Set(objectIds);
+  mutate(state => {
+    for (const [id, record] of Object.entries(state.privateObjectLifecycles)) {
+      if (record.agencyId === AGENCY_ID && record.purpose === "expense-attachment" && wanted.has(record.objectId)) {
+        delete state.privateObjectLifecycles[id];
+      }
+    }
+  });
+}
 
 test("the expense create HANDLER dedups a double-clicked submit", async () => {
   const { services, ctx } = racingWorld();
@@ -764,6 +830,280 @@ test("the expense create HANDLER dedups a double-clicked submit", async () => {
   const all = await services.expenses.list();
   assert.equal(all.length, 2, "a second contractor bill is not swallowed");
   assert.equal(all.reduce((sum, e) => sum + e.amountCents, 0), 480_000);
+});
+
+test("an identical expense retry adopts the same attachment and converges ready", async () => {
+  const { services, ctx } = racingWorld();
+  const httpCtx = withInstall(ctx);
+  const categoryId = await expenseCategory(services, "Replay evidence");
+  const attachment = expenseAttachment("identical");
+  await stageExpenseAttachment(attachment);
+  const body = {
+    categoryId,
+    amountCents: 42_000,
+    currency: "gbp",
+    incurredAt: 1_700_000_000_000,
+    attachments: [attachment],
+    idempotencyKey: "expense-attachment-identical",
+  };
+
+  try {
+    const first = await asOwner(() => createExpenseHandler(jsonPost("expenses", body), httpCtx));
+    const second = await asOwner(() => createExpenseHandler(jsonPost("expenses", body), httpCtx));
+    assert.equal(first.status, 201);
+    assert.equal(second.status, 201);
+    const firstBody = await first.json() as { expense: { id: string; attachments?: ExpenseAttachment[] }; deduped: boolean };
+    const secondBody = await second.json() as { expense: { id: string; attachments?: ExpenseAttachment[] }; deduped: boolean };
+    assert.equal(firstBody.deduped, false);
+    assert.equal(secondBody.deduped, true);
+    assert.equal(secondBody.expense.id, firstBody.expense.id);
+    assert.deepEqual(secondBody.expense.attachments, [attachment]);
+    assert.equal((await services.expenses.list()).length, 1);
+    const record = await expenseAttachmentLifecycle(attachment.id);
+    assert.equal(record?.state, "ready");
+    assert.equal(record?.ownerId, firstBody.expense.id);
+  } finally {
+    await removeExpenseAttachmentLifecycles([attachment.id]);
+  }
+});
+
+test("the same expense key with changed attachments conflicts before adoption", async () => {
+  const { services, ctx } = racingWorld();
+  const httpCtx = withInstall(ctx);
+  const categoryId = await expenseCategory(services, "Replay conflict");
+  const original = expenseAttachment("original");
+  const replacement = expenseAttachment("replacement");
+  await stageExpenseAttachment(original);
+  await stageExpenseAttachment(replacement);
+  const base = {
+    categoryId,
+    amountCents: 54_000,
+    currency: "gbp",
+    incurredAt: 1_700_000_000_000,
+    idempotencyKey: "expense-attachment-conflict",
+  };
+
+  try {
+    const first = await asOwner(() => createExpenseHandler(jsonPost("expenses", { ...base, attachments: [original] }), httpCtx));
+    const changed = await asOwner(() => createExpenseHandler(jsonPost("expenses", { ...base, attachments: [replacement] }), httpCtx));
+    assert.equal(first.status, 201);
+    assert.equal(changed.status, 422);
+    assert.match(JSON.stringify(await changed.json()), /idempotency key was already used/i);
+    const rows = await services.expenses.list();
+    assert.equal(rows.length, 1);
+    assert.deepEqual(rows[0].attachments, [original]);
+    const replacementRecord = await expenseAttachmentLifecycle(replacement.id);
+    assert.equal(replacementRecord?.state, "uploading", "the conflicting file is refused before even entering the owner claim");
+    assert.equal(replacementRecord?.ownerId, undefined);
+  } finally {
+    await removeExpenseAttachmentLifecycles([original.id, replacement.id]);
+  }
+});
+
+test("the expense handler binds the exact provider/key and rebuilds the content URL", async () => {
+  const { services, ctx } = racingWorld();
+  const httpCtx = withInstall(ctx);
+  const categoryId = await expenseCategory(services, "Provider-bound receipt");
+  const attachment = expenseAttachment("provider-bound");
+  await stageExpenseAttachment(attachment);
+
+  try {
+    const forgedProvider = {
+      ...attachment,
+      storageProvider: "supabase" as const,
+      url: "/api/portal/finance/expense-attachments/content?provider=local&key=forged",
+    };
+    const refused = await asOwner(() => createExpenseHandler(jsonPost("expenses", {
+      categoryId,
+      amountCents: 61_000,
+      currency: "gbp",
+      incurredAt: 1_700_000_000_000,
+      attachments: [forgedProvider],
+      idempotencyKey: "expense-provider-forged",
+    }), httpCtx));
+    assert.equal(refused.status, 422);
+    assert.equal((await expenseAttachmentLifecycle(attachment.id))?.state, "uploading");
+    assert.equal((await services.expenses.list()).length, 0);
+
+    const browserUrl = "https://attacker.invalid/not-the-upload";
+    const accepted = await asOwner(() => createExpenseHandler(jsonPost("expenses", {
+      categoryId,
+      amountCents: 62_000,
+      currency: "gbp",
+      incurredAt: 1_700_000_000_000,
+      attachments: [{ ...attachment, url: browserUrl }],
+      idempotencyKey: "expense-provider-exact",
+    }), httpCtx));
+    assert.equal(accepted.status, 201);
+    const body = await accepted.json() as { expense: { attachments?: ExpenseAttachment[] } };
+    const stored = body.expense.attachments?.[0];
+    assert.ok(stored);
+    assert.notEqual(stored.url, browserUrl);
+    const contentUrl = new URL(stored.url, "http://localhost");
+    assert.equal(contentUrl.searchParams.get("provider"), attachment.storageProvider);
+    assert.equal(contentUrl.searchParams.get("key"), attachment.storageKey);
+    assert.equal((await expenseAttachmentLifecycle(attachment.id))?.state, "ready");
+  } finally {
+    await removeExpenseAttachmentLifecycles([attachment.id]);
+  }
+});
+
+test("a lost-success retry finalises the already-recorded expense attachment", async () => {
+  const { services, ctx } = racingWorld();
+  const httpCtx = withInstall(ctx);
+  const categoryId = await expenseCategory(services, "Lost success");
+  const attachment = expenseAttachment("lost-success");
+  await stageExpenseAttachment(attachment);
+  const input = {
+    categoryId,
+    amountCents: 68_000,
+    currency: "gbp" as const,
+    incurredAt: 1_700_000_000_000,
+    attachments: [attachment],
+    idempotencyKey: "expense-attachment-lost-success",
+  };
+
+  try {
+    const lifecycle = await import("../src/lib/server/privateObjectLifecycle");
+    const expectedBindings = [{
+      objectId: attachment.id,
+      storageProvider: attachment.storageProvider,
+      storageKey: attachment.storageKey,
+    }];
+    const claimId = lifecycle.privateObjectRequestHash([
+      "expense-create-owner",
+      AGENCY_ID,
+      input.idempotencyKey,
+      expectedBindings,
+    ]);
+    await services.expenses.reserveCreateIntent(input, "gbp");
+    await lifecycle.claimStagedPrivateUploadsForOwnership({
+      agencyId: AGENCY_ID,
+      purpose: "expense-attachment",
+      objectIds: [attachment.id],
+      expectedBindings,
+      claimId,
+    });
+    const committed = await services.expenses.createDetailed(input, ACTOR, "gbp");
+    assert.equal(committed.deduped, false);
+    assert.equal((await expenseAttachmentLifecycle(attachment.id))?.state, "claiming");
+
+    const retry = await asOwner(() => createExpenseHandler(jsonPost("expenses", input), httpCtx));
+    assert.equal(retry.status, 201);
+    const retryBody = await retry.json() as { expense: { id: string }; deduped: boolean };
+    assert.equal(retryBody.deduped, true);
+    assert.equal(retryBody.expense.id, committed.expense.id);
+    const recovered = await expenseAttachmentLifecycle(attachment.id);
+    assert.equal(recovered?.state, "ready");
+    assert.equal(recovered?.ownerId, committed.expense.id);
+  } finally {
+    await removeExpenseAttachmentLifecycles([attachment.id]);
+  }
+});
+
+test("the owner finaliser refuses readiness when the authoritative expense lost the attachment", async () => {
+  const { services, ctx, storage } = racingWorld();
+  const httpCtx = withInstall(ctx);
+  const categoryId = await expenseCategory(services, "Owner refusal");
+  const attachment = expenseAttachment("owner-refusal");
+  await stageExpenseAttachment(attachment);
+  const input = {
+    categoryId,
+    amountCents: 73_000,
+    currency: "gbp" as const,
+    incurredAt: 1_700_000_000_000,
+    attachments: [attachment],
+    idempotencyKey: "expense-attachment-owner-refusal",
+  };
+
+  try {
+    const first = await services.expenses.createDetailed(input, ACTOR, "gbp");
+    await storage.set(`expenses/by-id/${first.expense.id}`, { ...first.expense, attachments: undefined });
+    const refused = await asOwner(() => createExpenseHandler(jsonPost("expenses", input), httpCtx));
+    assert.equal(refused.status, 422);
+    assert.match(JSON.stringify(await refused.json()), /ownership could not be verified/i);
+    const record = await expenseAttachmentLifecycle(attachment.id);
+    assert.equal(record?.state, "claiming", "failed owner verification must not mark the binary ready");
+    assert.equal(record?.ownerId, undefined);
+    assert.equal((await services.expenses.get(first.expense.id))?.attachments, undefined);
+  } finally {
+    await removeExpenseAttachmentLifecycles([attachment.id]);
+  }
+});
+
+test("an invalid expense update releases its exact newly staged attachment claim", async () => {
+  const { services, ctx } = racingWorld();
+  const httpCtx = withInstall(ctx);
+  const categoryId = await expenseCategory(services, "Rejected update");
+  const existing = await services.expenses.create({
+    categoryId,
+    amountCents: 81_000,
+    currency: "gbp",
+    incurredAt: 1_700_000_000_000,
+  }, ACTOR);
+  const attachment = expenseAttachment("invalid-update");
+  await stageExpenseAttachment(attachment);
+
+  try {
+    const refused = await asOwner(() => updateExpenseHandler(jsonPatch("expenses", {
+      id: existing.id,
+      patch: { amountCents: 0, attachments: [attachment] },
+    }), httpCtx));
+    assert.equal(refused.status, 422);
+    assert.match(JSON.stringify(await refused.json()), /amountCents/i);
+    assert.deepEqual((await services.expenses.get(existing.id))?.attachments, undefined);
+    const record = await expenseAttachmentLifecycle(attachment.id);
+    assert.equal(record?.state, "uploading", "a definite pre-write refusal releases the staged upload");
+    assert.equal(record?.claimId, undefined, "the exact ownership claim is cleared");
+    assert.equal(record?.ownerId, undefined);
+  } finally {
+    await removeExpenseAttachmentLifecycles([attachment.id]);
+  }
+});
+
+test("a category race after create reservation releases the exact staged attachment claim", async () => {
+  const base = buildWorld();
+  let racedCategoryId = "";
+  let categoryReads = 0;
+  const storage: PluginStorage = {
+    async get<T = unknown>(key: string): Promise<T | undefined> {
+      const value = await base.storage.get<T>(key);
+      if (racedCategoryId && key === `categories/by-id/${racedCategoryId}`) {
+        categoryReads += 1;
+        if (categoryReads === 2 && value) return { ...(value as object), status: "archived" } as T;
+      }
+      return value;
+    },
+    set: (key, value) => base.storage.set(key, value),
+    del: key => base.storage.del(key),
+    list: prefix => base.storage.list(prefix),
+  };
+  registerAgencyFinanceFoundation({ tenant: base.tenant, user: base.user, activity: base.activity, events: base.events, pluginInstalls: base.pluginInstalls });
+  const services = containerWithDeps({ agencyId: AGENCY_ID, storage, tenant: base.tenant, user: base.user, activity: base.activity, events: base.events, pluginInstalls: base.pluginInstalls });
+  const ctx = withInstall({ agencyId: AGENCY_ID, storage, actor: ACTOR } as unknown as PluginCtx);
+  racedCategoryId = await expenseCategory(services, "Create state race");
+  const attachment = expenseAttachment("create-category-race");
+  await stageExpenseAttachment(attachment);
+
+  try {
+    const refused = await asOwner(() => createExpenseHandler(jsonPost("expenses", {
+      categoryId: racedCategoryId,
+      amountCents: 91_000,
+      currency: "gbp",
+      incurredAt: 1_700_000_000_000,
+      attachments: [attachment],
+      idempotencyKey: "expense-create-category-race",
+    }), ctx));
+    assert.equal(refused.status, 422);
+    assert.match(JSON.stringify(await refused.json()), /archived/i);
+    assert.equal((await services.expenses.list()).length, 0, "the owner expense row was never written");
+    const record = await expenseAttachmentLifecycle(attachment.id);
+    assert.equal(record?.state, "uploading");
+    assert.equal(record?.claimId, undefined);
+    assert.equal(record?.ownerId, undefined);
+  } finally {
+    await removeExpenseAttachmentLifecycles([attachment.id]);
+  }
 });
 
 test("the payment create HANDLER dedups a double-clicked submit", async () => {

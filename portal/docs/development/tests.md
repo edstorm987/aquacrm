@@ -12,12 +12,34 @@ PORTAL_BACKEND=memory NODE_OPTIONS='--conditions react-server' npx tsx --test sc
 ```
 `PORTAL_BACKEND=memory` keeps stateful tests off the live sandbox.
 
-> **Final whole-suite checkpoint: 6,225 Node tests across 1,072 suites — 6,223
+> **Final whole-suite checkpoint: 6,243 Node tests across 1,074 suites — 6,241
 > passed / 0 failed / 0 cancelled / 2 skipped.** The separate Website Editor gate
-> passed **49/49 files**; combined accounting is **6,274 executed units / 6,272
+> passed **49/49 files**; combined accounting is **6,292 executed units / 6,290
 > passed / 0 failed / 2 skipped**. The production-browser matrix and local production build are
 > complete below. These gates establish repository behaviour/source/browser contracts,
 > not deployed-provider or mounted human acceptance.
+
+## 2026-09-02 private-upload replay and ownership evidence
+
+- Private-object lifecycle **33/33** proves exact provider/key/cardinality binding,
+  explicit claim-id fencing, same-claim replay, safe exact release and ambiguous-claim
+  retention/recovery marking.
+- Agency Finance **39/39** proves exact expense create intents, server-derived canonical
+  attachment URLs, authoritative replayed attachments and exact claim release when a
+  deterministic create/update refusal occurs before the owner write.
+- Meta reply **6/6** proves payload-bound operation ids across both mounted inbox
+  implementations, server/store replay checks and known-owner lifecycle recovery.
+- Dedicated owner-binding and route regressions cover campaign exact asset identity and
+  pre-write refusal handling, website/client malformed and duplicate token rejection,
+  exact signed provider/key matching and client workspace-busy claim release.
+- The complete changed-surface gate is **85/85**. The final repository run is
+  **6,243 tests across 1,074 suites: 6,241 passed / 0 failed / 2 skipped**;
+  Website Editor is **49/49**, and the production build generated **245/245** pages
+  after a **43s** compile and **11.4s** TypeScript phase.
+- These are focused local proofs. Live Supabase/Vercel Blob/local-production providers,
+  real process-kill/multi-process database leases, mounted forced-failure/retry,
+  automatic retained-claim operator reconciliation, direct call-recording ambiguity
+  and the separate SOP-retirement policy remain open under issue #38.
 
 ## 2026-09-01 final hardening evidence
 

@@ -2,11 +2,15 @@
 
 import type { PluginCtx } from "../lib/aquaPluginTypes";
 import { containerFor } from "../server/foundationAdapter";
+import { ExpenseOwnerWriteRefusedError } from "../server/expenses";
+import { canonicalExpenseAttachment } from "../lib/expenseAttachments";
 import type {
   CreateCategoryInput,
   CreateExpenseInput,
   CreateInvoiceInput,
   Currency,
+  Expense,
+  ExpenseAttachment,
   ExpenseFilter,
   InvoiceFilter,
   InvoiceTemplate,
@@ -20,7 +24,13 @@ import { assertKnownFields, assertNonEmptyText, assertTimestamp } from "../lib/r
 import { resolveFinanceDefaultCurrency } from "@/lib/server/finance/financeCurrency";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/auth";
 import { requireCurrentClientWorkspaceElementAccess, type ClientWorkspaceElementLevel } from "@/lib/server/access/clientWorkspaceElementAccess";
-import { claimStagedPrivateUploadsForOwnership, commitStagedPrivateUploadOwnership } from "@/lib/server/privateObjectLifecycle";
+import {
+  claimStagedPrivateUploadsForOwnership,
+  commitStagedPrivateUploadOwnership,
+  privateObjectRequestHash,
+  releaseStagedPrivateUploadOwnershipClaim,
+  type StagedPrivateUploadBinding,
+} from "@/lib/server/privateObjectLifecycle";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -37,6 +47,57 @@ function methodGuard(req: Request, expected: string): Response | null {
 async function safeJson<T>(req: Request): Promise<T | null> {
   try { return (await req.json()) as T; }
   catch { return null; }
+}
+
+function assertAuthoritativeExpenseAttachments(expense: Expense, requested: readonly ExpenseAttachment[]): void {
+  const authoritative = expense.attachments ?? [];
+  const matches = authoritative.length === requested.length
+    && requested.every((attachment, index) => {
+      const stored = authoritative[index];
+      return stored?.id === attachment.id
+        && stored.name === attachment.name
+        && stored.url === attachment.url
+        && stored.size === attachment.size
+        && stored.contentType === attachment.contentType
+        && stored.storageProvider === attachment.storageProvider
+        && stored.storageKey === attachment.storageKey
+        && stored.uploadedAt === attachment.uploadedAt;
+    });
+  if (!matches) throw new Error("Expense attachment ownership could not be verified.");
+}
+
+function canonicalExpenseAttachments(attachments: readonly ExpenseAttachment[] | undefined): ExpenseAttachment[] | undefined {
+  if (attachments === undefined) return undefined;
+  const canonical = attachments.map(canonicalExpenseAttachment);
+  if (new Set(canonical.map(attachment => attachment.id)).size !== canonical.length) {
+    throw new Error("Expense attachments must not contain duplicate ids.");
+  }
+  return canonical;
+}
+
+function expenseAttachmentLifecycleBindings(attachments: readonly ExpenseAttachment[]): StagedPrivateUploadBinding[] {
+  return attachments.map(attachment => ({
+    objectId: attachment.id,
+    storageProvider: attachment.storageProvider,
+    storageKey: attachment.storageKey,
+  }));
+}
+
+function preserveExistingExpenseAttachmentMetadata(
+  existing: readonly ExpenseAttachment[],
+  requested: readonly ExpenseAttachment[] | undefined,
+): ExpenseAttachment[] | undefined {
+  const canonical = canonicalExpenseAttachments(requested);
+  if (!canonical) return undefined;
+  const byId = new Map(existing.map(attachment => [attachment.id, attachment]));
+  return canonical.map(attachment => {
+    const current = byId.get(attachment.id);
+    if (!current) return attachment;
+    if (current.storageProvider !== attachment.storageProvider || current.storageKey !== attachment.storageKey) {
+      throw new Error("Existing expense attachment storage metadata cannot be changed.");
+    }
+    return canonicalExpenseAttachment(current);
+  });
 }
 
 const buildContainer = (ctx: PluginCtx) =>
@@ -272,26 +333,68 @@ export async function createExpenseHandler(req: Request, ctx: PluginCtx): Promis
   if (denied) return denied;
   try {
     const expenses = buildContainer(ctx).expenses;
-    if (body.attachments?.length) await claimStagedPrivateUploadsForOwnership({
+    const currency = defaultCurrency(ctx);
+    const input: CreateExpenseInput = {
+      ...body,
+      attachments: canonicalExpenseAttachments(body.attachments),
+      customFields: body.customFields ?? {},
+    };
+    const attachments = input.attachments ?? [];
+    const expectedBindings = expenseAttachmentLifecycleBindings(attachments);
+    const claimId = attachments.length
+      ? privateObjectRequestHash([
+        "expense-create-owner",
+        ctx.agencyId,
+        input.idempotencyKey?.trim() || globalThis.crypto.randomUUID(),
+        expectedBindings,
+      ])
+      : "";
+    // Reserve the exact request before touching staged objects. A reused key
+    // with changed money, metadata or attachments therefore fails before
+    // adoption, while the identical request can finish an interrupted commit.
+    await expenses.reserveCreateIntent(input, currency);
+    if (attachments.length) await claimStagedPrivateUploadsForOwnership({
       agencyId: ctx.agencyId,
       purpose: "expense-attachment",
-      objectIds: body.attachments.map(attachment => attachment.id),
+      objectIds: attachments.map(attachment => attachment.id),
+      expectedBindings,
+      claimId,
     });
     // `body.idempotencyKey` (typed on CreateExpenseInput) forwards straight
     // through: a double-clicked "Add expense" resubmits the same key and gets
     // the first expense back rather than a second row. See lib/idempotency.ts.
-    const create = () => expenses.createDetailed({ ...body, customFields: body.customFields ?? {} }, ctx.actor, defaultCurrency(ctx));
-    const { expense, deduped } = body.attachments?.length
-      ? await commitStagedPrivateUploadOwnership({
-        agencyId: ctx.agencyId,
-        purpose: "expense-attachment",
-        objectIds: body.attachments.map(attachment => attachment.id),
-        commit: async () => {
-          const value = await create();
-          return { ownerId: value.expense.id, value };
-        },
-      })
-      : await create();
+    const create = () => expenses.createDetailed(input, ctx.actor, currency);
+    let result: Awaited<ReturnType<typeof create>>;
+    try {
+      result = attachments.length
+        ? await commitStagedPrivateUploadOwnership({
+          agencyId: ctx.agencyId,
+          purpose: "expense-attachment",
+          objectIds: attachments.map(attachment => attachment.id),
+          expectedBindings,
+          claimId,
+          commit: async () => {
+            const value = await create();
+            // The lifecycle finaliser must never make bytes reachable under an
+            // expense that does not cite the exact submitted attachment record.
+            assertAuthoritativeExpenseAttachments(value.expense, attachments);
+            return { ownerId: value.expense.id, value };
+          },
+        })
+        : await create();
+    } catch (error) {
+      if (attachments.length && error instanceof ExpenseOwnerWriteRefusedError) {
+        await releaseStagedPrivateUploadOwnershipClaim({
+          agencyId: ctx.agencyId,
+          purpose: "expense-attachment",
+          objectIds: attachments.map(attachment => attachment.id),
+          expectedBindings,
+          claimId,
+        });
+      }
+      throw error;
+    }
+    const { expense, deduped } = result;
     return json({ ok: true, expense, deduped }, 201);
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));
@@ -310,26 +413,56 @@ export async function updateExpenseHandler(req: Request, ctx: PluginCtx): Promis
     const denied = await clientCommercialGate(existing.clientId, "use")
       ?? await clientCommercialGate(body.patch?.clientId, "use");
     if (denied) return denied;
+    const patch: UpdateExpensePatch = {
+      ...(body.patch ?? {}),
+      ...(body.patch?.attachments !== undefined
+        ? { attachments: preserveExistingExpenseAttachmentMetadata(existing.attachments ?? [], body.patch.attachments) }
+        : {}),
+      customFields: body.patch?.customFields ?? existing.customFields ?? {},
+    };
     const existingAttachmentIds = new Set(existing.attachments?.map(attachment => attachment.id) ?? []);
-    const newAttachments = (body.patch?.attachments ?? []).filter(attachment => !existingAttachmentIds.has(attachment.id));
+    const newAttachments = (patch.attachments ?? []).filter(attachment => !existingAttachmentIds.has(attachment.id));
+    const expectedBindings = expenseAttachmentLifecycleBindings(newAttachments);
+    const claimId = newAttachments.length
+      ? privateObjectRequestHash(["expense-update-owner", ctx.agencyId, body.id, existing.updatedAt, globalThis.crypto.randomUUID(), expectedBindings])
+      : "";
     if (newAttachments.length) await claimStagedPrivateUploadsForOwnership({
       agencyId: ctx.agencyId,
       purpose: "expense-attachment",
       objectIds: newAttachments.map(attachment => attachment.id),
+      expectedBindings,
+      claimId,
     });
-    const update = () => expenses.update(body.id, { ...(body.patch ?? {}), customFields: body.patch?.customFields ?? existing.customFields ?? {} }, ctx.actor);
-    const exp = newAttachments.length
-      ? await commitStagedPrivateUploadOwnership({
-        agencyId: ctx.agencyId,
-        purpose: "expense-attachment",
-        objectIds: newAttachments.map(attachment => attachment.id),
-        commit: async () => {
-          const value = await update();
-          if (!value) throw new Error("expense not found");
-          return { ownerId: value.id, value };
-        },
-      })
-      : await update();
+    const update = () => expenses.update(body.id, patch, ctx.actor);
+    let exp: Expense | null;
+    try {
+      exp = newAttachments.length
+        ? await commitStagedPrivateUploadOwnership({
+          agencyId: ctx.agencyId,
+          purpose: "expense-attachment",
+          objectIds: newAttachments.map(attachment => attachment.id),
+          expectedBindings,
+          claimId,
+          commit: async () => {
+            const value = await update();
+            if (!value) throw new ExpenseOwnerWriteRefusedError(new Error("expense not found"));
+            assertAuthoritativeExpenseAttachments(value, patch.attachments ?? []);
+            return { ownerId: value.id, value };
+          },
+        })
+        : await update();
+    } catch (error) {
+      if (newAttachments.length && error instanceof ExpenseOwnerWriteRefusedError) {
+        await releaseStagedPrivateUploadOwnershipClaim({
+          agencyId: ctx.agencyId,
+          purpose: "expense-attachment",
+          objectIds: newAttachments.map(attachment => attachment.id),
+          expectedBindings,
+          claimId,
+        });
+      }
+      throw error;
+    }
     return exp ? json({ ok: true, expense: exp }) : notFound("expense not found");
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));

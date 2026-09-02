@@ -50,7 +50,7 @@ export function SocialInboxWorkspace({ snapshot, readiness, currentUserId, loadE
   const [query, setQuery] = useState("");
   const [channelId, setChannelId] = useState("all");
   const [draft, setDraft] = useState("");
-  const [draftOperationId, setDraftOperationId] = useState<string | null>(null);
+  const [draftOperation, setDraftOperation] = useState<{ payloadKey: string; operationId: string } | null>(null);
   const [composerMode, setComposerMode] = useState<"reply" | "note">("reply");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(loadError ?? null);
@@ -85,8 +85,13 @@ export function SocialInboxWorkspace({ snapshot, readiness, currentUserId, loadE
 
   async function sendMessage() {
     if (!selected || !draft.trim()) return;
-    const operationId = composerMode === "reply" ? draftOperationId ?? globalThis.crypto.randomUUID() : undefined;
-    if (operationId) setDraftOperationId(operationId);
+    const payloadKey = JSON.stringify([selected.id, draft.trim().slice(0, 2_000)]);
+    const operationId = composerMode === "reply"
+      ? draftOperation?.payloadKey === payloadKey
+        ? draftOperation.operationId
+        : globalThis.crypto.randomUUID()
+      : undefined;
+    if (operationId) setDraftOperation({ payloadKey, operationId });
     setBusy("send");
     setError(null);
     try {
@@ -100,13 +105,13 @@ export function SocialInboxWorkspace({ snapshot, readiness, currentUserId, loadE
         setError(messageError(payload?.error));
         if (payload?.message) {
           setDraft("");
-          setDraftOperationId(null);
+          setDraftOperation(null);
           router.refresh();
         }
         return;
       }
       setDraft("");
-      setDraftOperationId(null);
+      setDraftOperation(null);
       router.refresh();
     } catch {
       setError(composerMode === "reply"

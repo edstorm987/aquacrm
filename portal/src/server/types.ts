@@ -3025,6 +3025,10 @@ export interface PrivateObjectLifecycle {
   storageProvider: "supabase" | "vercel-blob" | "local";
   storageKey: string;
   localDirectory: string;
+  /** Exact owner operation allowed to resume, commit or release this claim. */
+  claimId?: string;
+  /** Set once when an expired ambiguous claim needs explicit reconciliation. */
+  claimRecoveryRequiredAt?: number;
   ownerId?: string;
   /** Snapshot needed to finish an owner deletion after a process crash. */
   ownerSnapshot?: unknown;

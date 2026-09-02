@@ -5,6 +5,9 @@
 //   expenses/by-category/<catId>   → string[] of expense ids
 //   expenses/by-staff/<staffId>    → string[] of expense ids
 //   expenses/index                 → string[] of all expense ids
+//   expenses/create-intents/<id>   → exact idempotent request binding
+
+import { createHash } from "node:crypto";
 
 import { deriveRecordId, normaliseIdempotencyKey } from "../lib/idempotency";
 import { now } from "../lib/time";
@@ -42,6 +45,7 @@ import {
 
 const EXP_INDEX_KEY = "expenses/index";
 const expKey = (id: string): string => `expenses/by-id/${id}`;
+const expenseCreateIntentKey = (id: string): string => `expenses/create-intents/${id}`;
 const recurringOperationPrefix = (id: string): string => `expenses/recurring-operations/${id}/`;
 const recurringOperationKey = (id: string, occurrenceAt: number): string => `${recurringOperationPrefix(id)}${occurrenceAt}`;
 const recurringResultKey = (id: string, occurrenceAt: number): string => `expenses/recurring-results/${id}/${occurrenceAt}`;
@@ -76,7 +80,55 @@ interface RecurringExpenseResult {
   completedAt: number;
 }
 
+interface ExpenseCreateIntent {
+  version: 1;
+  agencyId: AgencyId;
+  expenseId: string;
+  requestHash: string;
+  attachmentIds: string[];
+  createdAt: number;
+}
+
+interface ExpenseCreateIdentity {
+  key?: string;
+  id: string;
+  requestHash: string;
+  attachmentIds: string[];
+}
+
+interface PreparedExpenseCreate {
+  ts: number;
+  currency: Currency;
+  customFields: Record<string, string | string[] | boolean>;
+  categoryName: string;
+}
+
+export class ExpenseIdempotencyConflictError extends Error {
+  readonly code = "expense_idempotency_conflict";
+
+  constructor() {
+    super("This idempotency key was already used for a different expense request.");
+    this.name = "ExpenseIdempotencyConflictError";
+  }
+}
+
+/**
+ * A refusal that is known to have happened before the expense owner row was
+ * written. Callers may safely undo an attachment ownership claim only for this
+ * error; ordinary storage and post-write failures remain deliberately
+ * ambiguous.
+ */
+export class ExpenseOwnerWriteRefusedError extends Error {
+  readonly code = "expense_owner_write_refused";
+
+  constructor(cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause), { cause });
+    this.name = "ExpenseOwnerWriteRefusedError";
+  }
+}
+
 const recurringTails = new Map<string, Promise<void>>();
+const createTails = new Map<string, Promise<void>>();
 
 async function withLocalRecurringLock<T>(key: string, operation: () => Promise<T>): Promise<T> {
   const previous = recurringTails.get(key) ?? Promise.resolve();
@@ -91,6 +143,57 @@ async function withLocalRecurringLock<T>(key: string, operation: () => Promise<T
     release();
     if (recurringTails.get(key) === tail) recurringTails.delete(key);
   }
+}
+
+async function withLocalCreateLock<T>(key: string, operation: () => Promise<T>): Promise<T> {
+  const previous = createTails.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const tail = previous.catch(() => undefined).then(() => gate);
+  createTails.set(key, tail);
+  await previous.catch(() => undefined);
+  try {
+    return await operation();
+  } finally {
+    release();
+    if (createTails.get(key) === tail) createTails.delete(key);
+  }
+}
+
+function canonicalRequestValue(value: unknown, seen = new Set<object>()): unknown {
+  if (Array.isArray(value)) {
+    if (seen.has(value)) throw new Error("agency-finance: expense request must be serializable");
+    seen.add(value);
+    const result = value.map(item => canonicalRequestValue(item, seen));
+    seen.delete(value);
+    return result;
+  }
+  if (value && typeof value === "object") {
+    if (seen.has(value)) throw new Error("agency-finance: expense request must be serializable");
+    seen.add(value);
+    const source = value as Record<string, unknown>;
+    const result = Object.fromEntries(
+      Object.keys(source)
+        .filter(key => source[key] !== undefined)
+        .sort()
+        .map(key => [key, canonicalRequestValue(source[key], seen)]),
+    );
+    seen.delete(value);
+    return result;
+  }
+  return value;
+}
+
+function expenseCreateRequestHash(input: CreateExpenseInput): string {
+  const {
+    idempotencyKey: _idempotencyKey,
+    customFields = {},
+    attachments = [],
+    ...request
+  } = input;
+  return createHash("sha256")
+    .update(JSON.stringify(canonicalRequestValue({ ...request, customFields, attachments })))
+    .digest("hex");
 }
 
 export class ExpenseService {
@@ -108,6 +211,106 @@ export class ExpenseService {
     return this.storage.runExclusive
       ? this.storage.runExclusive(key, operation)
       : withLocalRecurringLock(key, operation);
+  }
+
+  private async withCreateLock<T>(expenseId: string, operation: () => Promise<T>): Promise<T> {
+    const key = `expense-create:${this.agencyId}:${expenseId}`;
+    return this.storage.runExclusive
+      ? this.storage.runExclusive(key, operation)
+      : withLocalCreateLock(key, operation);
+  }
+
+  private identifyCreateRequest(input: CreateExpenseInput, defaultCurrency: Currency): ExpenseCreateIdentity {
+    assertKnownFields(input, ["clientId", "staffId", "categoryId", "budgetPotId", "vendor", "description", "reason", "amountCents", "taxCents", "taxRateBps", "taxDeductible", "businessUsePercent", "billableToClient", "currency", "incurredAt", "receiptUrl", "attachments", "paymentMethod", "reference", "recurrence", "nextDueAt", "recurringActive", "recordAsPaid", "customFields", "idempotencyKey"]);
+    assertOptionalText(input.idempotencyKey, "idempotencyKey");
+    const ts = now();
+    validateExpenseState({
+      ...input,
+      currency: input.currency ?? defaultCurrency,
+      incurredAt: input.incurredAt ?? ts,
+      taxCents: input.taxCents ?? 0,
+      businessUsePercent: input.businessUsePercent ?? 100,
+    });
+    const key = normaliseIdempotencyKey(input.idempotencyKey);
+    return {
+      key,
+      id: deriveRecordId("exp", key),
+      requestHash: expenseCreateRequestHash(input),
+      attachmentIds: input.attachments?.map(attachment => attachment.id) ?? [],
+    };
+  }
+
+  private async prepareCreate(input: CreateExpenseInput, defaultCurrency: Currency): Promise<PreparedExpenseCreate> {
+    const ts = now();
+    const currency = input.currency ?? defaultCurrency;
+    const cat = await this.categories.get(input.categoryId);
+    if (!cat) throw new Error(`Category ${input.categoryId} not found.`);
+    if (cat.status !== "active") throw new Error(`Category ${cat.name} is archived.`);
+    if (input.budgetPotId) await this.assertBudgetPot(input.budgetPotId, currency);
+    const customFields = input.customFields === undefined
+      ? {}
+      : validatePortalEntityFields(this.agencyId, "expenses", input.customFields);
+    return { ts, currency, customFields, categoryName: cat.name };
+  }
+
+  private assertCreateIntentMatches(
+    identity: ExpenseCreateIdentity,
+    intent: ExpenseCreateIntent | undefined,
+    prior: Expense | undefined,
+  ): void {
+    if (prior && prior.agencyId !== this.agencyId) throw new ExpenseIdempotencyConflictError();
+    if (intent) {
+      const storedAttachmentIds = Array.isArray(intent.attachmentIds)
+        && intent.attachmentIds.every(id => typeof id === "string")
+        ? intent.attachmentIds
+        : null;
+      const sameAttachments = storedAttachmentIds !== null
+        && storedAttachmentIds.length === identity.attachmentIds.length
+        && storedAttachmentIds.every((id, index) => id === identity.attachmentIds[index]);
+      if (intent.version !== 1
+        || intent.agencyId !== this.agencyId
+        || intent.expenseId !== identity.id
+        || intent.requestHash !== identity.requestHash
+        || !sameAttachments) {
+        throw new ExpenseIdempotencyConflictError();
+      }
+    } else if (prior) {
+      // Rows created before request binding have no trustworthy record of what
+      // the key meant. Never guess from today's mutable Expense projection.
+      throw new ExpenseIdempotencyConflictError();
+    }
+  }
+
+  private async storeCreateIntent(identity: ExpenseCreateIdentity, createdAt: number): Promise<void> {
+    await this.storage.set<ExpenseCreateIntent>(expenseCreateIntentKey(identity.id), {
+      version: 1,
+      agencyId: this.agencyId,
+      expenseId: identity.id,
+      requestHash: identity.requestHash,
+      attachmentIds: [...identity.attachmentIds],
+      createdAt,
+    });
+  }
+
+  /**
+   * Bind an idempotency key to its exact request before a handler claims any
+   * staged attachments. A matching reservation without a row is intentional:
+   * it lets a retry recover when the first request stopped before owner commit.
+   */
+  async reserveCreateIntent(input: CreateExpenseInput, defaultCurrency: Currency = "gbp"): Promise<void> {
+    const identity = this.identifyCreateRequest(input, defaultCurrency);
+    if (!identity.key) {
+      await this.prepareCreate(input, defaultCurrency);
+      return;
+    }
+    await this.withCreateLock(identity.id, async () => {
+      const intent = await this.storage.get<ExpenseCreateIntent>(expenseCreateIntentKey(identity.id));
+      const prior = await this.storage.get<Expense>(expKey(identity.id));
+      this.assertCreateIntentMatches(identity, intent, prior);
+      if (prior) return;
+      const prepared = await this.prepareCreate(input, defaultCurrency);
+      if (!intent) await this.storeCreateIntent(identity, prepared.ts);
+    });
   }
 
   async list(filter?: ExpenseFilter): Promise<Expense[]> {
@@ -154,168 +357,155 @@ export class ExpenseService {
   // shape every existing caller expects; the HTTP handler uses this one so the
   // response can say `deduped` honestly.
   async createDetailed(input: CreateExpenseInput, actor: UserId, defaultCurrency: Currency = "gbp"): Promise<{ expense: Expense; deduped: boolean }> {
-    assertKnownFields(input, ["clientId", "staffId", "categoryId", "budgetPotId", "vendor", "description", "reason", "amountCents", "taxCents", "taxRateBps", "taxDeductible", "businessUsePercent", "billableToClient", "currency", "incurredAt", "receiptUrl", "attachments", "paymentMethod", "reference", "recurrence", "nextDueAt", "recurringActive", "recordAsPaid", "customFields", "idempotencyKey"]);
-    assertOptionalText(input.idempotencyKey, "idempotencyKey");
-    const ts = now();
-    const currency = input.currency ?? defaultCurrency;
-    validateExpenseState({
-      ...input,
-      currency,
-      incurredAt: input.incurredAt ?? ts,
-      taxCents: input.taxCents ?? 0,
-      businessUsePercent: input.businessUsePercent ?? 100,
-    });
-    const cat = await this.categories.get(input.categoryId);
-    if (!cat) throw new Error(`Category ${input.categoryId} not found.`);
-    if (cat.status !== "active") throw new Error(`Category ${cat.name} is archived.`);
-    if (input.budgetPotId) await this.assertBudgetPot(input.budgetPotId, currency);
-    const customFields = input.customFields === undefined
-      ? {}
-      : validatePortalEntityFields(this.agencyId, "expenses", input.customFields);
-
-    // The id is DERIVED from the key, so a raced resubmit lands on the same
-    // storage slot (an overwrite) rather than becoming a second row — a
-    // read-then-check "have I seen this key?" lookup races between its read and
-    // its write; a deterministic id does not.
-    const key = normaliseIdempotencyKey(input.idempotencyKey);
-    const id = deriveRecordId("exp", key);
-    if (key) {
-      const prior = await this.storage.get<Expense>(expKey(id));
-      // Return the first expense; don't re-write, re-log or re-emit.
-      if (prior && prior.agencyId === this.agencyId) {
+    const identity = this.identifyCreateRequest(input, defaultCurrency);
+    const createOnce = async (): Promise<{ expense: Expense; deduped: boolean }> => {
+      const intent = identity.key
+        ? await this.storage.get<ExpenseCreateIntent>(expenseCreateIntentKey(identity.id))
+        : undefined;
+      const prior = identity.key ? await this.storage.get<Expense>(expKey(identity.id)) : undefined;
+      this.assertCreateIntentMatches(identity, intent, prior);
+      if (prior) {
         // A prior attempt can fail after the deterministic row write but before
         // the advisory index. Repair that harmlessly on retry; list() already
         // scans rows, but the fast path should converge too.
-        await this.addToIndex(EXP_INDEX_KEY, id);
+        await this.addToIndex(EXP_INDEX_KEY, identity.id);
         return { expense: prior, deduped: true };
       }
-    }
 
-    const row: Expense = {
-      id,
-      agencyId: this.agencyId,
-      clientId: input.clientId,
-      staffId: input.staffId,
-      categoryId: input.categoryId,
-      budgetPotId: input.budgetPotId,
-      vendor: input.vendor?.trim().slice(0, 180) || undefined,
-      description: input.description?.trim().slice(0, 2_000) || undefined,
-      reason: input.reason?.trim().slice(0, 4_000) || undefined,
-      amountCents: input.amountCents,
-      netCents: input.amountCents - (input.taxCents ?? 0),
-      taxCents: input.taxCents ?? 0,
-      taxRateBps: input.taxRateBps,
-      taxDeductible: input.taxDeductible ?? true,
-      businessUsePercent: input.businessUsePercent ?? 100,
-      billableToClient: input.billableToClient ?? false,
-      currency,
-      incurredAt: input.incurredAt ?? ts,
-      status: input.recordAsPaid ? "reimbursed" : "pending",
-      receiptUrl: input.receiptUrl,
-      attachments: input.attachments?.slice(0, 8).map(attachment => ({
-        id: attachment.id.slice(0, 120),
-        name: attachment.name.trim().slice(0, 180),
-        url: attachment.url.slice(0, 2_000),
-        size: attachment.size,
-        contentType: attachment.contentType.slice(0, 180),
-        storageProvider: attachment.storageProvider,
-        storageKey: attachment.storageKey.slice(0, 2_000),
-        uploadedAt: attachment.uploadedAt,
-      })),
-      paymentMethod: input.paymentMethod,
-      reference: input.reference,
-      recurrence: input.recurrence,
-      nextDueAt: input.recurrence
-        ? input.nextDueAt ?? nextOccurrence(input.incurredAt ?? ts, input.recurrence)
-        : undefined,
-      recurringActive: input.recurrence ? input.recurringActive ?? true : undefined,
-      customFields,
-      ...(input.recordAsPaid ? { approvedBy: actor, approvedAt: ts, reimbursedAt: ts } : {}),
-      createdAt: ts,
-      updatedAt: ts,
-    };
-    await this.storage.set(expKey(id), row);
-    const ix = (await this.storage.get<string[]>(EXP_INDEX_KEY)) ?? [];
-    if (!ix.includes(id)) {
-      await this.storage.set(EXP_INDEX_KEY, [...ix, id]);
-    }
-    await this.activity.logActivity({
-      agencyId: this.agencyId,
-      actorUserId: actor,
-      category: "finance",
-      action: "expense.created",
-      message: `Submitted expense (${(row.amountCents / 100).toFixed(2)} ${row.currency}, ${cat.name}).`,
-      clientId: input.clientId,
-      metadata: {
-        expenseId: id,
+      let prepared: PreparedExpenseCreate;
+      try {
+        // Mutable category, budget and custom-field policy can change after a
+        // handler reserved the request but before it writes the owner row.
+        // Mark only that known pre-write refusal as safe to compensate.
+        prepared = await this.prepareCreate(input, defaultCurrency);
+      } catch (error) {
+        throw new ExpenseOwnerWriteRefusedError(error);
+      }
+      if (identity.key && !intent) await this.storeCreateIntent(identity, prepared.ts);
+      const row: Expense = {
+        id: identity.id,
+        agencyId: this.agencyId,
+        clientId: input.clientId,
+        staffId: input.staffId,
         categoryId: input.categoryId,
         budgetPotId: input.budgetPotId,
-        amountCents: row.amountCents,
-        taxCents: row.taxCents,
+        vendor: input.vendor?.trim().slice(0, 180) || undefined,
+        description: input.description?.trim().slice(0, 2_000) || undefined,
+        reason: input.reason?.trim().slice(0, 4_000) || undefined,
+        amountCents: input.amountCents,
+        netCents: input.amountCents - (input.taxCents ?? 0),
+        taxCents: input.taxCents ?? 0,
+        taxRateBps: input.taxRateBps,
+        taxDeductible: input.taxDeductible ?? true,
+        businessUsePercent: input.businessUsePercent ?? 100,
+        billableToClient: input.billableToClient ?? false,
+        currency: prepared.currency,
+        incurredAt: input.incurredAt ?? prepared.ts,
+        status: input.recordAsPaid ? "reimbursed" : "pending",
+        receiptUrl: input.receiptUrl,
+        attachments: cleanAttachments(input.attachments ?? []),
+        paymentMethod: input.paymentMethod,
+        reference: input.reference,
+        recurrence: input.recurrence,
+        nextDueAt: input.recurrence
+          ? input.nextDueAt ?? nextOccurrence(input.incurredAt ?? prepared.ts, input.recurrence)
+          : undefined,
+        recurringActive: input.recurrence ? input.recurringActive ?? true : undefined,
+        customFields: prepared.customFields,
+        ...(input.recordAsPaid ? { approvedBy: actor, approvedAt: prepared.ts, reimbursedAt: prepared.ts } : {}),
+        createdAt: prepared.ts,
+        updatedAt: prepared.ts,
+      };
+      await this.storage.set(expKey(identity.id), row);
+      const ix = (await this.storage.get<string[]>(EXP_INDEX_KEY)) ?? [];
+      if (!ix.includes(identity.id)) {
+        await this.storage.set(EXP_INDEX_KEY, [...ix, identity.id]);
+      }
+      await this.activity.logActivity({
+        agencyId: this.agencyId,
+        actorUserId: actor,
+        category: "finance",
+        action: "expense.created",
+        message: `Submitted expense (${(row.amountCents / 100).toFixed(2)} ${row.currency}, ${prepared.categoryName}).`,
         clientId: input.clientId,
-      },
-    });
-    this.events.emit({ agencyId: this.agencyId, clientId: input.clientId }, "expense.created", { expenseId: id });
-    return { expense: row, deduped: false };
+        metadata: {
+          expenseId: identity.id,
+          categoryId: input.categoryId,
+          budgetPotId: input.budgetPotId,
+          amountCents: row.amountCents,
+          taxCents: row.taxCents,
+          clientId: input.clientId,
+        },
+      });
+      this.events.emit({ agencyId: this.agencyId, clientId: input.clientId }, "expense.created", { expenseId: identity.id });
+      return { expense: row, deduped: false };
+    };
+
+    return identity.key ? this.withCreateLock(identity.id, createOnce) : createOnce();
   }
 
   async update(id: string, patch: UpdateExpensePatch, actor: UserId): Promise<Expense | null> {
     const existing = await this.get(id);
     if (!existing) return null;
-    assertKnownFields(patch, ["clientId", "staffId", "categoryId", "budgetPotId", "vendor", "description", "reason", "amountCents", "currency", "taxCents", "taxRateBps", "taxDeductible", "businessUsePercent", "billableToClient", "incurredAt", "receiptUrl", "attachments", "paymentMethod", "reference", "recurrence", "nextDueAt", "recurringActive", "customFields"]);
-    if (patch.attachments !== undefined) assertExpenseAttachments(patch.attachments);
+    let next: Expense;
+    try {
+      assertKnownFields(patch, ["clientId", "staffId", "categoryId", "budgetPotId", "vendor", "description", "reason", "amountCents", "currency", "taxCents", "taxRateBps", "taxDeductible", "businessUsePercent", "billableToClient", "incurredAt", "receiptUrl", "attachments", "paymentMethod", "reference", "recurrence", "nextDueAt", "recurringActive", "customFields"]);
+      if (patch.attachments !== undefined) assertExpenseAttachments(patch.attachments);
 
-    const amountCents = patch.amountCents ?? existing.amountCents;
-    const taxCents = patch.taxCents ?? existing.taxCents ?? 0;
-    const businessUsePercent = patch.businessUsePercent ?? existing.businessUsePercent ?? 100;
+      const amountCents = patch.amountCents ?? existing.amountCents;
+      const taxCents = patch.taxCents ?? existing.taxCents ?? 0;
+      const businessUsePercent = patch.businessUsePercent ?? existing.businessUsePercent ?? 100;
 
-    const categoryId = patch.categoryId ?? existing.categoryId;
-    if (categoryId !== existing.categoryId) {
-      const category = await this.categories.get(categoryId);
-      if (!category) throw new Error(`Category ${categoryId} not found.`);
-      if (category.status !== "active") throw new Error(`Category ${category.name} is archived.`);
+      const categoryId = patch.categoryId ?? existing.categoryId;
+      if (categoryId !== existing.categoryId) {
+        const category = await this.categories.get(categoryId);
+        if (!category) throw new Error(`Category ${categoryId} not found.`);
+        if (category.status !== "active") throw new Error(`Category ${category.name} is archived.`);
+      }
+
+      const recurrence = patch.recurrence === null ? undefined : patch.recurrence ?? existing.recurrence;
+      const nextDueAt = recurrence
+        ? patch.nextDueAt === null
+          ? nextOccurrence(patch.incurredAt ?? existing.incurredAt, recurrence)
+          : patch.nextDueAt ?? existing.nextDueAt ?? nextOccurrence(patch.incurredAt ?? existing.incurredAt, recurrence)
+        : undefined;
+      const nextStaffId = optionalText(patch.staffId, existing.staffId, 180);
+      const nextClientId = optionalText(patch.clientId, existing.clientId, 180) as Expense["clientId"];
+      const nextBudgetPotId = optionalText(patch.budgetPotId, existing.budgetPotId, 180);
+      const nextCurrency = patch.currency ?? existing.currency;
+      if (nextBudgetPotId) await this.assertBudgetPot(nextBudgetPotId, nextCurrency);
+      const customFields = patch.customFields === undefined
+        ? existing.customFields ?? {}
+        : validatePortalEntityFields(this.agencyId, "expenses", patch.customFields, existing.customFields);
+      next = {
+        ...existing,
+        ...patch,
+        clientId: nextClientId,
+        staffId: nextStaffId,
+        budgetPotId: nextBudgetPotId,
+        categoryId,
+        vendor: optionalText(patch.vendor, existing.vendor, 180),
+        description: optionalText(patch.description, existing.description, 2_000),
+        reason: optionalText(patch.reason, existing.reason, 4_000),
+        amountCents,
+        taxCents,
+        taxRateBps: patch.taxRateBps === null ? undefined : patch.taxRateBps ?? existing.taxRateBps,
+        businessUsePercent,
+        receiptUrl: optionalText(patch.receiptUrl, existing.receiptUrl, 2_000),
+        attachments: patch.attachments === undefined ? existing.attachments : cleanAttachments(patch.attachments),
+        paymentMethod: patch.paymentMethod === null ? undefined : patch.paymentMethod ?? existing.paymentMethod,
+        reference: optionalText(patch.reference, existing.reference, 500),
+        recurrence,
+        nextDueAt,
+        recurringActive: recurrence ? patch.recurringActive ?? existing.recurringActive ?? true : undefined,
+        customFields,
+        netCents: amountCents - taxCents,
+        updatedAt: now(),
+      };
+      validateExpenseState(next);
+    } catch (error) {
+      throw new ExpenseOwnerWriteRefusedError(error);
     }
-
-    const recurrence = patch.recurrence === null ? undefined : patch.recurrence ?? existing.recurrence;
-    const nextDueAt = recurrence
-      ? patch.nextDueAt === null
-        ? nextOccurrence(patch.incurredAt ?? existing.incurredAt, recurrence)
-        : patch.nextDueAt ?? existing.nextDueAt ?? nextOccurrence(patch.incurredAt ?? existing.incurredAt, recurrence)
-      : undefined;
-    const nextStaffId = optionalText(patch.staffId, existing.staffId, 180);
-    const nextClientId = optionalText(patch.clientId, existing.clientId, 180) as Expense["clientId"];
-    const nextBudgetPotId = optionalText(patch.budgetPotId, existing.budgetPotId, 180);
-    const nextCurrency = patch.currency ?? existing.currency;
-    if (nextBudgetPotId) await this.assertBudgetPot(nextBudgetPotId, nextCurrency);
-    const customFields = patch.customFields === undefined
-      ? existing.customFields ?? {}
-      : validatePortalEntityFields(this.agencyId, "expenses", patch.customFields, existing.customFields);
-    const next: Expense = {
-      ...existing,
-      ...patch,
-      clientId: nextClientId,
-      staffId: nextStaffId,
-      budgetPotId: nextBudgetPotId,
-      categoryId,
-      vendor: optionalText(patch.vendor, existing.vendor, 180),
-      description: optionalText(patch.description, existing.description, 2_000),
-      reason: optionalText(patch.reason, existing.reason, 4_000),
-      amountCents,
-      taxCents,
-      taxRateBps: patch.taxRateBps === null ? undefined : patch.taxRateBps ?? existing.taxRateBps,
-      businessUsePercent,
-      receiptUrl: optionalText(patch.receiptUrl, existing.receiptUrl, 2_000),
-      attachments: patch.attachments === undefined ? existing.attachments : cleanAttachments(patch.attachments),
-      paymentMethod: patch.paymentMethod === null ? undefined : patch.paymentMethod ?? existing.paymentMethod,
-      reference: optionalText(patch.reference, existing.reference, 500),
-      recurrence,
-      nextDueAt,
-      recurringActive: recurrence ? patch.recurringActive ?? existing.recurringActive ?? true : undefined,
-      customFields,
-      netCents: amountCents - taxCents,
-      updatedAt: now(),
-    };
-    validateExpenseState(next);
     await this.storage.set(expKey(id), next);
 
     const changedFields = Object.keys(patch).filter(key => {
