@@ -787,6 +787,8 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     change, exercise every transition, then discard without saving); it is not a
     known source bypass.
 
+    *2026-09-03 acceptance:* the dirty-transition browser gate (`browser-dev-editor-dirty-transitions.mjs`, commit 28fc767) was re-run on a fresh Dev Mode lane built from the integrated `main`: 191 passed / 2 failed / 13 explained N/A rows / 47 observations on the full matrix; the two failures were one timing-sensitive held-reply step that passed on an uncontended rerun of the AI scenario (14/14) and one dev-mode hydration-mismatch console warning raised only inside the AI scenario, recorded as an open residual. The three defects it found are repaired; the recorded, unrepaired items (SEO-field over-asking on lifecycle/refresh/depth prompts, silent SEO draft discard when the phone inspector drawer closes, one colour-contrast and one aria-required-attr pattern on the editor doors) remain open here.
+
 20. **Entity references and website empty states are not consistently truthful.**
     Identity Resolution, Inbox, People and Dev Projects route request ids through the
     shared tenant scope, which rejects a real client owned elsewhere but deliberately
@@ -1237,6 +1239,8 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     unfinished controls, and add a test that resolves every literal editor API call
     through the actual plugin/app route table.
 
+    *2026-09-03 acceptance:* the newsletter block's facade (commit d245e51) is browser-proven on an isolated production build: the editor preview mount is inert (submit disabled, "Available when published", zero facade requests), the facade answers 201 with a receipt, replays the same operation 200, refuses drifted reuse 409, a wrong consent version 400, a honeypot 200 "accepted" without persisting, and a missing Origin 403; the operator read is session- and tenant-gated (release gate W1–W3). The dead-call ratchet is 13.
+
 29. **P1 PARTLY REPAIRED 2026-09-02 — Contact capture, Blog summaries/detail and
     Ecommerce now have narrow tenant-scoped visitor facades, and published page
     content is snapshot-stable; the other visitor backends remain open.** Published
@@ -1310,6 +1314,8 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     `/api/public/contact` and requiring both HTTP success and `{ok:true}`. Give every
     functional block a real public, tenant-aware endpoint or label/remove it from
     publishable surfaces; then test the actual anonymous request and stored result.
+
+    *2026-09-03 acceptance:* the newsletter visitor facade joins Contact, Blog and Ecommerce as a browser-proven visitor backend (see #28 note). Forms, Reservations and Themes promises remain.
 
 30. **✅ RESOLVED 2026-09-01 — website export is reachable, honest and mounted.**
     Editor settings selects a tenant-scoped site and downloads through the
@@ -1972,6 +1978,8 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     unconverted families still need the same source and complete forced-failure/
     transport/malformed-response browser treatment.
 
+    *2026-09-03 acceptance:* the Phase Admin cohort (commit 0078567) was re-run on a production lane: 10/10 stories across 390×844 and 1280×800, 2 recorded N/A (production preview refusal), 0 unexpected console/page/request/HTTP failures; create/edit/delete refusals (500/503/rejected/malformed/wrong-identity/live 400/404) keep typed work, settle busy state, announce alerts and succeed on retry. "Preview as demo client" is refused 404 "Not available." on a production build by the dev-mode switch (`canUseDevMode`) and is recorded as an explicit N/A; its navigation is proven on the dev lane only. Client Centre, SOP, Company and the remaining families stay open.
+
 48. **✅ RESOLVED 2026-08-26 — Health Check result sharing carries the completed
     state.** Progress-save and final result actions now use one testable seven-day
     serializer containing the exact Health Check state and optional captured email.
@@ -2057,6 +2065,8 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     page opens at `:3032`; TypeScript and the Notepad suite pass **3/3** with lifecycle
     guards. Before full closure, browser-force route change, tab exit and refused/
     offline save, then prove retry plus reload converges to the exact latest content.
+
+    *2026-09-03 acceptance:* re-proven on a fresh exact build of the integrated `main` (`browser-notepad-finance-acceptance.mjs` attach mode): notepad 17/17, finance 16/16, layout 42/42, loader 2/2 (77/77, 0 missing). Two builds now agree; only a Supabase-backed rerun would add evidence.
 
 55. **🟠 CODE/BEHAVIOUR RESOLVED 2026-08-26; live visual acceptance is waiting
     on the currently broken client-list route — phase transitions now converge.**
@@ -2716,6 +2726,8 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     row, so no shared-data stop/delete click was performed. Complete an isolated mounted
     reroute → reload plus delete-cancel/delete-confirm walk before resolving completely.
 
+    *2026-09-03 acceptance:* `browser-aqua-tag-routing-acceptance.mjs` (commit 0578ddb) re-run on a fresh dev lane built from the integrated tree: 220/220 checks (0 failed) at 390×844 and 1280×800. Live database ingestion (#87) is the remaining half.
+
 86. **P2 — RESOLVED 2026-08-25: Aqua Tag tool pause/removal now promises and delivers
     future-page-load control.** The public config route now returns `no-store, max-age=0`
     plus `pragma:no-cache`, so a fresh document fetches the latest enabled set instead of a
@@ -2745,6 +2757,8 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     is process-local and side effects are not committed through a durable outbox. Add a
     database-native submission claim and crash-safe idempotent consumers, then race separate
     instances and faults at every side-effect boundary before calling it exactly-once.
+
+    *2026-09-03 acceptance:* commit 0578ddb added the database-native claim boundary (`enquirySubmissionClaims.ts`, `enquirySubmissionDelivery.ts`) and migration `20260902093000_aqua_tag_submission_delivery.sql`. Source-verified; the migration is unapplied to live PostgreSQL, so cross-process claim acceptance there is NOT TESTED.
 
 88. **PARTIALLY RESOLVED 2026-09-01 — Dev Team cross-process accepted writes and
     document/ledger process-death recovery now survive; one direct-writer race remains.**
@@ -3292,6 +3306,8 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     `EPERM`; the isolated state was removed. Complete the literal Settings → invoice create →
     export click-through before upgrading this item to fully resolved.
 
+    *2026-09-03 acceptance:* re-proven on a fresh exact build (Finance stories F1–F8 at 390×844 and 1280×800 within notepad 17/17, finance 16/16, layout 42/42, loader 2/2 (77/77, 0 missing)): settings drive the next invoice, an older invoice keeps its immutable seller snapshot in both the preview and the download.
+
 121. **🟠 CODE + BEHAVIOUR RESOLVED 2026-08-26; mounted browser acceptance remains.** Client
     Payment Plans are now the canonical per-client commercial schedule; Agency Finance Plans are
     reusable pricing templates only. Mounted Finance Plans can create/edit multi-currency
@@ -3611,6 +3627,8 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     exposed, and verify it is announced once, removed when content resolves and does not leave
     focus stranded on navigation/retry.
 
+    *2026-09-03 acceptance:* loader evidence re-taken on a fresh exact build (loader 2/2 within notepad 17/17, finance 16/16, layout 42/42, loader 2/2 (77/77, 0 missing), reduced motion included). Screen-reader announcement/removal/focus is still not driven by any gate.
+
 137. **P2 — the UX smoke's three reported “viewports” do not exercise responsive or browser
     behaviour.** `smoke-ux.mjs` loops over 375, 768 and 1280, but the number is used only in a
     custom User-Agent string; every pass is an HTTP fetch of server HTML followed by substring
@@ -3873,6 +3891,8 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     fetches, then browser-prove rapid channel switching cannot change the recipient and overlapping
     notification actions cannot resurrect resolved attention.
 
+    *2026-09-03 acceptance:* `browser-chat-notification-order.mjs` (commit bb6119a) re-run against the integrated build on its own lane (3202): stories 22/22; matrix 72 passed / 0 failed / 9 evidenced observations of 81 at seven viewports. Seed caveat, not a defect: with a richer seed (two clients → check-in and setup alerts) the Attention Shield's five-item window holds the sixth alert, so the gate's task alert never reaches Attention; give it its minimal seed.
+
 148. **P1 acceptance residue — the named storage/provider calls are bounded; mounted and live-
     provider recovery is not yet accepted.** One shared operation primitive now gives storage
     reads/writes and provider reads/writes explicit budgets, composes request cancellation, aborts
@@ -4113,6 +4133,8 @@ The still-absent modules are fenced by `lib/blockBackends.ts` plus its smoke so 
 template cannot silently seed an unusable control. Contact, Blog Feed and Blog Post have now been
 removed from that dead-backend inventory because their dedicated visitor facades exist.
 
+*2026-09-03 acceptance:* newsletter facade browser-proven (see #28 note); operator inbox connection and the Forms/Reservations/Themes promises remain.
+
 **#185 — PARTLY RESOLVED 2026-09-02: sixteen routes are deliberately public, but
 visitor-safe operations still need classification one command at a time.**
 
@@ -4137,6 +4159,8 @@ session, which is correct for the portal and is the whole problem for a
 published website, where the visitor has none. Worth knowing before anybody
 "fixes" a visitor-facing 401 by widening a route: `plans` is arguably fine
 public, `me/subscribe` absolutely is not.
+
+*2026-09-03 acceptance:* the public `visitor/newsletter` route is the seventeenth classified public route and its refusals (400/403/409, honeypot) are browser-proven; anonymous operator reads are refused.
 
 ## ⚪ Known / by-design (don't mistake for bugs)
 

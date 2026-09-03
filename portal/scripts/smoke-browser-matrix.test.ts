@@ -400,7 +400,19 @@ test("one real login session is reused across every viewport", () => {
   // This is a harness fix, never an auth bypass: password mode still traverses
   // the real login route exactly once and no cookie is fabricated in-browser.
   assert.match(SOURCE, /page\.request\.post\(`\$\{BASE\}\/api\/auth\/login`/);
-  assert.doesNotMatch(SOURCE, /addCookies\(|document\.cookie/);
+  assert.doesNotMatch(SOURCE, /document\.cookie/);
+  // The one permitted exception (2026-09-03): an isolated production lane has
+  // neither `/dev` nor a Supabase-backed password, so its seed mints the real
+  // HMAC session and hands it over as AQUA_SESSION_COOKIE. That path attaches
+  // the cookie exactly once, inside the cookie mode, and must prove it against
+  // `/api/auth/me` before anything is judged — the same discipline the other
+  // lane gates follow. Anything else that sets a cookie is still a bypass.
+  assert.equal((SOURCE.match(/addCookies\(/g) ?? []).length, 1, "only the cookie attach mode may set a cookie");
+  assert.match(
+    SOURCE,
+    /mode === "cookie"\) \{[\s\S]{0,900}?addCookies\(\[[\s\S]{0,300}?page\.request\.get\(`\$\{BASE\}\/api\/auth\/me`\)[\s\S]{0,200}?throw new Error/,
+    "the attached cookie must be proven against /api/auth/me and rejected loudly",
+  );
 });
 
 test("a cancelled dev asset is not reported twice, and only when it is one", () => {

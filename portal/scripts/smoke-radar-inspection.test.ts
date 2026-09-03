@@ -35,9 +35,10 @@ test("legacy Radar links preserve their inspector state inside Command Centre", 
   // (issue #182) by an ELEMENT requirement, which is strictly stronger: a role
   // check passes a manager whose element access has been narrowed, and the AI
   // then answers from data the UI hides from them.
-  assert.match(route, /requireAssistantElement\("workspace\.overview"\)/);
+  // 2026-09-03: Business Radar reads resolve the composite business capability, not a single element.
+  assert.match(route, /resolveBusinessRadarCapabilityForActor\(actor, "view"\)/);
   assert.doesNotMatch(route, /requireRole\(/, "the Radar evidence route is back on a role check");
-  assert.match(route, /session\.agencyId/);
+  assert.match(route, /actor\.resourceAgencyId/);
   assert.match(route, /cache-control/);
   assert.match(route, /private, no-store/);
   assert.match(route, /seriesId\.length > 240/);

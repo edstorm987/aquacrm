@@ -2,7 +2,7 @@
 
 > Source maps, subsystem dossiers, components, routes, state and built-in module notes.
 >
-> Consolidated 2026-09-02 from **23** source documents / **57,350 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-03 from **23** source documents / **57,404 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -10,7 +10,7 @@
 - [`docs/WORKSPACE-FILE-TREE.md`](#source-docs-workspace-file-tree-md) — 1,385 words · `642c698fbd42`
 - [`docs/workspace/advisor.md`](#source-docs-workspace-advisor-md) — 1,445 words · `d5b9b4fc79dc`
 - [`docs/workspace/api-and-routes.md`](#source-docs-workspace-api-and-routes-md) — 946 words · `8bbf0d2e9c9f`
-- [`docs/workspace/api-reference.md`](#source-docs-workspace-api-reference-md) — 8,477 words · `d970ded58e9a`
+- [`docs/workspace/api-reference.md`](#source-docs-workspace-api-reference-md) — 8,531 words · `7b4eb3ae396a`
 - [`docs/workspace/aqua-tag.md`](#source-docs-workspace-aqua-tag-md) — 3,463 words · `d662b63850cb`
 - [`docs/workspace/components.md`](#source-docs-workspace-components-md) — 1,142 words · `5ef3bf2f75be`
 - [`docs/workspace/database.md`](#source-docs-workspace-database-md) — 2,273 words · `4ed0007a7dd9`
@@ -597,7 +597,7 @@ switcher — membership-only, session ∩ live record), `showcase-mode`, `dev-mo
 
 ## Source document — `docs/workspace/api-reference.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/api-reference.md" sha256="d970ded58e9a74f81370c809ca3dee7f14358d198a6fe3a235cf2fa65355a05a" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/api-reference.md" sha256="7b4eb3ae396a9d3bb1cdd32a816238d9f09d837b8cbc8d16770c6d373fe697e5" -->
 # Chapter — Hand-maintained API reference
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md) · [API & routes overview](api-and-routes.md)

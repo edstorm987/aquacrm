@@ -12,6 +12,8 @@
 // once the route is restored.
 //
 //   AQUA_BASE=http://127.0.0.1:3171 node scripts/browser-phase-admin-checked-mutations.mjs
+//   (add AQUA_SESSION_COOKIE=lk_session_v1=<token> to attach a seeded session on
+//   an isolated production build, which has no /dev sign-in)
 //
 // Records per viewport and story: pass/fail, document overflow, and every
 // unexpected console error, page error, request failure and HTTP failure.
@@ -149,6 +151,18 @@ async function settled(locator) {
 }
 
 async function signIn(page) {
+  // An isolated production lane has no `/dev`: its seed mints the session and
+  // hands the cookie over as AQUA_SESSION_COOKIE=name=value. Proven against the
+  // app before any story runs, exactly like the dev-mode path below.
+  const cookie = process.env.AQUA_SESSION_COOKIE || "";
+  if (cookie) {
+    const separator = cookie.indexOf("=");
+    if (separator <= 0) throw new Error("AQUA_SESSION_COOKIE must be name=value");
+    await page.context().addCookies([{ name: cookie.slice(0, separator), value: cookie.slice(separator + 1), url: BASE }]);
+    const me = await page.request.get(`${BASE}/api/auth/me`);
+    if (me.status() !== 200) throw new Error(`/api/auth/me with AQUA_SESSION_COOKIE → ${me.status()}`);
+    return me.json();
+  }
   // The dev lane answers a redirect chain; Playwright can hand back no
   // response object for it when the goto lands mid-navigation (seen after the
   // preview handoff), so the session itself is the evidence, not the goto.
@@ -211,9 +225,16 @@ async function runViewport(browser, width, height) {
       const flow = await overflow(page);
       record.stories.push({ name, ok: flow.documentOverflow === 0 && flow.bodyOverflow === 0, ms: Date.now() - started, overflow: flow });
     } catch (error) {
+      // A story may declare itself not applicable to THIS target (never silently):
+      // it is recorded green with its reason, and the reason is printed.
+      if (error?.notApplicable) {
+        record.stories.push({ name, ok: true, notApplicable: String(error.notApplicable).slice(0, 500), ms: Date.now() - started });
+        return;
+      }
       record.stories.push({ name, ok: false, ms: Date.now() - started, error: String(error?.message ?? error).slice(0, 500) });
     }
   }
+  const notApplicable = reason => Object.assign(new Error(reason), { notApplicable: reason });
 
   // Unique per run: the disposable state persists across harness runs on one server.
   const name = `Custom ${tag} ${Date.now().toString(36)}`;
@@ -328,6 +349,14 @@ async function runViewport(browser, width, height) {
   });
 
   await story("preview: refusals never navigate or change the session; success navigates to the demo client at this phase", async () => {
+    // "Preview as demo client" re-issues the caller as the SEEDED demo tenant, so
+    // the route hangs off the dev-mode switch and answers 404 "Not available." on
+    // a production build by design. Prove that refusal, then stop: the story's
+    // demo-client navigation only exists on a Dev Mode lane.
+    const availability = await page.request.post(`${BASE}${PREVIEW}`, { data: { phaseId }, headers: { "content-type": "application/json" } });
+    if (availability.status() === 404 && /Not available/.test(await availability.text())) {
+      throw notApplicable("production build: preview-as-demo-client is refused 404 \"Not available.\" by the dev-mode switch (canUseDevMode); the demo-client navigation is proven on the Dev Mode lane only");
+    }
     await gotoPhases(page);
     const card = page.locator(`li[data-phase-id="${phaseId}"]`);
     const preview = card.getByRole("button", { name: /^(Preview as demo client|Starting preview…)$/ });
@@ -444,6 +473,7 @@ try {
   for (const [width, height] of VIEWPORTS) {
     const record = await runViewport(browser, width, height);
     const failed = record.stories.filter(story => !story.ok);
+    for (const story of record.stories.filter(entry => entry.notApplicable)) console.log(`${record.viewport}: N/A — ${story.name} :: ${story.notApplicable}`);
     console.log(`${record.viewport}: ${record.stories.length - failed.length}/${record.stories.length} stories${failed.length ? ` — FAILED: ${failed.map(story => `${story.name} :: ${story.error ?? JSON.stringify(story.overflow)}`).join(" || ")}` : ""}`);
   }
 } finally {

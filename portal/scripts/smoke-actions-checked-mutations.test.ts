@@ -106,7 +106,9 @@ test("mounted Actions keeps failed deletes and partial completions visible with 
   );
 
   const taskRoute = readFileSync("src/app/api/portal/tasks/route.ts", "utf8");
-  assert.match(taskRoute, /withPortalStateTransaction[\s\S]{0,2200}?recordCompletedAction/);
+  // The ownership and both client-association checks moved INSIDE the transaction on
+  // 2026-09-03, so the completion record sits further from the lock than before.
+  assert.match(taskRoute, /withPortalStateTransaction[\s\S]{0,3200}?recordCompletedAction/);
   assert.match(taskRoute, /matchingActionReceipt/);
   assert.match(taskRoute, /taskId: id, operationId, replayed:/);
   const completedRoute = readFileSync("src/app/api/portal/attention/completed/route.ts", "utf8");

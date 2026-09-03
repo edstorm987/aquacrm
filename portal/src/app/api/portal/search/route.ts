@@ -225,6 +225,69 @@ async function buildGovernedCandidates(
     }, [task.notes, task.recurrence]);
   }
 
+  // People records for a seat whose Staff element allows them. The same rows
+  // the full index carries, gated here by the element rather than by role, so a
+  // canonical `staff.people` grant can find a colleague, a candidate, a leave
+  // request or a training record without the full-access index — and a seat
+  // without it never sees the loop run. Pay fields still follow `staff.pay`.
+  if (access.staffPeopleVisible) {
+    for (const user of listUsersForAgency(agencyId)) {
+      push(candidates, {
+        id: user.id,
+        category: "Staff",
+        title: user.name || user.email,
+        subtitle: [user.email, readable(user.role)].filter(Boolean).join(" · "),
+        href: `/portal/clients?view=staff&user=${encodeURIComponent(user.id)}`,
+      }, [user.username]);
+    }
+    for (const employee of listPeopleEmployees(agencyId)) {
+      push(candidates, {
+        id: `employee:${employee.id}`,
+        category: "Staff",
+        title: employee.name,
+        subtitle: [employee.title, employee.department, readable(employee.employmentType), readable(employee.status)].filter(Boolean).join(" · "),
+        href: `/portal/agency/people?employee=${encodeURIComponent(employee.id)}`,
+        timestamp: employee.updatedAt,
+      }, [
+        employee.email,
+        employee.phone,
+        ...(access.staffPayVisible ? [employee.currency, employee.payBasis] : []),
+      ], { matchLabel: "People record", timestamp: employee.updatedAt });
+    }
+    for (const application of listPeopleApplications(agencyId)) {
+      push(candidates, {
+        id: `application:${application.id}`,
+        category: "Staff",
+        title: application.name,
+        subtitle: ["Candidate", application.roleInterest, readable(application.stage), application.email].join(" · "),
+        href: `/portal/agency/people?application=${encodeURIComponent(application.id)}`,
+        timestamp: application.updatedAt,
+      }, [application.phone, application.location], { matchLabel: "Recruitment application", timestamp: application.updatedAt });
+    }
+    for (const request of listPeopleLeaveRequests(agencyId)) {
+      const employee = getState().peopleEmployees[request.employeeId];
+      push(candidates, {
+        id: `leave:${request.id}`,
+        category: "Staff",
+        title: `${employee?.name ?? "Employee"} · ${readable(request.type)} leave`,
+        subtitle: `${request.startsOn} to ${request.endsOn} · ${request.days} days · ${readable(request.status)}`,
+        href: "/portal/agency/people?view=time",
+        timestamp: request.updatedAt,
+      }, [request.note], { matchLabel: "Leave record", timestamp: request.updatedAt });
+    }
+    for (const training of listPeopleTraining(agencyId)) {
+      const employee = getState().peopleEmployees[training.employeeId];
+      push(candidates, {
+        id: `training:${training.id}`,
+        category: "Staff",
+        title: training.title,
+        subtitle: [employee?.name, readable(training.status), training.dueAt ? `Due ${formatUkDate(training.dueAt, { dateStyle: "medium" })}` : ""].filter(Boolean).join(" · "),
+        href: "/portal/agency/people?view=development",
+        timestamp: training.updatedAt,
+      }, [training.description], { matchLabel: "Training record", timestamp: training.updatedAt });
+    }
+  }
+
   const { resolveBusinessRadarAccessForActor } = await import("@/lib/server/intelligence/personalRadarAccess");
   if (await resolveBusinessRadarAccessForActor(actor)) {
     push(candidates, {

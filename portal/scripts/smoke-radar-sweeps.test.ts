@@ -82,7 +82,7 @@ test("the scan route and cron loop delegate to the sweep scheduler", () => {
   const cron = read("src/app/api/cron/inbox/route.ts");
   // The route's full scan delegates to the scheduler and still folds memory into the response.
   assert.match(route, /async function runFullRadarScan/);
-  assert.match(route, /runRadarFullSweep\(session\.agencyId\)/);
+  assert.match(route, /runRadarFullSweep\(actor\.resourceAgencyId\)/);
   assert.match(route, /radar: \{ \.\.\.radar, memory \}/);
   // The cron loop runs one scheduled sweep per active agency and reports the results.
   assert.match(cron, /runRadarScheduledSweep\(agency\.id\)/);

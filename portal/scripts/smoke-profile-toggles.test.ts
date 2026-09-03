@@ -89,7 +89,7 @@ describe("Profile menu toggles — Cinematic / Performance / Dev icon", () => {
       assert.match(layout, /performanceModePreference\(\)/);
       // The sweep and its large server graph are requested only after every
       // lightweight-shell condition has been ruled out.
-      assert.match(layout, /if \(!perfMode && !session\.publicShowcase && !delegatedStaff\) \{\s*const \{ getRequestOperationalAlerts \} = await import\("@\/lib\/server\/inbox\/operationalAlerts"\)/);
+      assert.match(layout, /if \(!perfMode && !session\.publicShowcase && !delegatedStaff && inboxAvailable\) \{\s*const \{ getRequestOperationalAlerts \} = await import\("@\/lib\/server\/inbox\/operationalAlerts"\)/);
       assert.doesNotMatch(layout, /^import \{ getRequestOperationalAlerts \}/m);
     });
 
@@ -97,7 +97,7 @@ describe("Profile menu toggles — Cinematic / Performance / Dev icon", () => {
       const page = read("src/app/portal/agency/page.tsx");
       assert.match(page, /performanceModePreference\(\)/);
       assert.match(page, /const lightweightMode = perfMode \|\| Boolean\(session\.publicShowcase\)/);
-      assert.match(page, /lightweightMode\s*\? Promise\.resolve<OperationalAlert\[\]>\(\[\]\)\s*:\s*import\("@\/lib\/server\/inbox\/operationalAlerts"\)/);
+      assert.match(page, /lightweightMode \|\| !inboxAvailable\s*\? Promise\.resolve<OperationalAlert\[\]>\(\[\]\)\s*:\s*import\("@\/lib\/server\/inbox\/operationalAlerts"\)/);
       // scanDevTeamBoard (a disk read feeding the station badge) is gated off.
       assert.match(page, /if \(devTeamVisible && !lightweightMode\) \{\s*const \{ composeLanes, scanDevTeamBoard \} = await import\("@\/lib\/server\/dev\/devTeamBoard"\)/);
     });

@@ -398,7 +398,7 @@ describe("the navigator is mounted, and says its source on screen", () => {
     // ping racing a page that has not loaded.
     assert.equal(/pingTag\(\)/.test(body), false, "goToPage must not ping by hand");
     assert.match(editor, /key=\{`\$\{frameKey\}:\$\{url\}`\}/);
-    assert.match(editor, /onLoad=\{pingTag\}/);
+    assert.match(editor, /onLoad=\{\(\) => \{ frameLoaded\.current = true; pingTag\(\); \}\}/);
   });
 
   it("says so rather than doing nothing when a route has no address to open on", () => {

@@ -10,6 +10,7 @@ import { radarDigest, type AdvisorRadarDigest, type BusinessIssueRadar } from "@
 export function RadarQuickLookButton({ initialRadar, paused = false, canRunScan = false }: { initialRadar: AdvisorRadarDigest; paused?: boolean; canRunScan?: boolean }) {
   const router = useRouter();
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const [radarSnapshot, setRadarSnapshot] = useState(initialRadar);
   const [radarPaused, setRadarPaused] = useState(paused);
@@ -33,7 +34,13 @@ export function RadarQuickLookButton({ initialRadar, paused = false, canRunScan 
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") {
+        // Escape from inside the quick look hands focus back to the trigger, so
+        // a keyboard user keeps their place on the bar — the same rule as the
+        // My Radar control beside it. Escape from elsewhere leaves focus alone.
+        if (rootRef.current?.contains(document.activeElement)) triggerRef.current?.focus();
+        setOpen(false);
+      }
     };
     const timer = window.setInterval(() => setNow(Date.now()), 30_000);
     window.addEventListener("mousedown", onPointerDown);
@@ -77,6 +84,7 @@ export function RadarQuickLookButton({ initialRadar, paused = false, canRunScan 
   return (
     <div ref={rootRef} className="mm-has-attention-badge relative overflow-visible">
       <button
+        ref={triggerRef}
         type="button"
         aria-label={radarPaused ? "Business Radar paused; run a scan to load current results" : attentionCount ? `Business Radar, ${attentionCount} alerts need attention` : "Business Radar, no current alerts"}
         aria-expanded={open}

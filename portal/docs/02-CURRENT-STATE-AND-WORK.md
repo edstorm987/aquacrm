@@ -2,7 +2,7 @@
 
 > The current checklist, status, roadmap, goals, decisions and working queue.
 >
-> Consolidated 2026-09-02 from **7** source documents / **86,733 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-03 from **7** source documents / **86,981 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -11,7 +11,7 @@
 - [`docs/development/goals.md`](#source-docs-development-goals-md) — 506 words · `28009372c4ab`
 - [`docs/development/notes.md`](#source-docs-development-notes-md) — 1,730 words · `f68ea59936dd`
 - [`docs/development/roadmap.md`](#source-docs-development-roadmap-md) — 21,627 words · `6fdc87932849`
-- [`docs/development/status.md`](#source-docs-development-status-md) — 21,235 words · `8e1616735986`
+- [`docs/development/status.md`](#source-docs-development-status-md) — 21,483 words · `43a48036cfe7`
 - [`docs/development/todo-retired.md`](#source-docs-development-todo-retired-md) — 15,920 words · `4bde57e97f03`
 
 ---
@@ -4388,7 +4388,7 @@ This remains a truthful record of the first pass, **not a current performance cl
 
 ## Source document — `docs/development/status.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/status.md" sha256="8e1616735986d5d8b001890ed9000da761c87a00c96a19a97162dca6f75ac055" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/status.md" sha256="43a48036cfe7cb4db9d492316241ae9c0cb478b63771aeda247a298a58d2f0be" -->
 # Status & verification register
 
 ← Back to [development.md](../development.md) (the law)
@@ -4406,6 +4406,15 @@ This remains a truthful record of the first pass, **not a current performance cl
 > Historical August deployment evidence below describes the release that was
 > actually deployed then; a later local build or GitHub push is not by itself a
 > new Vercel deployment.
+>
+> **2026-09-03 release baseline (integrated main, fresh exact build bCDk8GQ5KJFAZVYNDvwvq):** house
+> matrix 1326 checks: 1171 passed / 0 failed / 155 evidenced observations / 0 missing; release gate 163 stories: 163 passed / 0 failed / 0 missing (roles 18/18, radar 10/10, calendar 12/12, tools 12/12, newsletter 3/3, layout 108/108) (roles/gates, personal-vs-business Radar,
+> Calendar linked records, My Tools folders/icons, newsletter facade, 12 pages × 9 viewports);
+> Notepad/Finance notepad 17/17, finance 16/16, layout 42/42, loader 2/2 (77/77, 0 missing); Team Chat/notifications stories 22/22; matrix 72 passed / 0 failed / 9 evidenced observations of 81 at seven viewports; Phase Admin 10/10 stories across 390×844 and 1280×800, 2 recorded N/A (production preview refusal), 0 unexpected console/page/request/HTTP failures; Aqua Tag lane
+> 220/220 checks (0 failed) at 390×844 and 1280×800; Dev Editor lane 191 passed / 2 failed / 13 explained N/A rows / 47 observations on the full matrix; the two failures were one timing-sensitive held-reply step that passed on an uncontended rerun of the AI scenario (14/14) and one dev-mode hydration-mismatch console warning raised only inside the AI scenario, recorded as an open residual; canonical suite Node phase 6693 tests across 1135 suites: 6691 passed / 0 failed / 2 skipped in 115621.124792ms; Website Editor gate 49/49 files. Four contrast defects and one
+> focus-return defect found on the untouched baseline were fixed before the final run. This is
+> isolated-production and local-dev-lane evidence on a file backend; the full labelled register
+> is [`plans/production-readiness-roadmap-2026-09-03.md`](plans/production-readiness-roadmap-2026-09-03.md).
 >
 > **2026-09-02 private-upload integrity checkpoint:** exact lifecycle binding/claim
 > fencing and the Finance/Meta owner-replay paths pass **33/33**, **39/39** and

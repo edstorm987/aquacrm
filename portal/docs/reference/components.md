@@ -258,9 +258,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
-- `async AdvisorDrawerControl({ agencyId, userId, userName, lightweight = false, }: { agencyId: string; userId: string; userName: string; lightweight?: boolean; })`
+- `async AdvisorDrawerControl({ userName, lightweight = false, }: { agencyId: string; userId: string; userName: string; lightweight?: boolean; })`
 
-**Depends on (8):** [`src/app/portal/agency/commandPerformance.ts`](app.md#file-src-app-portal-agency-commandperformance-ts-4c3c4f6dfd) · [`src/components/chrome/GlobalAdvisorDrawer.tsx`](#file-src-components-chrome-globaladvisordrawer-tsx-df7299cf2d) · [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/lib/server/assistants/assistantBusinessContext.ts`](lib.md#file-src-lib-server-assistants-assistantbusinesscontext-ts-022a1a1e3a) · [`src/lib/server/assistants/assistantContextScope.ts`](lib.md#file-src-lib-server-assistants-assistantcontextscope-ts-94c69e3f23) · [`src/lib/server/assistants/assistantStore.ts`](lib.md#file-src-lib-server-assistants-assistantstore-ts-15d0058af9) · [`src/lib/server/assistants/openaiAssistant.ts`](lib.md#file-src-lib-server-assistants-openaiassistant-ts-43bfde0f5e) · [`src/server/agencySettings.ts`](server.md#file-src-server-agencysettings-ts-6d31afe153)
+**Depends on (6):** [`src/app/portal/agency/commandPerformance.ts`](app.md#file-src-app-portal-agency-commandperformance-ts-4c3c4f6dfd) · [`src/components/chrome/GlobalAdvisorDrawer.tsx`](#file-src-components-chrome-globaladvisordrawer-tsx-df7299cf2d) · [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/lib/server/assistants/assistantContextScope.ts`](lib.md#file-src-lib-server-assistants-assistantcontextscope-ts-94c69e3f23) · [`src/lib/server/assistants/openaiAssistant.ts`](lib.md#file-src-lib-server-assistants-openaiassistant-ts-43bfde0f5e) · [`src/server/agencySettings.ts`](server.md#file-src-server-agencysettings-ts-6d31afe153)
 
 **Used by (3):** [`src/app/portal/agency/layout.tsx`](app.md#file-src-app-portal-agency-layout-tsx-47dd48700a) · [`src/app/portal/clients/[clientId]/layout.tsx`](app.md#file-src-app-portal-clients-clientid-layout-tsx-2e7f1d7ce2) · [`src/app/portal/clients/page.tsx`](app.md#file-src-app-portal-clients-page-tsx-bffc1e671f)
 
@@ -390,7 +390,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (2):** [`src/lib/a11y/useMenuKeys.ts`](lib.md#file-src-lib-a11y-usemenukeys-ts-403e5f37d6) · [`src/lib/access/departmentProfiles.ts`](lib.md#file-src-lib-access-departmentprofiles-ts-343cc6ceea)
 
-**Used by (2):** [`src/components/chrome/MyRadarQuickLookPanel.tsx`](#file-src-components-chrome-myradarquicklookpanel-tsx-028d2ead5a) · [`src/components/chrome/Topbar.tsx`](#file-src-components-chrome-topbar-tsx-9a91269432)
+**Used by (1):** [`src/components/chrome/Topbar.tsx`](#file-src-components-chrome-topbar-tsx-9a91269432)
 
 <a id="file-src-components-chrome-devconsolebutton-tsx-febade8526"></a>
 
@@ -556,10 +556,10 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (2):**
 
-- `MyRadarButton({ activeDepartment, initial }: { activeDepartment?: string; initial: MyRadarTopbarSnapshot })`
-- `interface MyRadarTopbarSnapshot (3 members)`
+- `MyRadarButton({ activeDepartment, initial, staffWorkspace = false, businessRadarAvailable = false }: { activeDepartment?: string; initial?: MyRadarTopbarSnapshot; staffWorkspace?: boolean; businessRadarAvailable?: boole…`
+- `type MyRadarTopbarSnapshot = PersonalRadarSnapshot`
 
-**Depends on (1):** [`src/lib/server/intelligence/myRadar.ts`](lib.md#file-src-lib-server-intelligence-myradar-ts-440d4e5adb)
+**Depends on (1):** [`src/lib/intelligence/personalRadar.ts`](lib.md#file-src-lib-intelligence-personalradar-ts-d1e0282176)
 
 **Used by (2):** [`src/components/chrome/MyRadarControl.tsx`](#file-src-components-chrome-myradarcontrol-tsx-f3c638a4a3) · [`src/components/chrome/MyRadarQuickLookPanel.tsx`](#file-src-components-chrome-myradarquicklookpanel-tsx-028d2ead5a)
 
@@ -571,9 +571,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
-- `async MyRadarControl({ activeDepartment }: { activeDepartment?: string })` — mount — baselines are weekly, so the window must be too.
+- `MyRadarControl({ activeDepartment, staffWorkspace = false, businessRadarAvailable = false, }: { activeDepartment?: string; staffWorkspace?: boolean; businessRadarAvailable?: boolean; })` — every navigation while preserving a server-owned authorization decision.
 
-**Depends on (5):** [`src/components/chrome/MyRadarButton.tsx`](#file-src-components-chrome-myradarbutton-tsx-21bf851e6d) · [`src/lib/intelligence/departmentAllocation.ts`](lib.md#file-src-lib-intelligence-departmentallocation-ts-effe208c44) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/intelligence/myRadar.ts`](lib.md#file-src-lib-server-intelligence-myradar-ts-440d4e5adb) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (1):** [`src/components/chrome/MyRadarButton.tsx`](#file-src-components-chrome-myradarbutton-tsx-21bf851e6d)
 
 **Used by (1):** [`src/components/chrome/Topbar.tsx`](#file-src-components-chrome-topbar-tsx-9a91269432)
 
@@ -585,9 +585,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
-- `MyRadarQuickLookPanel({ activeDepartment, snapshot, onSnapshot, onClose, }: { activeDepartment?: string; snapshot: MyRadarTopbarSnapshot; onSnapshot: (snapshot: MyRadarTopbarSnapshot) => void; onClose: () => void; })`
+- `MyRadarQuickLookPanel({ activeDepartment: _activeDepartment, staffWorkspace, businessRadarAvailable, snapshot, onSnapshot, onClose, }: { activeDepartment?: string; staffWorkspace: boolean; businessRadarAvailable: boolea…` — refresh keeps the server-rendered snapshot instead of drawing false zeroes.
 
-**Depends on (6):** [`src/components/chrome/DepartmentSwitcher.tsx`](#file-src-components-chrome-departmentswitcher-tsx-b003716fea) · [`src/components/chrome/MyRadarButton.tsx`](#file-src-components-chrome-myradarbutton-tsx-21bf851e6d) · [`src/components/intelligence/MyRadarPanel.tsx`](#file-src-components-intelligence-myradarpanel-tsx-5a201da332) · [`src/lib/server/intelligence/myRadar.ts`](lib.md#file-src-lib-server-intelligence-myradar-ts-440d4e5adb) · [`src/server/dashboardPlanning.ts`](server.md#file-src-server-dashboardplanning-ts-e7312f445b) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (2):** [`src/components/chrome/MyRadarButton.tsx`](#file-src-components-chrome-myradarbutton-tsx-21bf851e6d) · [`src/components/intelligence/PersonalRadarPanel.tsx`](#file-src-components-intelligence-personalradarpanel-tsx-8dec88d633)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -778,7 +778,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
-- `RadarQuickLookButton({ initialRadar, paused = false }: { initialRadar: AdvisorRadarDigest; paused?: boolean })`
+- `RadarQuickLookButton({ initialRadar, paused = false, canRunScan = false }: { initialRadar: AdvisorRadarDigest; paused?: boolean; canRunScan?: boolean })`
 
 **Depends on (1):** [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95)
 
@@ -792,7 +792,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
-- `async RadarQuickLookControl({ agencyId, lightweight = false }: { agencyId: string; lightweight?: boolean })`
+- `async RadarQuickLookControl({ agencyId, lightweight = false, canRunScan = false }: { agencyId: string; lightweight?: boolean; canRunScan?: boolean })`
 
 **Depends on (4):** [`src/app/portal/agency/commandPerformance.ts`](app.md#file-src-app-portal-agency-commandperformance-ts-4c3c4f6dfd) · [`src/components/chrome/RadarQuickLookButton.tsx`](#file-src-components-chrome-radarquicklookbutton-tsx-0a9b9046e8) · [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/server/agencySettings.ts`](server.md#file-src-server-agencysettings-ts-6d31afe153)
 
@@ -1671,12 +1671,12 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (2):**
 
-- `DepartmentBaselines({ initial }: { initial: BaselineValue[] })`
+- `DepartmentBaselines({ initial, canManageTemplates }: { initial: BaselineValue[]; canManageTemplates: boolean })`
 - `interface BaselineValue (2 members)`
 
 **Depends on (1):** [`src/lib/access/departmentProfiles.ts`](lib.md#file-src-lib-access-departmentprofiles-ts-343cc6ceea)
 
-**Used by (1):** [`src/app/portal/agency/my-radar/page.tsx`](app.md#file-src-app-portal-agency-my-radar-page-tsx-065cdf2270)
+**Used by (1):** [`src/app/portal/agency/radar/workload/page.tsx`](app.md#file-src-app-portal-agency-radar-workload-page-tsx-ba8ecc7909)
 
 <a id="file-src-components-intelligence-myradarpanel-tsx-5a201da332"></a>
 
@@ -1686,10 +1686,25 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (2):**
 
-- `MyRadarPanel({ allocation, wellbeing, daysWorked, personLabel, headline, baselinesHref, variant = "page" }: MyRadarPanelProps)`
-- `interface MyRadarPanelProps (7 members)`
+- `MyRadarPanel({ allocation, wellbeing, daysWorked, personLabel, eyebrow = "Department allocation", title, ariaLabel, wellbeingLabel = "Day score", showWellbeing = true, aggregate = false, headline, baselinesHref, variant…`
+- `interface MyRadarPanelProps (13 members)`
 
 **Depends on (2):** [`src/lib/access/departmentProfiles.ts`](lib.md#file-src-lib-access-departmentprofiles-ts-343cc6ceea) · [`src/lib/intelligence/departmentAllocation.ts`](lib.md#file-src-lib-intelligence-departmentallocation-ts-effe208c44)
+
+**Used by (1):** [`src/app/portal/agency/radar/workload/page.tsx`](app.md#file-src-app-portal-agency-radar-workload-page-tsx-ba8ecc7909)
+
+<a id="file-src-components-intelligence-personalradarpanel-tsx-8dec88d633"></a>
+
+### `src/components/intelligence/PersonalRadarPanel.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `PersonalRadarPanel({ reading, actions, actionsAvailable, actionSummary, headline, variant = "page", showHeader = true, actionsHref = "/portal/agency/actions", goalsHref = "/portal/agency/calendar", businessRadarHref = "…`
+- `interface PersonalRadarPanelProps (10 members)`
+
+**Depends on (1):** [`src/lib/intelligence/personalRadar.ts`](lib.md#file-src-lib-intelligence-personalradar-ts-d1e0282176)
 
 **Used by (3):** [`src/app/portal/agency/my-radar/page.tsx`](app.md#file-src-app-portal-agency-my-radar-page-tsx-065cdf2270) · [`src/app/portal/agency/page.tsx`](app.md#file-src-app-portal-agency-page-tsx-35a1d5c98a) · [`src/components/chrome/MyRadarQuickLookPanel.tsx`](#file-src-components-chrome-myradarquicklookpanel-tsx-028d2ead5a)
 
@@ -1723,7 +1738,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `TeamChat({ canUse = true }: { canUse?: boolean })`
 
-**Depends on (2):** [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (5):** [`src/lib/client/apiResponseError.ts`](lib.md#file-src-lib-client-apiresponseerror-ts-b93c08834c) · [`src/lib/client/checkedMutation.ts`](lib.md#file-src-lib-client-checkedmutation-ts-afe8d37eb1) · [`src/lib/client/teamChatCoordination.ts`](lib.md#file-src-lib-client-teamchatcoordination-ts-c14ea58238) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (3):** [`src/app/portal/agency/people/_PeopleCommand.tsx`](app.md#file-src-app-portal-agency-people-peoplecommand-tsx-7c4b4f6969) · [`src/app/portal/dev-team/chat/page.tsx`](app.md#file-src-app-portal-dev-team-chat-page-tsx-0832a1cd1f) · [`src/app/portal/team/_TeamWorkspace.tsx`](app.md#file-src-app-portal-team-teamworkspace-tsx-1ac58c6565)
 

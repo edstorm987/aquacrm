@@ -109,7 +109,7 @@ describe("private upload owner routes", () => {
     }
 
     const website = readFileSync("src/app/api/portal/website-enquiries/communications/route.ts", "utf8");
-    assert.match(website, /privateObjectRequestHash\(\["website-enquiry-reply-owner", session\.agencyId, enquiry\.id, replyId\]\)/);
+    assert.match(website, /privateObjectRequestHash\(\["website-enquiry-reply-owner", agencyId, deliveryEnquiry\.id, replyId\]\)/);
     assert.match(website, /if \(error instanceof WebsiteEnquiryOwnerRefusedError\) \{[\s\S]*releaseStagedPrivateUploadOwnershipClaim/);
 
     const client = readFileSync("src/app/api/tenants/client-requests/route.ts", "utf8");

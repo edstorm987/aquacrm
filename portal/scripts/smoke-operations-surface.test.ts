@@ -69,8 +69,8 @@ describe("agency Operations surface (IA v2)", () => {
     assert.ok(main, "a main (Command Centre) panel should assemble");
     assert.deepEqual(
       main!.items.map(item => item.id),
-      ["home", "inbox", "operations-home", "tools"],
-      "the main panel holds Command Centre, Inbox & actions, the Operations row, and Tools as flat rows",
+      ["home", "inbox", "operations-home", "my-radar", "tools"],
+      "the main panel holds Command Centre, Inbox & actions, the Operations row, My Radar and Tools as flat rows",
     );
     // The business functions must NOT sit on main — they live on the hub.
     const mainIds = new Set(main!.items.map(item => item.id));
@@ -128,8 +128,8 @@ describe("agency Operations surface (IA v2)", () => {
     const main = panel(panels, "main");
     assert.deepEqual(
       main!.items.map(item => item.id),
-      ["home", "inbox", "operations-home", "tools"],
-      "the main panel renders the four flat surface rows in order",
+      ["home", "inbox", "operations-home", "my-radar", "tools"],
+      "the main panel renders the five flat surface rows in order (My Radar since the 2026-09-03 Radar split)",
     );
   });
 

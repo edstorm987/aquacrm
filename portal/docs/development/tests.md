@@ -30,6 +30,30 @@ conditions. `PORTAL_BACKEND=memory` keeps stateful tests off the live sandbox.
 > evidence below is local or isolated-production evidence, not deployed-provider,
 > cold-machine or broad mounted-human acceptance.
 
+## 2026-09-03 release-baseline acceptance on the integrated main
+
+Fresh exact production build bCDk8GQ5KJFAZVYNDvwvq (webpack, compiled in 87s, TypeScript 44s, 246/246 static pages in 522ms) served by `next start` on a
+private file-backend lane, every persona minted by the lane seed and attached as a proven
+session cookie (`AQUA_SESSION_COOKIE`; the login route needs Supabase, which no lane has).
+
+- House matrix `browser-matrix.mjs`: 1326 checks: 1171 passed / 0 failed / 155 evidenced observations / 0 missing.
+- Release gate `browser-release-acceptance.mjs` (new; pinned by
+  `smoke-release-acceptance-gate.test.ts` 4/4): 163 stories: 163 passed / 0 failed / 0 missing (roles 18/18, radar 10/10, calendar 12/12, tools 12/12, newsletter 3/3, layout 108/108) — roles R1–R9, Radar D1–D5,
+  Calendar C1–C6, My Tools T1–T6, newsletter W1–W3, layout 12 pages × 9 viewports.
+- `browser-notepad-finance-acceptance.mjs` (attach): notepad 17/17, finance 16/16, layout 42/42, loader 2/2 (77/77, 0 missing).
+- `browser-chat-notification-order.mjs` on lane 3202 (same dist, minimal seed): stories 22/22; matrix 72 passed / 0 failed / 9 evidenced observations of 81 at seven viewports.
+- `browser-phase-admin-checked-mutations.mjs` (cookie attach): 10/10 stories across 390×844 and 1280×800, 2 recorded N/A (production preview refusal), 0 unexpected console/page/request/HTTP failures — preview N/A on
+  production by design.
+- `browser-aqua-tag-routing-acceptance.mjs` (self-hosted dev lane 3203): 220/220 checks (0 failed) at 390×844 and 1280×800.
+- `browser-dev-editor-dirty-transitions.mjs` (Dev Mode lane 3204): 191 passed / 2 failed / 13 explained N/A rows / 47 observations on the full matrix; the two failures were one timing-sensitive held-reply step that passed on an uncontended rerun of the AI scenario (14/14) and one dev-mode hydration-mismatch console warning raised only inside the AI scenario, recorded as an open residual.
+- Canonical `npm run smoke:all`, uncontended, on the same tree: Node phase 6693 tests across 1135 suites: 6691 passed / 0 failed / 2 skipped in 115621.124792ms; Website Editor gate 49/49 files. TypeScript exit 0;
+  `git diff --check` clean.
+
+What it is not: live Supabase/PostgreSQL, live provider, payment, deployed CDN or
+assistive-technology evidence. The matrix's first pass on the untouched baseline was red on
+nine axe colour-contrast checks (Fulfilment attention rows); the fix and the re-run are in
+the 2026-09-03 update entry.
+
 ## 2026-09-02 current source-freeze focused evidence
 
 - PortalState atomicity, post-commit ordering and lease fencing pass **17/17**.

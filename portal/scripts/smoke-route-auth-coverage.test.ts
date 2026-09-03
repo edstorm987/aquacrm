@@ -46,6 +46,10 @@ const GATES = [
   // The access kernel
   "requireCurrentWorkspaceElementAccess", "requireCurrentClientWorkspaceElementAccess",
   "requireCurrentFulfilmentTechnicalAccess",
+  // 2026-09-03: the assistant route binds every AI scope to the asking actor and
+  // an element (`requireAssistantElement("workspace.overview")` wraps
+  // requireCurrentAccessActor); it is a gate, not a public door.
+  "requireAssistantElement",
   "requireAccessCapability", "requireDevProjectAccess", "requireWholeWorkingTreeFounderAccess",
   // Supabase's session (the MFA routes)
   "auth.getUser",

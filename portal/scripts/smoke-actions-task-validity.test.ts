@@ -1,3 +1,7 @@
+// First, and statically — see the note in dev-console-request-scope.ts: it must
+// install AsyncLocalStorage before anything from next/ is evaluated.
+import { withSession } from "./dev-console-request-scope";
+
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -38,7 +42,17 @@ before(async () => {
   storage = await import("../src/server/storage");
   tasks = await import("../src/server/tasks");
   tenants = await import("../src/server/tenants");
-  route = await import("../src/app/api/portal/tasks/route");
+  // Since the personal/business Radar split (2026-09-03) the route resolves the
+  // actor's Actions element through `getSession()` → `cookies()`, which only
+  // exists inside a Next request scope. Enter that scope around every call so
+  // the gate under test is the real one (the cookie on the request is still
+  // what identifies the caller).
+  const real = await import("../src/app/api/portal/tasks/route");
+  route = {
+    ...real,
+    POST: request => withSession(token, () => real.POST(request)),
+    PATCH: request => withSession(token, () => real.PATCH(request)),
+  } as TasksRoute;
   auth = await import("../src/lib/server/auth/auth");
   users = await import("../src/server/users");
   await storage.ensureHydrated();

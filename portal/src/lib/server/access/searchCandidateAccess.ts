@@ -38,6 +38,8 @@ export interface SearchCandidateAccess {
   visible(candidate: SearchCandidateDescriptor): boolean;
   taskVisible(task: { assigneeUserId?: string; createdBy?: string; clientId?: string }): boolean;
   staffPayVisible: boolean;
+  /** Whether the governed index may carry People records (staff.people ≥ view). */
+  staffPeopleVisible: boolean;
 }
 
 const FULL_ACCESS: SearchCandidateAccess = {
@@ -46,6 +48,7 @@ const FULL_ACCESS: SearchCandidateAccess = {
   visible: () => true,
   taskVisible: () => true,
   staffPayVisible: true,
+  staffPeopleVisible: true,
 };
 
 function visible(level: string): boolean {
@@ -197,6 +200,7 @@ export function searchCandidateAccess(actor: CurrentAccessActor): SearchCandidat
     fingerprint: `${actor.user.accessRev ?? 0}:${fingerprint}`,
     fullAccess: false,
     staffPayVisible: visible(workspaceElementLevel(staff, "staff.pay")),
+    staffPeopleVisible: visible(workspaceElementLevel(staff, "staff.people")),
     taskVisible(task) {
       if (actor.session.role === "agency-staff"
         && task.assigneeUserId !== actor.session.userId

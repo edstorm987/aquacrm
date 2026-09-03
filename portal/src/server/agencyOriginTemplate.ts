@@ -83,6 +83,9 @@ export const ORIGIN_NEVER_CONTRIBUTES: Readonly<Record<string, readonly Collecti
     "clientProjectOperations",
     "clientMilestones", "clientDelight", "clientRecordLedger",
     "identityResolutionReviews", "enquiryContactDetails",
+    // One person's daily quota evidence (calls made, contacts reached) —
+    // personal Radar data about a named employee, never a template.
+    "personalMetricDays",
     // Enquiry events belonging to a specific client's website. A notice holds
     // no customer data itself, but it is a pointer into that client's own
     // database — seeding one into a brand-new agency would hand them a

@@ -79,8 +79,8 @@ and the current TODO before acting on any line here.*
    cookie now gets 403 with no token from `POST /api/portal/settings/external-ai`
    after downgrade, password rotation, explicit rotation and deletion.
    `npm run smoke:session-revocation` (16/16). → issues #22 RESOLVED.
-2. 🟡 **Dev Workspace phase 17 — preview half complete, authoring half blocked on
-   credentials.** Built and proven: the isolated per-project branch/worktree on
+2. 🟡 **Dev Workspace phase 17 — preview half complete, dirty-transition browser half
+   proven (28fc767, re-run 2026-09-03), authoring half blocked on credentials.** Built and proven: the isolated per-project branch/worktree on
    `aqua-editor/<projectId>`, declared dependency-install readiness with an
    `installing` state, and the named failure paths (dependency/start failure,
    occupied port, crash, CSP, stale preview, rejected AI change, cross-project
@@ -246,6 +246,17 @@ review-and-seed screen. His answers on what transfers are recorded verbatim in
   deployed-live are not interchangeable.
 
 ### Latest trustworthy evidence
+
+*3 September 2026 — release baseline.* The integrated `main` (six worker lanes, My Tools
+folders/icons, the personal/business Radar split with linked Calendar records) was built
+fresh as an exact production dist and every browser gate ran against it on isolated lanes:
+house matrix 1326 checks: 1171 passed / 0 failed / 155 evidenced observations / 0 missing, the new release gate `browser-release-acceptance.mjs` 163 stories: 163 passed / 0 failed / 0 missing (roles 18/18, radar 10/10, calendar 12/12, tools 12/12, newsletter 3/3, layout 108/108),
+Notepad/Finance notepad 17/17, finance 16/16, layout 42/42, loader 2/2 (77/77, 0 missing), Team Chat stories 22/22; matrix 72 passed / 0 failed / 9 evidenced observations of 81 at seven viewports, Phase Admin 10/10 stories across 390×844 and 1280×800, 2 recorded N/A (production preview refusal), 0 unexpected console/page/request/HTTP failures, Aqua Tag 220/220 checks (0 failed) at 390×844 and 1280×800, Dev Editor
+191 passed / 2 failed / 13 explained N/A rows / 47 observations on the full matrix; the two failures were one timing-sensitive held-reply step that passed on an uncontended rerun of the AI scenario (14/14) and one dev-mode hydration-mismatch console warning raised only inside the AI scenario, recorded as an open residual, canonical suite Node phase 6693 tests across 1135 suites: 6691 passed / 0 failed / 2 skipped in 115621.124792ms; Website Editor gate 49/49 files. Four contrast defects and one focus-return defect were
+fixed first. The labelled register is `docs/development/plans/production-readiness-roadmap-2026-09-03.md`;
+the post-baseline product plan is `plans/product-roadmap-2026-09.md`. Isolated lanes attach a
+seeded session cookie (`AQUA_SESSION_COOKIE`) because the login route needs Supabase. Everything
+below this paragraph is older evidence.
 
 *Refreshed 2 September 2026. These are local/source-freeze and isolated-
 production-browser measurements. They are not deployed geo/CDN, live-provider,

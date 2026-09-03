@@ -621,7 +621,7 @@ function SectionHeading({ eyebrow, title, detail, action }: { eyebrow: string; t
 
 function AttentionRow({ item }: { item: FulfilmentAttentionItem }) {
   const tone = item.level === "urgent" ? "bg-red-50 text-red-700" : item.level === "high" ? "bg-amber-50 text-amber-700" : "bg-blue-50 text-blue-700";
-  return <Link href={item.href} className="mm-interactive-row grid gap-2 py-3 hover:bg-black/[0.02] sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center"><span className={`w-fit rounded px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${tone}`}>{item.label}</span><span className="min-w-0"><span className="block text-sm font-semibold text-black/75">{item.title}</span><span className="mt-0.5 block text-xs leading-5 text-black/43">{item.detail}</span></span><ArrowRight size={15} className="hidden text-black/30 sm:block" /></Link>;
+  return <Link href={item.href} className="mm-interactive-row grid gap-2 py-3 hover:bg-black/[0.02] sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center"><span className={`w-fit rounded px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${tone}`}>{item.label}</span><span className="min-w-0"><span className="block text-sm font-semibold text-black/75">{item.title}</span><span className="mt-0.5 block text-xs leading-5 text-black/60">{item.detail}</span></span><ArrowRight size={15} className="hidden text-black/30 sm:block" /></Link>;
 }
 
 function FlowRow({ label, value, total, color }: { label: string; value: number; total: number; color: string }) {

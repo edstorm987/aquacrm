@@ -339,6 +339,9 @@ export const DECLARED_READ_ROUTES: DeclaredEntry[] = [
 export const DECLARED_RENDERS: DeclaredEntry[] = [
   { path: "src/app/portal/agency/[...rest]/page.tsx", cause: "installPlugin" },
   { path: "src/app/portal/agency/assistant/page.tsx", cause: "getCachedBusinessIssueRadar" },
+  // 2026-09-03: `/portal/agency/actions` is a real destination again (it renders
+  // the same component the Calendar declares below) rather than a redirect.
+  { path: "src/app/portal/agency/actions/page.tsx", cause: "AgencyActionsPage" },
   { path: "src/app/portal/agency/calendar/page.tsx", cause: "AgencyActionsPage" },
   { path: "src/app/portal/agency/fulfilment/page.tsx", cause: "ensureAgencyMasterSiteKey" },
   { path: "src/app/portal/agency/inbox/page.tsx", cause: "listOperationalAlerts" },

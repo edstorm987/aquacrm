@@ -2,9 +2,9 @@
 
 ← Back to [the reference index](00-index.md) · [the map](../WORKSPACE-FILE-TREE.md) · [development.md](../development.md)
 
-Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2661 source files; 0 per-source stubs.**
+Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2692 source files; 0 per-source stubs.**
 
-## Engines — `src/engines/` (85)
+## Engines — `src/engines/` (86)
 
 - [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95)
 - [`src/engines/data/radar/clientRadar.ts`](engines.md#file-src-engines-data-radar-clientradar-ts-d646cd5214)
@@ -46,6 +46,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/engines/editor/editing/responsiveEditorToolbar.ts`](engines.md#file-src-engines-editor-editing-responsiveeditortoolbar-ts-85f07e23b6) — The editor can be mounted inside a portal shell whose sidebar makes its usable width narrower than …
 - [`src/engines/editor/editing/selectionRouting.ts`](engines.md#file-src-engines-editor-editing-selectionrouting-ts-a6fa03f597) — ONE selection mechanism, THREE destinations. Ed, many times over: "the way it works is just the wor…
 - [`src/engines/editor/editing/surfaces.ts`](engines.md#file-src-engines-editor-editing-surfaces-ts-0572012433) — The two. There is no portal surface — Ed was explicit, and Normal covers it.
+- [`src/engines/editor/editing/tagHandshake.ts`](engines.md#file-src-engines-editor-editing-taghandshake-ts-49fc94a487) — How long one ping waits before the silence is judged.
 - [`src/engines/editor/elements/AnimateOnScroll.tsx`](engines.md#file-src-engines-editor-elements-animateonscroll-tsx-6b68b6482f)
 - [`src/engines/editor/elements/block.ts`](engines.md#file-src-engines-editor-elements-block-ts-b63256ef49) — anything server-side is not, and `import "server-only"` never belongs here.
 - [`src/engines/editor/elements/BlockRenderer.tsx`](engines.md#file-src-engines-editor-elements-blockrenderer-tsx-ecea13e2c9)
@@ -167,7 +168,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
 - [`src/server/zimanteTradingCompanies.ts`](server.md#file-src-server-zimantetradingcompanies-ts-ef9a41c5a6)
 
-## Shared logic — `src/lib/` (354)
+## Shared logic — `src/lib/` (366)
 
 - [`src/lib/a11y/contrastValidator.ts`](lib.md#file-src-lib-a11y-contrastvalidator-ts-7c6889cfca) — components. We default to 4.5 for the strictest check.
 - [`src/lib/a11y/isEmbedded.ts`](lib.md#file-src-lib-a11y-isembedded-ts-e91cac9938)
@@ -220,8 +221,10 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/client/performanceMilestoneMutationPayload.ts`](lib.md#file-src-lib-client-performancemilestonemutationpayload-ts-e83d6feca4)
 - [`src/lib/client/performanceMutationPayloads.ts`](lib.md#file-src-lib-client-performancemutationpayloads-ts-087cfdb675)
 - [`src/lib/client/performanceReportMutationPayload.ts`](lib.md#file-src-lib-client-performancereportmutationpayload-ts-51ef4c85ae)
+- [`src/lib/client/phaseAdminMutationPayloads.ts`](lib.md#file-src-lib-client-phaseadminmutationpayloads-ts-b2e4ee5028) — Client-safe: no server imports.
 - [`src/lib/client/sandboxModeRequest.ts`](lib.md#file-src-lib-client-sandboxmoderequest-ts-467a28c1db)
 - [`src/lib/client/senderCatalogueRead.ts`](lib.md#file-src-lib-client-sendercatalogueread-ts-e7ebc13e6f)
+- [`src/lib/client/teamChatCoordination.ts`](lib.md#file-src-lib-client-teamchatcoordination-ts-c14ea58238)
 - [`src/lib/client/websiteSourceRegistryRead.ts`](lib.md#file-src-lib-client-websitesourceregistryread-ts-03906d21f4)
 - [`src/lib/clients/clientAquaHealth.ts`](lib.md#file-src-lib-clients-clientaquahealth-ts-423527fa78)
 - [`src/lib/clients/clientCommercialIntelligence.ts`](lib.md#file-src-lib-clients-clientcommercialintelligence-ts-608fbbeef8)
@@ -279,6 +282,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/intelligence/departmentAllocation.ts`](lib.md#file-src-lib-intelligence-departmentallocation-ts-effe208c44) — rule applies here: absence of evidence, said out loud.
 - [`src/lib/intelligence/notificationAttentionCoordination.ts`](lib.md#file-src-lib-intelligence-notificationattentioncoordination-ts-fe6a3855f7)
 - [`src/lib/intelligence/operationalAttention.ts`](lib.md#file-src-lib-intelligence-operationalattention-ts-0aaf482906)
+- [`src/lib/intelligence/personalRadar.ts`](lib.md#file-src-lib-intelligence-personalradar-ts-d1e0282176)
 - [`src/lib/people/customerProfileScope.ts`](lib.md#file-src-lib-people-customerprofilescope-ts-01ec624e4a)
 - [`src/lib/people/personDestination.ts`](lib.md#file-src-lib-people-persondestination-ts-38a88646e9)
 - [`src/lib/performance/companyHealth.ts`](lib.md#file-src-lib-performance-companyhealth-ts-c24e507af4)
@@ -319,9 +323,13 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/resources/catalog.ts`](lib.md#file-src-lib-resources-catalog-ts-f344d6292f) — soon — stub or coming-soon stub at the linked URL
 - [`src/lib/server/access/clientAssociationElement.ts`](lib.md#file-src-lib-server-access-clientassociationelement-ts-141ea1a836)
 - [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d)
+- [`src/lib/server/access/externalProposalAccess.ts`](lib.md#file-src-lib-server-access-externalproposalaccess-ts-5e61bae842)
 - [`src/lib/server/access/fulfilmentTechnicalAccess.ts`](lib.md#file-src-lib-server-access-fulfilmenttechnicalaccess-ts-91bdee2082)
+- [`src/lib/server/access/inboxMediaTargetAccess.ts`](lib.md#file-src-lib-server-access-inboxmediatargetaccess-ts-fa212ab27c)
+- [`src/lib/server/access/operationalAlertAccess.ts`](lib.md#file-src-lib-server-access-operationalalertaccess-ts-b13a5469fe)
 - [`src/lib/server/access/peopleWorkspaceProjection.ts`](lib.md#file-src-lib-server-access-peopleworkspaceprojection-ts-0758fbe18a)
 - [`src/lib/server/access/searchCandidateAccess.ts`](lib.md#file-src-lib-server-access-searchcandidateaccess-ts-fd83a2341f)
+- [`src/lib/server/access/websiteEnquiryAccess.ts`](lib.md#file-src-lib-server-access-websiteenquiryaccess-ts-3def274122)
 - [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485)
 - [`src/lib/server/aquaEmbedToken.ts`](lib.md#file-src-lib-server-aquaembedtoken-ts-1a3b5086bf)
 - [`src/lib/server/assistants/advisorContext.ts`](lib.md#file-src-lib-server-assistants-advisorcontext-ts-ca2184cd70)
@@ -424,6 +432,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/server/email/resendEmail.ts`](lib.md#file-src-lib-server-email-resendemail-ts-ad53572a43)
 - [`src/lib/server/email/transactionalEmail.ts`](lib.md#file-src-lib-server-email-transactionalemail-ts-778ef382d4)
 - [`src/lib/server/embedAllowResolver.ts`](lib.md#file-src-lib-server-embedallowresolver-ts-c444b1bd8b) — list (or unknown slug) → frame-ancestors: 'none' (default deny).
+- [`src/lib/server/enquirySubmissionDelivery.ts`](lib.md#file-src-lib-server-enquirysubmissiondelivery-ts-20e07b3f46)
 - [`src/lib/server/enquirySubmissionOperation.ts`](lib.md#file-src-lib-server-enquirysubmissionoperation-ts-984d2e490f)
 - [`src/lib/server/env.ts`](lib.md#file-src-lib-server-env-ts-e409426595) — tsx --test.
 - [`src/lib/server/finance/financeBudgetCampaigns.ts`](lib.md#file-src-lib-server-finance-financebudgetcampaigns-ts-c9fb4818ca)
@@ -450,6 +459,8 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/server/integrations/vercelDomain.ts`](lib.md#file-src-lib-server-integrations-verceldomain-ts-7b084d4b07)
 - [`src/lib/server/integrations/vercelProjectDeployer.ts`](lib.md#file-src-lib-server-integrations-vercelprojectdeployer-ts-1e9a2020e5)
 - [`src/lib/server/intelligence/myRadar.ts`](lib.md#file-src-lib-server-intelligence-myradar-ts-440d4e5adb)
+- [`src/lib/server/intelligence/personalRadarAccess.ts`](lib.md#file-src-lib-server-intelligence-personalradaraccess-ts-2d7bf41648)
+- [`src/lib/server/intelligence/personalRadarActions.ts`](lib.md#file-src-lib-server-intelligence-personalradaractions-ts-073ebadc5e)
 - [`src/lib/server/intelligence/scoutingQuota.ts`](lib.md#file-src-lib-server-intelligence-scoutingquota-ts-fe272dfda1)
 - [`src/lib/server/leadsPipelinePorts.ts`](lib.md#file-src-lib-server-leadspipelineports-ts-65fb36de0a)
 - [`src/lib/server/marketingIntelligence.ts`](lib.md#file-src-lib-server-marketingintelligence-ts-bc53756ee1)
@@ -459,6 +470,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/server/performance/performanceMutationErrors.ts`](lib.md#file-src-lib-server-performance-performancemutationerrors-ts-8a1df8fe23)
 - [`src/lib/server/performanceMode.ts`](lib.md#file-src-lib-server-performancemode-ts-4cd4548229)
 - [`src/lib/server/personInteractionsService.ts`](lib.md#file-src-lib-server-personinteractionsservice-ts-197db49a11)
+- [`src/lib/server/phases/phaseMutationErrors.ts`](lib.md#file-src-lib-server-phases-phasemutationerrors-ts-d84b2bae2e)
 - [`src/lib/server/pluginRequestScope.ts`](lib.md#file-src-lib-server-pluginrequestscope-ts-e0445d2dd4)
 - [`src/lib/server/plugins/ensureLeadsPipelineInstall.ts`](lib.md#file-src-lib-server-plugins-ensureleadspipelineinstall-ts-bc1dba2897)
 - [`src/lib/server/plugins/pluginHealthRunner.ts`](lib.md#file-src-lib-server-plugins-pluginhealthrunner-ts-feda990895)
@@ -514,6 +526,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/supabase/admin.ts`](lib.md#file-src-lib-supabase-admin-ts-4eb1bf0db0)
 - [`src/lib/supabase/config.ts`](lib.md#file-src-lib-supabase-config-ts-bce56de604)
 - [`src/lib/supabase/enquiryAgencyColumn.ts`](lib.md#file-src-lib-supabase-enquiryagencycolumn-ts-988b0a5281)
+- [`src/lib/supabase/enquirySubmissionClaims.ts`](lib.md#file-src-lib-supabase-enquirysubmissionclaims-ts-27fe89a841)
 - [`src/lib/supabase/ownedEnquiry.ts`](lib.md#file-src-lib-supabase-ownedenquiry-ts-d9fd6a5183)
 - [`src/lib/supabase/route.ts`](lib.md#file-src-lib-supabase-route-ts-62d79257db)
 - [`src/lib/supabase/scoped.ts`](lib.md#file-src-lib-supabase-scoped-ts-b3ff18df40)
@@ -524,7 +537,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/telephony/phoneNumbers.ts`](lib.md#file-src-lib-telephony-phonenumbers-ts-b7be228e55) — The default country for numbers written without any international prefix.
 - [`src/lib/telephony/twilioSignature.ts`](lib.md#file-src-lib-telephony-twiliosignature-ts-bff6e7eefd) — indistinguishable from one that always returns true.
 
-## Shared components — `src/components/` (127)
+## Shared components — `src/components/` (128)
 
 - [`src/components/access/AccessBoundary.tsx`](components.md#file-src-components-access-accessboundary-tsx-5d487a86d6)
 - [`src/components/access/AccessControlPanel.tsx`](components.md#file-src-components-access-accesscontrolpanel-tsx-62b7a8e0aa)
@@ -633,6 +646,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/components/forms/PortalCustomFields.tsx`](components.md#file-src-components-forms-portalcustomfields-tsx-c3122bba6b)
 - [`src/components/intelligence/DepartmentBaselines.tsx`](components.md#file-src-components-intelligence-departmentbaselines-tsx-35fb3587f8)
 - [`src/components/intelligence/MyRadarPanel.tsx`](components.md#file-src-components-intelligence-myradarpanel-tsx-5a201da332) — would invent evidence; hiding it would understate the week.
+- [`src/components/intelligence/PersonalRadarPanel.tsx`](components.md#file-src-components-intelligence-personalradarpanel-tsx-8dec88d633)
 - [`src/components/marketing/ClientMarketingServiceWorkspace.tsx`](components.md#file-src-components-marketing-clientmarketingserviceworkspace-tsx-48c27a861f)
 - [`src/components/people/TeamChat.tsx`](components.md#file-src-components-people-teamchat-tsx-2cb4f9bea8)
 - [`src/components/resource-tools/AccessibilityAuditTool.tsx`](components.md#file-src-components-resource-tools-accessibilityaudittool-tsx-3a3f3fc7d7)
@@ -654,7 +668,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/components/workspaces/PluginSettingsPanel.tsx`](components.md#file-src-components-workspaces-pluginsettingspanel-tsx-1ae842fede)
 - [`src/components/workspaces/PluginWorkspaceNav.tsx`](components.md#file-src-components-workspaces-pluginworkspacenav-tsx-34bb1220e7)
 
-## Plugins — `src/built-ins/` (765)
+## Plugins — `src/built-ins/` (768)
 
 - [`src/built-ins/modules/affiliates/index.ts`](built-ins.md#file-src-built-ins-modules-affiliates-index-ts-68c0702721) — `requires: ["ecommerce"]`, opt-in.
 - [`src/built-ins/modules/affiliates/src/__smoke__/affiliates.test.ts`](built-ins.md#file-src-built-ins-modules-affiliates-src-smoke-affiliates-test-ts-e464cf139b) — - side-effects: activity log + event bus
@@ -1339,6 +1353,9 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/built-ins/modules/website-editor/src/lib/viewport.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-viewport-ts-299d7ceb1f) — contexts.
 - [`src/built-ins/modules/website-editor/src/lib/visitorContactConsent.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-visitorcontactconsent-ts-5835cb3996)
 - [`src/built-ins/modules/website-editor/src/lib/visitorContactReceipt.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-visitorcontactreceipt-ts-153beafbb0) — The only success shape the anonymous contact component accepts.
+- [`src/built-ins/modules/website-editor/src/lib/visitorNewsletterConsent.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-visitornewsletterconsent-ts-72834c0bb9) — The only purpose the newsletter facade records consent for.
+- [`src/built-ins/modules/website-editor/src/lib/visitorNewsletterEmail.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-visitornewsletteremail-ts-6472d279a1) — stores an address that did not pass through here.
+- [`src/built-ins/modules/website-editor/src/lib/visitorNewsletterReceipt.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-visitornewsletterreceipt-ts-1b2d79d456) — newsletter-named door so a caller cannot mistake one facade for the other.
 - [`src/built-ins/modules/website-editor/src/lib/webhookBlock.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-webhookblock-ts-6367227df1) — "Submit to" dropdown in the editor) is a follow-up.
 - [`src/built-ins/modules/website-editor/src/pages/AssetsPage.tsx`](built-ins.md#file-src-built-ins-modules-website-editor-src-pages-assetspage-tsx-bd1be6317e)
 - [`src/built-ins/modules/website-editor/src/pages/CustomisePage.tsx`](built-ins.md#file-src-built-ins-modules-website-editor-src-pages-customisepage-tsx-5c45dfead2)
@@ -1422,7 +1439,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/built-ins/runtime/foundation-adapters/publicFunnelFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-publicfunnelfoundation-ts-18280e9710)
 - [`src/built-ins/runtime/foundation-adapters/publicMediaAdapter.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-publicmediaadapter-ts-4b47d9ab84)
 
-## App routes & UI — `src/app/` (659)
+## App routes & UI — `src/app/` (661)
 
 - [`src/app/(seeds)/aquaOasisDemoContent.ts`](app.md#file-src-app-seeds-aquaoasisdemocontent-ts-f2e90ac84c) — agency record (so a prod tenant flip doesn't spawn fake data).
 - [`src/app/(website)/business-os/page.tsx`](app.md#file-src-app-website-business-os-page-tsx-0cbb0528df)
@@ -1573,6 +1590,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/api/portal/inbox/messages/route.ts`](app.md#file-src-app-api-portal-inbox-messages-route-ts-41d7bad35c)
 - [`src/app/api/portal/inbox/meta/callback/route.ts`](app.md#file-src-app-api-portal-inbox-meta-callback-route-ts-28c2b6dcc4)
 - [`src/app/api/portal/inbox/meta/start/route.ts`](app.md#file-src-app-api-portal-inbox-meta-start-route-ts-9b97fea636)
+- [`src/app/api/portal/intelligence/business-radar/workload/route.ts`](app.md#file-src-app-api-portal-intelligence-business-radar-workload-route-ts-fa0528c971)
 - [`src/app/api/portal/intelligence/my-radar/route.ts`](app.md#file-src-app-api-portal-intelligence-my-radar-route-ts-33a9c7eed2)
 - [`src/app/api/portal/journey/payment-request/route.ts`](app.md#file-src-app-api-portal-journey-payment-request-route-ts-aab1d57d31)
 - [`src/app/api/portal/kpi-registry/custom/route.ts`](app.md#file-src-app-api-portal-kpi-registry-custom-route-ts-c42a8ea0d0)
@@ -1856,7 +1874,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/portal/agency/marketing/_MarketingCommandSurfaces.tsx`](app.md#file-src-app-portal-agency-marketing-marketingcommandsurfaces-tsx-ed3c63aa76)
 - [`src/app/portal/agency/marketing/_marketingViews.ts`](app.md#file-src-app-portal-agency-marketing-marketingviews-ts-40d3847a22) — The six tabs, plus the demoted-but-still-addressable client services view.
 - [`src/app/portal/agency/marketing/page.tsx`](app.md#file-src-app-portal-agency-marketing-page-tsx-e2b361f4ba)
-- [`src/app/portal/agency/my-radar/page.tsx`](app.md#file-src-app-portal-agency-my-radar-page-tsx-065cdf2270) — technically true and completely useless.
+- [`src/app/portal/agency/my-radar/page.tsx`](app.md#file-src-app-portal-agency-my-radar-page-tsx-065cdf2270)
 - [`src/app/portal/agency/notepad/_NotepadWorkspace.tsx`](app.md#file-src-app-portal-agency-notepad-notepadworkspace-tsx-02e35d35f5)
 - [`src/app/portal/agency/notepad/page.tsx`](app.md#file-src-app-portal-agency-notepad-page-tsx-4f8074aa94)
 - [`src/app/portal/agency/operations/page.tsx`](app.md#file-src-app-portal-agency-operations-page-tsx-568c8359ba)
@@ -1898,6 +1916,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/portal/agency/products/page.tsx`](app.md#file-src-app-portal-agency-products-page-tsx-35ff15c280)
 - [`src/app/portal/agency/radar/page.tsx`](app.md#file-src-app-portal-agency-radar-page-tsx-0f2e0cd367)
 - [`src/app/portal/agency/radar/RadarInspectionWorkspace.tsx`](app.md#file-src-app-portal-agency-radar-radarinspectionworkspace-tsx-ada28e340f)
+- [`src/app/portal/agency/radar/workload/page.tsx`](app.md#file-src-app-portal-agency-radar-workload-page-tsx-ba8ecc7909)
 - [`src/app/portal/agency/serverStationNavigation.ts`](app.md#file-src-app-portal-agency-serverstationnavigation-ts-a2741da569)
 - [`src/app/portal/agency/settings/ActivityLogPanel.tsx`](app.md#file-src-app-portal-agency-settings-activitylogpanel-tsx-8e0ad7148e)
 - [`src/app/portal/agency/settings/AgencyIdentityPanel.tsx`](app.md#file-src-app-portal-agency-settings-agencyidentitypanel-tsx-6659ff738c)
@@ -2084,7 +2103,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/showcase/exit/route.ts`](app.md#file-src-app-showcase-exit-route-ts-2297ba275f)
 - [`src/app/showcase/route.ts`](app.md#file-src-app-showcase-route-ts-4c24dd82df)
 
-## Scripts — `scripts/` (593)
+## Scripts — `scripts/` (605)
 
 - [`scripts/attention-protection.test.ts`](scripts.md#file-scripts-attention-protection-test-ts-d64d01714c)
 - [`scripts/audit-actions.ts`](scripts.md#file-scripts-audit-actions-ts-862ea31175) — What state Actions is actually in — measured, not remembered. For every alert the checks currently …
@@ -2114,9 +2133,10 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-action-sources.test.ts`](scripts.md#file-scripts-smoke-action-sources-test-ts-a017c9356b)
 - [`scripts/smoke-actions-checked-mutations.test.ts`](scripts.md#file-scripts-smoke-actions-checked-mutations-test-ts-bd774399db)
 - [`scripts/smoke-actions-route-recovery.test.ts`](scripts.md#file-scripts-smoke-actions-route-recovery-test-ts-dc077cd1d8) — state transition, receipt, response and rollback are proved together.
-- [`scripts/smoke-actions-task-validity.test.ts`](scripts.md#file-scripts-smoke-actions-task-validity-test-ts-5f47547c36)
+- [`scripts/smoke-actions-task-validity.test.ts`](scripts.md#file-scripts-smoke-actions-task-validity-test-ts-5f47547c36) — install AsyncLocalStorage before anything from next/ is evaluated.
 - [`scripts/smoke-activity-category-batch.test.ts`](scripts.md#file-scripts-smoke-activity-category-batch-test-ts-dd932ee742) — Plus source-marker on the enum + activity feed wire-up.
 - [`scripts/smoke-advisor-actions.test.ts`](scripts.md#file-scripts-smoke-advisor-actions-test-ts-21ad4ddef8)
+- [`scripts/smoke-advisor-actor-projection.test.ts`](scripts.md#file-scripts-smoke-advisor-actor-projection-test-ts-96824ff76f)
 - [`scripts/smoke-advisor-skills.test.ts`](scripts.md#file-scripts-smoke-advisor-skills-test-ts-122a978a8c)
 - [`scripts/smoke-affiliate-atomic-claims.test.ts`](scripts.md#file-scripts-smoke-affiliate-atomic-claims-test-ts-130e65b1ec)
 - [`scripts/smoke-affiliate-currency-refund.test.ts`](scripts.md#file-scripts-smoke-affiliate-currency-refund-test-ts-c437c25e94)
@@ -2144,6 +2164,9 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-aqua-tag-bridge.test.ts`](scripts.md#file-scripts-smoke-aqua-tag-bridge-test-ts-2ba57a677e) — The drift guard between the Aqua Tag and the editor. `src/lib/integrations/aquaTagSource.ts` is a t…
 - [`scripts/smoke-aqua-tag-consent-injection.test.ts`](scripts.md#file-scripts-smoke-aqua-tag-consent-injection-test-ts-f1e2a6eb6f) — stub handed to the VM context.
 - [`scripts/smoke-aqua-tag-detection.test.ts`](scripts.md#file-scripts-smoke-aqua-tag-detection-test-ts-61f86fef92)
+- [`scripts/smoke-aqua-tag-ingestion-durability.test.ts`](scripts.md#file-scripts-smoke-aqua-tag-ingestion-durability-test-ts-68ca20cacc) — which needs a disposable database; the model is its stand-in, not its proof.
+- [`scripts/smoke-aqua-tag-ingestion-durable-processes.test.ts`](scripts.md#file-scripts-smoke-aqua-tag-ingestion-durable-processes-test-ts-05f95eadc4) — is proven only by smoke-aqua-tag-ingestion-live-postgres.
+- [`scripts/smoke-aqua-tag-ingestion-live-postgres.test.ts`](scripts.md#file-scripts-smoke-aqua-tag-ingestion-live-postgres-test-ts-69c42a56df) — only when the table is absent, and drops everything it created at the end.
 - [`scripts/smoke-aqua-tag-ingestion-order.test.ts`](scripts.md#file-scripts-smoke-aqua-tag-ingestion-order-test-ts-9db84cb238)
 - [`scripts/smoke-aqua-tag-injections.test.ts`](scripts.md#file-scripts-smoke-aqua-tag-injections-test-ts-1028a63a7f)
 - [`scripts/smoke-aqua-tag-stop-routing.test.ts`](scripts.md#file-scripts-smoke-aqua-tag-stop-routing-test-ts-90dfaf2d91)
@@ -2323,6 +2346,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-editor-navigator.test.ts`](scripts.md#file-scripts-smoke-editor-navigator-test-ts-8d63a6e111) — The navigator — dev-editor-finish phase 8. Ed, pointing the editor at a real website: *"if i put in…
 - [`scripts/smoke-editor-presence.test.ts`](scripts.md#file-scripts-smoke-editor-presence-test-ts-2394e5b9a5) — a second presence system that would then disagree with the first.
 - [`scripts/smoke-editor-surface-modes.test.ts`](scripts.md#file-scripts-smoke-editor-surface-modes-test-ts-dbd9c60d53) — only the socket replaced.
+- [`scripts/smoke-editor-tag-handshake.test.ts`](scripts.md#file-scripts-smoke-editor-tag-handshake-test-ts-a55ee3c7dd) — ping means. It is pure so the three outcomes can be proven without a browser.
 - [`scripts/smoke-editor-target-aware.test.ts`](scripts.md#file-scripts-smoke-editor-target-aware-test-ts-2b0b1461e4) — still exists.
 - [`scripts/smoke-editor-words-publish.test.ts`](scripts.md#file-scripts-smoke-editor-words-publish-test-ts-8a0e2a86d4) — exercise only the paths that return before a request is ever made.
 - [`scripts/smoke-editor-write-path.test.ts`](scripts.md#file-scripts-smoke-editor-write-path-test-ts-3515004353) — recoverable, and a regression that removes one of these would be silent.
@@ -2403,6 +2427,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-inbox-actions.test.ts`](scripts.md#file-scripts-smoke-inbox-actions-test-ts-18e78accba) — many existing links across the app still land correctly.
 - [`scripts/smoke-inbox-attention-resolution.test.ts`](scripts.md#file-scripts-smoke-inbox-attention-resolution-test-ts-795c8b046f)
 - [`scripts/smoke-inbox-company-routing.test.ts`](scripts.md#file-scripts-smoke-inbox-company-routing-test-ts-275120e49f)
+- [`scripts/smoke-inbox-element-leaf-access.test.ts`](scripts.md#file-scripts-smoke-inbox-element-leaf-access-test-ts-820e2e0c6c)
 - [`scripts/smoke-inbox-recorder-lifecycle.test.ts`](scripts.md#file-scripts-smoke-inbox-recorder-lifecycle-test-ts-d655c5138a)
 - [`scripts/smoke-info-tip.test.ts`](scripts.md#file-scripts-smoke-info-tip-test-ts-0588407fba) — which `react-dom/server` refuses to load under. See the note in that file.
 - [`scripts/smoke-inspector-exit.test.ts`](scripts.md#file-scripts-smoke-inspector-exit-test-ts-73836c8da2) — and you only find out once you are already inside somebody else's portal.
@@ -2462,7 +2487,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-modal-keyboard-contract.test.ts`](scripts.md#file-scripts-smoke-modal-keyboard-contract-test-ts-f3f2798bdc) — reader.
 - [`scripts/smoke-multi-agency-users.test.ts`](scripts.md#file-scripts-smoke-multi-agency-users-test-ts-d8134be8b7) — agencyIds + activeAgencyId, auth.ts exports the new helpers.
 - [`scripts/smoke-my-radar-panel.test.ts`](scripts.md#file-scripts-smoke-my-radar-panel-test-ts-0a455882ef) — system, not a shape, and this follows that.
-- [`scripts/smoke-my-radar-topbar.test.ts`](scripts.md#file-scripts-smoke-my-radar-topbar-test-ts-e5a99f82ea) — a fork, a nudge that speaks only in amber.
+- [`scripts/smoke-my-radar-topbar.test.ts`](scripts.md#file-scripts-smoke-my-radar-topbar-test-ts-e5a99f82ea) — even for an owner, while Business Radar keeps its own id, icon and route.
 - [`scripts/smoke-my-radar.test.ts`](scripts.md#file-scripts-smoke-my-radar-test-ts-ecac907a42) — the first day of every period.
 - [`scripts/smoke-my-tools-icon-route.test.ts`](scripts.md#file-scripts-smoke-my-tools-icon-route-test-ts-e900b48203) — a caller-scope leak, a forged private-storage key, or an orphaned icon.
 - [`scripts/smoke-my-tools-palette.test.ts`](scripts.md#file-scripts-smoke-my-tools-palette-test-ts-de0b78e8dd) — and again in the client store.
@@ -2501,7 +2526,9 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-person-identity-dedupe.test.ts`](scripts.md#file-scripts-smoke-person-identity-dedupe-test-ts-16529d7722)
 - [`scripts/smoke-person-interactions.test.ts`](scripts.md#file-scripts-smoke-person-interactions-test-ts-9d0655c613)
 - [`scripts/smoke-person-record-and-seeding.test.ts`](scripts.md#file-scripts-smoke-person-record-and-seeding-test-ts-ae0af3e412)
+- [`scripts/smoke-personal-business-radar.test.ts`](scripts.md#file-scripts-smoke-personal-business-radar-test-ts-c9081f0f68)
 - [`scripts/smoke-persons.test.ts`](scripts.md#file-scripts-smoke-persons-test-ts-46f4e060d9)
+- [`scripts/smoke-phase-admin-checked-mutations.test.ts`](scripts.md#file-scripts-smoke-phase-admin-checked-mutations-test-ts-3caa1dd94d) — Plus source pins that hold the mounted components to the contract.
 - [`scripts/smoke-phase-transition-convergence.test.ts`](scripts.md#file-scripts-smoke-phase-transition-convergence-test-ts-4c776e59e9)
 - [`scripts/smoke-phases-preview.test.ts`](scripts.md#file-scripts-smoke-phases-preview-test-ts-84f8b63027) — code-injection escaping, sidebar entry, and ordering.
 - [`scripts/smoke-pinned-tabs.test.ts`](scripts.md#file-scripts-smoke-pinned-tabs-test-ts-6690991992) — asserting is pure and lives here.
@@ -2581,6 +2608,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-realm-runtime-cap.test.ts`](scripts.md#file-scripts-smoke-realm-runtime-cap-test-ts-1dda8dfe3e) — tests exist for that, not for the cap.
 - [`scripts/smoke-reclassification-retains-history.test.ts`](scripts.md#file-scripts-smoke-reclassification-retains-history-test-ts-ee6ed956d9)
 - [`scripts/smoke-reference-consolidation.test.ts`](scripts.md#file-scripts-smoke-reference-consolidation-test-ts-f75375bfcd)
+- [`scripts/smoke-release-acceptance-gate.test.ts`](scripts.md#file-scripts-smoke-release-acceptance-gate-test-ts-26eb180914) — at every house viewport, and a run with a missing key is red.
 - [`scripts/smoke-release-access-matrix.test.ts`](scripts.md#file-scripts-smoke-release-access-matrix-test-ts-0f37b84c3b) — First, and statically — see the note in dev-console-request-scope.ts.
 - [`scripts/smoke-release-centre.test.ts`](scripts.md#file-scripts-smoke-release-centre-test-ts-39998519fa)
 - [`scripts/smoke-remaining-read-availability.test.ts`](scripts.md#file-scripts-smoke-remaining-read-availability-test-ts-dd3a25efb7)
@@ -2641,6 +2669,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-tag-form-capture.test.ts`](scripts.md#file-scripts-smoke-tag-form-capture-test-ts-a77cd0eb6b)
 - [`scripts/smoke-task-checklist.test.ts`](scripts.md#file-scripts-smoke-task-checklist-test-ts-92a59afc9b)
 - [`scripts/smoke-task-templates.test.ts`](scripts.md#file-scripts-smoke-task-templates-test-ts-bda0882f1d)
+- [`scripts/smoke-team-chat-response-order.test.ts`](scripts.md#file-scripts-smoke-team-chat-response-order-test-ts-e2e9b59efd)
 - [`scripts/smoke-telemetry-idempotency.test.ts`](scripts.md#file-scripts-smoke-telemetry-idempotency-test-ts-9f19109644) — provider retries cannot starve genuine new events.
 - [`scripts/smoke-telephony-caller-identity.test.ts`](scripts.md#file-scripts-smoke-telephony-caller-identity-test-ts-2ed21c8e2e) — from, which would make every callback arrive as "unknown".
 - [`scripts/smoke-telephony-inbound.test.ts`](scripts.md#file-scripts-smoke-telephony-inbound-test-ts-880e50ee50) — always returns true, so these run the real algorithm against real vectors.
@@ -2668,9 +2697,11 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-website-editor-local-islands.test.ts`](scripts.md#file-scripts-smoke-website-editor-local-islands-test-ts-b2df35e99c) — navigation, while old bookmarks continue to reach a canonical shared model.
 - [`scripts/smoke-website-editor-plugin-gates.test.ts`](scripts.md#file-scripts-smoke-website-editor-plugin-gates-test-ts-f620cb8d70) — load; re-exec this one file in the client-render lane before importing it.
 - [`scripts/smoke-website-editor-plugin-install-state.test.ts`](scripts.md#file-scripts-smoke-website-editor-plugin-install-state-test-ts-d4ce0743d1)
+- [`scripts/smoke-website-editor-public-newsletter.test.ts`](scripts.md#file-scripts-smoke-website-editor-public-newsletter-test-ts-c307f3897f) — end are the seam between what the page shows and what the server binds.
 - [`scripts/smoke-website-editor-public-visitors.test.ts`](scripts.md#file-scripts-smoke-website-editor-public-visitors-test-ts-b860bc0b94)
 - [`scripts/smoke-website-editor-runner.test.ts`](scripts.md#file-scripts-smoke-website-editor-runner-test-ts-b05fca9f73)
 - [`scripts/smoke-website-editor-settings-contract.test.ts`](scripts.md#file-scripts-smoke-website-editor-settings-contract-test-ts-ea651b6679)
+- [`scripts/smoke-website-enquiry-element-access.test.ts`](scripts.md#file-scripts-smoke-website-enquiry-element-access-test-ts-9c55f59ee4)
 - [`scripts/smoke-website-signup-lead.test.ts`](scripts.md#file-scripts-smoke-website-signup-lead-test-ts-58675d9221) — submission reaches the redirect URL.
 - [`scripts/smoke-website-sources.test.ts`](scripts.md#file-scripts-smoke-website-sources-test-ts-b7f26fea83)
 - [`scripts/smoke-website-visual-builder.test.ts`](scripts.md#file-scripts-smoke-website-visual-builder-test-ts-8c2b0443bd)

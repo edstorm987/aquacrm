@@ -250,9 +250,19 @@ test("public showcase agency workspaces cannot expose owner mutation controls", 
   const marketing = read("src/app/portal/agency/marketing/page.tsx");
   const company = read("src/app/portal/agency/company/page.tsx");
 
-  assert.match(agencyPage, /canManage=\{canManageWorkspace\}/);
-  assert.match(command, /<fieldset disabled=\{!canManage\} className="contents">/);
-  assert.match(command, /canManage && clockOutReviewOpen/);
+  // 2026-09-03: the flag is derived from the capped element projection (a showcase or
+  // read-only session never reaches "manage"), and it feeds the Radar policy panel and
+  // the executive workspace's edit affordance rather than one canManage prop.
+  assert.match(agencyPage, /const canManageWorkspace = workspaceElementAtLeast\(workspaceElementLevel\(staffAccess, "workspace\.settings"\), "manage"\)/);
+  assert.match(agencyPage, /canManageRadarPolicy=\{canManageWorkspace\}/);
+  assert.match(agencyPage, /canEdit: canManageWorkspace/);
+  // 2026-09-03: the Day-mode controls are disabled unless the actor may USE the
+  // personal command element; `writable` is false for every showcase/read-only
+  // session (personalRadarAccess.ts), so a showcase visitor still meets a disabled
+  // fieldset — through the element projection rather than a bare flag.
+  assert.match(command, /<fieldset disabled=\{dashboardMode === "day" && !canUsePersonalCommand\} className="contents">/);
+  assert.match(agencyPage, /canUsePersonalCommand=\{personalCommandAccess\.writable\}/);
+  assert.match(command, /canUsePersonalCommand && clockOutReviewOpen/);
   assert.match(fulfilment, /const canManage = !session\.publicShowcase/);
   assert.match(fulfilment, /if \(session\.publicShowcase && \(view === "technical" \|\| view === "tags"\)\) redirect/);
   assert.match(marketing, /if \(session\.publicShowcase && view !== "pulse"\) redirect/);
@@ -277,8 +287,18 @@ test("public showcase agency workspaces cannot expose owner mutation controls", 
   // 2026-08-30: the null-for-showcase decision now lives one line up, on the
   // single assembly that feeds both the slot and the badge.
   assert.match(inboxPage, /preparedActions = session\.publicShowcase \? null/);
-  assert.match(inboxPage, /readOnly=\{Boolean\(session\.publicShowcase\)\}/);
-  assert.match(inbox, /<fieldset disabled=\{readOnly\} className="contents">/);
+  // 2026-09-03: read-only now follows the actor's Inbox element level, whose
+  // projection is capped to "view" for every showcase/read-only session
+  // (capReadOnlySession), so a showcase visitor still gets a read-only inbox.
+  assert.match(inboxPage, /readOnly=\{!inboxWritable\}/);
+  assert.match(inboxPage, /const inboxWritable = [^\n]*"use"\)/);
+  // 2026-09-03: the outer fieldset became per-action guards plus a visible
+  // "View only" badge, and every child workspace receives `canMutate={!readOnly}`
+  // and disables its own controls behind it.
+  assert.match(inbox, /\{readOnly \? <span[^>]*>View only<\/span> : null\}/);
+  assert.ok((inbox.match(/canMutate=\{!readOnly\}/g) ?? []).length >= 3, "every inbox workspace must receive canMutate={!readOnly}");
+  assert.match(read("src/app/portal/agency/inbox/_EnquiryDetailCard.tsx"), /<fieldset disabled=\{!canMutate\} className="contents">/);
+  assert.match(read("src/app/portal/agency/inbox/_UnifiedInboxWorkspace.tsx"), /<fieldset disabled=\{!canMutate\}/);
 
   const sopPage = read("src/app/portal/agency/sop-library/page.tsx");
   const sopLibrary = read("src/app/portal/agency/sop-library/_SopLibrary.tsx");

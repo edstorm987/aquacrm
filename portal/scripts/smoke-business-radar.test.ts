@@ -234,7 +234,12 @@ test("the command Radar shows its last full run and can force a complete persist
   assert.match(control, /Scan failed · Retry/);
   assert.match(control, /fetch\("\/api\/portal\/advisor\/radar", \{ method: "POST", cache: "no-store" \}\)/);
   assert.match(route, /async function runFullRadarScan/);
-  assert.match(route, /runRadarFullSweep\(session\.agencyId\)/);
+  // Since the personal/business Radar split (2026-09-03) the route resolves the
+  // access actor first and sweeps the actor's RESOURCE agency, so a narrowed
+  // manager can neither widen the sweep nor sweep a tenant they only hold a
+  // session for. The sweep call must name that resolved agency, not the raw session.
+  assert.match(route, /const actor = await requireBusinessRadar\("use"\)/);
+  assert.match(route, /runRadarFullSweep\(actor\.resourceAgencyId\)/);
   assert.match(sweeps, /runAgencySyntheticProbes\(agencyId, \{ force: true \}\)/);
   assert.match(sweeps, /recordRadarSweep\(agencyId, radar\)/);
   assert.match(sweeps, /recordRadarEvidence\(agencyId, radar\)/);

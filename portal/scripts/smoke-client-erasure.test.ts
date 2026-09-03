@@ -182,7 +182,7 @@ describe("manually deleting a website enquiry", () => {
     // The inbox renders it behind canErase, and the page only sets that for an
     // agency-owner — so ordinary staff never see it.
     assert.match(inbox(), /canErase \? <EnquiryDeleteButton/);
-    assert.match(page(), /canErase=\{!session\.publicShowcase && session\.role === "agency-owner"\}/);
+    assert.match(page(), /canErase=\{inboxManageable && !session\.publicShowcase && session\.role === "agency-owner"\}/);
   });
 
   it("asks twice before deleting, in place, without a modal", () => {

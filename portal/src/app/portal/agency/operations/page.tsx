@@ -183,6 +183,16 @@ const OPS_GROUPS: OpsGroup[] = [
     caption: "The systems behind the functions.",
     functions: [
       {
+        // The person's own view — actions, goals, wellbeing and pace. Listed so
+        // the directory names every reachable sidebar destination; Business
+        // Radar stays in the Command Centre for whole-business seats.
+        href: "/portal/agency/my-radar",
+        label: "My Radar",
+        detail: "Your own actions, goals, wellbeing and work pace — the personal view, separate from the business scan.",
+        action: "Open My Radar",
+        icon: Activity,
+      },
+      {
         // Departments is the landing page; its workspace nav reaches
         // Leave / Employees / Roles / Settings.
         href: "/portal/agency/agency-hr/departments",

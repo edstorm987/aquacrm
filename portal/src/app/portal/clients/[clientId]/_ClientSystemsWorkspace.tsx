@@ -288,7 +288,7 @@ export function ClientSystemsWorkspace({
                   </span>
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-black/78">{EVENT_LABEL[event.type]}</p>
-                    <p className="mt-1 truncate text-xs text-black/43">
+                    <p className="mt-1 truncate text-xs text-black/60">
                       {event.message || event.path || event.url || (event.metric ? `${event.metric}: ${event.value ?? "—"}` : "Signal received")}
                     </p>
                   </div>

@@ -261,7 +261,7 @@ describe("the listener in DevEditor", () => {
     // go out to "*" — so the ping is what stops the page broadcasting the
     // operator's selections, not merely a liveness check.
     assert.match(editor, /aquaTagPing\(requestId\)/);
-    assert.match(editor, /onLoad=\{pingTag\}/, "the handshake starts when the frame has a document");
+    assert.match(editor, /onLoad=\{\(\) => \{ frameLoaded\.current = true; pingTag\(\); \}\}/, "the handshake starts when the frame has a document");
     assert.match(editor, /message\.requestId !== tagPingId\.current/, "only the answer to OUR ping counts");
     assert.match(editor, /tagSelecting \? aquaTagEnable\(\) : aquaTagDisable\(\)/);
   });
@@ -413,8 +413,8 @@ describe("the portal preview is not asked to be a tagged page", () => {
     assert.equal(/onLoad/.test(previewFrame("url={frameUrl}")), false,
       "the Aqua-hosted portal preview must not run the tag handshake");
     // …while the real browser pane still does, which is the whole feature.
-    assert.match(previewFrame("url={browserUrl.trim()}"), /onLoad=\{pingTag\}/);
-    assert.equal(editor.match(/onLoad=\{pingTag\}/g)?.length, 1, "exactly one frame starts the handshake");
+    assert.match(previewFrame("url={browserUrl.trim()}"), /onLoad=\{\(\) => \{ frameLoaded\.current = true; pingTag\(\); \}\}/);
+    assert.equal(editor.match(/onLoad=\{\(\) => \{ frameLoaded\.current = true; pingTag\(\); \}\}/g)?.length, 1, "exactly one frame starts the handshake");
   });
 
   it("gates the Element tab on the TAG, not on 'a browser exists'", () => {
@@ -552,7 +552,7 @@ describe("the handshake survives a non-secure context", () => {
   it("sets the bridge state before anything that can fail", () => {
     // Ordering is the actual fix's other half: whatever goes wrong, the panel
     // must not be left sitting at "idle" with an uncaught error behind it.
-    const ping = editor.slice(editor.indexOf("function pingTag()"));
+    const ping = editor.slice(editor.indexOf("function pingTag("));
     const id = ping.indexOf("makeId(");
     const checking = ping.indexOf('setTagBridge("checking")');
     const idle = ping.indexOf('setTagBridge("idle")');

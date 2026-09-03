@@ -432,7 +432,7 @@ describe("Actions and Master Inbox agree about one queue", () => {
     // the next refresh: the item came straight back while the inbox had it
     // hidden. Two views of one queue disagreeing is worse than either alone.
     const page = read("src", "app", "portal", "agency", "actions", "_ActionsPage.tsx");
-    assert.match(page, /listOperationalAlertViews\(session\.agencyId, session\.userId/);
+    assert.match(page, /listOperationalAlertViews\(\s*agencyId,\s*session\.userId/);
     assert.match(page, /state !== "parked"/);
   });
 

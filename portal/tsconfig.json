@@ -236,7 +236,9 @@
     ".next-gate-turbo/types/**/*.ts",
     ".next-gate-turbo/dev/types/**/*.ts",
     ".next-export-acceptance-turbo/types/**/*.ts",
-    ".next-export-acceptance-turbo/dev/types/**/*.ts"
+    ".next-export-acceptance-turbo/dev/types/**/*.ts",
+    ".next-aqua-tag-3203/types/**/*.ts",
+    ".next-aqua-tag-3203/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

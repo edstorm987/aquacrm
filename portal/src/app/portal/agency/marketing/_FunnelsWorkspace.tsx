@@ -379,7 +379,7 @@ export function FunnelsWorkspace({
                     <strong className="truncate text-sm text-black/78">{asset.name}</strong>
                     <span className={`size-2 shrink-0 rounded-full ${asset.status === "active" ? "bg-emerald-500" : asset.status === "paused" ? "bg-amber-500" : "bg-black/20"}`} />
                   </span>
-                  <span className="mt-1 block truncate text-[11px] text-black/43">{formatLabel(asset.funnel?.format ?? "one-page")}  -  {asset.funnel?.steps.length ?? 0} steps</span>
+                  <span className="mt-1 block truncate text-[11px] text-black/60">{formatLabel(asset.funnel?.format ?? "one-page")}  -  {asset.funnel?.steps.length ?? 0} steps</span>
                   <span className="mt-2 flex items-center gap-3 text-[10px] text-black/42"><span>{asset.leads} leads</span><span>{asset.conversions} conversions</span></span>
                 </button>
               );
@@ -757,7 +757,7 @@ function BrandAssignment({ companyIds, companies, onChange }: { companyIds: stri
 }
 
 function SectionHeading({ icon, title, detail }: { icon: React.ReactNode; title: string; detail: string }) {
-  return <div className="flex items-start gap-3"><span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-md bg-brand/10 text-brand">{icon}</span><div><h3 className="text-sm font-semibold text-black/78">{title}</h3><p className="mt-1 text-xs leading-5 text-black/43">{detail}</p></div></div>;
+  return <div className="flex items-start gap-3"><span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-md bg-brand/10 text-brand">{icon}</span><div><h3 className="text-sm font-semibold text-black/78">{title}</h3><p className="mt-1 text-xs leading-5 text-black/60">{detail}</p></div></div>;
 }
 
 function ConnectionPill({ label, href, external = false }: { label: string; href: string; external?: boolean }) {

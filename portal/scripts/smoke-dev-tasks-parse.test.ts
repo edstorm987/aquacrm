@@ -221,6 +221,13 @@ test("only the plans that genuinely have no phases yield none", async () => {
   // Handoff notes and a plan whose phases read "(To fill once Ed answers)".
   // Anything else dropping to zero means a plan silently left the roadmap.
   const allowed = new Set([
+    // The 2026-09-03 release-baseline register and the post-baseline product
+    // roadmap are ASSESSMENTS, not queued work: the first labels every area
+    // VERIFIED/PARTIAL/BLOCKED/NOT TESTED, the second is explicitly not started
+    // until that baseline is preserved. Giving either phases would put
+    // unstarted work on the roadmap as if it were in flight.
+    "production-readiness-roadmap-2026-09-03",
+    "product-roadmap-2026-09",
     "advisor-omega-upgrade",
     "aqua-engine-and-dev-team-plugin",
     // An IDEA, recorded deliberately unstarted (2026-08-29). Ed's reasoning is

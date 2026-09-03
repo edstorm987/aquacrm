@@ -51,7 +51,7 @@ test("website enquiries appear in alerts and a first-class inbox feed", () => {
   assert.match(alerts, /website-message:\$\{enquiry\.id\}/);
   assert.match(alerts, /enquiryTitle\(enquiry/);
   assert.match(alerts, /enquiry\.channel === "support"/);
-  assert.match(inboxPage, /listWebsiteEnquiries\(session\.agencyId\)/);
+  assert.match(inboxPage, /listWebsiteEnquiries\(agencyId\)/);
   assert.match(inboxUi, /label="Enquiries"/);
   assert.match(inboxUi, /label="Chatbot"/);
   assert.match(inboxUi, /label="Support"/);
@@ -95,7 +95,8 @@ test("public messages and client tickets can be triaged and resolved in the inbo
 });
 
 test("historical website enquiries can be safely linked to sales", () => {
-  assert.match(repairRoute, /requireRole/);
+  // 2026-09-03: the repair route gates on the actor's Inbox element rather than a bare role.
+  assert.match(repairRoute, /requireCurrentWorkspaceElementAccess\("staff", "workspace\.inbox", "use"\)/);
   assert.match(repairRoute, /leads\.upsert\(/);
   assert.match(repairRoute, /await flushPendingWrites\(\)/);
   assert.match(repairRoute, /leadLinkedAt/);

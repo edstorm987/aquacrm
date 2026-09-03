@@ -182,7 +182,12 @@ export function Sidebar({ panels, tenantLabel, currentPath, mobile = false, extr
             data-workspaces={w.id}
             className="mt-4 rounded-lg border border-dashed border-black/15 bg-white/40 p-3 text-[12px] text-black/55"
           >
-            <div className="mb-1 font-semibold" style={{ color: w.color }}>{w.label}</div>
+            {/* The workspace colour is a swatch, not the text colour: 12px copy in a
+                brand tint (Aqua HQ's teal reads 3:1 on white) fails WCAG AA. */}
+            <div className="mb-1 flex items-center gap-1.5 font-semibold text-black/75">
+              <span aria-hidden className="inline-block size-2 shrink-0 rounded-full" style={{ backgroundColor: w.color }} />
+              {w.label}
+            </div>
             <div>No tools are available in this area yet.</div>
             <a href="/portal/agency/settings" className="mt-1.5 inline-block text-[11px] underline">Open settings →</a>
           </div>

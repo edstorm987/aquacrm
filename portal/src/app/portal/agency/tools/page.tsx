@@ -60,6 +60,16 @@ const QUICK_TOOLS = [
     icon: NotebookPen,
     tone: "amber",
   },
+  {
+    // The personal view — actions, goals, wellbeing and pace. Deliberately not
+    // Business Radar, which lives in the Command Centre for whole-business seats.
+    href: "/portal/agency/my-radar",
+    label: "My Radar",
+    detail: "Your own actions, goals, wellbeing and work pace — the personal view, separate from the business scan.",
+    action: "Open My Radar",
+    icon: Activity,
+    tone: "teal",
+  },
 ] as const;
 
 

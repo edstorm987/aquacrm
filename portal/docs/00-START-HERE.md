@@ -2,12 +2,12 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-09-02 from **21** source documents / **36,181 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-03 from **21** source documents / **36,912 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
 - [`AGENTS.md`](#source-agents-md) — 95 words · `63f2c50380ed`
-- [`CLAUDE.md`](#source-claude-md) — 4,053 words · `8e641d8c8fa2`
+- [`CLAUDE.md`](#source-claude-md) — 4,324 words · `7b84efec6e2c`
 - [`docs/data/adr/ADR-001-semantic-registry-in-code.md`](#source-docs-data-adr-adr-001-semantic-registry-in-code-md) — 217 words · `f092ef6a564d`
 - [`docs/data/adr/ADR-002-domain-modules-are-the-repository-seam.md`](#source-docs-data-adr-adr-002-domain-modules-are-the-repository-seam-md) — 218 words · `361439671762`
 - [`docs/data/adr/ADR-003-one-calculation-path-per-metric.md`](#source-docs-data-adr-adr-003-one-calculation-path-per-metric-md) — 233 words · `9143b1627c97`
@@ -17,15 +17,15 @@
 - [`docs/data/LINEAGE.md`](#source-docs-data-lineage-md) — 681 words · `427fd35d964a`
 - [`docs/data/MIGRATION-PLAN.md`](#source-docs-data-migration-plan-md) — 2,014 words · `867a7712f43a`
 - [`docs/data/SEMANTIC-LAYER.md`](#source-docs-data-semantic-layer-md) — 783 words · `cea3578c4a18`
-- [`docs/data/SOURCE-INVENTORY.md`](#source-docs-data-source-inventory-md) — 1,724 words · `11b027a56a18`
+- [`docs/data/SOURCE-INVENTORY.md`](#source-docs-data-source-inventory-md) — 1,768 words · `f001415a20ae`
 - [`docs/DEVELOPMENT-HANDOFF.md`](#source-docs-development-handoff-md) — 1,552 words · `9199166a1f30`
 - [`docs/development-workspace-cleanup.md`](#source-docs-development-workspace-cleanup-md) — 793 words · `bdb46a5cecd3`
-- [`docs/development.md`](#source-docs-development-md) — 3,285 words · `9f2c4da449cb`
+- [`docs/development.md`](#source-docs-development-md) — 3,352 words · `35cab09fe2b9`
 - [`docs/development/CAMPAIGN-LEDGER.md`](#source-docs-development-campaign-ledger-md) — 11,346 words · `8906eb267d7b`
 - [`docs/development/CLOUD-RESUME.md`](#source-docs-development-cloud-resume-md) — 500 words · `03458cdf18bf`
 - [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 2,095 words · `379784a12461`
 - [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,643 words · `38954d1ad66e`
-- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 2,180 words · `596b0f059feb`
+- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 2,529 words · `27d50117e451`
 - [`README.md`](#source-readme-md) — 437 words · `78865db66238`
 
 ---
@@ -52,7 +52,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## Source document — `CLAUDE.md`
 
-<!-- AQUACRM_SOURCE_START path="CLAUDE.md" sha256="8e641d8c8fa2d1e6db5ffd5af6286f323da306086f10f20a1345e19ad695a872" -->
+<!-- AQUACRM_SOURCE_START path="CLAUDE.md" sha256="7b84efec6e2ceed69f0a39b9dff34a8e8e73740833ddb977fa3607575d21db8b" -->
 @AGENTS.md
 
 # AquaCRM Claude Handoff
@@ -134,8 +134,8 @@ and the current TODO before acting on any line here.*
    cookie now gets 403 with no token from `POST /api/portal/settings/external-ai`
    after downgrade, password rotation, explicit rotation and deletion.
    `npm run smoke:session-revocation` (16/16). → issues #22 RESOLVED.
-2. 🟡 **Dev Workspace phase 17 — preview half complete, authoring half blocked on
-   credentials.** Built and proven: the isolated per-project branch/worktree on
+2. 🟡 **Dev Workspace phase 17 — preview half complete, dirty-transition browser half
+   proven (28fc767, re-run 2026-09-03), authoring half blocked on credentials.** Built and proven: the isolated per-project branch/worktree on
    `aqua-editor/<projectId>`, declared dependency-install readiness with an
    `installing` state, and the named failure paths (dependency/start failure,
    occupied port, crash, CSP, stale preview, rejected AI change, cross-project
@@ -301,6 +301,17 @@ review-and-seed screen. His answers on what transfers are recorded verbatim in
   deployed-live are not interchangeable.
 
 ### Latest trustworthy evidence
+
+*3 September 2026 — release baseline.* The integrated `main` (six worker lanes, My Tools
+folders/icons, the personal/business Radar split with linked Calendar records) was built
+fresh as an exact production dist and every browser gate ran against it on isolated lanes:
+house matrix 1326 checks: 1171 passed / 0 failed / 155 evidenced observations / 0 missing, the new release gate `browser-release-acceptance.mjs` 163 stories: 163 passed / 0 failed / 0 missing (roles 18/18, radar 10/10, calendar 12/12, tools 12/12, newsletter 3/3, layout 108/108),
+Notepad/Finance notepad 17/17, finance 16/16, layout 42/42, loader 2/2 (77/77, 0 missing), Team Chat stories 22/22; matrix 72 passed / 0 failed / 9 evidenced observations of 81 at seven viewports, Phase Admin 10/10 stories across 390×844 and 1280×800, 2 recorded N/A (production preview refusal), 0 unexpected console/page/request/HTTP failures, Aqua Tag 220/220 checks (0 failed) at 390×844 and 1280×800, Dev Editor
+191 passed / 2 failed / 13 explained N/A rows / 47 observations on the full matrix; the two failures were one timing-sensitive held-reply step that passed on an uncontended rerun of the AI scenario (14/14) and one dev-mode hydration-mismatch console warning raised only inside the AI scenario, recorded as an open residual, canonical suite Node phase 6693 tests across 1135 suites: 6691 passed / 0 failed / 2 skipped in 115621.124792ms; Website Editor gate 49/49 files. Four contrast defects and one focus-return defect were
+fixed first. The labelled register is `docs/development/plans/production-readiness-roadmap-2026-09-03.md`;
+the post-baseline product plan is `plans/product-roadmap-2026-09.md`. Isolated lanes attach a
+seeded session cookie (`AQUA_SESSION_COOKIE`) because the login route needs Supabase. Everything
+below this paragraph is older evidence.
 
 *Refreshed 2 September 2026. These are local/source-freeze and isolated-
 production-browser measurements. They are not deployed geo/CDN, live-provider,
@@ -1469,7 +1480,7 @@ strangler migration moves (MIGRATION-PLAN §phases).
 
 ## Source document — `docs/data/SOURCE-INVENTORY.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/data/SOURCE-INVENTORY.md" sha256="11b027a56a18a1e79975f1a5201c41955405468d8d8b04974c7fb0f0a0c7c268" -->
+<!-- AQUACRM_SOURCE_START path="docs/data/SOURCE-INVENTORY.md" sha256="f001415a20ae292630ad496711227d7eedc65f69725d708b0aac4ad4fddaa2f6" -->
 # Source inventory — every store, its authority, and its consumers
 
 *Compiled 2026-08-30 from a full survey of the working tree (storage adapters,
@@ -2049,7 +2060,7 @@ Before deleting a source folder:
 
 ## Source document — `docs/development.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development.md" sha256="9f2c4da449cb26283cce46a90ec030e72ec4942cf623422488fabd960f293227" -->
+<!-- AQUACRM_SOURCE_START path="docs/development.md" sha256="35cab09fe2b9c3d539bcb899d22c131a07d4eb4fb0f621880543df3ef445a669" -->
 # development.md — the law
 
 **This is the master catalogue and build map for AquaCRM. Use it to find the
@@ -2158,6 +2169,8 @@ Everything dated — old summaries, session records, worker debriefs — lives o
 | **[TODO.md](development/TODO.md)** | **The one task list.** Blocked-on-Ed first, then P0/P1/P2, each row pointing at its `issues.md` entry for the detail. If you read one thing before working, read this. |
 | **[architecture-noobie.md](architecture-noobie.md)** | The whole system explained in **plain English**, no jargon. Start here if you're new (human or agent) and the catalogue below is too dense. |
 | **[development/plans/fulfilment-template-system.md](development/plans/fulfilment-template-system.md)** | **The template system** — portal/product templates edited once and seeded into every client instance, owned by Fulfilment (Ed's direction, 2026-08-27). Most of the spine already exists; the new idea is a cross-tenant *origin* template. |
+| **[development/plans/production-readiness-roadmap-2026-09-03.md](development/plans/production-readiness-roadmap-2026-09-03.md)** | **The release baseline register** — nine areas, every row VERIFIED / PARTIAL / BLOCKED / NOT TESTED / POST-RELEASE with its exact evidence. Read before claiming readiness. |
+| **[development/plans/product-roadmap-2026-09.md](development/plans/product-roadmap-2026-09.md)** | **The post-baseline product roadmap** — personal vs business Command Centre and Radar, semantic KPI definitions, data interfaces, configurable topbars, per-workspace/per-role navigation, overrides and permission requests. Not started until the baseline is preserved. |
 | **[development/plans/dev-editor-finish.md](development/plans/dev-editor-finish.md)** | **Current Dev Editor plan.** The 22 Aug session handoff is preserved on the [history shelf](context/archive/dev-editor-handoff-2026-08-22.md), but it is no longer a current brief. |
 | **[context/archive/](context/archive/README.md)** | 🗄 **The history shelf.** Dated records — superseded summaries, session handoffs, worker debriefs — kept because they are the only place some facts survive, and **never current**. `phases.md` (the old roadmap) lives here now. Nothing on this shelf should brief a worker. |
 | **[plans/](development/plans/)** | One **phased plan per substantial item** (e.g. [radar-upgrade.md](development/plans/radar-upgrade.md), [mfa-login.md](development/plans/mfa-login.md)). Each plan's own `**Status:**` line is the authority on that item. Shipped plans may be moved to [plans/archive/](development/plans/archive/). |
@@ -3861,7 +3874,7 @@ Path prefix: /private/tmp/claude-501/.../scratchpad/
 
 ## Source document — `docs/development/TODO.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="596b0f059feb4ca5a793e1226ed897fe919e5077cd4dd8521f6b52bb17a20999" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="27d50117e45144285a30dbce06b943b89ef9c2d6e4d091b61d206c4ed908bbb9" -->
 # TODO — the one list
 
 **This is the only task list.** `checklist.md` and `todo-retired.md` are retired; they held the
@@ -3881,7 +3894,7 @@ remains the backing store. This file is the index over it.
 
 ---
 
-## 🔒 Blocked on you — 10
+## 🔒 Blocked on you — 11
 
 Nothing here moves without an account, a credential or a decision from you. Taken from
 the retired files' own Ed-only sections, minus one they had mis-filed (`#1`, RLS, whose
@@ -3893,6 +3906,7 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [ ] Meta Developer app  <sub>from checklist.md, no issue number</sub>
 - [ ] Deployment env verification  <sub>from checklist.md, no issue number</sub>
 - [ ] Apply the pending Supabase migrations before production rollout  <sub>from checklist.md, no issue number</sub>
+- [ ] Enable Supabase point-in-time recovery and rehearse one restore before production rollout — no backup/recovery runbook exists in the repository (readiness roadmap §5)  <sub>added 2026-09-03</sub>
 - [ ] DPO sign-off  <sub>from checklist.md, no issue number</sub>
 - [ ] Aqua Tag form-capture consent → [#2](issues.md)
 - [ ] Choose the permanent last-grant revocation policy → [#174](issues.md)
@@ -3906,9 +3920,9 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 ## P1 — before broader launch — 55
 
 - [~] Editor AI database coordination is implemented; live DB proof remains → [#18](issues.md)
-- [~] Complete Editor dirty-state browser acceptance → [#19](issues.md) `⚠ disputed`
+- [~] Editor dirty-state browser acceptance is proven on a Dev Mode lane (28fc767; re-run 2026-09-03 191 passed / 2 failed / 13 explained N/A rows / 47 observations on the full matrix; the two failures were one timing-sensitive held-reply step that passed on an uncontended rerun of the AI scenario (14/14) and one dev-mode hydration-mismatch console warning raised only inside the AI scenario, recorded as an open residual); the recorded SEO-prompt and phone-drawer residuals stay → [#19](issues.md)
 - [~] Public showcase capability boundary and shared fixture are repaired → [#21](issues.md) `⚠ disputed`
-- [~] Continue repairing Website Editor API contracts; exact-scope AI gating is fixed and the dead-call ratchet is 14 → [#28](issues.md)
+- [~] Continue repairing Website Editor API contracts; exact-scope AI gating is fixed, the newsletter facade is real (d245e51, browser-proven 2026-09-03) and the dead-call ratchet is 13 → [#28](issues.md)
 - [~] Website Editor now has consent-aware Contact capture, published Blog summaries/detail, immutable published page snapshots and a narrow anonymous Ecommerce facade; finish the remaining visitor backends, operator handoff and live-browser acceptance → [#29](issues.md) `⚠ disputed`
 - [~] Paid Memberships foundation is real; finish live Stripe lifecycle acceptance → [#33](issues.md)
 - [~] Build custom portal now reaches the canonical provisioner; mounted provision/reload acceptance remains → [#36](issues.md)
@@ -3937,8 +3951,8 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Opportunity money is safe under same-process races and, on the file backend, across real processes (ledger/invoice claims under the exclusive lane, crash-after-claim retry proven); live database constraints, provider delivery across processes and lost-ack browser coverage remain → [#81](issues.md)
 - [~] Mounted Marketing records are isolated and stale-safe in one process and, on the file backend, across real processes (create/edit/stale-delete/reload proven with separate Node processes); a live database-native version constraint remains → [#82](issues.md)
 - [~] Agency Marketing lead identity, re-keying, erasure and contact history are cross-process/crash-atomic on the file backend; finish native Supabase/Postgres uniqueness and live-provider acceptance → [#83](issues.md)
-- [~] Aqua Tags stop-routing is non-destructive; mounted click acceptance remains → [#85](issues.md)
-- [~] Make Aqua Tag form ingestion durable and order-independent → [#87](issues.md)
+- [~] Aqua Tags stop-routing is non-destructive and mounted click acceptance is proven on a dev lane (0578ddb; re-run 2026-09-03 220/220 checks (0 failed) at 390×844 and 1280×800); live database ingestion remains → [#85](issues.md)
+- [~] Aqua Tag form ingestion is durable and order-independent in source with a database-native claim boundary (0578ddb); apply `20260902093000_aqua_tag_submission_delivery.sql` live and exercise it there → [#87](issues.md)
 - [~] Dev Team document bytes and attribution now recover together after process death; constrain the final non-cooperating direct-writer check/rename window → [#88](issues.md)
 - [~] Client schedules and Finance Plans are converged; mounted browser acceptance remains → [#121](issues.md)
 - [~] Membership subscription and plan-price changes retain durable operation history, fence provider work through authoritative state adoption and preserve every provider generation; finish the full mounted lifecycle and live Stripe acceptance → [#122](issues.md)
@@ -3953,7 +3967,7 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Make date-only business values local-calendar safe → [#140](issues.md)
 - [~] Voice/call recorder negotiation and failure cleanup are repaired; mounted cross-browser acceptance remains → [#145](issues.md)
 - [~] Relative countdown deadline code/service behaviour is repaired; mounted acceptance remains → [#146](issues.md)
-- [~] Team Chat and notification response-order code is repaired; mounted acceptance remains → [#147](issues.md)
+- [~] Team Chat and notification response order is repaired and browser-proven (bb6119a; re-run 2026-09-03 stories 22/22; matrix 72 passed / 0 failed / 9 evidenced observations of 81 at seven viewports on the integrated build); only the Attention Shield seed caveat is recorded → [#147](issues.md)
 - [~] Named core storage/provider waits are bounded; finish mounted/live acceptance → [#148](issues.md)
 - [~] Execute relational extraction, backfill and RLS; semantic Phase 0, durable KPI identities and crash-safe post-commit outbox handoff are shipped, while cross-process claims and consumer acknowledgement/retry/dead-letter remain open → [data migration plan](../data/MIGRATION-PLAN.md)
 - [~] Editor `requiresPlugin` gating is code/behaviour-complete and an enabled tenant palette is browser-proven; compare disabled state and disable/reload preservation → [#183](issues.md)
@@ -3961,23 +3975,26 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Sixteen exact public routes are now classified, including allowlisted Ecommerce and Website Editor visitor facades; continue one operation at a time → [#185](issues.md)
 - [~] Isolated server/browser lane is restored; finish the remaining critical-flow acceptance  <sub>from todo-retired.md, no issue number</sub>
 
-## P2 — quality and correctness — 15
+## P2 — quality and correctness — 18
 
 - [~] Reference validation remains a broad open class; the audited client-route slice is fixed → [#20](issues.md)
 - [~] Canonical staff workspace capability policy, reusable-role authoring and Staff Technical Hidden/View/Use/Manage plus same-cookie downgrade enforcement are source/isolated-browser proven; finish provider-backed live-persona/shared-credential acceptance → [#25](issues.md)
 - [~] Shared plugin settings is operable and Marketing, Website Editor, Fulfillment and Memberships are truthful; Memberships is exact-build browser-proven, Ecommerce's low-stock default and Leads Pipeline's default source/capture column are now consumed and three dead Finance/Ecommerce/Leads declarations are removed, Client CRM's default tags and signup mirror are consumed and five stored-only promises (HR 2, Affiliates 2, Client CRM 1) are removed; the three that remain (HR staff-edit permission, Public Funnel redirect and session cookie) are safety-shaped access/session controls left labelled "Not connected" pending a security decision → [#44](issues.md)
-- [~] Finance, Dev Team, Governance, Fulfilment, Actions and Performance mutation controls use checked response contracts; Actions (four viewports) and Performance (seven viewports) are exact-build browser-proven, while Client Centre, phase, SOP, Company and other families and their acceptance matrix stay open → [#47](issues.md)
-- [~] Finish Notepad autosave browser acceptance → [#54](issues.md)
+- [~] Finance, Dev Team, Governance, Fulfilment, Actions, Performance and Phase Admin mutation controls use checked response contracts; Actions (four viewports), Performance (seven viewports) and Phase Admin (0078567 dev lane 10/10; 2026-09-03 production lane 10/10 stories across 390×844 and 1280×800, 2 recorded N/A (production preview refusal), 0 unexpected console/page/request/HTTP failures, preview N/A by the dev-mode switch) are browser-proven, while Client Centre, SOP, Company and other families stay open → [#47](issues.md)
+- [~] Notepad autosave is browser-proven on two isolated exact builds (e1b2781; re-run 2026-09-03 notepad 17/17, finance 16/16, layout 42/42, loader 2/2 (77/77, 0 missing)); keep open only for a live-provider (Supabase-backed) rerun → [#54](issues.md)
 - [~] Mounted acceptance remains for settled utility controls → [#61](issues.md)
 - [~] Agency Marketing campaign rows, channel indexes and reports are cross-process/crash-atomic on the file backend; finish native Supabase/Postgres constraints and live-provider acceptance → [#84](issues.md)
-- [~] Finance settings now control new invoices/documents; browser acceptance remains → [#120](issues.md)
-- [~] The route loader and Visual Builder boot expose one real live status, and the visual handoff is browser-proven; screen-reader announcement/removal/focus acceptance remains → [#136](issues.md)
+- [~] Finance settings control new invoices/documents and are browser-proven on two isolated exact builds (e1b2781; re-run 2026-09-03 notepad 17/17, finance 16/16, layout 42/42, loader 2/2 (77/77, 0 missing)); live-provider rerun remains → [#120](issues.md)
+- [~] The route loader exposes one real live status; its mounted evidence was re-taken on 2026-09-03 (loader 2/2, reduced motion included); screen-reader announcement remains untested (no assistive technology is driven) → [#136](issues.md)
 - [~] Tabs, menus and listboxes now use honest roles and shared keyboard models; mounted representative acceptance remains → [#138](issues.md)
 - [~] The real self-contained global error fallback is shipped; production root-fault/recovery acceptance remains → [#141](issues.md)
 - [~] Chromium-required 192/512 and maskable PWA assets are shipped; eligible/dismissed/installed browser acceptance remains → [#142](issues.md)
 - [~] Published current-page blocks are hydration-stable in default and explicit modes; mounted navigation acceptance remains → [#143](issues.md)
 - [~] Private media has one tested 200/206/416 provider-aware byte-range contract; mounted playback/seek acceptance remains → [#144](issues.md)
 - [~] Finish production-durable Dev Team authoring and live signals  <sub>consolidated from the retired lists; no issue number</sub>
+- [ ] Bring dense operator controls to 44×44 (calendar month toolbar, phase card actions, inbox chips, notepad tabs) — recorded per page by `browser-release-acceptance.mjs` on 2026-09-03  <sub>added 2026-09-03</sub>
+- [ ] Find the SSR/CSR attribute mismatch in the Dev Team layout's topbar lead (`div[data-topbar-lead]`) that the Dev Editor gate's AI scenario surfaces as one hydration warning on a Dev Mode lane (plain loads are clean; entered with the 2026-09-03 integration)  <sub>added 2026-09-03</sub>
+- [ ] Raise the remaining low-opacity small text that no gate walked (`ExternalAiConnectionPanel` emerald /50–/60, `_ActionsWorkspace` /65, `NotificationCentreButton` /62) — static observation only  <sub>added 2026-09-03</sub>
 
 ## Unprioritised — 25
 

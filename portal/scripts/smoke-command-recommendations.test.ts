@@ -64,7 +64,12 @@ test("Actions and Advisor share one always-visible, approval-only top five", () 
   assert.match(context, /recommendedActions/);
   assert.match(skillContext, /command: \{/);
   assert.match(skillContext, /visibility: \{/);
-  assert.match(skillContext, /Never describe the business as healthy without reconciling them/);
+  // 2026-09-03 rewording with the Radar split: the same contract — the five
+  // deterministic recommendations, the visibility limits and the accountability
+  // evidence must be reconciled before any statement of business health — and a
+  // seat whose access withholds them is told never to infer their values.
+  assert.match(skillContext, /Reconcile the supplied deterministic recommendations, visibility limits, and work-accountability evidence before describing business health/);
+  assert.match(skillContext, /were withheld by the acting person's current access\. Never infer their values from the omission/);
   assert.match(route, /recommendedActions: advisorContext\.recommendedActions/);
   assert.doesNotMatch(route, /if \(!isAssistantConfigured\(session\.agencyId\)\) \{[\s\S]{0,400}suggest-actions/);
   assert.match(advisor, /if \(!apiKey\) return guaranteedRadarActions/);

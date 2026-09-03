@@ -41,7 +41,8 @@
 // Sign-in defaults to `/dev`, which mints a real writable session with NO
 // credentials on a file/memory backend — so the local lane needs no founder
 // password. Set FOUNDER_PASSWORD (or AQUA_AUTH=password) to drive a deployed
-// target through `/api/auth/login` instead.
+// target through `/api/auth/login` instead, or AQUA_SESSION_COOKIE=name=value
+// to attach a session a lane seed minted for an isolated production build.
 //
 // Narrow a run while iterating:
 //   AQUA_VIEWPORTS=mobile-portrait,desktop AQUA_PAGES=/portal/agency npm run browser:matrix
@@ -627,7 +628,25 @@ export function selectPages(filter) {
 async function signIn(page) {
   const email = process.env.FOUNDER_EMAIL || "edwardhallam07@gmail.com";
   const password = process.env.FOUNDER_PASSWORD || "";
-  const mode = process.env.AQUA_AUTH || (password ? "password" : "dev");
+  const cookie = process.env.AQUA_SESSION_COOKIE || "";
+  const mode = process.env.AQUA_AUTH || (cookie ? "cookie" : password ? "password" : "dev");
+
+  if (mode === "cookie") {
+    // An isolated production lane (`next start` on a private file backend) has
+    // neither `/dev` nor a Supabase-backed password: its seed mints the session
+    // and hands the cookie over as `name=value`. It is attached to the bootstrap
+    // context so `storageState()` carries it into every viewport exactly as a
+    // real login would, and it is proven against the app before anything is
+    // judged — a rejected cookie is a failed sign-in, not a walk of login pages.
+    const separator = cookie.indexOf("=");
+    if (separator <= 0) throw new Error("AQUA_SESSION_COOKIE must be name=value");
+    await page.context().addCookies([{ name: cookie.slice(0, separator), value: cookie.slice(separator + 1), url: BASE }]);
+    const me = await page.request.get(`${BASE}/api/auth/me`);
+    if (me.status() !== 200) {
+      throw new Error(`sign-in failed: the session cookie was rejected (/api/auth/me → ${me.status()})`);
+    }
+    return "cookie";
+  }
 
   if (mode === "password") {
     const response = await page.request.post(`${BASE}/api/auth/login`, {

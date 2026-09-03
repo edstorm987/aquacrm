@@ -80,23 +80,26 @@ describe("inbox + actions unification", () => {
     );
     assert.match(
       INBOX_PAGE,
-      /actionsSlot=\{preparedActions \? <AgencyActionsPage prepared=\{preparedActions\} \/> : null\}/,
+      // 2026-09-03: the slot is also gated on the actor's Actions element, so a
+      // seat without `workspace.actions` gets the same null slot a showcase does.
+      /actionsSlot=\{preparedActions\?\.actionsAvailable \? <AgencyActionsPage prepared=\{preparedActions\} \/> : null\}/,
       "inbox page must pass AgencyActionsPage outside the read-only public showcase",
     );
     assert.match(
       INBOX_PAGE,
-      /openActionCount=\{preparedActions\?\.openActionCount \?\? 0\}/,
+      /openActionCount=\{preparedActions\?\.actionsAvailable \? preparedActions\.openActionCount : 0\}/,
       "the Needs-you badge no longer receives the actions count — it will read 0 with a full queue again",
     );
   });
 
-  it("the old actions route redirects onto the inbox Actions tab", () => {
-    assert.match(ACTIONS_PAGE, /from\s*"next\/navigation"/, "actions page must use next/navigation redirect");
-    assert.match(
-      ACTIONS_PAGE,
-      /redirect\("\/portal\/agency\/inbox\?view=actions"\)/,
-      "actions page must redirect to the inbox Actions tab",
-    );
+  it("the actions route is a real Actions-only destination again (2026-09-03)", () => {
+    // Reversed with the personal/business Radar split: a seat granted
+    // `workspace.actions` but not `workspace.inbox` must reach their tasks
+    // without the combined Inbox serialising conversations and enquiries that
+    // belong to a separately configurable element. So /actions renders the same
+    // component the Inbox slot uses, and no longer redirects into the Inbox.
+    assert.match(ACTIONS_PAGE, /return <AgencyActionsPage \/>;/, "actions page must render the shared Actions component");
+    assert.doesNotMatch(ACTIONS_PAGE, /redirect\(/, "actions page must not redirect a narrowed seat into the Inbox");
   });
 
   it("the sidebar merges Inbox + Actions into one item", () => {

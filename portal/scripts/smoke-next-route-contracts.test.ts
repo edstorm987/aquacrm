@@ -63,10 +63,16 @@ describe("confirmed browser regressions", () => {
 
   it("prevents stale Team Chat requests from repainting a newer selection", () => {
     const chat = read("src/components/people/TeamChat.tsx");
-    assert.match(chat, /intentId !== intentSequence\.current/);
-    assert.match(chat, /channelId !== desiredChannel\.current/);
-    assert.match(chat, /requestId < appliedSequence\.current/);
-    assert.match(chat, /load\(channel\.id, true\)/);
+    // Since bb6119a the generations live in the pure TeamChatCoordinator
+    // (`lib/client/teamChatCoordination.ts`, proven by
+    // smoke-team-chat-response-order): every load and send takes a token and
+    // is accepted or rejected against the current selection, so an older
+    // channel response cannot replace the newer recipient.
+    assert.match(chat, /coordinator\.beginLoad\(channelId, isSelection\)/);
+    assert.match(chat, /coordinator\.rejectLoad\(token\)/);
+    assert.match(chat, /coordinator\.acceptLoad\(token, snapshot\)/);
+    assert.match(chat, /coordinator\.beginSend\(action, postingChannel\)/);
+    assert.match(chat, /coordinator\.acceptSend\(token, snapshot\)/);
   });
 
   it("keeps Finance currency resolution read-only", () => {

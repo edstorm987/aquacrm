@@ -217,8 +217,10 @@ describe("the non-plugin app API routes — the class with no class-level guard"
     // narrow department-baseline editor. It resolves the current access actor,
     // requires Business Radar visibility plus Staff settings-manage, accepts no
     // tenant input, and writes only `actor.resourceAgencyId`.
-    assert.equal(routes.length, 161,
-      `there are now ${routes.length} non-plugin routes under src/app/api/portal, not 161.`
+    // 161 → 162 on 2026-09-03: `chrome/tools/[toolId]/icon` (My Tools private icon
+    // bytes; tenant and owner come from `requireSelf()`, never from the request).
+    assert.equal(routes.length, 162,
+      `there are now ${routes.length} non-plugin routes under src/app/api/portal, not 162.`
       + " A new one has appeared: decide where IT gets its tenant from, then update this count.");
   });
 
@@ -258,6 +260,10 @@ describe("the non-plugin app API routes — the class with no class-level guard"
     const readers = appApiRoutes().filter(route => READS_REQUEST_CLIENT.test(routeSource(route)));
     assert.deepEqual(readers, [
       "portal/activity-inbox/list/route.ts",
+      // 2026-09-03: a calendar item may name the client it is ABOUT; the route
+      // pairs that id with the session agency through requireClientAssociation
+      // (both the existing and the requested client) before any write.
+      "portal/calendar/route.ts",
       "portal/client-portal-design/route.ts",
       "portal/clients/[clientId]/erase/route.ts",
       "portal/clients/[clientId]/radar/route.ts",

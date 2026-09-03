@@ -2,7 +2,7 @@
 
 > The append-only change record, dated handoffs and superseded historical summaries.
 >
-> Consolidated 2026-09-02 from **18** source documents / **133,615 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-03 from **18** source documents / **135,126 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -23,7 +23,7 @@
 - [`docs/context/archive/website-editor-and-migration.md`](#source-docs-context-archive-website-editor-and-migration-md) — 1,159 words · `235e8af731b6`
 - [`docs/context/archive/WHERE-WE-ARE-2026-08-18.md`](#source-docs-context-archive-where-we-are-2026-08-18-md) — 2,192 words · `4056e9a347cb`
 - [`docs/context/archive/WHERE-WE-STAND-2026-08-20.md`](#source-docs-context-archive-where-we-stand-2026-08-20-md) — 2,482 words · `26bf4442580e`
-- [`docs/development/updates.md`](#source-docs-development-updates-md) — 103,459 words · `9077b745fec2`
+- [`docs/development/updates.md`](#source-docs-development-updates-md) — 104,970 words · `e0e4e97bbb3c`
 
 ---
 
@@ -3318,7 +3318,7 @@ Being straight with you about the edges.
 
 ## Source document — `docs/development/updates.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="9077b745fec2eab2f51791b9457ed42c8a789f9f0438ce978e9a92d21e76d1ba" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="e0e4e97bbb3c6d0a14e384a2784ee17e947a5f8007b29e54957b456d86d3d2ad" -->
 # Updates log
 
 ← Back to [development.md](../development.md) (the law)
@@ -3354,6 +3354,133 @@ map stays trustworthy.
 > If you ship something, log it.
 
 ---
+
+## 2026-09-03 — Release baseline: fresh-build acceptance of the integrated main, four contrast fixes, one focus fix
+
+- **What was accepted.** The integrated `main` (06abeb9: six Claude lanes + My Tools
+  folders/icons + the personal/business Radar split with linked Calendar records) was
+  built from scratch as an exact production dist on an isolated lane (port 3201, private
+  file-backend state, provider variables blanked) and every browser gate was run against
+  it with a seeded owner, manager, sales-seat staff, un-granted staff, governed narrow
+  seat, client-owner and end-customer. Evidence lives under the session scratchpad
+  `lane-3201/final/` and is summarised in
+  [`plans/production-readiness-roadmap-2026-09-03.md`](plans/production-readiness-roadmap-2026-09-03.md).
+- **Final numbers on build bCDk8GQ5KJFAZVYNDvwvq (the commit that adds this entry; parent 06abeb9).**
+  House matrix 1326 checks: 1171 passed / 0 failed / 155 evidenced observations / 0 missing · release gate 163 stories: 163 passed / 0 failed / 0 missing (roles 18/18, radar 10/10, calendar 12/12, tools 12/12, newsletter 3/3, layout 108/108) · Notepad/Finance gate notepad 17/17, finance 16/16, layout 42/42, loader 2/2 (77/77, 0 missing) · Team
+  Chat/notifications gate stories 22/22; matrix 72 passed / 0 failed / 9 evidenced observations of 81 at seven viewports (lane 3202) · Phase Admin gate 10/10 stories across 390×844 and 1280×800, 2 recorded N/A (production preview refusal), 0 unexpected console/page/request/HTTP failures · Aqua Tag lane
+  220/220 checks (0 failed) at 390×844 and 1280×800 · Dev Editor lane 191 passed / 2 failed / 13 explained N/A rows / 47 observations on the full matrix; the two failures were one timing-sensitive held-reply step that passed on an uncontended rerun of the AI scenario (14/14) and one dev-mode hydration-mismatch console warning raised only inside the AI scenario, recorded as an open residual · canonical `npm run smoke:all` Node phase 6693 tests across 1135 suites: 6691 passed / 0 failed / 2 skipped in 115621.124792ms; Website Editor gate 49/49 files ·
+  TypeScript exit 0 · `git diff --check` clean.
+- **Defects found on the untouched baseline and fixed here.** (1) Fulfilment's attention
+  rows painted 12px detail text `text-black/43` on the tinted row (3.08:1; nine axe serious
+  failures across the matrix at ≥640px) — the same class in six sibling files was raised to
+  `/60`. (2) The Attention Shield copy used `text-emerald-950/58` on emerald (3.87:1) in the
+  inbox and notification centre — raised to `/75`. (3) The sidebar's empty-workspace label
+  painted 12px text in the workspace colour (Aqua HQ teal, 3:1) — now a swatch beside dark
+  text. (4) The Business Radar quick look closed on Escape but dropped focus to the page
+  body; it now returns focus to its control exactly like the My Radar control beside it.
+  (5) `smoke-business-radar` still pinned `runRadarFullSweep(session.agencyId)` after the
+  radar commit moved the route to the actor-resolved agency — re-pinned to
+  `actor.resourceAgencyId` (the integration's "128/128 focused" claim never ran that suite).
+- **The canonical suite on the untouched integrated main was red — 40 failing tests (59 leaf
+  assertions) across 30 files — and the integration's "128/128 focused" claim never ran it.**
+  A throwaway worktree at 06abeb9 reproduced the same failure set by name. Thirty-two were
+  stale source pins from the Radar split, the lanes' rewrites and the actor-resolved agency
+  (sidebar rows now carry My Radar; routes read `actor.resourceAgencyId`; the Team Chat
+  coordinator; the editor handshake on load *and* on trusted origin; the reworded Advisor
+  reconciliation instruction; the Inbox read-only rule now flowing from the element level) and
+  were re-pointed to the new truth with the reason on each. The rest were real gaps closed
+  here: a governed seat with `staff.people` could not search People at all
+  (`buildGovernedCandidates` had no People index; `smoke-search-restricted-route` now passes
+  including the revoke case), `personalMetricDays` was unclassified for the origin template
+  (never crosses tenants), `contactedAt`/`toolId`/`userId` were uncatalogued metadata keys,
+  the Operations and Tools directories had no My Radar card, `actions/page.tsx` was an
+  undeclared writing render, the route census had not counted the icon route or the calendar
+  route's client link, the assistant route's gate was unknown to the coverage scanner, and
+  `smoke-actions-task-validity` now enters a real request scope because the tasks route
+  resolves the actor's element through `cookies()`. The lease-fencing pin flipped once under
+  load and passes 3/3 in isolation.
+- **New gate.** `scripts/browser-release-acceptance.mjs` (pinned by
+  `smoke-release-acceptance-gate.test.ts` 4/4) drives roles and permission gates, the Radar
+  split, Calendar participants/clients/linked tasks/documents/custom fields, My Tools
+  folders/icons/uploads, the newsletter facade and 12 pages × 9 viewports (six house sizes,
+  320×568, two 200%-zoom equivalents) for overflow, axe, keyboard and modal behaviour.
+  `browser-matrix.mjs` and the Phase Admin gate gained `AQUA_SESSION_COOKIE` attach (an
+  isolated production lane has neither `/dev` nor a Supabase-backed password); the matrix
+  pin now allows exactly that one cookie write, proven against `/api/auth/me`. The Phase
+  Admin gate records "Preview as demo client" as an explicit N/A on a production build,
+  where the dev-mode switch refuses it 404 "Not available." by design. Two more facts the
+  production lane taught: the icon route stores bytes only through the Supabase private
+  bucket under `NODE_ENV=production`, so the upload story records the documented fail-closed
+  refusal as an N/A and the bytes stay proven by `smoke-my-tools-icon-route`; and Next reports
+  `req.url` with host `localhost` for an IP-literal binding, so origin-checked facades must be
+  driven from `http://localhost:<port>` on a loopback lane.
+- **Seed lessons.** The chat gate needs its own minimal seed: with two clients the Attention
+  Shield's five-item window held the sixth alert back (product behaviour, not a defect), so
+  it ran on a second `next start` of the same dist. A calendar day row's icon-only complete
+  toggle carries the title in its accessible name; locate the opener by visible text.
+- **Open finding from the Dev Editor lane.** In the AI-isolation scenario only, the dev
+  server logs one React hydration-mismatch warning whose component stack ends in the Dev Team
+  layout's topbar lead (`DevTeamLayout › header.mm-portal-… › div[data-topbar-lead]`); plain
+  loads of the editor, the editor door and the Dev Team home log nothing. The lane's own run
+  on 28fc767 was clean, so it entered with the integration. Recorded as a P2 with the
+  reproduction (`AQUA_SCENARIOS=ai` on the Dev Mode lane); `/portal/dev-team` is not in any
+  production browser gate, so its production console is NOT TESTED.
+- **Honest residuals.** Everything here is local, isolated-production or local-dev-lane
+  evidence on a file backend. Live Supabase/PostgreSQL migrations and RLS, live provider
+  delivery (Stripe, Resend, Twilio, Meta), payment acceptance, deployed CDN timing and
+  screen-reader announcement remain separate gates and are labelled BLOCKED or NOT TESTED
+  in the readiness roadmap. 44×44 target shortfalls on dense operator controls are recorded
+  per page as observations, not failures.
+- Reconciled [TODO](TODO.md), [issues](issues.md) #19/#28/#29/#47/#54/#85/#87/#120/#136/
+  #147/#184/#185, [status](status.md), [tests](tests.md) and the CLAUDE.md brief; added the
+  post-baseline [product roadmap](plans/product-roadmap-2026-09.md); regenerated the symbol
+  reference and consolidated volumes.
+
+## 2026-09-03 — Personal and business Radar separated, with linked Calendar records (06abeb9, logged late)
+
+- Ed's commit `06abeb9` (146 files) separated the person's Radar from the organisation's:
+  `/portal/agency/my-radar` is the personal view (actions, goals, wellbeing, pace) gated by
+  the `staff.overview` leaf; Business Radar, the radar-inspector station and Department
+  workload (`/portal/agency/radar/workload`, new) are gated by a composite capability that
+  scans every governed workspace, so a department seat never sees the organisation-wide
+  scan. The topbar keeps two controls: "My Radar" and "Business Radar".
+- Command Calendar entries gained `participantUserIds`, `clientId`, `linkedTaskIds`,
+  `documents` and `customFields` plus a `custom` item type; the API enforces link authority
+  (participants need `staff.people`, clients go through the client-association element,
+  linked tasks must be visible to the actor, only the owner edits) and participants see the
+  item read-only. `PersonalMetricDay` records personal quota evidence. Chrome, search,
+  assistant, inbox and notifications now resolve the actor's agency and elements.
+- It touched only generated docs; this entry and the 2026-09-03 acceptance above are its
+  log. Browser evidence: release gate R1–R9, D1–D5, C1–C6.
+
+## 2026-09-02/03 — Six worker lanes integrated onto main (logged late; evidence re-taken on 2026-09-03)
+
+Each lane was merged by the integration session without an update entry. The commit
+messages carry the detail; the 2026-09-03 acceptance above re-proved every mounted claim
+on a fresh build of the integrated tree.
+
+- `0578ddb` **Aqua Tag mounted routing acceptance (#85) and a database-native ingestion
+  boundary (#87)** — `browser-aqua-tag-routing-acceptance.mjs` (self-hosted dev lane),
+  `enquirySubmissionDelivery.ts`, `enquirySubmissionClaims.ts` and migration
+  `20260902093000_aqua_tag_submission_delivery.sql` (unapplied to live PostgreSQL).
+- `bb6119a` **Team Chat and notification response ordering browser-proven (#147)** —
+  `browser-chat-notification-order.mjs` with 22 stories and a 7-viewport matrix;
+  `teamChatCoordination.ts`.
+- `28fc767` **Dev Editor dirty-transition contract browser-proven and three defects
+  repaired (#19)** — accepted hide forgot preview state, the Aqua Tag handshake missed a
+  pre-hydration load, and "This workspace" retargeting never loaded the design;
+  `browser-dev-editor-dirty-transitions.mjs` (seed + run phases, Dev Mode lane only).
+- `0078567` **Agency Phase Admin checked mutations (#47, Phase Admin portion)** — create,
+  edit, delete and preview follow the checked mutation contract with authoritative receipts;
+  `browser-phase-admin-checked-mutations.mjs` 10/10 on a dev lane.
+- `e1b2781` **Notepad autosave and Finance settings browser-proven on an isolated exact
+  build (#54, #120, #136 evidence)** — three mounted defects fixed (invoice preview seller
+  precedence, icon-only "New note" name, focusable line-item table);
+  `browser-notepad-finance-acceptance.mjs`.
+- `d245e51` **Newsletter block given a real Website Editor visitor facade (#28, #29, #184,
+  #185)** — `visitor/newsletter` with consent digest, replay receipts, hashed rate limits,
+  one canonical subscriber per address and site, and the operator read
+  `forms/newsletter-subscriptions`.
 
 ## 2026-09-02 — Personal My Tools cards, artwork and folders
 

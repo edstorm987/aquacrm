@@ -180,5 +180,8 @@ test("Journey and Fulfilment identify linked buyers without merging project oper
   assert.match(marketing, /clientWorkspaceDisplayName\(selectedClient\)/);
   assert.match(development, /clientName: clientLabel/);
   assert.match(externalAssistant, /record\(module, client\.id, clientWorkspaceDisplayName\(client\), client\)/);
-  assert.match(advisor, /name: clientWorkspaceDisplayName\(client\)/);
+  // 2026-09-03: the client naming moved with the context builder into advisorContext.ts
+  // (the skill file now only scopes an already-built context).
+  const advisorContext = readFileSync("src/lib/server/assistants/advisorContext.ts", "utf8");
+  assert.match(advisorContext, /name: clientWorkspaceDisplayName\(client\)/);
 });

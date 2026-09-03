@@ -71,7 +71,8 @@ describe("Today leads the tabs and counts honestly", () => {
   });
 
   it("offers a route to the calendar to queue more", () => {
-    assert.match(workspace, /onOpenCalendar=\{\(\) => setView\("calendar"\)\}/);
+    // 2026-09-03: only a seat that can see the Calendar element is offered the route to it.
+    assert.match(workspace, /onOpenCalendar=\{calendarAvailable \? \(\) => setView\("calendar"\) : undefined\}/);
   });
 });
 

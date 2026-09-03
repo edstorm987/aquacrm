@@ -261,7 +261,7 @@ describe("mounted consumers preserve snapshots, expose retry and lock writes", (
     assert.match(register, /Retry removal/);
     assert.match(register, /removeInFlightRef\.current/);
     assert.match(register, /disabled=\{state !== "ready" \|\| removing !== null\}/);
-    assert.match(completedRoute, /deleteCompletedActionForOperation\(session\.agencyId, id, operationId\)/);
+    assert.match(completedRoute, /deleteCompletedActionForOperation\(agencyId, id, operationId\)/);
     assert.match(completedRoute, /await flushPendingWrites\(\);/);
   });
 

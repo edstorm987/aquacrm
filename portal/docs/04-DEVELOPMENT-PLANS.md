@@ -2,7 +2,7 @@
 
 > Every active, completed and archived phased implementation plan and handoff.
 >
-> Consolidated 2026-09-02 from **57** source documents / **116,643 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-03 from **59** source documents / **119,909 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -49,6 +49,8 @@
 - [`docs/development/plans/my-tools-palette.md`](#source-docs-development-plans-my-tools-palette-md) — 1,049 words · `222f231d0429`
 - [`docs/development/plans/operations-command-surface.md`](#source-docs-development-plans-operations-command-surface-md) — 823 words · `89d4c7af83fa`
 - [`docs/development/plans/plugin-data-erasure.md`](#source-docs-development-plans-plugin-data-erasure-md) — 3,211 words · `890e117cab2c`
+- [`docs/development/plans/product-roadmap-2026-09.md`](#source-docs-development-plans-product-roadmap-2026-09-md) — 902 words · `10a7d1b55065`
+- [`docs/development/plans/production-readiness-roadmap-2026-09-03.md`](#source-docs-development-plans-production-readiness-roadmap-2026-09-03-md) — 2,364 words · `ef85c5fce3d5`
 - [`docs/development/plans/promote-trading-company.md`](#source-docs-development-plans-promote-trading-company-md) — 4,457 words · `2f9dd8a1af32`
 - [`docs/development/plans/public-bucket-HANDOFF.md`](#source-docs-development-plans-public-bucket-handoff-md) — 1,244 words · `2b7dca7e3698`
 - [`docs/development/plans/public-bucket.md`](#source-docs-development-plans-public-bucket-md) — 764 words · `c13e9ce00332`
@@ -10120,6 +10122,266 @@ plan in flight._
 - `docs/compliance/erasure-dpo-pack.md`
 - `docs/development/plans/plugin-data-erasure.md`
 <!-- AQUACRM_SOURCE_END path="docs/development/plans/plugin-data-erasure.md" -->
+
+---
+
+<a id="source-docs-development-plans-product-roadmap-2026-09-md"></a>
+
+## Source document — `docs/development/plans/product-roadmap-2026-09.md`
+
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/product-roadmap-2026-09.md" sha256="10a7d1b55065a8e47ac29c144eff6aee91ad885092e2d02a263e2f1267493135" -->
+# Product roadmap — after the 3 September 2026 release baseline
+
+**Status:** proposed, not started. Nothing here begins until the release baseline in
+[`production-readiness-roadmap-2026-09-03.md`](production-readiness-roadmap-2026-09-03.md)
+is preserved in a known-good commit and Ed has cleared the blockers that need him.
+Each item names the surfaces it touches so a worker can scope a lane without
+re-exploring, and each says what already exists so it is repurposed rather than
+duplicated (`docs/workspace/hazards-and-duplication.md` rule).
+
+---
+
+## 1. Personal versus business Command Centre
+
+**Today:** one Command Centre (`/portal/agency`) with stations; the personal slice lives on
+`/portal/agency/my-radar` and the personal calendar, gated by `staff.overview` and
+`workspace.calendar`. The business slice is the radar-inspector station and Department
+workload, gated by the composite Business Radar capability.
+
+**Outcome:** a person opens *their* command centre (actions, calendar, goals, wellbeing,
+pace) and, when their seat allows, switches to the *business* command centre (portfolio
+KPIs, Business Radar, workload) — two views, one shell, no duplicated pages.
+
+- Phase A — extract the personal panels of `_DashboardCommandCenter` into a
+  `PersonalCommandCentre` station reusing `PersonalRadarPanel`; keep `/my-radar` as its
+  address.
+- Phase B — make the business/personal choice a topbar context (beside "Working as") and
+  remember it per user in the chrome layout record.
+- Phase C — a manager whose seat hides Business Overview lands on the personal view
+  without a redirect notice.
+
+## 2. Personal versus business Radar
+
+**Today:** split at the access layer (`personalRadarAccess.ts`), with separate topbar
+quick looks; the personal Radar has actions, goals, wellbeing and pace; Business Radar
+scans every department, client and dataset.
+
+- Phase A — evidence age and confidence on the personal Radar (the same three-way
+  health/evidence/readiness contract Business Radar already carries; issue #170's
+  freshness decision applies to both).
+- Phase B — personal quotas (`PersonalMetricDay`) surfaced as goals with a daily/weekly
+  toggle; the Calendar's "target" type feeds them.
+- Phase C — a department lens on Business Radar that reads the same
+  `DEPARTMENT_PROFILES` the seats use, so "what my department sees" and "what my
+  department is responsible for" agree.
+
+## 3. Semantic KPI and insight definitions
+
+**Today:** `semanticRegistry.ts` and the data engines carry KPI identities (Phase 0 of the
+data migration plan); KPI copy is still authored per panel.
+
+- Phase A — one definition record per KPI (name, formula, unit, source dataset, freshness
+  rule, owner) rendered from the registry in the KPI intelligence dossier.
+- Phase B — every KPI tile links to its definition and to the evidence rows it was
+  computed from (the Radar inspector already does this for checks).
+- Phase C — insight templates ("X changed because Y") generated from definitions, with
+  human acceptance before they become Advisor proposals (non-negotiable contract).
+
+## 4. Redesigned data interfaces
+
+**Today:** lists and tables are per-module components; custom fields exist for clients,
+tasks and calendar items with three different editors.
+
+- Phase A — one `RecordTable` and one `RecordForm` primitive with the shared keyboard,
+  focus and checked-mutation contracts already pinned (#47, #135, #138).
+- Phase B — adopt them in Actions, Calendar, People and Fulfilment first (the four surfaces
+  the release gate already walks), measured by the same gate.
+- Phase C — saved views per user in the chrome layout record.
+
+## 5. Configurable desktop topbars, equivalent to the mobile nesting system
+
+**Today:** `TOPBAR_CONTROL_IDS`, topbar pins and the "arrange which controls sit on the
+bar" flow exist; the mobile overflow nests controls; desktop shows a fixed order.
+
+- Phase A — the desktop bar reads the same pinned/nested arrangement the mobile drawer
+  uses, with an overflow menu on narrow desktops.
+- Phase B — per-workspace defaults (agency, team, client, customer) authored in Settings.
+- Phase C — keyboard model for the overflow (menu roles) and the release gate's
+  popover contract for every quick look.
+
+## 6. Per-workspace and per-role navigation and element configuration
+
+**Today:** sidebar assembly is actor-resolved (`agencyBasePanels.ts`) from element
+capabilities; the AquaOasis override narrows the visible set in code.
+
+- Phase A — move the override into a stored per-workspace navigation profile editable from
+  Settings, seeded from the current code default.
+- Phase B — per-role defaults keyed to reusable role templates (the department profiles
+  become the first presets).
+- Phase C — the Tools directory and search read the same profile, so nothing reachable is
+  unlisted and nothing hidden is advertised (the existing `capabilitySearchHrefs` rule).
+
+## 7. User overrides, enforced items and permission-request workflows
+
+**Today:** the access kernel supports requests/approval/denial/cancellation/revocation;
+the chrome layout record holds personal arrangement; `#174` (last-grant widening) is open.
+
+- Phase A — mark navigation items as *enforced* (cannot be hidden by the user) or
+  *optional* in the workspace profile; personal overrides apply only to optional items.
+- Phase B — "Request access" from a hidden-element notice (the
+  `notice=staff-overview-required` page) that files an access request through the
+  existing kernel and shows its state.
+- Phase C — resolve #174 with Ed, then make revocation narrow-by-default.
+
+## 8. Incremental user-requested UI and UX refinements
+
+Small, measurable, each proven by the release gate before merge:
+
+- 44×44 targets on the calendar toolbar, phase cards, inbox chips and notepad tabs.
+- Read the internal workspace label from the agency record.
+- The Dev Editor's SEO-field prompts and phone drawer draft retention (recorded by the
+  editor gate).
+- The remaining low-opacity small text in the External AI connection panel.
+
+---
+
+Every phase above ships with: a focused smoke, an entry in `updates.md`, a row in
+`TODO.md`, and a release-gate story where a mounted surface changes.
+<!-- AQUACRM_SOURCE_END path="docs/development/plans/product-roadmap-2026-09.md" -->
+
+---
+
+<a id="source-docs-development-plans-production-readiness-roadmap-2026-09-03-md"></a>
+
+## Source document — `docs/development/plans/production-readiness-roadmap-2026-09-03.md`
+
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/production-readiness-roadmap-2026-09-03.md" sha256="ef85c5fce3d563039e5ad6982b593cd1ddcd8b607fab8ef445c4bd7f679f25b8" -->
+# Production-readiness roadmap — 3 September 2026
+
+**Status:** living register, written at the release baseline of the commit that adds this document (parent 06abeb9 on `main`) on `main`.
+Every row is labelled **VERIFIED**, **PARTIAL**, **BLOCKED**, **NOT TESTED** or
+**POST-RELEASE**, and every VERIFIED/PARTIAL row names the exact evidence. Code or
+documentation that merely *exists* is never counted as acceptance here; a row
+without an evidence pointer is NOT TESTED by definition.
+
+Evidence labels are the house ones: **focused-test** (a named smoke suite),
+**canonical-suite** (`npm run smoke:all`), **isolated-production** (an exact
+`next build` served by `next start` on a private file-backend lane), **local-dev-lane**
+(a private `next dev` lane), **static** (source read). None of these is
+deployed-live, live-provider, live-PostgreSQL or cold-machine evidence.
+
+The one ordered blocker list that needs Ed remains
+[`launch-order-and-blockers.md`](launch-order-and-blockers.md) (⚡ DO THIS). This
+document does not re-derive it; it places it.
+
+---
+
+## 1. Release blockers
+
+| Item | State | Evidence |
+| --- | --- | --- |
+| Deploy with `NEXT_PUBLIC_PORTAL_SECURITY=strict` and an https `NEXT_PUBLIC_PORTAL_BASE_URL` | **BLOCKED (Ed)** | `inspectProductionReadiness()` with `.env.local` loaded: required 3/4 → 4/4 with the two variables (2026-08-28, `launch-order-and-blockers.md`). No deployment has been made since. |
+| Supabase account reconciliation (1 portal user without Auth, 2 Auth users without portal record) | **BLOCKED (Ed)** | `node scripts/supabase-cutover-preflight.mjs` (read-only, hashes only). Creating/deleting accounts is not automated by policy. |
+| Privacy-notice sentence, three retention numbers, embed-token distribution, DSAR intake | **BLOCKED (Ed)** | Drafts in `supabase-cutover-and-policy-drafts.md`; tripwire test pins both halves of the notice contradiction. |
+| Apply the four unapplied 2026-09-02 Supabase migrations before rollout | **BLOCKED (env)** | `supabase/migrations/20260902*` are source/mocked verified only (`tests.md`); `DATABASE_URL` absent from every lane. |
+| Ecommerce public authority + custom domain + live Stripe acceptance (#69, the only P0) | **PARTIAL** | Local end-to-end verified per `issues.md` #69; live Stripe/provider half BLOCKED on credentials. |
+| Release baseline commit | **VERIFIED** | the commit that adds this document (parent 06abeb9 on `main`) — the tree this document describes; every gate below was run against its exact build bCDk8GQ5KJFAZVYNDvwvq. |
+
+## 2. Automated verification
+
+| Item | State | Evidence |
+| --- | --- | --- |
+| Canonical suite on the release baseline | **VERIFIED** | Node phase 6693 tests across 1135 suites: 6691 passed / 0 failed / 2 skipped in 115621.124792ms; Website Editor gate 49/49 files (uncontended run at the end of the acceptance cycle; `final/smoke-all.log`). |
+| TypeScript and whitespace | **VERIFIED** | `npm run typecheck` exit 0; `git diff --check` clean on the same tree. |
+| Production build of the baseline | **VERIFIED** | webpack build bCDk8GQ5KJFAZVYNDvwvq: compiled in 87s, TypeScript 44s, 246/246 static pages in 522ms (isolated lane env, provider variables blanked, so the static-generation Supabase warnings of earlier builds do not appear and are not evidence either way). |
+| The 2026-09-03 integration's own focused suites (19 suites) | **PARTIAL → VERIFIED** | 128/128 at integration, but that claim never ran the canonical suite: the untouched 06abeb9 had 40 failing tests across 30 files (reproduced by name in a throwaway worktree). Thirty-two stale pins were re-pointed with reasons and the real gaps closed (governed People search, origin-template classification, metadata catalogue, directory cards, read-path inventory, route census, request-scoped task tests); see the 2026-09-03 update entry. |
+| Release-gate accounting pinned | **VERIFIED** | `scripts/smoke-release-acceptance-gate.test.ts` 4/4 pins the story matrix, the nine viewports and the missing-key rule of `browser-release-acceptance.mjs`. |
+| Optional live-Postgres checks (2 skips) | **NOT TESTED** | Skipped by design without `DATABASE_URL`. |
+
+## 3. Browser and responsive acceptance
+
+All rows are **isolated-production** unless marked, on build bCDk8GQ5KJFAZVYNDvwvq, Chromium 151 via
+playwright-core 1.62.1, private file-backend state seeded by the lane (`scratchpad/lane-3201/seed.mjs`).
+
+| Item | State | Evidence |
+| --- | --- | --- |
+| House matrix: 13 pages × 17 viewports (six primary sizes, 320×568, 200% zoom ×2, eight Tailwind boundary probes), render/overflow/console/network/focus/axe | **VERIFIED** | 1326 checks: 1171 passed / 0 failed / 155 evidenced observations / 0 missing (`final/matrix/records.json`). The first run on the untouched baseline failed 9 axe serious colour-contrast checks on `/portal/agency/fulfilment` (12px `text-black/43` on the attention rows, 3.08:1); fixed in this cycle and re-run green. |
+| Release gate: roles/gates, Radar split, Calendar linked records, My Tools folders/icons, newsletter facade, and 12 pages × 9 viewports with modal measurement | **VERIFIED** | 163 stories: 163 passed / 0 failed / 0 missing (roles 18/18, radar 10/10, calendar 12/12, tools 12/12, newsletter 3/3, layout 108/108) (`final/release2/records.json`). Two stories are explicit N/As on this target: the private icon upload (see §6) and nothing else. The visitor facade is driven as `http://localhost:<port>` because Next reports `req.url` with that host for an IP-literal binding, which is what its same-origin check compares against. |
+| My Tools private icon upload on a production build | **BLOCKED (provider)** | Under `NODE_ENV=production` the icon route stores bytes only through the Supabase private bucket; the lane has none, so the documented refusal ("Private file storage is not connected…") is announced, the prepared icon is kept until undone and no half-saved asset reaches the record (release gate T3). Upload/read/replace/race/refusal/delete bytes are proven by `smoke-my-tools-icon-route` (11 tests) on the file backend. |
+| Notepad autosave + Finance settings + loader (#54, #120, #136 evidence) | **VERIFIED** | notepad 17/17, finance 16/16, layout 42/42, loader 2/2 (77/77, 0 missing) (`final/ux/records.json`). |
+| Team Chat and notification response ordering (#147) | **VERIFIED** | stories 22/22; matrix 72 passed / 0 failed / 9 evidenced observations of 81 at seven viewports on lane 3202 (same build, the gate's own minimal seed: with the richer seed the Attention Shield's five-item window holds the sixth alert, which is the product behaving, not a defect). |
+| Phase Admin checked mutations (#47, Phase Admin portion) | **VERIFIED (production half)** | 10/10 stories across 390×844 and 1280×800, 2 recorded N/A (production preview refusal), 0 unexpected console/page/request/HTTP failures; "Preview as demo client" is refused 404 "Not available." on a production build by the dev-mode switch and is recorded as an explicit N/A — its navigation is proven on a Dev Mode lane (commit 0078567, 10/10). |
+| Aqua Tag stop-routing mounted acceptance (#85) | **VERIFIED (local-dev-lane)** | 220/220 checks (0 failed) at 390×844 and 1280×800 (`final/aqua-tag.log`, lane 3203, `next dev --webpack` from the baseline tree). |
+| Dev Editor dirty-transition contract (#19) | **VERIFIED (local-dev-lane)** | 191 passed / 2 failed / 13 explained N/A rows / 47 observations on the full matrix; the two failures were one timing-sensitive held-reply step that passed on an uncontended rerun of the AI scenario (14/14) and one dev-mode hydration-mismatch console warning raised only inside the AI scenario, recorded as an open residual (`final/editor-gate.log`, lane 3204, Dev Mode). |
+| Keyboard operation and modal behaviour | **VERIFIED** | Calendar editor and both My Tools confirmations trap Tab, close on Escape and restore focus; the two topbar quick looks are non-modal popovers whose Escape now returns focus to the control (Business Radar aligned with My Radar in this cycle). Screen-reader announcement is **NOT TESTED** (no assistive technology is driven). |
+| 44×44 touch targets | **PARTIAL** | Recorded as observations per page (e.g. calendar month controls 36px, phase card actions 28–30px, inbox chips 36px); not a release blocker under the existing house gates, listed in §9. |
+| Deployed/CDN browser acceptance | **NOT TESTED** | No deployment exists. |
+
+## 4. Authentication, tenancy, roles and permissions
+
+| Item | State | Evidence |
+| --- | --- | --- |
+| Central session revocation on every read (#22) | **VERIFIED** | `smoke-session-revocation` 16/16; unchanged by the integration. |
+| Role landings: owner → Command Centre, manager → Command Centre (legacy), staff → My Work, client-owner/end-customer → customer portal, anonymous → login | **VERIFIED** | Release gate R1–R7 at 390×844 and 1280×800. |
+| Personal vs business Radar gates (staff.overview leaf; Business Radar composite; workload requires owner/manager + business capability) | **VERIFIED** | Release gate R3, R4, R9, D1–D5: sales seat gets My Radar without any Business Radar control/link; un-granted staff keeps the legacy my-day station but is refused Calendar; a governed narrow seat is refused both by the personal gates (`notice=staff-overview-required`, `notice=calendar-required`). |
+| Calendar link authority (participants need `staff.people`, client links go through the client-association element, linked tasks must be visible to the actor, only the owner edits) | **VERIFIED** | Release gate R8: PATCH of another owner's item 404, another client's task 403, naming another person 403, own linked item 201/200; visibility lists exclude private items both ways. |
+| Workspace element visibility in chrome (sidebar rows and topbar controls follow the actor's elements) | **VERIFIED** | Release gate chrome facts per persona (My Radar row/control, Business Radar control, Tools). |
+| Release access matrix (create role → grant → request → approve/deny/cancel/revoke, positive and negative) | **VERIFIED** | `smoke-release-access-matrix` 22/22 (2026-08-27). |
+| Last-grant revocation widening to legacy access (#174) | **BLOCKED (Ed decision)** | Pinned exactly; policy choice open. |
+| Supabase-backed password login, MFA doors, end-customer password vs magic link (Q1) | **PARTIAL / BLOCKED** | Login route traced (`supabase-cutover-and-policy-drafts.md`); no live Supabase in any lane, so every lane attaches a seeded HMAC session (`AQUA_SESSION_COOKIE`) proven against `/api/auth/me`. |
+| Provider-backed live persona / shared-credential acceptance (#25) | **NOT TESTED** | Needs live Supabase identities. |
+
+## 5. Database migrations, RLS, backup and recovery
+
+| Item | State | Evidence |
+| --- | --- | --- |
+| File backend cross-process atomicity (commercial, marketing, leads, uploads) | **VERIFIED** | `smoke-commercial-durable-processes` 3/3, `smoke-marketing-records-durable-processes` 3/3 and siblings (2026-09-02). |
+| Migrations up to 2026-08-26 applied to Ed's Supabase | **PARTIAL** | Historic; not re-verified in this cycle. |
+| Four 2026-09-02 migrations (datastore patch merge, lease fencing, owned-sidecar CAS, Aqua Tag submission delivery) | **BLOCKED (env)** | Unapplied; source/mocked verified only. |
+| RLS policy coverage | **PARTIAL** | Static `smoke-rls-policy-coverage`; live `rls-verify.sql` run on 2026-08-28 showed protected tables; three then-empty tables need re-checking once populated (`launch-order-and-blockers.md`). |
+| Backup and point-in-time recovery | **NOT TESTED** | No runbook or drill exists in the repository; Supabase PITR is an account setting Ed must enable and a restore must be rehearsed before launch. |
+| Relational extraction / backfill (MIGRATION-PLAN Phases 1–7) | **PARTIAL** | Phase 0 shipped; later phases are engineering work, not blocked. |
+
+## 6. Live providers, payments and webhooks
+
+| Item | State | Evidence |
+| --- | --- | --- |
+| Stripe live account walkthrough; Memberships/Affiliates/Installments/Ecommerce live acceptance (#33, #42, #45, #69, #122, #123) | **BLOCKED (Ed credentials)** | Local lifecycle and webhook dedupe proven by focused suites; no live key in any lane. |
+| Resend sending domain (Q2), Twilio (Q3), Meta developer app | **BLOCKED (Ed)** | Sandbox sender only delivers to Ed; documented in `ED-QUESTIONS.md`. |
+| Newsletter visitor facade (#28/#29/#184/#185) | **VERIFIED (local)** | Release gate W1–W3: preview mount inert, 201 receipt, exact replay 200, drifted reuse 409, wrong consent 400, honeypot 200 "accepted", missing Origin 403, operator read session/tenant gated. No email is sent by design. |
+| Aqua Tag database-native ingestion (#87) | **PARTIAL** | Source-verified with the unapplied migration above; live claim table NOT TESTED. |
+| Post-deploy smoke (`npm run smoke:post-deploy`) | **BLOCKED** | Needs a deployment URL. |
+
+## 7. Performance, accessibility and observability
+
+| Item | State | Evidence |
+| --- | --- | --- |
+| Fresh-process production timings and first-load station bytes | **VERIFIED (local)** | 2026-09-02 benchmark in `tests.md`; not re-run in this cycle (no source change on the hot paths). Deployed geo/CDN timing **NOT TESTED**. |
+| axe serious/critical = 0 on every walked page and viewport | **VERIFIED** | Matrix + release gate after four contrast fixes (`text-black/43`→`/60` in seven files, `text-emerald-950/58`→`/75` in two, the sidebar empty-workspace label now a swatch beside dark text). |
+| Remaining low-opacity small text not walked by any gate (`ExternalAiConnectionPanel` `text-emerald-950/50–60`, `_ActionsWorkspace` `/65`, `NotificationCentreButton` `/62`) | **POST-RELEASE** | Static observation only; no axe finding was produced because the elements were not rendered on the walked pages. |
+| Dev Team layout topbar-lead hydration mismatch (Dev Mode lane, AI scenario only) | **PARTIAL** | One React hydration warning with a component stack ending in `DevTeamLayout › header › div[data-topbar-lead]`, raised only inside the Dev Editor gate's AI scenario; plain loads are clean; production console of `/portal/dev-team` NOT TESTED (no gate walks it). TODO row added. |
+| Server error capture / readiness (#132) | **PARTIAL** | Mounted locally; production client sink not installed. |
+| Radar probe freshness (#170) | **BLOCKED (Ed decision)** | Daily cron; no surface shows evidence age. |
+
+## 8. Documentation and deployment
+
+| Item | State | Evidence |
+| --- | --- | --- |
+| Update log, TODO, issues, status and tests reconciled to this cycle | **VERIFIED** | `updates.md` entries dated 2026-09-03 (this session plus the seven previously unlogged integration commits); TODO rows and issue entries carry the evidence pointers. |
+| Generated references and consolidated volumes regenerated | **VERIFIED** | `node scripts/generate-symbol-reference.mjs` and `node scripts/consolidate-authored-docs.mjs` run after the edits (see the update entry). |
+| Deployment runbook | **PARTIAL** | `DEVELOPMENT-HANDOFF.md` + `launch-order-and-blockers.md` cover the two variables and the cutover; a Vercel deployment has not been executed since the last recorded one. |
+| Known-good release baseline commit | **VERIFIED** | the commit that adds this document (parent 06abeb9 on `main`) (pushed to `origin/main`). |
+
+## 9. Post-release UX and product improvements
+
+All **POST-RELEASE**, none blocks the baseline:
+
+- 44×44 targets on dense operator controls (calendar month toolbar, phase cards, inbox chips, notepad tabs) — recorded per viewport by the release gate.
+- The `INTERNAL_WORKSPACE_NAME` sidebar label ("AquaOasis-Web") is a product constant, not the agency's name; a multi-tenant deployment should read it from the agency.
+- End-customer chrome layout API answers 200 (their own record) — harmless, noted for the per-role element configuration work.
+- The Dev Editor gate's recorded, unrepaired items (SEO-field over-asking, silent SEO draft discard on phone drawer close, two axe patterns on the editor doors) from commit 28fc767.
+- The product roadmap in [`product-roadmap-2026-09.md`](product-roadmap-2026-09.md) (personal vs business Command Centre and Radar, semantic KPI definitions, data interfaces, configurable topbars, per-workspace/per-role navigation, overrides and permission-request workflows).
+<!-- AQUACRM_SOURCE_END path="docs/development/plans/production-readiness-roadmap-2026-09-03.md" -->
 
 ---
 

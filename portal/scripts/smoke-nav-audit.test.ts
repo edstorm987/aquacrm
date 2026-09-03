@@ -172,8 +172,8 @@ describe("standalone portal nav audit", () => {
     assert.equal(opsPanel!.hidden, true, "the Operations functions panel is search-only (hidden), not a rendered nav group");
     assert.deepEqual(
       mainPanel!.items.map(item => item.id),
-      ["home", "inbox", "operations-home", "tools"],
-      "Command Centre, Inbox & actions, Operations and Tools are the flat rendered main rows",
+      ["home", "inbox", "operations-home", "my-radar", "tools"],
+      "Command Centre, Inbox & actions, Operations, My Radar and Tools are the flat rendered main rows (My Radar joined on 2026-09-03 with the personal/business Radar split)",
     );
     assert.equal(
       mainPanel!.items.find(item => item.id === "operations-home")?.href,
@@ -193,7 +193,7 @@ describe("standalone portal nav audit", () => {
     const command = src.match(/const commandCentreIds = \[([\s\S]*?)\];/)?.[1] ?? "";
     const operations = src.match(/const operationsIds = \[([\s\S]*?)\];/)?.[1] ?? "";
     const canonical = `${command}${operations}`;
-    for (const id of ["home", "inbox", "operations-home", "tools"]) {
+    for (const id of ["home", "inbox", "operations-home", "my-radar", "tools"]) {
       assert.ok(command.includes(`"${id}"`), `${id} missing from the Command Centre allow-list`);
     }
     for (const id of ["fulfilment", "you-deserve-it", "pipelines", "marketing", "finance", "people", "freelancers", "sop-library", "governance", "aqua-tags"]) {
