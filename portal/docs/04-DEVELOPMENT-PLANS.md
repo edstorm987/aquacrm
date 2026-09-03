@@ -2,7 +2,7 @@
 
 > Every active, completed and archived phased implementation plan and handoff.
 >
-> Consolidated 2026-09-02 from **57** source documents / **116,315 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-02 from **57** source documents / **116,643 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -46,7 +46,7 @@
 - [`docs/development/plans/marketing-workspace-overhaul.md`](#source-docs-development-plans-marketing-workspace-overhaul-md) — 1,849 words · `c42bb1c185ed`
 - [`docs/development/plans/meta-inbox-connect.md`](#source-docs-development-plans-meta-inbox-connect-md) — 1,197 words · `48c3b40b0764`
 - [`docs/development/plans/mfa-login.md`](#source-docs-development-plans-mfa-login-md) — 1,513 words · `b48b0cc1945d`
-- [`docs/development/plans/my-tools-palette.md`](#source-docs-development-plans-my-tools-palette-md) — 721 words · `2c0e92ade761`
+- [`docs/development/plans/my-tools-palette.md`](#source-docs-development-plans-my-tools-palette-md) — 1,049 words · `222f231d0429`
 - [`docs/development/plans/operations-command-surface.md`](#source-docs-development-plans-operations-command-surface-md) — 823 words · `89d4c7af83fa`
 - [`docs/development/plans/plugin-data-erasure.md`](#source-docs-development-plans-plugin-data-erasure-md) — 3,211 words · `890e117cab2c`
 - [`docs/development/plans/promote-trading-company.md`](#source-docs-development-plans-promote-trading-company-md) — 4,457 words · `2f9dd8a1af32`
@@ -9552,10 +9552,10 @@ plan in flight._
 
 ## Source document — `docs/development/plans/my-tools-palette.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/my-tools-palette.md" sha256="2c0e92ade7617c25af96810337c8872afcfe94d0662c702d51744ae2f4a64c1e" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/my-tools-palette.md" sha256="222f231d042927d2db3d9d96b7599c1148e3e58c0d550bc1e417f1700189e5c6" -->
 # Tools — my own palette of saved links
 
-**Horizon:** Next · **Status:** specced, not started · **Added:** 2026-08-30
+**Horizon:** Shipped locally · **Status:** implemented, focused verification green · **Added:** 2026-08-30 · **Updated:** 2026-09-02
 · **Source:** Ed, live
 
 > Ed, verbatim: *"we should actually be able to save links in here and make
@@ -9617,7 +9617,9 @@ A personal workbench, not a directory:
 
 ### The saved-link card
 
-- Fields: `name`, `url`, optional `note`, optional colour/emoji for the tile.
+- Fields: `name`, `url`, optional description (`note` in the backward-compatible
+  stored shape), optional built-in icon, optional private uploaded icon, and an
+  optional flat folder.
 - Click opens in a **new tab** — `target="_blank"` with `rel="noopener noreferrer"`
   (without `noopener`, the opened page gets a handle on the portal tab).
 - Grid of tiles matching the existing card styling so it does not read as a
@@ -9652,6 +9654,39 @@ realm must not see live tools.
 - A scheme validator test with `javascript:` and `data:` payloads.
 - A test that saved links render `rel="noopener noreferrer"`.
 - A per-user isolation test: user A's tools never appear for user B.
+
+## Implemented 2026-09-02
+
+- The cards now use the same roomy visual structure as the Quick Actions cards:
+  a 44px artwork tile, title, multi-line description, folder context and a clear
+  Open tool action. Card management controls are always reachable on touch and
+  are 44px targets rather than hover-only 28px buttons.
+- A person can choose an existing Aqua icon or upload PNG, JPEG or WebP artwork.
+  The browser centre-crops it to a 96px WebP before upload. The binary lives in
+  private upload storage behind an authenticated self-only content route; the
+  always-loaded chrome record stores only a bounded reference, never base64,
+  and the authenticated response is explicitly private/no-store. Replacement
+  and deletion use a durable cleanup checkpoint, replay after provider refusal
+  and the scheduled lifecycle sweep; account erasure fails closed while any
+  attached, malformed legacy or pending icon owner still exists. The general
+  layout writer preserves server-owned icon metadata and refuses to orphan an
+  attached icon by deleting its card directly.
+- Up to 24 flat account-scoped folders can be created and renamed. Cards can be
+  filed or moved back to Unfiled, filters show live counts, and deleting a folder
+  moves its cards to Unfiled without deleting them. Old cards need no migration;
+  an absent folder list is empty and an unknown folder id normalises to Unfiled.
+- Existing URL allow-listing, 48-card cap, per-user/per-agency storage, read-time
+  normalisation, public-showcase exclusion and `noopener noreferrer` links remain.
+- Account-layout writes use a monotonic compare-and-set revision. Rapid local
+  changes run through one client queue and successful changes notify other open
+  tabs. A cross-tab 409 is retried once only when the other tab changed different
+  fields; same-collection conflicts and later optimistic writes derived from a
+  refused predecessor are reloaded/refused rather than overwriting the winner.
+- Focused source/storage/route coverage is in
+  `scripts/smoke-my-tools-palette.test.ts`,
+  `scripts/smoke-my-tools-icon-route.test.ts` and
+  `scripts/smoke-chrome-layout-cas-route.test.ts`; adjacent chrome, private-file
+  lifecycle, pinned-tab and topbar-pin suites remain part of the boundary.
 <!-- AQUACRM_SOURCE_END path="docs/development/plans/my-tools-palette.md" -->
 
 ---

@@ -67,7 +67,7 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-md border border-black/15 bg-white px-4 py-2 text-sm font-medium text-black/80 hover:bg-black/5"
+            className="min-h-11 rounded-md border border-black/15 bg-white px-4 py-2 text-sm font-medium text-black/80 hover:bg-black/5"
           >
             {cancelLabel}
           </button>
@@ -76,7 +76,7 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
             type="button"
             onClick={onConfirm}
             className={[
-              "rounded-md px-4 py-2 text-sm font-medium text-white",
+              "min-h-11 rounded-md px-4 py-2 text-sm font-medium text-white",
               destructive ? "bg-red-600 hover:bg-red-700" : "bg-brand hover:opacity-90",
             ].join(" ")}
           >

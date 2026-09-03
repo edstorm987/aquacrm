@@ -1146,7 +1146,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on:** _No internal imports._
 
-**Used by (5):** [`scripts/smoke-chrome-layout.test.ts`](scripts.md#file-scripts-smoke-chrome-layout-test-ts-80b420a476) · [`src/components/chrome/PinnedTabs.tsx`](#file-src-components-chrome-pinnedtabs-tsx-6a643b00e6) · [`src/components/chrome/SavedTabIconPicker.tsx`](#file-src-components-chrome-savedtabiconpicker-tsx-85198ea1e1) · [`src/components/chrome/SidebarNavLink.tsx`](#file-src-components-chrome-sidebarnavlink-tsx-f85c0a7a8a) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411)
+**Used by (6):** [`scripts/smoke-chrome-layout.test.ts`](scripts.md#file-scripts-smoke-chrome-layout-test-ts-80b420a476) · [`src/app/portal/agency/tools/_MyToolsPalette.tsx`](app.md#file-src-app-portal-agency-tools-mytoolspalette-tsx-48d220c8ba) · [`src/components/chrome/PinnedTabs.tsx`](#file-src-components-chrome-pinnedtabs-tsx-6a643b00e6) · [`src/components/chrome/SavedTabIconPicker.tsx`](#file-src-components-chrome-savedtabiconpicker-tsx-85198ea1e1) · [`src/components/chrome/SidebarNavLink.tsx`](#file-src-components-chrome-sidebarnavlink-tsx-f85c0a7a8a) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411)
 
 <a id="file-src-components-chrome-navtones-ts-52a318b8bd"></a>
 
@@ -1171,7 +1171,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (21):**
+**Exports (25):**
 
 - `placementKey(placement: SavedTabPlacement): string` — ─── Pure helpers ────────────────────────────────────────────────────────────
 - `samePlacement(left: SavedTabPlacement, right: SavedTabPlacement): boolean`
@@ -1187,13 +1187,17 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `renameTab(tabs: readonly SavedTab[], id: string, label: string, now = Date.now()): SavedTab[]` — Rename a saved tab — Ed's shortcuts should read like his own words.
 - `moveTabTo(tabs: readonly SavedTab[], id: string, placement: SavedTabPlacement, index: number, now = Date.now()): SavedTab[]` — Put `id` at `index` within `placement`, renumbering that strip.
 - `normalizeTools(value: unknown): SavedTool[]` — The last gate before a value becomes an `href`. The server normalised on read, but this response could come from an older deploy — so the URL is judged a third time, here, where i…
+- `normalizeToolFolders(value: unknown): SavedToolFolder[]`
 - `normalizeTabs(value: unknown): SavedTab[]`
+- `canSafelyRebaseLayoutPatch(patch: ChromeLayoutPatch, base: ChromeLayoutState, latest: ChromeLayoutState): boolean` — A static field patch is safe to replay only while every field it replaces is still byte-for-byte the value the caller edited. Different-field changes can merge; a same-field chang…
+- `normalizedChromeLayout(value: unknown): ChromeLayoutState | null`
 - `useChromeLayout(): UseChromeLayout`
 - `MAX_PINS_PER_LOCATION = 12` — Keep each strip a working set, not an archive.
 - `type PinLocation = "topbar" | "sidebar"` — The two strips a tab can be quick-pinned to from the star control.
-- `interface ChromeLayoutState (4 members)`
-- `interface UseChromeLayout (11 members)`
-- `{ SavedTab, SavedTabPlacement, SavedTabSpot, SavedTool }`
+- `type ChromeLayoutPatch = Partial<Omit<ChromeLayoutState, "updatedAt">>`
+- `interface ChromeLayoutState (6 members)`
+- `interface UseChromeLayout (13 members)`
+- `{ SavedTab, SavedTabPlacement, SavedTabSpot, SavedTool, SavedToolFolder, SavedToolIconAsset }`
 
 **Depends on (2):** [`src/lib/chrome/savedToolUrl.ts`](lib.md#file-src-lib-chrome-savedtoolurl-ts-0f6f57b2b2) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
@@ -1851,7 +1855,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (1):** [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1)
 
-**Used by (1):** [`src/app/portal/agency/notepad/_NotepadWorkspace.tsx`](app.md#file-src-app-portal-agency-notepad-notepadworkspace-tsx-02e35d35f5)
+**Used by (2):** [`src/app/portal/agency/notepad/_NotepadWorkspace.tsx`](app.md#file-src-app-portal-agency-notepad-notepadworkspace-tsx-02e35d35f5) · [`src/app/portal/agency/tools/_MyToolsPalette.tsx`](app.md#file-src-app-portal-agency-tools-mytoolspalette-tsx-48d220c8ba)
 
 <a id="file-src-components-ui-emptystate-tsx-1161404a4d"></a>
 

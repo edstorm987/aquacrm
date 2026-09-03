@@ -111,6 +111,20 @@ revisit lifecycle as [issue #142](../development/issues.md).
 **Actions — `actions/`**
 - `_ActionsWorkspace.tsx` (1203L), `_ActionsPage.tsx`, `_TodayView.tsx`; `calendar/page.tsx` reuses the actions page.
 
+**Personal tools — `tools/`**
+- `page.tsx` keeps Calendar and Notepad as the utility deck, then mounts
+  `_MyToolsPalette.tsx`: per-person external-link cards with a description,
+  built-in or private uploaded artwork, and optional flat folders. Cards match
+  the utility-card proportions and keep 44px management targets visible on
+  touch. The palette rides the account-scoped chrome layout; uploaded bytes use
+  `/api/portal/chrome/tools/[toolId]/icon` and never inflate that always-loaded
+  JSON record. Layout changes are compare-and-set and rapid local edits are
+  serialized; different-field conflicts retry once, while same-collection
+  conflicts reload instead of overwriting another tab. Folder deletion unfiles cards. Icon replacement and card
+  deletion retain an exact private-file cleanup checkpoint; refusal stays
+  retryable and blocks account-chrome erasure rather than orphaning bytes. The
+  public showcase never mounts this personal surface.
+
 **Journey — pipelines / leads / contacts / people**
 - `pipelines/[slug]/page.tsx` — single-pipeline kanban; `_LeadsPipelineWorkspace.tsx` ⊕ **(1960L)**, `_LeadsPipelineWorkspaceServer.tsx` (data loader), `_PipelineBoard.tsx`, `_ScoutingCommand.tsx` (718L), `_FulfilmentProductSwitcher.tsx`.
   **Split 2026-08-29 (was 2953L — it had been the biggest UI file).** Four modules came

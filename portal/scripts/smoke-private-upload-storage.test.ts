@@ -253,6 +253,134 @@ test("expired staged uploads are deleted from their durable predicted key", asyn
   assert.equal(Object.values(portalStorage.getState().privateObjectLifecycles).some(record => record.objectId === objectId), false);
 });
 
+test("the scheduled sweep retries an expired failed owner deletion", async () => {
+  const agencyId = `agency_delete_retry_${Date.now()}`;
+  const objectId = "delete_retry_one";
+  const storageKey = `${agencyId}/old-icon.png`;
+  const requestHash = lifecycle.privateObjectRequestHash([agencyId, objectId, storageKey]);
+  const failed = await lifecycle.deletePrivateObjectWithRecovery({
+    agencyId,
+    purpose: "saved-tool-icon-delete",
+    objectId,
+    requestHash,
+    localDirectory: LOCAL_DIR,
+    retryAfterMs: 10,
+    now: () => 500,
+    prepare: () => ({
+      snapshot: { storageKey },
+      storageProvider: "local",
+      storageKey,
+      metadata: { userId: "user_delete_retry", toolId: "tool_delete_retry" },
+    }),
+    providers: { local: async () => { throw new Error("temporary provider refusal"); } },
+  });
+  assert.equal(failed.ok, false);
+
+  let removed = "";
+  const swept = await lifecycle.processPrivateObjectLifecycleSweep({
+    now: 511,
+    providers: { local: async path => { removed = path; } },
+  });
+  assert.equal(swept.cleaned, 1);
+  assert.match(removed, /old-icon\.png$/);
+  const checkpoint = lifecycle.privateObjectDeletionCheckpoint<{ storageKey: string }>(
+    agencyId,
+    "saved-tool-icon-delete",
+    objectId,
+  );
+  assert.equal(checkpoint?.record.state, "ready",
+    "a swept owner deletion should retain a short idempotent completion checkpoint");
+});
+
+test("an incidental equal-string reference cannot forge completion of a failed deletion", async () => {
+  const agencyId = `agency_delete_reference_${Date.now()}`;
+  const objectId = "delete_reference_one";
+  const storageKey = `${agencyId}/private-icon.png`;
+  const requestHash = lifecycle.privateObjectRequestHash([agencyId, objectId, storageKey]);
+  const failed = await lifecycle.deletePrivateObjectWithRecovery({
+    agencyId,
+    purpose: "saved-tool-icon-delete",
+    objectId,
+    requestHash,
+    localDirectory: LOCAL_DIR,
+    retryAfterMs: 10,
+    now: () => 700,
+    prepare: () => ({
+      snapshot: { storageKey },
+      storageProvider: "local",
+      storageKey,
+      metadata: { userId: "user_delete_reference", toolId: "tool_delete_reference" },
+    }),
+    providers: { local: async () => { throw new Error("temporary provider refusal"); } },
+  });
+  assert.equal(failed.ok, false);
+
+  portalStorage.mutate(state => {
+    state.pluginData.delete_reference_decoy = { note: storageKey };
+  });
+  let providerCalls = 0;
+  try {
+    const swept = await lifecycle.processPrivateObjectLifecycleSweep({
+      now: 711,
+      providers: { local: async () => { providerCalls += 1; } },
+    });
+    assert.equal(swept.recoveredReady, 0,
+      "a string match cannot prove provider deletion completed");
+    assert.equal(swept.failed, 1);
+    assert.equal(providerCalls, 0,
+      "a still-referenced key must be retained instead of sent to the provider");
+    const checkpoint = lifecycle.privateObjectDeletionCheckpoint<{ storageKey: string }>(
+      agencyId,
+      "saved-tool-icon-delete",
+      objectId,
+    );
+    assert.equal(checkpoint?.record.state, "delete-failed");
+    assert.match(checkpoint?.record.error ?? "", /still referenced/);
+  } finally {
+    portalStorage.mutate(state => {
+      delete state.pluginData.delete_reference_decoy;
+      for (const [id, record] of Object.entries(state.privateObjectLifecycles)) {
+        if (record.agencyId === agencyId) delete state.privateObjectLifecycles[id];
+      }
+    });
+  }
+});
+
+test("an expired empty-key delete checkpoint converges through the provider's skipped path", async () => {
+  const agencyId = `agency_empty_delete_${Date.now()}`;
+  const objectId = "empty_delete_one";
+  const requestHash = lifecycle.privateObjectRequestHash([agencyId, objectId, ""]);
+  await assert.rejects(lifecycle.deletePrivateObjectWithRecovery({
+    agencyId,
+    purpose: "development-resource",
+    objectId,
+    requestHash,
+    localDirectory: LOCAL_DIR,
+    retryAfterMs: 10,
+    now: () => 800,
+    prepare: () => ({ snapshot: { id: objectId }, storageKey: "" }),
+    afterCheckpoint: () => { throw new Error("simulated crash after checkpoint"); },
+  }), /simulated crash/);
+
+  try {
+    const swept = await lifecycle.processPrivateObjectLifecycleSweep({ now: 811 });
+    assert.equal(swept.cleaned, 1,
+      "an empty storage key should converge as a skipped provider deletion");
+    const checkpoint = lifecycle.privateObjectDeletionCheckpoint<{ id: string }>(
+      agencyId,
+      "development-resource",
+      objectId,
+    );
+    assert.equal(checkpoint?.record.state, "ready");
+  } finally {
+    portalStorage.mutate(state => {
+      for (const [id, record] of Object.entries(state.privateObjectLifecycles)) {
+        if (record.agencyId === agencyId) delete state.privateObjectLifecycles[id];
+      }
+    });
+  }
+});
+
 test("the abandonment sweep adopts an owner that committed before readiness acknowledgement", async () => {
   const agencyId = `agency_adopt_${Date.now()}`;
   const objectId = "creative_one";

@@ -61,6 +61,7 @@ export interface BeginStagedPrivateUploadInput {
   requestHash: string;
   planned: StoredPrivateUpload;
   localDirectory: string;
+  metadata?: Record<string, unknown>;
   now?: number;
   leaseMs?: number;
 }
@@ -86,6 +87,7 @@ export async function beginStagedPrivateUpload(input: BeginStagedPrivateUploadIn
       storageProvider: input.planned.storageProvider,
       storageKey: input.planned.storageKey,
       localDirectory: input.localDirectory,
+      ...(input.metadata ? { metadata: input.metadata } : {}),
       createdAt: now,
       updatedAt: now,
       expiresAt: now + (input.leaseMs ?? STAGED_LEASE_MS),
@@ -433,6 +435,8 @@ export interface DeletePrivateObjectWithRecoveryInput<T> {
   completedSnapshot?: (snapshot: T) => unknown;
   /** Fault seam for crash-after-checkpoint tests. */
   afterCheckpoint?: () => void | Promise<void>;
+  /** Earliest sweep retry for a stranded deletion; long retention is the default. */
+  retryAfterMs?: number;
   now?: () => number;
 }
 
@@ -477,7 +481,7 @@ export async function deletePrivateObjectWithRecovery<T>(input: DeletePrivateObj
           metadata: prepared.metadata,
           createdAt: now,
           updatedAt: now,
-          expiresAt: now + DELETE_RECOVERY_MS,
+          expiresAt: now + (input.retryAfterMs ?? DELETE_RECOVERY_MS),
         };
       });
       record = getState().privateObjectLifecycles[id];
@@ -579,7 +583,7 @@ export async function processPrivateObjectLifecycleSweep(options: {
         }
       });
       const candidates = Object.values(getState().privateObjectLifecycles)
-        .filter(record => record.operation === "stage" && record.agencyId === agencyId && record.expiresAt <= now);
+        .filter(record => record.agencyId === agencyId && record.expiresAt <= now);
       for (const candidate of candidates) {
         const latest = getState().privateObjectLifecycles[candidate.id];
         if (!latest || latest.expiresAt > now) continue;
@@ -588,12 +592,33 @@ export async function processPrivateObjectLifecycleSweep(options: {
           totals.prunedReady += 1;
           continue;
         }
-        if (valueReferencesStorageKey(
+        if (latest.storageKey && valueReferencesStorageKey(
           Object.fromEntries(Object.entries(getState()).filter(([key]) => key !== "privateObjectLifecycles")),
           latest.storageKey,
         )) {
-          markStagedPrivateUploadsReadyUnlocked({ agencyId, purpose: latest.purpose, objectIds: [latest.objectId], ownerId: "recovered-owner", now });
-          totals.recoveredReady += 1;
+          if (latest.operation === "stage") {
+            markStagedPrivateUploadsReadyUnlocked({ agencyId, purpose: latest.purpose, objectIds: [latest.objectId], ownerId: "recovered-owner", now });
+            totals.recoveredReady += 1;
+          } else {
+            // A delete checkpoint means the former owner was already detached.
+            // A remaining reference may be another real owner (or merely an
+            // equal string in unrelated data); neither case proves provider
+            // deletion completed. Retain the checkpoint and fail closed. In
+            // particular, never turn a failed deletion into `ready` without
+            // making the provider call — account erasure relies on that state.
+            mutate(state => {
+              const current = state.privateObjectLifecycles[latest.id];
+              if (!current || current.requestHash !== latest.requestHash) return;
+              state.privateObjectLifecycles[latest.id] = {
+                ...current,
+                state: "delete-failed",
+                error: "Storage is still referenced; deletion was retained for recovery.",
+                updatedAt: now,
+                expiresAt: now + STAGED_LEASE_MS,
+              };
+            });
+            totals.failed += 1;
+          }
           continue;
         }
         // A claim is a durable hand-off checkpoint written before an inbox,
@@ -617,7 +642,7 @@ export async function processPrivateObjectLifecycleSweep(options: {
           totals.retainedClaims += 1;
           continue;
         }
-        if (latest.state !== "uploading" && latest.state !== "delete-failed" && latest.state !== "sweeping") continue;
+        if (latest.state !== "uploading" && latest.state !== "deleting" && latest.state !== "delete-failed" && latest.state !== "sweeping") continue;
         const sweepIdentity = `${latest.requestHash}:${latest.storageProvider}:${latest.storageKey}`;
         mutate(state => {
           const current = state.privateObjectLifecycles[latest.id];
@@ -652,7 +677,17 @@ export async function processPrivateObjectLifecycleSweep(options: {
           mutate(state => {
             const current = state.privateObjectLifecycles[latest.id];
             if (current?.state === "sweeping" && `${current.requestHash}:${current.storageProvider}:${current.storageKey}` === sweepIdentity) {
-              delete state.privateObjectLifecycles[latest.id];
+              if (current.operation === "delete") {
+                state.privateObjectLifecycles[latest.id] = {
+                  ...current,
+                  state: "ready",
+                  error: undefined,
+                  updatedAt: now,
+                  expiresAt: now + READY_CHECKPOINT_MS,
+                };
+              } else {
+                delete state.privateObjectLifecycles[latest.id];
+              }
             }
           });
           totals.cleaned += 1;

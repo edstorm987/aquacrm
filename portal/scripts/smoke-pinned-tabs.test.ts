@@ -10,12 +10,16 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  canSafelyRebaseLayoutPatch,
   capPerPlacement,
   findTab,
   isSaved,
   MAX_PINS_PER_LOCATION,
   moveTabTo,
+  normalizedChromeLayout,
   normalizeTabs,
+  normalizeToolFolders,
+  normalizeTools,
   placementKey,
   removeTab,
   renameTab,
@@ -24,6 +28,7 @@ import {
   toggleTab,
   upsertTab,
   type SavedTab,
+  type ChromeLayoutState,
 } from "../src/components/chrome/pinnedTabsStore";
 import { findSpot, selectorFor, spotFor, spotText } from "../src/components/chrome/savedSpot";
 
@@ -131,6 +136,74 @@ describe("placements", () => {
 });
 
 describe("what comes back from the server, or from an old browser", () => {
+  it("rebases only different-field changes and rejects stale replacement collections", () => {
+    const base: ChromeLayoutState = {
+      panelOrder: [], itemOrder: {}, savedTabs: [], savedTools: [], savedToolFolders: [], updatedAt: 1,
+    };
+    const remoteTab: SavedTab = {
+      id: "remote", href: "/remote", label: "Remote", placement: TOPBAR,
+      order: 0, createdAt: 2, updatedAt: 2,
+    };
+    const ownTab: SavedTab = {
+      id: "own", href: "/own", label: "Own", placement: TOPBAR,
+      order: 0, createdAt: 2, updatedAt: 2,
+    };
+    assert.equal(canSafelyRebaseLayoutPatch(
+      { savedTabs: [ownTab] },
+      base,
+      { ...base, panelOrder: ["remote-panel"], updatedAt: 2 },
+    ), true, "a different-field remote change should not discard the local action");
+    assert.equal(canSafelyRebaseLayoutPatch(
+      { savedTabs: [ownTab] },
+      base,
+      { ...base, savedTabs: [remoteTab], updatedAt: 2 },
+    ), false, "a stale full savedTabs array could erase the other tab's addition");
+
+    const optimisticBase = { ...base, savedTabs: [ownTab] };
+    assert.equal(canSafelyRebaseLayoutPatch(
+      { savedTabs: [ownTab, remoteTab] },
+      optimisticBase,
+      { ...optimisticBase, updatedAt: 2 },
+    ), true, "a later queued write should proceed after its predecessor commits");
+    assert.equal(canSafelyRebaseLayoutPatch(
+      { savedTabs: [ownTab, remoteTab] },
+      optimisticBase,
+      { ...base, savedTabs: [remoteTab], updatedAt: 2 },
+    ), false, "a later queued write must not publish state derived from a refused predecessor");
+  });
+
+  it("carries the server layout revision through client normalization", () => {
+    const layout = normalizedChromeLayout({
+      panelOrder: [], itemOrder: {}, savedTabs: [], savedTools: [], savedToolFolders: [], updatedAt: 47,
+    });
+    assert.equal(layout?.updatedAt, 47);
+    assert.equal(normalizedChromeLayout({})?.updatedAt, 0);
+  });
+
+  it("mirrors server identifier and icon-key safety for saved tools", () => {
+    const tools = normalizeTools([
+      { id: "tool_ok", label: "First", url: "https://example.com", icon: "external-link", order: 0 },
+      { id: "tool_ok", label: "Duplicate", url: "https://duplicate.example", order: 1 },
+      { id: "bad/id", label: "Unsafe id", url: "https://unsafe.example", order: 2 },
+      { id: "tool_bad_icon", label: "Bad icon", url: "https://icon.example", icon: "bad/icon", folderId: "bad/id", order: 3 },
+    ]);
+    assert.deepEqual(tools.map(tool => tool.id), ["tool_ok", "tool_bad_icon"]);
+    assert.equal(tools[0]?.icon, "external-link");
+    assert.equal(tools[1]?.icon, undefined);
+    assert.equal(tools[1]?.folderId, undefined);
+  });
+
+  it("refuses unsafe and reserved folder identifiers before they reach UI state", () => {
+    const folders = normalizeToolFolders([
+      { id: "folder_ok", name: "Reference", order: 0 },
+      { id: "folder_ok", name: "Duplicate", order: 1 },
+      { id: "bad/id", name: "Unsafe", order: 2 },
+      { id: "all", name: "Reserved", order: 3 },
+      { id: "UNFILED", name: "Reserved case-insensitively", order: 4 },
+    ]);
+    assert.deepEqual(folders.map(folder => folder.id), ["folder_ok"]);
+  });
+
   it("refuses anything that is not an in-app path", () => {
     const tabs = normalizeTabs([
       { id: "1", href: "https://evil.example", label: "no" },

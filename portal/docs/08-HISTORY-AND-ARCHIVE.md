@@ -2,7 +2,7 @@
 
 > The append-only change record, dated handoffs and superseded historical summaries.
 >
-> Consolidated 2026-09-02 from **18** source documents / **133,372 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-02 from **18** source documents / **133,615 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -23,7 +23,7 @@
 - [`docs/context/archive/website-editor-and-migration.md`](#source-docs-context-archive-website-editor-and-migration-md) — 1,159 words · `235e8af731b6`
 - [`docs/context/archive/WHERE-WE-ARE-2026-08-18.md`](#source-docs-context-archive-where-we-are-2026-08-18-md) — 2,192 words · `4056e9a347cb`
 - [`docs/context/archive/WHERE-WE-STAND-2026-08-20.md`](#source-docs-context-archive-where-we-stand-2026-08-20-md) — 2,482 words · `26bf4442580e`
-- [`docs/development/updates.md`](#source-docs-development-updates-md) — 103,216 words · `eadb285a3a23`
+- [`docs/development/updates.md`](#source-docs-development-updates-md) — 103,459 words · `9077b745fec2`
 
 ---
 
@@ -3318,7 +3318,7 @@ Being straight with you about the edges.
 
 ## Source document — `docs/development/updates.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="eadb285a3a23b72cbfcaf7e298d7a75ec8b527f8be7b5cc8c90fd30d9df4adab" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="9077b745fec2eab2f51791b9457ed42c8a789f9f0438ce978e9a92d21e76d1ba" -->
 # Updates log
 
 ← Back to [development.md](../development.md) (the law)
@@ -3354,6 +3354,32 @@ map stays trustworthy.
 > If you ship something, log it.
 
 ---
+
+## 2026-09-02 — Personal My Tools cards, artwork and folders
+
+- Upgraded Tools → Your palette from bare name/URL rows to normal workspace
+  cards with descriptions, a full built-in icon picker, optional private
+  PNG/JPEG/WebP artwork and up to 24 flat personal folders. Folder filters carry
+  counts; rename is retained; deleting a folder moves its cards to Unfiled.
+- Added an authenticated per-user icon route backed by the shared private-upload
+  providers. Exact provider identity is server-owned; reads are private/no-store;
+  replacement/deletion are serialized and retain retryable cleanup checkpoints.
+  The lifecycle sweep now retries expired owner deletions, and account-chrome
+  erasure fails closed for live, malformed legacy and pending icon owners.
+- Added monotonic compare-and-set revisions to account chrome. Rapid optimistic
+  changes now pass through a serial client queue and notify other open tabs. A
+  different-field cross-tab conflict retries once over the authoritative response;
+  a same-collection conflict, or a queued write based on a refused predecessor,
+  reloads/refuses instead of overwriting the winning tab.
+- Focused and adjacent acceptance passed **180/180**, TypeScript passed and
+  `git diff --check` passed. In the isolated file-backend browser at 1280×720,
+  create, describe, choose icon, file into a folder, reload, edit, filter, rename
+  and delete-folder-to-Unfiled all passed with no unexpected console error. The
+  native upload picker itself was unavailable while macOS was locked; exact
+  upload/read/replace/race/refusal/delete bytes are covered by the 11-test route
+  suite instead.
+- Reconciled the My Tools plan, API reference and portal UI map; regenerated the
+  symbol reference and consolidated authored docs.
 
 ## 2026-09-02 — Marketing records across real processes (#82)
 

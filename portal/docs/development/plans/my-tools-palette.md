@@ -1,6 +1,6 @@
 # Tools — my own palette of saved links
 
-**Horizon:** Next · **Status:** specced, not started · **Added:** 2026-08-30
+**Horizon:** Shipped locally · **Status:** implemented, focused verification green · **Added:** 2026-08-30 · **Updated:** 2026-09-02
 · **Source:** Ed, live
 
 > Ed, verbatim: *"we should actually be able to save links in here and make
@@ -62,7 +62,9 @@ A personal workbench, not a directory:
 
 ### The saved-link card
 
-- Fields: `name`, `url`, optional `note`, optional colour/emoji for the tile.
+- Fields: `name`, `url`, optional description (`note` in the backward-compatible
+  stored shape), optional built-in icon, optional private uploaded icon, and an
+  optional flat folder.
 - Click opens in a **new tab** — `target="_blank"` with `rel="noopener noreferrer"`
   (without `noopener`, the opened page gets a handle on the portal tab).
 - Grid of tiles matching the existing card styling so it does not read as a
@@ -97,3 +99,36 @@ realm must not see live tools.
 - A scheme validator test with `javascript:` and `data:` payloads.
 - A test that saved links render `rel="noopener noreferrer"`.
 - A per-user isolation test: user A's tools never appear for user B.
+
+## Implemented 2026-09-02
+
+- The cards now use the same roomy visual structure as the Quick Actions cards:
+  a 44px artwork tile, title, multi-line description, folder context and a clear
+  Open tool action. Card management controls are always reachable on touch and
+  are 44px targets rather than hover-only 28px buttons.
+- A person can choose an existing Aqua icon or upload PNG, JPEG or WebP artwork.
+  The browser centre-crops it to a 96px WebP before upload. The binary lives in
+  private upload storage behind an authenticated self-only content route; the
+  always-loaded chrome record stores only a bounded reference, never base64,
+  and the authenticated response is explicitly private/no-store. Replacement
+  and deletion use a durable cleanup checkpoint, replay after provider refusal
+  and the scheduled lifecycle sweep; account erasure fails closed while any
+  attached, malformed legacy or pending icon owner still exists. The general
+  layout writer preserves server-owned icon metadata and refuses to orphan an
+  attached icon by deleting its card directly.
+- Up to 24 flat account-scoped folders can be created and renamed. Cards can be
+  filed or moved back to Unfiled, filters show live counts, and deleting a folder
+  moves its cards to Unfiled without deleting them. Old cards need no migration;
+  an absent folder list is empty and an unknown folder id normalises to Unfiled.
+- Existing URL allow-listing, 48-card cap, per-user/per-agency storage, read-time
+  normalisation, public-showcase exclusion and `noopener noreferrer` links remain.
+- Account-layout writes use a monotonic compare-and-set revision. Rapid local
+  changes run through one client queue and successful changes notify other open
+  tabs. A cross-tab 409 is retried once only when the other tab changed different
+  fields; same-collection conflicts and later optimistic writes derived from a
+  refused predecessor are reloaded/refused rather than overwriting the winner.
+- Focused source/storage/route coverage is in
+  `scripts/smoke-my-tools-palette.test.ts`,
+  `scripts/smoke-my-tools-icon-route.test.ts` and
+  `scripts/smoke-chrome-layout-cas-route.test.ts`; adjacent chrome, private-file
+  lifecycle, pinned-tab and topbar-pin suites remain part of the boundary.

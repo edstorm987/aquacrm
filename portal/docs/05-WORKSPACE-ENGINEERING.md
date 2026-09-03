@@ -2,7 +2,7 @@
 
 > Source maps, subsystem dossiers, components, routes, state and built-in module notes.
 >
-> Consolidated 2026-09-02 from **23** source documents / **57,066 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-02 from **23** source documents / **57,350 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -10,7 +10,7 @@
 - [`docs/WORKSPACE-FILE-TREE.md`](#source-docs-workspace-file-tree-md) — 1,385 words · `642c698fbd42`
 - [`docs/workspace/advisor.md`](#source-docs-workspace-advisor-md) — 1,445 words · `d5b9b4fc79dc`
 - [`docs/workspace/api-and-routes.md`](#source-docs-workspace-api-and-routes-md) — 946 words · `8bbf0d2e9c9f`
-- [`docs/workspace/api-reference.md`](#source-docs-workspace-api-reference-md) — 8,313 words · `61910fdc1f85`
+- [`docs/workspace/api-reference.md`](#source-docs-workspace-api-reference-md) — 8,477 words · `d970ded58e9a`
 - [`docs/workspace/aqua-tag.md`](#source-docs-workspace-aqua-tag-md) — 3,463 words · `d662b63850cb`
 - [`docs/workspace/components.md`](#source-docs-workspace-components-md) — 1,142 words · `5ef3bf2f75be`
 - [`docs/workspace/database.md`](#source-docs-workspace-database-md) — 2,273 words · `4ed0007a7dd9`
@@ -19,7 +19,7 @@
 - [`docs/workspace/hazards-and-duplication.md`](#source-docs-workspace-hazards-and-duplication-md) — 7,937 words · `16f6a1abda87`
 - [`docs/workspace/kpi-intelligence.md`](#source-docs-workspace-kpi-intelligence-md) — 2,283 words · `d641f1291cbc`
 - [`docs/workspace/plugins.md`](#source-docs-workspace-plugins-md) — 2,193 words · `85bf55b735d1`
-- [`docs/workspace/portal-ui.md`](#source-docs-workspace-portal-ui-md) — 3,935 words · `422ade585983`
+- [`docs/workspace/portal-ui.md`](#source-docs-workspace-portal-ui-md) — 4,055 words · `a2a7dcfcf88a`
 - [`docs/workspace/radar.md`](#source-docs-workspace-radar-md) — 3,419 words · `094abc931f83`
 - [`docs/workspace/scripts-config-docs.md`](#source-docs-workspace-scripts-config-docs-md) — 705 words · `6c64dba30a6b`
 - [`docs/workspace/shared-logic.md`](#source-docs-workspace-shared-logic-md) — 3,911 words · `34a172e29b5e`
@@ -597,7 +597,7 @@ switcher — membership-only, session ∩ live record), `showcase-mode`, `dev-mo
 
 ## Source document — `docs/workspace/api-reference.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/api-reference.md" sha256="61910fdc1f8552442a4034409c595e6b07e22c348d7eaa456f608002a4a833d1" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/api-reference.md" sha256="d970ded58e9a74f81370c809ca3dee7f14358d198a6fe3a235cf2fa65355a05a" -->
 # Chapter — Hand-maintained API reference
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md) · [API & routes overview](api-and-routes.md)
@@ -671,7 +671,8 @@ not live.
 
 | Path | Methods | Purpose | Scope/auth | Live? |
 |---|---|---|---|---|
-| `/api/portal/chrome/layout` | GET, PUT, DELETE | A person's own sidebar order and saved tabs. **Identity comes from the session, never the body** — the record key is `${agencyId}\|${userId}`, so a body-supplied id would be a cross-tenant write. No capability gate: it touches only the caller's own chrome, and there is no capability for "may arrange your own sidebar". DELETE resets the ORDER and keeps the saved tabs | any signed-in role | |
+| `/api/portal/chrome/layout` | GET, PUT, DELETE | A person's own sidebar order, saved tabs and My Tools palette/folders. **Identity comes from the session, never the body** — the record key is `${agencyId}\|${userId}`, so a body-supplied id would be a cross-tenant write. Current clients send `expectedUpdatedAt`; writes are serialized, revisions are monotonic and a stale writer receives 409 plus the authoritative layout. Older unversioned partial writers remain supported and preserve omitted fields. Private tool-icon metadata is server-owned: PUT preserves the current attachment and refuses removal of a card that still owns an icon. No capability gate: it touches only the caller's own chrome. DELETE resets the sidebar ORDER and keeps shortcuts, tools and tool folders | any signed-in role | |
+| `/api/portal/chrome/tools/[toolId]/icon` | GET, POST, DELETE | Self-only private artwork for one saved-tool card. POST accepts a bounded PNG/JPEG/WebP, stores it through private upload storage and attaches only to a tool already owned by the session's `${agencyId}\|${userId}` layout. GET resolves the provider key from that owned record—never from query input—and serves it inline with `private, no-store`, `nosniff`. Replacement and DELETE first retain exact provider identity in the durable lifecycle ledger; the owner pointer is updated atomically, provider refusal returns a retryable 503, later icon commands replay it and the scheduled sweep retries expired failures. Account-chrome erasure fails closed until attached and pending icon ownership is clear | any signed-in role; exact owned tool | **LIVE (private storage)** |
 | `/api/portal/connections` | GET, POST | Agency-side portal connections: list/create/withdraw/reset | agency | |
 | `/api/portal/connections/request-code` | POST | Email a single-use confirmation code for a connection (also serves resend); sends only to the session's own email | authenticated | |
 | `/api/portal/connections/accept` | POST | Accept a portal connection — verifies the emailed code (6 digits, HMAC-hashed on the connection record, 15-min TTL, single-use, 5-attempt lockout; the `DEV_CONFIRMATION_CODE` bypass is `"000000"` — six zeros — and only behind the dev-mode gate). Rate-limited 20/15min per IP+user | authenticated | |
@@ -3326,7 +3327,7 @@ Plus **10 per-plugin boot bindings** (`*Foundation.ts`, side-effect-imported by
 
 ## Source document — `docs/workspace/portal-ui.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/portal-ui.md" sha256="422ade5859836d9f6a9c8d5d6dd85ab9a8f5c79c1d3be18ff34d18833b881730" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/portal-ui.md" sha256="a2a7dcfcf88ad66267df0618c0a0b83c66d9f0ccd8c7d5e1f8128de2fa6151e5" -->
 # Chapter — Portal UI (`src/app/portal/`)
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
@@ -3439,6 +3440,20 @@ revisit lifecycle as [issue #142](../development/issues.md).
 
 **Actions — `actions/`**
 - `_ActionsWorkspace.tsx` (1203L), `_ActionsPage.tsx`, `_TodayView.tsx`; `calendar/page.tsx` reuses the actions page.
+
+**Personal tools — `tools/`**
+- `page.tsx` keeps Calendar and Notepad as the utility deck, then mounts
+  `_MyToolsPalette.tsx`: per-person external-link cards with a description,
+  built-in or private uploaded artwork, and optional flat folders. Cards match
+  the utility-card proportions and keep 44px management targets visible on
+  touch. The palette rides the account-scoped chrome layout; uploaded bytes use
+  `/api/portal/chrome/tools/[toolId]/icon` and never inflate that always-loaded
+  JSON record. Layout changes are compare-and-set and rapid local edits are
+  serialized; different-field conflicts retry once, while same-collection
+  conflicts reload instead of overwriting another tab. Folder deletion unfiles cards. Icon replacement and card
+  deletion retain an exact private-file cleanup checkpoint; refusal stays
+  retryable and blocks account-chrome erasure rather than orphaning bytes. The
+  public showcase never mounts this personal surface.
 
 **Journey — pipelines / leads / contacts / people**
 - `pipelines/[slug]/page.tsx` — single-pipeline kanban; `_LeadsPipelineWorkspace.tsx` ⊕ **(1960L)**, `_LeadsPipelineWorkspaceServer.tsx` (data loader), `_PipelineBoard.tsx`, `_ScoutingCommand.tsx` (718L), `_FulfilmentProductSwitcher.tsx`.

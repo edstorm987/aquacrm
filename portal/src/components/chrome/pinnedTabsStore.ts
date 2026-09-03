@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { savedToolHref } from "@/lib/chrome/savedToolUrl";
-import type { SavedTab, SavedTabPlacement, SavedTabSpot, SavedTool } from "@/server/types";
+import type { SavedTab, SavedTabPlacement, SavedTabSpot, SavedTool, SavedToolFolder, SavedToolIconAsset } from "@/server/types";
 
 // Saved tabs — a person's own shortcuts into the portal.
 //
@@ -39,12 +39,12 @@ import type { SavedTab, SavedTabPlacement, SavedTabSpot, SavedTool } from "@/ser
 
 const LEGACY_KEY = "mm-pinned-tabs";
 const ENDPOINT = "/api/portal/chrome/layout";
-const CHANGE_EVENT = "mm-saved-tabs-changed";
+const SYNC_CHANNEL = "mm-account-chrome-changed";
 
 /** Keep each strip a working set, not an archive. */
 export const MAX_PINS_PER_LOCATION = 12;
 
-export type { SavedTab, SavedTabPlacement, SavedTabSpot, SavedTool };
+export type { SavedTab, SavedTabPlacement, SavedTabSpot, SavedTool, SavedToolFolder, SavedToolIconAsset };
 
 /** The two strips a tab can be quick-pinned to from the star control. */
 export type PinLocation = "topbar" | "sidebar";
@@ -54,9 +54,18 @@ export interface ChromeLayoutState {
   itemOrder: Record<string, string[]>;
   savedTabs: SavedTab[];
   savedTools: SavedTool[];
+  savedToolFolders: SavedToolFolder[];
+  /** Server-owned compare-and-set revision for this account's chrome record. */
+  updatedAt: number;
 }
 
-const EMPTY: ChromeLayoutState = { panelOrder: [], itemOrder: {}, savedTabs: [], savedTools: [] };
+const EMPTY: ChromeLayoutState = {
+  panelOrder: [], itemOrder: {}, savedTabs: [], savedTools: [], savedToolFolders: [], updatedAt: 0,
+};
+
+const SAFE_PERSONAL_ID = /^[A-Za-z0-9_-]{1,100}$/;
+const SAFE_BUILT_IN_ICON = /^[A-Za-z0-9-]{1,60}$/;
+const RESERVED_TOOL_FOLDER_IDS = new Set(["all", "unfiled"]);
 
 // ─── Pure helpers ────────────────────────────────────────────────────────────
 
@@ -206,17 +215,64 @@ export function normalizeTools(value: unknown): SavedTool[] {
     const url = savedToolHref(typeof record.url === "string" ? record.url : undefined);
     const label = typeof record.label === "string" ? record.label.trim() : "";
     const id = typeof record.id === "string" ? record.id : "";
-    if (!url || !label || !id) continue;
+    if (!url || !label || !SAFE_PERSONAL_ID.test(id) || out.some(tool => tool.id === id)) continue;
+    const iconAsset = normalizeToolIconAsset(record.iconAsset);
+    const folderId = typeof record.folderId === "string" ? record.folderId.trim() : "";
     out.push({
       id, label, url,
       ...(typeof record.note === "string" && record.note.trim() ? { note: record.note.trim() } : {}),
-      ...(typeof record.icon === "string" && record.icon.trim() ? { icon: record.icon.trim() } : {}),
+      ...(typeof record.icon === "string" && SAFE_BUILT_IN_ICON.test(record.icon.trim()) ? { icon: record.icon.trim() } : {}),
+      ...(iconAsset ? { iconAsset } : {}),
+      ...(SAFE_PERSONAL_ID.test(folderId) && !RESERVED_TOOL_FOLDER_IDS.has(folderId.toLowerCase()) ? { folderId } : {}),
       order: typeof record.order === "number" ? record.order : 0,
       createdAt: typeof record.createdAt === "number" ? record.createdAt : 0,
       updatedAt: typeof record.updatedAt === "number" ? record.updatedAt : 0,
     });
   }
   return out.sort((a, b) => a.order - b.order).slice(0, 48);
+}
+
+function normalizeToolIconAsset(value: unknown): SavedToolIconAsset | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Partial<SavedToolIconAsset>;
+  const contentType = record.contentType;
+  const storageProvider = record.storageProvider;
+  const storageKey = typeof record.storageKey === "string" ? record.storageKey.trim() : "";
+  const size = typeof record.size === "number" ? record.size : 0;
+  if (!contentType || !["image/png", "image/jpeg", "image/webp"].includes(contentType)) return null;
+  if (!storageProvider || !["supabase", "vercel-blob", "local"].includes(storageProvider)) return null;
+  if (!storageKey || storageKey.length > 2_000 || !Number.isFinite(size) || size <= 0 || size > 512 * 1024) return null;
+  return {
+    fileName: typeof record.fileName === "string" && record.fileName.trim() ? record.fileName.trim().slice(0, 160) : "tool-icon",
+    contentType,
+    size,
+    storageProvider,
+    storageKey,
+    uploadedAt: typeof record.uploadedAt === "number" && Number.isFinite(record.uploadedAt) ? record.uploadedAt : 0,
+  };
+}
+
+export function normalizeToolFolders(value: unknown): SavedToolFolder[] {
+  if (!Array.isArray(value)) return [];
+  const folders: SavedToolFolder[] = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object") continue;
+    const record = raw as Partial<SavedToolFolder>;
+    const id = typeof record.id === "string" ? record.id.trim() : "";
+    const name = typeof record.name === "string" ? record.name.trim().slice(0, 60) : "";
+    if (!SAFE_PERSONAL_ID.test(id)
+      || RESERVED_TOOL_FOLDER_IDS.has(id.toLowerCase())
+      || !name
+      || folders.some(folder => folder.id === id)) continue;
+    folders.push({
+      id,
+      name,
+      order: typeof record.order === "number" && Number.isFinite(record.order) ? record.order : folders.length,
+      createdAt: typeof record.createdAt === "number" && Number.isFinite(record.createdAt) ? record.createdAt : 0,
+      updatedAt: typeof record.updatedAt === "number" && Number.isFinite(record.updatedAt) ? record.updatedAt : 0,
+    });
+  }
+  return folders.sort((left, right) => left.order - right.order).slice(0, 24);
 }
 
 export function normalizeTabs(value: unknown): SavedTab[] {
@@ -291,25 +347,94 @@ function readLegacyPins(): SavedTab[] {
 // also stops five copies of the same GET going out on every navigation.
 
 let shared: ChromeLayoutState = EMPTY;
+let authoritative: ChromeLayoutState = EMPTY;
 let loadedOnce = false;
 let inFlight: Promise<void> | null = null;
 const listeners = new Set<(state: ChromeLayoutState) => void>();
+export type ChromeLayoutPatch = Partial<Omit<ChromeLayoutState, "updatedAt">>;
+type LayoutPatch = ChromeLayoutPatch;
+type PendingLayoutWrite = { id: number; patch: LayoutPatch; base: ChromeLayoutState };
+let pendingWrites: PendingLayoutWrite[] = [];
+let nextWriteId = 1;
+let persistTail: Promise<void> = Promise.resolve();
+let syncChannel: BroadcastChannel | null = null;
 
 function publish(next: ChromeLayoutState): void {
   shared = next;
   for (const listener of listeners) listener(next);
+}
+
+function applyPatch(base: ChromeLayoutState, patch: LayoutPatch): ChromeLayoutState {
+  return { ...base, ...patch, updatedAt: base.updatedAt };
+}
+
+/** Re-project every still-unacknowledged local choice over the last server record. */
+function publishProjected(): void {
+  publish(pendingWrites.reduce((next, write) => applyPatch(next, write.patch), authoritative));
+}
+
+function sameValue(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+/**
+ * A static field patch is safe to replay only while every field it replaces is
+ * still byte-for-byte the value the caller edited. Different-field changes can
+ * merge; a same-field change must be shown to the caller instead of overwritten.
+ */
+export function canSafelyRebaseLayoutPatch(
+  patch: ChromeLayoutPatch,
+  base: ChromeLayoutState,
+  latest: ChromeLayoutState,
+): boolean {
+  return (Object.keys(patch) as Array<keyof ChromeLayoutPatch>)
+    .every(key => sameValue(latest[key], base[key]));
+}
+
+/** Retry a static field patch only when another tab changed different fields. */
+function canRebase(write: PendingLayoutWrite): boolean {
+  return canSafelyRebaseLayoutPatch(write.patch, write.base, authoritative);
+}
+
+function announceChange(): void {
+  try { syncChannel?.postMessage("changed"); } catch { /* this tab is already current */ }
+}
+
+async function refreshAuthoritative(): Promise<ChromeLayoutState | null> {
   try {
-    // Kept for other tabs of the same browser, which have their own module
-    // scope and cannot see the set above.
-    window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
+    const response = await fetch(ENDPOINT, { cache: "no-store", headers: { accept: "application/json" } });
+    const payload = await response.json().catch(() => null) as { ok?: boolean; layout?: unknown } | null;
+    const next = response.ok && payload?.ok ? normalizedChromeLayout(payload.layout) : null;
+    if (!next) return null;
+    if (next.updatedAt >= authoritative.updatedAt) {
+      authoritative = next;
+      publishProjected();
+    }
+    return shared;
   } catch {
-    // CustomEvent unsupported — the in-process listeners have already run.
+    return null;
+  }
+}
+
+function ensureCrossTabSync(): void {
+  if (syncChannel || typeof BroadcastChannel === "undefined") return;
+  try {
+    syncChannel = new BroadcastChannel(SYNC_CHANNEL);
+    syncChannel.addEventListener("message", event => {
+      if (event.data === "changed") void refreshAuthoritative();
+    });
+  } catch {
+    syncChannel = null;
   }
 }
 
 export interface UseChromeLayout extends ChromeLayoutState {
   ready: boolean;
   save: (next: Partial<ChromeLayoutState>) => void;
+  /** Save with an acknowledgement for flows that must perform a dependent upload. */
+  saveAndWait: (next: Partial<ChromeLayoutState>) => Promise<boolean>;
+  /** Re-read the authoritative account layout after a route-owned mutation. */
+  refresh: () => Promise<ChromeLayoutState | null>;
   pin: (entry: { href: string; label: string; spot?: SavedTabSpot }, placement: SavedTabPlacement) => void;
   toggle: (entry: { href: string; label: string; spot?: SavedTabSpot }, placement: SavedTabPlacement) => void;
   rename: (id: string, label: string) => void;
@@ -321,16 +446,113 @@ export interface UseChromeLayout extends ChromeLayoutState {
   resetOrder: () => void;
 }
 
-function put(next: ChromeLayoutState): void {
-  publish(next);
-  void fetch(ENDPOINT, {
-    method: "PUT",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(next),
+interface LayoutResponse {
+  ok?: boolean;
+  code?: string;
+  layout?: unknown;
+}
+
+/**
+ * Adopt the server record returned by either a successful compare-and-set or
+ * a 409. The latter is just as important: leaving an optimistic stale record
+ * in module scope makes the next click submit the same dead revision again.
+ */
+function rehydrateFromResponse(payload: LayoutResponse | null): boolean {
+  const next = normalizedChromeLayout(payload?.layout);
+  if (!next) return false;
+  // A queued writer serialises this tab's requests, while another browser tab
+  // may still return a newer record. Never move the confirmed base backwards.
+  if (next.updatedAt >= authoritative.updatedAt) {
+    authoritative = next;
+    publishProjected();
+  }
+  return true;
+}
+
+async function persist(next: ChromeLayoutState, expectedUpdatedAt: number): Promise<{ saved: boolean; conflict: boolean }> {
+  try {
+    const response = await fetch(ENDPOINT, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...next, expectedUpdatedAt }),
+    });
+    const payload = await response.json().catch(() => null) as LayoutResponse | null;
+    const rehydrated = rehydrateFromResponse(payload);
+    const saved = response.ok && payload?.ok === true && rehydrated;
+    if (saved) announceChange();
+    return {
+      saved,
+      conflict: response.status === 409 && payload?.code === "stale_chrome_layout" && rehydrated,
+    };
+  } catch {
+    return { saved: false, conflict: false };
+  }
+}
+
+function enqueuePatch(patch: LayoutPatch): Promise<boolean> {
+  const write: PendingLayoutWrite = { id: nextWriteId++, patch, base: shared };
+  pendingWrites.push(write);
+  publishProjected();
+
+  let resolveResult: (saved: boolean) => void = () => {};
+  const result = new Promise<boolean>(resolve => { resolveResult = resolve; });
+  persistTail = persistTail.then(async () => {
+    let saved = false;
+    // A later optimistic write can have been based on an earlier queued write.
+    // If that earlier write was refused, sending this static array/object patch
+    // against the newly authoritative revision would silently erase another
+    // tab's winning change. Check the fields before the FIRST request as well
+    // as after a 409; successful predecessors make the bases equal, while
+    // rejected dependencies make them differ and are safely discarded.
+    if (!canRebase(write)) {
+      pendingWrites = pendingWrites.filter(candidate => candidate.id !== write.id);
+      publishProjected();
+      resolveResult(false);
+      return;
+    }
+    // A different tab may win the first compare-and-set. Rebase this field-level
+    // intent over the returned record once instead of silently discarding it.
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const expectedUpdatedAt = authoritative.updatedAt;
+      const outcome = await persist(applyPatch(authoritative, patch), expectedUpdatedAt);
+      if (outcome.saved) {
+        saved = true;
+        break;
+      }
+      if (!outcome.conflict || !canRebase(write)) break;
+    }
+    pendingWrites = pendingWrites.filter(candidate => candidate.id !== write.id);
+    publishProjected();
+    resolveResult(saved);
   }).catch(() => {
-    // Saving is best-effort by design — see the note at the top. The next load
-    // shows what the server actually holds rather than a local fiction.
+    pendingWrites = pendingWrites.filter(candidate => candidate.id !== write.id);
+    publishProjected();
+    resolveResult(false);
   });
+  return result;
+}
+
+function put(patch: LayoutPatch): void {
+  void enqueuePatch(patch);
+}
+
+export function normalizedChromeLayout(value: unknown): ChromeLayoutState | null {
+  if (!value || typeof value !== "object") return null;
+  const layout = value as Partial<ChromeLayoutState>;
+  const savedToolFolders = normalizeToolFolders(layout.savedToolFolders);
+  const folderIds = new Set(savedToolFolders.map(folder => folder.id));
+  return {
+    panelOrder: Array.isArray(layout.panelOrder) ? layout.panelOrder : [],
+    itemOrder: layout.itemOrder && typeof layout.itemOrder === "object" ? layout.itemOrder : {},
+    savedTabs: normalizeTabs(layout.savedTabs),
+    savedTools: normalizeTools(layout.savedTools).map(tool => tool.folderId && !folderIds.has(tool.folderId)
+      ? { ...tool, folderId: undefined }
+      : tool),
+    savedToolFolders,
+    updatedAt: typeof layout.updatedAt === "number" && Number.isFinite(layout.updatedAt) && layout.updatedAt >= 0
+      ? layout.updatedAt
+      : 0,
+  };
 }
 
 async function loadOnce(): Promise<void> {
@@ -339,15 +561,10 @@ async function loadOnce(): Promise<void> {
   inFlight = (async () => {
     let loaded = EMPTY;
     try {
-      const response = await fetch(ENDPOINT, { headers: { accept: "application/json" } });
+      const response = await fetch(ENDPOINT, { cache: "no-store", headers: { accept: "application/json" } });
       const data = await response.json() as { ok?: boolean; layout?: ChromeLayoutState } | null;
       if (data?.ok && data.layout) {
-        loaded = {
-          panelOrder: Array.isArray(data.layout.panelOrder) ? data.layout.panelOrder : [],
-          itemOrder: data.layout.itemOrder && typeof data.layout.itemOrder === "object" ? data.layout.itemOrder : {},
-          savedTabs: normalizeTabs(data.layout.savedTabs),
-          savedTools: normalizeTools((data.layout as { savedTools?: unknown }).savedTools),
-        };
+        loaded = normalizedChromeLayout(data.layout) ?? EMPTY;
       }
     } catch {
       // Signed out, offline, or the route is unavailable: show the default
@@ -357,20 +574,20 @@ async function loadOnce(): Promise<void> {
     // Adopt pre-2026-08-27 localStorage pins ONCE, and only into an account
     // that has none — otherwise a stale browser could resurrect shortcuts
     // somebody deliberately deleted on another device.
+    // A BroadcastChannel refresh or an early conflict response can finish
+    // before this first GET. Never let the older initial response move the
+    // module-wide confirmed record backwards.
+    if (loaded.updatedAt >= authoritative.updatedAt) authoritative = loaded;
+    const current = authoritative;
     const legacy = readLegacyPins();
-    if (legacy.length && !loaded.savedTabs.length) {
-      const adopted = { ...loaded, savedTabs: capPerPlacement(legacy) };
+    if (legacy.length && !current.savedTabs.length) {
       loadedOnce = true;
-      publish(adopted);
+      publishProjected();
       try {
-        const response = await fetch(ENDPOINT, {
-          method: "PUT",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(adopted),
-        });
+        const saved = await enqueuePatch({ savedTabs: capPerPlacement(legacy) });
         // The old key is cleared only after the save is ACKNOWLEDGED. Dropping
         // it first would lose the pins outright if the request failed.
-        if (response.ok) window.localStorage.removeItem(LEGACY_KEY);
+        if (saved) window.localStorage.removeItem(LEGACY_KEY);
       } catch {
         // Keep the legacy key; the next load tries again.
       }
@@ -378,7 +595,7 @@ async function loadOnce(): Promise<void> {
     }
 
     loadedOnce = true;
-    publish(loaded);
+    publishProjected();
   })();
   return inFlight;
 }
@@ -393,57 +610,71 @@ export function useChromeLayout(): UseChromeLayout {
   useEffect(() => {
     const listener = (next: ChromeLayoutState) => { setState(next); setReady(true); };
     listeners.add(listener);
-    // Another browser TAB changed it: re-read from the server rather than
-    // trusting a payload that crossed a storage event.
-    const external = () => setState(shared);
-    window.addEventListener(CHANGE_EVENT, external);
-    void loadOnce().then(() => { setState(shared); setReady(true); });
+    // Subscribe before the initial GET so a save from another open tab cannot
+    // land in the fetch window and disappear without a buffered notification.
+    ensureCrossTabSync();
+    void loadOnce().then(() => {
+      setState(shared);
+      setReady(true);
+    });
     return () => {
       listeners.delete(listener);
-      window.removeEventListener(CHANGE_EVENT, external);
     };
   }, []);
 
   const save = useCallback((next: Partial<ChromeLayoutState>) => {
-    put({ ...shared, ...next });
+    const { updatedAt: _ignored, ...patch } = next;
+    void _ignored;
+    put(patch);
+  }, []);
+
+  const saveAndWait = useCallback(async (next: Partial<ChromeLayoutState>) => {
+    const { updatedAt: _ignored, ...patch } = next;
+    void _ignored;
+    return enqueuePatch(patch);
+  }, []);
+
+  const refresh = useCallback(async () => {
+    const latest = await refreshAuthoritative();
+    if (latest) announceChange();
+    return latest;
   }, []);
 
   const pin = useCallback((entry: { href: string; label: string; spot?: SavedTabSpot }, placement: SavedTabPlacement) => {
-    put({ ...shared, savedTabs: upsertTab(shared.savedTabs, entry, placement) });
+    put({ savedTabs: upsertTab(shared.savedTabs, entry, placement) });
   }, []);
 
   const toggle = useCallback((entry: { href: string; label: string; spot?: SavedTabSpot }, placement: SavedTabPlacement) => {
-    put({ ...shared, savedTabs: toggleTab(shared.savedTabs, entry, placement) });
+    put({ savedTabs: toggleTab(shared.savedTabs, entry, placement) });
   }, []);
 
   const rename = useCallback((id: string, label: string) => {
-    put({ ...shared, savedTabs: renameTab(shared.savedTabs, id, label) });
+    put({ savedTabs: renameTab(shared.savedTabs, id, label) });
   }, []);
 
   const setTone = useCallback((id: string, tone: string | undefined) => {
-    put({ ...shared, savedTabs: setTabTone(shared.savedTabs, id, tone) });
-  }, [put, shared]);
+    put({ savedTabs: setTabTone(shared.savedTabs, id, tone) });
+  }, []);
 
   const setIcon = useCallback((id: string, icon: string | undefined) => {
-    put({ ...shared, savedTabs: setTabIcon(shared.savedTabs, id, icon) });
+    put({ savedTabs: setTabIcon(shared.savedTabs, id, icon) });
   }, []);
 
   const move = useCallback((id: string, placement: SavedTabPlacement, index: number) => {
-    put({ ...shared, savedTabs: moveTabTo(shared.savedTabs, id, placement, index) });
+    put({ savedTabs: moveTabTo(shared.savedTabs, id, placement, index) });
   }, []);
 
   const remove = useCallback((href: string) => {
-    put({ ...shared, savedTabs: removeTab(shared.savedTabs, href) });
+    put({ savedTabs: removeTab(shared.savedTabs, href) });
   }, []);
 
   const clear = useCallback(() => {
-    put({ ...shared, savedTabs: [] });
+    put({ savedTabs: [] });
   }, []);
 
   const resetOrder = useCallback(() => {
-    publish({ ...shared, panelOrder: [], itemOrder: {} });
-    void fetch(ENDPOINT, { method: "DELETE" }).catch(() => { /* best-effort */ });
+    put({ panelOrder: [], itemOrder: {} });
   }, []);
 
-  return { ...state, ready, save, pin, toggle, rename, setIcon, setTone, move, remove, clear, resetOrder };
+  return { ...state, ready, save, saveAndWait, refresh, pin, toggle, rename, setIcon, setTone, move, remove, clear, resetOrder };
 }

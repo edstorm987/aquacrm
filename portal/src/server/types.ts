@@ -3881,7 +3881,29 @@ export interface SavedTool {
   note?: string;
   /** Chosen icon, as a key into `components/chrome/navIcons` — same rule as SavedTab.icon. */
   icon?: string;
+  /** Optional private artwork uploaded for this card. It wins over `icon` when present. */
+  iconAsset?: SavedToolIconAsset;
+  /** Optional flat folder. Missing and unknown ids render in Unfiled. */
+  folderId?: string;
   /** Where it sits in the grid. */
+  order: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface SavedToolIconAsset {
+  fileName: string;
+  contentType: "image/png" | "image/jpeg" | "image/webp";
+  size: number;
+  storageProvider: "supabase" | "vercel-blob" | "local";
+  storageKey: string;
+  uploadedAt: number;
+}
+
+/** A person's optional flat grouping for saved-tool cards. */
+export interface SavedToolFolder {
+  id: string;
+  name: string;
   order: number;
   createdAt: number;
   updatedAt: number;
@@ -3902,9 +3924,13 @@ export interface UserChromeLayout {
    * of thing as the rest of this record: one person's shortcuts, keyed
    * `${agencyId}|${userId}`, already realm-scoped, already normalised
    * defensively on read, already removed with the account. A second store
-   * would have had to re-earn every one of those.
+   * would have had to re-earn every one of those. Account erasure removes any
+   * attached private icon objects through their lifecycle route before this
+   * owner record may be dropped; the store fails closed if that step is skipped.
    */
   savedTools: SavedTool[];
+  /** Flat, personal folders for `savedTools`; deleting one only unfiles its cards. */
+  savedToolFolders: SavedToolFolder[];
   /**
    * This person's own stylesheet.
    *

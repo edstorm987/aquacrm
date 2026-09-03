@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-02T20:47:48.786Z",
+  "generatedAt": "2026-09-02T22:55:59.694Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -839,9 +839,9 @@
       "path": "docs/development/plans/my-tools-palette.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-my-tools-palette-md",
-      "sha256": "2c0e92ade7617c25af96810337c8872afcfe94d0662c702d51744ae2f4a64c1e",
-      "words": 721,
-      "bytes": 4723
+      "sha256": "222f231d042927d2db3d9d96b7599c1148e3e58c0d550bc1e417f1700189e5c6",
+      "words": 1049,
+      "bytes": 7144
     },
     {
       "path": "docs/development/plans/operations-command-surface.md",
@@ -1023,9 +1023,9 @@
       "path": "docs/development/updates.md",
       "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
       "anchor": "source-docs-development-updates-md",
-      "sha256": "eadb285a3a23b72cbfcaf7e298d7a75ec8b527f8be7b5cc8c90fd30d9df4adab",
-      "words": 103216,
-      "bytes": 772660
+      "sha256": "9077b745fec2eab2f51791b9457ed42c8a789f9f0438ce978e9a92d21e76d1ba",
+      "words": 103459,
+      "bytes": 774433
     },
     {
       "path": "docs/development/visual-browser-audit-2026-08-23.md",
@@ -1095,9 +1095,9 @@
       "path": "docs/workspace/api-reference.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-api-reference-md",
-      "sha256": "61910fdc1f8552442a4034409c595e6b07e22c348d7eaa456f608002a4a833d1",
-      "words": 8313,
-      "bytes": 58279
+      "sha256": "d970ded58e9a74f81370c809ca3dee7f14358d198a6fe3a235cf2fa65355a05a",
+      "words": 8477,
+      "bytes": 59475
     },
     {
       "path": "docs/workspace/aqua-tag.md",
@@ -1167,9 +1167,9 @@
       "path": "docs/workspace/portal-ui.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-portal-ui-md",
-      "sha256": "422ade5859836d9f6a9c8d5d6dd85ab9a8f5c79c1d3be18ff34d18833b881730",
-      "words": 3935,
-      "bytes": 34406
+      "sha256": "a2a7dcfcf88ad66267df0618c0a0b83c66d9f0ccd8c7d5e1f8128de2fa6151e5",
+      "words": 4055,
+      "bytes": 35371
     },
     {
       "path": "docs/workspace/radar.md",

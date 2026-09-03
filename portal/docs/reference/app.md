@@ -1392,7 +1392,27 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async PUT(request: Request)`
 - `async DELETE()` — Put the sidebar back the way it ships. Saved tabs survive — they are not an arrangement.
 
-**Depends on (4):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/chrome/userChromeLayout.ts`](lib.md#file-src-lib-server-chrome-userchromelayout-ts-e39b7711f4) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/chrome/userChromeLayout.ts`](lib.md#file-src-lib-server-chrome-userchromelayout-ts-e39b7711f4) · [`src/server/productWorkspaceCoordinator.ts`](server.md#file-src-server-productworkspacecoordinator-ts-746a08d0be) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
+## `src/app/api/portal/chrome/tools/[toolId]/icon/`
+
+<a id="file-src-app-api-portal-chrome-tools-toolid-icon-route-ts-b69fa804ae"></a>
+
+### `src/app/api/portal/chrome/tools/[toolId]/icon/route.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (4):**
+
+- `async GET(request: NextRequest, context: Context)`
+- `async POST(request: NextRequest, context: Context)`
+- `async DELETE(request: NextRequest, context: Context)`
+- `runtime = "nodejs"`
+
+**Depends on (7):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/chrome/userChromeLayout.ts`](lib.md#file-src-lib-server-chrome-userchromelayout-ts-e39b7711f4) · [`src/lib/server/privateObjectLifecycle.ts`](lib.md#file-src-lib-server-privateobjectlifecycle-ts-340cbd1888) · [`src/lib/server/privateUploadStorage.ts`](lib.md#file-src-lib-server-privateuploadstorage-ts-80d5415fe8) · [`src/server/productWorkspaceCoordinator.ts`](server.md#file-src-server-productworkspacecoordinator-ts-746a08d0be) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -8475,9 +8495,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
-- `MyToolsPalette()`
+- `MyToolsPalette()` — Ed's personal, account-synced palette of external tools.
 
-**Depends on (2):** [`src/components/chrome/pinnedTabsStore.ts`](components.md#file-src-components-chrome-pinnedtabsstore-ts-e04f9dfb99) · [`src/lib/chrome/savedToolUrl.ts`](lib.md#file-src-lib-chrome-savedtoolurl-ts-0f6f57b2b2)
+**Depends on (5):** [`src/components/chrome/navIcons.ts`](components.md#file-src-components-chrome-navicons-ts-1756139c14) · [`src/components/chrome/pinnedTabsStore.ts`](components.md#file-src-components-chrome-pinnedtabsstore-ts-e04f9dfb99) · [`src/components/ui/ConfirmDialog.tsx`](components.md#file-src-components-ui-confirmdialog-tsx-95ce30ec9d) · [`src/lib/chrome/savedToolIcon.ts`](lib.md#file-src-lib-chrome-savedtoolicon-ts-d55894c92d) · [`src/lib/chrome/savedToolUrl.ts`](lib.md#file-src-lib-chrome-savedtoolurl-ts-0f6f57b2b2)
 
 **Used by (1):** [`src/app/portal/agency/tools/page.tsx`](#file-src-app-portal-agency-tools-page-tsx-34a20a53ec)
 

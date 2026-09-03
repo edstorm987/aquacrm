@@ -58,7 +58,7 @@ const SIDEBAR: SavedTabPlacement = { kind: "sidebar" };
  */
 export function PinCurrentControl({ label }: { label: string }) {
   const href = useCurrentHref();
-  const { savedTabs, pin, toggle, rename, remove, clear } = useChromeLayout();
+  const { savedTabs, pin, toggle, rename, remove, clear, ready } = useChromeLayout();
   const current = findTab(savedTabs, href);
   const saved = Boolean(current);
   const [open, setOpen] = useState(false);
@@ -95,22 +95,24 @@ export function PinCurrentControl({ label }: { label: string }) {
       {picking ? <SpotPicker onPick={onPickSpot} onCancel={() => setPicking(false)} /> : null}
       <button
         type="button"
+        disabled={!ready}
         onClick={() => toggle(currentEntry(), TOPBAR)}
         aria-pressed={saved}
         aria-label={current ? "Unpin this page" : "Pin this page to the topbar"}
         title={current ? (current.placement.kind === "topbar" ? "Saved to the topbar" : "Saved to the sidebar") : "Save this view"}
         data-mm-pin-toggle
-        className="mm-pinned-toggle inline-flex h-9 items-center gap-0.5 rounded-l-md border border-r-0 border-black/10 bg-white/60 pl-2 pr-1 text-black/45 transition hover:bg-white hover:text-black"
+        className="mm-pinned-toggle inline-flex h-9 items-center gap-0.5 rounded-l-md border border-r-0 border-black/10 bg-white/60 pl-2 pr-1 text-black/45 transition hover:bg-white hover:text-black disabled:cursor-wait disabled:opacity-50"
       >
         <Star size={16} className={saved ? "fill-amber-400 text-amber-500" : ""} aria-hidden />
       </button>
       <button
         type="button"
+        disabled={!ready}
         onClick={() => setOpen(v => !v)}
         aria-label="Pinning options"
         aria-haspopup="menu"
         aria-expanded={open}
-        className="mm-pinned-caret inline-flex h-9 items-center rounded-r-md border border-black/10 bg-white/60 px-1 text-black/40 transition hover:bg-white hover:text-black"
+        className="mm-pinned-caret inline-flex h-9 items-center rounded-r-md border border-black/10 bg-white/60 px-1 text-black/40 transition hover:bg-white hover:text-black disabled:cursor-wait disabled:opacity-50"
       >
         <ChevronDown size={13} aria-hidden />
       </button>

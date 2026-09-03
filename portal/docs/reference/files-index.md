@@ -2,7 +2,7 @@
 
 ← Back to [the reference index](00-index.md) · [the map](../WORKSPACE-FILE-TREE.md) · [development.md](../development.md)
 
-Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2657 source files; 0 per-source stubs.**
+Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2661 source files; 0 per-source stubs.**
 
 ## Engines — `src/engines/` (85)
 
@@ -167,7 +167,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
 - [`src/server/zimanteTradingCompanies.ts`](server.md#file-src-server-zimantetradingcompanies-ts-ef9a41c5a6)
 
-## Shared logic — `src/lib/` (353)
+## Shared logic — `src/lib/` (354)
 
 - [`src/lib/a11y/contrastValidator.ts`](lib.md#file-src-lib-a11y-contrastvalidator-ts-7c6889cfca) — components. We default to 4.5 for the strictest check.
 - [`src/lib/a11y/isEmbedded.ts`](lib.md#file-src-lib-a11y-isembedded-ts-e91cac9938)
@@ -203,6 +203,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/chrome/pluginHealth.ts`](lib.md#file-src-lib-chrome-pluginhealth-ts-d71c78b8c0) — cannot drift apart the way the Dev Console's worker count once did.
 - [`src/lib/chrome/privacyMode.ts`](lib.md#file-src-lib-chrome-privacymode-ts-5d95d06163) — conclude the app is broken.
 - [`src/lib/chrome/savedTabNav.ts`](lib.md#file-src-lib-chrome-savedtabnav-ts-22370ff8a3) — need a home on the boundary.
+- [`src/lib/chrome/savedToolIcon.ts`](lib.md#file-src-lib-chrome-savedtoolicon-ts-d55894c92d)
 - [`src/lib/chrome/savedToolUrl.ts`](lib.md#file-src-lib-chrome-savedtoolurl-ts-0f6f57b2b2) — Longer than any link worth a card; short enough that a full palette stays small.
 - [`src/lib/chrome/settingsModules.ts`](lib.md#file-src-lib-chrome-settingsmodules-ts-f2347695f0) — Agency-scoped modules that declare `settings.groups`, each with the label it should wear in the set…
 - [`src/lib/chrome/sharedChromeLinkPrefetch.ts`](lib.md#file-src-lib-chrome-sharedchromelinkprefetch-ts-5da3605f67) — Local development compiles a destination the first time Next prefetches it. A mounted portal shell …
@@ -1421,7 +1422,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/built-ins/runtime/foundation-adapters/publicFunnelFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-publicfunnelfoundation-ts-18280e9710)
 - [`src/built-ins/runtime/foundation-adapters/publicMediaAdapter.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-publicmediaadapter-ts-4b47d9ab84)
 
-## App routes & UI — `src/app/` (658)
+## App routes & UI — `src/app/` (659)
 
 - [`src/app/(seeds)/aquaOasisDemoContent.ts`](app.md#file-src-app-seeds-aquaoasisdemocontent-ts-f2e90ac84c) — agency record (so a prod tenant flip doesn't spawn fake data).
 - [`src/app/(website)/business-os/page.tsx`](app.md#file-src-app-website-business-os-page-tsx-0cbb0528df)
@@ -1502,6 +1503,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/api/portal/calendar/sync/route.ts`](app.md#file-src-app-api-portal-calendar-sync-route-ts-a519ae6af2)
 - [`src/app/api/portal/chrome/department/route.ts`](app.md#file-src-app-api-portal-chrome-department-route-ts-2b19ee10b2)
 - [`src/app/api/portal/chrome/layout/route.ts`](app.md#file-src-app-api-portal-chrome-layout-route-ts-690e046bec)
+- [`src/app/api/portal/chrome/tools/[toolId]/icon/route.ts`](app.md#file-src-app-api-portal-chrome-tools-toolid-icon-route-ts-b69fa804ae)
 - [`src/app/api/portal/client-forms/[noticeId]/route.ts`](app.md#file-src-app-api-portal-client-forms-noticeid-route-ts-00274d8b18)
 - [`src/app/api/portal/client-portal-design/route.ts`](app.md#file-src-app-api-portal-client-portal-design-route-ts-14495a1437)
 - [`src/app/api/portal/clients/[clientId]/erase/route.ts`](app.md#file-src-app-api-portal-clients-clientid-erase-route-ts-7fd81dbf91)
@@ -2082,7 +2084,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/showcase/exit/route.ts`](app.md#file-src-app-showcase-exit-route-ts-2297ba275f)
 - [`src/app/showcase/route.ts`](app.md#file-src-app-showcase-route-ts-4c24dd82df)
 
-## Scripts — `scripts/` (591)
+## Scripts — `scripts/` (593)
 
 - [`scripts/attention-protection.test.ts`](scripts.md#file-scripts-attention-protection-test-ts-d64d01714c)
 - [`scripts/audit-actions.ts`](scripts.md#file-scripts-audit-actions-ts-862ea31175) — What state Actions is actually in — measured, not remembered. For every alert the checks currently …
@@ -2165,6 +2167,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-business-os-destinations.test.ts`](scripts.md#file-scripts-smoke-business-os-destinations-test-ts-65fccf4171)
 - [`scripts/smoke-business-radar.test.ts`](scripts.md#file-scripts-smoke-business-radar-test-ts-8b02fea97b)
 - [`scripts/smoke-checked-mutations.test.ts`](scripts.md#file-scripts-smoke-checked-mutations-test-ts-54f291e8ed)
+- [`scripts/smoke-chrome-layout-cas-route.test.ts`](scripts.md#file-scripts-smoke-chrome-layout-cas-route-test-ts-53877a631b) — Behavioural acceptance for the per-account chrome compare-and-set boundary.
 - [`scripts/smoke-chrome-layout.test.ts`](scripts.md#file-scripts-smoke-chrome-layout-test-ts-80b420a476) — First, and statically — see the note in dev-console-request-scope.ts.
 - [`scripts/smoke-classify-alert-routing.test.ts`](scripts.md#file-scripts-smoke-classify-alert-routing-test-ts-c02fd3330e)
 - [`scripts/smoke-client-association-element.test.ts`](scripts.md#file-scripts-smoke-client-association-element-test-ts-26cb0339d5) — First, and statically — see the note in dev-console-request-scope.ts.
@@ -2461,6 +2464,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-my-radar-panel.test.ts`](scripts.md#file-scripts-smoke-my-radar-panel-test-ts-0a455882ef) — system, not a shape, and this follows that.
 - [`scripts/smoke-my-radar-topbar.test.ts`](scripts.md#file-scripts-smoke-my-radar-topbar-test-ts-e5a99f82ea) — a fork, a nudge that speaks only in amber.
 - [`scripts/smoke-my-radar.test.ts`](scripts.md#file-scripts-smoke-my-radar-test-ts-ecac907a42) — the first day of every period.
+- [`scripts/smoke-my-tools-icon-route.test.ts`](scripts.md#file-scripts-smoke-my-tools-icon-route-test-ts-e900b48203) — a caller-scope leak, a forged private-storage key, or an orphaned icon.
 - [`scripts/smoke-my-tools-palette.test.ts`](scripts.md#file-scripts-smoke-my-tools-palette-test-ts-de0b78e8dd) — and again in the client store.
 - [`scripts/smoke-nav-audit.test.ts`](scripts.md#file-scripts-smoke-nav-audit-test-ts-d32b505d03) — fulfilment client-list UI leaking back into the sidebar.
 - [`scripts/smoke-nav-tone.test.ts`](scripts.md#file-scripts-smoke-nav-tone-test-ts-9105de1958) — hold that turned into a drag renamed on drop.

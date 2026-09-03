@@ -34,6 +34,32 @@ map stays trustworthy.
 
 ---
 
+## 2026-09-02 — Personal My Tools cards, artwork and folders
+
+- Upgraded Tools → Your palette from bare name/URL rows to normal workspace
+  cards with descriptions, a full built-in icon picker, optional private
+  PNG/JPEG/WebP artwork and up to 24 flat personal folders. Folder filters carry
+  counts; rename is retained; deleting a folder moves its cards to Unfiled.
+- Added an authenticated per-user icon route backed by the shared private-upload
+  providers. Exact provider identity is server-owned; reads are private/no-store;
+  replacement/deletion are serialized and retain retryable cleanup checkpoints.
+  The lifecycle sweep now retries expired owner deletions, and account-chrome
+  erasure fails closed for live, malformed legacy and pending icon owners.
+- Added monotonic compare-and-set revisions to account chrome. Rapid optimistic
+  changes now pass through a serial client queue and notify other open tabs. A
+  different-field cross-tab conflict retries once over the authoritative response;
+  a same-collection conflict, or a queued write based on a refused predecessor,
+  reloads/refuses instead of overwriting the winning tab.
+- Focused and adjacent acceptance passed **180/180**, TypeScript passed and
+  `git diff --check` passed. In the isolated file-backend browser at 1280×720,
+  create, describe, choose icon, file into a folder, reload, edit, filter, rename
+  and delete-folder-to-Unfiled all passed with no unexpected console error. The
+  native upload picker itself was unavailable while macOS was locked; exact
+  upload/read/replace/race/refusal/delete bytes are covered by the 11-test route
+  suite instead.
+- Reconciled the My Tools plan, API reference and portal UI map; regenerated the
+  symbol reference and consolidated authored docs.
+
 ## 2026-09-02 — Marketing records across real processes (#82)
 
 - The mounted asset and customer-profile handlers already run under the storage port's
