@@ -9,6 +9,7 @@ import {
   addWebsiteSource,
   ensureAgencyMasterSiteKey,
   getAgencyMasterSiteKey,
+  getWebsiteSource,
   listWebsiteSources,
   masterTagSnippet,
   removeWebsiteSource,
@@ -128,10 +129,25 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === "remove") {
-      const removed = removeWebsiteSource(agencyId, str(body?.id) ?? "");
+      // Permanent removal is the one destructive action here: it cascades to
+      // the site config (tool injections, imported form schemas). The receipt
+      // names exactly what was removed so a mounted panel can refuse a receipt
+      // for some other row. → issues #85
+      const stored = getWebsiteSource(agencyId, str(body?.id) ?? "");
+      if (!stored) return NextResponse.json({ ok: false, error: "That website source was not found." }, { status: 404 });
+      const removed = removeWebsiteSource(agencyId, stored.id);
       if (!removed) return NextResponse.json({ ok: false, error: "That website source was not found." }, { status: 404 });
+      logActivity({
+        agencyId,
+        actorUserId: session.userId,
+        actorEmail: session.email,
+        category: "integrations",
+        action: "website_source.removed",
+        message: `Permanently removed ${stored.host} with its tool injections and imported form schemas.`,
+        metadata: { websiteSourceId: stored.id, host: stored.host },
+      });
       await flushPendingWrites();
-      return NextResponse.json({ ok: true });
+      return NextResponse.json({ ok: true, removed: { id: stored.id, host: stored.host } });
     }
 
     if (action === "import-forms") {

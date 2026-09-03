@@ -28,6 +28,21 @@ function queryValue(row: Row, column: string): unknown {
 
 function fakeSupabase() {
   return {
+    // This suite pins the PROCESS-LOCAL path: the database answers "no such
+    // function" for the delivery migration, exactly as a project that has not
+    // applied it yet. The migrated path is proven by
+    // smoke-aqua-tag-ingestion-durability and -durable-processes.
+    async rpc(fn: string) {
+      return {
+        data: null,
+        error: {
+          code: "PGRST202",
+          message: `Could not find the function public.${fn} in the schema cache`,
+          details: null,
+          hint: null,
+        },
+      };
+    },
     from(table: string) {
       assert.equal(table, "brand_enquiries");
       let operation: "select" | "insert" | "update" = "select";
@@ -218,10 +233,18 @@ function assertOneCompleteEnquiry() {
   assert.ok(rows[0].metadata.formCapture, "the complete row lost the tag's richer field capture");
 }
 
-describe("the real public handlers reconcile one Aqua submission", () => {
-  it("promotes a tag-first row and runs downstream effects once", async () => {
-    assert.equal((await formCapturePost(captureRequest())).status, 200);
-    assert.equal((await brandEnquiryPost(brandRequest())).status, 200);
+describe("the real public handlers reconcile one Aqua submission (process-local fallback)", () => {
+  it("promotes a tag-first row and runs downstream effects once, and says which boundary held it", async () => {
+    const captured = await formCapturePost(captureRequest());
+    assert.equal(captured.status, 200);
+    assert.equal((await captured.json() as { boundary?: string }).boundary, "process-local",
+      "without the migration the receipt must name the weaker guarantee");
+    const accepted = await brandEnquiryPost(brandRequest());
+    assert.equal(accepted.status, 200);
+    const acceptedBody = await accepted.json() as { boundary?: string; delivery?: string; submissionId?: string };
+    assert.equal(acceptedBody.boundary, "process-local");
+    assert.equal(acceptedBody.delivery, "complete");
+    assert.equal(acceptedBody.submissionId, SUBMISSION_ID, "the receipt must name the exact id the tag sent");
     assertOneCompleteEnquiry();
 
     const replay = await brandEnquiryPost(brandRequest());

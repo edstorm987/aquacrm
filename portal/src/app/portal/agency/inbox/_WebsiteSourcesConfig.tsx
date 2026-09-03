@@ -5,7 +5,12 @@ import Link from "next/link";
 import { ArrowRight, Building2, Code2, FileSearch, Globe2, LoaderCircle, Plus, Trash2 } from "lucide-react";
 import { mapScannedForm } from "@/lib/enquiries/clientFormMapping";
 import {
+  WEBSITE_SOURCE_REMOVE_FALLBACK,
+  WEBSITE_SOURCE_UPDATE_FALLBACK,
   readWebsiteSourceRegistry,
+  removeWebsiteSourceRegistration,
+  updateWebsiteSourceRouting,
+  websiteSourceMutationMessage,
   websiteSourceRegistryPresentation,
   type WebsiteSourceRegistryClient,
   type WebsiteSourceRegistryCompany,
@@ -189,6 +194,10 @@ export function WebsiteSourcesConfig() {
   const [host, setHost] = useState("");
   const [destination, setDestination] = useState(AGENCY);
   const [busy, setBusy] = useState(false);
+  // The one source mutation in flight (re-route or permanent removal). While
+  // it is set, every per-source control is disabled so nothing can be sent
+  // twice, and the row it belongs to reports busy.
+  const [activeMutation, setActiveMutation] = useState<{ id: string; kind: "reroute" | "remove" } | null>(null);
   const [formsBySource, setFormsBySource] = useState<Record<string, FormSummary[]>>({});
   const [importingId, setImportingId] = useState<string | null>(null);
   const [importNote, setImportNote] = useState<Record<string, string>>({});
@@ -244,41 +253,50 @@ export function WebsiteSourcesConfig() {
     finally { setBusy(false); }
   }
 
+  // Re-point a site. The row shows its new home only once the server has
+  // confirmed exactly this source with exactly that destination — nothing is
+  // shown optimistically, so a failed save leaves the select on the old value.
   async function reroute(source: WebsiteSource, routing: Routing) {
     if (!presentation.canMutate) { setError("Retry the routing read before changing any sites."); return; }
+    if (activeMutation) return;
+    setActiveMutation({ id: source.id, kind: "reroute" });
     setError(null);
-    const previous = { destinationClientId: source.destinationClientId, destinationCompanyId: source.destinationCompanyId };
-    // Clear both homes then set the chosen one, so the row never shows two for a beat.
-    setSources(current => current.map(s => s.id === source.id ? { ...s, destinationClientId: undefined, destinationCompanyId: undefined, ...routing } : s));
     try {
-      const response = await fetch("/api/portal/website-sources", {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "update", id: source.id, ...routing }),
-      });
-      if (!response.ok) throw new Error();
-    } catch {
-      setSources(current => current.map(s => s.id === source.id ? { ...s, ...previous } : s));
-      setError("That change could not be saved.");
+      const saved = await updateWebsiteSourceRouting(source.id, routing);
+      setSources(current => current.map(s => s.id === saved.id ? saved : s));
+    } catch (cause) {
+      setError(websiteSourceMutationMessage(cause, WEBSITE_SOURCE_UPDATE_FALLBACK));
+    } finally {
+      setActiveMutation(null);
     }
   }
 
+  // Permanent removal is deliberately separate from re-routing: it deletes the
+  // registration AND cascades to its tool injections and imported form
+  // schemas. Cancelling the confirmation changes nothing. The row leaves the
+  // list only on a receipt naming this exact source; a transport failure,
+  // unreadable body, non-2xx, ok:false or a receipt for another source keeps
+  // the row visible, settles the busy state, is announced, and can be retried.
   async function remove(source: WebsiteSource) {
     if (!presentation.canMutate) { setError("Retry the routing read before changing any sites."); return; }
+    if (activeMutation) return;
     const confirmed = window.confirm(
       `Permanently remove ${source.host}? This deletes its registration, tool injections and imported form schemas. This cannot be undone.`,
     );
     if (!confirmed) return;
+    setActiveMutation({ id: source.id, kind: "remove" });
     setError(null);
-    setSources(current => current.filter(s => s.id !== source.id));
     try {
-      const response = await fetch("/api/portal/website-sources", {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "remove", id: source.id }),
+      const removed = await removeWebsiteSourceRegistration(source.id);
+      setSources(current => current.filter(s => s.id !== removed.id));
+      setFormsBySource(current => {
+        const { [removed.id]: _dropped, ...rest } = current;
+        return rest;
       });
-      if (!response.ok) throw new Error();
-    } catch {
-      setError("That could not be removed.");
-      setSources(current => [...current, source].sort((a, b) => a.host.localeCompare(b.host)));
+    } catch (cause) {
+      setError(websiteSourceMutationMessage(cause, WEBSITE_SOURCE_REMOVE_FALLBACK));
+    } finally {
+      setActiveMutation(null);
     }
   }
 
@@ -396,7 +414,7 @@ export function WebsiteSourcesConfig() {
       {presentation.showRows ? (
         <ul className="mt-4 grid gap-2">
           {sources.map(source => (
-            <li key={source.id} className="rounded-md border border-black/10 bg-white px-3 py-2.5">
+            <li key={source.id} aria-busy={activeMutation?.id === source.id || undefined} className="rounded-md border border-black/10 bg-white px-3 py-2.5">
               <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="flex items-center gap-1.5 truncate text-sm font-medium text-black/80">
@@ -427,7 +445,7 @@ export function WebsiteSourcesConfig() {
                 <select
                   value={encodeDestination(source)}
                   onChange={event => void reroute(source, decodeDestination(event.target.value))}
-                  disabled={!presentation.canMutate}
+                  disabled={!presentation.canMutate || activeMutation !== null}
                   aria-label={`Where ${source.host} routes`}
                   className="min-h-9 rounded-md border border-black/12 bg-white px-2 text-xs disabled:cursor-not-allowed disabled:bg-black/[0.03]"
                 >
@@ -446,11 +464,11 @@ export function WebsiteSourcesConfig() {
                 <button
                   type="button"
                   onClick={() => void remove(source)}
-                  disabled={!presentation.canMutate}
+                  disabled={!presentation.canMutate || activeMutation !== null}
                   aria-label={`Permanently remove ${source.host}`}
                   title="Delete this registered site, its tool injections and imported form schemas"
-                  className="grid size-9 place-items-center rounded-md border border-black/10 text-black/35 hover:border-red-300 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
-                ><Trash2 size={14} aria-hidden /></button>
+                  className="grid size-9 place-items-center rounded-md border border-black/10 text-black/35 hover:border-red-300 hover:bg-red-50 hover:text-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500 disabled:cursor-not-allowed disabled:opacity-40"
+                >{activeMutation?.id === source.id && activeMutation.kind === "remove" ? <LoaderCircle size={14} className="animate-spin" aria-hidden /> : <Trash2 size={14} aria-hidden />}</button>
               </div>
               </div>
               {importNote[source.id] ? <p className="mt-1.5 text-[11px] text-black/50">{importNote[source.id]}</p> : null}

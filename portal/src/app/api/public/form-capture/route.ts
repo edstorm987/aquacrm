@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { NextResponse, type NextRequest } from "next/server";
 
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
@@ -6,12 +8,15 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isMissingAgencyIdColumn, isMissingAgencyIdColumnRead } from "@/lib/supabase/enquiryAgencyColumn";
 import { pickTenantOwnedEnquiry } from "@/lib/supabase/ownedEnquiry";
 import { resolveAgencyByMasterSiteKey, resolveWebsiteSourceRouting } from "@/server/websiteSources";
+import { getAgencyBySlug } from "@/server/tenants";
+import { FOUNDER_AGENCY_SLUG } from "@/lib/server/seeds/founderSeed";
 import { upsertClientRecordLedgerEvent } from "@/lib/server/clients/clientRecordLedger";
 import { withEnquirySubmissionOperation } from "@/lib/server/enquirySubmissionOperation";
 import {
   additionalFields, derivePurpose, describeForm, type CapturedField,
 } from "@/lib/enquiries/formCapture";
 import { enquirySubmissionId, normaliseAquaSubmissionId } from "@/lib/enquiries/submissionIdentity";
+import { aquaTagTenantScope, ingestAquaTagSubmission } from "@/lib/supabase/enquirySubmissionClaims";
 
 /**
  * What a website form actually contained, sent by the Aqua Tag.
@@ -105,6 +110,22 @@ function readFields(value: unknown): CapturedField[] {
 /** The answer to a question that looks like it asked for one of these. */
 function findAnswer(fields: CapturedField[], pattern: RegExp): string {
   return fields.find(field => pattern.test(field.key) || (field.label ? pattern.test(field.label) : false))?.value ?? "";
+}
+
+/**
+ * A hardcoded public site (Ed's own brands) posts its brand form to the founder
+ * agency, so its tag captures must share that identity scope or the two halves
+ * of one submission would never meet.
+ */
+function founderAgencyId(): string {
+  return getAgencyBySlug(FOUNDER_AGENCY_SLUG)?.id ?? FOUNDER_AGENCY_SLUG;
+}
+
+/** What makes two tag captures the same submission, independent of timing. */
+function captureFingerprint(formId: string | undefined, pagePath: string, fields: CapturedField[]): string {
+  return createHash("sha256")
+    .update(JSON.stringify([formId ?? "", pagePath, fields.map(field => [field.key, field.value])]))
+    .digest("hex");
 }
 
 export async function POST(req: NextRequest) {
@@ -212,9 +233,112 @@ export async function POST(req: NextRequest) {
   const routedClientId = destination.kind === "client" ? destination.clientId : undefined;
   const routedCompanyId = destination.kind === "company" ? destination.companyId : undefined;
 
+  // Nothing to attach to yet. Held rather than dropped: the site may post
+  // its enquiry a moment later, and a submission Aqua saw but cannot show
+  // is the exact failure this work exists to remove.
+  const enquiryRow = {
+    brand_slug: site?.propertyId ?? siteKey,
+    name: enquiryName,
+    email: email || null,
+    phone: phone || null,
+    // Not asked is not the same as not answered. The old route required a
+    // contact method and forced websites to invent one.
+    contact_method: null,
+    services: [],
+    message: enquiryMessage,
+    source_url: capture.pageUrl,
+    consent: false,
+    // The tenant column RLS scopes on (a master-tag submission belongs to
+    // that agency; a capture-only hold has no owner yet and the trigger in
+    // the agency_scope migration defaults it). metadata.agencyId below stays
+    // as the routing key the rest of the code reads.
+    agency_id: masterAgencyId ?? null,
+    metadata: {
+      inboxStatus: "open",
+      enquiryClassification: "unclassified",
+      notification: "pending",
+      channel: purpose === "support" ? "support" : "form",
+      pagePath,
+      siteKey,
+      siteName: siteName,
+      propertyId: capture.propertyId,
+      ...(submissionId ? { submissionId } : {}),
+      formCapture: capture,
+      // A master-tag submission is a real enquiry, not a held capture waiting
+      // for the site's own POST — so it is not flagged capture-only.
+      ...(masterAgencyId ? { masterTag: true, agencyId: masterAgencyId } : { captureOnly: true }),
+      ...(routedClientId ? { routedClientId } : {}),
+      ...(routedCompanyId ? { routedCompanyId } : {}),
+    },
+  };
+
+  const surfaceOnRoutedClient = (enquiryId: string) => {
+    // Surface it on the client the site is routed to, so it reaches them and
+    // not just the agency queue.
+    if (masterAgencyId && routedClientId) {
+      upsertClientRecordLedgerEvent(masterAgencyId, routedClientId, {
+        sourceType: "enquiry",
+        sourceId: `website-enquiry:${enquiryId}`,
+        group: "messages",
+        title: `Website enquiry from ${enquiryName}`,
+        body: enquiryMessage || `Submitted via ${siteName}.`,
+        occurredAt: Date.now(),
+        eyebrow: `${siteName} · inbound · open`,
+        visibility: "inherent",
+        href: `/portal/agency/inbox?view=all&thread=${encodeURIComponent(`website:${enquiryId}`)}`,
+      });
+    }
+  };
+
   return withEnquirySubmissionOperation(submissionId, async () => {
   try {
     const supabase = createSupabaseAdminClient();
+
+    // ── The durable boundary (issues #87) ──────────────────────────────────
+    //
+    // With a stable id the capture is recorded against ONE database identity,
+    // (tenant scope, submission id), in the same transaction as the hold row
+    // it creates or the existing row it attaches to. Whichever half of the
+    // submission arrives first, the other finds it. A retry with the same
+    // answers is a no-op; the same id re-used for different answers is refused.
+    if (submissionId) {
+      const tenantScope = aquaTagTenantScope(
+        masterAgencyId ?? (isHardcodedPublicSite ? founderAgencyId() : undefined),
+        siteKey,
+      );
+      const ingest = await ingestAquaTagSubmission(supabase, {
+        tenantScope,
+        submissionId,
+        siteKey,
+        arrival: "tag",
+        facts: { captureFingerprint: captureFingerprint(identity.formId, pagePath, fields), pagePath },
+        capture,
+        enquiryRow,
+      });
+      if (ingest.kind === "conflict") {
+        return NextResponse.json(
+          { ok: false, error: ingest.message },
+          { status: 409, headers: corsHeaders(origin) },
+        );
+      }
+      if (ingest.kind === "ingested") {
+        if (ingest.receipt.created) surfaceOnRoutedClient(ingest.receipt.enquiryId);
+        return NextResponse.json(
+          {
+            ok: true,
+            attached: !ingest.receipt.created,
+            submissionId,
+            enquiryId: ingest.receipt.enquiryId,
+            boundary: "database",
+          },
+          { headers: corsHeaders(origin) },
+        );
+      }
+      // `unavailable`: the migration is not applied here yet — the older path
+      // below still holds the capture, with its weaker process-local guarantee.
+    }
+
+    // ── Process-local fallback ─────────────────────────────────────────────
     const since = new Date(Date.now() - MATCH_WINDOW_MS).toISOString();
     // Match on whichever contact detail the form actually collected. A form
     // that asked for neither cannot be tied to an enquiry, and is kept on its
@@ -283,49 +407,11 @@ export async function POST(req: NextRequest) {
         .eq("id", match.id);
       if (attachError) throw new Error(`Could not attach form capture: ${attachError.message}`);
       return NextResponse.json(
-        { ok: true, attached: true, submissionId: submissionId || match.id },
+        { ok: true, attached: true, submissionId: submissionId || match.id, boundary: "process-local" },
         { headers: corsHeaders(origin) },
       );
     }
 
-    // Nothing to attach to yet. Held rather than dropped: the site may post
-    // its enquiry a moment later, and a submission Aqua saw but cannot show
-    // is the exact failure this work exists to remove.
-    const enquiryRow = {
-      brand_slug: site?.propertyId ?? siteKey,
-      name: enquiryName,
-      email: email || null,
-      phone: phone || null,
-      // Not asked is not the same as not answered. The old route required a
-      // contact method and forced websites to invent one.
-      contact_method: null,
-      services: [],
-      message: enquiryMessage,
-      source_url: capture.pageUrl,
-      consent: false,
-      // The tenant column RLS scopes on (a master-tag submission belongs to
-      // that agency; a capture-only hold has no owner yet and the trigger in
-      // the agency_scope migration defaults it). metadata.agencyId below stays
-      // as the routing key the rest of the code reads.
-      agency_id: masterAgencyId ?? null,
-      metadata: {
-        inboxStatus: "open",
-        enquiryClassification: "unclassified",
-        notification: "pending",
-        channel: purpose === "support" ? "support" : "form",
-        pagePath,
-        siteKey,
-        siteName: siteName,
-        propertyId: capture.propertyId,
-        ...(submissionId ? { submissionId } : {}),
-        formCapture: capture,
-        // A master-tag submission is a real enquiry, not a held capture waiting
-        // for the site's own POST — so it is not flagged capture-only.
-        ...(masterAgencyId ? { masterTag: true, agencyId: masterAgencyId } : { captureOnly: true }),
-        ...(routedClientId ? { routedClientId } : {}),
-        ...(routedCompanyId ? { routedCompanyId } : {}),
-      },
-    };
     let { data: inserted, error: insertError } = await supabase
       .from("brand_enquiries").insert(enquiryRow).select("id").single();
     if (insertError && isMissingAgencyIdColumn(insertError)) {
@@ -339,23 +425,9 @@ export async function POST(req: NextRequest) {
       throw new Error(`Could not persist form capture: ${insertError?.message || "no record returned"}`);
     }
 
-    // Surface it on the client the site is routed to, so it reaches them and
-    // not just the agency queue.
-    if (masterAgencyId && routedClientId && inserted?.id) {
-      upsertClientRecordLedgerEvent(masterAgencyId, routedClientId, {
-        sourceType: "enquiry",
-        sourceId: `website-enquiry:${inserted.id}`,
-        group: "messages",
-        title: `Website enquiry from ${enquiryName}`,
-        body: enquiryMessage || `Submitted via ${siteName}.`,
-        occurredAt: Date.now(),
-        eyebrow: `${siteName} · inbound · open`,
-        visibility: "inherent",
-        href: `/portal/agency/inbox?view=all&thread=${encodeURIComponent(`website:${inserted.id}`)}`,
-      });
-    }
+    if (masterAgencyId && routedClientId && inserted?.id) surfaceOnRoutedClient(inserted.id);
     return NextResponse.json(
-      { ok: true, attached: false, submissionId: submissionId || inserted.id },
+      { ok: true, attached: false, submissionId: submissionId || inserted.id, boundary: "process-local" },
       { headers: corsHeaders(origin) },
     );
   } catch (cause) {

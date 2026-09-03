@@ -36,7 +36,7 @@ function field(input: FakeField): FakeField {
   };
 }
 
-function runTag(form: Record<string, unknown>, options: { captureResults?: boolean[] } = {}) {
+function runTag(form: Record<string, unknown>, options: { captureResults?: boolean[]; receiptIds?: Array<string | null> } = {}) {
   const captures: Array<Record<string, unknown>> = [];
   let captureAttempt = 0;
   const documentListeners = new Map<string, Array<(event: unknown) => void>>();
@@ -71,10 +71,16 @@ function runTag(form: Record<string, unknown>, options: { captureResults?: boole
     crypto: webcrypto,
     fetch: (url: string, request: { body: string }) => {
       if (String(url).includes("form-capture")) {
-        captures.push(JSON.parse(request.body));
+        const sent = JSON.parse(request.body) as Record<string, unknown>;
+        captures.push(sent);
         const ok = options.captureResults?.[captureAttempt] ?? true;
+        // A real receipt names the submission it persisted. `receiptIds` lets a
+        // test answer ok:true for some OTHER id, which the tag must not accept.
+        const receiptId = options.receiptIds && captureAttempt < options.receiptIds.length
+          ? options.receiptIds[captureAttempt]
+          : sent.submissionId;
         captureAttempt += 1;
-        return Promise.resolve({ ok, json: async () => ({ ok }) });
+        return Promise.resolve({ ok, json: async () => ({ ok, submissionId: receiptId }) });
       }
       return Promise.resolve({ ok: true });
     },
@@ -135,6 +141,25 @@ test("retries a rejected capture with the exact same stable id", async () => {
   await new Promise<void>(resolve => setImmediate(resolve));
   assert.equal(captures.length, 3);
   assert.equal(new Set(captures.map(capture => capture.submissionId)).size, 1);
+});
+
+test("stops retrying only on a receipt that names the id it sent", async () => {
+  // ok:true for SOME OTHER submission — a proxy, a cached answer, a mismatched
+  // endpoint — is not proof that this submission was persisted. The tag keeps
+  // retrying with the same id until a receipt names it, or its attempts run
+  // out; it never treats a foreign receipt as success. → issues #87
+  const settle = async () => {
+    await new Promise<void>(resolve => setImmediate(resolve));
+    await new Promise<void>(resolve => setImmediate(resolve));
+  };
+  const foreign = runTag(enquiryForm(), { receiptIds: ["aqua_sub_someoneelse0000000000", null, "aqua_sub_someoneelse0000000000"] });
+  await settle();
+  assert.equal(foreign.length, 3, "a foreign or missing receipt id must be retried like a rejection");
+  assert.equal(new Set(foreign.map(capture => capture.submissionId)).size, 1);
+
+  const matched = runTag(enquiryForm(), { receiptIds: ["aqua_sub_someoneelse0000000000"] });
+  await settle();
+  assert.equal(matched.length, 2, "the first receipt named another id; the second named ours and ended the retries");
 });
 
 test("never sends a password, payment or token field", () => {
