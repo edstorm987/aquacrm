@@ -131,6 +131,7 @@ import { formatUkDate } from "@/lib/shared/formatDateTime";
 import { devProjectDoorFamily } from "@/lib/shared/devProjectGrouping";
 import { apiResponseError } from "@/lib/client/apiResponseError";
 import { editorDiscardPrompt, type UnsavedEditorWork } from "@/engines/editor/unsavedEditorWork";
+import { TAG_HANDSHAKE_PING_TIMEOUT_MS, handshakeAfterSilence } from "@/engines/editor/editing/tagHandshake";
 import {
   RESPONSIVE_CANVAS_PANE_CSS,
   responsiveCanvasPaneAttributes,
@@ -781,6 +782,13 @@ export function DevEditor({
    */
   const tagOriginRef = useRef<string | null>(null);
   const tagElementRef = useRef<AquaTagElement | null>(null);
+  /**
+   * Whether the CURRENT frame has fired `load`. The studio is server-rendered,
+   * so the first frame can finish loading before React hydrates and attaches
+   * `onLoad` — that event is simply gone. `pingTag` reads this to decide what
+   * an unanswered ping means (see `editing/tagHandshake.ts`).
+   */
+  const frameLoaded = useRef(false);
 
   // ── The navigator's three sources (phase 8) ─────────────────────────────────
   //
@@ -1482,7 +1490,7 @@ export function DevEditor({
    * degrades to `Math.random` when even that is missing. A request id is a
    * correlation token, not a secret.
    */
-  function pingTag() {
+  function pingTag(attempt = 0) {
     const requestId = makeId("aquaping");
     tagPingId.current = requestId;
     tagElementRef.current = null;
@@ -1494,11 +1502,39 @@ export function DevEditor({
     if (!sendToTag(aquaTagPing(requestId))) { setTagBridge("unavailable"); return; }
     if (tagTimeout.current) window.clearTimeout(tagTimeout.current);
     // No answer means no tag on that page — a real, common, sayable state, not
-    // an error. The panel names it and points at Dev mode.
+    // an error. The panel names it and points at Dev mode. UNLESS this ping was
+    // sent blind, before the frame reported `load`: then the page may simply
+    // not be there yet, and the pure rule says whether to ask again.
     tagTimeout.current = window.setTimeout(() => {
-      if (tagPingId.current === requestId) setTagBridge("unavailable");
-    }, 2_000);
+      if (tagPingId.current !== requestId) return;
+      if (handshakeAfterSilence({ frameLoaded: frameLoaded.current, attempt }) === "retry") {
+        pingTag(attempt + 1);
+        return;
+      }
+      setTagBridge("unavailable");
+    }, TAG_HANDSHAKE_PING_TIMEOUT_MS);
   }
+
+  // The handshake the `load` event cannot be trusted to start.
+  //
+  // The first frame is in the server HTML and can finish loading before
+  // hydration attaches `onLoad`; that event is lost, and with it the ping —
+  // reproduced in a real browser (issue #19): the bridge stayed idle, the
+  // badge stayed blank and no click ever selected until Refresh. So once the
+  // trusted origin is known for this frame, ping regardless of `load`. A
+  // frame that has not loaded yet answers nothing, and `pingTag` judges that
+  // silence with `frameLoaded` in hand rather than declaring "no tag" at once.
+  // Declared AFTER the per-page reset effect so it runs after it in the same
+  // commit, and keyed on the same things: a new page or a refresh is a new
+  // handshake.
+  useEffect(() => {
+    frameLoaded.current = false;
+    if (portalTarget || !tagOrigin || !previewRef.current) return;
+    pingTag();
+    // `pingTag` is a component function; listing it would re-ping on every
+    // render. The dependencies below are exactly the identity of the frame.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tagOrigin, previewSrc, frameKey, portalTarget]);
 
   /**
    * Ask the page what OTHER pages it can reach — the navigator's third source.
@@ -1680,7 +1716,12 @@ export function DevEditor({
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [clientId, scope, selectedClient?.name, selectedTemplate?.name, templateId]);
+    // `portalTarget` is a dependency because the switcher can turn a project
+    // into the portal target ("This workspace") without changing any of the
+    // others — and then nothing loaded: the studio arrived with no document, a
+    // blank notice and "these tools apply to an Aqua-hosted portal" on a
+    // portal. Reproduced in a real browser (issue #19).
+  }, [clientId, portalTarget, scope, selectedClient?.name, selectedTemplate?.name, templateId]);
 
   useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => {
@@ -1996,9 +2037,33 @@ export function DevEditor({
     setMode(nextMode);
   }
 
+  /**
+   * Forget the tagged page's private state: its preview patches, the element
+   * that was picked on it and the words as it had them.
+   *
+   * Called when the page is being taken away — the browser is hidden. Without
+   * this, an accepted "Discard the unsaved preview changes on this page?"
+   * hid the page but kept `tagPreviewChanges`, so the very next transition
+   * (Back, All projects, a reload) asked the same question about work that no
+   * longer existed, and the Element panel kept showing an element on a page
+   * that was gone. Reproduced in a real browser (issue #19). Idle rather than
+   * unavailable: nothing is being asked of a frame that is not there, and the
+   * next mount pings afresh.
+   */
+  function discardTagPreview() {
+    setTagPreviewChanges({});
+    tagElementRef.current = null;
+    setTagElement(null);
+    setWordsDraft("");
+    setWordsOriginal("");
+    setTagBridge("idle");
+  }
+
   function toggleBrowser() {
     if (showBrowser && !confirmDiscard({ pagePreview: tagPreviewDirty })) return;
     const opening = !showBrowser;
+    // The confirmed work belonged to the page that is going away.
+    if (!opening) discardTagPreview();
     setShowBrowser(opening);
     if (opening) setCompactCanvasPane("preview");
   }
@@ -2460,7 +2525,7 @@ export function DevEditor({
                         device={deviceState}
                         onDeviceResize={resizeDevice}
                         innerRef={previewRef}
-                        onLoad={pingTag}
+                        onLoad={() => { frameLoaded.current = true; pingTag(); }}
                       />
                     ) : (
                       <p className="rounded-md border border-dashed border-white/12 px-3 py-6 text-center text-[11px] text-white/35">
