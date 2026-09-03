@@ -247,18 +247,23 @@ review-and-seed screen. His answers on what transfers are recorded verbatim in
 
 ### Latest trustworthy evidence
 
-*3 September 2026 — Supabase alignment.* The one Supabase project (`dghzbsxbdatskserctgt`, eu-west-1)
-is development, staging AND production — there is no second project — and the LIVE schema is **eleven
-migrations behind the repository** (`node portal/scripts/supabase-schema-status.mjs`, read-only), so the
+*3 September 2026 — Supabase migrations APPLIED to live.* The one Supabase project
+(`dghzbsxbdatskserctgt`, eu-west-1) is development, staging AND production — there is no second
+project. It **was** eleven migrations behind the repository (`node portal/scripts/supabase-schema-status.mjs`, read-only), so the
 current build cannot hydrate against it. Every live probe was a GET/HEAD or PostgREST OpenAPI read with
 the service-role key; nothing live was changed (byte-identical before/after). All 26+1 migrations were
 rehearsed on an isolated local stack (Docker): ordered apply, the 52-row `brand_enquiries.agency_id`
 backfill, idempotency, clean `rls-verify.sql` (51 INFO/0 FAIL), the cross-process Aqua Tag proof 7/7, and
 the full browser suite against `PORTAL_BACKEND=supabase` (release 163/163, matrix 1169/0, Notepad/Finance
-77/77, Phase Admin 10/10). One new migration was added — `20260903120000_explicit_service_role_grants.sql`
-(the older tables inherited cloud default grants and would 42501 on a rebuilt project). **Live `db push`,
-backups/PITR, account reconciliation and the `agency_id` backfill are BLOCKED on Ed's CLI login/DB
-password and approval.** Full register + recovery runbook:
+77/77, Phase Admin 10/10). Two migrations were added — `20260903120000_explicit_service_role_grants.sql` (the older tables
+inherited cloud default grants and would 42501 on a rebuilt project) and
+`20260903130000_ensure_rls_event_trigger.sql` (codifies the live-only auto-RLS trigger). **On
+2026-09-03 Ed provided the DB password + `sbp_` token and all 14 pending migrations were applied to
+live via `supabase db push`** after a same-day backup was confirmed: `migration list --linked` 27/27,
+the `agency_id` backfill 52/52 and every row count verified read-only, live `rls-verify.sql` 51 INFO /
+0 FAIL. **Still open:** enable PITR + rehearse a restore (backups exist, PITR off), push the no-op
+`20260903130000`, decide on tightening the inherited over-broad grants, account reconciliation, and
+rotate the pasted DB password + token. Full register + recovery runbook:
 `docs/development/plans/supabase-alignment-2026-09-03.md`. **Local hazard:** with `.env.local` loaded and
 no `PORTAL_BACKEND`, the portal promotes itself to the Supabase backend and writes the production state
 row — set `PORTAL_BACKEND=file` for local work.

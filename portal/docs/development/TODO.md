@@ -17,7 +17,7 @@ remains the backing store. This file is the index over it.
 
 ---
 
-## 🔒 Blocked on you — 13
+## 🔒 Blocked on you — 14
 
 Nothing here moves without an account, a credential or a decision from you. Taken from
 the retired files' own Ed-only sections, minus one they had mis-filed (`#1`, RLS, whose
@@ -28,8 +28,10 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [ ] Stripe live-account walkthrough  <sub>from checklist.md, no issue number</sub>
 - [ ] Meta Developer app  <sub>from checklist.md, no issue number</sub>
 - [ ] Deployment env verification  <sub>from checklist.md, no issue number</sub>
-- [ ] Apply the pending Supabase migrations before production rollout — **twelve** files, not four (`node portal/scripts/supabase-schema-status.mjs` lists them; rehearsed in isolation 2026-09-03); needs a CLI login or the database password, backup confirmation and approval of the 52-row `brand_enquiries.agency_id` backfill → [supabase-alignment-2026-09-03](plans/supabase-alignment-2026-09-03.md)  <sub>from checklist.md, no issue number</sub>
-- [ ] Supply `supabase login` (personal access token) or the database password so `migration list --linked`, `db push`, `rls-verify.sql` and the Management API (backups/PITR) can run  <sub>added 2026-09-03</sub>
+- [x] Apply the pending Supabase migrations before production rollout — DONE 2026-09-03: all 14 applied live via `supabase db push`, backup confirmed, backfill 52/52 and every row count verified read-only, live `rls-verify.sql` 51 INFO / 0 FAIL → [supabase-alignment-2026-09-03](plans/supabase-alignment-2026-09-03.md) §9  <sub>from checklist.md, no issue number</sub>
+- [ ] Enable Supabase PITR and rehearse one restore on a branch/scratch database — daily physical backups exist (8, newest 2026-09-03) but PITR is OFF and no restore was rehearsed; recovery is not fully verified → [supabase-alignment-2026-09-03](plans/supabase-alignment-2026-09-03.md) §4  <sub>added 2026-09-03</sub>
+- [ ] Push `20260903130000_ensure_rls_event_trigger` (a no-op on live; records the already-present rls_auto_enable to reach 0 pending) and decide on tightening the inherited over-broad table grants (optional REVOKE)  <sub>added 2026-09-03</sub>
+- [ ] Rotate the Supabase database password and the `sbp_` access token (both were pasted into a session transcript on 2026-09-03)  <sub>added 2026-09-03</sub>
 - [ ] Set `PORTAL_BACKEND=file` in `.env.local` for local work — without it the portal promotes itself to the Supabase backend and local servers write the production `app_datastores` row (daily writes visible through 2026-09-02)  <sub>added 2026-09-03</sub>
 - [ ] Enable Supabase point-in-time recovery and rehearse one restore before production rollout — no backup/recovery runbook exists in the repository (readiness roadmap §5)  <sub>added 2026-09-03</sub>
 - [ ] DPO sign-off  <sub>from checklist.md, no issue number</sub>

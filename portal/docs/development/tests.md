@@ -30,7 +30,11 @@ conditions. `PORTAL_BACKEND=memory` keeps stateful tests off the live sandbox.
 > evidence below is local or isolated-production evidence, not deployed-provider,
 > cold-machine or broad mounted-human acceptance.
 
-## 2026-09-03 Supabase alignment evidence (isolated stack; live untouched)
+## 2026-09-03 Supabase migrations applied to live (VERIFIED)
+
+- All 14 pending migrations applied to the live project via `supabase db push` (dry-run confirmed first, same-day physical backup confirmed via the Management API). Read-only verification after: `migration list --linked` 27/27 / 0 pending; `brand_enquiries.agency_id` 52/52 `milesymedia`, every table row count preserved, 10/10 new tables + 8/8 key functions present, `apply_app_datastore_patch` 3-arg; live `rls-verify.sql` **51 INFO / 0 FAIL / 0 WARN**; drift tool 0 missing. New `20260903130000_ensure_rls_event_trigger` verified idempotent + functionally correct on a local reset.
+
+## 2026-09-03 Supabase alignment evidence (isolated stack; live untouched at discovery)
 
 - Read-only live reconciliation: `node scripts/supabase-schema-status.mjs` → 39 drift rows on
   `dghzbsxbdatskserctgt` (10 tables, 26 functions, 3 columns missing; `rls_auto_enable` live-only;

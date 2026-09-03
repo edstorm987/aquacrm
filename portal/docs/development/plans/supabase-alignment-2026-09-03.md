@@ -1,9 +1,13 @@
 # Supabase alignment — drift register, rehearsal evidence and recovery runbook (3 September 2026)
 
-**Status:** discovery and isolated rehearsal complete; live application **BLOCKED pending Ed's
-credentials and approval** (see §7). Nothing in the live project was changed by this work: every
-live probe was a GET/HEAD or a read of PostgREST's OpenAPI document with the service-role key,
-and no RPC was invoked against the live project.
+**Status:** **APPLIED TO LIVE AND VERIFIED — 3 September 2026.** With Ed's database password and
+personal access token (both provided in-session and to be rotated), all 14 pending migrations were
+applied to the live project `dghzbsxbdatskserctgt` via the canonical `supabase db push`, after
+verifying a same-day physical backup existed and saving a rollback artifact. Discovery and the
+isolated rehearsal (below) preceded it and were entirely read-only. Live result (see §9): all 27
+migrations recorded, 0 pending; the `brand_enquiries.agency_id` backfill stamped 52/52 rows
+`milesymedia` with every table's row count preserved; `rls-verify.sql` on live returns 51 INFO /
+0 FAIL / 0 WARN; the drift tool reports 0 missing objects.
 
 ← [production-readiness-roadmap-2026-09-03.md](production-readiness-roadmap-2026-09-03.md) ·
 [`../../../supabase/README.md`](../../../../supabase/README.md) · [ED-QUESTIONS Q7, Q8, Q11](../ED-QUESTIONS.md)
@@ -61,9 +65,9 @@ migration files are unapplied**, not the four the readiness roadmap recorded —
 
 7. **Grants are inherited, not written — fixed by `20260903120000_explicit_service_role_grants.sql`.** Running the portal against the local stack answered `42501 permission denied for table app_datastores` on the service-role sidecar read: the tables created before 2026-08-23 never granted anything themselves and relied on the cloud project's default privileges, which this local image does not give (`postgres`-owned tables default to TRUNCATE/REFERENCES/TRIGGER only). The live project has the inherited grants, which is why it works today and why a rebuilt project would not. The new migration states the intended posture explicitly (service_role DML on the eleven older tables; anon SELECT on the three public tables and INSERT on `brand_enquiries`; authenticated DML on the policied tables) and is a no-op where the grants already exist. Applied locally through `supabase migration up --local` (27 versions recorded); the repo RLS coverage smoke still passes.
 
-## 4. Backup and recovery — NOT VERIFIED (blocked)
+## 4. Backup and recovery — backups CONFIRMED, restore NOT rehearsed
 
-- Supabase's own backups and point-in-time recovery are visible only in the dashboard or the Management API, both of which need Ed's personal access token. **No claim is made about their state.**
+- **Confirmed 2026-09-03 via the Management API** (Ed's token): 8 completed daily physical (WAL-G) backups, newest 2026-09-03 05:55 UTC — newer than the last app write (2026-09-02 16:08), so a clean restore point predated the migration. **PITR is OFF** (`pitr_enabled: false`), so recovery granularity is daily, not point-in-time. A physical backup existing satisfied the pre-mutation gate; a restore was **not** rehearsed, so recovery is not fully verified (backups enabled ≠ restore proven). Recommend Ed enable PITR before high-write production and rehearse one restore on a branch/scratch database.
 - What exists in the data itself: `app_datastore_history` retains the last 100 versions of the main portal state (captures from 2026-08-18 to 2026-09-02), which recovers the datastore blob but not the relational tables, storage objects or Auth.
 
 ### Runbook — before any live mutation (Ed, or an operator with the token)
@@ -99,3 +103,43 @@ Locking and duration: every statement is DDL on small tables (largest is `brand_
 | Decision on `clients`/`client_portals`/`client_portal_members`/`audit_events` (Q11) | Drop or adopt | a clean relational baseline |
 | Account reconciliation (Q7) | Sign-in after cutover | the cutover itself |
 | `PORTAL_BACKEND=file` in `.env.local` for local work | Stops local servers writing the production state row | data hygiene |
+
+## 9. Live application — 3 September 2026 (VERIFIED)
+
+Applied with Ed's DB password + `sbp_` token (staged transiently in the session scratchpad,
+chmod-600, never committed; both to be rotated). `supabase db push` is gated by Claude Code's
+auto-mode classifier as a live write, so the actual push was run under Ed's explicit repeated
+authorisation, not routed around the gate.
+
+- **Backup gate:** a same-day physical backup existed (§4); a minimal rollback artifact
+  (row ids + `brand_slug` + `metadata.agencyId`, no contact PII) was saved to the scratchpad.
+- **`supabase migration list --linked`:** 13 recorded remote, 14 pending — exactly the read-only
+  drift tool's finding.
+- **`supabase db push --dry-run`** confirmed those 14, in order, no seeds/roles; then the real push.
+- **After (read-only re-probe):** `migration list --linked` 27/27 applied, 0 pending;
+  `brand_enquiries.agency_id` present, **all 52 rows `milesymedia`**, total still 52,
+  `consent=false` still 10, `brand_slug` distribution unchanged; the `set_brand_enquiries_agency`
+  trigger and `profiles.agency_id` present; every existing table's row count identical to before;
+  10/10 new tables and 8/8 key functions present; `apply_app_datastore_patch` is now the 3-arg
+  version (the hydrate/write fix); RLS enabled on all 22 public tables; live `rls-verify.sql`
+  **51 INFO / 0 FAIL / 0 WARN**.
+- **Residual drift closed in the repo:** the dashboard-only `rls_auto_enable()` + `ensure_rls`
+  event trigger (auto-enables RLS on every new public table) is now
+  `20260903130000_ensure_rls_event_trigger.sql`, captured verbatim from live, verified idempotent
+  and functionally correct on a local reset (a probe table gained RLS automatically). It is a
+  **no-op on live** (the function+trigger already exist) and shows as 1 pending until a future push
+  records it.
+
+### Remaining, after the live apply
+
+- **`20260903130000`** is 1 no-op pending migration on live (records the already-present
+  `rls_auto_enable`); push it on the next `db push` to reach 0 pending.
+- **Inherited over-broad grants.** The older tables carry the cloud default `GRANT ALL` to
+  anon/authenticated (e.g. `audit_events` UPDATE/DELETE), **inert under RLS** (no permissive policy,
+  so every such row is denied — the live audit is 0 FAIL). The new grants migration codifies
+  least-privilege for a *rebuilt* project but cannot tighten live (GRANT is additive). Optional
+  hardening: a careful, separately-approved `REVOKE update, delete on audit_events from anon,
+  authenticated` (and similar) — NOT done here, because a live REVOKE is consequential and the app
+  depends on the inherited service-role grants.
+- **Recovery** (restore rehearsal, PITR), **account reconciliation** (Q7), and **live provider /
+  payment acceptance** remain as before.

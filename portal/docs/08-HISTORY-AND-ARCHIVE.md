@@ -2,7 +2,7 @@
 
 > The append-only change record, dated handoffs and superseded historical summaries.
 >
-> Consolidated 2026-09-03 from **18** source documents / **135,799 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-03 from **18** source documents / **136,141 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -23,7 +23,7 @@
 - [`docs/context/archive/website-editor-and-migration.md`](#source-docs-context-archive-website-editor-and-migration-md) — 1,159 words · `235e8af731b6`
 - [`docs/context/archive/WHERE-WE-ARE-2026-08-18.md`](#source-docs-context-archive-where-we-are-2026-08-18-md) — 2,192 words · `4056e9a347cb`
 - [`docs/context/archive/WHERE-WE-STAND-2026-08-20.md`](#source-docs-context-archive-where-we-stand-2026-08-20-md) — 2,482 words · `26bf4442580e`
-- [`docs/development/updates.md`](#source-docs-development-updates-md) — 105,643 words · `80212be25188`
+- [`docs/development/updates.md`](#source-docs-development-updates-md) — 105,985 words · `e1be1ccef202`
 
 ---
 
@@ -3318,7 +3318,7 @@ Being straight with you about the edges.
 
 ## Source document — `docs/development/updates.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="80212be25188324c0abd3053fb2d77eebb84f888d42f0ffad2c51b08ef183bcb" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="e1be1ccef2023009a6ee803bd498678ab8927df1fa1b98768ba342e4bf2c0fda" -->
 # Updates log
 
 ← Back to [development.md](../development.md) (the law)
@@ -3354,6 +3354,34 @@ map stays trustworthy.
 > If you ship something, log it.
 
 ---
+
+## 2026-09-03 — Supabase migrations APPLIED to live and verified
+
+- Ed supplied the database password and a `sbp_` personal access token (both to be rotated), so the
+  eleven-migrations-behind blocker is now CLOSED. With a same-day physical backup confirmed via the
+  Management API (8 daily WAL-G backups, newest 05:55 UTC, PITR off) and a minimal rollback artifact
+  saved, `supabase db push` applied all **14 pending migrations** to the live project
+  `dghzbsxbdatskserctgt` in order (dry-run confirmed first). `supabase db push` is gated by Claude
+  Code's auto-mode classifier as a live write, so it was run under Ed's explicit repeated
+  authorisation, not routed around the gate.
+- **Verified read-only afterward:** `migration list --linked` 27/27 applied, 0 pending;
+  `brand_enquiries.agency_id` present and **all 52 rows `milesymedia`** (the founder agency — the
+  tenant, not the website; `brand_slug` still records the source site), total still 52,
+  `consent=false` still 10; every existing table's row count identical to before; 10/10 new tables
+  and 8/8 key functions present; `apply_app_datastore_patch` now the 3-arg version (the hydrate/write
+  fix, so a deployed build can finally serve against live); RLS enabled on all 22 public tables;
+  live `rls-verify.sql` **51 INFO / 0 FAIL / 0 WARN**; the drift tool reports 0 missing objects.
+- **Repo drift closed:** the dashboard-only `rls_auto_enable()` + `ensure_rls` event trigger is now
+  `20260903130000_ensure_rls_event_trigger.sql`, captured verbatim from live and verified idempotent
+  + functionally correct on a local reset (a probe table auto-gained RLS). It is a no-op on live
+  (already present) and shows as 1 pending until the next push records it.
+- **Residuals:** the older tables keep the cloud-inherited over-broad `GRANT ALL` to
+  anon/authenticated (e.g. `audit_events` UPDATE/DELETE), **inert under RLS** — GRANT is additive so
+  the new grants migration codifies least-privilege only for a rebuilt project; tightening live is an
+  optional, separately-approved REVOKE. Restore was NOT rehearsed (PITR off), so recovery is not
+  fully verified. Account reconciliation (Q7) and the deployment env vars remain Ed's.
+- Reconciled the readiness roadmap (§1 migrations now VERIFIED-live, §5), the alignment register
+  (§4 backup, new §9 live result), TODO, status, tests and the CLAUDE.md brief.
 
 ## 2026-09-03 — Supabase alignment: read-only reconciliation, isolated rehearsal, explicit grants; live application blocked on Ed
 

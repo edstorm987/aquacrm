@@ -2,7 +2,7 @@
 
 > The current checklist, status, roadmap, goals, decisions and working queue.
 >
-> Consolidated 2026-09-03 from **7** source documents / **87,081 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-03 from **7** source documents / **87,169 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -11,7 +11,7 @@
 - [`docs/development/goals.md`](#source-docs-development-goals-md) — 506 words · `28009372c4ab`
 - [`docs/development/notes.md`](#source-docs-development-notes-md) — 1,730 words · `f68ea59936dd`
 - [`docs/development/roadmap.md`](#source-docs-development-roadmap-md) — 21,627 words · `6fdc87932849`
-- [`docs/development/status.md`](#source-docs-development-status-md) — 21,583 words · `224740164f72`
+- [`docs/development/status.md`](#source-docs-development-status-md) — 21,671 words · `dca05b723d2b`
 - [`docs/development/todo-retired.md`](#source-docs-development-todo-retired-md) — 15,920 words · `4bde57e97f03`
 
 ---
@@ -4388,7 +4388,7 @@ This remains a truthful record of the first pass, **not a current performance cl
 
 ## Source document — `docs/development/status.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/status.md" sha256="224740164f72cd06482aeb44a7b5893aace003329be666b521ac1f07bd9f67e4" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/status.md" sha256="dca05b723d2b2dc9adf1278367559d638885c6b98c372db668ce5310445e9ed0" -->
 # Status & verification register
 
 ← Back to [development.md](../development.md) (the law)
@@ -4406,6 +4406,13 @@ This remains a truthful record of the first pass, **not a current performance cl
 > Historical August deployment evidence below describes the release that was
 > actually deployed then; a later local build or GitHub push is not by itself a
 > new Vercel deployment.
+>
+> **2026-09-03 Supabase migrations APPLIED to live:** with Ed's DB password + access token, all 14
+> pending migrations were applied to the live project via `supabase db push` after confirming a
+> same-day physical backup; `migration list --linked` 27/27, 0 pending; the `agency_id` backfill
+> (52/52 `milesymedia`) and every row count verified read-only; live `rls-verify.sql` 51 INFO /
+> 0 FAIL. The deployment blocker (build could not hydrate against live) is CLOSED. Backups exist but
+> PITR is OFF and no restore was rehearsed. `plans/supabase-alignment-2026-09-03.md` §9.
 >
 > **2026-09-03 Supabase alignment:** the one Supabase project (`dghzbsxbdatskserctgt`) is
 > production and is **eleven migrations behind the repository** (plus one grants migration added

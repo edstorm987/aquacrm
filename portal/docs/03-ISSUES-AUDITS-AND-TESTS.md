@@ -2,7 +2,7 @@
 
 > Verified findings, independent reviews, browser audits and the testing record.
 >
-> Consolidated 2026-09-03 from **11** source documents / **120,197 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-03 from **11** source documents / **120,285 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -14,7 +14,7 @@
 - [`docs/development/findings/2026-08-22-stripe-can-never-be-configured.md`](#source-docs-development-findings-2026-08-22-stripe-can-never-be-configured-md) — 466 words · `e91f13c8620f`
 - [`docs/development/findings/2026-08-22-surfaces-that-state-a-falsehood.md`](#source-docs-development-findings-2026-08-22-surfaces-that-state-a-falsehood-md) — 892 words · `dfeb4a6302c1`
 - [`docs/development/issues.md`](#source-docs-development-issues-md) — 43,710 words · `06a223605bb6`
-- [`docs/development/tests.md`](#source-docs-development-tests-md) — 15,394 words · `36625f45df16`
+- [`docs/development/tests.md`](#source-docs-development-tests-md) — 15,482 words · `af0d93ebcff3`
 - [`docs/development/ultra-review-2026-08-24.md`](#source-docs-development-ultra-review-2026-08-24-md) — 15,503 words · `6725e738af21`
 - [`docs/development/visual-browser-audit-2026-08-23.md`](#source-docs-development-visual-browser-audit-2026-08-23-md) — 3,582 words · `3ee9b61d74e3`
 
@@ -6215,7 +6215,7 @@ Keep the item's number, other docs link to it._
 
 ## Source document — `docs/development/tests.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/tests.md" sha256="36625f45df16707dbe7d6aed873c4697247fccaa14f144abc1a50b14ea756e53" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/tests.md" sha256="af0d93ebcff35c71fa843a993a235d4e7d66e4b4e0b4a7307b3bec767173b5de" -->
 # Tests
 
 ← Back to [development.md](../development.md) (the law)
@@ -6248,7 +6248,11 @@ conditions. `PORTAL_BACKEND=memory` keeps stateful tests off the live sandbox.
 > evidence below is local or isolated-production evidence, not deployed-provider,
 > cold-machine or broad mounted-human acceptance.
 
-## 2026-09-03 Supabase alignment evidence (isolated stack; live untouched)
+## 2026-09-03 Supabase migrations applied to live (VERIFIED)
+
+- All 14 pending migrations applied to the live project via `supabase db push` (dry-run confirmed first, same-day physical backup confirmed via the Management API). Read-only verification after: `migration list --linked` 27/27 / 0 pending; `brand_enquiries.agency_id` 52/52 `milesymedia`, every table row count preserved, 10/10 new tables + 8/8 key functions present, `apply_app_datastore_patch` 3-arg; live `rls-verify.sql` **51 INFO / 0 FAIL / 0 WARN**; drift tool 0 missing. New `20260903130000_ensure_rls_event_trigger` verified idempotent + functionally correct on a local reset.
+
+## 2026-09-03 Supabase alignment evidence (isolated stack; live untouched at discovery)
 
 - Read-only live reconciliation: `node scripts/supabase-schema-status.mjs` → 39 drift rows on
   `dghzbsxbdatskserctgt` (10 tables, 26 functions, 3 columns missing; `rls_auto_enable` live-only;

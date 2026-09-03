@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-03T14:53:28.322Z",
+  "generatedAt": "2026-09-03T16:12:59.143Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -79,9 +79,9 @@
       "path": "CLAUDE.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-claude-md",
-      "sha256": "1d4b04f354635312e1aa57b5dac778adb0e108b404d0e8bf7226c3e6730b83fd",
-      "words": 4508,
-      "bytes": 33405
+      "sha256": "4d317354e5e267da6e462eafcd08a2e3f2d07d049586346929191f09bc2b56a8",
+      "words": 4577,
+      "bytes": 33899
     },
     {
       "path": "docs/architecture-noobie.md",
@@ -871,9 +871,9 @@
       "path": "docs/development/plans/production-readiness-roadmap-2026-09-03.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-production-readiness-roadmap-2026-09-03-md",
-      "sha256": "61e4d5b211c9d50a268cca8afb6dbc524dd9a16deb9070761ac1876319305007",
-      "words": 2561,
-      "bytes": 17896
+      "sha256": "45ad20656772ca99119fc1d471854e344dbf552276a9b388b43a7abfbcc32d5f",
+      "words": 2536,
+      "bytes": 17551
     },
     {
       "path": "docs/development/plans/promote-trading-company.md",
@@ -967,9 +967,9 @@
       "path": "docs/development/plans/supabase-alignment-2026-09-03.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-supabase-alignment-2026-09-03-md",
-      "sha256": "34aea4885b9b067d06bddef4fc3186ef545c06d50a352edf605b0b615c856c44",
-      "words": 2558,
-      "bytes": 17630
+      "sha256": "fe76984637fe9bc3da8c8f717aebddf0b85e35f6f309db77c33312e488a4edda",
+      "words": 3064,
+      "bytes": 21266
     },
     {
       "path": "docs/development/plans/supabase-cutover-and-policy-drafts.md",
@@ -999,9 +999,9 @@
       "path": "docs/development/status.md",
       "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
       "anchor": "source-docs-development-status-md",
-      "sha256": "224740164f72cd06482aeb44a7b5893aace003329be666b521ac1f07bd9f67e4",
-      "words": 21583,
-      "bytes": 169685
+      "sha256": "dca05b723d2b2dc9adf1278367559d638885c6b98c372db668ce5310445e9ed0",
+      "words": 21671,
+      "bytes": 170266
     },
     {
       "path": "docs/development/STRUCTURE.md",
@@ -1015,9 +1015,9 @@
       "path": "docs/development/tests.md",
       "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
       "anchor": "source-docs-development-tests-md",
-      "sha256": "36625f45df16707dbe7d6aed873c4697247fccaa14f144abc1a50b14ea756e53",
-      "words": 15394,
-      "bytes": 121020
+      "sha256": "af0d93ebcff35c71fa843a993a235d4e7d66e4b4e0b4a7307b3bec767173b5de",
+      "words": 15482,
+      "bytes": 121681
     },
     {
       "path": "docs/development/todo-retired.md",
@@ -1031,9 +1031,9 @@
       "path": "docs/development/TODO.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-todo-md",
-      "sha256": "999871e8eba4e4d256ea3d481a7a6f68a8ab4d64a8c6068f2aa41d6606490ca7",
-      "words": 2626,
-      "bytes": 19858
+      "sha256": "68603294f1e4ce6931dbbd5c0770554c6f30ac45d4dc9f5ede3434f1b973b1c7",
+      "words": 2690,
+      "bytes": 20298
     },
     {
       "path": "docs/development/ultra-review-2026-08-24.md",
@@ -1047,9 +1047,9 @@
       "path": "docs/development/updates.md",
       "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
       "anchor": "source-docs-development-updates-md",
-      "sha256": "80212be25188324c0abd3053fb2d77eebb84f888d42f0ffad2c51b08ef183bcb",
-      "words": 105643,
-      "bytes": 790670
+      "sha256": "e1be1ccef2023009a6ee803bd498678ab8927df1fa1b98768ba342e4bf2c0fda",
+      "words": 105985,
+      "bytes": 793059
     },
     {
       "path": "docs/development/visual-browser-audit-2026-08-23.md",

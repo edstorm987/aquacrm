@@ -2,7 +2,7 @@
 
 > Every active, completed and archived phased implementation plan and handoff.
 >
-> Consolidated 2026-09-03 from **60** source documents / **122,664 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-03 from **60** source documents / **123,145 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -50,7 +50,7 @@
 - [`docs/development/plans/operations-command-surface.md`](#source-docs-development-plans-operations-command-surface-md) — 823 words · `89d4c7af83fa`
 - [`docs/development/plans/plugin-data-erasure.md`](#source-docs-development-plans-plugin-data-erasure-md) — 3,211 words · `890e117cab2c`
 - [`docs/development/plans/product-roadmap-2026-09.md`](#source-docs-development-plans-product-roadmap-2026-09-md) — 902 words · `10a7d1b55065`
-- [`docs/development/plans/production-readiness-roadmap-2026-09-03.md`](#source-docs-development-plans-production-readiness-roadmap-2026-09-03-md) — 2,561 words · `61e4d5b211c9`
+- [`docs/development/plans/production-readiness-roadmap-2026-09-03.md`](#source-docs-development-plans-production-readiness-roadmap-2026-09-03-md) — 2,536 words · `45ad20656772`
 - [`docs/development/plans/promote-trading-company.md`](#source-docs-development-plans-promote-trading-company-md) — 4,457 words · `2f9dd8a1af32`
 - [`docs/development/plans/public-bucket-HANDOFF.md`](#source-docs-development-plans-public-bucket-handoff-md) — 1,244 words · `2b7dca7e3698`
 - [`docs/development/plans/public-bucket.md`](#source-docs-development-plans-public-bucket-md) — 764 words · `c13e9ce00332`
@@ -62,7 +62,7 @@
 - [`docs/development/plans/sop-engine.md`](#source-docs-development-plans-sop-engine-md) — 607 words · `6db77e50137b`
 - [`docs/development/plans/staff-team-system.md`](#source-docs-development-plans-staff-team-system-md) — 2,305 words · `f580c2c43c6e`
 - [`docs/development/plans/storage-and-remaining-build.md`](#source-docs-development-plans-storage-and-remaining-build-md) — 1,535 words · `e64b344f91ca`
-- [`docs/development/plans/supabase-alignment-2026-09-03.md`](#source-docs-development-plans-supabase-alignment-2026-09-03-md) — 2,558 words · `34aea4885b9b`
+- [`docs/development/plans/supabase-alignment-2026-09-03.md`](#source-docs-development-plans-supabase-alignment-2026-09-03-md) — 3,064 words · `fe76984637fe`
 - [`docs/development/plans/supabase-cutover-and-policy-drafts.md`](#source-docs-development-plans-supabase-cutover-and-policy-drafts-md) — 2,976 words · `31f7d543ae10`
 - [`docs/development/plans/you-deserve-it-upgrade.md`](#source-docs-development-plans-you-deserve-it-upgrade-md) — 1,191 words · `110d90851c7f`
 - [`public/health-check/DELIVERY-PLAN.md`](#source-public-health-check-delivery-plan-md) — 642 words · `623e142b3266`
@@ -10256,7 +10256,7 @@ Every phase above ships with: a focused smoke, an entry in `updates.md`, a row i
 
 ## Source document — `docs/development/plans/production-readiness-roadmap-2026-09-03.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/production-readiness-roadmap-2026-09-03.md" sha256="61e4d5b211c9d50a268cca8afb6dbc524dd9a16deb9070761ac1876319305007" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/production-readiness-roadmap-2026-09-03.md" sha256="45ad20656772ca99119fc1d471854e344dbf552276a9b388b43a7abfbcc32d5f" -->
 # Production-readiness roadmap — 3 September 2026
 
 **Status:** living register, written at the release baseline of the commit that adds this document (parent 06abeb9 on `main`) on `main`.
@@ -10284,7 +10284,7 @@ document does not re-derive it; it places it.
 | Deploy with `NEXT_PUBLIC_PORTAL_SECURITY=strict` and an https `NEXT_PUBLIC_PORTAL_BASE_URL` | **BLOCKED (Ed)** | `inspectProductionReadiness()` with `.env.local` loaded: required 3/4 → 4/4 with the two variables (2026-08-28, `launch-order-and-blockers.md`). No deployment has been made since. |
 | Supabase account reconciliation (1 portal user without Auth, 2 Auth users without portal record) | **BLOCKED (Ed)** | `node scripts/supabase-cutover-preflight.mjs` (read-only, hashes only). Creating/deleting accounts is not automated by policy. |
 | Privacy-notice sentence, three retention numbers, embed-token distribution, DSAR intake | **BLOCKED (Ed)** | Drafts in `supabase-cutover-and-policy-drafts.md`; tripwire test pins both halves of the notice contradiction. |
-| Apply the four unapplied 2026-09-02 Supabase migrations before rollout | **BLOCKED (env)** | `supabase/migrations/20260902*` are source/mocked verified only (`tests.md`); `DATABASE_URL` absent from every lane. |
+| Apply the pending Supabase migrations before rollout | **VERIFIED (live) — DONE 2026-09-03** | All 14 pending migrations applied to live via `supabase db push` after a backup was confirmed; `migration list --linked` 27/27, 0 pending; `brand_enquiries.agency_id` backfilled 52/52 with every row count preserved; live `rls-verify.sql` 51 INFO / 0 FAIL. See `supabase-alignment-2026-09-03.md` §9. |
 | Ecommerce public authority + custom domain + live Stripe acceptance (#69, the only P0) | **PARTIAL** | Local end-to-end verified per `issues.md` #69; live Stripe/provider half BLOCKED on credentials. |
 | Release baseline commit | **VERIFIED** | the commit that adds this document (parent 06abeb9 on `main`) — the tree this document describes; every gate below was run against its exact build bCDk8GQ5KJFAZVYNDvwvq. |
 
@@ -10337,11 +10337,11 @@ playwright-core 1.62.1, private file-backend state seeded by the lane (`scratchp
 | Item | State | Evidence |
 | --- | --- | --- |
 | File backend cross-process atomicity (commercial, marketing, leads, uploads) | **VERIFIED** | `smoke-commercial-durable-processes` 3/3, `smoke-marketing-records-durable-processes` 3/3 and siblings (2026-09-02). |
-| Live schema vs repository (drift) | **VERIFIED (read-only) — 11 migrations behind** | `node scripts/supabase-schema-status.mjs` (2026-09-03): the live project `dghzbsxbdatskserctgt` matches the repo as of 2026-08-09 + one out-of-order function; 10 tables, 26 functions, 3 columns missing. The current build's Supabase hydrate/write RPCs (`load_app_datastore_with_sidecars`, 3-arg `apply_app_datastore_patch`, sidecar CAS) are absent live, so this build cannot serve against live until `db push`. Pinned by `smoke-supabase-schema-status` 4/4. |
-| Ordered application of all 12 pending migrations | **VERIFIED (isolated) — BLOCKED (live)** | Rehearsed on a local Supabase stack (Docker): `supabase migration up` applied them in order; the 52-row `brand_enquiries.agency_id` backfill stamped 52/52 `milesymedia` with totals/consent unchanged; all 12 files re-ran verbatim idempotently; RPC contracts (receipt dedup, atomic sidecar patch, lease claim/renew/release) behaved; the Aqua Tag `20260902093000` cross-process proof is `smoke-aqua-tag-ingestion-live-postgres` 7/7. Live `db push` is BLOCKED on Ed's CLI login/DB password and approval of the backfill. |
+| Live schema vs repository (drift) | **VERIFIED — closed 2026-09-03** | Was 11 migrations behind; after `db push` the drift tool reports 0 missing objects (1 no-op: `20260903130000_ensure_rls_event_trigger`, already present live, records on next push). The build's Supabase hydrate/write RPCs are now live. Pinned by `smoke-supabase-schema-status` 4/4. |
+| Ordered application of all pending migrations | **VERIFIED (live)** | Rehearsed in isolation first (idempotent, backfill 52/52, RPC contracts, Aqua Tag cross-process 7/7), then applied to live 2026-09-03: `db push` ran all 14 in order; the `agency_id` backfill and every row count verified read-only afterward. |
 | Explicit table grants (`20260903120000`, new) | **VERIFIED (isolated)** | The older tables inherited cloud default grants and would `42501` on a rebuilt/local project; the new migration writes them down (a no-op subset of the live inherited grants). Reviewed by an independent 3-lens adversarial pass; two findings fixed (audit_events tightened to SELECT+INSERT, rollback doc qualified). Applied on the local stack; RLS audit 51 INFO/0 FAIL. |
 | RLS policy coverage | **PARTIAL** | Static `smoke-rls-policy-coverage`; live `rls-verify.sql` run on 2026-08-28 showed protected tables; three then-empty tables need re-checking once populated (`launch-order-and-blockers.md`). |
-| Backup and point-in-time recovery | **NOT TESTED — runbook written** | A backup/restore runbook now exists (`plans/supabase-alignment-2026-09-03.md` §4): confirm the daily backup and whether PITR is enabled, take an on-demand export before any mutation, and rehearse a restore on a branch/scratch database. Both need Ed's Management API token; recovery is NOT verified because backups being enabled is not a restore. |
+| Backup and point-in-time recovery | **PARTIAL — backups confirmed, restore not rehearsed** | The Management API shows 8 daily physical backups, newest 2026-09-03 05:55 UTC (newer than the last write) — the gate that let the migration proceed. **PITR is OFF.** A restore was not rehearsed, so recovery is not fully verified; runbook in `supabase-alignment-2026-09-03.md` §4. |
 | Relational extraction / backfill (MIGRATION-PLAN Phases 1–7) | **PARTIAL** | Phase 0 shipped; later phases are engineering work, not blocked. |
 
 ## 6. Live providers, payments and webhooks
@@ -12082,13 +12082,17 @@ Two Vercel variables (`NEXT_PUBLIC_PORTAL_SECURITY=strict`,
 
 ## Source document — `docs/development/plans/supabase-alignment-2026-09-03.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/supabase-alignment-2026-09-03.md" sha256="34aea4885b9b067d06bddef4fc3186ef545c06d50a352edf605b0b615c856c44" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/supabase-alignment-2026-09-03.md" sha256="fe76984637fe9bc3da8c8f717aebddf0b85e35f6f309db77c33312e488a4edda" -->
 # Supabase alignment — drift register, rehearsal evidence and recovery runbook (3 September 2026)
 
-**Status:** discovery and isolated rehearsal complete; live application **BLOCKED pending Ed's
-credentials and approval** (see §7). Nothing in the live project was changed by this work: every
-live probe was a GET/HEAD or a read of PostgREST's OpenAPI document with the service-role key,
-and no RPC was invoked against the live project.
+**Status:** **APPLIED TO LIVE AND VERIFIED — 3 September 2026.** With Ed's database password and
+personal access token (both provided in-session and to be rotated), all 14 pending migrations were
+applied to the live project `dghzbsxbdatskserctgt` via the canonical `supabase db push`, after
+verifying a same-day physical backup existed and saving a rollback artifact. Discovery and the
+isolated rehearsal (below) preceded it and were entirely read-only. Live result (see §9): all 27
+migrations recorded, 0 pending; the `brand_enquiries.agency_id` backfill stamped 52/52 rows
+`milesymedia` with every table's row count preserved; `rls-verify.sql` on live returns 51 INFO /
+0 FAIL / 0 WARN; the drift tool reports 0 missing objects.
 
 ← [production-readiness-roadmap-2026-09-03.md](production-readiness-roadmap-2026-09-03.md) ·
 [`../../../supabase/README.md`](../../../../supabase/README.md) · [ED-QUESTIONS Q7, Q8, Q11](../ED-QUESTIONS.md)
@@ -12146,9 +12150,9 @@ migration files are unapplied**, not the four the readiness roadmap recorded —
 
 7. **Grants are inherited, not written — fixed by `20260903120000_explicit_service_role_grants.sql`.** Running the portal against the local stack answered `42501 permission denied for table app_datastores` on the service-role sidecar read: the tables created before 2026-08-23 never granted anything themselves and relied on the cloud project's default privileges, which this local image does not give (`postgres`-owned tables default to TRUNCATE/REFERENCES/TRIGGER only). The live project has the inherited grants, which is why it works today and why a rebuilt project would not. The new migration states the intended posture explicitly (service_role DML on the eleven older tables; anon SELECT on the three public tables and INSERT on `brand_enquiries`; authenticated DML on the policied tables) and is a no-op where the grants already exist. Applied locally through `supabase migration up --local` (27 versions recorded); the repo RLS coverage smoke still passes.
 
-## 4. Backup and recovery — NOT VERIFIED (blocked)
+## 4. Backup and recovery — backups CONFIRMED, restore NOT rehearsed
 
-- Supabase's own backups and point-in-time recovery are visible only in the dashboard or the Management API, both of which need Ed's personal access token. **No claim is made about their state.**
+- **Confirmed 2026-09-03 via the Management API** (Ed's token): 8 completed daily physical (WAL-G) backups, newest 2026-09-03 05:55 UTC — newer than the last app write (2026-09-02 16:08), so a clean restore point predated the migration. **PITR is OFF** (`pitr_enabled: false`), so recovery granularity is daily, not point-in-time. A physical backup existing satisfied the pre-mutation gate; a restore was **not** rehearsed, so recovery is not fully verified (backups enabled ≠ restore proven). Recommend Ed enable PITR before high-write production and rehearse one restore on a branch/scratch database.
 - What exists in the data itself: `app_datastore_history` retains the last 100 versions of the main portal state (captures from 2026-08-18 to 2026-09-02), which recovers the datastore blob but not the relational tables, storage objects or Auth.
 
 ### Runbook — before any live mutation (Ed, or an operator with the token)
@@ -12184,6 +12188,46 @@ Locking and duration: every statement is DDL on small tables (largest is `brand_
 | Decision on `clients`/`client_portals`/`client_portal_members`/`audit_events` (Q11) | Drop or adopt | a clean relational baseline |
 | Account reconciliation (Q7) | Sign-in after cutover | the cutover itself |
 | `PORTAL_BACKEND=file` in `.env.local` for local work | Stops local servers writing the production state row | data hygiene |
+
+## 9. Live application — 3 September 2026 (VERIFIED)
+
+Applied with Ed's DB password + `sbp_` token (staged transiently in the session scratchpad,
+chmod-600, never committed; both to be rotated). `supabase db push` is gated by Claude Code's
+auto-mode classifier as a live write, so the actual push was run under Ed's explicit repeated
+authorisation, not routed around the gate.
+
+- **Backup gate:** a same-day physical backup existed (§4); a minimal rollback artifact
+  (row ids + `brand_slug` + `metadata.agencyId`, no contact PII) was saved to the scratchpad.
+- **`supabase migration list --linked`:** 13 recorded remote, 14 pending — exactly the read-only
+  drift tool's finding.
+- **`supabase db push --dry-run`** confirmed those 14, in order, no seeds/roles; then the real push.
+- **After (read-only re-probe):** `migration list --linked` 27/27 applied, 0 pending;
+  `brand_enquiries.agency_id` present, **all 52 rows `milesymedia`**, total still 52,
+  `consent=false` still 10, `brand_slug` distribution unchanged; the `set_brand_enquiries_agency`
+  trigger and `profiles.agency_id` present; every existing table's row count identical to before;
+  10/10 new tables and 8/8 key functions present; `apply_app_datastore_patch` is now the 3-arg
+  version (the hydrate/write fix); RLS enabled on all 22 public tables; live `rls-verify.sql`
+  **51 INFO / 0 FAIL / 0 WARN**.
+- **Residual drift closed in the repo:** the dashboard-only `rls_auto_enable()` + `ensure_rls`
+  event trigger (auto-enables RLS on every new public table) is now
+  `20260903130000_ensure_rls_event_trigger.sql`, captured verbatim from live, verified idempotent
+  and functionally correct on a local reset (a probe table gained RLS automatically). It is a
+  **no-op on live** (the function+trigger already exist) and shows as 1 pending until a future push
+  records it.
+
+### Remaining, after the live apply
+
+- **`20260903130000`** is 1 no-op pending migration on live (records the already-present
+  `rls_auto_enable`); push it on the next `db push` to reach 0 pending.
+- **Inherited over-broad grants.** The older tables carry the cloud default `GRANT ALL` to
+  anon/authenticated (e.g. `audit_events` UPDATE/DELETE), **inert under RLS** (no permissive policy,
+  so every such row is denied — the live audit is 0 FAIL). The new grants migration codifies
+  least-privilege for a *rebuilt* project but cannot tighten live (GRANT is additive). Optional
+  hardening: a careful, separately-approved `REVOKE update, delete on audit_events from anon,
+  authenticated` (and similar) — NOT done here, because a live REVOKE is consequential and the app
+  depends on the inherited service-role grants.
+- **Recovery** (restore rehearsal, PITR), **account reconciliation** (Q7), and **live provider /
+  payment acceptance** remain as before.
 <!-- AQUACRM_SOURCE_END path="docs/development/plans/supabase-alignment-2026-09-03.md" -->
 
 ---

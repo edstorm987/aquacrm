@@ -16,6 +16,13 @@
 > actually deployed then; a later local build or GitHub push is not by itself a
 > new Vercel deployment.
 >
+> **2026-09-03 Supabase migrations APPLIED to live:** with Ed's DB password + access token, all 14
+> pending migrations were applied to the live project via `supabase db push` after confirming a
+> same-day physical backup; `migration list --linked` 27/27, 0 pending; the `agency_id` backfill
+> (52/52 `milesymedia`) and every row count verified read-only; live `rls-verify.sql` 51 INFO /
+> 0 FAIL. The deployment blocker (build could not hydrate against live) is CLOSED. Backups exist but
+> PITR is OFF and no restore was rehearsed. `plans/supabase-alignment-2026-09-03.md` §9.
+>
 > **2026-09-03 Supabase alignment:** the one Supabase project (`dghzbsxbdatskserctgt`) is
 > production and is **eleven migrations behind the repository** (plus one grants migration added
 > today); the current build cannot hydrate against it. Read-only drift tool
