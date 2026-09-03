@@ -213,8 +213,12 @@ describe("the non-plugin app API routes — the class with no class-level guard"
     // Radar/KPI execution door. It accepts no tenant input: the agency comes
     // only from a fresh, current-member signed session and the result is bound
     // to that realm/agency/user/revision principal before provider persistence.
-    assert.equal(routes.length, 160,
-      `there are now ${routes.length} non-plugin routes under src/app/api/portal, not 160.`
+    // 160 → 161 on 2026-09-03: `intelligence/business-radar/workload`, the
+    // narrow department-baseline editor. It resolves the current access actor,
+    // requires Business Radar visibility plus Staff settings-manage, accepts no
+    // tenant input, and writes only `actor.resourceAgencyId`.
+    assert.equal(routes.length, 161,
+      `there are now ${routes.length} non-plugin routes under src/app/api/portal, not 161.`
       + " A new one has appeared: decide where IT gets its tenant from, then update this count.");
   });
 
@@ -228,21 +232,22 @@ describe("the non-plugin app API routes — the class with no class-level guard"
       `these routes read an agency id from the request:\n  ${fromRequest.join("\n  ")}`);
   });
 
-  it("only four run without an Aqua session, and each has a named reason", () => {
+  it("only the MFA bootstrap pair runs without an Aqua session", () => {
     const sessionless = appApiRoutes().filter(route => !authenticates(routeSource(route)));
     assert.deepEqual(sessionless.sort(), [
       // `portal/fulfillment/presets` used to sit here as "static constants, no
       // tenant, no store read". It now calls `getSessionFromRequest` — it
       // gained a check rather than losing one, so it left this list.
       //
-      // Authorised by a signed, expiring media token, not by a session.
-      "portal/inbox/media/content/route.ts",
+      // `portal/inbox/media/content` used to rely on its signed media token.
+      // It now also resolves the current Inbox + client-communications view
+      // grant, so a token cannot survive a role/client-link revocation.
       // Supabase's OWN session (`client.auth.getUser()`), about the caller's
       // own account only — there is no id in the request naming whose account.
       "portal/mfa/enrol/route.ts",
       "portal/mfa/verify/route.ts",
     ], "a route lost (or gained) its session check — read the reason list before changing this");
-    assert.equal(sessionless.length, 3, "three, and each named above");
+    assert.equal(sessionless.length, 2, "two, and each named above");
   });
 
   it("the routes that DO take a client id from the request are pinned, one by one", () => {

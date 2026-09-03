@@ -1,7 +1,8 @@
 // `/portal/agency/my-radar`
 //
-// Ed's operating model on one screen: which of your departments is starving,
-// and what each was meant to get.
+// The signed-in person's operating view: actions, to-dos, goals, wellbeing and
+// workload. The owner is still a person here; agency-wide health lives in the
+// separate Business Radar.
 //
 // ── Why a page of its own rather than inside the Command Centre ───────────
 //
@@ -12,59 +13,69 @@
 // Centre is a later, smaller edit made with the benefit of having actually used
 // it.
 //
-// ── The window is the last seven days ─────────────────────────────────────
-//
-// Baselines are stated per WEEK, so the actuals have to be a week or the
-// comparison is meaningless. A rolling seven days rather than "this calendar
-// week" because a Monday-morning radar showing every department starved is
-// technically true and completely useless.
+import { redirect } from "next/navigation";
 
 import { requireRole } from "@/lib/server/auth/auth";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 import { ensureHydrated } from "@/server/storage";
-import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
-import { readMyRadar } from "@/lib/server/intelligence/myRadar";
-import { allocationHeadline } from "@/lib/intelligence/departmentAllocation";
-import { MyRadarPanel } from "@/components/intelligence/MyRadarPanel";
-import { DepartmentBaselines } from "@/components/intelligence/DepartmentBaselines";
+import { readPersonalRadar } from "@/lib/server/intelligence/myRadar";
+import { readPersonalRadarActions } from "@/lib/server/intelligence/personalRadarActions";
+import { resolveBusinessRadarAccessForActor, resolvePersonalRadarAccessForActor } from "@/lib/server/intelligence/personalRadarAccess";
+import { personalRadarHeadline } from "@/lib/intelligence/personalRadar";
+import { PersonalRadarPanel } from "@/components/intelligence/PersonalRadarPanel";
 import { AGENCY_ROLES } from "@/server/types";
-
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+import { requireCurrentAccessActor } from "@/server/accessControl";
 
 export default async function MyRadarPage() {
   await ensureHydrated();
   const session = await requireRole([...AGENCY_ROLES]);
+  let actor: Awaited<ReturnType<typeof requireCurrentAccessActor>>;
+  if (session.role !== "agency-owner") {
+    try {
+      actor = (await requireCurrentWorkspaceElementAccess("staff", "staff.overview", "view")).actor;
+    } catch (error) {
+      if (error && typeof error === "object" && "status" in error
+        && Number((error as { status?: unknown }).status) === 403) {
+        redirect("/portal/account/permissions?notice=staff-overview-required");
+      }
+      throw error;
+    }
+  } else {
+    actor = await requireCurrentAccessActor();
+  }
   const now = Date.now();
-
-  // This person's own week. The agency-wide reading is the same function with
-  // the user omitted — deliberately not shown here yet, because a team view is
-  // only meaningful once more than one person has worn a hat.
-  const reading = readMyRadar({
-    agencyId: session.agencyId,
+  const [{ goalsAvailable, goalsWritable }, businessRadarAvailable] = await Promise.all([
+    resolvePersonalRadarAccessForActor(actor),
+    resolveBusinessRadarAccessForActor(actor),
+  ]);
+  const reading = await readPersonalRadar({
+    agencyId: actor.resourceAgencyId,
     userId: session.userId,
-    from: now - WEEK_MS,
-    to: now,
     now,
+    includeGoals: goalsAvailable,
+    goalsWritable,
   });
-
-  const settings = getAgencyWorkspaceSettings(session.agencyId);
+  const { actions, actionSummary, available: actionsAvailable } = await readPersonalRadarActions(session, now, actor);
 
   return (
-    <main className="mx-auto w-full max-w-3xl space-y-5 px-4 py-6">
+    <div className="mx-auto w-full max-w-6xl space-y-5 px-4 py-6">
       <header>
         <h1 className="text-lg font-semibold text-black/85">My Radar</h1>
         <p className="mt-1 text-sm text-black/50">
-          The last seven days, judged by department rather than as one number.
+          Your private operating view — actions, to-dos, goals, wellbeing and personal workload.
         </p>
       </header>
 
-      <MyRadarPanel
-        allocation={reading.allocation}
-        wellbeing={reading.wellbeing}
-        daysWorked={reading.daysWorked}
-        headline={allocationHeadline(reading.allocation)}
+      <PersonalRadarPanel
+        reading={reading}
+        actions={actions}
+        actionSummary={actionSummary}
+        actionsAvailable={actionsAvailable}
+        headline={personalRadarHeadline(reading, actions, now, actionSummary)}
+        actionsHref={session.role === "agency-staff" ? "/portal/team/actions" : "/portal/agency/actions"}
+        goalsHref="/portal/agency/calendar"
+        businessRadarHref={businessRadarAvailable ? "/portal/agency/radar" : null}
       />
-
-      <DepartmentBaselines initial={settings.departmentBaselines ?? []} />
-    </main>
+    </div>
   );
 }

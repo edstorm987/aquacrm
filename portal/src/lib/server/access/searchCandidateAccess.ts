@@ -17,7 +17,12 @@ import {
   workspaceElementLevel,
   type WorkspaceElementAccess,
 } from "@/lib/server/access/workspaceElementAccess";
-import type { CurrentAccessActor } from "@/server/accessControl";
+import {
+  actorHasActiveNonProjectAccessPolicy,
+  resolveActorAccess,
+  type CurrentAccessActor,
+} from "@/server/accessControl";
+import { canReadClientAssociation } from "@/lib/server/access/clientAssociationElement";
 import type { AccessElementKey } from "@/server/types";
 
 export interface SearchCandidateDescriptor {
@@ -28,12 +33,19 @@ export interface SearchCandidateDescriptor {
 export interface SearchCandidateAccess {
   /** Stable cache dimension derived from authoritative, current access. */
   fingerprint: string;
+  /** Owners and genuinely ungoverned managers retain the historical deep index. */
+  fullAccess: boolean;
   visible(candidate: SearchCandidateDescriptor): boolean;
+  taskVisible(task: { assigneeUserId?: string; createdBy?: string; clientId?: string }): boolean;
+  staffPayVisible: boolean;
 }
 
 const FULL_ACCESS: SearchCandidateAccess = {
   fingerprint: "full",
+  fullAccess: true,
   visible: () => true,
+  taskVisible: () => true,
+  staffPayVisible: true,
 };
 
 function visible(level: string): boolean {
@@ -63,6 +75,7 @@ function clientElementFor(candidate: SearchCandidateDescriptor): AccessElementKe
 }
 
 function staffElementFor(href: string): AccessElementKey | null {
+  if (href === "/portal/agency/my-radar") return "staff.overview";
   if (href.startsWith("/portal/clients?view=staff")) return "staff.people";
   if (href.startsWith("/portal/agency/notepad")) return "workspace.files";
   if (href.startsWith("/portal/agency/actions")) return "workspace.actions";
@@ -97,9 +110,38 @@ function fulfilmentElementFor(href: string): AccessElementKey | null {
   return byView[view] ?? FULFILMENT_VIEW_ELEMENT_KEYS.overview;
 }
 
+function growthElementFor(candidate: SearchCandidateDescriptor): AccessElementKey | null {
+  if (["Lead"].includes(candidate.category)) return "growth.leads";
+  if (["Contact", "Enquiry"].includes(candidate.category)) return "growth.contacts";
+  if (["Campaign", "Audience"].includes(candidate.category)) return "growth.campaigns";
+  if (/^\/portal\/agency\/(?:contacts|pipelines)(?:[/?#]|$)/.test(candidate.href)) {
+    return candidate.href.startsWith("/portal/agency/contacts") ? "growth.contacts" : "growth.leads";
+  }
+  if (candidate.href.startsWith("/portal/agency/marketing")) return "growth.campaigns";
+  return null;
+}
+
+function agencyElementFor(candidate: SearchCandidateDescriptor): AccessElementKey | null {
+  const href = candidate.href;
+  if (["Radar", "KPI", "Check", "Evidence", "Source", "Executive", "Assistant"].includes(candidate.category)) return "workspace.overview";
+  if (["Notification", "Message", "Request"].includes(candidate.category)) return "workspace.inbox";
+  if (candidate.category === "Meeting") return "workspace.calendar";
+  if (["Invoice", "Expense", "Income", "Contract"].includes(candidate.category)) return "client.commercial";
+  if (href.startsWith("/portal/agency/inbox") || href.startsWith("/portal/agency/activity-inbox")) return "workspace.inbox";
+  if (href.startsWith("/portal/agency/actions")) return "workspace.actions";
+  if (href.startsWith("/portal/agency/calendar")) return "workspace.calendar";
+  if (href.startsWith("/portal/agency/notepad")) return "workspace.files";
+  if (href.startsWith("/portal/agency/settings") || href.startsWith("/portal/agency/governance")) return "workspace.settings";
+  if (href.startsWith("/portal/agency/products") || href.startsWith("/portal/agency/finance")) return "client.commercial";
+  if (href === "/portal/agency" || href.startsWith("/portal/agency/radar") || href.startsWith("/portal/agency/command-center") || href.startsWith("/portal/agency/assistant")) return "workspace.overview";
+  return null;
+}
+
 function accessShape(
   actor: CurrentAccessActor,
+  agencyCapabilities: readonly string[],
   staff: WorkspaceElementAccess,
+  growth: WorkspaceElementAccess,
   fulfilment: WorkspaceElementAccess,
   clients: ReadonlyMap<string, ClientWorkspaceElementAccess>,
 ): string {
@@ -114,7 +156,9 @@ function accessShape(
   return JSON.stringify({
     accessRev: actor.user.accessRev ?? 0,
     environment: actor.environment,
+    agency: [...agencyCapabilities].sort(),
     staff: levelEntries(staff),
+    growth: levelEntries(growth),
     fulfilment: levelEntries(fulfilment),
     clients: clientEntries,
   });
@@ -122,26 +166,43 @@ function accessShape(
 
 /**
  * Search is mounted in the shared Topbar, including delegated Staff shells.
- * Owners/managers retain the existing complete index. Canonically governed
- * staff receive only records whose destination element is visible to the same
- * authoritative projection used by navigation and direct route guards.
+ * Owners and fully-unmigrated managers retain the legacy complete index.
+ * Every canonically governed manager/staff identity receives only records
+ * whose destination element is visible to the same authoritative projection
+ * used by navigation and direct route guards.
  */
 export function searchCandidateAccess(actor: CurrentAccessActor): SearchCandidateAccess {
-  if (actor.session.role !== "agency-staff") return FULL_ACCESS;
+  if (actor.session.role === "agency-owner") return FULL_ACCESS;
 
+  const agency = resolveActorAccess(actor, { kind: "agency", id: actor.resourceAgencyId });
   const staff = resolveActorWorkspaceElementAccess(actor, "staff");
+  const growth = resolveActorWorkspaceElementAccess(actor, "growth");
   const fulfilment = resolveActorWorkspaceElementAccess(actor, "fulfilment");
+  if (actor.session.role === "agency-manager"
+    && agency.grantIds.length === 0
+    && !staff.canonical
+    && !growth.canonical
+    && !fulfilment.canonical
+    && !actorHasActiveNonProjectAccessPolicy(actor)) return FULL_ACCESS;
   const clients = new Map(
     Object.values(actor.resourceState.clients)
       .filter(client => client.agencyId === actor.resourceAgencyId)
       .map(client => [client.id, resolveActorClientWorkspaceElementAccess(actor, client.id)]),
   );
   const fingerprint = createHash("sha256")
-    .update(accessShape(actor, staff, fulfilment, clients))
+    .update(accessShape(actor, agency.capabilities, staff, growth, fulfilment, clients))
     .digest("base64url");
 
   return {
     fingerprint: `${actor.user.accessRev ?? 0}:${fingerprint}`,
+    fullAccess: false,
+    staffPayVisible: visible(workspaceElementLevel(staff, "staff.pay")),
+    taskVisible(task) {
+      if (actor.session.role === "agency-staff"
+        && task.assigneeUserId !== actor.session.userId
+        && task.createdBy !== actor.session.userId) return false;
+      return canReadClientAssociation(actor, "agency-task", task.clientId);
+    },
     visible(candidate) {
       const clientId = clientIdFromHref(candidate.href);
       if (clientId) {
@@ -153,8 +214,18 @@ export function searchCandidateAccess(actor: CurrentAccessActor): SearchCandidat
 
       const staffElement = staffElementFor(candidate.href);
       if (staffElement) return visible(workspaceElementLevel(staff, staffElement));
+      const growthElement = growthElementFor(candidate);
+      if (growthElement) return visible(workspaceElementLevel(growth, growthElement));
       const fulfilmentElement = fulfilmentElementFor(candidate.href);
       if (fulfilmentElement) return visible(workspaceElementLevel(fulfilment, fulfilmentElement));
+
+      const agencyElement = agencyElementFor(candidate);
+      if (agencyElement) {
+        if (agencyElement.startsWith("workspace.") || agencyElement.startsWith("staff.")) {
+          return visible(workspaceElementLevel(staff, agencyElement));
+        }
+        return agency.capabilities.includes(`element.${agencyElement}.view` as never);
+      }
 
       // No delegated destination means no delegated discoverability. In
       // particular, agency Finance, Inbox, Radar and executive records cannot

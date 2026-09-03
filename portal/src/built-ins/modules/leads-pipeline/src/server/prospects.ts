@@ -342,7 +342,7 @@ export class ProspectService {
       category: "leads",
       action: "leads.prospect.outreach-recorded",
       message: `Recorded ${input.channel} outreach to ${prospectLabel(updated)}: ${input.outcome}.`,
-      metadata: { prospectId: id, attemptId: attempt.id, channel: input.channel, outcome: input.outcome, followUpAt },
+      metadata: { prospectId: id, attemptId: attempt.id, channel: input.channel, outcome: input.outcome, contactedAt: at, followUpAt },
     });
     this.events.emit({ agencyId: this.agencyId }, "leads.prospect.outreach-recorded", { prospectId: id, attempt });
     return updated;

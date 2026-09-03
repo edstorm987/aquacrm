@@ -35,6 +35,8 @@ export interface TenantPort {
 // ─── Activity ──────────────────────────────────────────────────────────────
 
 export interface LogActivityInput {
+  /** Stable source-operation identity. Replays return the original entry. */
+  idempotencyKey?: string;
   agencyId: AgencyId;
   clientId?: ClientId;
   actorUserId?: UserId;

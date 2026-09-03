@@ -26,9 +26,8 @@ export const TOPBAR_CONTROL_IDS = [
   // both answer "which context am I in", and both change what the rest of the
   // chrome shows.
   "department",
-  // "My Radar" — your own week's peek. Distinct from "radar", which is the
-  // BUSINESS Radar quick look. Sits by "department" because they are two halves
-  // of one habit: the hat, and the judgement of the hat.
+  // "My Radar" — the signed-in person's actions, goals, wellbeing and work
+  // pace. Distinct from "radar", which is the organisation's Business Radar.
   "my-radar",
   "search",
   "advisor",

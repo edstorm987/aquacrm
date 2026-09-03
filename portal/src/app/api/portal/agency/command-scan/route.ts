@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     const accessActor = await requireCommandScanIssueAccess();
     if (accessActor.session.userId !== session.userId) throw new AuthError(401, "session_subject_mismatch");
 
-    const agency = getAgency(session.agencyId);
+    const agency = getAgency(accessActor.resourceAgencyId);
     if (!agency) return NextResponse.json({ ok: false, error: "agency_not_found" }, { status: 404 });
 
     // Keep one scan-as-of timestamp across the builders, but do not start the

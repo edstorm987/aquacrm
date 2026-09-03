@@ -50,6 +50,7 @@ export const NAV_ELEMENT_KEYS: Readonly<Record<string, AccessElementKey>> = {
   "email-sender.outbox": "workspace.inbox",
   ops: "workspace.actions",
   "operations-home": "workspace.actions",
+  "my-radar": "staff.overview",
 
   // ── Fulfilment / delivery ───────────────────────────────────────────────
   fulfilment: "fulfilment.overview",

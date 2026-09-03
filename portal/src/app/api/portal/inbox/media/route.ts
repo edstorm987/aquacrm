@@ -3,15 +3,13 @@ import { join } from "node:path";
 import { NextResponse, type NextRequest } from "next/server";
 
 import type { InboxOutboundAttachment, InboxOutboundAttachmentKind } from "@/lib/inbox/media";
-import { authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
-import { getInboxConversation } from "@/lib/server/inbox/inboxStore";
-import { inboxMediaUrl, signInboxMediaToken, type InboxMediaTargetKind } from "@/lib/server/inbox/inboxMedia";
+import { inboxMediaTargetExistsForActor } from "@/lib/server/access/inboxMediaTargetAccess";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
+import { authErrorResponse } from "@/lib/server/auth/auth";
+import { inboxMediaUrl, signInboxMediaToken } from "@/lib/server/inbox/inboxMedia";
 import { beginStagedPrivateUpload, confirmStagedPrivateUpload, privateObjectRequestHash } from "@/lib/server/privateObjectLifecycle";
 import { planPrivateUpload, PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
-import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
 import { ensureHydrated } from "@/server/storage";
-import { AGENCY_ROLES } from "@/server/types";
-import { getClientForAgency } from "@/server/tenants";
 
 export const runtime = "nodejs";
 
@@ -21,8 +19,8 @@ const ALLOWED_TYPES = /^(?:image\/(?:jpeg|png|webp|gif|heic|heif)|audio\/(?:webm
 export async function POST(request: NextRequest) {
   try {
     await ensureHydrated();
-    const session = await getSessionFromRequest(request);
-    if (!session || !AGENCY_ROLES.includes(session.role)) return NextResponse.json({ ok: false, error: "Unauthorized." }, { status: 401 });
+    const { actor } = await requireCurrentWorkspaceElementAccess("staff", "workspace.inbox", "use");
+    const agencyId = actor.resourceAgencyId;
     const form = await request.formData().catch(() => null);
     const file = form?.get("file");
     const targetKind = form?.get("targetKind");
@@ -30,16 +28,19 @@ export async function POST(request: NextRequest) {
     if (!(file instanceof File) || (targetKind !== "website" && targetKind !== "social" && targetKind !== "client") || !targetId) return NextResponse.json({ ok: false, error: "A conversation and file are required." }, { status: 400 });
     if (!file.size || file.size > MAX_FILE_BYTES) return NextResponse.json({ ok: false, error: "Attachments must be smaller than 20 MB." }, { status: 413 });
     if (!ALLOWED_TYPES.test(file.type)) return NextResponse.json({ ok: false, error: "Upload an image, audio note, video, PDF, document, spreadsheet or text file." }, { status: 415 });
-    if (!await targetExists(session.agencyId, targetKind, targetId)) return NextResponse.json({ ok: false, error: "Conversation not found." }, { status: 404 });
-
     const id = `ima_${crypto.randomBytes(10).toString("hex")}`;
     const name = safeName(file.name);
-    const localKey = join(session.agencyId, targetKind, targetId, `${id}-${name}`);
-    const pathname = `inbox-media/${session.agencyId}/${targetKind}/${targetId}/${id}-${name}`;
-    const requestHash = privateObjectRequestHash([session.agencyId, targetKind, targetId, id, file.name, file.size, file.type, pathname]);
+    const localKey = join(agencyId, targetKind, targetId, `${id}-${name}`);
+    const pathname = `inbox-media/${agencyId}/${targetKind}/${targetId}/${id}-${name}`;
+    const requestHash = privateObjectRequestHash([agencyId, targetKind, targetId, id, file.name, file.size, file.type, pathname]);
     const planned = planPrivateUpload({ pathname, localKey });
+    // Resolve website, social or client-request ownership from its live store
+    // immediately before the first staged-upload write.
+    if (!await inboxMediaTargetExistsForActor(actor, targetKind, targetId, "use")) {
+      return NextResponse.json({ ok: false, error: "Conversation not found." }, { status: 404 });
+    }
     await beginStagedPrivateUpload({
-      agencyId: session.agencyId,
+      agencyId,
       purpose: "inbox-media",
       objectId: id,
       requestHash,
@@ -53,29 +54,15 @@ export async function POST(request: NextRequest) {
       localDirectory: "inbox-media",
       localKey,
     });
-    await confirmStagedPrivateUpload({ agencyId: session.agencyId, purpose: "inbox-media", objectId: id, requestHash, stored });
+    await confirmStagedPrivateUpload({ agencyId, purpose: "inbox-media", objectId: id, requestHash, stored });
     const kind = attachmentKind(file.type);
-    const token = signInboxMediaToken({ agencyId: session.agencyId, targetKind, targetId, id, name: file.name.slice(0, 180), size: file.size, contentType: file.type, kind, storageProvider: stored.storageProvider, storageKey: stored.storageKey });
+    const token = signInboxMediaToken({ agencyId, targetKind, targetId, id, name: file.name.slice(0, 180), size: file.size, contentType: file.type, kind, storageProvider: stored.storageProvider, storageKey: stored.storageKey });
     const attachment: InboxOutboundAttachment = { id, name: file.name.slice(0, 180), size: file.size, contentType: file.type, kind, token, url: inboxMediaUrl(request.nextUrl.origin, token) };
     return NextResponse.json({ ok: true, attachment }, { status: 201 });
   } catch (error) {
     if (error instanceof PrivateUploadStorageError) return NextResponse.json({ ok: false, error: error.message, code: error.code }, { status: 503 });
     return authErrorResponse(error);
   }
-}
-
-async function targetExists(agencyId: string, kind: InboxMediaTargetKind, targetId: string): Promise<boolean> {
-  if (kind === "social") return Boolean(await getInboxConversation(agencyId, targetId));
-  if (kind === "client") {
-    const separator = targetId.indexOf(":");
-    if (separator < 1) return false;
-    const client = getClientForAgency(agencyId, targetId.slice(0, separator));
-    const requestId = targetId.slice(separator + 1);
-    const requests = Array.isArray(client?.metadata?.clientRequests) ? client.metadata.clientRequests : [];
-    return requests.some(item => item && typeof item === "object" && (item as { id?: unknown }).id === requestId);
-  }
-  const { data } = await (await createScopedSupabaseClient()).from("brand_enquiries").select("id").eq("id", targetId).maybeSingle();
-  return Boolean(data);
 }
 
 function attachmentKind(contentType: string): InboxOutboundAttachmentKind {

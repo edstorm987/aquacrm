@@ -80,12 +80,15 @@ interface Props {
   advisorControl?: ReactNode;
   privacyTerms?: string[];
   searchRecordsEnabled?: boolean;
+  /** Actor-resolved destinations whose leaf capability has been proven. */
+  capabilitySearchHrefs?: readonly string[];
+  businessRadarAvailable?: boolean;
   /** Inside somebody else's workspace — show the way OUT. */
   inspecting?: boolean;
   inspectingLabel?: string;
 }
 
-export async function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, sidebarVariant = "standard", isDemo, homeHref, homeLabel, showcaseMode, sandboxMode, publicShowcase, canUseDevMode, devModeActive, devConsole, previewActive, notifications, radarControl, companySwitcher, advisorControl, privacyTerms, searchRecordsEnabled, inspecting, inspectingLabel }: Props) {
+export async function Topbar({ title, subtitle, role, email, name, avatarUrl, panels, tenantLabel, currentPath, sidebarVariant = "standard", isDemo, homeHref, homeLabel, showcaseMode, sandboxMode, publicShowcase, canUseDevMode, devModeActive, devConsole, previewActive, notifications, radarControl, companySwitcher, advisorControl, privacyTerms, searchRecordsEnabled, capabilitySearchHrefs = [], businessRadarAvailable = false, inspecting, inspectingLabel }: Props) {
   // Search indexes the APP, not the sidebar.
   //
   // It used to be `panels.flatMap(...)` alone — so the 20-odd routes with no
@@ -95,13 +98,24 @@ export async function Topbar({ title, subtitle, role, email, name, avatarUrl, pa
   // destination behind them, deduped by href so a page in both appears once.
   const navSearchItems = panels?.flatMap(panel => panel.items.map(item => ({ label: item.label, href: item.href }))) ?? [];
   const navHrefs = new Set(navSearchItems.map(item => item.href.split("?")[0]));
+  const capabilityBoundDestinations = new Set([
+    "/portal/agency/actions",
+    "/portal/agency/calendar",
+    "/portal/agency/inbox",
+    "/portal/agency/my-radar",
+    "/portal/agency/radar",
+    "/portal/agency/radar/workload",
+  ]);
+  const provenDestinationHrefs = new Set(capabilitySearchHrefs);
   const searchItems = [
     ...navSearchItems,
     // Role-filtered (Ed, 2026-08-30): the registry half of search must meet
     // the same standard as the sidebar half — a viewer is never shown a door
     // their role cannot open. Dev surfaces ride the same visibility the dev
     // console icon already earns.
-    ...destinationSearchItemsFor(role, Boolean(devConsole || canUseDevMode)).filter(item => !navHrefs.has(item.href)),
+    ...destinationSearchItemsFor(role, Boolean(devConsole || canUseDevMode)).filter(item =>
+      !navHrefs.has(item.href)
+      && (!capabilityBoundDestinations.has(item.href) || provenDestinationHrefs.has(item.href))),
   ];
   const recordsEnabled = searchRecordsEnabled ?? (role === "agency-owner" || role === "agency-manager" || role === "agency-staff");
   const advisorEnabled = !publicShowcase && (role === "agency-owner" || role === "agency-manager");
@@ -143,8 +157,8 @@ export async function Topbar({ title, subtitle, role, email, name, avatarUrl, pa
     // standalone switcher and the nav all read one answer, not two taken a
     // moment apart. The control itself may still decide not to render (a staff
     // account whose overview view was revoked must not be handed the meters).
-    !publicShowcase && !showcaseMode && isAgencyRole(role)
-      ? { id: "my-radar", label: "My Radar", node: <MyRadarControl key="my-radar" activeDepartment={activeDepartment} /> }
+    !publicShowcase && !showcaseMode && isAgencyRole(role) && navHrefs.has("/portal/agency/my-radar")
+      ? { id: "my-radar", label: "My Radar", node: <MyRadarControl key="my-radar" activeDepartment={activeDepartment} staffWorkspace={role === "agency-staff"} businessRadarAvailable={businessRadarAvailable} /> }
       : null,
     searchItems.length
       ? { id: "search", label: "Search workspace", node: <DeferredPortalSearch key="search" items={searchItems} recordsEnabled={recordsEnabled} /> }

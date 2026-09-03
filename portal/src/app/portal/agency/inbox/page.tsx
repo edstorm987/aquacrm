@@ -18,6 +18,18 @@ import { AgencyActionsPage, assembleAgencyActions } from "../actions/_ActionsPag
 import type { InboxOutboundAttachment } from "@/lib/inbox/media";
 import { cleanClientRequests } from "@/lib/clients/clientRequests";
 import { clientWorkspaceDisplayName } from "@/lib/clients/clientWorkspace";
+import {
+  clientWorkspaceElementAtLeast,
+  clientWorkspaceElementLevel,
+  resolveActorClientWorkspaceElementAccess,
+} from "@/lib/server/access/clientWorkspaceElementAccess";
+import {
+  requireCurrentWorkspaceElementAccess,
+  workspaceElementAtLeast,
+  workspaceElementLevel,
+} from "@/lib/server/access/workspaceElementAccess";
+import { actorHasActiveNonProjectAccessPolicy } from "@/server/accessControl";
+import { filterOperationalAlertsForActor } from "@/lib/server/access/operationalAlertAccess";
 
 type RequestRecord = {
   id: string;
@@ -54,18 +66,29 @@ type PropertyRecord = {
 export default async function AgencyInboxPage() {
   await ensureHydrated();
   const session = await requireRole([...AGENCY_ROLES]);
-  const clients = listClients(session.agencyId);
+  const { actor, access } = await requireCurrentWorkspaceElementAccess("staff", "workspace.inbox", "view");
+  const agencyId = actor.resourceAgencyId;
+  const inboxLevel = workspaceElementLevel(access, "workspace.inbox");
+  const inboxWritable = workspaceElementAtLeast(inboxLevel, "use");
+  const inboxManageable = workspaceElementAtLeast(inboxLevel, "manage");
+  const unrestrictedLegacyInbox = session.role === "agency-owner"
+    || (session.role === "agency-manager" && !actorHasActiveNonProjectAccessPolicy(actor));
+  const clients = listClients(agencyId).filter(client => {
+    const clientAccess = resolveActorClientWorkspaceElementAccess(actor, client.id);
+    return clientWorkspaceElementAtLeast(clientWorkspaceElementLevel(clientAccess, "client.communications"), "view");
+  });
+  const visibleClientIds = new Set(clients.map(client => client.id));
   const [liveAlerts, activity, websiteFormsResult, socialInboxResult] = await Promise.all([
-    listOperationalAlerts(session.agencyId),
-    Promise.resolve(listActivity({ agencyId: session.agencyId, limit: 150 })),
-    (session.isDemo || session.publicShowcase ? Promise.resolve([]) : listWebsiteEnquiries(session.agencyId)).then(
+    listOperationalAlerts(agencyId),
+    Promise.resolve(listActivity({ agencyId, limit: 150 })),
+    (session.isDemo || session.publicShowcase ? Promise.resolve([]) : listWebsiteEnquiries(agencyId)).then(
       submissions => ({ submissions, error: null as string | null }),
       cause => ({
         submissions: [],
         error: cause instanceof Error ? cause.message : "Website enquiries could not be loaded.",
       }),
     ),
-    (session.isDemo || session.publicShowcase ? Promise.resolve({ connections: [], conversations: [], generatedAt: Date.now() }) : listInboxSnapshot(session.agencyId)).then(
+    (session.isDemo || session.publicShowcase ? Promise.resolve({ connections: [], conversations: [], generatedAt: Date.now() }) : listInboxSnapshot(agencyId)).then(
       snapshot => ({ snapshot, error: null as string | null }),
       cause => ({
         snapshot: { connections: [], conversations: [], generatedAt: Date.now() },
@@ -73,14 +96,24 @@ export default async function AgencyInboxPage() {
       }),
     ),
   ]);
-  if (session.isDemo && !session.publicShowcase) clearIdentityResolutionReviews(session.agencyId);
-  const alerts = listOperationalAlertViews(session.agencyId, session.userId, liveAlerts).filter(alert => alert.attention);
-  const websiteForms = websiteFormsResult.error || session.publicShowcase
+  if (session.isDemo && !session.publicShowcase) clearIdentityResolutionReviews(agencyId);
+  const alerts = listOperationalAlertViews(
+    agencyId,
+    session.userId,
+    filterOperationalAlertsForActor(actor, liveAlerts),
+  ).filter(alert => alert.attention);
+  const websiteFormsUnscoped = websiteFormsResult.error || session.publicShowcase
     ? websiteFormsResult.submissions
-    : await synchroniseWebsiteEnquiryIdentities(session.agencyId, websiteFormsResult.submissions).catch(() => websiteFormsResult.submissions);
-  const socialInbox = socialInboxResult.error || session.publicShowcase
+    : await synchroniseWebsiteEnquiryIdentities(agencyId, websiteFormsResult.submissions).catch(() => websiteFormsResult.submissions);
+  const websiteForms = websiteFormsUnscoped.filter(submission => !submission.clientId || visibleClientIds.has(submission.clientId));
+  const socialInboxUnscoped = socialInboxResult.error || session.publicShowcase
     ? socialInboxResult.snapshot
-    : await synchroniseInboxIdentityResolutions(session.agencyId, socialInboxResult.snapshot).catch(() => socialInboxResult.snapshot);
+    : await synchroniseInboxIdentityResolutions(agencyId, socialInboxResult.snapshot).catch(() => socialInboxResult.snapshot);
+  const socialInbox = {
+    ...socialInboxUnscoped,
+    conversations: socialInboxUnscoped.conversations.filter(conversation =>
+      !conversation.identity.clientId || visibleClientIds.has(conversation.identity.clientId)),
+  };
   if (!session.publicShowcase) await flushPendingWrites();
   const conversations = clients.flatMap(client => {
     const clientLabel = clientWorkspaceDisplayName(client);
@@ -129,23 +162,29 @@ export default async function AgencyInboxPage() {
   // null slot AND a zero count.
   const preparedActions = session.publicShowcase ? null : await assembleAgencyActions();
 
+  const inboxActivityCategories = new Set(["inbox", "support", "feedback", "public-funnel"]);
+  const visibleActivity = activity.filter(entry => {
+    if (entry.clientId && !visibleClientIds.has(entry.clientId)) return false;
+    return unrestrictedLegacyInbox || inboxActivityCategories.has(entry.category);
+  });
+
   return <MasterInbox
     referenceNow={Date.now()}
-    actionsSlot={preparedActions ? <AgencyActionsPage prepared={preparedActions} /> : null}
-    openActionCount={preparedActions?.openActionCount ?? 0}
+    actionsSlot={preparedActions?.actionsAvailable ? <AgencyActionsPage prepared={preparedActions} /> : null}
+    openActionCount={preparedActions?.actionsAvailable ? preparedActions.openActionCount : 0}
     alerts={alerts}
     websiteForms={websiteForms}
     websiteFormsError={websiteFormsResult.error}
     conversations={conversations}
     socialInbox={socialInbox}
     socialInboxError={socialInboxResult.error}
-    metaReadiness={metaInboxReadiness(session.agencyId)}
+    metaReadiness={metaInboxReadiness(agencyId)}
     currentUserId={session.userId}
-    canErase={!session.publicShowcase && session.role === "agency-owner"}
-    canManageChannels={!session.publicShowcase && (session.role === "agency-owner" || session.role === "agency-manager")}
-    readOnly={Boolean(session.publicShowcase)}
+    canErase={inboxManageable && !session.publicShowcase && session.role === "agency-owner"}
+    canManageChannels={inboxManageable && !session.publicShowcase}
+    readOnly={!inboxWritable}
     channelClients={clients.map(client => ({ id: client.id, name: client.name }))}
-    communicationReadiness={outboundCommunicationReadiness(session.agencyId)}
+    communicationReadiness={outboundCommunicationReadiness(agencyId)}
     clientProfiles={clients.map(client => ({
       id: client.id,
       name: clientWorkspaceDisplayName(client),
@@ -161,7 +200,7 @@ export default async function AgencyInboxPage() {
       createdAt: client.createdAt,
       lastContactedAt: typeof client.metadata?.lastContactedAt === "number" ? client.metadata.lastContactedAt : undefined,
     }))}
-    updates={activity.map(entry => ({
+    updates={visibleActivity.map(entry => ({
       id: entry.id,
       message: entry.message,
       category: entry.category,

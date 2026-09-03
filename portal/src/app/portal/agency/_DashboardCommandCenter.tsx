@@ -211,7 +211,11 @@ export function DashboardCommandCenter({
   scanResultHandle = null,
   scanResultUnavailable = false,
   scanResultAccessDenied = false,
-  canManage = true,
+  canUsePersonalCommand = true,
+  canRunRadarScan = true,
+  canManageRadarPolicy = true,
+  canCreateRadarActions = true,
+  canManageBusinessWorkload = false,
 }: {
   planning: DashboardPlanningPayload;
   tasks: AgencyTask[];
@@ -252,7 +256,16 @@ export function DashboardCommandCenter({
   scanResultUnavailable?: boolean;
   /** The current access kernel withheld Workspace overview from this actor. */
   scanResultAccessDenied?: boolean;
-  canManage?: boolean;
+  /** May mutate this person's own plan, work sessions and wellbeing record. */
+  canUsePersonalCommand?: boolean;
+  /** May run the organisation-wide Radar scan. */
+  canRunRadarScan?: boolean;
+  /** May change organisation-wide Radar policy. */
+  canManageRadarPolicy?: boolean;
+  /** May turn a Radar finding into an Action. */
+  canCreateRadarActions?: boolean;
+  /** Exact element-gated authority for the company workload configuration. */
+  canManageBusinessWorkload?: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -1013,6 +1026,10 @@ export function DashboardCommandCenter({
   }
 
   async function createTask(input: { title: string; notes?: string; priority: AgencyTaskPriority; startAt?: number; dueAt?: number; origin?: AgencyTaskOrigin; sourceId?: string; sourceHref?: string; evidence?: string[]; evidenceSourceIds?: string[]; expectedOutcome?: string; reconciliationSourceIds?: string[] }, busyId: string) {
+    if (!canCreateRadarActions) {
+      setOperationError("Your role can view Actions but cannot change them.");
+      return;
+    }
     setTaskBusyId(busyId);
     setOperationError("");
     try {
@@ -1045,6 +1062,10 @@ export function DashboardCommandCenter({
   }
 
   async function addRadarTask(issue: BusinessRadarIssue) {
+    if (!canCreateRadarActions) {
+      setOperationError("Your role can inspect this finding but cannot create Actions from it.");
+      return;
+    }
     await createTask({
       title: issue.title,
       notes: `${issue.detail}\n\nRadar evidence:\n${issue.evidence.map(item => `- ${item}`).join("\n")}`,
@@ -1069,6 +1090,10 @@ export function DashboardCommandCenter({
   }
 
   async function completeTask(taskId: string) {
+    if (!canCreateRadarActions) {
+      setOperationError("Your role can view Actions but cannot change them.");
+      return;
+    }
     setTaskBusyId(taskId);
     setOperationError("");
     try {
@@ -1139,6 +1164,10 @@ export function DashboardCommandCenter({
   }
 
   async function generateTasksFromRadar() {
+    if (!canRunRadarScan || !canCreateRadarActions) {
+      setOperationError("Your role can inspect Business Radar but cannot run a task-generating scan.");
+      return;
+    }
     setTaskGenerationBusy(true);
     setOperationError("");
     try {
@@ -1281,7 +1310,7 @@ export function DashboardCommandCenter({
 
   return (
     <div className="grid gap-5">
-      {canManage && clockOutReviewOpen && activeSession ? <ClockOutReviewDialog
+      {canUsePersonalCommand && clockOutReviewOpen && activeSession ? <ClockOutReviewDialog
         key={activeSession.id}
         session={activeSession}
         initialOutcome={plan.doneNotes}
@@ -1299,7 +1328,7 @@ export function DashboardCommandCenter({
         navigationPending={serverNavigationBusy}
         pendingMode={pendingCommandStation}
         showDevTeam={devTeamVisible}
-        canManage={canManage}
+        canManage={canUsePersonalCommand}
         attentionProtection={attentionProtection}
         onAttentionProtectionChange={enabled => {
           setAttentionProtectionState(enabled);
@@ -1314,14 +1343,14 @@ export function DashboardCommandCenter({
             : scanResultUnavailable
               ? "The completed scan store is temporarily unavailable. Radar and KPI intelligence remain safely paused; retry the scan when the provider recovers."
               : "Radar and KPI intelligence are paused for a faster Command Centre. Run a secure scan to load live business signals."}</span>
-          {!scanResultAccessDenied ? <button type="button" onClick={() => void runCommandScan()} disabled={scanRequestBusy || scanNavigationPending} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-[#e5c479]/40 bg-[#e5c479]/[0.12] px-3 font-semibold text-[#f6e8c6] hover:bg-[#e5c479]/20 disabled:cursor-wait disabled:opacity-60">
+          {!scanResultAccessDenied && canRunRadarScan ? <button type="button" onClick={() => void runCommandScan()} disabled={scanRequestBusy || scanNavigationPending} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-[#e5c479]/40 bg-[#e5c479]/[0.12] px-3 font-semibold text-[#f6e8c6] hover:bg-[#e5c479]/20 disabled:cursor-wait disabled:opacity-60">
             <RefreshCw size={14} className={scanRequestBusy || scanNavigationPending ? "animate-spin" : ""} />
             {scanRequestBusy || scanNavigationPending ? "Running scan…" : scanResultUnavailable ? "Retry scan" : "Run scan"}
           </button> : null}
           {scanError ? <span className="basis-full text-xs text-rose-200" data-testid="command-scan-error">{scanError}</span> : null}
         </div>
       ) : null}
-      {activeStation === "devteam" ? <div className="grid min-w-0 gap-0" data-testid="dev-team-station">{pendingServerStation === "devteam" ? <StationLoading label="Dev Team" /> : devTeamWorkspace ?? <StationLoading label="Dev Team" />}</div> : activeStation === "executive" ? <div className="grid min-w-0 gap-0" data-testid="unified-command-centre">{pendingServerStation === "executive" ? <StationLoading label="Command Centre" /> : <>{executiveWorkspace ?? <StationLoading label="Command Centre" />}<CommandInstrumentDock alertCount={radarSnapshot.summary.critical + radarSnapshot.summary.warning} checkCount={radarSnapshot.summary.totalChecks} onOpenIntelligence={openIntelligenceOverview} onOpenRadar={openRadarWorkspace} /><CommandCentreKpiTrajectory intelligence={intelligenceState} onOpen={openIntelligence} /></>}</div> : activeStation === "battle" ? pendingServerStation === "battle" ? <StationLoading label="Battle Table" /> : battleTablePayload ? <BattleTableWorkspace payload={battleTablePayload} intelligence={intelligenceState} onOpenIntelligence={openIntelligence} radarIncidents={warRoomIncidents} initialSection={requestedBattleSection} initialScopeId={requestedScopeId} /> : <StationLoading label="Battle Table" /> : <fieldset disabled={!canManage} className="contents"><section id="command-workspace" role="region" aria-label={`${activeStation === "day" ? "Day Command" : activeStation === "intelligence" ? "KPI Intelligence" : "Radar"} station`} data-command-mode={dashboardMode === "inspector" ? "workspace" : dashboardMode} className="mm-command-workspace-shell mm-command-workspace-inline relative flex min-h-[42rem] min-w-0 flex-col overflow-hidden rounded-md border border-[#62e8ff]/30 bg-[#020b11]">
+      {activeStation === "devteam" ? <div className="grid min-w-0 gap-0" data-testid="dev-team-station">{pendingServerStation === "devteam" ? <StationLoading label="Dev Team" /> : devTeamWorkspace ?? <StationLoading label="Dev Team" />}</div> : activeStation === "executive" ? <div className="grid min-w-0 gap-0" data-testid="unified-command-centre">{pendingServerStation === "executive" ? <StationLoading label="Command Centre" /> : <>{executiveWorkspace ?? <StationLoading label="Command Centre" />}<CommandInstrumentDock alertCount={radarSnapshot.summary.critical + radarSnapshot.summary.warning} checkCount={radarSnapshot.summary.totalChecks} onOpenIntelligence={openIntelligenceOverview} onOpenRadar={openRadarWorkspace} /><CommandCentreKpiTrajectory intelligence={intelligenceState} onOpen={openIntelligence} /></>}</div> : activeStation === "battle" ? pendingServerStation === "battle" ? <StationLoading label="Battle Table" /> : battleTablePayload ? <BattleTableWorkspace payload={battleTablePayload} intelligence={intelligenceState} onOpenIntelligence={openIntelligence} radarIncidents={warRoomIncidents} initialSection={requestedBattleSection} initialScopeId={requestedScopeId} /> : <StationLoading label="Battle Table" /> : <fieldset disabled={dashboardMode === "day" && !canUsePersonalCommand} className="contents"><section id="command-workspace" role="region" aria-label={`${activeStation === "day" ? "Day Command" : activeStation === "intelligence" ? "KPI Intelligence" : "Radar"} station`} data-command-mode={dashboardMode === "inspector" ? "workspace" : dashboardMode} className="mm-command-workspace-shell mm-command-workspace-inline relative flex min-h-[42rem] min-w-0 flex-col overflow-hidden rounded-md border border-[#62e8ff]/30 bg-[#020b11]">
       <header className="mm-command-workspace-header flex min-h-14 shrink-0 items-center gap-3 border-b border-[#62e8ff]/25 bg-[#020b11] px-3 text-white shadow-[0_8px_24px_rgba(0,20,28,.16)] sm:px-5">
         <span className="mm-command-workspace-emblem grid size-8 shrink-0 place-items-center border border-[#62e8ff]/35 bg-[#62e8ff]/[0.07] text-[#62e8ff]"><Compass size={16} /></span>
         <div className="min-w-0"><p className="text-[8px] font-semibold uppercase text-[#76dff1]/55">Aqua command network · Integrated station</p><p className="truncate text-sm font-semibold">{activeStation === "day" ? "Day Command" : activeStation === "intelligence" ? "Command Centre · KPI Intelligence" : "Command Centre · Radar Workspace"}</p></div>
@@ -1348,6 +1377,10 @@ export function DashboardCommandCenter({
         <BusinessRadarDashboard
           variant="workspace"
           radar={radarSnapshot}
+          canRunScan={canRunRadarScan}
+          canManagePolicy={canManageRadarPolicy}
+          canCreateActions={canCreateRadarActions}
+          canManageWorkload={canManageBusinessWorkload}
           onRadarChange={applyRadarUpdate}
           onCreateTask={addRadarTask}
           taskBusyId={taskBusyId}
@@ -1359,6 +1392,10 @@ export function DashboardCommandCenter({
         <BusinessRadarDashboard
           variant="executive"
           radar={radarSnapshot}
+          canRunScan={canRunRadarScan}
+          canManagePolicy={canManageRadarPolicy}
+          canCreateActions={canCreateRadarActions}
+          canManageWorkload={canManageBusinessWorkload}
           onRadarChange={applyRadarUpdate}
           onCreateTask={addRadarTask}
           taskBusyId={taskBusyId}
@@ -1376,7 +1413,7 @@ export function DashboardCommandCenter({
                       const taskActive = acceptedTask && acceptedTask.status !== "done";
                       return <article key={issue.id} className="py-3">
                         <div className="flex items-start gap-2.5"><span className={`mt-0.5 grid size-6 shrink-0 place-items-center text-[9px] font-bold ${issue.severity === "critical" ? "bg-red-500/20 text-red-200" : issue.severity === "warning" ? "bg-amber-300/15 text-amber-200" : "bg-sky-300/15 text-sky-200"}`}>{issue.severity === "critical" ? "!" : issue.severity === "warning" ? "△" : "·"}</span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className={`text-[8px] font-bold uppercase ${issue.severity === "critical" ? "text-red-200" : issue.severity === "warning" ? "text-amber-200" : "text-sky-200"}`}>{issue.severity}</span><span className="text-[8px] font-semibold uppercase text-white/32">{domainLabel(issue.domain)} · {issue.findingCount} findings · {formatRadarAge(issue.detectedAt)}</span>{acceptedTask ? <span className="border border-[#68f5d0]/18 bg-[#68f5d0]/[0.06] px-1.5 py-0.5 text-[8px] font-semibold uppercase text-[#7dd3c4]">{taskActive ? acceptedTask.reconciliation?.status ?? "Queued" : "Completed"}</span> : null}</div><strong className="mt-1 block text-xs leading-5 text-white/82">{issue.title}</strong><p className="mt-0.5 line-clamp-2 text-[10px] leading-4 text-white/38">{issue.detail}</p></div></div>
-                        <div className="mt-2 flex justify-end gap-1.5"><button type="button" onClick={() => openInspector({ tab: "incidents", query: issue.id, domain: issue.domain })} className="inline-flex min-h-7 items-center gap-1 border border-white/10 px-2 text-[9px] font-semibold text-white/48 hover:bg-white/[0.06] hover:text-white"><Database size={11} /> Inspect</button>{!acceptedTask ? <button type="button" onClick={() => void addRadarTask(issue)} disabled={taskBusyId === `radar:${issue.id}`} className="inline-flex min-h-7 items-center gap-1 border border-[#62e8ff]/22 bg-[#62e8ff]/[0.07] px-2 text-[9px] font-semibold text-[#8ef1ff] disabled:opacity-40">{taskBusyId === `radar:${issue.id}` ? <LoaderCircle size={11} className="animate-spin" /> : <Plus size={11} />} Accept for today</button> : taskActive ? <button type="button" onClick={() => void completeTask(acceptedTask.id)} disabled={taskBusyId === acceptedTask.id} className="inline-flex min-h-7 items-center gap-1 border border-[#68f5d0]/22 bg-[#68f5d0]/[0.06] px-2 text-[9px] font-semibold text-[#91f4dc] disabled:opacity-40">{taskBusyId === acceptedTask.id ? <LoaderCircle size={11} className="animate-spin" /> : <Check size={11} />} Mark complete</button> : null}</div>
+                        <div className="mt-2 flex justify-end gap-1.5"><button type="button" onClick={() => openInspector({ tab: "incidents", query: issue.id, domain: issue.domain })} className="inline-flex min-h-7 items-center gap-1 border border-white/10 px-2 text-[9px] font-semibold text-white/48 hover:bg-white/[0.06] hover:text-white"><Database size={11} /> Inspect</button>{canCreateRadarActions && !acceptedTask ? <button type="button" onClick={() => void addRadarTask(issue)} disabled={taskBusyId === `radar:${issue.id}`} className="inline-flex min-h-7 items-center gap-1 border border-[#62e8ff]/22 bg-[#62e8ff]/[0.07] px-2 text-[9px] font-semibold text-[#8ef1ff] disabled:opacity-40">{taskBusyId === `radar:${issue.id}` ? <LoaderCircle size={11} className="animate-spin" /> : <Plus size={11} />} Accept for today</button> : canCreateRadarActions && taskActive ? <button type="button" onClick={() => void completeTask(acceptedTask.id)} disabled={taskBusyId === acceptedTask.id} className="inline-flex min-h-7 items-center gap-1 border border-[#68f5d0]/22 bg-[#68f5d0]/[0.06] px-2 text-[9px] font-semibold text-[#91f4dc] disabled:opacity-40">{taskBusyId === acceptedTask.id ? <LoaderCircle size={11} className="animate-spin" /> : <Check size={11} />} Mark complete</button> : null}</div>
                       </article>;
                     })}
                     {!directRadarFeed.length ? <div className="py-8 text-center"><ShieldCheck className="mx-auto text-[#68f5d0]" size={20} /><p className="mt-2 text-xs font-semibold text-white/70">No live Radar notices</p><p className="mt-1 text-[10px] text-white/35">The next sweep will populate this feed automatically.</p></div> : null}
@@ -1386,12 +1423,12 @@ export function DashboardCommandCenter({
                 <div className="min-w-0 px-4 py-4 sm:px-6">
                   <div className="flex flex-wrap items-center justify-between gap-3"><div className="min-w-0"><p className="text-[9px] font-semibold uppercase text-[#62e8ff]/60">Radar-directed work</p><h3 className="mt-1 text-sm font-semibold text-white">Strict priority queue</h3>{strictWindow.protected ? <p className="mt-1 text-[9px] text-[#68f5d0]/62">Attention shield · {strictWindow.focus.length} in focus · {strictWindow.reserveCount} safely queued</p> : null}</div><Link href="/portal/agency/actions" className="inline-flex min-h-8 shrink-0 items-center gap-1 border border-white/12 px-2.5 text-[10px] font-semibold text-white/55 hover:bg-white/[0.06] hover:text-white">All actions <ArrowUpRight size={12} /></Link></div>
                   <form onSubmit={event => { event.preventDefault(); void addQuickTask(); }} className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_90px_36px]">
-                    <input value={quickTask} onChange={event => setQuickTask(event.target.value)} placeholder="Capture the next concrete action" className="min-h-9 border border-white/12 bg-[#07161b] px-3 text-xs text-white outline-none placeholder:text-white/25 focus:border-[#62e8ff]/45" />
-                    <select aria-label="New command task priority" value={quickPriority} onChange={event => setQuickPriority(event.target.value as AgencyTaskPriority)} className="min-h-9 border border-white/12 bg-[#07161b] px-2 text-xs text-white"><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select>
-                    <button disabled={!quickTask.trim() || taskBusyId === "quick"} title="Add command task" className="grid size-9 place-items-center border border-[#62e8ff]/25 bg-[#62e8ff]/[0.07] text-[#8ef1ff] disabled:opacity-30">{taskBusyId === "quick" ? <LoaderCircle size={14} className="animate-spin" /> : <Plus size={14} />}</button>
+                    <input disabled={!canCreateRadarActions} value={quickTask} onChange={event => setQuickTask(event.target.value)} placeholder={canCreateRadarActions ? "Capture the next concrete action" : "Actions are view only"} className="min-h-9 border border-white/12 bg-[#07161b] px-3 text-xs text-white outline-none placeholder:text-white/25 focus:border-[#62e8ff]/45 disabled:opacity-45" />
+                    <select disabled={!canCreateRadarActions} aria-label="New command task priority" value={quickPriority} onChange={event => setQuickPriority(event.target.value as AgencyTaskPriority)} className="min-h-9 border border-white/12 bg-[#07161b] px-2 text-xs text-white disabled:opacity-45"><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select>
+                    <button disabled={!canCreateRadarActions || !quickTask.trim() || taskBusyId === "quick"} title="Add command task" className="grid size-9 place-items-center border border-[#62e8ff]/25 bg-[#62e8ff]/[0.07] text-[#8ef1ff] disabled:opacity-30">{taskBusyId === "quick" ? <LoaderCircle size={14} className="animate-spin" /> : <Plus size={14} />}</button>
                   </form>
                   <ol className="mt-3 divide-y divide-white/10 border-y border-white/10">
-                    {commandPriorityFeed.map((item, index) => <li key={item.id} className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2 py-2.5"><span className={`grid size-6 place-items-center text-[9px] font-semibold ${item.priority === "urgent" ? "bg-red-500/20 text-red-200" : item.priority === "high" ? "bg-amber-300/15 text-amber-200" : "bg-white/[0.06] text-white/50"}`}>{index + 1}</span><span className="min-w-0"><strong className="block truncate text-xs text-white/80">{item.title}</strong><span className="block truncate text-[10px] text-white/35">{item.kind}</span></span>{item.taskId ? <button type="button" onClick={() => void completeTask(item.taskId!)} title={`Complete ${item.title}`} className="grid size-8 place-items-center border border-white/10 text-[#7dd3c4] hover:bg-white/[0.06]"><Check size={13} /></button> : <button type="button" onClick={() => void addStrictTodo(item)} title={`Accept ${item.title}`} className="grid size-8 place-items-center border border-white/10 text-white/45 hover:bg-white/[0.06] hover:text-white"><Plus size={13} /></button>}</li>)}
+                    {commandPriorityFeed.map((item, index) => <li key={item.id} className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2 py-2.5"><span className={`grid size-6 place-items-center text-[9px] font-semibold ${item.priority === "urgent" ? "bg-red-500/20 text-red-200" : item.priority === "high" ? "bg-amber-300/15 text-amber-200" : "bg-white/[0.06] text-white/50"}`}>{index + 1}</span><span className="min-w-0"><strong className="block truncate text-xs text-white/80">{item.title}</strong><span className="block truncate text-[10px] text-white/35">{item.kind}</span></span>{canCreateRadarActions ? item.taskId ? <button type="button" onClick={() => void completeTask(item.taskId!)} title={`Complete ${item.title}`} className="grid size-8 place-items-center border border-white/10 text-[#7dd3c4] hover:bg-white/[0.06]"><Check size={13} /></button> : <button type="button" onClick={() => void addStrictTodo(item)} title={`Accept ${item.title}`} className="grid size-8 place-items-center border border-white/10 text-white/45 hover:bg-white/[0.06] hover:text-white"><Plus size={13} /></button> : null}</li>)}
                     {!strictList.length ? <li className="py-5 text-center text-xs text-white/38">No queued priorities. The command plot is clear.</li> : null}
                   </ol>
                 </div>
@@ -1453,7 +1490,7 @@ export function DashboardCommandCenter({
             </div>
             {isToday ? <div className="grid w-full gap-2 sm:w-auto sm:grid-cols-2">
               <button type="button" onClick={() => void requestAdvisorBriefing()} disabled={advisorBusy} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-[#62e8ff]/22 bg-[#62e8ff]/[0.065] px-3 text-xs font-semibold text-[#8ef1ff] hover:bg-[#62e8ff]/[0.12] disabled:opacity-40">{advisorBusy ? <LoaderCircle size={14} className="animate-spin" /> : <Bot size={14} />}Generate briefing</button>
-              <button type="button" onClick={() => void generateTasksFromRadar()} disabled={taskGenerationBusy} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-[#e5c479]/20 bg-[#e5c479]/[0.055] px-3 text-xs font-semibold text-[#e5c479] hover:bg-[#e5c479]/[0.1] disabled:opacity-40">{taskGenerationBusy ? <LoaderCircle size={14} className="animate-spin" /> : <ScanSearch size={14} />}Generate tasks</button>
+              {canRunRadarScan && canCreateRadarActions ? <button type="button" onClick={() => void generateTasksFromRadar()} disabled={taskGenerationBusy} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-[#e5c479]/20 bg-[#e5c479]/[0.055] px-3 text-xs font-semibold text-[#e5c479] hover:bg-[#e5c479]/[0.1] disabled:opacity-40">{taskGenerationBusy ? <LoaderCircle size={14} className="animate-spin" /> : <ScanSearch size={14} />}Generate tasks</button> : null}
             </div> : <div className="border border-black/10 bg-black/[0.025] px-3 py-2 text-xs leading-5 text-black/48"><strong className="block text-black/68">{isFuture ? "Planning mode" : "Review mode"}</strong>Live Advisor generation returns on Today. This view is locked to {formatLongDate(selectedDate)}.</div>}
           </div>
         </div>
@@ -1478,13 +1515,13 @@ export function DashboardCommandCenter({
               <button type="button" onClick={() => selectWorkspaceMode("actions")} disabled={serverNavigationBusy} className="inline-flex min-h-6 items-center gap-1 text-xs font-semibold text-brand hover:underline disabled:opacity-45">All actions <ArrowUpRight size={13} /></button>
             </div>
             {!isFuture && !isToday ? <div className="border-b border-black/10 bg-black/[0.018] px-4 py-3 text-xs text-black/45 sm:px-5">Historical ledger: use Plan and evidence to add retrospective notes without creating an overdue task.</div> : <form onSubmit={event => { event.preventDefault(); void addQuickTask(); }} className="grid gap-2 border-b border-black/10 bg-black/[0.018] p-3 sm:grid-cols-[minmax(0,1fr)_120px_auto] sm:px-5">
-              <input value={quickTask} onChange={event => setQuickTask(event.target.value)} placeholder="Capture the next concrete action" className="min-h-10 rounded-md border border-black/10 bg-white px-3 text-sm outline-none focus:border-brand" />
-              <select aria-label="New task priority" value={quickPriority} onChange={event => setQuickPriority(event.target.value as AgencyTaskPriority)} className="min-h-10 rounded-md border border-black/10 bg-white px-3 text-sm">
+              <input disabled={!canCreateRadarActions} value={quickTask} onChange={event => setQuickTask(event.target.value)} placeholder={canCreateRadarActions ? "Capture the next concrete action" : "Actions are view only for this role"} className="min-h-10 rounded-md border border-black/10 bg-white px-3 text-sm outline-none focus:border-brand disabled:bg-black/[0.03]" />
+              <select disabled={!canCreateRadarActions} aria-label="New task priority" value={quickPriority} onChange={event => setQuickPriority(event.target.value as AgencyTaskPriority)} className="min-h-10 rounded-md border border-black/10 bg-white px-3 text-sm disabled:bg-black/[0.03]">
                 <option value="normal">Normal</option>
                 <option value="high">High</option>
                 <option value="urgent">Urgent</option>
               </select>
-              <button disabled={!quickTask.trim() || taskBusyId === "quick"} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white disabled:opacity-40">
+              <button disabled={!canCreateRadarActions || !quickTask.trim() || taskBusyId === "quick"} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white disabled:opacity-40">
                 {taskBusyId === "quick" ? <LoaderCircle size={15} className="animate-spin" /> : <Plus size={15} />} Add
               </button>
             </form>}
@@ -1504,11 +1541,11 @@ export function DashboardCommandCenter({
                     {item.taskId && item.status === "done" ? (
                       <span className="grid size-9 place-items-center rounded-md border border-emerald-100 bg-emerald-50 text-emerald-700" title="Completed"><CheckCircle2 size={15} /></span>
                     ) : item.taskId ? (
-                      <button type="button" onClick={() => void completeTask(item.taskId!)} disabled={taskBusyId === item.taskId} className="grid size-9 place-items-center rounded-md border border-black/10 bg-white text-emerald-700 hover:bg-emerald-50" title="Complete task" aria-label={`Complete ${item.title}`}>
+                      <button type="button" onClick={() => void completeTask(item.taskId!)} disabled={!canCreateRadarActions || taskBusyId === item.taskId} className="grid size-9 place-items-center rounded-md border border-black/10 bg-white text-emerald-700 hover:bg-emerald-50 disabled:opacity-35" title="Complete task" aria-label={`Complete ${item.title}`}>
                         {taskBusyId === item.taskId ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={15} />}
                       </button>
                     ) : (
-                      <button type="button" onClick={() => void addStrictTodo(item)} disabled={taskBusyId === item.id} className="grid size-9 place-items-center rounded-md border border-black/10 bg-white text-black/55 hover:bg-black/[0.03]" title="Add to tasks" aria-label={`Add ${item.title} to tasks`}>
+                      <button type="button" onClick={() => void addStrictTodo(item)} disabled={!canCreateRadarActions || taskBusyId === item.id} className="grid size-9 place-items-center rounded-md border border-black/10 bg-white text-black/55 hover:bg-black/[0.03] disabled:opacity-35" title="Add to tasks" aria-label={`Add ${item.title} to tasks`}>
                         {taskBusyId === item.id ? <LoaderCircle size={14} className="animate-spin" /> : <Plus size={15} />}
                       </button>
                     )}
@@ -1626,6 +1663,7 @@ export function DashboardCommandCenter({
             advisorBusy={advisorBusy}
             taskSummary={taskGenerationSummary}
             taskBusyId={taskBusyId}
+            canAcceptActions={canCreateRadarActions}
             onGenerate={() => void requestAdvisorBriefing()}
             onAccept={action => void acceptAdvisorAction(action)}
             onOpenAdvisor={() => window.dispatchEvent(new Event("aqua-advisor:open"))}

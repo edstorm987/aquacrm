@@ -55,6 +55,8 @@ import { clientRelationshipId } from "@/server/clientRelationships";
 import { inferLeadRelationshipCategory, isLeadRelationshipCategory } from "@/built-ins/modules/leads-pipeline/src/lib/domain";
 import { getPortalFormFields } from "@/server/portalEditor";
 import { withPersonalChrome } from "@/lib/server/chrome/personalPanels";
+import { requireCurrentAccessActor } from "@/server/accessControl";
+import { filterOperationalAlertsForActor } from "@/lib/server/access/operationalAlertAccess";
 
 interface JourneyClientMetadata {
   leadId?: string;
@@ -133,6 +135,7 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
   } catch {
     redirect("/portal");
   }
+  const actor = await requireCurrentAccessActor();
   const agency = getAgency(session.agencyId);
   if (!agency) redirect("/login");
 
@@ -435,7 +438,11 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
     publicShowcase: session.publicShowcase,
   });
   const operationalAlerts = session.publicShowcase ? [] : await listOperationalAlerts(agency.id);
-  const alertViews = listOperationalAlertViews(agency.id, session.userId, operationalAlerts);
+  const alertViews = listOperationalAlertViews(
+    agency.id,
+    session.userId,
+    filterOperationalAlertsForActor(actor, operationalAlerts),
+  );
   const panels = await withPersonalChrome(addSidebarAttention(basePanels, alertViews.filter(alert => alert.attention)));
   const currentPath = initialView === "journey" ? "/portal/clients?view=journey" : "/portal/clients";
   const workspaceName = session.publicShowcase ? agency.name : INTERNAL_WORKSPACE_NAME;

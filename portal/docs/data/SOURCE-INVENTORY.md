@@ -81,7 +81,8 @@ pinned by `scripts/smoke-semantic-registry.test.ts`).
 
 | Model | Built by | Persisted? | Consumers |
 |---|---|---|---|
-| Business Radar snapshot (`BusinessIssueRadar`) | `engines/data/server/radar/businessIssueRadar.ts` | cache only; **evidence** persists (below) | Command Centre, Advisor, My Radar |
+| Business Radar snapshot (`BusinessIssueRadar`) | `engines/data/server/radar/businessIssueRadar.ts` | cache only; **evidence** persists (below) | Command Centre, Advisor, Business Radar |
+| Personal My Radar projection (`PersonalRadarReading`) | `lib/server/intelligence/myRadar.ts` + `lib/server/intelligence/personalRadarActions.ts` | no — rebuilt from the signed-in user's plans, sessions, permitted calendar goals and permitted Actions; recurring sales quota progress is derived live from source records | My Radar page and topbar quick-look |
 | Radar evidence vault | `radarEvidenceVault.ts` | **yes** — `radarEvidence` (raw 14d / hourly 60d / daily 365d), `radarMemory` (180 scans), `radarSyntheticProbes` | evidence descriptors, KPI histories, anomaly checks |
 | Command intelligence snapshot (20 KPIs + scoped readings) | `lib/server/commandIntelligenceService.ts` | no — rebuilt per request; history hydrated from evidence vault | Command Centre, KPI Explorer |
 | Commercial intelligence (40 formulas, stages, sources, lineage, quality) | `lib/intelligence/commercialIntelligence.ts` | no | Journey, Command, Radar |

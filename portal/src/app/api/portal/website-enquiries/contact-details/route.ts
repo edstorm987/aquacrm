@@ -1,8 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { authErrorResponse } from "@/lib/server/auth/auth";
+import { loadActorWebsiteEnquiry } from "@/lib/server/access/websiteEnquiryAccess";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
+import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
-import { AGENCY_ROLES } from "@/server/types";
 import { getEnquiryContactDetails, saveEnquiryContactDetails } from "@/server/enquiryContactDetails";
 
 /**
@@ -13,9 +15,13 @@ import { getEnquiryContactDetails, saveEnquiryContactDetails } from "@/server/en
 export async function GET(request: NextRequest) {
   try {
     await ensureHydrated();
-    const session = await requireRole([...AGENCY_ROLES]);
-    const enquiryId = request.nextUrl.searchParams.get("enquiryId") ?? "";
-    return NextResponse.json({ ok: true, details: getEnquiryContactDetails(session.agencyId, enquiryId) });
+    const { actor } = await requireCurrentWorkspaceElementAccess("staff", "workspace.inbox", "view");
+    const enquiryId = request.nextUrl.searchParams.get("enquiryId")?.trim() ?? "";
+    const enquiry = enquiryId
+      ? await loadActorWebsiteEnquiry(actor, await createScopedSupabaseClient(), { id: enquiryId, required: "view" })
+      : null;
+    if (!enquiry) return NextResponse.json({ ok: false, error: "Website submission not found." }, { status: 404 });
+    return NextResponse.json({ ok: true, details: getEnquiryContactDetails(actor.resourceAgencyId, enquiry.id) });
   } catch (error) {
     return authErrorResponse(error);
   }
@@ -24,7 +30,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     await ensureHydrated();
-    const session = await requireRole([...AGENCY_ROLES]);
+    const { actor } = await requireCurrentWorkspaceElementAccess("staff", "workspace.inbox", "use");
+    const session = actor.session;
     const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
     const str = (value: unknown) => (typeof value === "string" ? value : undefined);
     const enquiryId = str(body?.enquiryId) ?? "";
@@ -38,9 +45,14 @@ export async function POST(request: NextRequest) {
       }
     }
     try {
+      const enquiry = await loadActorWebsiteEnquiry(actor, await createScopedSupabaseClient(), {
+        id: enquiryId,
+        required: "use",
+      });
+      if (!enquiry) return NextResponse.json({ ok: false, error: "Website submission not found." }, { status: 404 });
       const details = saveEnquiryContactDetails({
-        agencyId: session.agencyId,
-        enquiryId,
+        agencyId: actor.resourceAgencyId,
+        enquiryId: enquiry.id,
         company: str(body?.company),
         jobTitle: str(body?.jobTitle),
         notes: str(body?.notes),

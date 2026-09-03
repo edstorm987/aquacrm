@@ -57,8 +57,9 @@ test("call mode retains consent, recording, notes, outcome and follow-up", () =>
   assert.match(calls, /recordWebsiteEnquiryLeadContact/);
   assert.match(upload, /activeCallRecordingConsent !== true/);
   assert.match(upload, /storePrivateUpload/);
-  assert.match(content, /requireRole/);
-  assert.match(content, /inbox-calls\/\$\{session\.agencyId\}/);
+  assert.match(content, /requireCurrentWorkspaceElementAccess\("staff", "workspace\.inbox", "view"\)/);
+  assert.match(content, /loadActorWebsiteEnquiry\(actor, supabase, \{ id: enquiryId, required: "view" \}\)/);
+  assert.match(content, /inbox-calls\/\$\{agencyId\}/);
   // A mounted recording seeks, so delivery goes through the shared byte-range
   // contract (206/416) rather than a whole-object 200 — see issues #144.
   assert.match(content, /privateMediaResponse/);

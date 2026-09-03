@@ -2,15 +2,17 @@ import crypto from "node:crypto";
 
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { authErrorResponse } from "@/lib/server/auth/auth";
+import { loadActorWebsiteEnquiry } from "@/lib/server/access/websiteEnquiryAccess";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 import { initiatePhoneCall, resolveCommunicationSender } from "@/lib/server/email/outboundCommunications";
 import { recordWebsiteEnquiryLeadContact } from "@/lib/server/websiteEnquiryLeadSync";
 import { createScopedSupabaseClient, type ScopedSupabaseClient } from "@/lib/supabase/scoped";
-import { loadOwnedEnquiry } from "@/lib/supabase/ownedEnquiry";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getClientForAgency } from "@/server/tenants";
 import type { WebsiteEnquiryCall } from "@/lib/server/websiteEnquiries";
+import type { CurrentAccessActor } from "@/server/accessControl";
 
 type EnquiryRow = {
   id: string;
@@ -24,21 +26,29 @@ const OUTCOMES = new Set<NonNullable<WebsiteEnquiryCall["outcome"]>>(["connected
 export async function POST(request: Request) {
   try {
     await ensureHydrated({ fresh: true });
-    const session = await requireRole(["agency-owner", "agency-manager", "agency-staff"]);
+    const { actor } = await requireCurrentWorkspaceElementAccess("staff", "workspace.inbox", "use");
+    const session = actor.session;
+    const agencyId = actor.resourceAgencyId;
     const body = await request.json().catch(() => null) as { enquiryId?: unknown; senderId?: unknown; recordingConsent?: unknown } | null;
     const enquiryId = clean(body?.enquiryId, 160);
     const senderId = clean(body?.senderId, 240);
     if (!enquiryId || !senderId) return NextResponse.json({ ok: false, error: "Enquiry and call identity are required." }, { status: 400 });
-    const { supabase, enquiry } = await loadEnquiry(enquiryId, session.agencyId);
+    const { supabase, enquiry } = await loadEnquiry(enquiryId, actor);
     const storedClientId = typeof enquiry.metadata?.clientId === "string" ? enquiry.metadata.clientId : undefined;
-    const targetClientId = storedClientId && getClientForAgency(session.agencyId, storedClientId) ? storedClientId : undefined;
-    const sender = resolveCommunicationSender(session.agencyId, senderId, "call", targetClientId);
+    const targetClientId = storedClientId && getClientForAgency(agencyId, storedClientId) ? storedClientId : undefined;
+    const sender = resolveCommunicationSender(agencyId, senderId, "call", targetClientId);
     if (!sender) return NextResponse.json({ ok: false, error: "The selected call identity is not available for this client." }, { status: 409 });
     if (!enquiry.phone?.trim()) return NextResponse.json({ ok: false, error: "This enquiry has no phone number." }, { status: 400 });
-    const initiation = await initiatePhoneCall({ agencyId: session.agencyId, clientId: targetClientId, sender, customerPhone: enquiry.phone, signal: request.signal });
+    const initiation = await initiatePhoneCall({ agencyId, clientId: targetClientId, sender, customerPhone: enquiry.phone, signal: request.signal });
     if (initiation.reason) return NextResponse.json({ ok: false, error: initiation.reason }, { status: 502 });
 
-    const metadata = enquiry.metadata ?? {};
+    const persistEnquiry = await loadActorWebsiteEnquiry<EnquiryRow>(actor, supabase, {
+      id: enquiry.id,
+      required: "use",
+      columns: ["name", "phone", "metadata"],
+    });
+    if (!persistEnquiry) return NextResponse.json({ ok: false, error: "Website submission not found." }, { status: 404 });
+    const metadata = persistEnquiry.metadata ?? {};
     const calls = readCalls(metadata);
     const now = Date.now();
     const call: WebsiteEnquiryCall = {
@@ -59,10 +69,10 @@ export async function POST(request: Request) {
         activeCallId: call.id,
         activeCallRecordingConsent: body?.recordingConsent === true,
       },
-    }).eq("id", enquiry.id);
+    }).eq("id", persistEnquiry.id);
     if (error) throw new Error(`Could not start call mode: ${error.message}`);
     logActivity({
-      agencyId: session.agencyId,
+      agencyId,
       actorUserId: session.userId,
       actorEmail: session.email,
       category: "inbox",
@@ -82,7 +92,9 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   try {
     await ensureHydrated({ fresh: true });
-    const session = await requireRole(["agency-owner", "agency-manager", "agency-staff"]);
+    const { actor } = await requireCurrentWorkspaceElementAccess("staff", "workspace.inbox", "use");
+    const session = actor.session;
+    const agencyId = actor.resourceAgencyId;
     const body = await request.json().catch(() => null) as {
       enquiryId?: unknown;
       callId?: unknown;
@@ -96,7 +108,7 @@ export async function PATCH(request: Request) {
     if (!enquiryId || !callId || !outcome || !OUTCOMES.has(outcome)) {
       return NextResponse.json({ ok: false, error: "Enquiry, call and outcome are required." }, { status: 400 });
     }
-    const { supabase, enquiry } = await loadEnquiry(enquiryId, session.agencyId);
+    const { supabase, enquiry } = await loadEnquiry(enquiryId, actor);
     const metadata = enquiry.metadata ?? {};
     const calls = readCalls(metadata);
     const existing = calls.find(call => call.id === callId);
@@ -128,7 +140,7 @@ export async function PATCH(request: Request) {
     }).eq("id", enquiry.id);
     if (error) throw new Error(`Could not save call: ${error.message}`);
     await recordWebsiteEnquiryLeadContact({
-      agencyId: session.agencyId,
+      agencyId,
       leadId: typeof metadata.leadId === "string" ? metadata.leadId : undefined,
       actorUserId: session.userId,
       channel: "call",
@@ -137,7 +149,7 @@ export async function PATCH(request: Request) {
       at: endedAt,
     });
     logActivity({
-      agencyId: session.agencyId,
+      agencyId,
       actorUserId: session.userId,
       actorEmail: session.email,
       category: "inbox",
@@ -155,11 +167,15 @@ export async function PATCH(request: Request) {
   }
 }
 
-async function loadEnquiry(id: string, agencyId: string): Promise<{ supabase: ScopedSupabaseClient; enquiry: EnquiryRow }> {
+async function loadEnquiry(id: string, actor: CurrentAccessActor): Promise<{ supabase: ScopedSupabaseClient; enquiry: EnquiryRow }> {
   const supabase = await createScopedSupabaseClient();
   // Ownership-guarded: an enquiry outside this agency returns null exactly as a
   // missing one, so call mode can never be driven against another tenant's row.
-  const enquiry = await loadOwnedEnquiry<EnquiryRow>(supabase, { id, agencyId, columns: ["name", "phone", "metadata"] });
+  const enquiry = await loadActorWebsiteEnquiry<EnquiryRow>(actor, supabase, {
+    id,
+    required: "use",
+    columns: ["name", "phone", "metadata"],
+  });
   if (!enquiry) throw new Error("website_enquiry_not_found");
   return { supabase, enquiry };
 }

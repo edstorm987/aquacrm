@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { radarDigest, type AdvisorRadarDigest, type BusinessIssueRadar } from "@/engines/data/radar/businessRadar";
 
-export function RadarQuickLookButton({ initialRadar, paused = false }: { initialRadar: AdvisorRadarDigest; paused?: boolean }) {
+export function RadarQuickLookButton({ initialRadar, paused = false, canRunScan = false }: { initialRadar: AdvisorRadarDigest; paused?: boolean; canRunScan?: boolean }) {
   const router = useRouter();
   const rootRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -55,6 +55,7 @@ export function RadarQuickLookButton({ initialRadar, paused = false }: { initial
   const lastUpdatedAt = radarSnapshot.generatedAt;
 
   async function runFullScan() {
+    if (!canRunScan) return;
     setBusy(true);
     setError("");
     try {
@@ -148,10 +149,10 @@ export function RadarQuickLookButton({ initialRadar, paused = false }: { initial
 
           {error ? <p role="alert" className="border-t border-red-200 bg-red-50 px-4 py-2 text-xs text-red-700">{error}</p> : null}
 
-          <footer className="grid grid-cols-2 gap-2 border-t border-black/10 bg-black/[0.018] p-3">
-            <button type="button" onClick={() => void runFullScan()} disabled={busy} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/65 hover:bg-black/[0.03] disabled:opacity-50">
+          <footer className={`grid gap-2 border-t border-black/10 bg-black/[0.018] p-3 ${canRunScan ? "grid-cols-2" : "grid-cols-1"}`}>
+            {canRunScan ? <button type="button" onClick={() => void runFullScan()} disabled={busy} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/65 hover:bg-black/[0.03] disabled:opacity-50">
               {busy ? <LoaderCircle size={14} className="animate-spin" /> : <RefreshCw size={14} />} {busy ? "Scanning" : "Run full scan"}
-            </button>
+            </button> : null}
             <Link href="/portal/agency/radar" onClick={() => setOpen(false)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85"><Database size={14} /> Open Radar</Link>
           </footer>
         </section>

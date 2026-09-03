@@ -23,7 +23,7 @@ import { listAgencyTasks } from "@/server/tasks";
 import { agencyProductsForRead, listAgencyProducts } from "@/server/agencyProducts";
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
 import { INTERNAL_WORKSPACE_NAME } from "@/lib/shared/internalWorkspace";
-import { dashboardPlanningSnapshot } from "@/server/dashboardPlanning";
+import { dashboardPlanningSnapshot, type DashboardPlanningSnapshot } from "@/server/dashboardPlanning";
 import { assistantModel, isAssistantConfigured } from "@/lib/server/assistants/openaiAssistant";
 import { DashboardCommandCenter, type DashboardSignal } from "./_DashboardCommandCenter";
 import { inspectRadarEvidence } from "@/engines/data/server/radar/radarEvidenceVault";
@@ -41,10 +41,31 @@ import type { BattleTablePayload } from "./_BattleTableWorkspace";
 import { devTeamAccessible } from "@/lib/server/dev/devTeamAccess";
 import { resolveServerCommandStation } from "./commandStationRouting";
 import { PortalViewportLoading } from "@/components/ui/PortalViewportLoading";
-import { currentAssistantBusinessContext } from "@/lib/server/assistants/assistantContextScope";
-import { MyRadarPanel } from "@/components/intelligence/MyRadarPanel";
-import { readMyRadar } from "@/lib/server/intelligence/myRadar";
-import { allocationHeadline } from "@/lib/intelligence/departmentAllocation";
+import {
+  assistantBusinessContextForActor,
+  assistantWorkspaceForActor,
+} from "@/lib/server/assistants/assistantContextScope";
+import { PersonalRadarPanel } from "@/components/intelligence/PersonalRadarPanel";
+import { readPersonalRadar } from "@/lib/server/intelligence/myRadar";
+import { readPersonalRadarActions } from "@/lib/server/intelligence/personalRadarActions";
+import {
+  resolveBusinessRadarAccessForActor,
+  resolveBusinessRadarCapabilityForActor,
+  resolvePersonalCommandAccessForActor,
+  resolvePersonalRadarAccessForActor,
+} from "@/lib/server/intelligence/personalRadarAccess";
+import { personalRadarHeadline } from "@/lib/intelligence/personalRadar";
+import {
+  resolveActorWorkspaceElementAccess,
+  workspaceElementAtLeast,
+  workspaceElementLevel,
+} from "@/lib/server/access/workspaceElementAccess";
+import {
+  actorHasActiveNonProjectAccessPolicy,
+  requireCurrentAccessActor,
+  resolveActorAccess,
+} from "@/server/accessControl";
+import { canReadClientAssociation } from "@/lib/server/access/clientAssociationElement";
 import {
   commandScanPrincipalForSession,
   normalizeCommandScanResultHandle,
@@ -59,11 +80,49 @@ function StationStreaming({ label }: { label: string }) {
   return <PortalViewportLoading label={`Preparing ${label}…`} />;
 }
 
+function emptyDashboardPlanningSnapshot(now: number): DashboardPlanningSnapshot {
+  const date = new Date(now);
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  const today = local.toISOString().slice(0, 10);
+  const monday = new Date(`${today}T12:00:00`);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  const weekStart = new Date(monday.getTime() - monday.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+  return { today, weekStart, weekPlan: null, dayPlan: null, weekPlans: [], sessions: [], activeSession: null };
+}
+
 export default async function AgencyHome({ searchParams }: { searchParams?: Promise<{ [key: string]: string | string[] | undefined }> }) {
   await ensureHydrated();
   const session = await requireRole([...AGENCY_ROLES]);
-  const agency = getAgency(session.agencyId);
+  const actor = await requireCurrentAccessActor();
+  const agency = getAgency(actor.resourceAgencyId);
   if (!agency) redirect("/login");
+  const agencyAccess = resolveActorAccess(actor, { kind: "agency", id: actor.resourceAgencyId });
+  const businessOverviewAvailable = await resolveBusinessRadarAccessForActor(actor);
+  // Command Centre and Business Radar are organisation surfaces. A manager
+  // whose canonical role hides Business Overview keeps their personal Radar,
+  // but the business payload never crosses this RSC boundary. Unmigrated
+  // managers retain the app's documented legacy access.
+  if (!businessOverviewAvailable) redirect("/portal/agency/my-radar");
+  const staffAccess = resolveActorWorkspaceElementAccess(actor, "staff");
+  const growthAccess = resolveActorWorkspaceElementAccess(actor, "growth");
+  const fulfilmentAccess = resolveActorWorkspaceElementAccess(actor, "fulfilment");
+  const fullyUnmigratedManager = session.role === "agency-manager"
+    && !actorHasActiveNonProjectAccessPolicy(actor);
+  const hasAgencyView = (element: string) => agencyAccess.ownerBaseline
+    || agencyAccess.capabilities.includes(`element.${element}.view` as never)
+    || fullyUnmigratedManager;
+  const actionsLevel = workspaceElementLevel(staffAccess, "workspace.actions");
+  const actionsAvailable = workspaceElementAtLeast(actionsLevel, "view");
+  const actionsWritable = workspaceElementAtLeast(actionsLevel, "use");
+  const personalCommandAccess = await resolvePersonalCommandAccessForActor(actor);
+  const personalOverviewAvailable = personalCommandAccess.available;
+  const leadsAvailable = workspaceElementAtLeast(workspaceElementLevel(growthAccess, "growth.leads"), "view");
+  const fulfilmentAvailable = workspaceElementAtLeast(workspaceElementLevel(fulfilmentAccess, "fulfilment.projects"), "view")
+    || workspaceElementAtLeast(workspaceElementLevel(fulfilmentAccess, "fulfilment.services"), "view");
+  const inboxAvailable = hasAgencyView("workspace.inbox");
+  const clientsAvailable = hasAgencyView("client.overview");
+  const productsAvailable = hasAgencyView("client.commercial");
+  const personalCalendarAccess = await resolvePersonalRadarAccessForActor(actor);
   const resolvedSearchParams = await searchParams;
   const devTeamVisible = devTeamAccessible(session);
   const requestedServerStation = resolveServerCommandStation(resolvedSearchParams?.station, devTeamVisible);
@@ -73,8 +132,12 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
   // station badge is not run here — the station still scans itself when opened.
   const perfMode = await performanceModePreference();
   const lightweightMode = perfMode || Boolean(session.publicShowcase);
-  const canManageWorkspace = !session.publicShowcase
-    && (session.role === "agency-owner" || session.role === "agency-manager");
+  const canManageWorkspace = workspaceElementAtLeast(workspaceElementLevel(staffAccess, "workspace.settings"), "manage");
+  const canRunRadarScan = await resolveBusinessRadarCapabilityForActor(actor, "use");
+  let canManageBusinessWorkload = false;
+  if (canManageWorkspace) {
+    canManageBusinessWorkload = businessOverviewAvailable;
+  }
   const workspaceName = session.publicShowcase ? agency.name : INTERNAL_WORKSPACE_NAME;
   // GET renders may reuse a completed result but can never execute a scan.
   // The expensive graph is triggered only by the authenticated POST route.
@@ -123,10 +186,16 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
     Boolean(preservedScanResult),
     requestedScanResultMissing,
   );
-  const clients = listClients(agency.id);
-  const tasks = listAgencyTasks(agency.id);
-  if (!session.publicShowcase) agencyProductsForRead(agency.id);
-  const products = listAgencyProducts(agency.id);
+  const canReadClient = (clientId?: string) => session.role === "agency-owner"
+    || canReadClientAssociation(actor, "agency-task", clientId);
+  const clients = clientsAvailable
+    ? listClients(agency.id).filter(client => canReadClient(client.id))
+    : [];
+  const tasks = actionsAvailable
+    ? listAgencyTasks(agency.id).filter(task => canReadClient(task.clientId))
+    : [];
+  if (productsAvailable && !session.publicShowcase) agencyProductsForRead(agency.id);
+  const products = productsAvailable ? listAgencyProducts(agency.id) : [];
   const needsExecutiveData = requestedServerStation === "executive";
   const needsBattleData = requestedServerStation === "battle";
   const serviceBrandsPromise = needsExecutiveData
@@ -146,13 +215,13 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
     [operationalAlerts, brandPortfolio, clientsNeedingAttention] = await Promise.all([
       Promise.resolve<OperationalAlert[]>([]),
       brandPortfolioPromise,
-      listClientsNeedingAttention(agency.id, recommendationTime),
+      clientsAvailable ? listClientsNeedingAttention(agency.id, recommendationTime) : Promise.resolve([]),
     ]);
     businessRadar = preservedScanResult.radar;
   } else if (runHeavyPanels) {
     const radarPromise = import("@/engines/data/server/radar/businessIssueRadar")
       .then(({ getCachedBusinessIssueRadar }) => getCachedBusinessIssueRadar(agency.id));
-    const operationalAlertsPromise = lightweightMode
+    const operationalAlertsPromise = lightweightMode || !inboxAvailable
       ? Promise.resolve<OperationalAlert[]>([])
       : import("@/lib/server/inbox/operationalAlerts")
           .then(({ getRequestOperationalAlerts }) => getRequestOperationalAlerts(agency.id));
@@ -160,7 +229,7 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
       radarPromise,
       operationalAlertsPromise,
       brandPortfolioPromise,
-      listClientsNeedingAttention(agency.id, recommendationTime),
+      clientsAvailable ? listClientsNeedingAttention(agency.id, recommendationTime) : Promise.resolve([]),
     ]);
   } else {
     // Paused: skip the full business-issue sweep. The brand portfolio is only
@@ -169,7 +238,7 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
     [operationalAlerts, brandPortfolio, clientsNeedingAttention] = await Promise.all([
       Promise.resolve<OperationalAlert[]>([]),
       brandPortfolioPromise,
-      listClientsNeedingAttention(agency.id, recommendationTime),
+      clientsAvailable ? listClientsNeedingAttention(agency.id, recommendationTime) : Promise.resolve([]),
     ]);
     businessRadar = buildPausedBusinessRadar(workspaceSettings.advisor.radarPolicy, recommendationTime);
   }
@@ -193,7 +262,9 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
     );
   }
   const activeScanResultHandle = preservedScanResult?.handle ?? null;
-  const calendarIntegration = getCommandCalendarIntegrationSnapshot(agency.id, session.userId);
+  const calendarIntegration = personalCalendarAccess.goalsAvailable
+    ? getCommandCalendarIntegrationSnapshot(agency.id, session.userId)
+    : { configured: false, connections: [], sources: [], events: [], generatedAt: recommendationTime };
 
   // Idempotent — guarantees a fresh agency lands on default pipelines
   // even if it pre-dates the R034 seed in `bootstrapAgency`.
@@ -202,9 +273,9 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
   const pipelines = listPipelines(agency.id);
   const counts = pipelineCardCounts(agency.id);
   const leadsPipeline = pipelines.find(p => p.kind === "leads" || p.slug === "leads");
-  const leadsCardCount = leadsPipeline ? counts[leadsPipeline.id] ?? 0 : 0;
+  const leadsCardCount = leadsAvailable && leadsPipeline ? counts[leadsPipeline.id] ?? 0 : 0;
   const fulfilmentPipeline = pipelines.find(p => p.kind === "fulfilment" || p.slug === "fulfilment");
-  const fulfilmentCardCount = fulfilmentPipeline ? counts[fulfilmentPipeline.id] ?? 0 : 0;
+  const fulfilmentCardCount = fulfilmentAvailable && fulfilmentPipeline ? counts[fulfilmentPipeline.id] ?? 0 : 0;
   const activeClients = clients.filter(c => c.stage !== "churned");
   const staleClients = clients.filter(c => {
     const m = (c.metadata ?? {}) as { lastContactedAt?: number };
@@ -293,21 +364,20 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
   } else if (requestedServerStation === "advisor") {
     const [
       { LazyAssistantWorkspace },
-      { buildAssistantBusinessContext },
-      { getAssistantWorkspace },
       { radarDigest },
     ] = await Promise.all([
       import("./assistant/_LazyAssistantWorkspace"),
-      import("@/lib/server/assistants/assistantBusinessContext"),
-      import("@/lib/server/assistants/assistantStore"),
       import("@/engines/data/radar/businessRadar"),
     ]);
-    const assistantContext = await currentAssistantBusinessContext(agency.id);
+    const [assistantContext, initialWorkspace] = await Promise.all([
+      assistantBusinessContextForActor(actor),
+      assistantWorkspaceForActor(actor),
+    ]);
     advisorWorkspace = (
       <Suspense key="advisor-workspace-boundary" fallback={<StationStreaming label="Aqua Advisor" />}>
         <LazyAssistantWorkspace
           key="advisor-workspace"
-          initialWorkspace={getAssistantWorkspace(agency.id, session.userId)}
+          initialWorkspace={initialWorkspace}
           configured={advisorConfigured}
           model={assistantModel(agency.id)}
           userName={account?.name || session.email}
@@ -344,40 +414,50 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
     });
   }
 
-  // Ed, 2026-08-29: *"the owner needs to margin their time out in Command
-  // Centre — what's going to do today, we need to allocate time."* So the
-  // department read sits ABOVE the dashboard: it is the thing you look at
-  // before deciding what to do, not a report you review afterwards.
-  //
-  // Rendered as a SIBLING of `DashboardCommandCenter` rather than inside it.
-  // That component is 2,787 lines and already takes twenty-odd props; threading
-  // a new subsystem through it would make the busiest file in the app busier
-  // for no gain, and this panel needs nothing from it.
-  const myRadar = readMyRadar({
-    agencyId: agency.id,
-    userId: session.userId,
-    from: Date.now() - 7 * 24 * 60 * 60 * 1000,
-    to: Date.now(),
-  });
+  // Personal command sits above the company stations. It remains user-scoped
+  // even for the agency owner; the Business Radar below is the organisation's
+  // health system. Keeping the two projections separate prevents a role name
+  // from silently changing what "My" means.
+  const personalRadarNow = Date.now();
+  const personalRadarBlock = personalOverviewAvailable ? await (async () => {
+    const { goalsAvailable, goalsWritable } = personalCalendarAccess;
+    const reading = await readPersonalRadar({
+      agencyId: agency.id,
+      userId: session.userId,
+      now: personalRadarNow,
+      includeGoals: goalsAvailable,
+      goalsWritable,
+    });
+    const actions = await readPersonalRadarActions(session, personalRadarNow, actor);
+    return { reading, ...actions };
+  })() : null;
+  const planning = personalOverviewAvailable
+    ? dashboardPlanningSnapshot(agency.id, session.userId)
+    : emptyDashboardPlanningSnapshot(personalRadarNow);
 
   return (
     <div className="mm-command-center-workspace mx-auto flex w-full max-w-[1600px] flex-col gap-5 pb-6" data-testid="agency-pipelines-hub">
-      <MyRadarPanel
-        allocation={myRadar.allocation}
-        wellbeing={myRadar.wellbeing}
-        daysWorked={myRadar.daysWorked}
-        headline={allocationHeadline(myRadar.allocation)}
-        baselinesHref="/portal/agency/my-radar"
-      />
+      {personalRadarBlock ? <PersonalRadarPanel
+        variant="dashboard"
+        reading={personalRadarBlock.reading}
+        actions={personalRadarBlock.actions}
+        actionSummary={personalRadarBlock.actionSummary}
+        actionsAvailable={personalRadarBlock.available}
+        headline={personalRadarHeadline(personalRadarBlock.reading, personalRadarBlock.actions, personalRadarNow, personalRadarBlock.actionSummary)}
+      /> : null}
       <DashboardCommandCenter
-        canManage={canManageWorkspace}
+        canUsePersonalCommand={personalCommandAccess.writable}
+        canRunRadarScan={canRunRadarScan}
+        canManageRadarPolicy={canManageWorkspace}
+        canCreateRadarActions={actionsWritable}
+        canManageBusinessWorkload={canManageBusinessWorkload}
         scanPaused={scanPaused}
         scanResultHandle={activeScanResultHandle}
         scanResultUnavailable={scanResultUnavailable}
         scanResultAccessDenied={scanResultAccessDenied}
-        planning={dashboardPlanningSnapshot(agency.id, session.userId)}
+        planning={planning}
         tasks={tasks}
-        calendarEntries={listCommandCalendarEntries(agency.id, session.userId)}
+        calendarEntries={personalCalendarAccess.goalsAvailable ? listCommandCalendarEntries(agency.id, session.userId) : []}
         externalCalendarEvents={calendarIntegration.events.filter(event => calendarIntegration.sources.some(source => source.id === event.sourceId && source.selected))}
         externalCalendarSources={calendarIntegration.sources}
         signals={dashboardSignals}

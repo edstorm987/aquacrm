@@ -434,6 +434,22 @@ test("sidebar attention remains visible when collapsed and announces its count",
   assert.match(provider, /useUnresolvedAttentionMatches/);
 });
 
+test("every shared notification feed and mutation uses the actor alert projection", () => {
+  const route = readFileSync("src/app/api/portal/notifications/route.ts", "utf8");
+  const agencyLayout = readFileSync("src/app/portal/agency/layout.tsx", "utf8");
+  const clientsPage = readFileSync("src/app/portal/clients/page.tsx", "utf8");
+  const clientLayout = readFileSync("src/app/portal/clients/[clientId]/layout.tsx", "utf8");
+  assert.match(route, /filterOperationalAlertsForActor\(actor, await listOperationalAlerts\(agencyId\)\)/);
+  assert.match(route, /operationalAlertVisibleToActor\(actor, alert\)/);
+  assert.ok(
+    route.indexOf("operationalAlertVisibleToActor(actor, alert)") < route.indexOf("matchingActionReceipt(receiptInput)"),
+    "a replay must not bypass current exact-alert authorization",
+  );
+  assert.match(agencyLayout, /filterOperationalAlertsForActor\(accessActor, operationalAlerts\)/);
+  assert.match(clientsPage, /filterOperationalAlertsForActor\(actor, operationalAlerts\)/);
+  assert.match(clientLayout, /filterOperationalAlertsForActor\(actor, await listOperationalAlerts\(actor\.resourceAgencyId\)\)/);
+});
+
 test("open Actions keep a sidebar count until the underlying task is resolved", async () => {
   await storage.reset();
   const agency = tenants.createAgency({ name: "Persistent Actions", slug: "persistent-actions" });

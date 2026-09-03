@@ -32,6 +32,7 @@ type MilestonesRoute = typeof import("../src/app/api/tenants/client-milestones/r
 type TelemetryRoute = typeof import("../src/app/api/tenants/client-telemetry/route");
 type BriefRoute = typeof import("../src/app/api/tenants/customer-project-brief/route");
 type WorkspacesRoute = typeof import("../src/app/api/tenants/client-workspaces/route");
+type RadarRoute = typeof import("../src/app/api/portal/clients/[clientId]/radar/route");
 
 let storage: Storage;
 let auth: Auth;
@@ -42,9 +43,10 @@ let milestonesRoute: MilestonesRoute;
 let telemetryRoute: TelemetryRoute;
 let briefRoute: BriefRoute;
 let workspacesRoute: WorkspacesRoute;
+let radarRoute: RadarRoute;
 
 before(async () => {
-  [storage, auth, tenants, users, contactsRoute, milestonesRoute, telemetryRoute, briefRoute, workspacesRoute] = await Promise.all([
+  [storage, auth, tenants, users, contactsRoute, milestonesRoute, telemetryRoute, briefRoute, workspacesRoute, radarRoute] = await Promise.all([
     import("../src/server/storage"),
     import("../src/lib/server/auth/auth"),
     import("../src/server/tenants"),
@@ -54,6 +56,7 @@ before(async () => {
     import("../src/app/api/tenants/client-telemetry/route"),
     import("../src/app/api/tenants/customer-project-brief/route"),
     import("../src/app/api/tenants/client-workspaces/route"),
+    import("../src/app/api/portal/clients/[clientId]/radar/route"),
   ]);
 });
 
@@ -169,6 +172,56 @@ function milestoneRequest(body: Record<string, unknown>) {
 }
 
 describe("remaining client workspace API access", () => {
+  it("projects Client Radar by exact client elements and reserves agency scans for Business Radar authority", async () => {
+    const home = await fixture();
+    storage.mutate(state => {
+      const client = state.clients[home.clientA.id];
+      assert.ok(client);
+      state.clients[home.clientA.id] = {
+        ...client,
+        ownerEmail: "hidden-owner@example.test",
+        metadata: {
+          ...client.metadata,
+          portalLoginEmail: "hidden-portal@example.test",
+          portalBuiltAt: Date.now(),
+          portalAccessSentAt: Date.now(),
+          portalApprovals: [{ id: "hidden-approval", status: "pending" }],
+          files: [{ id: "hidden-file", customerVisible: true }],
+          lastContactedAt: Date.now() - 40 * 86_400_000,
+          clientRequests: [{ id: "hidden-request", status: "open", priority: "urgent", type: "cancel", submittedAt: Date.now() }],
+          contracts: [{ id: "hidden-contract", title: "Hidden agreement", status: "sent", createdAt: Date.now() }],
+          clientMarketingService: { enabled: true, profiles: [], content: [], campaigns: [], updatedAt: Date.now() },
+          telemetryEvents: [{ id: "hidden-event", type: "error", occurredAt: Date.now(), receivedAt: Date.now(), message: "Hidden production failure" }],
+        },
+      };
+    });
+    await storage.flushPendingWrites();
+
+    await grant(home, [{ clientId: home.clientA.id, capabilities: ["element.client.overview.view"] }]);
+    const getResponse = await withSession(home.operatorToken, () => radarRoute.GET(
+      new Request(`http://localhost/api/portal/clients/${home.clientA.id}/radar`),
+      { params: Promise.resolve({ clientId: home.clientA.id }) },
+    ));
+    assert.equal(getResponse.status, 200);
+    const getBody = await getResponse.json() as { radar: { checks: Array<{ title: string; href: string; sourceId: string }>; issues: unknown[]; sourceAvailability: { finance: string }; summary: string } };
+    assert.deepEqual(getBody.radar.checks.map(check => check.title), ["Lifecycle position"]);
+    assert.deepEqual(getBody.radar.issues, []);
+    assert.equal(getBody.radar.sourceAvailability.finance, "hidden");
+    assert.equal(getBody.radar.checks.every(check => check.href === `/portal/clients/${home.clientA.id}` && check.sourceId.startsWith("client-overview:")), true);
+    assert.doesNotMatch(JSON.stringify(getBody), /hidden-owner|hidden-portal|hidden-request|hidden-contract|Hidden agreement|Hidden production failure|Payment position|Support pressure|Portal readiness|Marketing account|Service assignment|Delivery commitments/i);
+
+    await grant(home, [{ clientId: home.clientA.id, capabilities: ["element.client.overview.use"] }]);
+    const evidenceBefore = JSON.stringify(storage.getState().radarEvidence[home.agency.id] ?? null);
+    const probesBefore = JSON.stringify(storage.getState().radarSyntheticProbes[home.agency.id] ?? null);
+    const postResponse = await withSession(home.operatorToken, () => radarRoute.POST(
+      new Request(`http://localhost/api/portal/clients/${home.clientA.id}/radar`, { method: "POST" }),
+      { params: Promise.resolve({ clientId: home.clientA.id }) },
+    ));
+    assert.equal(postResponse.status, 403);
+    assert.equal(JSON.stringify(storage.getState().radarEvidence[home.agency.id] ?? null), evidenceBefore);
+    assert.equal(JSON.stringify(storage.getState().radarSyntheticProbes[home.agency.id] ?? null), probesBefore);
+  });
+
   it("keeps Record mutations hidden until Use and isolates the sibling client", async () => {
     const home = await fixture();
     await grant(home, [{ clientId: home.clientA.id, capabilities: ["element.client.record.view"] }]);

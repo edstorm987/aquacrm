@@ -23,15 +23,16 @@ test("Master Inbox exposes reply composers for every currently sendable thread t
 });
 
 test("website enquiry replies require a real recipient and sender", () => {
-  assert.match(websiteReplyRoute, /requireRole\(\["agency-owner", "agency-manager", "agency-staff"\]\)/);
+  assert.match(websiteReplyRoute, /requireCurrentWorkspaceElementAccess\("staff", "workspace\.inbox", "use"\)/);
+  assert.match(websiteReplyRoute, /loadActorWebsiteEnquiry<EnquiryRow>\(actor, supabase/);
   assert.match(websiteReplyRoute, /This enquiry has no valid/);
   assert.match(websiteReplyRoute, /resolveCommunicationSender/);
-  assert.match(websiteReplyRoute, /enquiry\.metadata\?\.clientId/);
-  assert.match(websiteReplyRoute, /resolveCommunicationSender\(session\.agencyId, senderId, channel, targetClientId\)/);
+  assert.match(websiteReplyRoute, /deliveryEnquiry\.metadata\?\.clientId/);
+  assert.match(websiteReplyRoute, /resolveCommunicationSender\(agencyId, senderId, channel, targetClientId\)/);
   assert.match(websiteReplyRoute, /sendTransactionalEmail/);
   assert.match(enquiryCommunications, /!sender\.clientId \|\| sender\.clientId === item\.clientId/);
-  assert.match(websiteCallRoute, /resolveCommunicationSender\(session\.agencyId, senderId, "call", targetClientId\)/);
-  assert.match(inboxPage, /outboundCommunicationReadiness\(session\.agencyId\)/);
+  assert.match(websiteCallRoute, /resolveCommunicationSender\(agencyId, senderId, "call", targetClientId\)/);
+  assert.match(inboxPage, /outboundCommunicationReadiness\(agencyId\)/);
   // Connecting an email sender to reply through is done in the Channels tab's
   // connection manager (the panel that saves Resend/SMTP), not a dead status
   // card. Email connections carry their own sender, unifying the two.
@@ -42,7 +43,7 @@ test("website enquiry replies require a real recipient and sender", () => {
 test("outbound website replies are idempotent, retained and timed", () => {
   assert.match(websiteReplyRoute, /createHash\("sha256"\)/);
   assert.match(websiteReplyRoute, /existingReplies\.find\(reply => reply\.id === replyId && reply\.status === "sent"\)/);
-  assert.match(websiteReplyRoute, /inboxReplies: \[\.\.\.existingReplies\.filter\(item => item\.id !== replyId\)\.slice\(-199\), reply\]/);
+  assert.match(websiteReplyRoute, /inboxReplies: \[\.\.\.persistReplies\.filter\(item => item\.id !== replyId\)\.slice\(-199\), reply\]/);
   assert.match(websiteReplyRoute, /firstRespondedAt/);
   assert.match(websiteReplyRoute, /lastRespondedAt/);
   assert.match(websiteReplyRoute, /`website-enquiry\.\$\{channel\}-sent`/);

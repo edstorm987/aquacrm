@@ -13,6 +13,29 @@ import type { PortalProductKey } from "@/lib/portal/portalProducts";
 
 const DAY = 86_400_000;
 
+export type ClientRadarElement =
+  | "overview"
+  | "relationship"
+  | "fulfilment"
+  | "marketing"
+  | "systems"
+  | "commercial"
+  | "communications"
+  | "portal";
+
+export type ClientRadarVisibility = Readonly<Record<ClientRadarElement, boolean>>;
+
+export const FULL_CLIENT_RADAR_VISIBILITY: ClientRadarVisibility = {
+  overview: true,
+  relationship: true,
+  fulfilment: true,
+  marketing: true,
+  systems: true,
+  commercial: true,
+  communications: true,
+  portal: true,
+};
+
 export interface ClientRadarProductInput {
   id: string;
   name: string;
@@ -55,10 +78,14 @@ export interface ClientRadarAlertInput {
   detail: string;
   href: string;
   occurredAt: number;
+  /** Element whose source data produced this alert. Required on projected reads. */
+  element?: ClientRadarElement;
 }
 
 export interface ClientRadarInput {
   now: number;
+  /** Omitted only for trusted whole-business callers that intentionally see every family. */
+  visibility?: ClientRadarVisibility;
   client: {
     id: string;
     name: string;
@@ -133,6 +160,16 @@ interface CheckInput {
 
 export function buildClientRadarSnapshot(input: ClientRadarInput): ClientRadarSnapshot {
   const { client, now } = input;
+  const visibility = input.visibility ?? FULL_CLIENT_RADAR_VISIBILITY;
+  const visible = (element: ClientRadarElement) => visibility[element];
+  // Aqua Health combines payment, contact, support, agreement and tagged-site
+  // signals. It is safe to expose only when every contributing family is
+  // visible; otherwise even its aggregate score would disclose hidden data.
+  const compositeHealthVisible = visible("relationship")
+    && visible("commercial")
+    && visible("communications")
+    && visible("systems")
+    && visible("marketing");
   const clientEntity: RadarEntityReference = { type: "client", id: client.id, label: client.name };
   const href = `/portal/clients/${encodeURIComponent(client.id)}`;
   const definitions: CheckInput[] = [];
@@ -144,6 +181,29 @@ export function buildClientRadarSnapshot(input: ClientRadarInput): ClientRadarSn
 
   const base = { packId: "client-core", packLabel: "Client core", packKind: "base" as const };
   const active = client.status === "active" && client.stage !== "churned";
+  // Trusted fleet aggregation keeps its established check set. The lifecycle
+  // row exists for actor-scoped reads so Overview-only access has useful,
+  // explicitly non-conclusive content rather than hidden-domain placeholders.
+  if (input.visibility && visible("overview")) {
+    add({
+      ...base,
+      id: "lifecycle-position",
+      domain: "clients",
+      label: "Lifecycle position",
+      // Lifecycle identity is context, not proof that the client is healthy.
+      // With Overview alone Radar must stay in learning rather than infer a
+      // positive conclusion from hidden operational families.
+      status: active ? "learning" : client.stage === "churned" ? "warning" : "watch",
+      detail: `This client workspace is ${client.status} at the ${client.stage} stage.`,
+      evidence: [`Status ${client.status}`, `Stage ${client.stage}`],
+      target: "Active client lifecycle retained",
+      value: active ? 1 : 0,
+      sourceId: `client-overview:${client.id}`,
+      href,
+      sampleSize: 1,
+      expectedDirection: "higher",
+    });
+  }
   const relationshipStatus: RadarCheckStatus = input.aquaHealth.state === "risk"
     ? "critical"
     : input.aquaHealth.state === "watch"
@@ -151,19 +211,29 @@ export function buildClientRadarSnapshot(input: ClientRadarInput): ClientRadarSn
       : input.aquaHealth.state === "strong"
         ? "pass"
         : "learning";
-  add({ ...base, id: "relationship-health", domain: "clients", label: "Relationship health", status: relationshipStatus, detail: input.aquaHealth.summary, evidence: input.aquaHealth.factors.flatMap(factor => [`${factor.label}: ${factor.score ?? "learning"}`, ...factor.evidence.slice(0, 1)]), target: "80/100 or above", value: input.aquaHealth.score ?? undefined, sourceId: `client-health:${client.id}`, href: `${href}?tab=relationship`, sampleSize: input.aquaHealth.factors.filter(factor => factor.score !== null).length, expectedDirection: "higher" });
+  if (compositeHealthVisible) {
+    add({ ...base, id: "relationship-health", domain: "clients", label: "Relationship health", status: relationshipStatus, detail: input.aquaHealth.summary, evidence: input.aquaHealth.factors.flatMap(factor => [`${factor.label}: ${factor.score ?? "learning"}`, ...factor.evidence.slice(0, 1)]), target: "80/100 or above", value: input.aquaHealth.score ?? undefined, sourceId: `client-health:${client.id}`, href: `${href}?tab=relationship`, sampleSize: input.aquaHealth.factors.filter(factor => factor.score !== null).length, expectedDirection: "higher" });
+  }
 
   const contactAge = input.lastContactedAt ? Math.max(0, now - input.lastContactedAt) : null;
-  add({ ...base, id: "contact-cadence", domain: "clients", label: "Contact cadence", status: !active ? "inactive" : contactAge === null ? "learning" : contactAge > 30 * DAY ? "critical" : contactAge > 14 * DAY ? "warning" : "pass", detail: contactAge === null ? "No client contact has been retained yet." : `The latest retained client contact was ${Math.floor(contactAge / DAY)} day${Math.floor(contactAge / DAY) === 1 ? "" : "s"} ago.`, evidence: [contactAge === null ? "No contact timestamp" : `${Math.floor(contactAge / DAY)} days since contact`, `Lifecycle ${client.stage}`], target: "Contact within 14 days", value: contactAge === null ? undefined : Math.floor(contactAge / DAY), sourceId: `client-contact:${client.id}`, href: `${href}?tab=relationship`, lastSeenAt: input.lastContactedAt, sampleSize: input.lastContactedAt ? 1 : 0, expectedDirection: "lower" });
+  if (visible("relationship")) {
+    add({ ...base, id: "contact-cadence", domain: "clients", label: "Contact cadence", status: !active ? "inactive" : contactAge === null ? "learning" : contactAge > 30 * DAY ? "critical" : contactAge > 14 * DAY ? "warning" : "pass", detail: contactAge === null ? "No client contact has been retained yet." : `The latest retained client contact was ${Math.floor(contactAge / DAY)} day${Math.floor(contactAge / DAY) === 1 ? "" : "s"} ago.`, evidence: [contactAge === null ? "No contact timestamp" : `${Math.floor(contactAge / DAY)} days since contact`, `Lifecycle ${client.stage}`], target: "Contact within 14 days", value: contactAge === null ? undefined : Math.floor(contactAge / DAY), sourceId: `client-contact:${client.id}`, href: `${href}?tab=relationship`, lastSeenAt: input.lastContactedAt, sampleSize: input.lastContactedAt ? 1 : 0, expectedDirection: "lower" });
+  }
 
   const hasContactRoute = Boolean(client.ownerEmail || client.portalEmail);
-  add({ ...base, id: "contactability", domain: "clients", label: "Contactability", status: hasContactRoute ? "pass" : "warning", detail: hasContactRoute ? "A primary client email is retained." : "No primary client email is retained, so portal access and direct communication cannot be assured.", evidence: [client.ownerEmail ? "Owner email present" : "Owner email missing", client.portalEmail ? "Portal email present" : "Portal email missing"], target: "At least one retained email", value: hasContactRoute ? 1 : 0, sourceId: `client-record:${client.id}`, href: `${href}?tab=relationship`, sampleSize: 1, expectedDirection: "higher" });
+  if (visible("communications")) {
+    add({ ...base, id: "contactability", domain: "clients", label: "Contactability", status: hasContactRoute ? "pass" : "warning", detail: hasContactRoute ? "A primary client email is retained." : "No primary client email is retained, so portal access and direct communication cannot be assured.", evidence: [client.ownerEmail ? "Owner email present" : "Owner email missing", client.portalEmail ? "Portal email present" : "Portal email missing"], target: "At least one retained email", value: hasContactRoute ? 1 : 0, sourceId: `client-record:${client.id}`, href: `${href}?tab=communications`, sampleSize: 1, expectedDirection: "higher" });
+  }
 
-  add({ ...base, id: "service-assignment", domain: "delivery", label: "Service assignment", status: input.products.length ? "pass" : active ? "warning" : "learning", detail: input.products.length ? `${input.products.length} product or service workspace${input.products.length === 1 ? " is" : "s are"} assigned.` : "No product or service is assigned to this client workspace.", evidence: input.products.length ? input.products.map(product => product.name) : ["No assignment retained"], target: "At least one assigned service", value: input.products.length, sourceId: `client-products:${client.id}`, href: `${href}?tab=delivery`, sampleSize: input.products.length, expectedDirection: "higher" });
+  if (visible("fulfilment")) {
+    add({ ...base, id: "service-assignment", domain: "delivery", label: "Service assignment", status: input.products.length ? "pass" : active ? "warning" : "learning", detail: input.products.length ? `${input.products.length} product or service workspace${input.products.length === 1 ? " is" : "s are"} assigned.` : "No product or service is assigned to this client workspace.", evidence: input.products.length ? input.products.map(product => product.name) : ["No assignment retained"], target: "At least one assigned service", value: input.products.length, sourceId: `client-products:${client.id}`, href: `${href}?tab=delivery`, sampleSize: input.products.length, expectedDirection: "higher" });
+  }
 
   const blockedMilestones = input.milestones.filter(item => item.status === "blocked");
   const overdueMilestones = input.milestones.filter(item => item.status !== "complete" && Boolean(item.targetAt && item.targetAt < now));
-  add({ ...base, id: "delivery-commitments", domain: "delivery", label: "Delivery commitments", status: !input.products.length ? "inactive" : blockedMilestones.length ? "critical" : overdueMilestones.length ? "warning" : input.milestones.length ? "pass" : "learning", detail: blockedMilestones.length ? `${blockedMilestones.length} milestone${blockedMilestones.length === 1 ? " is" : "s are"} blocked.` : overdueMilestones.length ? `${overdueMilestones.length} milestone${overdueMilestones.length === 1 ? " is" : "s are"} overdue.` : input.milestones.length ? "No retained milestone is blocked or overdue." : "Delivery milestones have not been established yet.", evidence: [...blockedMilestones.map(item => `Blocked: ${item.title}`), ...overdueMilestones.map(item => `Overdue: ${item.title}`)].slice(0, 8), target: "No blocked or overdue milestones", value: blockedMilestones.length + overdueMilestones.length, sourceId: `client-milestones:${client.id}`, href: `${href}?tab=delivery`, lastSeenAt: newest(input.milestones.map(item => item.updatedAt)), sampleSize: input.milestones.length, expectedDirection: "lower" });
+  if (visible("fulfilment")) {
+    add({ ...base, id: "delivery-commitments", domain: "delivery", label: "Delivery commitments", status: !input.products.length ? "inactive" : blockedMilestones.length ? "critical" : overdueMilestones.length ? "warning" : input.milestones.length ? "pass" : "learning", detail: blockedMilestones.length ? `${blockedMilestones.length} milestone${blockedMilestones.length === 1 ? " is" : "s are"} blocked.` : overdueMilestones.length ? `${overdueMilestones.length} milestone${overdueMilestones.length === 1 ? " is" : "s are"} overdue.` : input.milestones.length ? "No retained milestone is blocked or overdue." : "Delivery milestones have not been established yet.", evidence: [...blockedMilestones.map(item => `Blocked: ${item.title}`), ...overdueMilestones.map(item => `Overdue: ${item.title}`)].slice(0, 8), target: "No blocked or overdue milestones", value: blockedMilestones.length + overdueMilestones.length, sourceId: `client-milestones:${client.id}`, href: `${href}?tab=delivery`, lastSeenAt: newest(input.milestones.map(item => item.updatedAt)), sampleSize: input.milestones.length, expectedDirection: "lower" });
+  }
 
   const overdueInvoices = input.invoices.filter(invoice => ["sent", "overdue"].includes(invoice.status) && invoice.dueAt < now);
   const openInvoices = input.invoices.filter(invoice => ["sent", "overdue"].includes(invoice.status));
@@ -194,15 +264,21 @@ export function buildClientRadarSnapshot(input: ClientRadarInput): ClientRadarSn
         : openInvoices.length
           ? `${openInvoices.length} issued invoice${openInvoices.length === 1 ? " is" : "s are"} awaiting payment inside its retained terms.`
           : input.invoices.length ? "No issued client invoice is overdue." : "No issued invoice history exists yet.";
-  add({ ...base, id: "payment-position", domain: "finance", label: "Payment position", status: paymentStatus, detail: paymentDetail, evidence: !input.financeAvailable && input.financeConnected ? ["Invoice source unavailable", "No payment conclusion calculated"] : paymentPosition ? [`${paymentPosition.missedPayments} missed`, `${paymentPosition.openInvoices} open invoices`, ...paymentPosition.currencyPositions.map(position => `${position.currency.toUpperCase()}: ${money(position.paidCents, position.currency)} collected · ${money(position.outstandingCents, position.currency)} outstanding`)] : [`${overdueInvoices.length} overdue`, `${openInvoices.length} open`, `${input.invoices.length} retained`], target: "No missed payments and all issued amounts collected by their due date", value: input.financeAvailable ? paymentPosition?.missedPayments ?? overdueInvoices.length : undefined, sourceId: `client-finance:${client.id}`, href: `${href}?tab=finance`, lastSeenAt: input.financeAvailable ? newest(input.invoices.flatMap(invoice => [invoice.paidAt, invoice.dueAt])) : undefined, sampleSize: input.financeAvailable ? input.invoices.length + (paymentPosition?.activePlans ?? 0) : 0, expectedDirection: "lower" });
+  if (visible("commercial")) {
+    add({ ...base, id: "payment-position", domain: "finance", label: "Payment position", status: paymentStatus, detail: paymentDetail, evidence: !input.financeAvailable && input.financeConnected ? ["Invoice source unavailable", "No payment conclusion calculated"] : paymentPosition ? [`${paymentPosition.missedPayments} missed`, `${paymentPosition.openInvoices} open invoices`, ...paymentPosition.currencyPositions.map(position => `${position.currency.toUpperCase()}: ${money(position.paidCents, position.currency)} collected · ${money(position.outstandingCents, position.currency)} outstanding`)] : [`${overdueInvoices.length} overdue`, `${openInvoices.length} open`, `${input.invoices.length} retained`], target: "No missed payments and all issued amounts collected by their due date", value: input.financeAvailable ? paymentPosition?.missedPayments ?? overdueInvoices.length : undefined, sourceId: `client-finance:${client.id}`, href: `${href}?tab=finance`, lastSeenAt: input.financeAvailable ? newest(input.invoices.flatMap(invoice => [invoice.paidAt, invoice.dueAt])) : undefined, sampleSize: input.financeAvailable ? input.invoices.length + (paymentPosition?.activePlans ?? 0) : 0, expectedDirection: "lower" });
+  }
 
   const acceptedContracts = input.contracts.filter(contract => contract.status === "accepted");
   const waitingContracts = input.contracts.filter(contract => contract.status === "sent");
-  add({ ...base, id: "agreement-position", domain: "compliance", label: "Agreement position", status: acceptedContracts.length ? "pass" : waitingContracts.length ? "watch" : input.products.length ? "learning" : "inactive", detail: acceptedContracts.length ? `${acceptedContracts.length} accepted agreement${acceptedContracts.length === 1 ? " is" : "s are"} retained.` : waitingContracts.length ? `${waitingContracts.length} agreement${waitingContracts.length === 1 ? " is" : "s are"} awaiting acceptance.` : input.products.length ? "No accepted agreement is retained for the assigned work." : "Agreement monitoring activates after a service is assigned.", evidence: [`${acceptedContracts.length} accepted`, `${waitingContracts.length} awaiting decision`, `${input.contracts.length} total`], target: "Accepted agreement retained", value: acceptedContracts.length, sourceId: `client-contracts:${client.id}`, href: `${href}?tab=finance`, lastSeenAt: newest(input.contracts.flatMap(contract => [contract.updatedAt, contract.issuedAt, contract.createdAt])), sampleSize: input.contracts.length, expectedDirection: "higher" });
+  if (visible("commercial")) {
+    add({ ...base, id: "agreement-position", domain: "compliance", label: "Agreement position", status: acceptedContracts.length ? "pass" : waitingContracts.length ? "watch" : input.products.length ? "learning" : "inactive", detail: acceptedContracts.length ? `${acceptedContracts.length} accepted agreement${acceptedContracts.length === 1 ? " is" : "s are"} retained.` : waitingContracts.length ? `${waitingContracts.length} agreement${waitingContracts.length === 1 ? " is" : "s are"} awaiting acceptance.` : input.products.length ? "No accepted agreement is retained for the assigned work." : "Agreement monitoring activates after a service is assigned.", evidence: [`${acceptedContracts.length} accepted`, `${waitingContracts.length} awaiting decision`, `${input.contracts.length} total`], target: "Accepted agreement retained", value: acceptedContracts.length, sourceId: `client-contracts:${client.id}`, href: `${href}?tab=finance`, lastSeenAt: newest(input.contracts.flatMap(contract => [contract.updatedAt, contract.issuedAt, contract.createdAt])), sampleSize: input.contracts.length, expectedDirection: "higher" });
+  }
 
   const openRequests = input.requests.filter(request => request.status === "open");
   const urgentRequests = openRequests.filter(request => request.priority === "urgent" || request.priority === "high" || request.type === "cancel" || request.type === "move-provider");
-  add({ ...base, id: "support-pressure", domain: "inbox", label: "Support pressure", status: !input.requestsObserved ? "learning" : urgentRequests.length ? "critical" : openRequests.length >= 3 ? "warning" : openRequests.length ? "watch" : "pass", detail: !input.requestsObserved ? "No client support history has been observed yet." : urgentRequests.length ? `${urgentRequests.length} urgent or exit-related request${urgentRequests.length === 1 ? " is" : "s are"} open.` : openRequests.length ? `${openRequests.length} client request${openRequests.length === 1 ? " is" : "s are"} open.` : "No client support request is open.", evidence: [`${urgentRequests.length} urgent`, `${openRequests.length} open`, `${input.requests.length} retained`], target: "No urgent unresolved requests", value: urgentRequests.length, sourceId: `client-requests:${client.id}`, href: `${href}?tab=communications`, lastSeenAt: newest(input.requests.map(request => request.submittedAt)), sampleSize: input.requests.length, expectedDirection: "lower" });
+  if (visible("communications")) {
+    add({ ...base, id: "support-pressure", domain: "inbox", label: "Support pressure", status: !input.requestsObserved ? "learning" : urgentRequests.length ? "critical" : openRequests.length >= 3 ? "warning" : openRequests.length ? "watch" : "pass", detail: !input.requestsObserved ? "No client support history has been observed yet." : urgentRequests.length ? `${urgentRequests.length} urgent or exit-related request${urgentRequests.length === 1 ? " is" : "s are"} open.` : openRequests.length ? `${openRequests.length} client request${openRequests.length === 1 ? " is" : "s are"} open.` : "No client support request is open.", evidence: [`${urgentRequests.length} urgent`, `${openRequests.length} open`, `${input.requests.length} retained`], target: "No urgent unresolved requests", value: urgentRequests.length, sourceId: `client-requests:${client.id}`, href: `${href}?tab=communications`, lastSeenAt: newest(input.requests.map(request => request.submittedAt)), sampleSize: input.requests.length, expectedDirection: "lower" });
+  }
 
   const portalStatus: RadarCheckStatus = !input.portal.expected
     ? "inactive"
@@ -213,14 +289,20 @@ export function buildClientRadarSnapshot(input: ClientRadarInput): ClientRadarSn
         : input.portal.accessSentAt
           ? "pass"
           : "watch";
-  add({ ...base, id: "portal-readiness", domain: "delivery", label: "Portal readiness", status: portalStatus, detail: !input.portal.expected ? "None of the assigned products requires a portal." : !input.portal.builtAt ? "The client portal has not been prepared." : !input.portal.accessEmail ? "The portal exists but has no retained access email." : input.portal.accessSentAt ? "Portal access has been sent." : "Portal access is prepared and awaiting review or invitation.", evidence: [input.portal.builtAt ? "Portal built" : "Portal not built", input.portal.accessEmail ? "Access identity present" : "Access identity missing", input.portal.accessSentAt ? "Access sent" : "Access not sent"], target: "Portal prepared and access sent", value: input.portal.accessSentAt ? 1 : 0, sourceId: `client-portal:${client.id}`, href: `${href}?tab=portal`, lastSeenAt: input.portal.accessSentAt ?? input.portal.builtAt, sampleSize: input.portal.builtAt ? 1 : 0, expectedDirection: "higher" });
+  if (visible("portal")) {
+    add({ ...base, id: "portal-readiness", domain: "delivery", label: "Portal readiness", status: portalStatus, detail: !input.portal.expected ? "None of the assigned products requires a portal." : !input.portal.builtAt ? "The client portal has not been prepared." : !input.portal.accessEmail ? "The portal exists but has no retained access email." : input.portal.accessSentAt ? "Portal access has been sent." : "Portal access is prepared and awaiting review or invitation.", evidence: [input.portal.builtAt ? "Portal built" : "Portal not built", input.portal.accessEmail ? "Access identity present" : "Access identity missing", input.portal.accessSentAt ? "Access sent" : "Access not sent"], target: "Portal prepared and access sent", value: input.portal.accessSentAt ? 1 : 0, sourceId: `client-portal:${client.id}`, href: `${href}?tab=portal`, lastSeenAt: input.portal.accessSentAt ?? input.portal.builtAt, sampleSize: input.portal.builtAt ? 1 : 0, expectedDirection: "higher" });
 
-  add({ ...base, id: "portal-decisions", domain: "delivery", label: "Portal decisions", status: !input.portal.builtAt ? "inactive" : input.portal.pendingApprovals >= 3 ? "warning" : input.portal.pendingApprovals ? "watch" : "pass", detail: input.portal.pendingApprovals ? `${input.portal.pendingApprovals} portal approval${input.portal.pendingApprovals === 1 ? " is" : "s are"} waiting for a decision.` : "No portal approval is waiting.", evidence: [`${input.portal.pendingApprovals} pending approvals`, `${input.portal.sharedFiles} shared files`], target: "No overdue decisions", value: input.portal.pendingApprovals, sourceId: `client-portal:${client.id}`, href: `${href}?tab=portal`, sampleSize: input.portal.pendingApprovals + input.portal.sharedFiles, expectedDirection: "lower" });
+    add({ ...base, id: "portal-decisions", domain: "delivery", label: "Portal decisions", status: !input.portal.builtAt ? "inactive" : input.portal.pendingApprovals >= 3 ? "warning" : input.portal.pendingApprovals ? "watch" : "pass", detail: input.portal.pendingApprovals ? `${input.portal.pendingApprovals} portal approval${input.portal.pendingApprovals === 1 ? " is" : "s are"} waiting for a decision.` : "No portal approval is waiting.", evidence: [`${input.portal.pendingApprovals} pending approvals`, `${input.portal.sharedFiles} shared files`], target: "No overdue decisions", value: input.portal.pendingApprovals, sourceId: `client-portal:${client.id}`, href: `${href}?tab=portal`, sampleSize: input.portal.pendingApprovals + input.portal.sharedFiles, expectedDirection: "lower" });
+  }
 
-  for (const product of input.products) addProductChecks(add, input, product, clientEntity, href);
-  for (const property of input.properties) addPropertyChecks(add, input, property, clientEntity, href);
+  if (visible("fulfilment")) {
+    for (const product of input.products) addProductChecks(add, input, product, clientEntity, href, visibility);
+  }
+  if (visible("systems")) {
+    for (const property of input.properties) addPropertyChecks(add, input, property, clientEntity, href);
+  }
 
-  if (input.marketing?.enabled) {
+  if (visible("marketing") && input.marketing?.enabled) {
     const marketing = input.marketing;
     const pack = { packId: "marketing-service", packLabel: "Marketing service", packKind: "source" as const };
     add({ ...pack, id: "account-access", domain: "marketing", label: "Marketing account access", status: marketing.attentionProfiles ? "critical" : "pass", detail: marketing.attentionProfiles ? `${marketing.attentionProfiles} connected marketing profile${marketing.attentionProfiles === 1 ? " needs" : "s need"} attention.` : "No retained marketing profile is marked as needing attention.", evidence: [`${marketing.attentionProfiles} access issues`], target: "All required profiles connected", value: marketing.attentionProfiles, sourceId: `client-marketing:${client.id}`, href: `${href}?tab=marketing`, lastSeenAt: marketing.updatedAt, sampleSize: 1, expectedDirection: "lower" });
@@ -231,7 +313,9 @@ export function buildClientRadarSnapshot(input: ClientRadarInput): ClientRadarSn
   const checks = definitions.map(definition => toCheck(client, definition));
   const issues = [
     ...checks.filter(check => check.status === "critical" || check.status === "warning").map(check => issueFromCheck(client, check, now)),
-    ...input.alerts.map(alert => ({
+    ...input.alerts
+      .filter(alert => !input.visibility || (alert.element !== undefined && visible(alert.element)))
+      .map(alert => ({
       id: `client-radar:alert:${alert.id}`,
       severity: alert.severity === "notice" ? "watch" as const : alert.severity,
       domain: domainForHref(alert.href),
@@ -242,7 +326,7 @@ export function buildClientRadarSnapshot(input: ClientRadarInput): ClientRadarSn
       detectedAt: alert.occurredAt,
       sourceIds: [alert.id],
       entity: clientEntity,
-    })),
+      })),
   ].filter((issue, index, all) => all.findIndex(candidate => candidate.title === issue.title && candidate.href === issue.href) === index)
     .sort((left, right) => severityRank(left.severity) - severityRank(right.severity) || left.detectedAt - right.detectedAt);
 
@@ -254,12 +338,13 @@ export function buildClientRadarSnapshot(input: ClientRadarInput): ClientRadarSn
   const readiness = applicable.length ? Math.round(ready / applicable.length * 100) : 0;
   const outcomeChecks = applicable.filter(check => check.lens === "threshold" && check.status !== "blind" && check.status !== "learning");
   const checkHealth = outcomeChecks.length ? Math.round(outcomeChecks.reduce((total, check) => total + statusScore(check.status), 0) / outcomeChecks.length) : null;
-  const healthScore = input.aquaHealth.score === null
+  const visibleAquaHealthScore = compositeHealthVisible ? input.aquaHealth.score : null;
+  const healthScore = visibleAquaHealthScore === null
     ? checkHealth
     : checkHealth === null
-      ? input.aquaHealth.score
-      : Math.round(input.aquaHealth.score * 0.4 + checkHealth * 0.6);
-  const hasUnavailableConclusionSource = input.financeConnected && !input.financeAvailable;
+      ? visibleAquaHealthScore
+      : Math.round(visibleAquaHealthScore * 0.4 + checkHealth * 0.6);
+  const hasUnavailableConclusionSource = visible("commercial") && input.financeConnected && !input.financeAvailable;
   const healthState = totals.critical > 0 || issues.some(issue => issue.severity === "critical") || (healthScore !== null && healthScore < 55)
     ? "risk" as const
     : hasUnavailableConclusionSource || confidence < 50 || healthScore === null
@@ -281,7 +366,7 @@ export function buildClientRadarSnapshot(input: ClientRadarInput): ClientRadarSn
     readinessPercent: readiness,
     summary: primary ? `${primary.title}: ${primary.detail}` : hasUnavailableConclusionSource ? "Finance evidence is unavailable, so Radar is retaining a learning conclusion instead of calling the client clear." : totals.learning || totals.blind ? "The client system is still connecting evidence before it can prove full health." : "No client-specific guardrail currently needs attention.",
     sourceAvailability: {
-      finance: !input.financeConnected ? "not-connected" : input.financeAvailable ? "ready" : "unavailable",
+      finance: !visible("commercial") ? "hidden" : !input.financeConnected ? "not-connected" : input.financeAvailable ? "ready" : "unavailable",
     },
     lastRecordedAt: input.lastRecordedAt,
     checks,
@@ -309,6 +394,7 @@ function addProductChecks(
   product: ClientRadarProductInput,
   clientEntity: RadarEntityReference,
   href: string,
+  visibility: ClientRadarVisibility,
 ) {
   const pack = { packId: `product:${product.id}`, packLabel: product.name, packKind: "product" as const, product };
   const productEntity: RadarEntityReference = { type: "product", id: product.id, label: product.name, parentId: clientEntity.id };
@@ -316,11 +402,11 @@ function addProductChecks(
   add({ ...pack, id: "progress", domain: "delivery", label: `${product.name} progress`, status: !product.workspace ? "learning" : product.workspace.blockedDecisions ? "critical" : product.workspace.pendingDecisions >= 3 ? "warning" : product.workspace.progress > 0 ? "pass" : "watch", detail: !product.workspace ? "Progress activates when the product workspace exists." : product.workspace.blockedDecisions ? `${product.workspace.blockedDecisions} decision${product.workspace.blockedDecisions === 1 ? " is" : "s are"} blocked or require changes.` : `${product.workspace.progress}% of the retained product workflow is complete.`, evidence: product.workspace ? [`${product.workspace.progress}% complete`, `${product.workspace.pendingDecisions} pending decisions`, `${product.workspace.readyOutputs}/${product.workspace.outputCount} outputs ready`] : ["No workspace sample"], target: "Progressing with no blocked decisions", value: product.workspace?.progress, sourceId: `client-product:${input.client.id}:${product.id}`, href: `${href}?tab=delivery&product=${encodeURIComponent(product.id)}`, lastSeenAt: product.workspace?.lastUpdatedAt, sampleSize: product.workspace?.outputCount ?? 0, expectedDirection: "higher", entity: productEntity });
   add({ ...pack, id: "deliverable-definition", domain: "delivery", label: `${product.name} deliverables`, status: product.deliverableCount ? "pass" : "watch", detail: product.deliverableCount ? `${product.deliverableCount} expected deliverable${product.deliverableCount === 1 ? " is" : "s are"} declared by the product.` : "This product has no declared deliverables, so completion cannot be checked against an explicit promise.", evidence: [`${product.deliverableCount} configured deliverables`], target: "Explicit deliverables retained", value: product.deliverableCount, sourceId: `client-product:${input.client.id}:${product.id}`, href: `${href}?tab=delivery&product=${encodeURIComponent(product.id)}`, sampleSize: product.deliverableCount, expectedDirection: "higher", entity: productEntity });
 
-  if (isSystemProduct(product.key)) {
+  if (visibility.systems && isSystemProduct(product.key)) {
     const matchingProperties = input.properties.length;
     add({ ...pack, id: "property-coverage", domain: "development", label: `${product.name} property coverage`, status: matchingProperties ? "pass" : "blind", detail: matchingProperties ? `${matchingProperties} client propert${matchingProperties === 1 ? "y is" : "ies are"} available to technical monitoring.` : "This technical service has no connected property, so uptime and production behaviour cannot be proved.", evidence: [`${matchingProperties} properties`], target: "At least one monitored property", value: matchingProperties, sourceId: `client-properties:${input.client.id}`, href: `${href}?tab=systems`, sampleSize: matchingProperties, expectedDirection: "higher", entity: productEntity });
   }
-  if (isMarketingProduct(product.key) && !input.marketing?.enabled) {
+  if (visibility.marketing && isMarketingProduct(product.key) && !input.marketing?.enabled) {
     add({ ...pack, id: "marketing-data", domain: "marketing", label: `${product.name} data connection`, status: "blind", detail: "The product requires marketing evidence, but the client marketing workspace is not configured.", evidence: ["Marketing workspace unavailable"], target: "Marketing workspace connected", value: 0, sourceId: `client-marketing:${input.client.id}`, href: `${href}?tab=marketing`, sampleSize: 0, expectedDirection: "higher", entity: productEntity });
   }
   if (product.key === "photography") {

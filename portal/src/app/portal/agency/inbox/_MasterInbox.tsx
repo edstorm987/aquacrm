@@ -193,7 +193,7 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
 
   async function sendTeamNote(event: React.FormEvent) {
     event.preventDefault();
-    if (!teamNote.trim()) return;
+    if (readOnly || !teamNote.trim()) return;
     setBusy(true);
     setTeamNoteError(null);
     try {
@@ -212,6 +212,7 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
   }
 
   async function replyToConversation(item: Conversation) {
+    if (readOnly) return;
     const reply = replyDrafts[item.id]?.trim();
     if (!reply) return;
     setBusy(true);
@@ -235,6 +236,7 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
   }
 
   async function updateConversationStatus(item: Conversation, status: "open" | "reviewed" | "closed") {
+    if (readOnly) return;
     setBusy(true);
     setConversationReplyError(current => ({ ...current, [item.id]: "" }));
     try {
@@ -255,6 +257,7 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
   }
 
   async function linkFormToLead(item: WebsiteEnquiry) {
+    if (readOnly) return;
     setLeadBusyId(item.id);
     setLeadError(current => ({ ...current, [item.id]: "" }));
     try {
@@ -275,6 +278,7 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
   }
 
   async function updateWebsiteStatus(item: WebsiteEnquiry, status: WebsiteEnquiry["status"]) {
+    if (readOnly) return;
     setStatusBusyId(item.id);
     setStatusError(current => ({ ...current, [item.id]: "" }));
     try {
@@ -309,7 +313,7 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
   }
 
   async function classifyWebsiteEnquiry(item: WebsiteEnquiry, classification: WebsiteEnquiryClassification) {
-    if (classification === item.classification) return;
+    if (readOnly || classification === item.classification) return;
     setClassificationBusyId(item.id);
     setClassificationError(current => ({ ...current, [item.id]: "" }));
     try {
@@ -334,13 +338,13 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
         <p className="mt-2 max-w-2xl text-sm leading-6 text-black/55">Messages, support, production alerts, money, meetings, and business performance in one place.</p>
       </div>
       <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
-        {!readOnly ? <>
         <Link href="/portal/agency/email-sender" className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 font-semibold text-black/65 hover:border-black/25 hover:text-black">
           <Mail size={15} aria-hidden="true" /> Email operations
         </Link>
         <Link href="/portal/agency/activity-inbox" className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 font-semibold text-black/65 hover:border-black/25 hover:text-black">
           <Clock3 size={15} aria-hidden="true" /> Activity log
-        </Link></> : <span className="rounded-full bg-sky-50 px-3 py-1.5 font-semibold text-sky-700">Read-only showcase</span>}
+        </Link>
+        {readOnly ? <span className="rounded-full bg-sky-50 px-3 py-1.5 font-semibold text-sky-700">View only</span> : null}
         <span className={`rounded-full px-3 py-1.5 font-medium ${urgent ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"}`}>{urgent ? `${urgent} urgent` : "No urgent issues"}</span>
         <span className="rounded-full bg-black/[0.04] px-3 py-1.5 text-black/55">{attentionAlerts.length} open</span>
       </div>
@@ -370,18 +374,16 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
         icon={Inbox}
       />
       <Tab active={tab === "updates"} onClick={() => setView("updates")} label="Updates" count={updates.length} icon={Bell} />
-      {!readOnly ? (
-        <button
-          type="button"
-          onClick={() => setConnectionsOpen(true)}
-          aria-haspopup="dialog"
-          aria-label="Inbox connections"
-          title="Connections"
-          className="ml-auto mb-2 grid size-9 shrink-0 place-items-center rounded-md text-black/45 hover:bg-black/[0.05] hover:text-black/75"
-        >
-          <Settings size={17} aria-hidden />
-        </button>
-      ) : null}
+      <button
+        type="button"
+        onClick={() => setConnectionsOpen(true)}
+        aria-haspopup="dialog"
+        aria-label="Inbox connections"
+        title="Connections"
+        className="ml-auto mb-2 grid size-9 shrink-0 place-items-center rounded-md text-black/45 hover:bg-black/[0.05] hover:text-black/75"
+      >
+        <Settings size={17} aria-hidden />
+      </button>
     </nav>
 
     {/* One stream, but never an undifferentiated pile — Ed: "make sure its all
@@ -398,8 +400,6 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
       </div>
     ) : null}
 
-    <fieldset disabled={readOnly} className="contents">
-
     {view !== "all" && view !== "channels" && view !== "social" && view !== "actions" ? <div className="flex flex-wrap gap-2"><label className="relative min-w-0 flex-1 basis-full sm:basis-auto"><span className="sr-only">Search inbox</span><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-black/35" /><input value={query} onChange={event => setQuery(event.target.value)} className="min-h-11 w-full rounded-md border border-black/15 bg-white pl-10 pr-3 text-sm outline-none focus:border-black/35" placeholder="Search everything in this inbox" /></label>{view === "forms" || view === "chatbot" || view === "support" ? <select value={classificationFilter} onChange={event => setClassificationFilter(event.target.value as WebsiteEnquiryClassification | "all")} className="min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black/70 sm:w-auto" aria-label="Filter enquiries by classification"><option value="all">Every classification</option>{WEBSITE_ENQUIRY_CLASSIFICATIONS.map(value => <option key={value} value={value}>{WEBSITE_ENQUIRY_CLASSIFICATION_LABELS[value]}</option>)}</select> : null}{(view === "forms" || view === "chatbot" || view === "support") && companyOptions.length ? <select value={companyFilter} onChange={event => setCompanyFilter(event.target.value)} className="min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black/70 sm:w-auto" aria-label="Filter enquiries by company"><option value={COMPANY_FILTER_ALL}>Every destination</option><option value={COMPANY_FILTER_NONE}>Agency inbox only</option>{companyOptions.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select> : null}</div> : null}
 
     {view === "all" ? <UnifiedInboxWorkspace
@@ -411,6 +411,7 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
       communicationReadiness={communicationReadiness}
       clientProfiles={clientProfiles}
       focusThreadKey={focusThreadKey}
+      canMutate={!readOnly}
     /> : null}
 
     {/* Merged 2026-08-30. They were always one job — a signal and the queue of
@@ -425,13 +426,13 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
         {visibleAlerts.map(alert => {
           const resolution = resolveAttentionAction(alert);
           const contactThreadKey = resolution.opensInboxThread ? resolveAttentionThreadKey(alert, attentionThreadCandidates) : null;
-          return <AlertRow key={alert.id} alert={alert} contactAvailable={Boolean(contactThreadKey)} onContact={() => openAttentionContact(alert)} busy={notificationAttention?.isAlertBusy(alert.id) ?? false} onAction={(action, parkedUntil) => notificationAttention?.updateAlert(alert.id, action, parkedUntil) ?? Promise.resolve(false)} />;
+          return <AlertRow key={alert.id} alert={alert} contactAvailable={Boolean(contactThreadKey)} onContact={() => openAttentionContact(alert)} busy={notificationAttention?.isAlertBusy(alert.id) ?? false} canMutate={!readOnly} onAction={(action, parkedUntil) => notificationAttention?.updateAlert(alert.id, action, parkedUntil) ?? Promise.resolve(false)} />;
         })}
       </div>
       {!visibleAlerts.length ? <Empty icon={<CircleCheck size={25} />} title="Nothing needs attention" detail="Support, monitoring, overdue money, meetings, client health, and campaign pacing are clear." /> : null}
     </section> : null}
 
-    {view === "social" ? <SocialInboxWorkspace snapshot={socialInbox} readiness={metaReadiness} currentUserId={currentUserId} loadError={socialInboxError} /> : null}
+    {view === "social" ? <SocialInboxWorkspace snapshot={socialInbox} readiness={metaReadiness} currentUserId={currentUserId} loadError={socialInboxError} canMutate={!readOnly} canManageChannels={canManageChannels} /> : null}
 
     {view === "forms" ? <WebsiteEnquirySection
       title="Website enquiries"
@@ -455,6 +456,7 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
       statusError={statusError}
       classificationError={classificationError}
       communicationReadiness={communicationReadiness}
+      canMutate={!readOnly}
     /> : null}
 
     {view === "chatbot" ? <WebsiteEnquirySection
@@ -479,6 +481,7 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
       statusError={statusError}
       classificationError={classificationError}
       communicationReadiness={communicationReadiness}
+      canMutate={!readOnly}
     /> : null}
 
     {view === "support" ? <div className="grid gap-9">
@@ -504,6 +507,7 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
         statusError={statusError}
         classificationError={classificationError}
         communicationReadiness={communicationReadiness}
+        canMutate={!readOnly}
       />
       <ConversationSection
         title="Client support tickets"
@@ -517,6 +521,7 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
         onReplyChange={(id, value) => setReplyDrafts(current => ({ ...current, [id]: value }))}
         onReply={replyToConversation}
         onStatus={updateConversationStatus}
+        canMutate={!readOnly}
       />
     </div> : null}
 
@@ -532,11 +537,12 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
       onReplyChange={(id, value) => setReplyDrafts(current => ({ ...current, [id]: value }))}
       onReply={replyToConversation}
       onStatus={updateConversationStatus}
+      canMutate={!readOnly}
     /> : null}
 
     {view === "updates" ? <section className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_340px]">
       <div><SectionHeader title="Business updates" detail="The latest changes across clients, billing, projects, support, and systems." /><div className="mt-3 grid gap-2">{visibleUpdates.map(item => <div key={item.id} className="mm-surface-card mm-interactive-row rounded-md p-3"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm font-medium text-black/75">{activityMessage(item.message)}</p><p className="mt-1 text-xs text-black/40">{activityCategory(item.category)} · {activityAction(item.action)} · {item.actorEmail ?? "System"}</p></div><time className="text-xs text-black/35">{formatDate(item.ts)}</time></div>{item.clientId ? <Link href={`/portal/clients/${item.clientId}`} className="mt-2 inline-flex min-h-6 items-center gap-1.5 text-xs font-medium text-brand">Open client <ExternalLink size={12} /></Link> : null}</div>)}</div></div>
-      <form onSubmit={sendTeamNote} className="mm-surface-card h-fit rounded-md p-4"><div className="flex items-center gap-2"><Users size={17} className="text-black/40" /><h2 className="text-sm font-semibold text-black/75">Team notes</h2></div><p className="mt-1 text-xs leading-5 text-black/45">Leave a shared internal update for everyone working in AquaOasis-Web.</p><textarea value={teamNote} onChange={event => setTeamNote(event.target.value)} rows={5} className="mt-3 w-full rounded-md border border-black/15 px-3 py-2 text-sm" placeholder="What should the team know?" />{teamNoteError ? <p role="alert" className="mt-2 text-xs text-red-700">{teamNoteError}</p> : null}<button disabled={busy || !teamNote.trim()} className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white disabled:opacity-40"><Send size={14} />{busy ? "Posting..." : "Post note"}</button></form>
+      <form onSubmit={sendTeamNote} className="mm-surface-card h-fit rounded-md p-4"><div className="flex items-center gap-2"><Users size={17} className="text-black/40" /><h2 className="text-sm font-semibold text-black/75">Team notes</h2></div><p className="mt-1 text-xs leading-5 text-black/45">Leave a shared internal update for everyone working in AquaOasis-Web.</p><textarea value={teamNote} onChange={event => setTeamNote(event.target.value)} disabled={readOnly} rows={5} className="mt-3 w-full rounded-md border border-black/15 px-3 py-2 text-sm disabled:bg-black/[0.03] disabled:text-black/35" placeholder={readOnly ? "Inbox updates are view only" : "What should the team know?"} />{teamNoteError ? <p role="alert" className="mt-2 text-xs text-red-700">{teamNoteError}</p> : null}<button disabled={readOnly || busy || !teamNote.trim()} className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white disabled:opacity-40"><Send size={14} />{busy ? "Posting..." : "Post note"}</button></form>
     </section> : null}
 
     {connectionsOpen ? <ConnectionsModal onClose={() => setConnectionsOpen(false)}><section className="grid gap-6">
@@ -546,7 +552,7 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
           <IntegrationConnectionsPanel clients={channelClients} canManage={canManageChannels} />
         </div>
       </div>
-      <WebsiteSourcesConfig />
+      {canManageChannels ? <WebsiteSourcesConfig /> : <p className="rounded-md border border-black/10 bg-black/[0.02] px-3 py-2 text-xs text-black/50">Channel settings are view only. Ask an Inbox manager to change connections.</p>}
       <div>
       <SectionHeader title="Always-on channels" detail="These are built in and need no account — live status only." />
       <div className="grid gap-3 md:grid-cols-2">
@@ -560,7 +566,6 @@ export function MasterInbox({ referenceNow, alerts, websiteForms, websiteFormsEr
       </div>
       </div>
     </section></ConnectionsModal> : null}
-    </fieldset>
   </div>;
 }
 
@@ -615,6 +620,7 @@ function WebsiteEnquirySection({
   statusError,
   classificationError,
   communicationReadiness,
+  canMutate,
 }: {
   title: string;
   detail: string;
@@ -637,6 +643,7 @@ function WebsiteEnquirySection({
   statusError: Record<string, string>;
   classificationError: Record<string, string>;
   communicationReadiness: OutboundCommunicationReadiness;
+  canMutate: boolean;
 }) {
   // One detail card at a time, rendered at section level rather than inside a
   // row — the enquiry articles carry `mm-hover-lift` (a hover transform), and a
@@ -676,14 +683,14 @@ function WebsiteEnquirySection({
               <select
                 value={item.classification}
                 onChange={event => void onClassify(item, event.target.value as WebsiteEnquiryClassification)}
-                disabled={classificationBusyId === item.id}
+                disabled={!canMutate || classificationBusyId === item.id}
                 aria-label={`Classify enquiry from ${item.name}`}
                 className={`min-h-9 max-w-full rounded-md border px-2 text-xs font-semibold disabled:opacity-50 ${item.classification === "unclassified" ? "border-amber-300 bg-amber-50 text-amber-900" : "border-black/10 bg-white text-black/65"}`}
               >
                 {WEBSITE_ENQUIRY_CLASSIFICATIONS.map(value => <option key={value} value={value}>{WEBSITE_ENQUIRY_CLASSIFICATION_LABELS[value]}</option>)}
               </select>
               <button type="button" onClick={() => onToggle(item.id)} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-medium text-black/65">{openId === item.id ? <X size={13} /> : item.email ? <Send size={13} /> : null}{openId === item.id ? "Close" : item.email ? "Reply" : "Inspect"}</button>
-              {item.classification === "sales" && !item.leadId && (item.email || item.phone) ? <button type="button" onClick={() => void onLinkLead(item)} disabled={leadBusyId === item.id} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-black px-3 text-xs font-semibold text-white disabled:opacity-50"><UserPlus size={14} />{leadBusyId === item.id ? "Linking..." : "Create lead"}</button> : null}
+              {item.classification === "sales" && !item.leadId && (item.email || item.phone) ? <button type="button" onClick={() => void onLinkLead(item)} disabled={!canMutate || leadBusyId === item.id} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-black px-3 text-xs font-semibold text-white disabled:opacity-50"><UserPlus size={14} />{leadBusyId === item.id ? "Linking..." : "Create lead"}</button> : null}
               {item.email ? <a href={`mailto:${item.email}`} aria-label={`Email ${item.name}`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/45"><Mail size={15} /></a> : null}
               {item.phone ? <a href={`tel:${item.phone}`} aria-label={`Call ${item.name}`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/45"><Phone size={15} /></a> : null}
               {canErase ? <EnquiryDeleteButton item={item} busy={statusBusyId === item.id} onErase={onErase} /> : null}
@@ -703,11 +710,12 @@ function WebsiteEnquirySection({
       leadError={leadError}
       statusError={statusError}
       classificationError={classificationError}
+      canMutate={canMutate}
     /> : null}
   </section>;
 }
 
-function ConversationSection({ title, detail, items, openId, replyDrafts, busy, replyError, onToggle, onReplyChange, onReply, onStatus }: {
+function ConversationSection({ title, detail, items, openId, replyDrafts, busy, replyError, onToggle, onReplyChange, onReply, onStatus, canMutate }: {
   title: string;
   detail: string;
   items: Conversation[];
@@ -719,6 +727,7 @@ function ConversationSection({ title, detail, items, openId, replyDrafts, busy, 
   onReplyChange: (id: string, value: string) => void;
   onReply: (item: Conversation) => Promise<void>;
   onStatus: (item: Conversation, status: "open" | "reviewed" | "closed") => Promise<void>;
+  canMutate: boolean;
 }) {
   return <section>
     <SectionHeader title={title} detail={detail} />
@@ -757,11 +766,11 @@ function ConversationSection({ title, detail, items, openId, replyDrafts, busy, 
             </div>)}
           </div> : null}
           {replyError[item.id] ? <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{replyError[item.id]}</p> : null}
-          <textarea value={replyDrafts[item.id] ?? ""} onChange={event => onReplyChange(item.id, event.target.value)} rows={3} className="w-full rounded-md border border-black/15 bg-white px-3 py-2 text-sm" placeholder={`Reply to ${item.clientName}`} />
+          <textarea value={replyDrafts[item.id] ?? ""} onChange={event => onReplyChange(item.id, event.target.value)} disabled={!canMutate} rows={3} className="w-full rounded-md border border-black/15 bg-white px-3 py-2 text-sm disabled:bg-black/[0.03] disabled:text-black/35" placeholder={canMutate ? `Reply to ${item.clientName}` : "This conversation is view only"} />
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => void onReply(item)} disabled={busy || !replyDrafts[item.id]?.trim()} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white disabled:opacity-40"><Send size={14} />Send reply</button>
-            {item.status === "open" ? <button type="button" onClick={() => void onStatus(item, "reviewed")} disabled={busy} className="inline-flex items-center gap-1.5 rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 disabled:opacity-40"><Check size={13} /> Mark reviewed</button> : null}
-            {item.status !== "closed" ? <button type="button" onClick={() => void onStatus(item, "closed")} disabled={busy} className="inline-flex items-center gap-1.5 rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 disabled:opacity-40"><X size={13} /> Close ticket</button> : <button type="button" onClick={() => void onStatus(item, "open")} disabled={busy} className="inline-flex items-center gap-1.5 rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 disabled:opacity-40"><RotateCcw size={13} /> Reopen</button>}
+            <button type="button" onClick={() => void onReply(item)} disabled={!canMutate || busy || !replyDrafts[item.id]?.trim()} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white disabled:opacity-40"><Send size={14} />Send reply</button>
+            {item.status === "open" ? <button type="button" onClick={() => void onStatus(item, "reviewed")} disabled={!canMutate || busy} className="inline-flex items-center gap-1.5 rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 disabled:opacity-40"><Check size={13} /> Mark reviewed</button> : null}
+            {item.status !== "closed" ? <button type="button" onClick={() => void onStatus(item, "closed")} disabled={!canMutate || busy} className="inline-flex items-center gap-1.5 rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 disabled:opacity-40"><X size={13} /> Close ticket</button> : <button type="button" onClick={() => void onStatus(item, "open")} disabled={!canMutate || busy} className="inline-flex items-center gap-1.5 rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 disabled:opacity-40"><RotateCcw size={13} /> Reopen</button>}
           </div>
         </div> : null}
       </article>)}
@@ -862,7 +871,7 @@ function Tab({ active, onClick, label, count, icon: Icon, attentionHref, attenti
   return <button type="button" onClick={onClick} className={`relative inline-flex min-h-11 items-center gap-2 whitespace-nowrap py-3 text-sm font-medium ${active ? "text-black" : "text-black/45 hover:text-black/70"}`}><Icon size={15} aria-hidden="true" /><span>{label}{count !== undefined ? <span className="ml-1 text-xs text-black/35">{count}</span> : null}</span><AttentionDot href={attentionHref} all={attentionAll} />{active ? <span className="absolute inset-x-0 bottom-0 h-0.5 bg-black" /> : null}</button>;
 }
 
-function AlertRow({ alert, contactAvailable, onContact, busy, onAction }: { alert: OperationalAlertView; contactAvailable: boolean; onContact: () => void; busy: boolean; onAction: (action: "park" | "dismiss", parkedUntil?: number) => Promise<boolean> }) {
+function AlertRow({ alert, contactAvailable, onContact, busy, canMutate, onAction }: { alert: OperationalAlertView; contactAvailable: boolean; onContact: () => void; busy: boolean; canMutate: boolean; onAction: (action: "park" | "dismiss", parkedUntil?: number) => Promise<boolean> }) {
   const router = useRouter();
   const styles = alert.severity === "critical" ? "bg-red-50 text-red-700" : alert.severity === "warning" ? "bg-amber-50 text-amber-700" : "bg-blue-50 text-blue-700";
   const resolution = resolveAttentionAction(alert);
@@ -877,7 +886,7 @@ function AlertRow({ alert, contactAvailable, onContact, busy, onAction }: { aler
   };
   const resolveControl = contactAvailable
     ? <button type="button" disabled={busy} onClick={onContact} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85 disabled:opacity-40"><span>Resolve</span><ArrowRight size={13} /></button>
-    : <button type="button" disabled={busy} onClick={() => void resolveAndOpen()} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85 disabled:opacity-40"><span>Resolve</span><ArrowRight size={13} /></button>;
+    : <button type="button" disabled={busy || !canMutate} onClick={() => void resolveAndOpen()} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85 disabled:opacity-40"><span>Resolve</span><ArrowRight size={13} /></button>;
   return <article title={`${alert.title}\n${alert.detail}`} className="mm-surface-card mm-interactive-row grid gap-3 rounded-md p-3 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center">
     <span className={`grid size-10 place-items-center rounded-md ${styles}`}><AlertTriangle size={18} /></span>
     <span className="min-w-0">
@@ -887,8 +896,8 @@ function AlertRow({ alert, contactAvailable, onContact, busy, onAction }: { aler
     </span>
     <span className="flex flex-wrap items-center gap-2 lg:justify-end">
       {resolveControl}
-      <RemindLaterMenu disabled={busy} title={alert.title} onPark={parkedUntil => void onAction("park", parkedUntil)} />
-      <button type="button" disabled={busy} onClick={() => void onAction("dismiss")} title="Hide until the underlying issue changes" aria-label={`Dismiss ${alert.title} until it changes`} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-medium text-black/50 hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:opacity-40"><X size={13} />Dismiss</button>
+      <RemindLaterMenu disabled={busy || !canMutate} title={alert.title} onPark={parkedUntil => void onAction("park", parkedUntil)} />
+      <button type="button" disabled={busy || !canMutate} onClick={() => void onAction("dismiss")} title="Hide until the underlying issue changes" aria-label={`Dismiss ${alert.title} until it changes`} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-medium text-black/50 hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:opacity-40"><X size={13} />Dismiss</button>
     </span>
   </article>;
 }

@@ -6,7 +6,7 @@ import { agencyProductsForRead, listAgencyProducts } from "@/server/agencyProduc
 import { listClients } from "@/server/tenants";
 import { getState, ensureHydrated } from "@/server/storage";
 import { getActiveDataRealmId } from "@/server/dataRealm";
-import { requireCurrentAccessActor } from "@/server/accessControl";
+import { AccessControlError, accessErrorResponse, requireCurrentAccessActor } from "@/server/accessControl";
 import { listAgencyTasks } from "@/server/tasks";
 import { listSops } from "@/engines/sop/server/sops";
 import { listUsersForAgency } from "@/server/users";
@@ -25,7 +25,7 @@ import type { CommandIntelligenceSnapshot } from "@/lib/intelligence/commandInte
 import { getCachedBusinessIssueRadar } from "@/engines/data/server/radar/businessIssueRadar";
 import { buildCommandIntelligenceSnapshot } from "@/lib/server/commandIntelligenceService";
 import { inspectRadarEvidence } from "@/engines/data/server/radar/radarEvidenceVault";
-import { listRadarSourceSearchDatasets, type RadarSourceSearchDataset } from "@/engines/data/server/radar/radarSourceInspection";
+import { listRadarSourceSearchDatasetsForActor, type RadarSourceSearchDataset } from "@/engines/data/server/radar/radarSourceInspection";
 import { listPeopleApplications, listPeopleEmployees, listPeopleLeaveRequests, listPeopleTraining } from "@/server/people";
 import { cleanClientMarketingService } from "@/lib/clients/clientMarketingService";
 import { getInstall } from "@/server/pluginInstalls";
@@ -114,17 +114,18 @@ export async function GET(request: Request) {
     const warm = url.searchParams.get("warm") === "1";
     if (!query && !warm) return NextResponse.json({ ok: true, results: [] });
 
-    if (!session.publicShowcase) agencyProductsForRead(session.agencyId);
-    const access = session.role === "agency-staff"
-      ? searchCandidateAccess(await requireCurrentAccessActor())
-      : undefined;
+    const actor = await requireCurrentAccessActor();
+    const agencyId = actor.resourceAgencyId;
+    if (!session.publicShowcase) agencyProductsForRead(agencyId);
+    const access = searchCandidateAccess(actor);
     const candidates = await cachedCandidates(
       realmId,
-      session.agencyId,
+      agencyId,
       session.userId,
       session.role,
       Boolean(session.publicShowcase),
       access,
+      actor,
     );
     if (warm) return NextResponse.json({ ok: true, warmed: true, indexed: candidates.length, categories: categoryCounts(candidates) });
     const matches = candidates
@@ -151,6 +152,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ ok: true, results, total: matches.length, showing: results.length, indexed: candidates.length, categories });
   } catch (error) {
+    if (error instanceof AccessControlError) return accessErrorResponse(error);
     return authErrorResponse(error);
   }
 }
@@ -161,13 +163,21 @@ async function cachedCandidates(
   userId: string,
   role: Role,
   isolatedShowcase: boolean,
-  access?: SearchCandidateAccess,
+  access: SearchCandidateAccess,
+  actor: Awaited<ReturnType<typeof requireCurrentAccessActor>>,
 ): Promise<Candidate[]> {
   const key = `${realmId}:${agencyId}:${userId}:${role}:${isolatedShowcase ? "isolated" : "live"}:${access?.fingerprint ?? "full"}`;
   const current = candidateCache.get(key);
   if (current && current.expiresAt > Date.now()) return current.promise;
-  const promise = buildCandidates(agencyId, userId, role, isolatedShowcase)
-    .then(candidates => access ? candidates.filter(candidate => access.visible(candidate)) : candidates)
+  // The historical index serialises large, polymorphic stores. It remains
+  // available to owners and genuinely unmigrated managers, but a canonical
+  // role must never rely on category/path guesses to redact nested fields.
+  // Its index is assembled only from records whose owning element is known
+  // before any searchable text is added.
+  const promise = (access.fullAccess
+    ? buildCandidates(agencyId, userId, role, isolatedShowcase, access, actor)
+    : buildGovernedCandidates(agencyId, userId, access, actor))
+    .then(candidates => candidates.filter(candidate => access.visible(candidate)))
     .catch(error => {
       candidateCache.delete(key);
       throw error;
@@ -176,7 +186,66 @@ async function cachedCandidates(
   return promise;
 }
 
-async function buildCandidates(agencyId: string, userId: string, role: Role, isolatedShowcase: boolean): Promise<Candidate[]> {
+async function buildGovernedCandidates(
+  agencyId: string,
+  userId: string,
+  access: SearchCandidateAccess,
+  actor: Awaited<ReturnType<typeof requireCurrentAccessActor>>,
+): Promise<Candidate[]> {
+  const candidates: Candidate[] = [];
+  push(candidates, {
+    id: `my-radar:${userId}`,
+    category: "Radar",
+    title: "My Radar",
+    subtitle: "My actions, goals, wellbeing and work pace",
+    href: "/portal/agency/my-radar",
+  }, ["personal actions to do wellbeing goals progress"]);
+
+  for (const client of listClients(agencyId, { includeArchived: true })) {
+    // A workspace name is the minimum identity needed to choose a workspace.
+    // No metadata, owner email, commercial value or hidden-tab field enters
+    // this governed candidate.
+    push(candidates, {
+      id: client.id,
+      category: "Client",
+      title: client.workspaceLabel?.trim() || client.name,
+      subtitle: "Client workspace",
+      href: `/portal/clients/${client.id}`,
+    }, [client.name, client.workspaceLabel]);
+  }
+
+  for (const task of listAgencyTasks(agencyId)) {
+    if (!access.taskVisible(task)) continue;
+    push(candidates, {
+      id: task.id,
+      category: "Task",
+      title: task.title,
+      subtitle: [readable(task.status), task.priority, task.dueAt ? `Due ${formatUkDate(task.dueAt, { dateStyle: "medium" })}` : ""].filter(Boolean).join(" · "),
+      href: `/portal/agency/actions?task=${encodeURIComponent(task.id)}`,
+    }, [task.notes, task.recurrence]);
+  }
+
+  const { resolveBusinessRadarAccessForActor } = await import("@/lib/server/intelligence/personalRadarAccess");
+  if (await resolveBusinessRadarAccessForActor(actor)) {
+    push(candidates, {
+      id: "business-radar",
+      category: "Radar",
+      title: "Business Radar",
+      subtitle: "Organisation-wide risks, checks and evidence",
+      href: "/portal/agency/radar",
+    }, ["business company organisation incidents evidence"]);
+  }
+  return candidates;
+}
+
+async function buildCandidates(
+  agencyId: string,
+  userId: string,
+  role: Role,
+  isolatedShowcase: boolean,
+  access: SearchCandidateAccess,
+  actor: Awaited<ReturnType<typeof requireCurrentAccessActor>>,
+): Promise<Candidate[]> {
   const state = getState();
   const clients = listClients(agencyId, { includeArchived: true });
   const clientById = new Map(clients.map(client => [client.id, client]));
@@ -386,6 +455,7 @@ async function buildCandidates(agencyId: string, userId: string, role: Role, iso
   }
 
   for (const task of listAgencyTasks(agencyId)) {
+    if (!access.taskVisible(task)) continue;
     push(candidates, {
       id: task.id,
       category: "Task",
@@ -470,11 +540,12 @@ async function buildCandidates(agencyId: string, userId: string, role: Role, iso
     }, [
       employee.email,
       employee.phone,
-      employee.currency,
-      employee.payBasis,
+      ...(access.staffPayVisible ? [employee.currency, employee.payBasis] : []),
       employee.workspaceAccess.map(item => `${item.stationId} ${item.mode}`).join(" "),
       employee.onboardingItems.map(item => `${item.label} ${item.status} ${item.evidence ?? ""}`).join(" "),
-      employee.commissionRules.map(rule => `${rule.label} ${rule.basis} ${rule.status} ${rule.ratePercent ?? ""}`).join(" "),
+      ...(access.staffPayVisible
+        ? [employee.commissionRules.map(rule => `${rule.label} ${rule.basis} ${rule.status} ${rule.ratePercent ?? ""}`).join(" ")]
+        : []),
     ], { matchLabel: "People record", timestamp: employee.updatedAt });
   }
 
@@ -571,7 +642,7 @@ async function buildCandidates(agencyId: string, userId: string, role: Role, iso
       listInboxSnapshot(agencyId),
       listOperationalAlerts(agencyId),
       getCachedBusinessIssueRadar(agencyId),
-      listRadarSourceSearchDatasets(agencyId),
+      listRadarSourceSearchDatasetsForActor(actor),
     ]);
     if (enquiriesResult.status === "fulfilled") addWebsiteEnquiryCandidates(candidates, enquiriesResult.value);
     if (inboxResult.status === "fulfilled") addInboxCandidates(candidates, inboxResult.value);

@@ -8,6 +8,7 @@ import { createAgency } from "../src/server/tenants";
 import { buildBusinessIssueRadar } from "../src/engines/data/server/radar/businessIssueRadar";
 import { runRadarDeepSweep, runRadarProbeRefresh, runRadarScheduledSweep } from "../src/engines/data/server/radar/radarSweeps";
 import { GET as cronInboxGet } from "../src/app/api/cron/inbox/route";
+import { createAgencyTask, listAgencyTasks } from "../src/server/tasks";
 
 // Radar upgrade — Stage 3: sweep-isolation.
 //
@@ -48,6 +49,8 @@ test("the Pulse performs zero network I/O", async () => {
 
 test("the Pulse writes none of the radar state collections", async () => {
   const agencyId = await freshAgency();
+  createAgencyTask({ agencyId, title: "Retained before read", priority: "normal", createdBy: "owner" });
+  const tasksBefore = structuredClone(listAgencyTasks(agencyId));
   await buildBusinessIssueRadar(agencyId, NOW);
   const state = storage.getState();
   // Pulse reads probes/infra/memory/evidence; it must never write them (that is the scheduled sweeps' job).
@@ -55,6 +58,8 @@ test("the Pulse writes none of the radar state collections", async () => {
   assert.equal(state.radarMemory[agencyId], undefined, "Pulse must not write radar memory");
   assert.equal(state.radarEvidence[agencyId], undefined, "Pulse must not write the evidence vault");
   assert.equal(state.radarInfraHealth, undefined, "Pulse must not run the Infra probe");
+  assert.deepEqual(listAgencyTasks(agencyId), tasksBefore,
+    "a read-only Pulse must not create, reopen, close or revise Actions");
 });
 
 test("the Deep sweep is scoped to probes and touches nothing without live targets", async () => {

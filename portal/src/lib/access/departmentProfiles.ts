@@ -70,7 +70,7 @@ export const DEPARTMENT_PROFILES: readonly DepartmentProfile[] = [
     // Campaigns are DELIBERATELY absent, even from `view`. Bulk sending from an
     // agency address is a reputational action, and a new caller on a trial is
     // the last person who should reach it.
-    view: ["growth.overview", "workspace.overview"],
+    view: ["growth.overview", "workspace.overview", "staff.overview"],
   },
   {
     id: "delivery",
@@ -81,7 +81,7 @@ export const DEPARTMENT_PROFILES: readonly DepartmentProfile[] = [
       "client.fulfilment", "client.communications", "client.files",
       "workspace.actions", "workspace.calendar", "workspace.files",
     ],
-    view: ["fulfilment.overview", "client.overview", "workspace.overview"],
+    view: ["fulfilment.overview", "client.overview", "workspace.overview", "staff.overview"],
   },
   {
     id: "finance",
@@ -90,7 +90,7 @@ export const DEPARTMENT_PROFILES: readonly DepartmentProfile[] = [
     use: ["client.commercial", "workspace.actions", "workspace.files"],
     // `staff.pay` is view-only even here. Seeing payroll to reconcile it is the
     // job; changing it is not, and the two are one keystroke apart.
-    view: ["client.overview", "workspace.overview", "staff.pay"],
+    view: ["client.overview", "workspace.overview", "staff.overview", "staff.pay"],
   },
   {
     id: "marketing",
@@ -99,14 +99,14 @@ export const DEPARTMENT_PROFILES: readonly DepartmentProfile[] = [
     use: ["growth.campaigns", "growth.leads", "client.marketing", "workspace.actions", "workspace.files"],
     // Contacts are viewable so a campaign audience can be understood, but the
     // dialler is not here: outreach is the sales seat's tool.
-    view: ["growth.overview", "growth.contacts", "workspace.overview"],
+    view: ["growth.overview", "growth.contacts", "workspace.overview", "staff.overview"],
   },
   {
     id: "support",
     label: "Support",
     purpose: "Answer what comes in, and keep every client's thread in one place.",
     use: ["workspace.inbox", "client.communications", "workspace.actions"],
-    view: ["client.overview", "client.record", "workspace.overview"],
+    view: ["client.overview", "client.record", "workspace.overview", "staff.overview"],
   },
 ];
 

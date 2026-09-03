@@ -16,9 +16,23 @@ import {
 import { buildExternalAdvisorContext } from "@/lib/server/assistants/externalAdvisorContext";
 import { listProposalsForExternalAssistant, submitExternalAssistantActionProposal } from "@/lib/server/assistants/externalAssistantProposals";
 import { flushPendingWrites } from "@/server/storage";
+import { EXTERNAL_ASSISTANT_MODULE_ELEMENT } from "@/lib/server/assistants/externalAssistantDelegation";
+import type { ExternalAssistantProposalCategory } from "@/server/types";
 
 const LATEST_PROTOCOL_VERSION = "2025-11-25";
 const SUPPORTED_PROTOCOL_VERSIONS = new Set([LATEST_PROTOCOL_VERSION, "2025-06-18", "2025-03-26"]);
+
+const PROPOSAL_CATEGORY_MODULES: Readonly<Record<ExternalAssistantProposalCategory, readonly ExternalAssistantModule[]>> = {
+  company: ["company"],
+  client: ["clients", "contacts"],
+  sales: ["leads"],
+  finance: ["finance"],
+  delivery: ["pipelines", "sops", "products", "milestones"],
+  support: ["client-care"],
+  development: ["business-modules"],
+  marketing: ["business-modules"],
+  operations: ["tasks"],
+};
 
 type JsonRpcId = string | number;
 type JsonRpcRequest = {
@@ -223,6 +237,10 @@ async function callTool(auth: ExternalAssistantAuth, name: string, args: Record<
   if (name === "aqua_propose_action") {
     requireExternalAssistantPermission(auth, "actions:propose");
     requireExternalAssistantModule(auth, "tasks");
+    const category = enumValue(args.category, ["company", "client", "sales", "finance", "delivery", "support", "development", "marketing", "operations"], "operations");
+    if (!PROPOSAL_CATEGORY_MODULES[category].some(module => auth.modules.includes(module))) {
+      throw new ExternalAssistantApiError(403, "proposal_category_denied", "The assistant key has no module authority for this proposal category.");
+    }
     const proposal = submitExternalAssistantActionProposal({
       agencyId: auth.agencyId,
       assistantKeyId: auth.keyId,
@@ -232,7 +250,8 @@ async function callTool(auth: ExternalAssistantAuth, name: string, args: Record<
       detail: stringValue(args.detail, "detail", 2_000),
       expectedOutcome: stringValue(args.expectedOutcome, "expectedOutcome", 600),
       evidence: stringListValue(args.evidence, "evidence", 20, 500),
-      category: enumValue(args.category, ["company", "client", "sales", "finance", "delivery", "support", "development", "marketing", "operations"], "operations"),
+      category,
+      requiredElements: [...new Set(auth.modules.map(module => EXTERNAL_ASSISTANT_MODULE_ELEMENT[module]))],
       priority: enumValue(args.priority, ["low", "normal", "high", "urgent"], "normal"),
       suggestedDueAt: dateTimeValue(args.suggestedDueAt),
       sourceIds: stringListValue(args.sourceIds, "sourceIds", 30, 240),

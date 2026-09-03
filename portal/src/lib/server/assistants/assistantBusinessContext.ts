@@ -64,7 +64,9 @@ export function buildAssistantBusinessContext(agencyId: string, scope: Assistant
 } {
   const state = getState();
   const agency = state.agencies[agencyId] ?? null;
-  const clients = Object.values(state.clients).filter(client => client.agencyId === agencyId);
+  const clients = Object.values(state.clients)
+    .filter(client => client.agencyId === agencyId)
+    .filter(client => scope.allowsClient(client.id));
   const clientIds = new Set(clients.map(client => client.id));
   const installs = Object.values(state.pluginInstalls).filter(install => install.agencyId === agencyId);
 
@@ -102,7 +104,7 @@ export function buildAssistantBusinessContext(agencyId: string, scope: Assistant
       })), []),
     clients: included("clients", clients.map(client => clean(client)), []),
     endCustomers: included("endCustomers", Object.values(state.endCustomers)
-      .filter(customer => customer.agencyId === agencyId)
+      .filter(customer => customer.agencyId === agencyId && scope.allowsClient(customer.clientId))
       .map(customer => clean(customer)), []),
     pipelines: included("pipelines", Object.values(state.pipelines)
       .filter(pipeline => pipeline.agencyId === agencyId)
@@ -110,8 +112,8 @@ export function buildAssistantBusinessContext(agencyId: string, scope: Assistant
     pipelineCards: included("pipelineCards", Object.values(state.pipelineCards)
       .filter(card => {
         const pipeline = state.pipelines[card.pipelineId];
-        return pipeline?.agencyId === agencyId
-          || (card.kind === "client" && clientIds.has(card.clientId));
+        if (pipeline?.agencyId !== agencyId) return false;
+        return card.kind !== "client" || clientIds.has(card.clientId);
       })
       .map(card => clean(card)), []),
     recentActivity: included("recentActivity", state.activity

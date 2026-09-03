@@ -157,6 +157,10 @@ const RADAR_NODE_POSITIONS = [
 export function BusinessRadarDashboard({
   variant,
   radar,
+  canRunScan,
+  canManagePolicy,
+  canCreateActions,
+  canManageWorkload,
   onRadarChange,
   onCreateTask,
   taskBusyId,
@@ -167,6 +171,10 @@ export function BusinessRadarDashboard({
 }: {
   variant: "executive" | "workspace";
   radar: BusinessIssueRadar;
+  canRunScan: boolean;
+  canManagePolicy: boolean;
+  canCreateActions: boolean;
+  canManageWorkload: boolean;
   onRadarChange: (radar: BusinessIssueRadar) => void;
   onCreateTask: (issue: BusinessRadarIssue) => Promise<void>;
   taskBusyId: string | null;
@@ -287,15 +295,15 @@ export function BusinessRadarDashboard({
                   <span className="text-[8px] font-semibold uppercase text-white/38">Manned</span>
                 </div>
               </div>
-              <button type="button" onClick={() => void refreshRadar()} disabled={scanBusy} title="Run radar sweep" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-white/15 bg-white/[0.06] px-3 text-sm font-semibold text-white hover:bg-white/10 disabled:opacity-50">
+              {canRunScan ? <button type="button" onClick={() => void refreshRadar()} disabled={scanBusy} title="Run radar sweep" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-white/15 bg-white/[0.06] px-3 text-sm font-semibold text-white hover:bg-white/10 disabled:opacity-50">
                 <RefreshCw size={15} className={scanBusy ? "animate-spin" : ""} /> {scanBusy ? "Sweeping" : "Sweep"}
-              </button>
+              </button> : null}
               <button type="button" onClick={() => onOpenInspector()} title="Inspect Radar evidence" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-white/15 bg-white/[0.06] px-3 text-sm font-semibold text-white hover:bg-white/10">
                 <Database size={15} /> Data
               </button>
-              <button type="button" onClick={() => setPolicyOpen(current => !current)} aria-expanded={policyOpen} title="Configure Radar policy" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-white/15 bg-white/[0.06] px-3 text-sm font-semibold text-white hover:bg-white/10">
+              {canManagePolicy ? <button type="button" onClick={() => setPolicyOpen(current => !current)} aria-expanded={policyOpen} title="Configure Radar policy" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-white/15 bg-white/[0.06] px-3 text-sm font-semibold text-white hover:bg-white/10">
                 <Settings2 size={15} /> Policy
-              </button>
+              </button> : null}
               <button type="button" onClick={() => window.dispatchEvent(new Event("aqua-advisor:open"))} title="Open Aqua Advisor" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-[#e8dcc2] px-3 text-sm font-semibold text-[#17211e] hover:bg-[#f2e8d3]">
                 <Bot size={15} /> Advisor
               </button>
@@ -393,7 +401,7 @@ export function BusinessRadarDashboard({
             <RadarMetric icon={<ShieldCheck size={14} />} label="Coverage" value={`${coveragePercent}%`} tone={coveragePercent < 70 ? "warning" : "healthy"} detail="The share of applicable checks that are currently observable. Open this card to find exactly which checks are blind." onExplain={setMetricHelp} onClick={() => onOpenInspector({ tab: "checks", status: "applicable" })} />
           </div>
         </section>
-        {policyOpen ? <RadarPolicyPanel key={radar.adaptive.policy.updatedAt} radar={radar} onSaved={onRadarChange} onClose={() => setPolicyOpen(false)} /> : null}
+        {canManagePolicy && policyOpen ? <RadarPolicyPanel key={radar.adaptive.policy.updatedAt} radar={radar} onSaved={onRadarChange} onClose={() => setPolicyOpen(false)} /> : null}
       </div>
     );
   }
@@ -423,12 +431,13 @@ export function BusinessRadarDashboard({
             <button type="button" onClick={() => onOpenInspector()} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-white/15 bg-white/[0.06] px-3 text-sm font-semibold text-white hover:bg-white/10">
               <Database size={15} /> Data inspector
             </button>
-            <button type="button" onClick={() => setPolicyOpen(current => !current)} aria-expanded={policyOpen} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-white/15 bg-white/[0.06] px-3 text-sm font-semibold text-white hover:bg-white/10">
+            {canManagePolicy ? <button type="button" onClick={() => setPolicyOpen(current => !current)} aria-expanded={policyOpen} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-white/15 bg-white/[0.06] px-3 text-sm font-semibold text-white hover:bg-white/10">
               <Settings2 size={15} /> Policy
-            </button>
-            <button type="button" onClick={() => void refreshRadar()} disabled={scanBusy} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-white/15 bg-white/[0.06] px-3 text-sm font-semibold text-white hover:bg-white/10 disabled:opacity-50">
+            </button> : null}
+            {canManageWorkload ? <Link href="/portal/agency/radar/workload" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-white/15 bg-white/[0.06] px-3 text-sm font-semibold text-white hover:bg-white/10"><Clock3 size={15} /> Department workload</Link> : null}
+            {canRunScan ? <button type="button" onClick={() => void refreshRadar()} disabled={scanBusy} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-white/15 bg-white/[0.06] px-3 text-sm font-semibold text-white hover:bg-white/10 disabled:opacity-50">
               <RefreshCw size={15} className={scanBusy ? "animate-spin" : ""} /> {scanBusy ? "Scanning" : "Scan now"}
-            </button>
+            </button> : null}
             <button type="button" onClick={() => window.dispatchEvent(new Event("aqua-advisor:open"))} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-semibold text-[#111513] hover:bg-white/90">
               <Bot size={15} /> {advisorConfigured ? "Ask Advisor" : "Open Advisor"}
             </button>
@@ -575,9 +584,9 @@ export function BusinessRadarDashboard({
                       {exactChecks.length ? <div className="mt-3 border-l border-white/15 pl-3"><p className="text-[9px] font-semibold uppercase text-white/30">What exactly</p><ul className="mt-1.5 space-y-1">{exactChecks.slice(0, 3).map(check => <li key={check.id} className="flex min-w-0 items-center gap-2 text-[11px] leading-4 text-white/48"><span className={`size-1.5 shrink-0 rounded-full ${check.status === "blind" || check.status === "critical" ? "bg-red-400" : check.status === "warning" ? "bg-amber-300" : "bg-sky-300"}`} /><span className="truncate">{check.title}</span></li>)}</ul>{exactChecks.length > 3 ? <p className="mt-1 text-[10px] text-white/30">+{exactChecks.length - 3} more in the exact breakdown</p> : null}</div> : issue.evidence[0] ? <p className="mt-2 text-[11px] leading-4 text-white/35">{issue.evidence[0]}</p> : null}
                     </button>
                     <div className="flex flex-wrap items-start gap-1 sm:justify-end">
-                      <button type="button" onClick={() => void onCreateTask(issue)} disabled={taskBusyId === `radar:${issue.id}`} title="Add to strict queue" aria-label={`Add ${issue.title} to strict queue`} className="grid size-9 place-items-center rounded-md border border-white/15 text-white/60 hover:bg-white/10 hover:text-white disabled:opacity-50">
+                      {canCreateActions ? <button type="button" onClick={() => void onCreateTask(issue)} disabled={taskBusyId === `radar:${issue.id}`} title="Add to strict queue" aria-label={`Add ${issue.title} to strict queue`} className="grid size-9 place-items-center rounded-md border border-white/15 text-white/60 hover:bg-white/10 hover:text-white disabled:opacity-50">
                         {taskBusyId === `radar:${issue.id}` ? <LoaderCircle size={14} className="animate-spin" /> : <Plus size={15} />}
-                      </button>
+                      </button> : null}
                       <button type="button" onClick={() => onOpenInspector({ tab: "incidents", query: issue.id, domain: issue.domain })} title="Inspect raw findings and every exact check" aria-label={`Open exact breakdown for ${issue.title}`} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-white/15 px-2.5 text-[11px] font-semibold text-white/65 hover:bg-white/10 hover:text-white"><Database size={14} /> Exact breakdown</button>
                       <Link href={issue.href} title="Open operational workspace" aria-label={`Open workspace for ${issue.title}`} className="grid size-9 place-items-center rounded-md border border-white/15 text-white/60 hover:bg-white/10 hover:text-white"><ArrowUpRight size={14} /></Link>
                     </div>
@@ -592,7 +601,7 @@ export function BusinessRadarDashboard({
         </div>
       </section>
 
-      {policyOpen ? <RadarPolicyPanel key={radar.adaptive.policy.updatedAt} radar={radar} onSaved={onRadarChange} onClose={() => setPolicyOpen(false)} /> : null}
+      {canManagePolicy && policyOpen ? <RadarPolicyPanel key={radar.adaptive.policy.updatedAt} radar={radar} onSaved={onRadarChange} onClose={() => setPolicyOpen(false)} /> : null}
 
       <section className="mm-radar-coverage-matrix mm-surface-card overflow-hidden rounded-lg border border-black/10" aria-labelledby="radar-coverage-heading">
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-black/10 px-4 py-4 sm:px-5">

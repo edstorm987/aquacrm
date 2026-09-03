@@ -1,13 +1,12 @@
-// My Radar — which of your departments is starving.
+// Business Radar's department-workload panel (legacy component name retained).
 //
-// Ed, 2026-08-29: *"if the owner is a one-man band it will just have the 5 or so
-// department profiles as the staff, so you see what areas are good and bad…
-// you see your skillset where you need to improve."*
+// This compares company-wide time allocation with configured department
+// baselines. It describes business capacity, not an individual's skill or
+// performance, including in a one-person company.
 //
 // ── Why this is not a radar CHART ─────────────────────────────────────────
 //
-// The name follows the product's existing Radar, which is a health system, not
-// a shape. The data's job here is "a ratio against a limit, per department",
+// The data's job here is "a ratio against a limit, per department",
 // and the right form for that is a METER, not a polygon. Spider charts encode
 // magnitude as area, which grows quadratically — a department on half its
 // baseline looks like a quarter — and their axis order silently changes the
@@ -42,6 +41,13 @@ export interface MyRadarPanelProps {
   daysWorked: number;
   /** Whose week this is. Omitted for the whole agency / the solo view. */
   personLabel?: string;
+  /** UI identity; department allocation now belongs to Business Radar. */
+  eyebrow?: string;
+  title?: string;
+  ariaLabel?: string;
+  wellbeingLabel?: string;
+  showWellbeing?: boolean;
+  aggregate?: boolean;
   headline: string;
   /**
    * Where baselines are set.
@@ -74,26 +80,42 @@ const STATUS: Record<DepartmentAllocation["status"], {
   unplanned:  { label: "No baseline", icon: Circle,        text: "text-black/40",    fill: "bg-black/25" },
 };
 
-export function MyRadarPanel({ allocation, wellbeing, daysWorked, personLabel, headline, baselinesHref, variant = "page" }: MyRadarPanelProps) {
+export function MyRadarPanel({
+  allocation,
+  wellbeing,
+  daysWorked,
+  personLabel,
+  eyebrow = "Department allocation",
+  title,
+  ariaLabel,
+  wellbeingLabel = "Day score",
+  showWellbeing = true,
+  aggregate = false,
+  headline,
+  baselinesHref,
+  variant = "page",
+}: MyRadarPanelProps) {
   // Nothing planned at all is the state worth acting on: every row reads "no
   // baseline", which is honest and useless until somebody states an intention.
   const nothingPlanned = allocation.departments.every(entry => entry.status === "unplanned");
   return (
     <section
-      aria-label={personLabel ? `My Radar — ${personLabel}` : "My Radar"}
+      aria-label={ariaLabel ?? (personLabel ? `Department allocation — ${personLabel}` : "Department allocation")}
       className={variant === "popover"
         ? "border-t border-black/[0.07] bg-white p-4"
         : "rounded-xl border border-black/10 bg-white p-4 shadow-sm"}
     >
       <header className="flex flex-wrap items-start justify-between gap-3 pb-3">
         <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-black/45">My Radar</p>
-          <h2 className="mt-0.5 text-sm font-semibold text-black/85">{personLabel ?? "Your departments"}</h2>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-black/45">{eyebrow}</p>
+          <h2 className="mt-0.5 text-sm font-semibold text-black/85">{title ?? personLabel ?? "Department workload"}</h2>
           {/* The one sentence worth reading first — and silent rather than
               confident when nothing is planned. */}
           <p className="mt-1 text-xs text-black/55">{headline}</p>
         </div>
-        <Wellbeing mean={wellbeing.mean} days={wellbeing.days} daysWorked={daysWorked} />
+        {showWellbeing
+          ? <Wellbeing label={wellbeingLabel} mean={wellbeing.mean} days={wellbeing.days} daysWorked={daysWorked} />
+          : <WorkCoverage daysWorked={daysWorked} />}
       </header>
 
       {allocation.departments.length ? (
@@ -102,7 +124,7 @@ export function MyRadarPanel({ allocation, wellbeing, daysWorked, personLabel, h
         </ul>
       ) : (
         <p className="border-t border-black/[0.07] py-4 text-xs text-black/45">
-          No hours recorded and no baselines set — set a weekly baseline per department to start judging them.
+          No hours recorded and no baselines set — set a weekly baseline per department to start assessing capacity.
         </p>
       )}
 
@@ -127,7 +149,7 @@ export function MyRadarPanel({ allocation, wellbeing, daysWorked, personLabel, h
           <Circle size={11} className="mt-0.5 shrink-0 text-black/30" aria-hidden="true" />
           <span>
             <strong className="font-semibold text-black/65">{allocation.unattributedHours}h</strong> worked with no
-            department set. Not counted against any of them — switch &ldquo;Working as&rdquo; before you start and it
+            department set. Not counted against any of them — {aggregate ? "each person should choose" : "choose"} &ldquo;Working as&rdquo; before work starts so it
             lands where it belongs.
           </span>
         </p>
@@ -173,7 +195,7 @@ function DepartmentRow({ entry }: { entry: DepartmentAllocation }) {
       ) : (
         // No track for an unplanned department: a meter with no limit would be
         // a bar chart of one number pretending to be a ratio.
-        <p className="mt-1 text-[10px] text-black/35">Set a weekly baseline to judge this one.</p>
+        <p className="mt-1 text-[10px] text-black/35">Set a weekly baseline to assess this area.</p>
       )}
     </li>
   );
@@ -187,10 +209,10 @@ function DepartmentRow({ entry }: { entry: DepartmentAllocation }) {
  * value, not a footnote, and the whole thing is absent rather than zero when
  * nobody has clocked out.
  */
-function Wellbeing({ mean, days, daysWorked }: { mean?: number; days: number; daysWorked: number }) {
+function Wellbeing({ label, mean, days, daysWorked }: { label: string; mean?: number; days: number; daysWorked: number }) {
   return (
     <div className="shrink-0 text-right">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-black/40">Day score</p>
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-black/40">{label}</p>
       {mean === undefined ? (
         <p className="mt-0.5 text-xs text-black/40">Not rated yet</p>
       ) : (
@@ -200,6 +222,16 @@ function Wellbeing({ mean, days, daysWorked }: { mean?: number; days: number; da
         </p>
       )}
       <p className="mt-0.5 text-[10px] text-black/35">{daysWorked} {daysWorked === 1 ? "day" : "days"} worked</p>
+    </div>
+  );
+}
+
+function WorkCoverage({ daysWorked }: { daysWorked: number }) {
+  return (
+    <div className="shrink-0 text-right">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-black/40">Work coverage</p>
+      <p className="mt-0.5 text-sm font-semibold tabular-nums text-black/80">{daysWorked} {daysWorked === 1 ? "day" : "days"}</p>
+      <p className="mt-0.5 text-[10px] text-black/35">with recorded work</p>
     </div>
   );
 }

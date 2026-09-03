@@ -41,7 +41,7 @@ import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/fou
 import { containerFor as leadsContainerFor } from "@aqua/plugin-leads-pipeline/server";
 import { listLegalDocuments } from "@/server/legalDocuments";
 import { getState } from "@/server/storage";
-import { listAgencyTasks, reconcileAgencyTasksWithRadar } from "@/server/tasks";
+import { listAgencyTasks } from "@/server/tasks";
 import { listAgencyCommandCalendarEntries } from "@/server/commandCalendar";
 import { listClients } from "@/server/tenants";
 import { listUsersForAgency } from "@/server/users";
@@ -122,10 +122,11 @@ export async function buildBusinessIssueRadar(
   const settings = getAgencyWorkspaceSettings(agencyId);
   const clients = listClients(agencyId, { includeArchived: true });
   const tasks = listAgencyTasks(agencyId);
-  const calendarEntries = listAgencyCommandCalendarEntries(agencyId);
-  const externalCalendarSources = Object.values(state.commandCalendarSources).filter(source => source.agencyId === agencyId && source.selected);
-  const externalCalendarSourceIds = new Set(externalCalendarSources.map(source => source.id));
-  const externalCalendarEvents = Object.values(state.commandCalendarExternalEvents).filter(event => event.agencyId === agencyId && externalCalendarSourceIds.has(event.sourceId));
+  // Command Calendar is person-owned (`ownerUserId`) and belongs in My Radar.
+  // Business Radar must never aggregate another person's goals, notes or
+  // synced calendar titles merely because the viewer can see the business.
+  const calendarEntries: ReturnType<typeof listAgencyCommandCalendarEntries> = [];
+  const externalCalendarEvents: typeof state.commandCalendarExternalEvents[string][] = [];
   const legalDocuments = listLegalDocuments(agencyId);
   const team = listUsersForAgency(agencyId);
   const installs = Object.values(state.pluginInstalls).filter(install => install.agencyId === agencyId && install.enabled);
@@ -138,7 +139,11 @@ export async function buildBusinessIssueRadar(
     leadInstall ? listRadarLeads(agencyId, leadInstall.id) : Promise.resolve([]),
   ]);
   const company = companyResult.status === "fulfilled" ? companyResult.value : null;
-  const operationalAlerts = alertResult.status === "fulfilled" ? alertResult.value : [];
+  const operationalAlerts = alertResult.status === "fulfilled"
+    ? alertResult.value.filter(alert =>
+        !alert.id.startsWith("calendar-reminder:")
+        && alert.id !== "people:chat-attention")
+    : [];
   const enquiries = enquiryResult.status === "fulfilled" ? enquiryResult.value : [];
   const inbox = inboxResult.status === "fulfilled" ? inboxResult.value : null;
   const leadRows = leadResult.status === "fulfilled" ? leadResult.value : [];
@@ -256,7 +261,7 @@ export async function buildBusinessIssueRadar(
       display: `${upcomingCommitments} next 7d`,
       target: "Every commitment owned and prepared",
       status: upcomingCommitments ? "healthy" : "unknown",
-      detail: `${upcomingTaskCommitments.length} dated tasks, ${upcomingCalendarEntries.length} Aqua calendar items, ${upcomingExternalCalendarEvents.length} synced work events and ${upcomingLeadMeetings.length} lead meetings are due in the next seven days.`,
+      detail: `${upcomingTaskCommitments.length} dated tasks and ${upcomingLeadMeetings.length} lead meetings are due in the next seven days. Personal calendar items stay in each person's My Radar.`,
       href: "/portal/agency?station=calendar",
       measuredAt: now,
       sampleSize: datedTasks.length + dayPlans.length + calendarEntries.length + externalCalendarEvents.length + leadMeetings.length,
@@ -318,7 +323,7 @@ export async function buildBusinessIssueRadar(
   const inboxMessages = inbox?.conversations.flatMap(conversation => conversation.messages) ?? [];
   const inboxMessageStatus: AdvisorCoverageSource["status"] = inboxResult.status === "rejected" ? "unavailable" : inboxMessages.length ? "connected" : "empty";
   const telemetryStatus: AdvisorCoverageSource["status"] = telemetry.totals.properties ? telemetry.totals.connectedTags ? "connected" : "empty" : developmentWebsite ? "empty" : "disconnected";
-  const calendarStatus: AdvisorCoverageSource["status"] = datedTasks.length || dayPlans.length || calendarEntries.length || externalCalendarEvents.length || leadMeetings.length ? "connected" : "empty";
+  const calendarStatus: AdvisorCoverageSource["status"] = datedTasks.length || dayPlans.length || leadMeetings.length ? "connected" : "empty";
 
   coverage.push(
     coverageSource("core:company", "company", "Company planning", "connected", company ? 1 : 0, company ? "Company health, objectives, plans and targets are readable." : "Company health could not be calculated.", now),
@@ -336,7 +341,7 @@ export async function buildBusinessIssueRadar(
     coverageSource("external:response-time-clocks", "sales", "Lead response clocks", responseClockStatus, recentEnquiries.length, "First-response timers, waiting duration and response SLA evidence for every recent enquiry.", latestTimestamp(recentEnquiries)),
     coverageSource("core:website-telemetry", "development", "Website telemetry", telemetryStatus, telemetry.properties.reduce((total, property) => total + property.events.length, 0), "Aqua Tag pageviews, forms, conversions, errors, performance and heartbeat events.", telemetry.totals.latestEventAt),
     coverageSource("external:inbox-messages", "inbox", "Inbox messages", inboxMessageStatus, inboxMessages.length, "Inbound and outbound message records used to prove replies and conversation continuity.", latestTimestamp(inboxMessages)),
-    coverageSource("core:calendar-commitments", "operations", "Calendar commitments", calendarStatus, datedTasks.length + dayPlans.length + calendarEntries.length + externalCalendarEvents.length + leadMeetings.length, "Dated tasks, Aqua calendar entries, synced Google work events, daily plans and lead meetings used to monitor upcoming, overdue and unowned commitments.", Math.max(latestTimestamp(datedTasks), latestTimestamp(dayPlans), latestTimestamp(calendarEntries), latestTimestamp(externalCalendarEvents), latestTimestamp(leadRows))),
+    coverageSource("core:calendar-commitments", "operations", "Business commitments", calendarStatus, datedTasks.length + dayPlans.length + leadMeetings.length, "Dated business tasks, daily plans and lead meetings. Person-owned goals and synced calendars stay in My Radar.", Math.max(latestTimestamp(datedTasks), latestTimestamp(dayPlans), latestTimestamp(leadRows))),
   );
 
   for (const install of installs) {
@@ -632,7 +637,6 @@ export async function buildBusinessIssueRadar(
     findingGroups: summariseFindingGroups(withMemory.incidents),
     memory,
   };
-  reconcileAgencyTasksWithRadar(agencyId, result, now);
   return result;
 }
 

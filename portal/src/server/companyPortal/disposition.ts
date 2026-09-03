@@ -237,6 +237,12 @@ export const PROMOTION_DISPOSITION = {
     reason:
       "Append-only, and `ActivityEntry` carries no `companyId` — of 352 `logActivity(` call sites roughly 200 pass no `clientId` either, so 'this company's history' is not a query that can be written. `agencyId` on a history row IS the access-control boundary (`activity.ts:72-77`); rewriting it would rewrite tenant isolation. The switcher supplies the continuity instead.",
   },
+  personalMetricDays: {
+    disposition: "leave",
+    ownership: "history",
+    keying: "agency-composite",
+    reason: "A bounded per-person, per-business-day projection of actor-stamped activity. It belongs to the tenant where the work occurred and is never re-stamped during company promotion.",
+  },
   clientRecordLedger: {
     disposition: "rekey",
     ownership: "client",
@@ -921,7 +927,9 @@ type _NoStaleCollections = AssertNever<StaleCollections>;
 // 94 → 95 on 2026-08-31: `websiteDemoSignups`, the public AquaCRM demo gate's
 // consent records. Classified `na` before the number moved — they carry no
 // tenant key and live outside the live data realm entirely.
-export const PROMOTION_COLLECTION_COUNT = 98;
+// 98 → 99 on 2026-09-03: `personalMetricDays`, the bounded actor-owned
+// semantic projection behind personal recurring targets.
+export const PROMOTION_COLLECTION_COUNT = 99;
 
 /** Every classified collection name, in `PortalState` order. */
 export const PROMOTION_COLLECTIONS = Object.keys(PROMOTION_DISPOSITION) as Array<

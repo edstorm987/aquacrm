@@ -81,7 +81,7 @@ export async function LeadsPipelineWorkspaceServer({ agencyId, userId }: { agenc
         archivedAt: lead.archivedAt,
       }))}
       columns={pipeline.columns.map(column => ({ id: column.id, label: column.label, color: column.color }))}
-      scoutingQuota={scoutingQuotaProgress(agencyId, userId, prospectList)}
+      scoutingQuota={scoutingQuotaProgress(agencyId, userId)}
       prospects={prospectList.filter(prospect => prospect.status === "scouting").map(prospect => ({
         id: prospect.id,
         name: prospect.name,

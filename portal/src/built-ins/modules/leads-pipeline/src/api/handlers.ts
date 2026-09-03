@@ -248,7 +248,32 @@ export async function qualifyProspectHandler(req: Request, ctx: PluginCtx): Prom
   if (!body?.id) return badRequest("id required.");
   const c = buildContainer(ctx);
   const prospect = await c.prospects.get(body.id);
-  if (!prospect || prospect.status !== "scouting") return notFound("active_prospect_not_found");
+  if (!prospect) return notFound("active_prospect_not_found");
+  const recordQualificationActivity = async (leadId: string) => ctx.services.activity.logActivity({
+    idempotencyKey: `personal-metric:prospect-qualified:${prospect.id}:${leadId}`,
+    agencyId: ctx.agencyId,
+    actorUserId: ctx.actor,
+    category: "leads",
+    action: "leads.prospect.qualified",
+    message: `Qualified ${prospect.name || prospect.company || prospect.email || prospect.id} as a lead.`,
+    metadata: { prospectId: prospect.id, leadId },
+  });
+  if (prospect.status !== "scouting") {
+    // Qualification commits the lead/prospect before the audit projection.
+    // If that final append failed, a retry must repair the idempotent evidence
+    // rather than strand the person's qualified counter permanently.
+    if (prospect.status === "qualified" && prospect.qualifiedLeadId) {
+      try {
+        const lead = await c.leads.get(prospect.qualifiedLeadId);
+        if (!lead) return notFound("qualified_lead_not_found");
+        await recordQualificationActivity(lead.id);
+        return json({ ok: true, prospect, lead, created: false, repaired: true });
+      } catch (err) {
+        return unprocessable(err instanceof Error ? err.message : String(err));
+      }
+    }
+    return notFound("active_prospect_not_found");
+  }
   if (!prospect.email && !prospect.phone) {
     return unprocessable("Add an email address or phone number before qualifying this prospect as a lead.");
   }
@@ -317,6 +342,7 @@ export async function qualifyProspectHandler(req: Request, ctx: PluginCtx): Prom
       status: "qualified",
       qualifiedLeadId: result.lead.id,
     }, ctx.actor);
+    await recordQualificationActivity(result.lead.id);
     return json({ ok: true, prospect: updated, lead: result.lead, created: result.created });
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));
@@ -2062,6 +2088,17 @@ export async function convertContactToClientHandler(req: Request, ctx: PluginCtx
       retryable: true,
     }, 503);
   }
+
+  await ctx.services.activity.logActivity({
+    idempotencyKey: `personal-metric:contact-converted:${contact.id}:${client.id}`,
+    agencyId: ctx.agencyId,
+    clientId: client.id,
+    actorUserId: ctx.actor,
+    category: "leads",
+    action: "leads.contact.converted",
+    message: `Converted ${contact.name || contact.company || contact.email || contact.id} to a client.`,
+    metadata: { contactId: contact.id, clientId: client.id },
+  });
 
   return json({
     ok: true,

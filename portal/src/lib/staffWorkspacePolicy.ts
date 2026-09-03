@@ -14,6 +14,7 @@ export type StaffWorkspaceCapabilityId =
   | "fulfilment"
   | "portal-studio"
   | "development-projects"
+  | "personal-radar"
   | "shared-chrome"
   | "account"
   | "access-requests";
@@ -25,7 +26,7 @@ export type StaffWorkspacePathMatch = {
 };
 
 export interface StaffWorkspaceNavigationItem {
-  id: "team" | "people" | "fulfilment" | "account";
+  id: "team" | "my-radar" | "people" | "fulfilment" | "account";
   label: string;
   href: string;
   panelId: "main" | "settings";
@@ -104,6 +105,20 @@ export const STAFF_WORKSPACE_CAPABILITIES: readonly StaffWorkspaceCapabilityPoli
     id: "development-projects",
     pages: [{ path: "/portal/dev-workspace", match: "prefix" }],
     apiPrefixes: ["/api/portal/dev", "/api/portal/site-editor/files"],
+  },
+  {
+    id: "personal-radar",
+    // Exact and leaf-gated by staff.overview: a person's Radar does not grant
+    // staff access to the agency Command Centre or Business Radar beneath it.
+    pages: [
+      { path: "/portal/agency/my-radar", match: "exact" },
+      { path: "/portal/agency/calendar", match: "exact" },
+    ],
+    apiPrefixes: [],
+    // The actor-resolved sidebar contributes this destination to search when
+    // enabled. Do not also add a role-only static row: that would advertise a
+    // dead link when staff.overview is hidden.
+    navigation: { id: "my-radar", label: "My Radar", href: "/portal/agency/my-radar", panelId: "main", order: 5 },
   },
   {
     id: "shared-chrome",

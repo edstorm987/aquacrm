@@ -86,6 +86,7 @@ export function UnifiedInboxWorkspace({
   communicationReadiness,
   clientProfiles,
   focusThreadKey,
+  canMutate,
 }: {
   websiteForms: WebsiteEnquiry[];
   conversations: ClientConversation[];
@@ -95,6 +96,7 @@ export function UnifiedInboxWorkspace({
   communicationReadiness: OutboundCommunicationReadiness;
   clientProfiles: UnifiedClientProfile[];
   focusThreadKey?: string | null;
+  canMutate: boolean;
 }) {
   const router = useRouter();
   const [queue, setQueue] = useState<Queue>("all");
@@ -146,7 +148,7 @@ export function UnifiedInboxWorkspace({
   async function selectThread(thread: UnifiedThread) {
     setMobileThreadOpen(true);
     setSelectedKey(thread.key);
-    if (thread.kind !== "social" || thread.value.unreadCount === 0) return;
+    if (!canMutate || thread.kind !== "social" || thread.value.unreadCount === 0) return;
     try {
       await checkedJsonMutation("/api/portal/inbox/conversations", {
         method: "PATCH",
@@ -206,7 +208,7 @@ export function UnifiedInboxWorkspace({
 
       {/* THREAD PANE */}
       <div className={mobileThreadOpen ? "flex min-h-0 flex-col" : "hidden lg:flex lg:min-h-0 lg:flex-col"}>
-        {selected ? <UnifiedThreadPanel thread={selected} communicationReadiness={communicationReadiness} onBack={() => setMobileThreadOpen(false)} /> : <div className="grid flex-1 place-items-center p-8 text-center"><div>
+        {selected ? <UnifiedThreadPanel thread={selected} communicationReadiness={communicationReadiness} canMutate={canMutate} onBack={() => setMobileThreadOpen(false)} /> : <div className="grid flex-1 place-items-center p-8 text-center"><div>
           <svg viewBox="0 0 64 40" className="mx-auto h-10 w-16 text-black/15" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
             <rect x="4" y="4" width="34" height="20" rx="4" />
             <path d="M12 24v6l7-6" />
@@ -221,11 +223,11 @@ export function UnifiedInboxWorkspace({
   </section>;
 }
 
-function UnifiedThreadPanel({ thread, communicationReadiness, onBack }: { thread: UnifiedThread; communicationReadiness: OutboundCommunicationReadiness; onBack: () => void }) {
-  if (thread.kind === "website") return <WebsiteThread item={thread.value} readiness={communicationReadiness} onBack={onBack} />;
-  if (thread.kind === "social") return <SocialThread item={thread.value} onBack={onBack} />;
+function UnifiedThreadPanel({ thread, communicationReadiness, canMutate, onBack }: { thread: UnifiedThread; communicationReadiness: OutboundCommunicationReadiness; canMutate: boolean; onBack: () => void }) {
+  if (thread.kind === "website") return <WebsiteThread item={thread.value} readiness={communicationReadiness} canMutate={canMutate} onBack={onBack} />;
+  if (thread.kind === "social") return <SocialThread item={thread.value} canMutate={canMutate} onBack={onBack} />;
   if (thread.kind === "profile") return <ClientProfile item={thread.value} onBack={onBack} />;
-  return <ClientThread item={thread.value} onBack={onBack} />;
+  return <ClientThread item={thread.value} canMutate={canMutate} onBack={onBack} />;
 }
 
 function ClientProfile({ item, onBack }: { item: UnifiedClientProfile; onBack: () => void }) {
@@ -257,7 +259,7 @@ function ClientProfile({ item, onBack }: { item: UnifiedClientProfile; onBack: (
   </div>;
 }
 
-function WebsiteThread({ item, readiness, onBack }: { item: WebsiteEnquiry; readiness: OutboundCommunicationReadiness; onBack: () => void }) {
+function WebsiteThread({ item, readiness, canMutate, onBack }: { item: WebsiteEnquiry; readiness: OutboundCommunicationReadiness; canMutate: boolean; onBack: () => void }) {
   const Icon = item.channel === "chatbot" ? Bot : item.channel === "support" ? LifeBuoy : FileText;
   return <div className="flex min-h-[680px] min-w-0 flex-1 flex-col">
     <ThreadHeader icon={<Icon size={11} />} name={item.name} channel={item.channel} source={item.siteName} email={item.email} phone={item.phone} onBack={onBack} />
@@ -268,14 +270,14 @@ function WebsiteThread({ item, readiness, onBack }: { item: WebsiteEnquiry; read
         <p className="whitespace-pre-wrap leading-5">{item.message || "No written message was included."}</p>
         <span className="mt-2 flex flex-wrap items-center gap-2 text-xs text-black/35"><span>{item.siteName}</span><span>·</span><time>{longDate(item.submittedAt)}</time></span>
       </div>
-      <div className="mt-4 rounded-lg border border-black/[0.07] bg-white p-4">
+      <fieldset disabled={!canMutate} className="mt-4 rounded-lg border border-black/[0.07] bg-white p-4">
         <EnquiryCommunications item={item} readiness={readiness} compact />
-      </div>
+      </fieldset>
     </div>
   </div>;
 }
 
-function SocialThread({ item, onBack }: { item: InboxConversationThread; onBack: () => void }) {
+function SocialThread({ item, canMutate, onBack }: { item: InboxConversationThread; canMutate: boolean; onBack: () => void }) {
   const router = useRouter();
   const [draft, setDraft] = useState("");
   const [mode, setMode] = useState<"reply" | "note">("reply");
@@ -298,7 +300,7 @@ function SocialThread({ item, onBack }: { item: InboxConversationThread; onBack:
   useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }); }, [item.messages.length]);
 
   async function send() {
-    if (!draft.trim() && !attachments.length) return;
+    if (!canMutate || (!draft.trim() && !attachments.length)) return;
     const payloadKey = JSON.stringify([
       item.id,
       draft.trim().slice(0, 2_000),
@@ -331,6 +333,7 @@ function SocialThread({ item, onBack }: { item: InboxConversationThread; onBack:
   }
 
   async function upload(file: File) {
+    if (!canMutate) return;
     setUploadBusy(true);
     setError("");
     const form = new FormData();
@@ -365,6 +368,7 @@ function SocialThread({ item, onBack }: { item: InboxConversationThread; onBack:
   }
 
   async function toggleRecording() {
+    if (!canMutate) return;
     if (recording) {
       const recorder = recorderRef.current;
       if (!recorder || recorder.state === "inactive") return;
@@ -420,12 +424,12 @@ function SocialThread({ item, onBack }: { item: InboxConversationThread; onBack:
       <div className="mb-2 flex items-center justify-between gap-3"><div className="inline-flex rounded-md bg-black/[0.045] p-0.5"><button type="button" onClick={() => setMode("reply")} className={`min-h-8 rounded px-3 text-xs font-semibold ${mode === "reply" ? "bg-white text-black shadow-sm" : "text-black/45"}`}>Reply</button><button type="button" onClick={() => setMode("note")} className={`min-h-8 rounded px-3 text-xs font-semibold ${mode === "note" ? "bg-white text-black shadow-sm" : "text-black/45"}`}>Internal note</button></div><span className="text-xs text-black/35">Send as {item.connection.displayName}</span></div>
       {error ? <p className="mb-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p> : null}
       {mode === "reply" && attachments.length ? <div className="mb-2 flex flex-wrap gap-2">{attachments.map(attachment => <span key={attachment.id} className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-black/10 bg-black/[0.03] py-1 pl-2.5 pr-1.5 text-xs text-black/60">{attachment.kind === "audio" ? <Mic size={12} /> : <FileIcon size={12} />}<span className="max-w-40 truncate">{attachment.name}</span><button type="button" onClick={() => setAttachments(current => current.filter(value => value.id !== attachment.id))} aria-label={`Remove ${attachment.name}`} className="grid size-5 place-items-center rounded-full hover:bg-black/[0.06]"><Trash2 size={11} /></button></span>)}</div> : null}
-      <div className="flex items-end gap-1.5 rounded-lg border border-black/10 bg-black/[0.02] p-1.5 focus-within:border-black/25 focus-within:bg-white"><textarea rows={2} value={draft} onChange={event => setDraft(event.target.value)} disabled={mode === "reply" && !windowOpen} placeholder={mode === "note" ? "Add an internal note" : `Reply to ${item.identity.displayName}`} className="min-w-0 flex-1 resize-none bg-transparent px-2.5 py-2 text-xs leading-5 outline-none disabled:opacity-40" />{mode === "reply" ? <><input ref={fileInputRef} type="file" multiple className="sr-only" accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" onChange={event => void addFiles(event.target.files)} /><button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploadBusy || !windowOpen} className="grid size-9 shrink-0 place-items-center rounded-full text-black/45 hover:bg-black/[0.05] disabled:opacity-30" title="Attach file" aria-label="Attach file"><Paperclip size={15} /></button><button type="button" onClick={() => void toggleRecording()} disabled={uploadBusy || !windowOpen} className={`grid size-9 shrink-0 place-items-center rounded-full disabled:opacity-30 ${recording ? "bg-red-50 text-red-700" : "text-black/45 hover:bg-black/[0.05]"}`} title={recording ? "Stop voice note" : "Record voice note"} aria-label={recording ? "Stop voice note" : "Record voice note"}>{recording ? <StopCircle size={15} /> : <Mic size={15} />}</button></> : null}<button type="button" onClick={() => void send()} disabled={busy || uploadBusy || recording || (!draft.trim() && !attachments.length) || (mode === "reply" && !windowOpen)} className="grid size-9 shrink-0 place-items-center rounded-full bg-black text-white transition-opacity disabled:opacity-35" aria-label="Send message">{mode === "note" ? <StickyNote size={15} /> : <Send size={15} />}</button></div>
+      <div className="flex items-end gap-1.5 rounded-lg border border-black/10 bg-black/[0.02] p-1.5 focus-within:border-black/25 focus-within:bg-white"><textarea rows={2} value={draft} onChange={event => setDraft(event.target.value)} disabled={!canMutate || (mode === "reply" && !windowOpen)} placeholder={!canMutate ? "This conversation is view only" : mode === "note" ? "Add an internal note" : `Reply to ${item.identity.displayName}`} className="min-w-0 flex-1 resize-none bg-transparent px-2.5 py-2 text-xs leading-5 outline-none disabled:opacity-40" />{mode === "reply" ? <><input ref={fileInputRef} type="file" multiple disabled={!canMutate} className="sr-only" accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" onChange={event => void addFiles(event.target.files)} /><button type="button" onClick={() => fileInputRef.current?.click()} disabled={!canMutate || uploadBusy || !windowOpen} className="grid size-9 shrink-0 place-items-center rounded-full text-black/45 hover:bg-black/[0.05] disabled:opacity-30" title="Attach file" aria-label="Attach file"><Paperclip size={15} /></button><button type="button" onClick={() => void toggleRecording()} disabled={!canMutate || uploadBusy || !windowOpen} className={`grid size-9 shrink-0 place-items-center rounded-full disabled:opacity-30 ${recording ? "bg-red-50 text-red-700" : "text-black/45 hover:bg-black/[0.05]"}`} title={recording ? "Stop voice note" : "Record voice note"} aria-label={recording ? "Stop voice note" : "Record voice note"}>{recording ? <StopCircle size={15} /> : <Mic size={15} />}</button></> : null}<button type="button" onClick={() => void send()} disabled={!canMutate || busy || uploadBusy || recording || (!draft.trim() && !attachments.length) || (mode === "reply" && !windowOpen)} className="grid size-9 shrink-0 place-items-center rounded-full bg-black text-white transition-opacity disabled:opacity-35" aria-label="Send message">{mode === "note" ? <StickyNote size={15} /> : <Send size={15} />}</button></div>
     </aside>
   </div>;
 }
 
-function ClientThread({ item, onBack }: { item: ClientConversation; onBack: () => void }) {
+function ClientThread({ item, canMutate, onBack }: { item: ClientConversation; canMutate: boolean; onBack: () => void }) {
   const router = useRouter();
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -443,7 +447,7 @@ function ClientThread({ item, onBack }: { item: ClientConversation; onBack: () =
   // Instant jump, not smooth scrolling, so reduced-motion needs no handling.
   useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }); }, [item.replies.length]);
   async function send() {
-    if (!draft.trim() && !attachments.length) return;
+    if (!canMutate || (!draft.trim() && !attachments.length)) return;
     setBusy(true);
     setError("");
     try {
@@ -463,6 +467,7 @@ function ClientThread({ item, onBack }: { item: ClientConversation; onBack: () =
     router.refresh();
   }
   async function upload(file: File) {
+    if (!canMutate) return;
     setUploadBusy(true);
     setError("");
     const form = new FormData();
@@ -495,6 +500,7 @@ function ClientThread({ item, onBack }: { item: ClientConversation; onBack: () =
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
   async function toggleRecording() {
+    if (!canMutate) return;
     if (recording) {
       const recorder = recorderRef.current;
       if (!recorder || recorder.state === "inactive") return;
@@ -549,7 +555,7 @@ function ClientThread({ item, onBack }: { item: ClientConversation; onBack: () =
     <aside className="border-t border-black/10 bg-white p-3">
       {error ? <p className="mb-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p> : null}
       {attachments.length ? <div className="mb-2 flex flex-wrap gap-2">{attachments.map(attachment => <span key={attachment.id} className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-black/10 bg-black/[0.03] py-1 pl-2.5 pr-1.5 text-xs text-black/60">{attachment.kind === "audio" ? <Mic size={12} /> : <FileIcon size={12} />}<span className="max-w-40 truncate">{attachment.name}</span><button type="button" onClick={() => setAttachments(current => current.filter(value => value.id !== attachment.id))} aria-label={`Remove ${attachment.name}`} className="grid size-5 place-items-center rounded-full hover:bg-black/[0.06]"><Trash2 size={11} /></button></span>)}</div> : null}
-      <div className="flex items-end gap-1.5 rounded-lg border border-black/10 bg-black/[0.02] p-1.5 focus-within:border-black/25 focus-within:bg-white"><textarea rows={2} value={draft} onChange={event => setDraft(event.target.value)} placeholder={`Reply to ${item.clientName}`} className="min-w-0 flex-1 resize-none bg-transparent px-2.5 py-2 text-xs leading-5 outline-none" /><input ref={fileInputRef} type="file" multiple className="sr-only" accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" onChange={event => void addFiles(event.target.files)} /><button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploadBusy} className="grid size-9 shrink-0 place-items-center rounded-full text-black/45 hover:bg-black/[0.05] disabled:opacity-30" title="Attach file" aria-label="Attach file"><Paperclip size={15} /></button><button type="button" onClick={() => void toggleRecording()} disabled={uploadBusy} className={`grid size-9 shrink-0 place-items-center rounded-full disabled:opacity-30 ${recording ? "bg-red-50 text-red-700" : "text-black/45 hover:bg-black/[0.05]"}`} title={recording ? "Stop voice note" : "Record voice note"} aria-label={recording ? "Stop voice note" : "Record voice note"}>{recording ? <StopCircle size={15} /> : <Mic size={15} />}</button><button type="button" onClick={() => void send()} disabled={busy || uploadBusy || recording || (!draft.trim() && !attachments.length)} className="grid size-9 shrink-0 place-items-center rounded-full bg-black text-white transition-opacity disabled:opacity-35" aria-label="Send client portal reply"><Send size={15} /></button></div>
+      <div className="flex items-end gap-1.5 rounded-lg border border-black/10 bg-black/[0.02] p-1.5 focus-within:border-black/25 focus-within:bg-white"><textarea rows={2} value={draft} onChange={event => setDraft(event.target.value)} disabled={!canMutate} placeholder={canMutate ? `Reply to ${item.clientName}` : "This conversation is view only"} className="min-w-0 flex-1 resize-none bg-transparent px-2.5 py-2 text-xs leading-5 outline-none disabled:opacity-40" /><input ref={fileInputRef} type="file" multiple disabled={!canMutate} className="sr-only" accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt" onChange={event => void addFiles(event.target.files)} /><button type="button" onClick={() => fileInputRef.current?.click()} disabled={!canMutate || uploadBusy} className="grid size-9 shrink-0 place-items-center rounded-full text-black/45 hover:bg-black/[0.05] disabled:opacity-30" title="Attach file" aria-label="Attach file"><Paperclip size={15} /></button><button type="button" onClick={() => void toggleRecording()} disabled={!canMutate || uploadBusy} className={`grid size-9 shrink-0 place-items-center rounded-full disabled:opacity-30 ${recording ? "bg-red-50 text-red-700" : "text-black/45 hover:bg-black/[0.05]"}`} title={recording ? "Stop voice note" : "Record voice note"} aria-label={recording ? "Stop voice note" : "Record voice note"}>{recording ? <StopCircle size={15} /> : <Mic size={15} />}</button><button type="button" onClick={() => void send()} disabled={!canMutate || busy || uploadBusy || recording || (!draft.trim() && !attachments.length)} className="grid size-9 shrink-0 place-items-center rounded-full bg-black text-white transition-opacity disabled:opacity-35" aria-label="Send client portal reply"><Send size={15} /></button></div>
       <div className="mt-2 flex justify-end"><Link href={`/portal/clients/${item.clientId}`} className="inline-flex items-center gap-1 text-xs font-semibold text-brand">Open client record <ExternalLink size={11} /></Link></div>
     </aside>
   </div>;

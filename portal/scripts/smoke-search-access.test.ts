@@ -4,6 +4,7 @@ import test from "node:test";
 
 import type { CurrentAccessActor } from "../src/server/accessControl";
 import type { AccessCapability, AccessGrant, ServerUser } from "../src/server/types";
+import type { OperationalAlert } from "../src/lib/intelligence/operationalAttention";
 
 const require = createRequire(import.meta.url);
 const serverOnlyPath = require.resolve("server-only");
@@ -150,4 +151,95 @@ test("owner and manager search retain the complete legacy index", async () => {
     assert.equal(access.visible({ category: "Invoice", href: "/portal/agency/agency-finance/invoices/one" }), true);
     assert.equal(access.visible({ category: "Radar", href: "/portal/agency/radar" }), true);
   }
+});
+
+test("a Growth-only or Fulfilment-only manager is governed, never a legacy whole-business reader", async () => {
+  const { resolveBusinessRadarAccessForActor, resolvePersonalRadarAccessForActor } = await import("../src/lib/server/intelligence/personalRadarAccess");
+  for (const policy of [
+    grant("growth-only", { kind: "workspace", id: "growth" }, ["element.growth.leads.view"]),
+    grant("fulfilment-only", { kind: "workspace", id: "fulfilment" }, ["element.fulfilment.projects.view"]),
+  ]) {
+    const restricted = await actor({ role: "agency-manager", grants: [policy] });
+    assert.equal(await resolveBusinessRadarAccessForActor(restricted), false);
+    assert.deepEqual(await resolvePersonalRadarAccessForActor(restricted), {
+      goalsAvailable: false,
+      goalsWritable: false,
+    });
+  }
+});
+
+test("an exact-client manager policy cannot recover the legacy all-client Search index", async () => {
+  const { searchCandidateAccess } = await import("../src/lib/server/access/searchCandidateAccess");
+  const access = searchCandidateAccess(await actor({
+    role: "agency-manager",
+    grants: [grant("one-client", { kind: "client", id: CLIENT_A }, ["element.client.overview.view"])],
+  }));
+  assert.notEqual(access.fullAccess, true);
+  assert.equal(access.visible({ category: "Client", href: `/portal/clients/${CLIENT_A}` }), true);
+  assert.equal(access.visible({ category: "Client", href: `/portal/clients/${CLIENT_B}` }), false);
+});
+
+test("operational notifications use destination elements and never expose unowned personal calendar rows", async () => {
+  const { filterOperationalAlertsForActor } = await import("../src/lib/server/access/operationalAlertAccess");
+  const alerts: OperationalAlert[] = [{
+    id: "support:a",
+    severity: "warning",
+    category: "support",
+    title: "Visible client request",
+    detail: "Client A",
+    href: "/portal/agency/inbox",
+    clientId: CLIENT_A,
+    occurredAt: 1,
+  }, {
+    id: "support:b",
+    severity: "warning",
+    category: "support",
+    title: "Hidden client request",
+    detail: "Client B",
+    href: "/portal/agency/inbox",
+    clientId: CLIENT_B,
+    occurredAt: 1,
+  }, {
+    id: "finance:overdue-invoices",
+    severity: "critical",
+    category: "money",
+    title: "Hidden finance total",
+    detail: "Commercial",
+    href: "/portal/agency/agency-finance/invoices",
+    occurredAt: 1,
+  }, {
+    id: "calendar-reminder:owner-only",
+    severity: "notice",
+    category: "task",
+    title: "Private appointment",
+    detail: "No actor provenance",
+    href: "/portal/agency/calendar",
+    occurredAt: 1,
+  }];
+
+  const restricted = await actor({
+    role: "agency-manager",
+    grants: [
+      grant("inbox", { kind: "workspace", id: "staff" }, ["element.workspace.inbox.view"]),
+      grant("client-a-comms", { kind: "client", id: CLIENT_A }, ["element.client.communications.view"]),
+    ],
+  });
+  const workspaceAccess = await import("../src/lib/server/access/workspaceElementAccess");
+  const clientAccess = await import("../src/lib/server/access/clientWorkspaceElementAccess");
+  const staff = workspaceAccess.resolveActorWorkspaceElementAccess(restricted, "staff");
+  const clientA = clientAccess.resolveActorClientWorkspaceElementAccess(restricted, CLIENT_A);
+  assert.equal(workspaceAccess.workspaceElementLevel(staff, "workspace.inbox"), "view");
+  assert.equal(clientAccess.clientWorkspaceElementLevel(clientA, "client.communications"), "view");
+  assert.deepEqual(filterOperationalAlertsForActor(restricted, alerts).map(alert => alert.id), ["support:a"]);
+
+  const legacyManager = await actor({ role: "agency-manager" });
+  assert.deepEqual(
+    filterOperationalAlertsForActor(legacyManager, alerts).map(alert => alert.id),
+    ["support:a", "support:b", "finance:overdue-invoices"],
+  );
+  const owner = await actor({ role: "agency-owner" });
+  assert.deepEqual(
+    filterOperationalAlertsForActor(owner, alerts).map(alert => alert.id),
+    ["support:a", "support:b", "finance:overdue-invoices"],
+  );
 });

@@ -162,11 +162,20 @@ describe("the three surfaces actually enforce it", () => {
     const src = read("src/app/api/portal/tasks/route.ts");
     assert.match(src, /await requireClientAssociation\("agency-task", body\.clientId, "use"\)/,
       "creating a client-attached Action is ungated again");
+    const patchHandler = src.slice(src.indexOf("export async function PATCH"), src.indexOf("export async function DELETE"));
+    const transaction = patchHandler.indexOf("withPortalStateTransaction");
+    const currentLookup = patchHandler.indexOf("const current = listAgencyTasks", transaction);
+    const staffOwnershipGate = patchHandler.indexOf('session.role === "agency-staff"', currentLookup);
+    const oldAssociationGate = patchHandler.indexOf('requireClientAssociation("agency-task", current?.clientId, "use")', staffOwnershipGate);
+    const update = patchHandler.indexOf("updateAgencyTask", oldAssociationGate);
+    assert.ok(transaction >= 0 && currentLookup > transaction && staffOwnershipGate > currentLookup
+      && oldAssociationGate > staffOwnershipGate && update > oldAssociationGate,
+      "PATCH must read, authorize and update the same current task inside one transaction");
     // Both sides of a move: checking only the destination would let someone
     // detach a task from a client they cannot see.
-    assert.match(src, /requireClientAssociation\("agency-task", existing\?\.clientId, "use"\)/,
+    assert.match(patchHandler, /requireClientAssociation\("agency-task", current\?\.clientId, "use"\)/,
       "the client an Action is currently on is no longer checked on PATCH");
-    assert.match(src, /requireClientAssociation\("agency-task", patch\.clientId, "use"\)/,
+    assert.match(patchHandler, /requireClientAssociation\("agency-task", patch\.clientId, "use"\)/,
       "the client an Action is moving to is no longer checked on PATCH");
   });
 
@@ -251,7 +260,10 @@ describe("every Action surface answers to the association, not just the ones tha
       userId: manager.id,
       scope: { kind: "workspace", id: "staff" },
       environment: "live",
-      capabilities: ["element.staff.schedule.view"],
+      capabilities: [
+        "element.staff.schedule.view",
+        "element.workspace.actions.manage",
+      ],
     });
     token = await issueSession({
       userId: manager.id, email: manager.email, role: "agency-manager",

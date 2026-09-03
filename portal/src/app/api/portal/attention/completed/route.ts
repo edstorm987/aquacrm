@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { AuthError, authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import {
   CompletedActionDeleteOperationError,
   deleteCompletedActionForOperation,
@@ -15,14 +15,26 @@ import { getOperationalAlertPreference, listOperationalAlertViews, setOperationa
 import { withPortalStateTransaction } from "@/server/productWorkspaceCoordinator";
 import { ActionMutationConflictError, ActionMutationReceiptError, actionOperationId, matchingActionReceipt, recordActionReceipt } from "@/server/actionMutationReceipts";
 import { alertOccurrenceKey } from "@/lib/client/actionsMutationTruth";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
+import { resolveBusinessRadarAccessForActor } from "@/lib/server/intelligence/personalRadarAccess";
+import { operationalAlertVisibleToActor } from "@/lib/server/access/operationalAlertAccess";
+
+async function visibleCompletedActions(
+  actor: Awaited<ReturnType<typeof requireCurrentWorkspaceElementAccess>>["actor"],
+  entries = listCompletedActions(actor.resourceAgencyId),
+) {
+  if (await resolveBusinessRadarAccessForActor(actor)) return entries;
+  return entries.filter(entry => entry.completedBy === actor.session.userId);
+}
 
 /** What has actually been finished, newest first. */
 export async function GET() {
   try {
     await ensureHydrated();
-    const session = await requireRole([...AGENCY_ROLES]);
+    await requireRole([...AGENCY_ROLES]);
+    const { actor } = await requireCurrentWorkspaceElementAccess("staff", "workspace.actions", "view");
     return NextResponse.json(
-      { ok: true, completed: listCompletedActions(session.agencyId) },
+      { ok: true, completed: await visibleCompletedActions(actor) },
       { headers: { "cache-control": "no-store" } },
     );
   } catch (error) {
@@ -42,6 +54,8 @@ export async function POST(request: Request) {
   try {
     await ensureHydrated();
     const session = await requireRole([...AGENCY_ROLES]);
+    const { actor } = await requireCurrentWorkspaceElementAccess("staff", "workspace.actions", "use");
+    const agencyId = actor.resourceAgencyId;
     const body = await request.json().catch(() => null) as {
       sourceId?: unknown; title?: unknown; detail?: unknown; note?: unknown; operationId?: unknown; expectedOccurrenceKey?: unknown; expectedVersion?: unknown; dismissAlert?: unknown;
     } | null;
@@ -62,37 +76,40 @@ export async function POST(request: Request) {
     // The preference and receipt are personal, but the completion register is
     // agency-wide. Serialize every actor for this alert occurrence so two
     // simultaneous confirmations cannot each create the same shared row.
-    const outcome = await withPortalStateTransaction(`attention:${session.agencyId}:${sourceId}`, async () => {
-      const receiptInput = { operationId, kind: "alert-done" as const, agencyId: session.agencyId, userId: session.userId, targetId: sourceId, action: receiptAction };
+    const outcome = await withPortalStateTransaction(`attention:${agencyId}:${sourceId}`, async () => {
+      const receiptInput = { operationId, kind: "alert-done" as const, agencyId, userId: session.userId, targetId: sourceId, action: receiptAction };
+      const currentAlert = (await listOperationalAlerts(agencyId)).find(item => item.id === sourceId);
+      if (currentAlert && !operationalAlertVisibleToActor(actor, currentAlert)) {
+        throw new AuthError(403, "notification_alert_view_required");
+      }
       const receipt = matchingActionReceipt(receiptInput);
       if (receipt) {
         if (dismissAlert) {
-          const currentAlert = (await listOperationalAlerts(session.agencyId)).find(item => item.id === sourceId);
-          const preference = getOperationalAlertPreference(session.agencyId, session.userId, sourceId);
+          const preference = getOperationalAlertPreference(agencyId, session.userId, sourceId);
           if (!currentAlert || alertOccurrenceKey(currentAlert) !== expectedOccurrenceKey || preference?.state !== "dismissed"
             || preference.occurrenceKey !== expectedOccurrenceKey || preference.causalVersion !== expectedVersion + 1) {
             throw new ActionMutationConflictError("Completion was confirmed, but this alert has since changed. Refresh Actions before continuing.");
           }
         }
-        const prior = receipt.completedActionId ? findCompletedAction(session.agencyId, receipt.completedActionId) : undefined;
+        const prior = receipt.completedActionId ? findCompletedAction(agencyId, receipt.completedActionId) : undefined;
         if (!prior) throw new ActionMutationConflictError("Completion was confirmed, but its register entry was later removed. Refresh before continuing.");
         return { entry: prior, replayed: true };
       }
-      const alert = (await listOperationalAlerts(session.agencyId)).find(item => item.id === sourceId);
+      const alert = currentAlert;
       if (dismissAlert && (!alert || alertOccurrenceKey(alert) !== expectedOccurrenceKey)) throw new ActionMutationConflictError("This alert occurrence has changed. Refresh Actions and try again.");
-      const alertView = alert ? listOperationalAlertViews(session.agencyId, session.userId, [alert])[0] : undefined;
+      const alertView = alert ? listOperationalAlertViews(agencyId, session.userId, [alert])[0] : undefined;
       if (dismissAlert && (!alertView || (alertView.causalVersion ?? 0) !== expectedVersion)) throw new ActionMutationConflictError("This alert changed before completion. Refresh Actions and try again.");
-      const entry = recordCompletedAction(session.agencyId, {
+      const entry = recordCompletedAction(agencyId, {
         operationId,
         sourceId, title: alert?.title ?? title, detail: alert?.detail ?? (typeof body?.detail === "string" ? body.detail : undefined),
         note: typeof body?.note === "string" ? body.note : undefined, origin: "inbox",
         outcome: "resolved", completedBy: session.userId,
       });
-      if (dismissAlert && alert) setOperationalAlertPreference({ agencyId: session.agencyId, userId: session.userId, alert, action: "dismiss" });
+      if (dismissAlert && alert) setOperationalAlertPreference({ agencyId, userId: session.userId, alert, action: "dismiss" });
       recordActionReceipt({ ...receiptInput, completedActionId: entry.id, createdAt: Date.now() });
       return { entry, replayed: false };
     });
-    const completed = listCompletedActions(session.agencyId);
+    const completed = await visibleCompletedActions(actor);
     // The register presentation is capped at 200, but an exact receipt can be
     // older than that. Keep the acknowledged row in this mutation envelope so
     // a lost-success retry can still validate the operation it is adopting.
@@ -120,6 +137,8 @@ export async function DELETE(request: Request) {
   try {
     await ensureHydrated();
     const session = await requireRole([...AGENCY_ROLES]);
+    const { actor } = await requireCurrentWorkspaceElementAccess("staff", "workspace.actions", "use");
+    const agencyId = actor.resourceAgencyId;
     const params = new URL(request.url).searchParams;
     const id = params.get("id")?.trim();
     const operationId = params.get("operationId")?.trim();
@@ -130,11 +149,19 @@ export async function DELETE(request: Request) {
       );
     }
 
-    const result = deleteCompletedActionForOperation(session.agencyId, id, operationId);
+    const existing = findCompletedAction(agencyId, id);
+    if (existing && !await resolveBusinessRadarAccessForActor(actor) && existing.completedBy !== session.userId) {
+      throw new AuthError(403, "completed_action_use_required");
+    }
+    const result = deleteCompletedActionForOperation(agencyId, id, operationId);
     // Flush even on replay: the first request may have changed memory and then
     // lost its persistence acknowledgement. The retry is the recovery path.
     await flushPendingWrites();
-    return NextResponse.json({ ok: true, ...result });
+    return NextResponse.json({
+      ok: true,
+      ...result,
+      completed: await visibleCompletedActions(actor, result.completed),
+    });
   } catch (error) {
     if (error instanceof CompletedActionDeleteOperationError) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 409 });

@@ -49,7 +49,7 @@ export function TodayView({
   onPostpone: (task: AgencyTask, until: number) => void;
   onAttentionAction?: (action: GeneratedAction, kind: "park" | "dismiss", until?: number) => void | Promise<void>;
   onMarkAttentionDone?: (action: GeneratedAction) => void | Promise<void>;
-  onOpenCalendar: () => void;
+  onOpenCalendar?: () => void;
 }) {
   const now = Date.now();
   const endOfToday = new Date(now);
@@ -89,13 +89,13 @@ export function TodayView({
                 : "Accepted work due today, and what is in the diary."}
           </p>
         </div>
-        <button
+        {onOpenCalendar ? <button
           type="button"
           onClick={onOpenCalendar}
           className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/15 px-3 text-xs font-semibold text-black/65 hover:bg-black/[0.035]"
         >
           <CalendarPlus size={14} aria-hidden />Queue more from the calendar
-        </button>
+        </button> : null}
       </header>
 
       {attentionActions.length ? (

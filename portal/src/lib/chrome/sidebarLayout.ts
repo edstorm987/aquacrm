@@ -108,11 +108,9 @@ function defaultMainItems(input: BuildSidebarInput): NavItem[] {
       // are the only rendered rows on "main". Routes are UNCHANGED. See
       // docs/development/plans/information-architecture-v2.md.
       items.push({ id: "operations-home", label: "Operations",     href: "/portal/agency/operations",      panelId: "main", order: -8 });
-      // My Radar — the week judged by department rather than as one number.
-      // On "main" beside Operations because it answers a question about YOUR
-      // time, not about the business's records, and burying it under Ops would
-      // make it a report rather than the thing you check before deciding what
-      // to do today.
+      // My Radar — the signed-in person's actions, goals, wellbeing and work
+      // pace. Department capacity and baselines live in Business Radar, even
+      // when the signed-in person owns and operates the whole company.
       items.push({ id: "my-radar",    label: "My Radar",           href: "/portal/agency/my-radar",        panelId: "main", order: -7.5 });
       items.push({ id: "pipelines",   label: "Journey",            href: "/portal/clients?view=journey",   panelId: "ops",  order: -7 });
       items.push({ id: "fulfilment",  label: "Fulfilment",         href: "/portal/agency/fulfilment",      panelId: "ops",  order: -6 });
@@ -271,7 +269,7 @@ export function buildSidebar(input: BuildSidebarInput): NavPanel[] {
     // and Tools all render as flat rows on "main" (no nested group headers).
     // Ed: Operations AND Tools should each be a plain sidebar item, not a nested
     // word. The functions/utilities live as cards on their hubs.
-    const commandCentreIds = ["home", "inbox", "operations-home", "tools"];
+    const commandCentreIds = ["home", "inbox", "operations-home", "my-radar", "tools"];
     // Operations functions — the business functions, in delegation order. These
     // render as cards on the Operations hub (not as sidebar rows); they live in
     // a hidden, search-only panel so quick-search still reaches them.

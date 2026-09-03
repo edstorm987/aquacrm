@@ -1382,6 +1382,8 @@ export interface ExternalAssistantActionProposal {
   detail: string;
   evidence: string[];
   category: ExternalAssistantProposalCategory;
+  /** Immutable authority envelope derived from the assistant key's modules. */
+  requiredElements?: AccessElementKey[];
   priority: AgencyTaskPriority;
   suggestedDueAt?: number;
   sourceIds: string[];
@@ -1718,8 +1720,20 @@ export interface DashboardDayPlan {
   updatedAt: number;
 }
 
-export type CommandCalendarEntryType = "event" | "work-block" | "note" | "reminder" | "goal" | "target";
+export type CommandCalendarEntryType = "event" | "work-block" | "note" | "reminder" | "goal" | "target" | "custom";
 export type CommandCalendarEntryStatus = "planned" | "completed" | "cancelled";
+
+export interface CommandCalendarDocumentLink {
+  id: string;
+  label: string;
+  url: string;
+}
+
+export interface CommandCalendarCustomField {
+  id: string;
+  label: string;
+  value: string;
+}
 
 export interface CommandCalendarEntry {
   id: string;
@@ -1736,6 +1750,16 @@ export interface CommandCalendarEntry {
   targetValue?: number;
   currentValue?: number;
   targetUnit?: string;
+  /** Internal agency people explicitly included in this item. */
+  participantUserIds?: string[];
+  /** Optional CRM account this item is about. */
+  clientId?: string;
+  /** Canonical Aqua task records connected to this item. */
+  linkedTaskIds?: string[];
+  /** Private/internal document locations or approved external document links. */
+  documents?: CommandCalendarDocumentLink[];
+  /** Lightweight item-specific fields for details that do not fit the standard schema. */
+  customFields?: CommandCalendarCustomField[];
   /**
    * A rolling quota rather than a dated goal — "20 calls, every day".
    *
@@ -1752,6 +1776,22 @@ export interface CommandCalendarEntry {
    */
   metric?: "prospects-scouted" | "calls-made" | "emails-sent" | "leads-qualified" | "clients-converted";
   createdAt: number;
+  updatedAt: number;
+}
+
+export type PersonalMetricKey = NonNullable<CommandCalendarEntry["metric"]>;
+
+/**
+ * Compact semantic evidence for personal daily/weekly quotas. One row per
+ * person per business day; ids deduplicate retries without retaining CRM data.
+ */
+export interface PersonalMetricDay {
+  agencyId: string;
+  userId: string;
+  date: string;
+  counts: Partial<Record<PersonalMetricKey, number>>;
+  /** Hashed source-operation identities keep retries idempotent after audit eviction. */
+  evidenceIds?: string[];
   updatedAt: number;
 }
 
@@ -4804,6 +4844,7 @@ export interface PortalState {
   pluginData: Record<string, Record<string, unknown>>; // installId → key → value
   phases: Record<string, PhaseDefinition>;
   activity: ActivityEntry[];
+  personalMetricDays: Record<string, PersonalMetricDay>;
   clientRecordLedger: Record<string, ClientRecordLedgerEvent>;
   identityResolutionReviews: Record<string, IdentityResolutionReview>;
   // Canonical people and the companies they belong to. Optional in parsed

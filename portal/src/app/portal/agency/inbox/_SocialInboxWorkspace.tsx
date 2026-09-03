@@ -32,11 +32,13 @@ import { formatUkDate } from "@/lib/shared/formatDateTime";
 
 type Queue = "all" | "unread" | "waiting" | "mine" | "closed";
 
-export function SocialInboxWorkspace({ snapshot, readiness, currentUserId, loadError }: {
+export function SocialInboxWorkspace({ snapshot, readiness, currentUserId, loadError, canMutate, canManageChannels }: {
   snapshot: InboxSnapshot;
   readiness: MetaInboxReadiness;
   currentUserId: string;
   loadError?: string | null;
+  canMutate: boolean;
+  canManageChannels: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -79,12 +81,12 @@ export function SocialInboxWorkspace({ snapshot, readiness, currentUserId, loadE
   async function selectConversation(item: InboxConversationThread) {
     setSelectedId(item.id);
     setError(null);
-    if (!item.unreadCount) return;
+    if (!canMutate || !item.unreadCount) return;
     await mutateConversation(item.id, { markRead: true }, false);
   }
 
   async function sendMessage() {
-    if (!selected || !draft.trim()) return;
+    if (!canMutate || !selected || !draft.trim()) return;
     const payloadKey = JSON.stringify([selected.id, draft.trim().slice(0, 2_000)]);
     const operationId = composerMode === "reply"
       ? draftOperation?.payloadKey === payloadKey
@@ -123,7 +125,7 @@ export function SocialInboxWorkspace({ snapshot, readiness, currentUserId, loadE
   }
 
   async function retryMessage(message: InboxMessage) {
-    if (!selected) return;
+    if (!canMutate || !selected) return;
     const progress = inboxReplyProgress(message);
     if (!progress?.retryable) return;
     setBusy(`retry:${message.id}`);
@@ -145,6 +147,7 @@ export function SocialInboxWorkspace({ snapshot, readiness, currentUserId, loadE
   }
 
   async function mutateConversation(conversationId: string, patch: Record<string, unknown>, refresh = true) {
+    if (!canMutate) return;
     setBusy(`thread:${conversationId}`);
     setError(null);
     const response = await fetch("/api/portal/inbox/conversations", {
@@ -159,6 +162,7 @@ export function SocialInboxWorkspace({ snapshot, readiness, currentUserId, loadE
   }
 
   async function disconnect(connectionId: string) {
+    if (!canManageChannels) return;
     if (!window.confirm("Disconnect this channel? Existing conversation history will remain available.")) return;
     setBusy(`disconnect:${connectionId}`);
     const response = await fetch(`/api/portal/inbox/connections?connectionId=${encodeURIComponent(connectionId)}`, { method: "DELETE" });
@@ -183,7 +187,7 @@ export function SocialInboxWorkspace({ snapshot, readiness, currentUserId, loadE
       </div>
 
       {connectNotice ? <div role="status" className={`mt-3 flex items-start justify-between gap-3 rounded-md border px-3 py-2 text-xs ${connectNotice.tone === "ok" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : connectNotice.tone === "warn" ? "border-amber-200 bg-amber-50 text-amber-800" : "border-red-200 bg-red-50 text-red-700"}`}><span className="leading-5">{connectNotice.text}</span><button type="button" onClick={() => setNoticeDismissed(true)} aria-label="Dismiss" className="shrink-0 rounded p-0.5 opacity-60 hover:opacity-100"><X size={13} /></button></div> : null}
-      {showConnections ? <ConnectionSetup readiness={readiness} connections={snapshot.connections} busy={busy} onDisconnect={disconnect} /> : null}
+      {showConnections ? <ConnectionSetup readiness={readiness} connections={snapshot.connections} busy={busy} canManage={canManageChannels} onDisconnect={disconnect} /> : null}
       {error ? <p role="alert" className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p> : null}
 
       <div className="mt-4 grid min-h-[650px] overflow-hidden border-y border-black/10 bg-white lg:grid-cols-[210px_minmax(270px,360px)_minmax(0,1fr)]">
@@ -220,6 +224,7 @@ export function SocialInboxWorkspace({ snapshot, readiness, currentUserId, loadE
           mode={composerMode}
           setMode={setComposerMode}
           busy={busy}
+          canMutate={canMutate}
           onSend={sendMessage}
           onRetry={retryMessage}
           onMutate={mutateConversation}
@@ -229,10 +234,11 @@ export function SocialInboxWorkspace({ snapshot, readiness, currentUserId, loadE
   );
 }
 
-function ConnectionSetup({ readiness, connections, busy, onDisconnect }: {
+function ConnectionSetup({ readiness, connections, busy, canManage, onDisconnect }: {
   readiness: MetaInboxReadiness;
   connections: InboxSnapshot["connections"];
   busy: string | null;
+  canManage: boolean;
   onDisconnect: (id: string) => Promise<void>;
 }) {
   const active = connections.filter(item => item.status !== "disconnected");
@@ -240,17 +246,17 @@ function ConnectionSetup({ readiness, connections, busy, onDisconnect }: {
   return <div className="mt-4 border-y border-black/10 bg-black/[0.018] p-4">
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div className="flex items-start gap-3"><span className={`grid size-9 shrink-0 place-items-center rounded-md ${readiness.configured ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}><PlugZap size={17} /></span><div><h3 className="text-sm font-semibold text-black/75">Meta messaging connection</h3><p className="mt-1 max-w-2xl text-xs leading-5 text-black/45">{readiness.configured ? "Application credentials are ready. Connect each professional account using Meta's consent screen." : `Add your Meta app credentials to start connecting accounts. Still needed: ${readiness.missing.join(", ")}.`}</p></div></div>
-      <div className="flex flex-wrap gap-2">
+      {canManage ? <div className="flex flex-wrap gap-2">
         {readiness.configured ? <>
           <a href="/api/portal/inbox/meta/start?mode=instagram&return=%2Fportal%2Fagency%2Finbox%3Fview%3Dsocial" className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white"><Instagram size={15} /> {active.length ? "Add Instagram" : "Connect Instagram"}</a>
           <a href="/api/portal/inbox/meta/start?mode=facebook&return=%2Fportal%2Fagency%2Finbox%3Fview%3Dsocial" className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/65"><Facebook size={15} /> {active.length ? "Add Facebook" : "Connect Facebook"}</a>
         </> : <button type="button" onClick={() => setShowConnect(value => !value)} aria-expanded={showConnect} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/80"><PlugZap size={15} /> {showConnect ? "Close" : "Connect now"}</button>}
-      </div>
+      </div> : <span className="rounded-full bg-black/[0.05] px-3 py-1.5 text-xs font-medium text-black/50">View only</span>}
     </div>
-    {!readiness.configured && showConnect ? <MetaConnectForm onClose={() => setShowConnect(false)} /> : null}
+    {canManage && !readiness.configured && showConnect ? <MetaConnectForm onClose={() => setShowConnect(false)} /> : null}
     <div className="mt-4 grid gap-2">
       {active.length ? <p className="text-[10px] font-semibold uppercase tracking-wide text-black/35">{active.length} connected account{active.length === 1 ? "" : "s"}</p> : null}
-      {active.map(connection => <div key={connection.id} className="grid gap-3 border-t border-black/[0.07] pt-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center"><span className="grid size-9 place-items-center rounded-md bg-white text-black/55">{connection.channel === "instagram" ? <Instagram size={16} /> : <Facebook size={16} />}</span><div className="min-w-0"><div className="flex min-w-0 items-center gap-2"><span className="truncate text-xs font-semibold text-black/72">{connection.displayName}{connection.username ? ` · @${connection.username}` : ""}</span>{connection.marketingAssetId || connection.companyId ? <span className="shrink-0 rounded bg-black/[0.06] px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-black/45" title="Linked to a marketing profile or company">Routed</span> : null}</div><p className="mt-1 text-[11px] text-black/40">{connection.webhookStatus === "subscribed" ? "Live webhook subscribed" : connection.lastError || "Webhook subscription pending"}{connection.lastWebhookAt ? ` · last event ${formatElapsed(Date.now() - connection.lastWebhookAt)} ago` : ""}</p></div><button type="button" disabled={busy === `disconnect:${connection.id}`} onClick={() => void onDisconnect(connection.id)} className="min-h-9 rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/55 disabled:opacity-50">Disconnect</button></div>)}
+      {active.map(connection => <div key={connection.id} className="grid gap-3 border-t border-black/[0.07] pt-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center"><span className="grid size-9 place-items-center rounded-md bg-white text-black/55">{connection.channel === "instagram" ? <Instagram size={16} /> : <Facebook size={16} />}</span><div className="min-w-0"><div className="flex min-w-0 items-center gap-2"><span className="truncate text-xs font-semibold text-black/72">{connection.displayName}{connection.username ? ` · @${connection.username}` : ""}</span>{connection.marketingAssetId || connection.companyId ? <span className="shrink-0 rounded bg-black/[0.06] px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-black/45" title="Linked to a marketing profile or company">Routed</span> : null}</div><p className="mt-1 text-[11px] text-black/40">{connection.webhookStatus === "subscribed" ? "Live webhook subscribed" : connection.lastError || "Webhook subscription pending"}{connection.lastWebhookAt ? ` · last event ${formatElapsed(Date.now() - connection.lastWebhookAt)} ago` : ""}</p></div>{canManage ? <button type="button" disabled={busy === `disconnect:${connection.id}`} onClick={() => void onDisconnect(connection.id)} className="min-h-9 rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/55 disabled:opacity-50">Disconnect</button> : null}</div>)}
       {!active.length ? <p className="border-t border-black/[0.07] pt-3 text-xs text-black/40">No social account has been authorised yet. Existing website and portal messages continue working normally.</p> : null}
     </div>
   </div>;
@@ -324,7 +330,7 @@ function ConversationRow({ item, active, onClick }: { item: InboxConversationThr
   </button>;
 }
 
-function ThreadPanel({ item, currentUserId, draft, setDraft, mode, setMode, busy, onSend, onRetry, onMutate }: {
+function ThreadPanel({ item, currentUserId, draft, setDraft, mode, setMode, busy, canMutate, onSend, onRetry, onMutate }: {
   item: InboxConversationThread;
   currentUserId: string;
   draft: string;
@@ -332,6 +338,7 @@ function ThreadPanel({ item, currentUserId, draft, setDraft, mode, setMode, busy
   mode: "reply" | "note";
   setMode: (value: "reply" | "note") => void;
   busy: string | null;
+  canMutate: boolean;
   onSend: () => Promise<void>;
   onRetry: (message: InboxMessage) => Promise<void>;
   onMutate: (id: string, patch: Record<string, unknown>) => Promise<void>;
@@ -341,8 +348,8 @@ function ThreadPanel({ item, currentUserId, draft, setDraft, mode, setMode, busy
     <header className="flex flex-wrap items-start justify-between gap-3 border-b border-black/10 px-4 py-3">
       <div className="flex min-w-0 items-center gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-full bg-black/[0.06] text-xs font-semibold text-black/55">{initials(item.identity.displayName)}</span><div className="min-w-0"><div className="flex items-center gap-2"><h3 className="truncate text-sm font-semibold text-black/80">{item.identity.displayName}</h3><span className="rounded-full bg-black/[0.05] px-2 py-0.5 text-[9px] font-semibold uppercase text-black/40">{item.connection.channel}</span></div><p className="mt-1 truncate text-[11px] text-black/40">{item.identity.username ? `@${item.identity.username} · ` : ""}{item.connection.displayName}</p></div></div>
       <div className="flex items-center gap-1">
-        <button type="button" title={item.assignedTo === currentUserId ? "Assigned to you" : "Assign to me"} aria-label="Assign conversation to me" onClick={() => void onMutate(item.id, { assignedTo: currentUserId })} className={`grid size-9 place-items-center rounded-md border border-black/10 ${item.assignedTo === currentUserId ? "bg-black text-white" : "bg-white text-black/45"}`}><UserRound size={15} /></button>
-        <button type="button" title={item.status === "closed" ? "Reopen" : "Close"} aria-label={item.status === "closed" ? "Reopen conversation" : "Close conversation"} onClick={() => void onMutate(item.id, { status: item.status === "closed" ? "open" : "closed" })} className="grid size-9 place-items-center rounded-md border border-black/10 bg-white text-black/45">{item.status === "closed" ? <Inbox size={15} /> : <Archive size={15} />}</button>
+        <button type="button" disabled={!canMutate} title={item.assignedTo === currentUserId ? "Assigned to you" : "Assign to me"} aria-label="Assign conversation to me" onClick={() => void onMutate(item.id, { assignedTo: currentUserId })} className={`grid size-9 place-items-center rounded-md border border-black/10 disabled:opacity-35 ${item.assignedTo === currentUserId ? "bg-black text-white" : "bg-white text-black/45"}`}><UserRound size={15} /></button>
+        <button type="button" disabled={!canMutate} title={item.status === "closed" ? "Reopen" : "Close"} aria-label={item.status === "closed" ? "Reopen conversation" : "Close conversation"} onClick={() => void onMutate(item.id, { status: item.status === "closed" ? "open" : "closed" })} className="grid size-9 place-items-center rounded-md border border-black/10 bg-white text-black/45 disabled:opacity-35">{item.status === "closed" ? <Inbox size={15} /> : <Archive size={15} />}</button>
       </div>
     </header>
 
@@ -351,20 +358,21 @@ function ThreadPanel({ item, currentUserId, draft, setDraft, mode, setMode, busy
     </div>
 
     <div className="flex-1 space-y-3 overflow-y-auto bg-[#fbfbfa] px-4 py-5">
-      {item.messages.map(message => <MessageBubble key={message.id} message={message} busy={busy === `retry:${message.id}`} onRetry={onRetry} />)}
+      {item.messages.map(message => <MessageBubble key={message.id} message={message} busy={busy === `retry:${message.id}`} canMutate={canMutate} onRetry={onRetry} />)}
     </div>
 
     <aside className="border-t border-black/10 bg-white p-3">
       <div className="mb-2 flex items-center justify-between gap-3"><div className="inline-flex rounded-md bg-black/[0.045] p-0.5"><button type="button" onClick={() => setMode("reply")} className={`min-h-8 rounded px-3 text-[11px] font-semibold ${mode === "reply" ? "bg-white text-black shadow-sm" : "text-black/45"}`}>Reply</button><button type="button" onClick={() => setMode("note")} className={`min-h-8 rounded px-3 text-[11px] font-semibold ${mode === "note" ? "bg-white text-black shadow-sm" : "text-black/45"}`}>Internal note</button></div><span className="text-[10px] text-black/35">Sending as {item.connection.displayName}</span></div>
-      <div className="flex items-end gap-2 rounded-md border border-black/12 p-2 focus-within:border-black/30"><textarea rows={3} value={draft} onChange={event => setDraft(event.target.value)} placeholder={mode === "note" ? "Add context for the team" : windowOpen ? `Reply to ${item.identity.displayName}` : "The Meta reply window has closed"} disabled={mode === "reply" && !windowOpen} className="min-w-0 flex-1 resize-none bg-transparent px-1 py-1 text-xs leading-5 text-black/75 outline-none disabled:text-black/30" /><button type="button" onClick={() => void onSend()} disabled={busy === "send" || !draft.trim() || (mode === "reply" && !windowOpen)} aria-label={mode === "note" ? "Add internal note" : "Send reply"} title={mode === "note" ? "Add internal note" : "Send reply"} className="grid size-9 shrink-0 place-items-center rounded-md bg-black text-white disabled:opacity-35">{mode === "note" ? <StickyNote size={15} /> : <Send size={15} />}</button></div>
+      <div className="flex items-end gap-2 rounded-md border border-black/12 p-2 focus-within:border-black/30"><textarea rows={3} value={draft} onChange={event => setDraft(event.target.value)} placeholder={!canMutate ? "This conversation is view only" : mode === "note" ? "Add context for the team" : windowOpen ? `Reply to ${item.identity.displayName}` : "The Meta reply window has closed"} disabled={!canMutate || (mode === "reply" && !windowOpen)} className="min-w-0 flex-1 resize-none bg-transparent px-1 py-1 text-xs leading-5 text-black/75 outline-none disabled:text-black/30" /><button type="button" onClick={() => void onSend()} disabled={!canMutate || busy === "send" || !draft.trim() || (mode === "reply" && !windowOpen)} aria-label={mode === "note" ? "Add internal note" : "Send reply"} title={mode === "note" ? "Add internal note" : "Send reply"} className="grid size-9 shrink-0 place-items-center rounded-md bg-black text-white disabled:opacity-35">{mode === "note" ? <StickyNote size={15} /> : <Send size={15} />}</button></div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] text-black/35"><span>{mode === "note" ? "Only your AquaCRM team can see this note." : "Replies are sent through Meta and recorded here."}</span><Link href={`/portal/agency/pipelines/leads?inbox=${encodeURIComponent(item.id)}`} className="inline-flex items-center gap-1 font-medium text-brand"><Link2 size={11} /> Link in Journey</Link></div>
     </aside>
   </div>;
 }
 
-function MessageBubble({ message, busy, onRetry }: {
+function MessageBubble({ message, busy, canMutate, onRetry }: {
   message: InboxMessage;
   busy: boolean;
+  canMutate: boolean;
   onRetry: (message: InboxMessage) => Promise<void>;
 }) {
   if (message.direction === "internal") {
@@ -389,7 +397,7 @@ function MessageBubble({ message, busy, onRetry }: {
         const part = progress?.operation.parts.find(candidate => candidate.id === `attachment:${index}`);
         return attachment.url ? <a key={`${attachment.url}:${index}`} href={attachment.url} target="_blank" rel="noreferrer" className={`mt-2 flex items-center gap-1 underline ${message.direction === "outbound" ? "text-white/80" : "text-brand"}`}>{attachment.title || attachment.type}{part ? ` · ${deliveryPartLabel(part.status)}` : ""} <ExternalLink size={11} /></a> : null;
       })}
-      {message.direction === "outbound" && statusText ? <div className={`mt-2 flex items-center justify-between gap-3 rounded px-2 py-1 text-[10px] ${progress?.retryable || progress?.uncertain ? "bg-white/10 text-white/80" : "text-white/55"}`}><span>{statusText}</span>{progress?.retryable ? <button type="button" disabled={busy} onClick={() => void onRetry(message)} className="rounded border border-white/25 px-2 py-1 font-semibold text-white disabled:opacity-50">{busy ? "Retrying…" : "Retry remaining"}</button> : null}</div> : null}
+      {message.direction === "outbound" && statusText ? <div className={`mt-2 flex items-center justify-between gap-3 rounded px-2 py-1 text-[10px] ${progress?.retryable || progress?.uncertain ? "bg-white/10 text-white/80" : "text-white/55"}`}><span>{statusText}</span>{progress?.retryable ? <button type="button" disabled={busy || !canMutate} onClick={() => void onRetry(message)} className="rounded border border-white/25 px-2 py-1 font-semibold text-white disabled:opacity-50">{busy ? "Retrying…" : "Retry remaining"}</button> : null}</div> : null}
       <span className={`mt-1 flex items-center justify-end gap-1 text-[9px] ${message.direction === "outbound" ? "text-white/55" : "text-black/35"}`}>{longDate(message.sentAt)}{message.direction === "outbound" ? progress?.uncertain || progress?.retryable || message.status === "failed" ? <AlertCircle size={10} /> : <Check size={10} /> : null}</span>
     </div>
   </div>;

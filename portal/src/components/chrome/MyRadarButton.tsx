@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { Gauge } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import type { MyRadarReading } from "@/lib/server/intelligence/myRadar";
+import { personalRadarAttentionCount, type PersonalRadarSnapshot } from "@/lib/intelligence/personalRadar";
 
 // The topbar My Radar — your own week, one tap from anywhere.
 //
@@ -29,17 +29,13 @@ const MyRadarQuickLookPanel = dynamic(
   },
 );
 
-export interface MyRadarTopbarSnapshot {
-  generatedAt: number;
-  reading: MyRadarReading;
-  headline: string;
-}
+export type MyRadarTopbarSnapshot = PersonalRadarSnapshot;
 
-export function MyRadarButton({ activeDepartment, initial }: { activeDepartment?: string; initial: MyRadarTopbarSnapshot }) {
+export function MyRadarButton({ activeDepartment, initial, staffWorkspace = false, businessRadarAvailable = false }: { activeDepartment?: string; initial?: MyRadarTopbarSnapshot; staffWorkspace?: boolean; businessRadarAvailable?: boolean }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
-  const [snapshot, setSnapshot] = useState(initial);
+  const [snapshot, setSnapshot] = useState<MyRadarTopbarSnapshot | undefined>(initial);
 
   useEffect(() => {
     // The embedded DepartmentSwitcher calls `router.refresh()` on switch, which
@@ -47,8 +43,8 @@ export function MyRadarButton({ activeDepartment, initial }: { activeDepartment?
     // only when it is NEWER makes that a feature (the meters update after a hat
     // change) rather than a race with the panel's own fetch — the
     // `RadarQuickLookButton` guard, for the same reason.
-    if (initial.generatedAt >= snapshot.generatedAt) setSnapshot(initial);
-  }, [initial, snapshot.generatedAt]);
+    if (initial && (!snapshot || initial.generatedAt >= snapshot.generatedAt)) setSnapshot(initial);
+  }, [initial, snapshot]);
 
   useEffect(() => {
     if (!open) return;
@@ -70,13 +66,15 @@ export function MyRadarButton({ activeDepartment, initial }: { activeDepartment?
     };
   }, [open]);
 
-  // Only "starved" badges. A department that is merely behind is glanceable
-  // inside the panel — a behind-but-moving week is not an alarm, and a badge
-  // that cries amber every ordinary Tuesday is a badge people learn to ignore.
-  const starved = snapshot.reading.allocation.departments.filter(entry => entry.status === "starved").length;
-  const label = starved
-    ? `My Radar, ${starved} ${starved === 1 ? "department" : "departments"} starved`
-    : "My Radar, no starved departments";
+  // The personal badge is deliberately limited to urgent/overdue work and
+  // overdue goals. Ordinary open to-dos remain visible inside without turning
+  // every normal day into an alarm.
+  const attentionCount = snapshot
+    ? personalRadarAttentionCount(snapshot.actions, snapshot.reading, snapshot.generatedAt, snapshot.actionSummary)
+    : 0;
+  const label = attentionCount
+    ? `My Radar, ${attentionCount} personal ${attentionCount === 1 ? "item needs" : "items need"} attention`
+    : snapshot ? "My Radar, personal overview ready" : "Open My Radar";
 
   return (
     <div ref={rootRef} className="mm-has-attention-badge relative overflow-visible">
@@ -91,13 +89,13 @@ export function MyRadarButton({ activeDepartment, initial }: { activeDepartment?
         className="relative grid size-9 place-items-center rounded-md border border-black/10 bg-white text-black/60 shadow-sm transition hover:border-black/20 hover:bg-black/[0.025]"
       >
         <Gauge size={16} aria-hidden="true" />
-        {starved > 0 ? (
+        {attentionCount > 0 ? (
           <span className="mm-attention-badge absolute -right-1.5 -top-1.5 z-10 grid min-h-4 min-w-4 place-items-center rounded-full bg-red-600 px-1 text-[9px] font-semibold leading-none text-white ring-2 ring-white" aria-hidden="true">
-            {starved > 99 ? "99+" : starved}
+            {attentionCount > 99 ? "99+" : attentionCount}
           </span>
-        ) : (
+        ) : snapshot ? (
           <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-emerald-500 ring-2 ring-white" aria-hidden="true" />
-        )}
+        ) : null}
       </button>
 
       {open ? (
@@ -105,10 +103,12 @@ export function MyRadarButton({ activeDepartment, initial }: { activeDepartment?
           data-chrome-surface
           role="dialog"
           aria-label="My Radar"
-          className="mm-popover mm-my-radar-popover fixed right-3 top-14 z-50 flex max-h-[min(42rem,calc(100dvh-4.5rem))] w-[min(29rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-lg border border-black/10 bg-white shadow-[0_20px_60px_rgba(0,0,0,0.2)] sm:absolute sm:right-0 sm:top-11"
+          className="mm-popover mm-my-radar-popover fixed right-3 top-14 z-50 flex max-h-[min(42rem,calc(100dvh-4.5rem))] w-[min(29rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-lg border border-black/10 bg-white shadow-[0_20px_60px_rgba(0,0,0,0.2)] sm:absolute sm:left-0 sm:right-auto sm:top-11"
         >
           <MyRadarQuickLookPanel
             activeDepartment={activeDepartment}
+            staffWorkspace={staffWorkspace}
+            businessRadarAvailable={businessRadarAvailable}
             snapshot={snapshot}
             onSnapshot={setSnapshot}
             onClose={() => setOpen(false)}

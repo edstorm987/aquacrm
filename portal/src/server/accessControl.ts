@@ -163,6 +163,25 @@ function resourceBelongsToAgency(state: PortalState, agencyId: string, scope: Ac
   return !(scope.clientId && scope.projectId);
 }
 
+/**
+ * Agency grants are control-plane grants. In a sandbox their stored scope id
+ * remains the live agency id while the target resources live under the signed
+ * sandbox agency id. Workspace/client/project grants carry resource ids and
+ * must still prove ownership inside the active realm.
+ */
+function grantBelongsToActiveRealm(
+  resourceState: PortalState,
+  resourceAgencyId: string,
+  governanceAgencyId: string,
+  environment: AccessEnvironment,
+  scope: AccessScope,
+): boolean {
+  if (environment === "sandbox" && scope.kind === "agency") {
+    return scope.id === governanceAgencyId && !scope.clientId && !scope.projectId;
+  }
+  return resourceBelongsToAgency(resourceState, resourceAgencyId, scope);
+}
+
 function userCanReachScope(
   governanceState: PortalState,
   resourceState: PortalState,
@@ -303,7 +322,7 @@ export function resolveAccess(
     if (grant.agencyId !== input.agencyId || grant.userId !== input.userId) continue;
     if (grant.environment !== input.environment || grant.revokedAt !== undefined) continue;
     if (grant.expiresAt !== undefined && grant.expiresAt <= now) continue;
-    if (!resourceBelongsToAgency(resourceState, resourceAgencyId, grant.scope)) continue;
+    if (!grantBelongsToActiveRealm(resourceState, resourceAgencyId, input.agencyId, input.environment, grant.scope)) continue;
     if (!scopeContains(resourceState, grant.scope, input.scope)) continue;
     grantIds.push(grant.id);
     grant.capabilities.forEach(capability => capabilities.add(capability));
@@ -411,6 +430,35 @@ export function resolveActorAccess(
     environment: actor.environment,
     now,
   }, actor.resourceState);
+}
+
+/**
+ * Whether this identity has crossed the canonical-governance boundary.
+ *
+ * Legacy role fallbacks are identity-wide: once an owner assigns any active
+ * agency, workspace or client policy, an omitted surface is intentionally
+ * hidden. Project-only grants remain isolated and do not migrate the rest of
+ * the person's workspace access.
+ */
+export function actorHasActiveNonProjectAccessPolicy(
+  actor: CurrentAccessActor,
+  now = Date.now(),
+): boolean {
+  return Object.values(actor.governanceState.accessGrants).some(grant => (
+    grant.agencyId === actor.agencyId
+    && grant.userId === actor.user.id
+    && grant.environment === actor.environment
+    && grant.scope.kind !== "project"
+    && grant.revokedAt === undefined
+    && (grant.expiresAt === undefined || grant.expiresAt > now)
+    && grantBelongsToActiveRealm(
+      actor.resourceState,
+      actor.resourceAgencyId,
+      actor.agencyId,
+      actor.environment,
+      grant.scope,
+    )
+  ));
 }
 
 export function actorHasAccessCapability(

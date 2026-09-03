@@ -2,7 +2,9 @@ import { createHash } from "node:crypto";
 
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { authErrorResponse } from "@/lib/server/auth/auth";
+import { loadActorWebsiteEnquiry } from "@/lib/server/access/websiteEnquiryAccess";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 import {
   normalisePhone,
   resolveCommunicationSender,
@@ -22,7 +24,6 @@ import {
   type StagedPrivateUploadBinding,
 } from "@/lib/server/privateObjectLifecycle";
 import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
-import { loadOwnedEnquiry } from "@/lib/supabase/ownedEnquiry";
 import { isTradingBrandSlug, tradingBrandDefinition } from "@/lib/brands/tradingBrands";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
@@ -69,7 +70,9 @@ class WebsiteEnquiryOwnerRefusedError extends Error {
 export async function POST(request: Request) {
   try {
     await ensureHydrated({ fresh: true });
-    const session = await requireRole(["agency-owner", "agency-manager", "agency-staff"]);
+    const { actor } = await requireCurrentWorkspaceElementAccess("staff", "workspace.inbox", "use");
+    const session = actor.session;
+    const agencyId = actor.resourceAgencyId;
     const body = await request.json().catch(() => null) as {
       enquiryId?: unknown;
       channel?: unknown;
@@ -95,23 +98,19 @@ export async function POST(request: Request) {
     }
     const channel = channelInput as MessageChannel;
     const supabase = await createScopedSupabaseClient();
-    const data = await loadOwnedEnquiry<EnquiryRow>(supabase, {
+    const data = await loadActorWebsiteEnquiry<EnquiryRow>(actor, supabase, {
       id: enquiryId,
-      agencyId: session.agencyId,
+      required: "use",
       columns: ["brand_slug", "name", "email", "phone", "message", "metadata"],
     });
     if (!data) return NextResponse.json({ ok: false, error: "Website submission not found." }, { status: 404 });
     const enquiry = data;
-    const storedClientId = typeof enquiry.metadata?.clientId === "string" ? enquiry.metadata.clientId : undefined;
-    const targetClientId = storedClientId && getClientForAgency(session.agencyId, storedClientId) ? storedClientId : undefined;
-    const sender = resolveCommunicationSender(session.agencyId, senderId, channel, targetClientId);
-    if (!sender) return NextResponse.json({ ok: false, error: "The selected send-as account is not available for this client." }, { status: 409 });
     if (requestedAttachments.length > 10 || attachmentTokens.length !== requestedAttachments.length) {
       return NextResponse.json({ ok: false, error: "An attachment is invalid or has expired." }, { status: 400 });
     }
     const verifiedMedia = attachmentTokens.flatMap(token => {
       const payload = verifyInboxMediaToken(token);
-      if (!payload || payload.agencyId !== session.agencyId || payload.targetKind !== "website" || payload.targetId !== enquiry.id) return [];
+      if (!payload || payload.agencyId !== agencyId || payload.targetKind !== "website" || payload.targetId !== enquiry.id) return [];
       return [{ payload, token }];
     });
     if (verifiedMedia.length !== attachmentTokens.length) {
@@ -136,35 +135,47 @@ export async function POST(request: Request) {
     const attachments = media.map(item => item.attachment);
     const stagedBindings = media.map(item => item.binding);
     const message = messageInput || `Sent ${attachments.length === 1 ? "an attachment" : `${attachments.length} attachments`}.`;
-    const recipient = channel === "email" ? enquiry.email?.trim().toLowerCase() ?? "" : normalisePhone(enquiry.phone ?? "") ?? "";
+    // Media decoding is read-only. Resolve the live enquiry again after that
+    // preparation and immediately before claiming uploads/provider delivery.
+    const deliveryEnquiry = await loadActorWebsiteEnquiry<EnquiryRow>(actor, supabase, {
+      id: enquiry.id,
+      required: "use",
+      columns: ["brand_slug", "name", "email", "phone", "message", "metadata"],
+    });
+    if (!deliveryEnquiry) return NextResponse.json({ ok: false, error: "Website submission not found." }, { status: 404 });
+    const storedClientId = typeof deliveryEnquiry.metadata?.clientId === "string" ? deliveryEnquiry.metadata.clientId : undefined;
+    const targetClientId = storedClientId && getClientForAgency(agencyId, storedClientId) ? storedClientId : undefined;
+    const sender = resolveCommunicationSender(agencyId, senderId, channel, targetClientId);
+    if (!sender) return NextResponse.json({ ok: false, error: "The selected send-as account is not available for this client." }, { status: 409 });
+    const recipient = channel === "email" ? deliveryEnquiry.email?.trim().toLowerCase() ?? "" : normalisePhone(deliveryEnquiry.phone ?? "") ?? "";
     if (channel === "email" ? !EMAIL.test(recipient) : !recipient) {
       return NextResponse.json({ ok: false, error: `This enquiry has no valid ${channel === "email" ? "email address" : "phone number"}.` }, { status: 400 });
     }
-    const brandName = isTradingBrandSlug(enquiry.brand_slug)
-      ? tradingBrandDefinition(enquiry.brand_slug).name
-      : enquiry.brand_slug.replaceAll("-", " ");
+    const brandName = isTradingBrandSlug(deliveryEnquiry.brand_slug)
+      ? tradingBrandDefinition(deliveryEnquiry.brand_slug).name
+      : deliveryEnquiry.brand_slug.replaceAll("-", " ");
     const subject = clean(body?.subject, 180) || `Re: Your enquiry with ${brandName}`;
     const sentAt = Date.now();
     const replyId = `reply_${createHash("sha256")
-      .update([enquiry.id, channel, sender.id, message, attachments.map(item => item.id).join(","), Math.floor(sentAt / 600_000)].join("\u0000"))
+      .update([deliveryEnquiry.id, channel, sender.id, message, attachments.map(item => item.id).join(","), Math.floor(sentAt / 600_000)].join("\u0000"))
       .digest("hex").slice(0, 24)}`;
     const stagedClaimId = attachments.length
-      ? privateObjectRequestHash(["website-enquiry-reply-owner", session.agencyId, enquiry.id, replyId])
+      ? privateObjectRequestHash(["website-enquiry-reply-owner", agencyId, deliveryEnquiry.id, replyId])
       : "";
     if (attachments.length) await claimStagedPrivateUploadsForOwnership({
-      agencyId: session.agencyId,
+      agencyId,
       purpose: "inbox-media",
       objectIds: attachmentIds,
       expectedBindings: stagedBindings,
       claimId: stagedClaimId,
     });
-    const existingReplies = Array.isArray(enquiry.metadata?.inboxReplies)
-      ? enquiry.metadata.inboxReplies.filter(item => item && typeof item === "object") as StoredReply[]
+    const existingReplies = Array.isArray(deliveryEnquiry.metadata?.inboxReplies)
+      ? deliveryEnquiry.metadata.inboxReplies.filter(item => item && typeof item === "object") as StoredReply[]
       : [];
     const replay = existingReplies.find(reply => reply.id === replyId && reply.status === "sent");
     if (replay) {
       if (attachments.length) await commitStagedPrivateUploadOwnership({
-        agencyId: session.agencyId,
+        agencyId,
         purpose: "inbox-media",
         objectIds: attachmentIds,
         expectedBindings: stagedBindings,
@@ -177,19 +188,19 @@ export async function POST(request: Request) {
 
     const result = channel === "email"
       ? await sendTransactionalEmail({
-          agencyId: session.agencyId,
+          agencyId,
           clientId: targetClientId,
           to: recipient,
           fromName: brandName,
           subject,
-          bodyText: emailText(enquiry, brandName, message),
-          bodyHtml: emailHtml(enquiry, brandName, message),
-          externalRef: `website-enquiry:${enquiry.id}:${replyId}`,
+          bodyText: emailText(deliveryEnquiry, brandName, message),
+          bodyHtml: emailHtml(deliveryEnquiry, brandName, message),
+          externalRef: `website-enquiry:${deliveryEnquiry.id}:${replyId}`,
           signal: request.signal,
           sender: { provider: sender.provider as "resend" | "smtp", connectionId: sender.connectionId },
           attachments: media.map(item => ({ filename: item.attachment.name, content: item.content, contentType: item.attachment.contentType })),
         })
-      : await sendPhoneMessage({ agencyId: session.agencyId, clientId: targetClientId, sender, channel, to: recipient, body: messageInput, mediaUrls: attachments.map(item => item.url), signal: request.signal });
+      : await sendPhoneMessage({ agencyId, clientId: targetClientId, sender, channel, to: recipient, body: messageInput, mediaUrls: attachments.map(item => item.url), signal: request.signal });
     const reply: StoredReply = {
       id: replyId,
       channel,
@@ -206,10 +217,21 @@ export async function POST(request: Request) {
       ...(result.reason ? { error: result.reason } : {}),
       attachments,
     };
-    const metadata = enquiry.metadata ?? {};
+    // Preserve any association or message changes that landed during provider
+    // delivery and re-authorize that exact current row before recording it.
+    const persistEnquiry = await loadActorWebsiteEnquiry<EnquiryRow>(actor, supabase, {
+      id: deliveryEnquiry.id,
+      required: "use",
+      columns: ["brand_slug", "name", "email", "phone", "message", "metadata"],
+    });
+    if (!persistEnquiry) return NextResponse.json({ ok: false, error: "Website submission not found." }, { status: 404 });
+    const metadata = persistEnquiry.metadata ?? {};
+    const persistReplies = Array.isArray(metadata.inboxReplies)
+      ? metadata.inboxReplies.filter(item => item && typeof item === "object") as StoredReply[]
+      : [];
     const nextMetadata = {
       ...metadata,
-      inboxReplies: [...existingReplies.filter(item => item.id !== replyId).slice(-199), reply],
+      inboxReplies: [...persistReplies.filter(item => item.id !== replyId).slice(-199), reply],
       lastOutboundChannel: channel,
       lastOutboundSenderId: sender.id,
       ...(result.delivered ? {
@@ -220,13 +242,13 @@ export async function POST(request: Request) {
       } : {}),
     };
     const persistReply = async () => {
-      const { error: updateError } = await supabase.from("brand_enquiries").update({ metadata: nextMetadata }).eq("id", enquiry.id);
+      const { error: updateError } = await supabase.from("brand_enquiries").update({ metadata: nextMetadata }).eq("id", persistEnquiry.id);
       if (updateError) throw new WebsiteEnquiryOwnerRefusedError(`Could not record the communication: ${updateError.message}`);
     };
     if (attachments.length) {
       try {
         await commitStagedPrivateUploadOwnership({
-          agencyId: session.agencyId,
+          agencyId,
           purpose: "inbox-media",
           objectIds: attachmentIds,
           expectedBindings: stagedBindings,
@@ -241,7 +263,7 @@ export async function POST(request: Request) {
         // Network/transport exceptions stay claimed because their outcome is ambiguous.
         if (error instanceof WebsiteEnquiryOwnerRefusedError) {
           await releaseStagedPrivateUploadOwnershipClaim({
-            agencyId: session.agencyId,
+            agencyId,
             purpose: "inbox-media",
             objectIds: attachmentIds,
             expectedBindings: stagedBindings,
@@ -254,7 +276,7 @@ export async function POST(request: Request) {
       await persistReply();
     }
     if (result.delivered) await recordWebsiteEnquiryLeadContact({
-      agencyId: session.agencyId,
+      agencyId,
       leadId: typeof metadata.leadId === "string" ? metadata.leadId : undefined,
       actorUserId: session.userId,
       channel,
@@ -264,13 +286,13 @@ export async function POST(request: Request) {
       incrementSentCount: true,
     });
     logActivity({
-      agencyId: session.agencyId,
+      agencyId,
       actorUserId: session.userId,
       actorEmail: session.email,
       category: "inbox",
       action: result.delivered ? `website-enquiry.${channel}-sent` : `website-enquiry.${channel}-failed`,
-      message: result.delivered ? `Sent ${channel} to ${enquiry.name} as ${sender.label}.` : `${channel} to ${enquiry.name} failed from ${sender.label}.`,
-      metadata: { enquiryId: enquiry.id, replyId, channel, senderId: sender.id, recipient, error: result.reason },
+      message: result.delivered ? `Sent ${channel} to ${deliveryEnquiry.name} as ${sender.label}.` : `${channel} to ${deliveryEnquiry.name} failed from ${sender.label}.`,
+      metadata: { enquiryId: deliveryEnquiry.id, replyId, channel, senderId: sender.id, recipient, error: result.reason },
     });
     await flushPendingWrites();
     if (!result.delivered) return NextResponse.json({ ok: false, error: result.reason || "The message could not be delivered.", reply }, { status: result.via === "unconfigured" ? 503 : 502 });

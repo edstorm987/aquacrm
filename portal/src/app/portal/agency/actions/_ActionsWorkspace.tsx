@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { AlarmClock, ArrowUpDown, ArrowUpRight, Bell, BookOpen, Bot, BriefcaseBusiness, Building2, CalendarCheck2, CalendarDays, CalendarRange, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CirclePause, Clock3, Cloud, CloudOff, ExternalLink, Flag, Inbox, Info, Layers3, List, LoaderCircle, NotebookPen, Pencil, Plus, Radar, RefreshCw, Repeat2, Save, Search, Settings2, ShieldCheck, Sparkles, Target, Trash2, UserRound, Workflow, X } from "lucide-react";
+import { AlarmClock, ArrowUpDown, ArrowUpRight, Bell, BookOpen, Bot, BriefcaseBusiness, Building2, CalendarCheck2, CalendarDays, CalendarRange, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CirclePause, Clock3, Cloud, CloudOff, ExternalLink, FileText, Flag, Inbox, Info, Layers3, Link2, List, LoaderCircle, LockKeyhole, NotebookPen, Pencil, Plus, Radar, RefreshCw, Repeat2, Save, Search, Settings2, ShieldCheck, Sparkles, Target, Trash2, UserRound, UsersRound, Workflow, X } from "lucide-react";
 import type { AdvisorActionSuggestion } from "@/lib/advisor/advisorActions";
 import {
   buildProtectedAttentionWindow,
@@ -91,6 +91,11 @@ export function ActionsWorkspace({
   calendarEvents = [],
   initialCalendarEntries = [],
   initialCalendarIntegration,
+  currentUserId,
+  actionsAvailable = true,
+  actionsWritable = true,
+  calendarAvailable = true,
+  calendarWritable = true,
   initialView = "list",
   heading = "Actions",
   description = "Everything that needs to happen, who owns it, and when it is due.",
@@ -108,6 +113,11 @@ export function ActionsWorkspace({
   calendarEvents?: GeneratedAction[];
   initialCalendarEntries?: CommandCalendarEntry[];
   initialCalendarIntegration: CalendarIntegrationState;
+  currentUserId: string;
+  actionsAvailable?: boolean;
+  actionsWritable?: boolean;
+  calendarAvailable?: boolean;
+  calendarWritable?: boolean;
   initialView?: ActionsView;
   heading?: string;
   description?: string;
@@ -524,7 +534,7 @@ export function ActionsWorkspace({
   return <div className={`mx-auto flex w-full flex-col gap-5 ${initialView === "calendar" ? "max-w-none" : "max-w-7xl"}`}>
     <header className="flex flex-wrap items-end justify-between gap-4">
       <div><p className="text-xs font-semibold uppercase tracking-wide text-brand">{initialView === "calendar" ? "Schedule" : "Work"}</p><h1 className="mt-1 text-3xl font-semibold tracking-tight text-black/90">{heading}</h1><p className="mt-2 text-sm text-black/50">{description}</p></div>
-      {initialView !== "calendar" ? <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+      {initialView !== "calendar" && actionsWritable ? <div className="flex w-full flex-wrap gap-2 sm:w-auto">
         {/* Offered beside the blank form rather than inside it: reaching for a
             template is a decision about which job this is, made before there
             is anything to type. */}
@@ -542,7 +552,7 @@ export function ActionsWorkspace({
           <label className="flex min-h-9 items-center gap-2 text-xs text-black/50"><input type="checkbox" checked={showDone} onChange={event => setShowDone(event.target.checked)} />Show completed</label>
           <div className="flex rounded-md border border-black/10 bg-white p-0.5">
             <ModeButton active={view === "list"} onClick={() => setView("list")} icon={<List size={15} />} label="List" />
-            <ModeButton active={view === "calendar"} onClick={() => setView("calendar")} icon={<CalendarDays size={15} />} label="Calendar" />
+            {calendarAvailable ? <ModeButton active={view === "calendar"} onClick={() => setView("calendar")} icon={<CalendarDays size={15} />} label="Calendar" /> : null}
           </div>
         </div>
       </div>
@@ -599,7 +609,7 @@ export function ActionsWorkspace({
         // operational-alert store, a task clears via completeTask/postponeTask.
         onAttentionAction={handleAttentionAction}
         onMarkAttentionDone={markAttentionDone}
-        onOpenCalendar={() => setView("calendar")}
+        onOpenCalendar={calendarAvailable ? () => setView("calendar") : undefined}
       /> : null}
       {source === "completed" ? <section aria-labelledby="completed-heading" className="overflow-hidden rounded-lg border border-black/10 bg-white"><header className="border-b border-black/10 bg-black/[0.02] px-4 py-4 sm:px-5"><h2 id="completed-heading" className="text-lg font-semibold text-black/82">Completed</h2><p className="mt-1 text-xs leading-5 text-black/48">Everything you have resolved, accepted or judged not worth acting on.</p></header><CompletedRegister /></section> : null}
 
@@ -608,7 +618,7 @@ export function ActionsWorkspace({
         {visibleTasks.map(task => <TaskCard key={task.id} task={task} team={team} clients={clients} sops={sops} customFields={taskCustomFields} busy={busyTaskIds.has(task.id)} deleting={deletingTaskId === task.id} expanded={editing === task.id} onToggle={() => setEditing(current => current === task.id ? null : task.id)} onPatch={patch => patchTask(task.id, patch)} onDelete={() => deleteTask(task.id)} />)}
         {!visibleTasks.length ? <div className="py-12 text-center"><Check className="mx-auto text-emerald-600" size={24} /><h2 className="mt-3 text-sm font-semibold text-black/70">No accepted tasks in this view</h2><p className="mt-1 text-xs text-black/42">Create one manually or approve a suggested task above.</p></div> : null}
       </section>
-    </> : <CalendarView
+    </> : calendarAvailable ? <CalendarView
       month={month}
       tasks={sourceTasks}
       actions={source === "all" || source === "crm" ? calendarEvents : []}
@@ -617,6 +627,10 @@ export function ActionsWorkspace({
       team={team}
       clients={clients}
       customFields={taskCustomFields}
+      allowTasks={actionsAvailable}
+      tasksWritable={actionsWritable}
+      calendarWritable={calendarWritable}
+      currentUserId={currentUserId}
       onNavigate={amount => setMonth(addMonths(month, amount))}
       onToday={() => setMonth(startOfMonth(new Date()))}
       onTaskCreated={task => setTasks(current => [task, ...current.filter(item => item.id !== task.id)])}
@@ -624,7 +638,7 @@ export function ActionsWorkspace({
       onTasksChange={setTasks}
       onEntriesChange={setCalendarEntries}
       onIntegrationChange={setCalendarIntegration}
-    />}
+    /> : null}
 
     {adding ? <TaskModal team={team} clients={clients} sops={sops} customFields={taskCustomFields} onClose={() => setAdding(false)} onCreated={task => { setTasks(current => [task, ...current]); setAdding(false); }} /> : null}
     {pickingTemplate ? <TaskTemplateModal sops={sops} onClose={() => setPickingTemplate(false)} onCreated={task => { setTasks(current => [task, ...current]); setPickingTemplate(false); setEditing(task.id); }} /> : null}
@@ -979,7 +993,27 @@ function GeneratedCard({ action, accepting, attentionBusyAction, onAccept, onAtt
   </div>;
 }
 
-function CalendarView({ month, tasks, actions, entries, integration, team, customFields, onNavigate, onToday, onTaskCreated, onTaskUpdated, onTasksChange, onEntriesChange, onIntegrationChange }: { month: Date; tasks: AgencyTask[]; actions: GeneratedAction[]; entries: CommandCalendarEntry[]; integration: CalendarIntegrationState; team: TeamMember[]; clients: ActionClient[]; customFields: PortalFormFieldDefinition[]; onNavigate: (months: number) => void; onToday: () => void; onTaskCreated: (task: AgencyTask) => void; onTaskUpdated: (task: AgencyTask) => void; onTasksChange: React.Dispatch<React.SetStateAction<AgencyTask[]>>; onEntriesChange: React.Dispatch<React.SetStateAction<CommandCalendarEntry[]>>; onIntegrationChange: React.Dispatch<React.SetStateAction<CalendarIntegrationState>> }) {
+function CalendarView({ month, tasks, actions, entries, integration, team, clients, customFields, allowTasks, tasksWritable, calendarWritable, currentUserId, onNavigate, onToday, onTaskCreated, onTaskUpdated, onTasksChange, onEntriesChange, onIntegrationChange }: {
+  month: Date;
+  tasks: AgencyTask[];
+  actions: GeneratedAction[];
+  entries: CommandCalendarEntry[];
+  integration: CalendarIntegrationState;
+  team: TeamMember[];
+  clients: ActionClient[];
+  customFields: PortalFormFieldDefinition[];
+  allowTasks: boolean;
+  tasksWritable: boolean;
+  calendarWritable: boolean;
+  currentUserId: string;
+  onNavigate: (months: number) => void;
+  onToday: () => void;
+  onTaskCreated: (task: AgencyTask) => void;
+  onTaskUpdated: (task: AgencyTask) => void;
+  onTasksChange: React.Dispatch<React.SetStateAction<AgencyTask[]>>;
+  onEntriesChange: React.Dispatch<React.SetStateAction<CommandCalendarEntry[]>>;
+  onIntegrationChange: React.Dispatch<React.SetStateAction<CalendarIntegrationState>>;
+}) {
   const router = useRouter();
   const [selectedDate, setSelectedDate] = useState(dateKey(Date.now()));
   const [quarterMode, setQuarterMode] = useState(false);
@@ -1019,7 +1053,7 @@ function CalendarView({ month, tasks, actions, entries, integration, team, custo
   const lastSyncedAt = Math.max(0, ...integration.connections.map(connection => connection.lastSyncedAt ?? 0));
 
   const syncCalendars = useCallback(async (connectionId?: string, quiet = false) => {
-    if (!integration.connections.length || syncing) return;
+    if (!calendarWritable || !integration.connections.length || syncing) return;
     setSyncing(true);
     if (!quiet) setIntegrationError("");
     try {
@@ -1029,14 +1063,15 @@ function CalendarView({ month, tasks, actions, entries, integration, team, custo
       onIntegrationChange({ configured: result.configured ?? integration.configured, connections: result.connections, sources: result.sources, events: result.events });
     } catch (caught) { if (!quiet) setIntegrationError(caught instanceof Error ? caught.message : "Calendars could not be synchronised."); }
     finally { setSyncing(false); }
-  }, [integration.configured, integration.connections.length, onIntegrationChange, syncing]);
+  }, [calendarWritable, integration.configured, integration.connections.length, onIntegrationChange, syncing]);
 
   useEffect(() => {
-    if (!integration.connections.length || syncing || (lastSyncedAt && Date.now() - lastSyncedAt < 5 * 60_000)) return;
+    if (!calendarWritable || !integration.connections.length || syncing || (lastSyncedAt && Date.now() - lastSyncedAt < 5 * 60_000)) return;
     void syncCalendars(undefined, true);
-  }, [integration.connections.length, lastSyncedAt, syncCalendars, syncing]);
+  }, [calendarWritable, integration.connections.length, lastSyncedAt, syncCalendars, syncing]);
 
   async function toggleCalendarSource(sourceId: string) {
+    if (!calendarWritable) return;
     const nextIds = integration.sources.filter(source => source.id === sourceId ? !source.selected : source.selected).map(source => source.id);
     setConnectionBusyId(sourceId); setIntegrationError("");
     try {
@@ -1051,6 +1086,7 @@ function CalendarView({ month, tasks, actions, entries, integration, team, custo
   }
 
   async function disconnectCalendar(connectionId: string) {
+    if (!calendarWritable) return;
     if (!window.confirm("Disconnect this Google account and remove its cached events from Command Calendar?")) return;
     setConnectionBusyId(connectionId);
     setIntegrationError("");
@@ -1071,6 +1107,7 @@ function CalendarView({ month, tasks, actions, entries, integration, team, custo
   }
 
   function openNew() {
+    if (!calendarWritable && !tasksWritable) return;
     setEditingEntry(null);
     setEditingTask(null);
     setGoogleCreateOperationId(null);
@@ -1080,6 +1117,7 @@ function CalendarView({ month, tasks, actions, entries, integration, team, custo
   }
 
   async function saveEntry(input: CalendarEditorPayload) {
+    if ((input.type === "task" && !tasksWritable) || (input.type !== "task" && !calendarWritable)) return;
     setBusy(true);
     setError("");
     try {
@@ -1095,7 +1133,7 @@ function CalendarView({ month, tasks, actions, entries, integration, team, custo
         onIntegrationChange({ configured: result.configured ?? integration.configured, connections: result.connections, sources: result.sources, events: result.events });
         setIntegrationError(result.warning ?? "");
       } else if (input.type === "task") {
-        const response = await fetch("/api/portal/tasks", { method: editingTask ? "PATCH" : "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...(editingTask ? { id: editingTask.id } : {}), title: input.title, notes: input.notes ?? "", priority: input.priority, startAt: input.startsAt, dueAt: input.endsAt ?? input.startsAt, reminderAt: input.reminderAt ?? (editingTask ? 0 : undefined), status: editingTask?.status ?? "todo", origin: "manual", customFields: input.customFields }) });
+        const response = await fetch("/api/portal/tasks", { method: editingTask ? "PATCH" : "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...(editingTask ? { id: editingTask.id } : {}), title: input.title, notes: input.notes ?? "", priority: input.priority, startAt: input.startsAt, dueAt: input.endsAt ?? input.startsAt, reminderAt: input.reminderAt ?? (editingTask ? 0 : undefined), status: editingTask?.status ?? "todo", origin: "manual", customFields: input.customFields, assigneeUserId: input.assigneeUserId, clientId: input.clientId }) });
         const result = await response.json().catch(() => null) as { ok?: boolean; error?: string; task?: AgencyTask } | null;
         if (!response.ok || !result?.ok || !result.task) throw new Error(result?.error || "Task could not be saved.");
         (editingTask ? onTaskUpdated : onTaskCreated)(result.task);
@@ -1116,7 +1154,7 @@ function CalendarView({ month, tasks, actions, entries, integration, team, custo
   }
 
   async function removeEntry() {
-    if (!editingEntry) return;
+    if (!calendarWritable || !editingEntry) return;
     setBusy(true); setError("");
     try {
       await checkedJsonMutation<{ ok?: boolean }>(`/api/portal/calendar?id=${encodeURIComponent(editingEntry.id)}`, { method: "DELETE" }, {
@@ -1132,6 +1170,7 @@ function CalendarView({ month, tasks, actions, entries, integration, team, custo
   }
 
   async function completeItem(item: CommandCalendarEntry | AgencyTask) {
+    if (("type" in item && (!calendarWritable || item.ownerUserId !== currentUserId)) || (!("type" in item) && !tasksWritable)) return;
     if (completingItemIds.current.has(item.id)) return;
     completingItemIds.current.add(item.id);
     setBusyCompletionIds(new Set(completingItemIds.current));
@@ -1164,23 +1203,28 @@ function CalendarView({ month, tasks, actions, entries, integration, team, custo
   }
 
   return <section className="mm-actions-calendar rounded-lg border border-black/10 bg-white p-3 sm:p-4" data-calendar-surface="command">
-    <div className="mm-actions-calendar-toolbar flex flex-wrap items-center justify-between gap-3 pb-3"><div><p className="mm-actions-calendar-kicker text-[10px] font-semibold uppercase text-black/35">Command Calendar · Aqua plans + connected work calendars</p><h2 className="mt-1 text-lg font-semibold text-black/80">{periodLabel}</h2><p className="mt-1 text-[10px] text-black/38">{integration.connections.length ? `${integration.connections.length} Google account${integration.connections.length === 1 ? "" : "s"} · ${integration.sources.filter(source => source.selected).length} calendars visible${lastSyncedAt ? ` · synced ${relativeTime(lastSyncedAt)}` : ""}` : "Aqua Calendar only"}</p></div><div className="flex flex-wrap gap-1"><button onClick={() => onNavigate(quarterMode ? -3 : -1)} aria-label={quarterMode ? "Previous quarter" : "Previous month"} className="grid size-9 place-items-center rounded-md border border-black/10"><ChevronLeft size={16} /></button><button onClick={() => { setSelectedDate(dateKey(Date.now())); onToday(); }} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-medium"><CalendarDays size={13} /> Today</button><button onClick={() => setQuarterMode(value => !value)} aria-pressed={quarterMode} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-medium"><CalendarRange size={13} />{quarterMode ? "Month" : "Quarter"}</button><button onClick={() => onNavigate(quarterMode ? 3 : 1)} aria-label={quarterMode ? "Next quarter" : "Next month"} className="grid size-9 place-items-center rounded-md border border-black/10"><ChevronRight size={16} /></button><button type="button" onClick={() => setSourcesOpen(true)} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-semibold"><Settings2 size={14} />Calendars{integration.connections.some(connection => connection.status === "error" || connection.status === "revoked") ? <i className="size-1.5 rounded-full bg-red-500" /> : null}</button>{integration.connections.length ? <button type="button" disabled={syncing} onClick={() => void syncCalendars()} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-semibold disabled:opacity-50"><RefreshCw size={14} className={syncing ? "animate-spin" : ""} />{syncing ? "Syncing" : "Sync"}</button> : null}<button type="button" onClick={() => openNew()} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-black px-3 text-xs font-semibold text-white"><Plus size={14} />Add</button></div></div>
+    <div className="mm-actions-calendar-toolbar flex flex-wrap items-center justify-between gap-3 pb-3"><div><p className="mm-actions-calendar-kicker text-[10px] font-semibold uppercase text-black/35">Command Calendar · Aqua plans + connected work calendars</p><h2 className="mt-1 text-lg font-semibold text-black/80">{periodLabel}</h2><p className="mt-1 text-[10px] text-black/38">{integration.connections.length ? `${integration.connections.length} Google account${integration.connections.length === 1 ? "" : "s"} · ${integration.sources.filter(source => source.selected).length} calendars visible${lastSyncedAt ? ` · synced ${relativeTime(lastSyncedAt)}` : ""}` : "Aqua Calendar only"}</p></div><div className="flex flex-wrap gap-1"><button onClick={() => onNavigate(quarterMode ? -3 : -1)} aria-label={quarterMode ? "Previous quarter" : "Previous month"} className="grid size-9 place-items-center rounded-md border border-black/10"><ChevronLeft size={16} /></button><button onClick={() => { setSelectedDate(dateKey(Date.now())); onToday(); }} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-medium"><CalendarDays size={13} /> Today</button><button onClick={() => setQuarterMode(value => !value)} aria-pressed={quarterMode} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-medium"><CalendarRange size={13} />{quarterMode ? "Month" : "Quarter"}</button><button onClick={() => onNavigate(quarterMode ? 3 : 1)} aria-label={quarterMode ? "Next quarter" : "Next month"} className="grid size-9 place-items-center rounded-md border border-black/10"><ChevronRight size={16} /></button>{calendarWritable ? <button type="button" onClick={() => setSourcesOpen(true)} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-semibold"><Settings2 size={14} />Calendars{integration.connections.some(connection => connection.status === "error" || connection.status === "revoked") ? <i className="size-1.5 rounded-full bg-red-500" /> : null}</button> : null}{calendarWritable && integration.connections.length ? <button type="button" disabled={syncing} onClick={() => void syncCalendars()} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-semibold disabled:opacity-50"><RefreshCw size={14} className={syncing ? "animate-spin" : ""} />{syncing ? "Syncing" : "Sync"}</button> : null}{calendarWritable || tasksWritable ? <button type="button" onClick={() => openNew()} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-black px-3 text-xs font-semibold text-white"><Plus size={14} />Add</button> : <span className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-semibold text-black/45"><LockKeyhole size={13} />View only</span>}</div></div>
     {connectionNotice || integrationError ? <div role={integrationError ? "alert" : "status"} className={`mb-3 flex items-center gap-2 border-l-2 px-3 py-2 text-xs ${integrationError ? "border-red-500 bg-red-50 text-red-700" : "border-emerald-500 bg-emerald-50 text-emerald-700"}`}>{integrationError ? <CloudOff size={14} /> : <CalendarCheck2 size={14} />}{integrationError || `Connected ${connectionNotice}. Calendar events are now on the command plot.`}</div> : null}
-    {quarterMode ? <div className="mm-calendar-quarter-grid grid gap-3 lg:grid-cols-3">{quarterMonths.map(quarterMonth => <MiniMonth key={quarterMonth.toISOString()} month={quarterMonth} selectedDate={selectedDate} tasks={tasks} actions={actions} entries={entries} externalEvents={visibleExternalEvents} onSelect={day => { setSelectedDate(dateKey(day.getTime())); onNavigate((day.getFullYear() - month.getFullYear()) * 12 + day.getMonth() - month.getMonth()); setQuarterMode(false); }} />)}</div> : <div className="mm-calendar-command-layout grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]"><div className="mm-actions-calendar-scroll overflow-x-auto overscroll-x-contain"><CalendarGrid month={month} days={days} selectedDate={selectedDate} tasks={tasks} actions={actions} entries={entries} externalEvents={visibleExternalEvents} sources={integration.sources} team={team} onSelect={selectDay} /></div><aside className="mm-calendar-day-inspector min-w-0 border border-black/10 bg-black/[0.015]"><header className="flex items-start justify-between gap-3 border-b border-black/10 p-4"><div><p className="text-[10px] font-semibold uppercase text-black/40">Selected day</p><h3 className="mt-1 text-lg font-semibold text-black/80">{selected.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</h3><p className="mt-1 text-xs text-black/42">{selectedTasks.length + selectedActions.length + selectedEntries.length + selectedExternalEvents.length} plotted item{selectedTasks.length + selectedActions.length + selectedEntries.length + selectedExternalEvents.length === 1 ? "" : "s"}</p></div><button onClick={() => openNew()} aria-label="Add to selected day" className="grid size-9 place-items-center rounded-md border border-black/10"><Plus size={15} /></button></header><div className="grid gap-2 p-3">{selectedTasks.map(task => <DayAgendaRow key={task.id} type="task" title={task.title} detail={`${calendarTime(task.startAt ?? task.dueAt)} · ${task.priority}`} complete={task.status === "done"} busy={busyCompletionIds.has(task.id)} onComplete={() => void completeItem(task)} onOpen={() => { setEditingTask(task); setEditingEntry(null); setEditorOpen(true); }} />)}{selectedEntries.map(entry => <DayAgendaRow key={entry.id} type={entry.type} title={entry.title} detail={entryDetail(entry)} complete={entry.status === "completed"} busy={busyCompletionIds.has(entry.id)} onComplete={() => void completeItem(entry)} onOpen={() => { setEditingEntry(entry); setEditingTask(null); setEditorOpen(true); }} />)}{selectedExternalEvents.map(event => <ExternalCalendarAgendaRow key={event.id} event={event} source={integration.sources.find(source => source.id === event.sourceId)} />)}{selectedActions.map(action => <Link key={action.id} href={action.href} className="flex min-w-0 gap-3 border border-black/8 bg-white p-3"><span className="grid size-8 shrink-0 place-items-center bg-amber-50 text-amber-700"><Workflow size={14} /></span><span className="min-w-0"><strong className="block truncate text-xs text-black/75">{action.title}</strong><span className="mt-1 block text-[10px] text-black/40">CRM signal · {calendarTime(action.dueAt)}</span></span></Link>)}{!selectedTasks.length && !selectedEntries.length && !selectedExternalEvents.length && !selectedActions.length ? <div className="py-8 text-center"><CalendarDays className="mx-auto text-black/18" size={22} /><p className="mt-2 text-sm font-semibold text-black/55">Clear day</p><button onClick={() => openNew()} className="mt-3 inline-flex min-h-6 items-center text-xs font-semibold text-brand">Plan something</button></div> : null}</div></aside></div>}
+    {quarterMode ? <div className="mm-calendar-quarter-grid grid gap-3 lg:grid-cols-3">{quarterMonths.map(quarterMonth => <MiniMonth key={quarterMonth.toISOString()} month={quarterMonth} selectedDate={selectedDate} tasks={tasks} actions={actions} entries={entries} externalEvents={visibleExternalEvents} onSelect={day => { setSelectedDate(dateKey(day.getTime())); onNavigate((day.getFullYear() - month.getFullYear()) * 12 + day.getMonth() - month.getMonth()); setQuarterMode(false); }} />)}</div> : <div className="mm-calendar-command-layout grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]"><div className="mm-actions-calendar-scroll overflow-x-auto overscroll-x-contain"><CalendarGrid month={month} days={days} selectedDate={selectedDate} tasks={tasks} actions={actions} entries={entries} externalEvents={visibleExternalEvents} sources={integration.sources} team={team} onSelect={selectDay} /></div><aside className="mm-calendar-day-inspector min-w-0 border border-black/10 bg-black/[0.015]"><header className="flex items-start justify-between gap-3 border-b border-black/10 p-4"><div><p className="text-[10px] font-semibold uppercase text-black/40">Selected day</p><h3 className="mt-1 text-lg font-semibold text-black/80">{selected.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</h3><p className="mt-1 text-xs text-black/42">{selectedTasks.length + selectedActions.length + selectedEntries.length + selectedExternalEvents.length} plotted item{selectedTasks.length + selectedActions.length + selectedEntries.length + selectedExternalEvents.length === 1 ? "" : "s"}</p></div>{calendarWritable || tasksWritable ? <button onClick={() => openNew()} aria-label="Add to selected day" className="grid size-9 place-items-center rounded-md border border-black/10"><Plus size={15} /></button> : null}</header><div className="grid gap-2 p-3">{selectedTasks.map(task => <DayAgendaRow key={task.id} type="task" title={task.title} detail={`${calendarTime(task.startAt ?? task.dueAt)} · ${task.priority}`} complete={task.status === "done"} busy={busyCompletionIds.has(task.id)} writable={tasksWritable} onComplete={() => void completeItem(task)} onOpen={() => { if (!tasksWritable) return; setEditingTask(task); setEditingEntry(null); setEditorOpen(true); }} />)}{selectedEntries.map(entry => { const ownsEntry = entry.ownerUserId === currentUserId; return <DayAgendaRow key={entry.id} type={entry.type} title={entry.title} detail={entryDetail(entry)} complete={entry.status === "completed"} busy={busyCompletionIds.has(entry.id)} writable={calendarWritable && ownsEntry} onComplete={() => void completeItem(entry)} onOpen={() => { if (!calendarWritable || !ownsEntry) return; setEditingEntry(entry); setEditingTask(null); setEditorOpen(true); }} />; })}{selectedExternalEvents.map(event => <ExternalCalendarAgendaRow key={event.id} event={event} source={integration.sources.find(source => source.id === event.sourceId)} />)}{selectedActions.map(action => <Link key={action.id} href={action.href} className="flex min-w-0 gap-3 border border-black/8 bg-white p-3"><span className="grid size-8 shrink-0 place-items-center bg-amber-50 text-amber-700"><Workflow size={14} /></span><span className="min-w-0"><strong className="block truncate text-xs text-black/75">{action.title}</strong><span className="mt-1 block text-[10px] text-black/40">CRM signal · {calendarTime(action.dueAt)}</span></span></Link>)}{!selectedTasks.length && !selectedEntries.length && !selectedExternalEvents.length && !selectedActions.length ? <div className="py-8 text-center"><CalendarDays className="mx-auto text-black/18" size={22} /><p className="mt-2 text-sm font-semibold text-black/55">Clear day</p>{calendarWritable || tasksWritable ? <button onClick={() => openNew()} className="mt-3 inline-flex min-h-6 items-center text-xs font-semibold text-brand">Plan something</button> : <p className="mt-2 text-xs text-black/38">No personal plans are scheduled.</p>}</div> : null}</div></aside></div>}
     <div className="mm-calendar-command-footer mt-4 grid gap-3 border-t border-black/10 pt-4 lg:grid-cols-[1fr_auto]"><div><p className="text-[10px] font-semibold uppercase text-black/38">Due reminders · next 7 days</p><div className="mt-2 flex flex-wrap gap-2">{dueReminders.slice(0,6).map(item => <button key={item.id} type="button" onClick={() => { setSelectedDate(dateKey(Number(item.reminderAt))); onNavigate((new Date(Number(item.reminderAt)).getFullYear() - month.getFullYear()) * 12 + new Date(Number(item.reminderAt)).getMonth() - month.getMonth()); }} className="inline-flex min-h-8 items-center gap-1.5 border border-black/10 px-2.5 text-[10px] font-medium text-black/58"><AlarmClock size={12} />{item.title} · {calendarTime(Number(item.reminderAt), true)}</button>)}{!dueReminders.length ? <span className="text-xs text-black/35">No reminders due in the next seven days.</span> : null}</div></div><div className="grid grid-cols-3 gap-2 text-center text-[10px]"><CalendarMetric label="Open tasks" value={tasks.filter(task => task.status !== "done").length} /><CalendarMetric label="Goals" value={entries.filter(entry => entry.type === "goal" && entry.status === "planned").length} /><CalendarMetric label="Targets" value={entries.filter(entry => entry.type === "target" && entry.status === "planned").length} /></div></div>
-    {editorOpen ? <CalendarEditor selectedDate={selectedDate} entry={editingEntry} task={editingTask} customFields={customFields} writableSources={integration.sources.filter(source => source.selected && source.writable)} busy={busy} error={error} onClose={() => { if (!busy) { setEditorOpen(false); setEditingEntry(null); setEditingTask(null); setGoogleCreateOperationId(null); setGoogleCreateRequestKey(null); setError(""); } }} onSave={saveEntry} onDelete={editingEntry ? removeEntry : undefined} /> : null}
-    {sourcesOpen ? <CalendarSourcesDialog integration={integration} syncing={syncing} busyId={connectionBusyId} error={integrationError} onClose={() => setSourcesOpen(false)} onToggle={sourceId => void toggleCalendarSource(sourceId)} onSync={connectionId => void syncCalendars(connectionId)} onDisconnect={connectionId => void disconnectCalendar(connectionId)} /> : null}
+    {editorOpen && (calendarWritable || tasksWritable) ? <CalendarEditor selectedDate={selectedDate} entry={editingEntry} task={editingTask} tasks={tasks} team={team} clients={clients} customFields={customFields} writableSources={integration.sources.filter(source => source.selected && source.writable)} allowTasks={allowTasks && tasksWritable} allowCalendarItems={calendarWritable} busy={busy} error={error} onClose={() => { if (!busy) { setEditorOpen(false); setEditingEntry(null); setEditingTask(null); setGoogleCreateOperationId(null); setGoogleCreateRequestKey(null); setError(""); } }} onSave={saveEntry} onDelete={editingEntry && calendarWritable ? removeEntry : undefined} /> : null}
+    {calendarWritable && sourcesOpen ? <CalendarSourcesDialog integration={integration} syncing={syncing} busyId={connectionBusyId} error={integrationError} onClose={() => setSourcesOpen(false)} onToggle={sourceId => void toggleCalendarSource(sourceId)} onSync={connectionId => void syncCalendars(connectionId)} onDisconnect={connectionId => void disconnectCalendar(connectionId)} /> : null}
   </section>;
 }
 
-type CalendarEditorPayload = { type: CommandCalendarEntryType | "task"; title: string; notes?: string; startsAt: number; endsAt?: number; allDay: boolean; reminderAt?: number; status?: "planned" | "completed" | "cancelled"; targetValue?: number; currentValue?: number; targetUnit?: string; priority?: AgencyTaskPriority; destinationSourceId?: string; customFields?: PortalCustomFieldValues };
+type CalendarEditorPayload = { type: CommandCalendarEntryType | "task"; title: string; notes?: string; startsAt: number; endsAt?: number; allDay: boolean; reminderAt?: number; status?: "planned" | "completed" | "cancelled"; targetValue?: number; currentValue?: number; targetUnit?: string; priority?: AgencyTaskPriority; destinationSourceId?: string; customFields?: PortalCustomFieldValues | CommandCalendarEntry["customFields"]; participantUserIds?: string[]; clientId?: string; linkedTaskIds?: string[]; documents?: CommandCalendarEntry["documents"]; assigneeUserId?: string };
 
 function CalendarEditor({
   selectedDate,
   entry,
   task,
+  tasks,
+  team,
+  clients,
   customFields,
   writableSources,
+  allowTasks,
+  allowCalendarItems,
   busy,
   error,
   onClose,
@@ -1190,8 +1234,13 @@ function CalendarEditor({
   selectedDate: string;
   entry: CommandCalendarEntry | null;
   task: AgencyTask | null;
+  tasks: AgencyTask[];
+  team: TeamMember[];
+  clients: ActionClient[];
   customFields: PortalFormFieldDefinition[];
   writableSources: CommandCalendarSource[];
+  allowTasks: boolean;
+  allowCalendarItems: boolean;
   busy: boolean;
   error: string;
   onClose: () => void;
@@ -1201,13 +1250,20 @@ function CalendarEditor({
   // Modal keyboard contract: focus enters the editor, Tab stays inside it, Escape closes, focus returns to the day that opened it.
   const dialogRef = useRef<HTMLFormElement>(null);
   useFocusTrap(dialogRef, true, { onEscape: onClose });
-  const initialType = task ? "task" : (entry?.type ?? "event");
+  const initialType = task ? "task" : (entry?.type ?? (allowCalendarItems ? "event" : "task"));
   const [type, setType] = useState<CommandCalendarEntryType | "task">(
     initialType,
   );
   const [allDay, setAllDay] = useState(entry?.allDay ?? !task?.startAt);
   const [customFieldValues, setCustomFieldValues] =
     useState<PortalCustomFieldValues>(task?.customFields ?? {});
+  const [assigneeUserId, setAssigneeUserId] = useState(task?.assigneeUserId ?? "");
+  const [clientId, setClientId] = useState(entry?.clientId ?? task?.clientId ?? "");
+  const [participantUserIds, setParticipantUserIds] = useState(entry?.participantUserIds ?? []);
+  const [linkedTaskIds, setLinkedTaskIds] = useState(entry?.linkedTaskIds ?? []);
+  const [documents, setDocuments] = useState(entry?.documents ?? []);
+  const [entryCustomFields, setEntryCustomFields] = useState(entry?.customFields ?? []);
+  const [destinationSourceId, setDestinationSourceId] = useState("");
   const starts =
     entry?.startsAt ??
     task?.startAt ??
@@ -1231,6 +1287,7 @@ function CalendarEditor({
         className="mm-calendar-editor relative mx-auto grid max-h-[94dvh] w-full max-w-2xl gap-4 overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:rounded-lg"
         onSubmit={(event) => {
           event.preventDefault();
+          if ((type === "task" && !allowTasks) || (type !== "task" && !allowCalendarItems)) return;
           const data = new FormData(event.currentTarget);
           const start = allDay
             ? new Date(`${data.get("date")}T12:00:00`).getTime()
@@ -1257,9 +1314,13 @@ function CalendarEditor({
             priority: String(
               data.get("priority") ?? "normal",
             ) as AgencyTaskPriority,
-            destinationSourceId:
-              String(data.get("destinationSourceId") ?? "") || undefined,
-            customFields: type === "task" ? customFieldValues : undefined,
+            destinationSourceId: destinationSourceId || undefined,
+            customFields: type === "task" ? customFieldValues : entryCustomFields,
+            participantUserIds: type === "task" ? undefined : participantUserIds,
+            clientId: clientId || undefined,
+            linkedTaskIds: type === "task" ? undefined : linkedTaskIds,
+            documents: type === "task" ? undefined : documents,
+            assigneeUserId: type === "task" ? assigneeUserId || undefined : undefined,
           });
         }}
       >
@@ -1297,13 +1358,16 @@ function CalendarEditor({
               }
               className="min-h-11 rounded-md border border-black/15 bg-white px-3 text-sm"
             >
-              <option value="task">Task</option>
-              <option value="event">Event</option>
-              <option value="work-block">Work block</option>
-              <option value="reminder">Reminder</option>
-              <option value="note">Note</option>
-              <option value="goal">Goal</option>
-              <option value="target">Numeric target</option>
+              {allowTasks ? <option value="task">Task</option> : null}
+              {allowCalendarItems ? <>
+                <option value="event">Event</option>
+                <option value="work-block">Work block</option>
+                <option value="reminder">Reminder</option>
+                <option value="note">Note</option>
+                <option value="goal">Goal</option>
+                <option value="target">Numeric target</option>
+                <option value="custom">Custom item</option>
+              </> : null}
             </select>
           </label>
           {!entry && !task && type === "event" && writableSources.length ? (
@@ -1311,7 +1375,8 @@ function CalendarEditor({
               Save to
               <select
                 name="destinationSourceId"
-                defaultValue=""
+                value={destinationSourceId}
+                onChange={event => setDestinationSourceId(event.target.value)}
                 className="min-h-11 rounded-md border border-black/15 bg-white px-3 text-sm"
               >
                 <option value="">Aqua Calendar</option>
@@ -1340,6 +1405,11 @@ function CalendarEditor({
             }
           />
         </label>
+        {type === "task" ? (
+          <AssignmentPicker team={team} clients={clients} assigneeUserId={assigneeUserId} clientId={clientId} onAssigneeChange={setAssigneeUserId} onClientChange={setClientId} />
+        ) : !destinationSourceId ? (
+          <CalendarRelationships team={team} clients={clients} tasks={tasks} participantUserIds={participantUserIds} clientId={clientId} linkedTaskIds={linkedTaskIds} onParticipantsChange={setParticipantUserIds} onClientChange={setClientId} onTasksChange={setLinkedTaskIds} />
+        ) : <p className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs leading-5 text-blue-800">Google events keep their own guests and attachments. Choose Aqua Calendar to link CRM people, clients, tasks, documents and custom details.</p>}
         <label className="grid gap-1 text-xs font-medium text-black/55">
           Notes
           <textarea
@@ -1463,6 +1533,8 @@ function CalendarEditor({
             legend="Action custom fields"
           />
         ) : null}
+        {type !== "task" && !destinationSourceId ? <CalendarDocuments documents={documents} onChange={setDocuments} /> : null}
+        {type !== "task" && !destinationSourceId ? <CalendarCustomFields fields={entryCustomFields} onChange={setEntryCustomFields} /> : null}
         {error ? (
           <p
             role="alert"
@@ -1500,6 +1572,55 @@ function CalendarEditor({
       </form>
     </div>
   );
+}
+
+function CalendarRelationships({ team, clients, tasks, participantUserIds, clientId, linkedTaskIds, onParticipantsChange, onClientChange, onTasksChange }: {
+  team: TeamMember[];
+  clients: ActionClient[];
+  tasks: AgencyTask[];
+  participantUserIds: string[];
+  clientId: string;
+  linkedTaskIds: string[];
+  onParticipantsChange: (ids: string[]) => void;
+  onClientChange: (id: string) => void;
+  onTasksChange: (ids: string[]) => void;
+}) {
+  return <section className="grid gap-3 rounded-lg border border-black/10 bg-black/[0.015] p-3" aria-labelledby="calendar-links-heading">
+    <div><h3 id="calendar-links-heading" className="flex items-center gap-2 text-xs font-semibold text-black/70"><Link2 size={14} />People and linked work</h3><p className="mt-1 text-[10px] leading-4 text-black/40">Connect this item to the people, client and tasks it belongs to.</p></div>
+    <fieldset className="grid gap-2"><legend className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-black/40"><UsersRound size={12} />Participants</legend>
+      <div className="flex flex-wrap gap-2">{team.map(member => { const selected = participantUserIds.includes(member.id); return <label key={member.id} className={`inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-md border px-2.5 text-xs ${selected ? "border-brand/35 bg-brand/[0.06] text-black/75" : "border-black/10 bg-white text-black/50"}`}><input type="checkbox" className="sr-only" checked={selected} onChange={() => onParticipantsChange(selected ? participantUserIds.filter(id => id !== member.id) : [...participantUserIds, member.id])} /><span className="grid size-5 place-items-center rounded-full bg-black/[0.06] text-[9px] font-semibold">{member.name.slice(0, 1).toUpperCase()}</span>{member.name}{selected ? <Check size={12} /> : null}</label>; })}{!team.length ? <span className="text-xs text-black/35">No available workspace people.</span> : null}</div>
+    </fieldset>
+    <div className="grid gap-3 sm:grid-cols-2">
+      <label className="grid gap-1 text-xs font-medium text-black/55">Client<select value={clientId} onChange={event => onClientChange(event.target.value)} className="min-h-11 rounded-md border border-black/15 bg-white px-3 text-sm"><option value="">No client</option>{clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label>
+      <label className="grid gap-1 text-xs font-medium text-black/55">Link tasks<select value="" onChange={event => { const id = event.target.value; if (id && !linkedTaskIds.includes(id)) onTasksChange([...linkedTaskIds, id]); }} className="min-h-11 rounded-md border border-black/15 bg-white px-3 text-sm"><option value="">Choose an existing task…</option>{tasks.filter(task => !linkedTaskIds.includes(task.id)).map(task => <option key={task.id} value={task.id}>{task.title}</option>)}</select></label>
+    </div>
+    {linkedTaskIds.length ? <div className="flex flex-wrap gap-2">{linkedTaskIds.map(id => { const task = tasks.find(item => item.id === id); return <span key={id} className="inline-flex min-h-8 items-center gap-2 rounded-md border border-black/10 bg-white px-2.5 text-[11px] text-black/60"><CheckCircle2 size={12} />{task?.title ?? "Unavailable task"}<button type="button" onClick={() => onTasksChange(linkedTaskIds.filter(taskId => taskId !== id))} aria-label={`Unlink ${task?.title ?? "task"}`} className="text-black/35 hover:text-red-600"><X size={12} /></button></span>; })}</div> : null}
+  </section>;
+}
+
+function CalendarDocuments({ documents, onChange }: { documents: NonNullable<CommandCalendarEntry["documents"]>; onChange: (documents: NonNullable<CommandCalendarEntry["documents"]>) => void }) {
+  const [label, setLabel] = useState("");
+  const [url, setUrl] = useState("");
+  const add = () => {
+    const nextLabel = label.trim();
+    const nextUrl = url.trim();
+    if (!nextLabel || !nextUrl) return;
+    onChange([...documents, { id: crypto.randomUUID(), label: nextLabel, url: nextUrl }]);
+    setLabel(""); setUrl("");
+  };
+  return <fieldset className="grid gap-3 rounded-lg border border-black/10 p-3"><legend className="px-1 text-[10px] font-semibold uppercase tracking-wide text-black/40">Documents and links</legend>
+    <p className="flex items-center gap-2 text-[10px] leading-4 text-black/40"><FileText size={13} />Attach an internal file location or a secure web document link.</p>
+    {documents.map(document => <div key={document.id} className="flex min-w-0 items-center gap-2 rounded-md bg-black/[0.025] p-2"><FileText size={14} className="shrink-0 text-black/40" /><a href={document.url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate text-xs font-medium text-black/65 hover:underline">{document.label}</a><button type="button" onClick={() => onChange(documents.filter(item => item.id !== document.id))} aria-label={`Remove ${document.label}`} className="grid size-7 place-items-center text-black/35 hover:text-red-600"><X size={13} /></button></div>)}
+    <div className="grid gap-2 sm:grid-cols-[minmax(0,.7fr)_minmax(0,1.3fr)_auto]"><label className="grid gap-1 text-[10px] text-black/45">Name<input value={label} onChange={event => setLabel(event.target.value)} placeholder="Proposal" className="min-h-10 rounded-md border border-black/15 px-2 text-xs" /></label><label className="grid gap-1 text-[10px] text-black/45">Document URL or internal path<input value={url} onChange={event => setUrl(event.target.value)} placeholder="https://… or /portal/…" className="min-h-10 rounded-md border border-black/15 px-2 text-xs" /></label><button type="button" disabled={!label.trim() || !url.trim()} onClick={add} className="mt-auto inline-flex min-h-10 items-center justify-center gap-1.5 rounded-md border border-black/15 px-3 text-xs font-semibold disabled:opacity-40"><Plus size={13} />Add</button></div>
+  </fieldset>;
+}
+
+function CalendarCustomFields({ fields, onChange }: { fields: NonNullable<CommandCalendarEntry["customFields"]>; onChange: (fields: NonNullable<CommandCalendarEntry["customFields"]>) => void }) {
+  return <fieldset className="grid gap-3 rounded-lg border border-black/10 p-3"><legend className="px-1 text-[10px] font-semibold uppercase tracking-wide text-black/40">Custom details</legend>
+    <p className="text-[10px] leading-4 text-black/40">Add any extra information this specific item needs.</p>
+    {fields.map((field, index) => <div key={field.id} className="grid gap-2 sm:grid-cols-[minmax(0,.7fr)_minmax(0,1.3fr)_auto]"><input aria-label={`Custom field ${index + 1} name`} value={field.label} onChange={event => onChange(fields.map(item => item.id === field.id ? { ...item, label: event.target.value } : item))} placeholder="Field name" className="min-h-10 rounded-md border border-black/15 px-2 text-xs" /><input aria-label={`${field.label || `Custom field ${index + 1}`} value`} value={field.value} onChange={event => onChange(fields.map(item => item.id === field.id ? { ...item, value: event.target.value } : item))} placeholder="Value" className="min-h-10 rounded-md border border-black/15 px-2 text-xs" /><button type="button" onClick={() => onChange(fields.filter(item => item.id !== field.id))} aria-label={`Remove ${field.label || "custom field"}`} className="grid size-10 place-items-center text-black/35 hover:text-red-600"><Trash2 size={13} /></button></div>)}
+    <button type="button" onClick={() => onChange([...fields, { id: crypto.randomUUID(), label: "", value: "" }])} className="inline-flex min-h-9 w-fit items-center gap-1.5 rounded-md border border-black/15 px-3 text-xs font-semibold text-black/60"><Plus size={13} />Add custom field</button>
+  </fieldset>;
 }
 
 function CalendarGrid({
@@ -1657,7 +1778,7 @@ function CalendarSourcesDialog({ integration, syncing, busyId, error, onClose, o
   return <div className="fixed inset-0 z-[105] grid items-end bg-black/45 sm:items-center sm:p-6"><button type="button" className="absolute inset-0" aria-label="Close calendar sources" onClick={onClose} /><section role="dialog" ref={dialogRef} aria-modal="true" aria-labelledby="calendar-sources-heading" className="mm-calendar-sources relative mx-auto flex max-h-[94dvh] w-full max-w-3xl flex-col overflow-hidden rounded-t-lg bg-white shadow-2xl sm:rounded-lg"><header className="flex items-start justify-between gap-4 border-b border-black/10 p-5"><div><p className="text-[10px] font-semibold uppercase text-brand">Unified calendar layer</p><h2 id="calendar-sources-heading" className="mt-1 text-xl font-semibold text-black/85">Calendars and accounts</h2><p className="mt-2 max-w-xl text-xs leading-5 text-black/45">Overlay several Google work accounts with Aqua tasks, goals and plans. Account grants are separate, encrypted and independently removable.</p></div><button type="button" onClick={onClose} aria-label="Close calendars and accounts" className="grid size-9 shrink-0 place-items-center rounded-md border border-black/10"><X size={16} aria-hidden /></button></header><div className="grid flex-1 gap-4 overflow-y-auto p-4 sm:p-5">{!integration.configured ? <div className="border-l-2 border-amber-500 bg-amber-50 p-4"><strong className="text-sm text-amber-900">Google Calendar needs credentials</strong><p className="mt-1 text-xs leading-5 text-amber-800/75">Add the Calendar OAuth client ID, secret and callback URI from <code>.env.example</code>. Aqua Calendar remains fully usable meanwhile.</p></div> : null}{integration.connections.map(connection => { const sources = integration.sources.filter(source => source.connectionId === connection.id); return <article key={connection.id} className="overflow-hidden rounded-md border border-black/10"><header className="flex flex-wrap items-center justify-between gap-3 bg-black/[0.025] px-4 py-3"><div className="flex min-w-0 items-center gap-3"><span className={`grid size-9 shrink-0 place-items-center rounded-md ${connection.status === "error" || connection.status === "revoked" ? "bg-red-50 text-red-700" : "bg-blue-50 text-blue-700"}`}>{connection.status === "error" || connection.status === "revoked" ? <CloudOff size={16} /> : <Cloud size={16} />}</span><div className="min-w-0"><strong className="block truncate text-sm text-black/78">{connection.accountName || connection.accountEmail}</strong><span className="block truncate text-[10px] text-black/40">{connection.accountEmail} · {connection.lastSyncedAt ? `synced ${relativeTime(connection.lastSyncedAt)}` : "not synced yet"}{connection.canRefresh ? " · background refresh ready" : " · reconnect when access expires"}</span></div></div><div className="flex items-center gap-1"><button type="button" disabled={syncing} onClick={() => onSync(connection.id)} title="Sync this account" className="grid size-9 place-items-center rounded-md border border-black/10 text-black/55 disabled:opacity-40"><RefreshCw size={14} className={syncing ? "animate-spin" : ""} /></button><button type="button" disabled={busyId === connection.id} onClick={() => onDisconnect(connection.id)} title="Disconnect account" className="grid size-9 place-items-center rounded-md border border-black/10 text-red-600 disabled:opacity-40">{busyId === connection.id ? <LoaderCircle size={14} className="animate-spin" /> : <Trash2 size={14} />}</button></div></header>{connection.lastError ? <p className="border-t border-red-100 bg-red-50 px-4 py-2 text-[10px] leading-4 text-red-700">{connection.lastError}</p> : null}<div className="divide-y divide-black/[0.07]">{sources.map(source => <label key={source.id} className="flex min-h-12 cursor-pointer items-center gap-3 px-4 py-2.5 hover:bg-black/[0.02]"><input type="checkbox" checked={source.selected} onChange={() => onToggle(source.id)} /><i className="size-3 shrink-0 rounded-sm" style={{ backgroundColor: source.color }} /><span className="min-w-0 flex-1"><strong className="block truncate text-xs font-semibold text-black/68">{source.name}</strong><span className="block truncate text-[9px] text-black/35">{[source.primary ? "Primary" : "Google calendar", source.timeZone, source.writable ? "Can edit at Google" : "Read only"].filter(Boolean).join(" · ")}</span></span><span className="text-[9px] font-semibold uppercase text-black/30">{integration.events.filter(event => event.sourceId === source.id).length} events</span></label>)}{!sources.length ? <p className="px-4 py-5 text-xs text-black/40">No calendars were returned by this account.</p> : null}</div></article>; })}{!integration.connections.length ? <div className="grid place-items-center border border-dashed border-black/15 px-5 py-10 text-center"><Cloud className="text-black/20" size={26} /><strong className="mt-3 text-sm text-black/65">Your first work calendar can join the plot</strong><p className="mt-1 max-w-sm text-xs leading-5 text-black/40">Connect Google, choose exactly which calendars are visible, then add another account whenever you need it.</p></div> : null}{error ? <p role="alert" className="border-l-2 border-red-500 bg-red-50 p-3 text-xs text-red-700">{error}</p> : null}</div><footer className="flex flex-wrap items-center justify-between gap-3 border-t border-black/10 bg-black/[0.018] p-4 sm:px-5"><div><strong className="block text-xs text-black/60">Aqua Calendar is always available</strong><span className="text-[10px] text-black/35">Tasks, notes, goals and targets stay owned by AquaCRM.</span></div>{integration.configured ? <a href="/api/portal/calendar/google/start?returnUrl=%2Fportal%2Fagency%2Fcalendar" className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-xs font-semibold text-white"><Plus size={14} />Connect another Google account</a> : null}</footer></section></div>;
 }
 
-function DayAgendaRow({ type, title, detail, complete, busy, onComplete, onOpen }: { type: string; title: string; detail: string; complete: boolean; busy: boolean; onComplete: () => void; onOpen: () => void }) { const Icon = type === "task" ? CheckCircle2 : type === "work-block" ? BriefcaseBusiness : type === "reminder" ? AlarmClock : type === "note" ? NotebookPen : type === "goal" || type === "target" ? Target : CalendarDays; return <div className="flex min-w-0 items-center gap-2 border border-black/8 bg-white p-2.5"><button type="button" disabled={busy} aria-busy={busy} onClick={onComplete} aria-label={complete ? `Reopen ${title}` : `Complete ${title}`} className={`grid size-8 shrink-0 place-items-center disabled:opacity-50 ${complete ? "bg-emerald-50 text-emerald-700" : "bg-black/[0.035] text-black/45"}`}>{busy ? <LoaderCircle size={14} className="animate-spin" /> : <Icon size={14} />}</button><button type="button" disabled={busy} onClick={onOpen} className="min-w-0 flex-1 text-left disabled:opacity-50"><strong className={`block truncate text-xs ${complete ? "text-black/38 line-through" : "text-black/75"}`}>{title}</strong><span className="mt-1 block truncate text-[10px] capitalize text-black/40">{type.replace("-", " ")} · {detail}</span></button><ChevronRight size={13} className="shrink-0 text-black/25" /></div>; }
+function DayAgendaRow({ type, title, detail, complete, busy, writable, onComplete, onOpen }: { type: string; title: string; detail: string; complete: boolean; busy: boolean; writable: boolean; onComplete: () => void; onOpen: () => void }) { const Icon = type === "task" ? CheckCircle2 : type === "work-block" ? BriefcaseBusiness : type === "reminder" ? AlarmClock : type === "note" ? NotebookPen : type === "goal" || type === "target" ? Target : CalendarDays; return <div className="flex min-w-0 items-center gap-2 border border-black/8 bg-white p-2.5">{writable ? <button type="button" disabled={busy} aria-busy={busy} onClick={onComplete} aria-label={complete ? `Reopen ${title}` : `Complete ${title}`} className={`grid size-8 shrink-0 place-items-center disabled:opacity-50 ${complete ? "bg-emerald-50 text-emerald-700" : "bg-black/[0.035] text-black/45"}`}>{busy ? <LoaderCircle size={14} className="animate-spin" /> : <Icon size={14} />}</button> : <span className={`grid size-8 shrink-0 place-items-center ${complete ? "bg-emerald-50 text-emerald-700" : "bg-black/[0.035] text-black/45"}`}><Icon size={14} /></span>}{writable ? <button type="button" disabled={busy} onClick={onOpen} className="min-w-0 flex-1 text-left disabled:opacity-50"><strong className={`block truncate text-xs ${complete ? "text-black/38 line-through" : "text-black/75"}`}>{title}</strong><span className="mt-1 block truncate text-[10px] capitalize text-black/40">{type.replace("-", " ")} · {detail}</span></button> : <span className="min-w-0 flex-1"><strong className={`block truncate text-xs ${complete ? "text-black/38 line-through" : "text-black/75"}`}>{title}</strong><span className="mt-1 block truncate text-[10px] capitalize text-black/40">{type.replace("-", " ")} · {detail}</span></span>}{writable ? <ChevronRight size={13} className="shrink-0 text-black/25" /> : <LockKeyhole size={12} className="shrink-0 text-black/22" aria-label="View only" />}</div>; }
 
 function CalendarMetric({ label, value }: { label: string; value: number }) { return <div className="min-w-20 border border-black/10 px-2 py-2"><strong className="block text-sm text-black/72">{value}</strong><span className="text-[8px] uppercase text-black/35">{label}</span></div>; }
 

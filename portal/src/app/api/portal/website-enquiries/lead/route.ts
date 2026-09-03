@@ -3,10 +3,11 @@ import { containerFor } from "@aqua/plugin-leads-pipeline/server";
 
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
 import { isTradingBrandSlug, tradingBrandDefinition } from "@/lib/brands/tradingBrands";
-import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { authErrorResponse } from "@/lib/server/auth/auth";
+import { loadActorWebsiteEnquiry } from "@/lib/server/access/websiteEnquiryAccess";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
-import { loadOwnedEnquiry } from "@/lib/supabase/ownedEnquiry";
 import { getInstall } from "@/server/pluginInstalls";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { ensureZimanteTradingCompanies } from "@/server/zimanteTradingCompanies";
@@ -32,7 +33,9 @@ type EnquiryRow = {
 export async function POST(request: Request) {
   try {
     await ensureHydrated({ fresh: true });
-    const session = await requireRole(["agency-owner", "agency-manager", "agency-staff"]);
+    const { actor } = await requireCurrentWorkspaceElementAccess("staff", "workspace.inbox", "use");
+    const session = actor.session;
+    const agencyId = actor.resourceAgencyId;
     const body = await request.json().catch(() => null) as { enquiryId?: unknown } | null;
     const enquiryId = typeof body?.enquiryId === "string" ? body.enquiryId.trim() : "";
     if (!enquiryId) {
@@ -40,9 +43,9 @@ export async function POST(request: Request) {
     }
 
     const supabase = await createScopedSupabaseClient();
-    const data = await loadOwnedEnquiry<EnquiryRow>(supabase, {
+    const data = await loadActorWebsiteEnquiry<EnquiryRow>(actor, supabase, {
       id: enquiryId,
-      agencyId: session.agencyId,
+      required: "use",
       columns: ["brand_slug", "name", "email", "phone", "contact_method", "services", "message", "source_url", "campaign", "created_at"],
     });
     if (!data) {
@@ -60,12 +63,15 @@ export async function POST(request: Request) {
     }
 
     ensureLeadsPipelineFoundationRegistered();
-    const install = getInstall({ agencyId: session.agencyId }, "leads-pipeline");
+    const install = getInstall({ agencyId }, "leads-pipeline");
     if (!install?.enabled) {
       return NextResponse.json({ ok: false, error: "The sales pipeline is not available." }, { status: 503 });
     }
 
-    const companies = ensureZimanteTradingCompanies(session.agencyId, session.userId);
+    if (!await loadActorWebsiteEnquiry(actor, supabase, { id: enquiry.id, required: "use" })) {
+      return NextResponse.json({ ok: false, error: "Website submission not found." }, { status: 404 });
+    }
+    const companies = ensureZimanteTradingCompanies(agencyId, session.userId);
     const company = companies[enquiry.brand_slug];
     const brand = tradingBrandDefinition(enquiry.brand_slug);
     const source = typeof enquiry.metadata?.source === "string"
@@ -80,7 +86,7 @@ export async function POST(request: Request) {
     const services = enquiry.services ?? [];
     const capturedAt = Date.parse(enquiry.created_at);
     const { leads } = containerFor({
-      agencyId: session.agencyId,
+      agencyId,
       storage: makePluginStorage(install.id) as never,
     });
     const result = await leads.upsert({
@@ -128,6 +134,9 @@ export async function POST(request: Request) {
       leadLinkedAt: new Date().toISOString(),
       leadLinkedBy: session.userId,
     };
+    if (!await loadActorWebsiteEnquiry(actor, supabase, { id: enquiry.id, required: "use" })) {
+      return NextResponse.json({ ok: false, error: "Website submission not found." }, { status: 404 });
+    }
     const { error: updateError } = await supabase
       .from("brand_enquiries")
       .update({ metadata })

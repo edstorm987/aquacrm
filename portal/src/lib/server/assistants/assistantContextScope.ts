@@ -31,7 +31,11 @@ import "server-only";
 // an owner is not narrowed by grants they never needed.
 
 import { agencyElementForModule } from "@/lib/server/portal/pluginClientElement";
-import type { AccessCapability, AccessElementKey } from "@/server/types";
+import type {
+  AccessCapability,
+  AccessElementKey,
+  AssistantWorkspaceState,
+} from "@/server/types";
 // TYPE only, and every value from the access kernel is pulled in dynamically
 // below. The healthy owner shell must not statically reach `accessControl.ts` —
 // it is a heavy graph and the speed work split it out deliberately, with
@@ -63,6 +67,8 @@ export interface AssistantContextScope {
   sections: ReadonlySet<AssistantContextSection>;
   /** Whether a given installed module's data may be included. */
   allowsModule: (moduleId: string) => boolean;
+  /** Whether a client-owned row may cross into the context. */
+  allowsClient: (clientId: string) => boolean;
   /** True when nothing at all is permitted — the caller should refuse, not answer emptily. */
   empty: boolean;
   /** Named for the audit trail and for an honest "what was left out" line. */
@@ -80,6 +86,7 @@ export function fullAssistantContextScope(): AssistantContextScope {
   return {
     sections: new Set(Object.keys(ASSISTANT_CONTEXT_SECTIONS) as AssistantContextSection[]),
     allowsModule: () => true,
+    allowsClient: () => true,
     empty: false,
     withheld: [],
   };
@@ -112,9 +119,137 @@ export function assistantContextScopeFromCapabilities(
       // the one whose data should not be quietly handed to a model.
       return element ? holdsView(capabilities, element) : false;
     },
+    // This pure helper represents an agency-wide capability set. Exact-client
+    // grants are resolved by `assistantContextScopeForActor` below instead.
+    allowsClient: () => holdsView(capabilities, "client.overview"),
     empty: sections.size === 0,
     withheld,
   };
+}
+
+/**
+ * Build the context projection from the authoritative current actor.
+ *
+ * Agency capability arrays cannot represent exact-client grants and do not
+ * include workspace-scoped Staff/Growth/Fulfilment grants. Resolving those
+ * here prevents both failure modes: widening one client into every client, and
+ * silently withholding a workspace element the person genuinely holds.
+ */
+export async function assistantContextScopeForActor(
+  actor: CurrentAccessActor,
+): Promise<AssistantContextScope> {
+  const [accessKernel, workspaceAccess, clientAccess] = await Promise.all([
+    import("@/server/accessControl"),
+    import("@/lib/server/access/workspaceElementAccess"),
+    import("@/lib/server/access/clientWorkspaceElementAccess"),
+  ]);
+  const agency = accessKernel.resolveActorAccess(actor, { kind: "agency", id: actor.resourceAgencyId });
+  const staff = workspaceAccess.resolveActorWorkspaceElementAccess(actor, "staff");
+  const growth = workspaceAccess.resolveActorWorkspaceElementAccess(actor, "growth");
+  const fulfilment = workspaceAccess.resolveActorWorkspaceElementAccess(actor, "fulfilment");
+  const legacyManager = actor.session.role === "agency-manager"
+    && !accessKernel.actorHasActiveNonProjectAccessPolicy(actor);
+  if (agency.ownerBaseline || legacyManager) return fullAssistantContextScope();
+
+  const agencyCapabilities = new Set(agency.capabilities);
+  const combinedCapabilities = [
+    ...agency.capabilities,
+    ...staff.capabilities,
+    ...growth.capabilities,
+    ...fulfilment.capabilities,
+  ];
+  const visibleClientIds = new Set(Object.values(actor.resourceState.clients)
+    .filter(client => client.agencyId === actor.resourceAgencyId)
+    .filter(client => clientAccess.clientWorkspaceElementAtLeast(
+      clientAccess.clientWorkspaceElementLevel(
+        clientAccess.resolveActorClientWorkspaceElementAccess(actor, client.id),
+        "client.overview",
+      ),
+      "view",
+    ))
+    .map(client => client.id));
+  const base = assistantContextScopeFromCapabilities(combinedCapabilities, false);
+  const sections = new Set(base.sections);
+  if (visibleClientIds.size) {
+    sections.add("clients");
+    sections.add("endCustomers");
+  }
+  // The activity stream is polymorphic: workspace.overview alone does not
+  // classify HR, pay, finance, client and task rows embedded in it. Until each
+  // row carries an immutable element envelope, it is owner/legacy-manager only.
+  sections.delete("recentActivity");
+  const withheld = (Object.keys(ASSISTANT_CONTEXT_SECTIONS) as AssistantContextSection[])
+    .filter(section => !sections.has(section));
+
+  return {
+    sections,
+    allowsModule: moduleId => {
+      const element = agencyElementForModule(moduleId);
+      if (!element) return false;
+      // Raw plugin stores are agency-wide collections. An exact-client grant
+      // must never turn one client's permission into every client's module rows.
+      if (element.startsWith("client.")) return holdsView([...agencyCapabilities], element);
+      return holdsView(combinedCapabilities, element);
+    },
+    allowsClient: clientId => visibleClientIds.has(clientId),
+    empty: sections.size === 0,
+    withheld,
+  };
+}
+
+/** Context already projected to a previously authenticated actor. */
+export async function assistantBusinessContextForActor(actor: CurrentAccessActor) {
+  const { buildAssistantBusinessContext } = await import("@/lib/server/assistants/assistantBusinessContext");
+  return buildAssistantBusinessContext(
+    actor.resourceAgencyId,
+    await assistantContextScopeForActor(actor),
+  );
+}
+
+/**
+ * Whether historical assistant text may still be used after resolving today's
+ * access policy.
+ *
+ * Assistant messages and memories predate immutable element envelopes, so an
+ * old answer cannot be proven safe after a manager is narrowed. Owners and
+ * genuinely unmigrated legacy managers retain the historical behaviour; any
+ * policy-managed non-owner starts from an empty provider/UI history instead.
+ */
+export async function assistantHistoryVisibleToActor(
+  actor: CurrentAccessActor,
+): Promise<boolean> {
+  if (actor.session.role === "agency-owner") return true;
+  if (actor.session.role !== "agency-manager") return false;
+  const { actorHasActiveNonProjectAccessPolicy } = await import("@/server/accessControl");
+  return !actorHasActiveNonProjectAccessPolicy(actor);
+}
+
+/** Pure redaction seam: titles, turns and memories may all contain revoked data. */
+export function projectAssistantWorkspaceHistory(
+  workspace: AssistantWorkspaceState,
+  historyVisible: boolean,
+): AssistantWorkspaceState {
+  if (historyVisible) return workspace;
+  return {
+    ...workspace,
+    threads: [],
+    memories: [],
+    turnOperations: [],
+  };
+}
+
+/** Durable workspace projected to what this actor may read today. */
+export async function assistantWorkspaceForActor(
+  actor: CurrentAccessActor,
+): Promise<AssistantWorkspaceState> {
+  const [{ getAssistantWorkspace }, historyVisible] = await Promise.all([
+    import("@/lib/server/assistants/assistantStore"),
+    assistantHistoryVisibleToActor(actor),
+  ]);
+  return projectAssistantWorkspaceHistory(
+    getAssistantWorkspace(actor.resourceAgencyId, actor.session.userId),
+    historyVisible,
+  );
 }
 
 /**
@@ -125,13 +260,9 @@ export function assistantContextScopeFromCapabilities(
  * the actor itself because the scope is an access-kernel question and a session
  * is not an actor.
  */
-export async function currentAssistantBusinessContext(agencyId: string) {
-  const { requireCurrentAccessActor, resolveActorAccess } = await import("@/server/accessControl");
-  const { buildAssistantBusinessContext } = await import("@/lib/server/assistants/assistantBusinessContext");
-  const actor = await requireCurrentAccessActor();
-  const resolution = resolveActorAccess(actor, { kind: "agency", id: actor.agencyId });
-  const scope = assistantContextScopeFromCapabilities(resolution.capabilities, resolution.ownerBaseline);
-  return buildAssistantBusinessContext(agencyId, scope);
+export async function currentAssistantBusinessContext() {
+  const actor = await requireAssistantElement("workspace.overview");
+  return assistantBusinessContextForActor(actor);
 }
 
 /**
@@ -151,11 +282,19 @@ export async function requireAssistantElement(
   element: AccessElementKey,
   action: "view" | "use" | "manage" = "view",
 ): Promise<CurrentAccessActor> {
-  const { requireCurrentAccessActor, requireAccessCapability } = await import("@/server/accessControl");
+  const { AccessControlError, requireCurrentAccessActor, resolveActorAccess } = await import("@/server/accessControl");
   const actor = await requireCurrentAccessActor();
-  await requireAccessCapability({
-    capability: `element.${element}.${action}` as AccessCapability,
-    scope: { kind: "agency", id: actor.agencyId },
-  });
+  if (action !== "view" && (actor.session.publicShowcase || actor.session.sandbox?.access === "read-only")) {
+    throw new AccessControlError(403, "read_only_environment");
+  }
+  // The grant lives in the live control plane (`actor.agencyId`), but the
+  // resource being viewed may be the isolated sandbox tenant. Passing the
+  // live id as the target scope makes every sandbox fail ownership before its
+  // environment-specific grant can be evaluated.
+  const capability = `element.${element}.${action}` as AccessCapability;
+  const resolution = resolveActorAccess(actor, { kind: "agency", id: actor.resourceAgencyId });
+  if (!resolution.capabilities.includes(capability)) {
+    throw new AccessControlError(403, resolution.ceilingFailure ?? "access_capability_required", capability);
+  }
   return actor;
 }

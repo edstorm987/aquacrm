@@ -83,6 +83,7 @@ export const PORTAL_DESTINATIONS: readonly PortalDestination[] = [
   { href: "/portal/agency/portals/forms", label: "Forms (Portals)", area: "Agency" },
   { href: "/portal/agency/products", label: "Products", area: "Agency" },
   { href: "/portal/agency/radar", label: "Radar", area: "Agency" },
+  { href: "/portal/agency/radar/workload", label: "Department workload (Business Radar)", area: "Agency" },
   { href: "/portal/agency/settings", label: "Settings", area: "Agency" },
   { href: "/portal/agency/sop-library", label: "Sop library", area: "Agency" },
   { href: "/portal/agency/sops", label: "Sops", area: "Agency" },

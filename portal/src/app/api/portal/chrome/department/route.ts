@@ -54,7 +54,8 @@ export async function POST(request: NextRequest) {
     // department without confirming that user can access it. The intended
     // departmentHasVisibleNav() filter has no consumer."* It now has one —
     // and it is this server, not the switcher's option list, because the
-    // option list is a courtesy and this cookie feeds My Radar's allocation.
+    // option list is a courtesy and this cookie feeds Business Radar's
+    // department allocation.
     // A staff member must not be able to stamp hours onto a department they
     // cannot work in: that is not access escalation, it is data corruption.
     // The check runs against the SAME narrowed panels the layout renders, via

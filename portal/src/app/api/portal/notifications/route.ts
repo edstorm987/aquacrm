@@ -10,6 +10,14 @@ import { agencyRolesForStaffWorkspaceApiPath } from "@/lib/staffWorkspacePolicy"
 import { withPortalStateTransaction } from "@/server/productWorkspaceCoordinator";
 import { ActionMutationConflictError, ActionMutationReceiptError, actionOperationId, matchingActionReceipt, recordActionReceipt } from "@/server/actionMutationReceipts";
 import { alertOccurrenceKey } from "@/lib/client/actionsMutationTruth";
+import {
+  AccessControlError,
+  requireCurrentAccessActor,
+} from "@/server/accessControl";
+import {
+  filterOperationalAlertsForActor,
+  operationalAlertVisibleToActor,
+} from "@/lib/server/access/operationalAlertAccess";
 
 const ACTIONS = new Set<OperationalAlertAction>(["read", "unread", "park", "dismiss"]);
 const MAX_PARK_MS = 31 * 24 * 60 * 60 * 1000;
@@ -19,9 +27,14 @@ export async function GET() {
   try {
     await ensureNotificationSnapshotHydrated();
     const session = await requireRole([...NOTIFICATION_ROLES]);
-    const alerts = await listOperationalAlerts(session.agencyId);
-    return NextResponse.json({ ok: true, alerts: listOperationalAlertViews(session.agencyId, session.userId, alerts) });
+    const actor = await requireCurrentAccessActor();
+    const agencyId = actor.resourceAgencyId;
+    const alerts = filterOperationalAlertsForActor(actor, await listOperationalAlerts(agencyId));
+    return NextResponse.json({ ok: true, alerts: listOperationalAlertViews(agencyId, session.userId, alerts) });
   } catch (error) {
+    if (error instanceof AccessControlError) {
+      return NextResponse.json({ ok: false, error: error.code }, { status: error.status });
+    }
     return authErrorResponse(error);
   }
 }
@@ -29,6 +42,8 @@ export async function PATCH(request: Request) {
   try {
     await ensureNotificationSnapshotHydrated();
     const session = await requireRole([...NOTIFICATION_ROLES]);
+    const actor = await requireCurrentAccessActor();
+    const agencyId = actor.resourceAgencyId;
     const body = await request.json().catch(() => null) as {
       alertId?: string;
       action?: OperationalAlertAction;
@@ -54,7 +69,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: false, error: "Choose a park time within the next 31 days." }, { status: 400 });
     }
 
-    const liveAlerts = await listOperationalAlerts(session.agencyId, now);
+    const liveAlerts = await listOperationalAlerts(agencyId, now);
 
     // Dismissing is a decision — "I have judged this not worth acting on" —
     // and deserves a record. Parking is not: it is "later", and logging it as
@@ -62,21 +77,24 @@ export async function PATCH(request: Request) {
     // Alert preferences and receipts remain per-user, while the completion
     // register is shared by the agency. One alert lane prevents two actors
     // dismissing the same occurrence from creating duplicate register rows.
-    const replayed = await withPortalStateTransaction(`attention:${session.agencyId}:${body.alertId}`, async () => {
-      const receiptInput = { operationId: body.operationId!, kind: "alert-action" as const, agencyId: session.agencyId, userId: session.userId, targetId: body.alertId!, action: `${body.action}@${expectedOccurrenceKey}@v:${expectedVersion}`, parkedUntil: body.parkedUntil };
+    const replayed = await withPortalStateTransaction(`attention:${agencyId}:${body.alertId}`, async () => {
+      const receiptInput = { operationId: body.operationId!, kind: "alert-action" as const, agencyId, userId: session.userId, targetId: body.alertId!, action: `${body.action}@${expectedOccurrenceKey}@v:${expectedVersion}`, parkedUntil: body.parkedUntil };
+      const alert = (await listOperationalAlerts(agencyId, now)).find(item => item.id === body.alertId);
+      if (alert && !operationalAlertVisibleToActor(actor, alert)) {
+        throw new AccessControlError(403, "notification_alert_view_required");
+      }
       if (matchingActionReceipt(receiptInput)) return true;
-      const alert = (await listOperationalAlerts(session.agencyId, now)).find(item => item.id === body.alertId);
       if (!alert || alertOccurrenceKey(alert) !== expectedOccurrenceKey) throw new ActionMutationConflictError("This alert occurrence has changed. Refresh and try again.");
-      const currentView = listOperationalAlertViews(session.agencyId, session.userId, [alert], now)[0];
+      const currentView = listOperationalAlertViews(agencyId, session.userId, [alert], now)[0];
       if (!currentView || (currentView.causalVersion ?? 0) !== expectedVersion) throw new ActionMutationConflictError("This alert changed before the action was saved. Refresh and try again.");
       if (body.action === "dismiss") {
-        recordCompletedAction(session.agencyId, {
+        recordCompletedAction(agencyId, {
           operationId: body.operationId,
           sourceId: alert.id, title: alert.title, detail: alert.detail, origin: "inbox",
           outcome: "dismissed", completedBy: session.userId,
         }, now);
       }
-      setOperationalAlertPreference({ agencyId: session.agencyId, userId: session.userId, alert, action: body.action!, parkedUntil: body.parkedUntil, now });
+      setOperationalAlertPreference({ agencyId, userId: session.userId, alert, action: body.action!, parkedUntil: body.parkedUntil, now });
       recordActionReceipt({ ...receiptInput, createdAt: now });
       return false;
     });
@@ -86,9 +104,17 @@ export async function PATCH(request: Request) {
       alertId: body.alertId,
       action: body.action,
       replayed,
-      alerts: listOperationalAlertViews(session.agencyId, session.userId, liveAlerts, now),
+      alerts: listOperationalAlertViews(
+        agencyId,
+        session.userId,
+        filterOperationalAlertsForActor(actor, liveAlerts),
+        now,
+      ),
     });
   } catch (error) {
+    if (error instanceof AccessControlError) {
+      return NextResponse.json({ ok: false, error: error.code }, { status: error.status });
+    }
     if (error instanceof ActionMutationConflictError || error instanceof ActionMutationReceiptError) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 409 });
     }

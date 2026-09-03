@@ -24,9 +24,10 @@ async function agencySession(request: NextRequest) {
   await ensureHydrated();
   const session = await getSessionFromRequest(request);
   if (!session || !AGENCY_ROLES.includes(session.role)) throw new AuthError(401, "unauthorized");
-  if (session.role === "agency-staff") {
-    await requireCurrentWorkspaceElementAccess("staff", "staff.overview", request.method === "GET" ? "view" : "use");
-  }
+  // Planning, clocking and wellbeing are personal surfaces for every role,
+  // including owner and manager. Apply the same Staff Overview element to
+  // every identity so a narrowed manager cannot regain it through this API.
+  await requireCurrentWorkspaceElementAccess("staff", "staff.overview", request.method === "GET" ? "view" : "use");
   return session;
 }
 

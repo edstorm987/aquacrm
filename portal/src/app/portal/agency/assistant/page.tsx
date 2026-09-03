@@ -1,33 +1,45 @@
 import { redirect } from "next/navigation";
 
 import { AssistantWorkspace } from "./AssistantWorkspace";
-import { buildAssistantBusinessContext } from "@/lib/server/assistants/assistantBusinessContext";
-import { getAssistantWorkspace } from "@/lib/server/assistants/assistantStore";
 import {
   assistantModel,
   isAssistantConfigured,
 } from "@/lib/server/assistants/openaiAssistant";
-import { requireRole } from "@/lib/server/auth/auth";
-import { ensureHydrated } from "@/server/storage";
 import { getUserById } from "@/server/users";
 import { getCachedBusinessIssueRadar } from "@/engines/data/server/radar/businessIssueRadar";
 import { radarDigest } from "@/engines/data/radar/businessRadar";
-import { currentAssistantBusinessContext } from "@/lib/server/assistants/assistantContextScope";
+import {
+  assistantBusinessContextForActor,
+  assistantWorkspaceForActor,
+  requireAssistantElement,
+} from "@/lib/server/assistants/assistantContextScope";
+import { resolveBusinessRadarAccessForActor } from "@/lib/server/intelligence/personalRadarAccess";
+import type { CurrentAccessActor } from "@/server/accessControl";
 
 export default async function AssistantPage() {
-  await ensureHydrated();
-  const session = await requireRole(["agency-owner", "agency-manager"]);
-  if (!session) redirect("/portal/agency");
+  let actor: CurrentAccessActor;
+  try {
+    actor = await requireAssistantElement("workspace.overview");
+  } catch {
+    redirect("/portal/agency");
+  }
+  const session = actor.session;
+  if (session.role !== "agency-owner" && session.role !== "agency-manager") redirect("/portal/agency");
+  const agencyId = actor.resourceAgencyId;
 
-  const context = await currentAssistantBusinessContext(session.agencyId);
-  const radar = await getCachedBusinessIssueRadar(session.agencyId);
+  const [context, initialWorkspace, radarAvailable] = await Promise.all([
+    assistantBusinessContextForActor(actor),
+    assistantWorkspaceForActor(actor),
+    resolveBusinessRadarAccessForActor(actor),
+  ]);
+  const radar = radarAvailable ? await getCachedBusinessIssueRadar(agencyId) : null;
   const user = getUserById(session.userId);
 
   return (
     <AssistantWorkspace
-      initialWorkspace={getAssistantWorkspace(session.agencyId, session.userId)}
-      configured={isAssistantConfigured(session.agencyId)}
-      model={assistantModel(session.agencyId)}
+      initialWorkspace={initialWorkspace}
+      configured={isAssistantConfigured(agencyId)}
+      model={assistantModel(agencyId)}
       userName={user?.name || session.email}
       coverage={{
         clients: context.summary.clients.length,
@@ -35,7 +47,7 @@ export default async function AssistantPage() {
         pipelines: context.summary.pipelines.length,
         recentActivity: context.summary.recentActivity.length,
         modules: Object.keys(context.summary.businessModules),
-        radar: radarDigest(radar),
+        radar: radar ? radarDigest(radar) : undefined,
       }}
     />
   );

@@ -29,7 +29,7 @@ interface Coverage {
   pipelines: number;
   recentActivity: number;
   modules: string[];
-  radar: AdvisorRadarDigest;
+  radar?: AdvisorRadarDigest;
   radarPaused?: boolean;
 }
 

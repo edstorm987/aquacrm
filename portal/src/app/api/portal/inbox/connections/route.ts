@@ -1,19 +1,20 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { requireRole, authErrorResponse } from "@/lib/server/auth/auth";
+import { AuthError, authErrorResponse } from "@/lib/server/auth/auth";
 import { disconnectInboxConnection, listInboxConnections, updateInboxConnection } from "@/lib/server/inbox/inboxStore";
 import { metaInboxReadiness } from "@/lib/server/integrations/metaMessaging";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 
 export async function GET(request: NextRequest) {
   await ensureHydrated();
   try {
-    const session = await requireRole(["agency-owner", "agency-manager", "agency-staff"]);
+    const { actor } = await requireCurrentWorkspaceElementAccess("staff", "workspace.inbox", "view");
     return NextResponse.json({
       ok: true,
-      connections: await listInboxConnections(session.agencyId),
-      readiness: metaInboxReadiness(session.agencyId, request.nextUrl.origin),
+      connections: await listInboxConnections(actor.resourceAgencyId),
+      readiness: metaInboxReadiness(actor.resourceAgencyId, request.nextUrl.origin),
     });
   } catch (cause) {
     return authErrorResponse(cause);
@@ -23,10 +24,10 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   await ensureHydrated();
   try {
-    const session = await requireRole(["agency-owner", "agency-manager"]);
+    const { actor } = await requireCurrentWorkspaceElementAccess("staff", "workspace.inbox", "manage");
     const body = await request.json() as { connectionId?: string; companyId?: string; marketingAssetId?: string };
     if (!body.connectionId) return NextResponse.json({ ok: false, error: "connection_id_required" }, { status: 400 });
-    const connection = await updateInboxConnection(session.agencyId, body.connectionId, {
+    const connection = await updateInboxConnection(actor.resourceAgencyId, body.connectionId, {
       companyId: cleanOptional(body.companyId),
       marketingAssetId: cleanOptional(body.marketingAssetId),
     });
@@ -39,12 +40,13 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   await ensureHydrated();
   try {
-    const session = await requireRole(["agency-owner", "agency-manager"]);
+    const { actor } = await requireCurrentWorkspaceElementAccess("staff", "workspace.inbox", "manage");
+    const session = actor.session;
     const connectionId = request.nextUrl.searchParams.get("connectionId");
     if (!connectionId) return NextResponse.json({ ok: false, error: "connection_id_required" }, { status: 400 });
-    await disconnectInboxConnection(session.agencyId, connectionId);
+    await disconnectInboxConnection(actor.resourceAgencyId, connectionId);
     logActivity({
-      agencyId: session.agencyId,
+      agencyId: actor.resourceAgencyId,
       actorUserId: session.userId,
       actorEmail: session.email,
       category: "integrations",
@@ -64,6 +66,6 @@ function cleanOptional(value?: string): string | undefined {
 }
 
 function responseError(cause: unknown) {
-  if (cause instanceof Error && cause.message.includes("auth")) return authErrorResponse(cause);
+  if (cause instanceof AuthError) return authErrorResponse(cause);
   return NextResponse.json({ ok: false, error: cause instanceof Error ? cause.message : "inbox_connection_failed" }, { status: 400 });
 }

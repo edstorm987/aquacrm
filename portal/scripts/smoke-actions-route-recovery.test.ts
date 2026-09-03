@@ -53,6 +53,49 @@ require.cache[storageId]!.exports = {
   },
 };
 
+// A controllable pause at the task/client boundary. PATCH must reach this
+// while already holding the task transaction: if it reaches here beforehand,
+// an owner can reassign the task and the stale staff request can still write.
+const clientAssociationId = require.resolve("../src/lib/server/access/clientAssociationElement");
+const realClientAssociation = require(clientAssociationId) as typeof import("../src/lib/server/access/clientAssociationElement");
+interface ClientAssociationBarrier {
+  clientId: string;
+  hit: boolean;
+  reached: Promise<void>;
+  signalReached: () => void;
+  release: Promise<void>;
+  signalRelease: () => void;
+}
+let clientAssociationBarrier: ClientAssociationBarrier | null = null;
+
+function createClientAssociationBarrier(clientId: string): ClientAssociationBarrier {
+  let signalReached!: () => void;
+  let signalRelease!: () => void;
+  return {
+    clientId,
+    hit: false,
+    reached: new Promise<void>(resolve => { signalReached = resolve; }),
+    signalReached,
+    release: new Promise<void>(resolve => { signalRelease = resolve; }),
+    signalRelease,
+  };
+}
+
+require.cache[clientAssociationId]!.exports = {
+  ...realClientAssociation,
+  async requireClientAssociation(
+    ...args: Parameters<typeof realClientAssociation.requireClientAssociation>
+  ): Promise<void> {
+    const barrier = clientAssociationBarrier;
+    if (barrier && !barrier.hit && args[1] === barrier.clientId) {
+      barrier.hit = true;
+      barrier.signalReached();
+      await barrier.release;
+    }
+    await realClientAssociation.requireClientAssociation(...args);
+  },
+};
+
 const completedRoute = require("../src/app/api/portal/attention/completed/route") as typeof import("../src/app/api/portal/attention/completed/route");
 const notificationRoute = require("../src/app/api/portal/notifications/route") as typeof import("../src/app/api/portal/notifications/route");
 const tasksRoute = require("../src/app/api/portal/tasks/route") as typeof import("../src/app/api/portal/tasks/route");
@@ -130,7 +173,10 @@ async function seedWorld(): Promise<World> {
   };
 }
 
-beforeEach(() => { failNextCommit = false; });
+beforeEach(() => {
+  failNextCommit = false;
+  clientAssociationBarrier = null;
+});
 
 function notificationBody(
   alert: World["alert"],
@@ -185,6 +231,18 @@ async function deleteTask(actor: Actor, taskId: string): Promise<Response> {
     headers: { cookie: `${auth.SESSION_COOKIE_NAME}=${actor.token}` },
   });
   return withSession(actor.token, () => tasksRoute.DELETE(request));
+}
+
+async function patchTask(actor: Actor, body: Record<string, unknown>): Promise<Response> {
+  const request = new NextRequest("http://localhost/api/portal/tasks", {
+    method: "PATCH",
+    headers: {
+      "content-type": "application/json",
+      cookie: `${auth.SESSION_COOKIE_NAME}=${actor.token}`,
+    },
+    body: JSON.stringify(body),
+  });
+  return withSession(actor.token, () => tasksRoute.PATCH(request));
 }
 
 test("Mark Done and Dismiss race through one causal lane for the same actor", async () => {
@@ -449,6 +507,60 @@ test("failed owner task DELETE rolls back task, activity and receipt before retr
 
   assert.equal((await deleteTask(world.owner, target.id)).status, 200);
   assert.equal(tasks.listAgencyTasks(world.agencyId).some(task => task.id === target.id), false);
+});
+
+test("staff PATCH authorization serializes before a concurrent owner reassignment", async () => {
+  const world = await seedWorld();
+  const client = tenants.createClient(world.agencyId, {
+    name: `Race client ${sequence}`,
+    slug: `race-client-${sequence}`,
+  });
+  const staffUser = users.createUser({
+    email: `actions-race-staff-${sequence}@example.test`,
+    password: "Actions-recovery-1!",
+    role: "agency-staff",
+    agencyId: world.agencyId,
+  });
+  const staff = { id: staffUser.id, token: actorToken(staffUser, world.agencyId) };
+  people.createPeopleEmployee({
+    agencyId: world.agencyId,
+    actorUserId: world.owner.id,
+    userId: staff.id,
+    name: "Race Staff",
+    email: staffUser.email,
+    title: "Coordinator",
+  });
+  const target = tasks.createAgencyTask({
+    agencyId: world.agencyId,
+    title: "Reassignment race",
+    clientId: client.id,
+    createdBy: world.owner.id,
+    assigneeUserId: staff.id,
+  });
+
+  const barrier = createClientAssociationBarrier(client.id);
+  clientAssociationBarrier = barrier;
+  const staffWrite = patchTask(staff, { id: target.id, notes: "Staff wrote while assigned" });
+  await barrier.reached;
+
+  // When authorization is inside the transaction, this owner request queues
+  // behind the paused staff request. With the old pre-lock check it commits
+  // first, reassigning the task before the stale staff request takes the lock.
+  const ownerReassignment = patchTask(world.owner, { id: target.id, assigneeUserId: world.owner.id });
+  await new Promise(resolve => setTimeout(resolve, 25));
+  barrier.signalRelease();
+
+  const [staffResponse, ownerResponse] = await Promise.all([staffWrite, ownerReassignment]);
+  assert.equal(staffResponse.status, 200);
+  assert.equal(ownerResponse.status, 200);
+  const staffPayload = await staffResponse.json() as { task: { revision: number } };
+  const ownerPayload = await ownerResponse.json() as { task: { revision: number; assigneeUserId?: string } };
+  assert.ok(
+    staffPayload.task.revision < ownerPayload.task.revision,
+    "staff wrote after the task had already been reassigned away; authorization was outside the task transaction",
+  );
+  assert.equal(ownerPayload.task.assigneeUserId, world.owner.id);
+  assert.equal(tasks.listAgencyTasks(world.agencyId).find(task => task.id === target.id)?.assigneeUserId, world.owner.id);
 });
 
 test("staff DELETE succeeds only for a created task and returns the staff-scoped snapshot", async () => {

@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { calculateClientAquaHealth } from "../src/lib/clients/clientAquaHealth";
-import { buildClientRadarSnapshot, type ClientRadarInput } from "../src/engines/data/radar/clientRadar";
+import {
+  buildClientRadarSnapshot,
+  type ClientRadarInput,
+  type ClientRadarVisibility,
+} from "../src/engines/data/radar/clientRadar";
 
 const NOW = Date.parse("2026-08-16T12:00:00.000Z");
 const DAY = 86_400_000;
@@ -17,6 +21,7 @@ function input(overrides: Partial<ClientRadarInput> = {}): ClientRadarInput {
   const lastContactedAt = overrides.lastContactedAt;
   return {
     now: NOW,
+    visibility: overrides.visibility,
     client: {
       id: "client-a",
       name: "Client A",
@@ -59,7 +64,69 @@ function input(overrides: Partial<ClientRadarInput> = {}): ClientRadarInput {
   };
 }
 
+function visible(...elements: Array<keyof ClientRadarVisibility>): ClientRadarVisibility {
+  return {
+    overview: elements.includes("overview"),
+    relationship: elements.includes("relationship"),
+    fulfilment: elements.includes("fulfilment"),
+    marketing: elements.includes("marketing"),
+    systems: elements.includes("systems"),
+    commercial: elements.includes("commercial"),
+    communications: elements.includes("communications"),
+    portal: elements.includes("portal"),
+  };
+}
+
 describe("client-scoped adaptive Radar", () => {
+  it("keeps hidden element families out of checks, issues, source state and aggregate health", () => {
+    const radar = buildClientRadarSnapshot(input({
+      visibility: visible("overview"),
+      financeConnected: true,
+      invoices: [{ status: "overdue", dueAt: NOW - DAY, totalCents: 999_999, currency: "gbp" }],
+      requestsObserved: true,
+      requests: [{ status: "open", priority: "urgent", type: "cancel", submittedAt: NOW }],
+      contracts: [{ status: "sent", title: "Hidden commercial agreement", createdAt: NOW }],
+      products: [{ id: "hidden-delivery", name: "Hidden delivery", requiresPortal: true, deliverableCount: 4 }],
+      portal: { expected: true, builtAt: NOW, accessEmail: "hidden@example.test", pendingApprovals: 7, sharedFiles: 9 },
+      marketing: { enabled: true, attentionProfiles: 4, pendingApprovals: 5, activeCampaigns: 2, campaignsOverBudget: 1, campaignsWithoutLeads: 1 },
+      alerts: [{ id: "hidden-alert", severity: "critical", title: "Hidden finance incident", detail: "£9,999 is overdue", href: "/portal/clients/client-a?tab=finance", occurredAt: NOW, element: "commercial" }],
+      aquaHealth: {
+        score: 1,
+        confidence: 100,
+        state: "risk",
+        summary: "Hidden aggregate risk",
+        factors: [],
+      },
+    }));
+
+    assert.deepEqual(radar.checks.map(check => check.title), ["Lifecycle position"]);
+    assert.deepEqual(radar.issues, []);
+    assert.equal(radar.healthScore, null);
+    assert.equal(radar.healthState, "learning");
+    assert.equal(radar.sourceAvailability.finance, "hidden");
+    assert.doesNotMatch(JSON.stringify(radar), /9999|Hidden finance|Hidden aggregate|Hidden delivery|commercial agreement|hidden@example/i);
+  });
+
+  it("adds only the explicitly visible client-domain families", () => {
+    const common: Partial<ClientRadarInput> = {
+      financeConnected: true,
+      invoices: [{ status: "overdue", dueAt: NOW - DAY, totalCents: 125_000, currency: "gbp" }],
+      requestsObserved: true,
+      requests: [{ status: "open", priority: "urgent", type: "cancel", submittedAt: NOW }],
+      contracts: [{ status: "sent", title: "Agreement", createdAt: NOW }],
+      portal: { expected: true, builtAt: NOW, accessEmail: "portal@example.test", pendingApprovals: 1, sharedFiles: 1 },
+    };
+    const commercial = buildClientRadarSnapshot(input({ ...common, visibility: visible("overview", "commercial") }));
+    assert.deepEqual(commercial.checks.map(check => check.title), ["Lifecycle position", "Payment position", "Agreement position"]);
+    assert.equal(commercial.sourceAvailability.finance, "ready");
+    assert.equal(commercial.checks.some(check => check.href.includes("tab=communications") || check.href.includes("tab=portal") || check.href.includes("tab=delivery")), false);
+
+    const communications = buildClientRadarSnapshot(input({ ...common, visibility: visible("overview", "communications") }));
+    assert.deepEqual(communications.checks.map(check => check.title), ["Lifecycle position", "Contactability", "Support pressure"]);
+    assert.equal(communications.sourceAvailability.finance, "hidden");
+    assert.equal(communications.checks.some(check => check.href.includes("tab=finance") || check.href.includes("tab=portal") || check.href.includes("tab=delivery")), false);
+  });
+
   it("starts a new active client with honest setup and learning states", () => {
     const radar = buildClientRadarSnapshot(input());
     const service = radar.checks.find(check => check.id.endsWith(":service-assignment"));

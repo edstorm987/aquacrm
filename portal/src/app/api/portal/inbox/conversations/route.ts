@@ -1,18 +1,39 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { AuthError, requireRole, authErrorResponse } from "@/lib/server/auth/auth";
+import { AuthError, authErrorResponse } from "@/lib/server/auth/auth";
 import { routeTenantScope } from "@/lib/server/portal/apiTenantScope";
-import { listInboxSnapshot, updateInboxConversation, updateInboxIdentityLinks } from "@/lib/server/inbox/inboxStore";
+import { getInboxConversation, listInboxSnapshot, updateInboxConversation, updateInboxIdentityLinks } from "@/lib/server/inbox/inboxStore";
 import { upsertClientSocialMessageLedgerEvent } from "@/lib/server/clients/clientRecordLedger";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { resolveContactIdentity, upsertIdentityResolutionReview } from "@/lib/server/identityResolution";
-import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
+import {
+  clientWorkspaceElementAtLeast,
+  clientWorkspaceElementLevel,
+  requireCurrentClientWorkspaceElementAccess,
+  resolveActorClientWorkspaceElementAccess,
+} from "@/lib/server/access/clientWorkspaceElementAccess";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 
 export async function GET() {
   await ensureHydrated();
   try {
-    const session = await requireRole(["agency-owner", "agency-manager", "agency-staff"]);
-    return NextResponse.json({ ok: true, snapshot: await listInboxSnapshot(session.agencyId) });
+    const { actor } = await requireCurrentWorkspaceElementAccess("staff", "workspace.inbox", "view");
+    const snapshot = await listInboxSnapshot(actor.resourceAgencyId);
+    return NextResponse.json({
+      ok: true,
+      snapshot: {
+        ...snapshot,
+        conversations: snapshot.conversations.filter(conversation => {
+          const clientId = conversation.identity.clientId;
+          if (!clientId) return true;
+          const access = resolveActorClientWorkspaceElementAccess(actor, clientId);
+          return clientWorkspaceElementAtLeast(
+            clientWorkspaceElementLevel(access, "client.communications"),
+            "view",
+          );
+        }),
+      },
+    });
   } catch (cause) {
     return authErrorResponse(cause);
   }
@@ -21,7 +42,9 @@ export async function GET() {
 export async function PATCH(request: NextRequest) {
   await ensureHydrated();
   try {
-    const session = await requireRole(["agency-owner", "agency-manager", "agency-staff"]);
+    const { actor } = await requireCurrentWorkspaceElementAccess("staff", "workspace.inbox", "use");
+    const session = actor.session;
+    const agencyId = actor.resourceAgencyId;
     const body = await request.json() as {
       conversationId?: string;
       identityId?: string;
@@ -42,17 +65,17 @@ export async function PATCH(request: NextRequest) {
       if (clean(body.clientId) && !tenant.client) {
         return NextResponse.json({ ok: false, error: "client_not_found" }, { status: 404 });
       }
-      const before = await listInboxSnapshot(session.agencyId);
+      const before = await listInboxSnapshot(agencyId);
       const currentIdentity = before.conversations.find(conversation => conversation.identity.id === body.identityId)?.identity;
       const clientIds = [...new Set([currentIdentity?.clientId, tenant.clientId].filter((id): id is string => Boolean(id)))];
       for (const clientId of clientIds) {
         await requireCurrentClientWorkspaceElementAccess(clientId, "client.communications", "use");
       }
-      const identity = await updateInboxIdentityLinks(session.agencyId, body.identityId, {
+      const identity = await updateInboxIdentityLinks(agencyId, body.identityId, {
         leadId: clean(body.leadId), contactId: clean(body.contactId), clientId: tenant.clientId ?? "",
       });
       const identityInput = {
-        agencyId: session.agencyId,
+        agencyId,
         sourceType: "social-inbox" as const,
         sourceId: identity.id,
         sourceLabel: identity.displayName,
@@ -64,10 +87,10 @@ export async function PATCH(request: NextRequest) {
       };
       upsertIdentityResolutionReview(identityInput, resolveContactIdentity(identityInput));
       if (identity.clientId) {
-        const snapshot = await listInboxSnapshot(session.agencyId);
+        const snapshot = await listInboxSnapshot(agencyId);
         for (const conversation of snapshot.conversations.filter(item => item.identity.id === identity.id)) {
           for (const message of conversation.messages.filter(item => item.direction !== "internal")) {
-            upsertClientSocialMessageLedgerEvent(session.agencyId, identity.clientId, {
+            upsertClientSocialMessageLedgerEvent(agencyId, identity.clientId, {
               conversationId: conversation.id,
               messageId: message.id,
               channel: conversation.connection.channel,
@@ -86,8 +109,17 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ ok: true, identity });
     }
     if (!body.conversationId) return NextResponse.json({ ok: false, error: "conversation_id_required" }, { status: 400 });
+    const currentConversation = await getInboxConversation(agencyId, body.conversationId);
+    if (!currentConversation) return NextResponse.json({ ok: false, error: "inbox_conversation_not_found" }, { status: 404 });
+    if (currentConversation.identity.clientId) {
+      await requireCurrentClientWorkspaceElementAccess(
+        currentConversation.identity.clientId,
+        "client.communications",
+        "use",
+      );
+    }
     const status = body.status && ["open", "snoozed", "closed"].includes(body.status) ? body.status : undefined;
-    const conversation = await updateInboxConversation(session.agencyId, body.conversationId, {
+    const conversation = await updateInboxConversation(agencyId, body.conversationId, {
       status,
       assignedTo: clean(body.assignedTo),
       tags: Array.isArray(body.tags) ? [...new Set(body.tags.map(tag => tag.trim().slice(0, 40)).filter(Boolean))].slice(0, 20) : undefined,

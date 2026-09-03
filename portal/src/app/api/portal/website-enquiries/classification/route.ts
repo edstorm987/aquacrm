@@ -8,11 +8,12 @@ import {
   type WebsiteEnquiryClassification,
 } from "@/lib/enquiries/enquiryClassification";
 import { isTradingBrandSlug, tradingBrandDefinition } from "@/lib/brands/tradingBrands";
-import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { authErrorResponse } from "@/lib/server/auth/auth";
+import { loadActorWebsiteEnquiry } from "@/lib/server/access/websiteEnquiryAccess";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { pipelinePort } from "@/lib/server/leadsPipelinePorts";
 import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
-import { loadOwnedEnquiry } from "@/lib/supabase/ownedEnquiry";
 import { getInstall } from "@/server/pluginInstalls";
 import { classifyPerson, upsertPerson } from "@/server/persons";
 import { deleteCard, getPipelineBySlug, listCards } from "@/server/pipelines";
@@ -37,7 +38,9 @@ type EnquiryRow = {
 export async function PATCH(request: Request) {
   try {
     await ensureHydrated({ fresh: true });
-    const session = await requireRole(["agency-owner", "agency-manager", "agency-staff"]);
+    const { actor } = await requireCurrentWorkspaceElementAccess("staff", "workspace.inbox", "use");
+    const session = actor.session;
+    const agencyId = actor.resourceAgencyId;
     const body = await request.json().catch(() => null) as { enquiryId?: unknown; classification?: unknown } | null;
     const enquiryId = typeof body?.enquiryId === "string" ? body.enquiryId.trim() : "";
     if (!enquiryId || !isWebsiteEnquiryClassification(body?.classification)) {
@@ -46,9 +49,9 @@ export async function PATCH(request: Request) {
     const classification = body.classification;
 
     const supabase = await createScopedSupabaseClient();
-    const data = await loadOwnedEnquiry<EnquiryRow>(supabase, {
+    const data = await loadActorWebsiteEnquiry<EnquiryRow>(actor, supabase, {
       id: enquiryId,
-      agencyId: session.agencyId,
+      required: "use",
       columns: ["brand_slug", "name", "email", "phone", "contact_method", "services", "message", "source_url", "campaign", "created_at"],
     });
     if (!data) return NextResponse.json({ ok: false, error: "Submission not found." }, { status: 404 });
@@ -59,14 +62,14 @@ export async function PATCH(request: Request) {
       ? currentMetadata.enquiryClassification
       : "unclassified";
     const now = new Date().toISOString();
-    const install = getInstall({ agencyId: session.agencyId }, "leads-pipeline");
+    const install = getInstall({ agencyId }, "leads-pipeline");
     if (!install?.enabled) {
       return NextResponse.json({ ok: false, error: "The Journey data module is not available." }, { status: 503 });
     }
 
     ensureLeadsPipelineFoundationRegistered();
     const { leads, contacts } = containerFor({
-      agencyId: session.agencyId,
+      agencyId,
       storage: makePluginStorage(install.id) as never,
     });
     const storedLeadId = typeof currentMetadata.leadId === "string"
@@ -91,11 +94,18 @@ export async function PATCH(request: Request) {
         ? await contacts.getByEmail(enquiry.email)
         : null;
 
+    // Reads above resolve existing lead/contact state. Re-load the source row
+    // immediately before the first durable write so a newly-linked hidden
+    // client cannot be crossed with a stale inbox snapshot.
+    if (!await loadActorWebsiteEnquiry(actor, supabase, { id: enquiry.id, required: "use" })) {
+      return NextResponse.json({ ok: false, error: "Submission not found." }, { status: 404 });
+    }
+
     if (classification === "sales") {
       if (!isTradingBrandSlug(enquiry.brand_slug)) {
         return NextResponse.json({ ok: false, error: "This submission has an unknown brand." }, { status: 400 });
       }
-      const companies = ensureZimanteTradingCompanies(session.agencyId, session.userId);
+      const companies = ensureZimanteTradingCompanies(agencyId, session.userId);
       const company = companies[enquiry.brand_slug];
       const brand = tradingBrandDefinition(enquiry.brand_slug);
       const source = typeof currentMetadata.source === "string" ? currentMetadata.source : `website:${enquiry.brand_slug}`;
@@ -138,7 +148,7 @@ export async function PATCH(request: Request) {
       // Returning to sales after being routed out: the kanban card was
       // removed as a projection, so put it back or the lead is invisible
       // in Journey despite being eligible again.
-      ensureLeadCard(session.agencyId, result.lead);
+      ensureLeadCard(agencyId, result.lead);
       routeNote = result.created
         ? "Created a sales lead and added it to Journey."
         : "Restored the sales lead to Journey with its history intact.";
@@ -165,7 +175,7 @@ export async function PATCH(request: Request) {
         }, session.userId);
         // The kanban card IS removed — it is a projection of Journey
         // membership, and `ensureLeadCard` puts it back on return to sales.
-        removeLeadCards(session.agencyId, activeLead.id, activeLead.pipelineCardId);
+        removeLeadCards(agencyId, activeLead.id, activeLead.pipelineCardId);
       }
       const contactType = classificationContactType(classification);
       if (contactType && existingRoutedContact?.customFields?.enquiryId === enquiry.id) {
@@ -220,7 +230,10 @@ export async function PATCH(request: Request) {
     // the enquiry only records what was decided at the time. Facets are
     // attached additively, so a retained lead and a retained contact can both
     // hang off the same person.
-    const { person } = upsertPerson(session.agencyId, {
+    if (!await loadActorWebsiteEnquiry(actor, supabase, { id: enquiry.id, required: "use" })) {
+      return NextResponse.json({ ok: false, error: "Submission not found." }, { status: 404 });
+    }
+    const { person } = upsertPerson(agencyId, {
       emails: [enquiry.email ?? undefined],
       phones: [enquiry.phone ?? undefined],
       name: enquiry.name,
@@ -231,7 +244,7 @@ export async function PATCH(request: Request) {
         enquiryIds: [enquiry.id],
       },
     });
-    classifyPerson(session.agencyId, person.id, {
+    classifyPerson(agencyId, person.id, {
       classification,
       by: session.userId,
       sourceType: "website-enquiry",
@@ -266,6 +279,9 @@ export async function PATCH(request: Request) {
       personId: person.id,
       enquiryRouteNote: routeNote,
     };
+    if (!await loadActorWebsiteEnquiry(actor, supabase, { id: enquiry.id, required: "use" })) {
+      return NextResponse.json({ ok: false, error: "Submission not found." }, { status: 404 });
+    }
     const { error: updateError } = await supabase.from("brand_enquiries").update({ metadata }).eq("id", enquiry.id);
     if (updateError) throw new Error(`Could not classify website enquiry: ${updateError.message}`);
 

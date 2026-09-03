@@ -4,6 +4,7 @@ import { AuthError } from "@/lib/server/auth/auth";
 import type { ClientWorkspaceTabId } from "@/lib/clients/clientWorkspace";
 import {
   AccessControlError,
+  actorHasActiveNonProjectAccessPolicy,
   requireCurrentAccessActor,
   resolveActorAccess,
   type CurrentAccessActor,
@@ -76,14 +77,6 @@ function activeTemplateCapabilities(actor: CurrentAccessActor, grant: AccessGran
     return [];
   }
   return template.capabilities;
-}
-
-function activeGrant(actor: CurrentAccessActor, grant: AccessGrant, now: number): boolean {
-  return grant.agencyId === actor.agencyId
-    && grant.userId === actor.user.id
-    && grant.environment === actor.environment
-    && grant.revokedAt === undefined
-    && (grant.expiresAt === undefined || grant.expiresAt > now);
 }
 
 function grantDefinesClientPolicy(
@@ -166,8 +159,6 @@ export function resolveActorClientWorkspaceElementAccess(
     };
   }
 
-  const activeUserGrants = Object.values(actor.governanceState.accessGrants)
-    .filter(grant => activeGrant(actor, grant, now));
   const policyGrantIds = resolution.grantIds.filter(grantId => {
     const grant = actor.governanceState.accessGrants[grantId];
     return Boolean(grant && grantDefinesClientPolicy(actor, clientId, grant));
@@ -177,7 +168,7 @@ export function resolveActorClientWorkspaceElementAccess(
   // particular, a Fulfilment-only workspace grant must not retain the old
   // implicit tunnel into every client.
   const governed = resolution.ownerBaseline
-    || activeUserGrants.some(grant => grant.scope.kind !== "project");
+    || actorHasActiveNonProjectAccessPolicy(actor, now);
   const hasPolicy = resolution.ownerBaseline || policyGrantIds.length > 0;
   const levels = hasPolicy
     ? Object.fromEntries(CLIENT_WORKSPACE_ELEMENT_KEYS.map(key => [

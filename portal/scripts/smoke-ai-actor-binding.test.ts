@@ -380,7 +380,15 @@ describe("the IN-APP AI is told only what the person may see", () => {
       const source = readFileSync(file, "utf-8");
       assert.doesNotMatch(source, /requireRole\(/,
         `${file} still decides an AI surface on a role, so a narrowed person passes it`);
-      assert.match(source, /requireAssistantElement\(/, `${file} has no element gate`);
+      if (file.endsWith("/radar/route.ts")
+        || file.endsWith("/radar/sources/route.ts")
+        || file.endsWith("/radar/evidence/route.ts")) {
+        assert.match(source, /requireCurrentAccessActor\(\)/, `${file} has no current actor binding`);
+        assert.match(source, /resolveBusinessRadarCapabilityForActor\(actor, (?:action|"view")\)/,
+          `${file} does not share the Business Radar element resolver`);
+      } else {
+        assert.match(source, /requireAssistantElement\(/, `${file} has no element gate`);
+      }
     }
   });
 
@@ -393,8 +401,13 @@ describe("the IN-APP AI is told only what the person may see", () => {
       "src/app/api/portal/custom-ais/route.ts",
     ]) {
       const source = readFileSync(file, "utf-8");
-      assert.match(source, /requireAssistantElement\("workspace\.settings", "manage"\)/,
-        `${file} lets a reader configure the AI`);
+      if (file.endsWith("/advisor/radar/route.ts")) {
+        assert.match(source, /assertWorkspaceElementAccess\(resolveActorWorkspaceElementAccess\(actor, "staff"\), "workspace\.settings", "manage"\)/,
+          `${file} lets a reader configure the AI`);
+      } else {
+        assert.match(source, /requireAssistantElement\("workspace\.settings", "manage"\)/,
+          `${file} lets a reader configure the AI`);
+      }
     }
   });
 });

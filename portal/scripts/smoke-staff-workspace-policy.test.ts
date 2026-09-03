@@ -35,6 +35,8 @@ describe("canonical staff workspace capability policy", () => {
       "/portal/team",
       "/portal/team/chat",
       "/portal/agency/people",
+      "/portal/agency/my-radar",
+      "/portal/agency/calendar",
       "/portal/agency/fulfilment",
       "/portal/agency/portals",
       "/portal/agency/portals/editor",
@@ -45,6 +47,8 @@ describe("canonical staff workspace capability policy", () => {
     for (const path of [
       "/portal/agency/settings",
       "/portal/agency/inbox",
+      "/portal/agency/calendar/team",
+      "/portal/agency/my-radar/company",
       "/portal/agency/portals/forms",
       "/portal/agency/people-private",
       "/portal/dev-team",
@@ -54,6 +58,7 @@ describe("canonical staff workspace capability policy", () => {
     assert.equal(isStaffDelegatedAgencyPagePath("/portal/team"), false);
     assert.deepEqual(agencyRolesForStaffWorkspacePagePath("/portal/agency/settings"), ["agency-owner", "agency-manager"]);
     assert.deepEqual(agencyRolesForStaffWorkspacePagePath("/portal/agency/people"), ["agency-owner", "agency-manager", "agency-staff"]);
+    assert.deepEqual(agencyRolesForStaffWorkspacePagePath("/portal/agency/my-radar"), ["agency-owner", "agency-manager", "agency-staff"]);
   });
 
   it("treats the Fulfilment prefix as proxy admission and requires a Technical leaf gate", () => {
@@ -118,24 +123,31 @@ describe("canonical staff workspace capability policy", () => {
     assert.deepEqual(agencyRolesForStaffWorkspaceApiPath("/api/portal/client-portal-design"), ["agency-owner", "agency-manager", "agency-staff"]);
   });
 
-  it("drives shared navigation and registry search from policy-owned paths", () => {
-    assert.deepEqual(STAFF_WORKSPACE_NAVIGATION.map(item => item.id), ["team", "people", "fulfilment", "account"]);
+  it("keeps Team statically discoverable and My Radar actor-discoverable", () => {
+    assert.deepEqual(STAFF_WORKSPACE_NAVIGATION.map(item => item.id), ["team", "people", "fulfilment", "my-radar", "account"]);
     assert.ok(STAFF_WORKSPACE_NAVIGATION.every(item => isStaffWorkspacePagePath(item.href)));
 
     const staffSearch = destinationSearchItemsFor("agency-staff", false);
     assert.ok(staffSearch.some(item => item.href === "/portal/team"));
+    assert.ok(!staffSearch.some(item => item.href === "/portal/agency/my-radar"),
+      "a role-only search list must not advertise My Radar after staff.overview is revoked");
     assert.ok(staffSearch.some(item => item.href === "/portal/account/permissions"));
     assert.ok(staffSearch.every(item => isStaffWorkspaceSearchPagePath(item.href)));
     assert.ok(!staffSearch.some(item => item.href === "/portal/agency/settings"));
 
     const basePanels = read("src/lib/server/chrome/agencyBasePanels.ts");
     assert.match(basePanels, /STAFF_WORKSPACE_NAVIGATION/);
+    assert.match(basePanels, /hasPersonalRadar\s*=\s*workspaceElementLevel\(staffAccess, STAFF_COMMAND_ELEMENT_KEYS\.overview\) !== "hidden"/,
+      "the actor-resolved nav must add My Radar only when staff.overview is visible");
+    assert.match(basePanels, /\.\.\.\(hasPersonalRadar \? \["my-radar"\] : \[\]\)/);
     assert.doesNotMatch(basePanels, /href:\s*"\/portal\/agency\/(?:people|fulfilment)"/);
   });
 
   it("makes proxy, page layout and API leaves consume the same policy", () => {
     for (const path of [
       "/portal/agency/people",
+      "/portal/agency/my-radar",
+      "/portal/agency/calendar",
       "/portal/agency/fulfilment?view=portals",
       "/portal/agency/fulfilment/technical/toolkit",
       "/portal/agency/portals/editor",

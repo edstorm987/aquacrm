@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { authErrorResponse } from "@/lib/server/auth/auth";
 import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
 import { loadOwnedEnquiry } from "@/lib/supabase/ownedEnquiry";
 import type { WebsiteEnquiryStatus } from "@/lib/server/websiteEnquiries";
 import { ensureHydrated } from "@/server/storage";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 
 const STATUSES: readonly WebsiteEnquiryStatus[] = ["open", "reviewed", "resolved"];
 
@@ -16,7 +18,8 @@ type EnquiryRow = {
 export async function PATCH(request: Request) {
   try {
     await ensureHydrated({ fresh: true });
-    const session = await requireRole(["agency-owner", "agency-manager", "agency-staff"]);
+    const { actor } = await requireCurrentWorkspaceElementAccess("staff", "workspace.inbox", "use");
+    const session = actor.session;
     const body = await request.json().catch(() => null) as {
       enquiryId?: unknown;
       status?: unknown;
@@ -28,10 +31,18 @@ export async function PATCH(request: Request) {
     }
 
     const supabase = await createScopedSupabaseClient();
-    const data = await loadOwnedEnquiry<EnquiryRow>(supabase, { id: enquiryId, agencyId: session.agencyId });
+    const data = await loadOwnedEnquiry<EnquiryRow>(supabase, { id: enquiryId, agencyId: actor.resourceAgencyId });
     if (!data) return NextResponse.json({ ok: false, error: "Submission not found." }, { status: 404 });
 
     const enquiry = data;
+    const linkedClientId = typeof enquiry.metadata?.clientId === "string"
+      ? enquiry.metadata.clientId.trim()
+      : "";
+    // The row was just reloaded from the source of truth, so this checks the
+    // live client association rather than trusting the page's older snapshot.
+    if (linkedClientId) {
+      await requireCurrentClientWorkspaceElementAccess(linkedClientId, "client.communications", "use");
+    }
     const now = new Date().toISOString();
     const currentMetadata = enquiry.metadata ?? {};
     const history = Array.isArray(currentMetadata.inboxStatusHistory)

@@ -9,9 +9,11 @@ test("assistant is a tenant-scoped authenticated agency feature", () => {
   const page = read("src/app/portal/agency/assistant/page.tsx");
   assert.match(route, /agency-owner/);
   assert.match(route, /agency-manager/);
-  assert.match(route, /session\.agencyId/);
+  assert.match(route, /requireAssistantElement\("workspace\.overview"\)/);
+  assert.match(route, /actor\.resourceAgencyId/);
   assert.match(route, /invalid_origin/);
-  assert.match(page, /requireRole\(\["agency-owner", "agency-manager"\]\)/);
+  assert.match(page, /requireAssistantElement\("workspace\.overview"\)/);
+  assert.match(page, /actor\.resourceAgencyId/);
 });
 
 test("assistant keeps durable history and personal memory", () => {
@@ -88,7 +90,8 @@ test("Aqua Advisor remains available globally with history, memory, and voice", 
   assert.match(drawer, /mm-advisor-drawer/);
   assert.match(styles, /\.mm-advisor-drawer\s*\{\s*width: 100%;\s*max-width: none;/);
   assert.match(styles, /@media \(min-width: 640px\)[\s\S]*?\.mm-advisor-drawer\s*\{[\s\S]*?width: min\(520px, calc\(100vw - 6rem\)\);/);
-  assert.match(control, /buildAssistantBusinessContext/);
+  assert.match(control, /assistantBusinessContextForActor\(actor\)/);
+  assert.match(control, /resolveBusinessRadarAccessForActor\(actor\)/);
   assert.match(agencyLayout, /AdvisorDrawerControl/);
   assert.match(journeyPage, /AdvisorDrawerControl/);
   assert.match(clientLayout, /AdvisorDrawerControl/);

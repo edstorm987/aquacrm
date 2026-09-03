@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { NextResponse, type NextRequest } from "next/server";
 
-import { requireRole, authErrorResponse } from "@/lib/server/auth/auth";
+import { AuthError, authErrorResponse } from "@/lib/server/auth/auth";
 import {
   addInboxNote,
   InboxReplyDeliveryError,
@@ -11,6 +11,9 @@ import {
 } from "@/lib/server/inbox/inboxService";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { inboxMediaUrl, verifyInboxMediaToken } from "@/lib/server/inbox/inboxMedia";
+import { getInboxConversation } from "@/lib/server/inbox/inboxStore";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 import {
   claimStagedPrivateUploadsForOwnership,
   commitStagedPrivateUploadOwnership,
@@ -43,7 +46,9 @@ export async function POST(request: NextRequest) {
   let stagedKnownOwnerId = "";
   let stagedPreflightInput: Parameters<typeof preflightInboxReplyOperation>[0] | undefined;
   try {
-    const session = await requireRole(["agency-owner", "agency-manager", "agency-staff"]);
+    const { actor } = await requireCurrentWorkspaceElementAccess("staff", "workspace.inbox", "use");
+    const session = actor.session;
+    const agencyId = actor.resourceAgencyId;
     const body = await request.json() as {
       conversationId?: string;
       text?: string;
@@ -59,7 +64,7 @@ export async function POST(request: NextRequest) {
     const attachmentPayloads = requestedAttachments.flatMap(item => {
       const token = typeof item?.token === "string" ? item.token : "";
       const payload = token ? verifyInboxMediaToken(token) : null;
-      if (!payload || payload.agencyId !== session.agencyId || payload.targetKind !== "social" || payload.targetId !== body.conversationId) return [];
+      if (!payload || payload.agencyId !== agencyId || payload.targetKind !== "social" || payload.targetId !== body.conversationId) return [];
       return [{ payload, token }];
     }).slice(0, 10);
     if (attachmentPayloads.length !== requestedAttachments.length) {
@@ -75,16 +80,17 @@ export async function POST(request: NextRequest) {
       storageProvider: payload.storageProvider,
       storageKey: payload.storageKey,
     }));
-    stagedAgencyId = session.agencyId;
+    stagedAgencyId = agencyId;
     if (!body.conversationId || (!body.retryOnly && !body.text?.trim() && !attachments.length)) {
       return NextResponse.json({ ok: false, error: "conversation_and_message_required" }, { status: 400 });
     }
     if (body.internal && body.retryOnly) return NextResponse.json({ ok: false, error: "inbox_note_retry_invalid" }, { status: 400 });
     if (body.internal && stagedIds.length) return NextResponse.json({ ok: false, error: "inbox_note_attachments_invalid" }, { status: 400 });
+    await requireLiveConversationCommunicationUse(agencyId, body.conversationId);
     const operationId = body.operationId?.trim() || (!body.internal && stagedIds.length ? randomUUID() : body.operationId);
     if (!body.internal && operationId) {
       stagedPreflightInput = {
-        agencyId: session.agencyId,
+        agencyId,
         conversationId: body.conversationId,
         operationId,
         text: body.text ?? "",
@@ -94,11 +100,16 @@ export async function POST(request: NextRequest) {
       stagedKnownOwnerId = (await preflightInboxReplyOperation(stagedPreflightInput)).existingOwnerId ?? "";
     }
     stagedClaimId = stagedIds.length
-      ? privateObjectRequestHash(["inbox-reply-owner", session.agencyId, body.conversationId, operationId])
+      ? privateObjectRequestHash(["inbox-reply-owner", agencyId, body.conversationId, operationId])
       : "";
+    // Resolve the conversation from the live store after payload/idempotency
+    // validation and immediately before the first write. A stale page cannot
+    // use a conversation that was subsequently linked to a hidden client as a
+    // tunnel into that client's communications.
+    await requireLiveConversationCommunicationUse(agencyId, body.conversationId);
     if (stagedIds.length) {
       await claimStagedPrivateUploadsForOwnership({
-        agencyId: session.agencyId,
+        agencyId,
         purpose: "inbox-media",
         objectIds: stagedIds,
         expectedBindings: stagedBindings,
@@ -107,9 +118,9 @@ export async function POST(request: NextRequest) {
       stagedClaimed = true;
     }
     const persistMessage = () => body.internal
-      ? addInboxNote({ agencyId: session.agencyId, conversationId: body.conversationId!, text: body.text ?? "", actorUserId: session.userId, actorEmail: session.email })
+      ? addInboxNote({ agencyId, conversationId: body.conversationId!, text: body.text ?? "", actorUserId: session.userId, actorEmail: session.email })
       : sendInboxReply({
-        agencyId: session.agencyId,
+        agencyId,
         conversationId: body.conversationId!,
         text: body.text ?? "",
         attachments,
@@ -121,7 +132,7 @@ export async function POST(request: NextRequest) {
       });
     const message = stagedIds.length
       ? await commitStagedPrivateUploadOwnership({
-        agencyId: session.agencyId,
+        agencyId,
         purpose: "inbox-media",
         objectIds: stagedIds,
         expectedBindings: stagedBindings,
@@ -138,7 +149,7 @@ export async function POST(request: NextRequest) {
     if (cause instanceof PrivateObjectLifecycleClaimError) {
       return NextResponse.json({ ok: false, code: cause.code, error: cause.message }, { status: 409 });
     }
-    if (cause instanceof Error && cause.message.includes("auth")) return authErrorResponse(cause);
+    if (cause instanceof AuthError) return authErrorResponse(cause);
     let recoveredKnownOwner = false;
     let definiteReleaseIsSafe = true;
     if (stagedClaimed && stagedAgencyId && stagedClaimId && !stagedKnownOwnerId && stagedPreflightInput) {
@@ -212,4 +223,17 @@ export async function POST(request: NextRequest) {
     const status = error === "meta_reply_window_closed" ? 409 : 400;
     return NextResponse.json({ ok: false, error }, { status });
   }
+}
+
+async function requireLiveConversationCommunicationUse(agencyId: string, conversationId: string) {
+  const liveConversation = await getInboxConversation(agencyId, conversationId);
+  if (!liveConversation) throw new Error("inbox_conversation_not_found");
+  if (liveConversation.identity.clientId) {
+    await requireCurrentClientWorkspaceElementAccess(
+      liveConversation.identity.clientId,
+      "client.communications",
+      "use",
+    );
+  }
+  return liveConversation;
 }

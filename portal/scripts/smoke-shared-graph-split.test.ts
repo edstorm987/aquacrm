@@ -167,6 +167,15 @@ test("shared agency chrome has no reachable path to the executable plugin regist
   assert.match(agencySource, /ensureLeadsPipelineInstall\(agency\.id, session\.userId\)/);
 });
 
+test("owner and manager agency chrome retain the personal My Radar destination", () => {
+  for (const role of ["agency-owner", "agency-manager"] as const) {
+    const panels = buildSidebar({ role, scope: "agency", installedPlugins: [] });
+    const myRadar = panels.flatMap(panel => panel.items).filter(item => item.id === "my-radar");
+    assert.equal(myRadar.length, 1);
+    assert.equal(myRadar[0]?.href, "/portal/agency/my-radar");
+  }
+});
+
 test("healthy owner chrome defers repair, alert sweep, and delegated-staff access graphs", () => {
   const staticGraph = collectStaticGraph(AGENCY_LAYOUT);
   for (const deferred of [LEADS_REPAIR, OPERATIONAL_ALERTS, BUSINESS_ISSUE_RADAR, ACCESS_CONTROL, WORKSPACE_ELEMENT_ACCESS]) {
@@ -179,7 +188,7 @@ test("healthy owner chrome defers repair, alert sweep, and delegated-staff acces
 
   const agencySource = readFileSync(AGENCY_LAYOUT, "utf8");
   assert.match(agencySource, /!installs\.some\(install => install\.pluginId === "leads-pipeline" && install\.enabled\)[\s\S]*await import\("@\/lib\/server\/plugins\/ensureLeadsPipelineInstall"\)/);
-  assert.match(agencySource, /if \(!perfMode && !session\.publicShowcase && !delegatedStaff\) \{\s*const \{ getRequestOperationalAlerts \} = await import\("@\/lib\/server\/inbox\/operationalAlerts"\)/);
+  assert.match(agencySource, /if \(!perfMode && !session\.publicShowcase && !delegatedStaff && inboxAvailable\) \{\s*const \{ getRequestOperationalAlerts \} = await import\("@\/lib\/server\/inbox\/operationalAlerts"\)/);
   // The delegated-staff narrowing moved into the SHARED assembler on
   // 2026-08-30 (so the department-switch route could ask "which nav does this
   // session have" without forking the answer). The deferral guarantee is
@@ -187,7 +196,7 @@ test("healthy owner chrome defers repair, alert sweep, and delegated-staff acces
   // import, and the static-graph walk above proves it — only the file holding
   // the pattern moved.
   const assemblerSource = readFileSync(join(ROOT, "src/lib/server/chrome/agencyBasePanels.ts"), "utf8");
-  assert.match(assemblerSource, /if \(!delegatedStaff\) return basePanels;[\s\S]*import\("@\/server\/accessControl"\)[\s\S]*import\("@\/lib\/server\/access\/workspaceElementAccess"\)/);
+  assert.match(assemblerSource, /if \(!delegatedStaff\) \{[\s\S]*import\("@\/server\/accessControl"\)[\s\S]*import\("@\/lib\/server\/access\/workspaceElementAccess"\)/);
   assert.match(agencySource, /assembleAgencyBasePanels\(session\)/,
     "the layout no longer uses the shared assembler — the route and the layout can fork again");
 

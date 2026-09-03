@@ -11,6 +11,7 @@ import type {
   ExternalAssistantActionProposal,
   ExternalAssistantProposalCategory,
   ExternalAssistantProposalStatus,
+  AccessElementKey,
 } from "@/server/types";
 
 const OPEN_PROPOSAL_LIMIT_PER_ASSISTANT = 50;
@@ -26,6 +27,8 @@ export interface SubmitExternalAssistantProposalInput {
   detail: string;
   evidence?: string[];
   category?: ExternalAssistantProposalCategory;
+  /** Derived by the authenticated transport; never accepted from assistant text. */
+  requiredElements?: AccessElementKey[];
   priority?: AgencyTaskPriority;
   suggestedDueAt?: number;
   sourceIds?: string[];
@@ -70,6 +73,10 @@ export function submitExternalAssistantActionProposal(
   if (open.length >= OPEN_PROPOSAL_LIMIT_PER_ASSISTANT) throw new Error("proposal_limit_reached");
 
   const now = Date.now();
+  const requiredElements = [...new Set<AccessElementKey>([
+    "workspace.actions",
+    ...(input.requiredElements ?? []),
+  ])];
   const proposal: ExternalAssistantActionProposal = {
     id: `aip_${crypto.randomBytes(8).toString("hex")}`,
     agencyId: input.agencyId,
@@ -80,6 +87,7 @@ export function submitExternalAssistantActionProposal(
     detail,
     evidence: cleanList(input.evidence, 20, 500),
     category: CATEGORIES.includes(input.category as ExternalAssistantProposalCategory) ? input.category! : "operations",
+    requiredElements,
     priority: PRIORITIES.includes(input.priority as AgencyTaskPriority) ? input.priority! : "normal",
     suggestedDueAt: validFutureTimestamp(input.suggestedDueAt),
     sourceIds: cleanList(input.sourceIds, 30, 240),
@@ -95,7 +103,7 @@ export function submitExternalAssistantActionProposal(
     category: "integrations",
     action: "external_ai.action_proposed",
     message: `${proposal.assistantName} proposed “${proposal.title}”.`,
-    metadata: { proposalId: proposal.id, assistantKeyId: proposal.assistantKeyId, priority: proposal.priority, category: proposal.category },
+    metadata: { proposalId: proposal.id, assistantKeyId: proposal.assistantKeyId, priority: proposal.priority, category: proposal.category, requiredElements },
   });
   return proposal;
 }

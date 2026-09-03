@@ -3,13 +3,14 @@ import { NextResponse } from "next/server";
 import { AuthError, authErrorResponse, requireRoleForClient } from "@/lib/server/auth/auth";
 import { routeTenantScope } from "@/lib/server/portal/apiTenantScope";
 import { buildBusinessIssueRadar, invalidateBusinessIssueRadarCache } from "@/engines/data/server/radar/businessIssueRadar";
-import { buildClientRadar } from "@/engines/data/server/radar/clientRadarService";
+import { buildClientRadar, clientRadarVisibilityForAccess } from "@/engines/data/server/radar/clientRadarService";
 import { recordRadarEvidence } from "@/engines/data/server/radar/radarEvidenceVault";
 import { recordRadarSweep } from "@/engines/data/server/radar/radarMemory";
 import { runAgencySyntheticProbes } from "@/engines/data/server/radar/radarSyntheticProbes";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
+import { resolveBusinessRadarCapabilityForActor } from "@/lib/server/intelligence/personalRadarAccess";
 
 type RouteContext = { params: Promise<{ clientId: string }> };
 
@@ -21,8 +22,10 @@ export async function GET(_request: Request, context: RouteContext) {
     // `requireRoleForClient` waves every AGENCY role through for any clientId
     // by design; the tenancy question is this line.
     const scope = routeTenantScope(session, { clientId });
-    await requireCurrentClientWorkspaceElementAccess(clientId, "client.overview", "view");
-    const radar = scope.client ? await buildClientRadar(scope.agencyId, scope.client.id) : null;
+    const { access } = await requireCurrentClientWorkspaceElementAccess(clientId, "client.overview", "view");
+    const radar = scope.client ? await buildClientRadar(scope.agencyId, scope.client.id, {
+      visibility: clientRadarVisibilityForAccess(access),
+    }) : null;
     if (!radar) return NextResponse.json({ ok: false, error: "Client workspace not found." }, { status: 404 });
     return NextResponse.json({ ok: true, radar });
   } catch (error) {
@@ -39,14 +42,23 @@ export async function POST(_request: Request, context: RouteContext) {
     const session = await requireRoleForClient([...AGENCY_ROLES], clientId);
     const scope = routeTenantScope(session, { clientId });
     if (!scope.client) return NextResponse.json({ ok: false, error: "Client workspace not found." }, { status: 404 });
-    await requireCurrentClientWorkspaceElementAccess(clientId, "client.overview", "use");
+    const { actor, access } = await requireCurrentClientWorkspaceElementAccess(clientId, "client.overview", "use");
+    // This endpoint performs an agency-wide synthetic probe and publishes an
+    // agency Radar summary. Per-client Overview Use is not authority to scan or
+    // disclose the rest of the business.
+    if (!await resolveBusinessRadarCapabilityForActor(actor, "use")) {
+      throw new AuthError(403, "business_radar_use_required");
+    }
     await runAgencySyntheticProbes(scope.agencyId, { force: true });
     invalidateBusinessIssueRadarCache(scope.agencyId);
     const agencyRadar = await buildBusinessIssueRadar(scope.agencyId);
     recordRadarSweep(scope.agencyId, agencyRadar);
     recordRadarEvidence(scope.agencyId, agencyRadar);
     await flushPendingWrites();
-    const radar = await buildClientRadar(scope.agencyId, scope.client.id, { now: agencyRadar.generatedAt });
+    const radar = await buildClientRadar(scope.agencyId, scope.client.id, {
+      now: agencyRadar.generatedAt,
+      visibility: clientRadarVisibilityForAccess(access),
+    });
     if (!radar) return NextResponse.json({ ok: false, error: "Client workspace not found." }, { status: 404 });
     return NextResponse.json({ ok: true, radar, agencySummary: agencyRadar.summary });
   } catch (error) {

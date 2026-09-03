@@ -46,6 +46,7 @@ export function EnquiryDetailCard({
   leadError,
   statusError,
   classificationError,
+  canMutate,
 }: {
   item: WebsiteEnquiry;
   referenceNow: number;
@@ -56,6 +57,7 @@ export function EnquiryDetailCard({
   leadError: Record<string, string>;
   statusError: Record<string, string>;
   classificationError: Record<string, string>;
+  canMutate: boolean;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(dialogRef, true);
@@ -205,7 +207,7 @@ export function EnquiryDetailCard({
             </dl>
 
             {/* Phase 4: fill in the contact details the form didn't ask for. */}
-            <ManualContactDetails key={item.id} enquiryId={item.id} />
+            <ManualContactDetails key={item.id} enquiryId={item.id} canEdit={canMutate} />
           </section>
 
           {/* Aqua's read on where this belongs and how urgent it is. */}
@@ -221,15 +223,17 @@ export function EnquiryDetailCard({
           </div>
 
           {/* Communications — reused unchanged. */}
-          <EnquiryCommunications item={item} readiness={communicationReadiness} />
+          <fieldset disabled={!canMutate} className="contents">
+            <EnquiryCommunications item={item} readiness={communicationReadiness} />
+          </fieldset>
         </div>
 
         {/* Footer actions — never scroll away. */}
         <footer className="flex shrink-0 flex-wrap items-center gap-2 border-t border-black/10 p-4 sm:p-5">
-          {item.status === "open" ? <button type="button" disabled={busy} onClick={() => void onStatus(item, "reviewed")} className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 disabled:opacity-50">Mark reviewed</button> : null}
+          {item.status === "open" ? <button type="button" disabled={busy || !canMutate} onClick={() => void onStatus(item, "reviewed")} className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 disabled:opacity-50">Mark reviewed</button> : null}
           {item.status !== "resolved"
-            ? <button type="button" disabled={busy} onClick={() => void onStatus(item, "resolved")} className="rounded-md bg-black px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Resolve</button>
-            : <button type="button" disabled={busy} onClick={() => void onStatus(item, "open")} className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 disabled:opacity-50">Reopen</button>}
+            ? <button type="button" disabled={busy || !canMutate} onClick={() => void onStatus(item, "resolved")} className="rounded-md bg-black px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Resolve</button>
+            : <button type="button" disabled={busy || !canMutate} onClick={() => void onStatus(item, "open")} className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 disabled:opacity-50">Reopen</button>}
           {item.classification === "sales"
             ? <Link href="/portal/clients?view=journey" className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/65">Open Journey <ExternalLink size={13} /></Link>
             : <Link href="/portal/clients?view=contacts" className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/65">Open contacts <ExternalLink size={13} /></Link>}
@@ -324,7 +328,7 @@ function FieldRow({ row }: { row: MergedFormRow }) {
  * the enquiry here, without touching the captured submission or the live row.
  * Manages its own load/save so the card stays declarative.
  */
-function ManualContactDetails({ enquiryId }: { enquiryId: string }) {
+function ManualContactDetails({ enquiryId, canEdit }: { enquiryId: string; canEdit: boolean }) {
   const [company, setCompany] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [notes, setNotes] = useState("");
@@ -376,6 +380,7 @@ function ManualContactDetails({ enquiryId }: { enquiryId: string }) {
   async function save() {
     // Belt and braces — the button is disabled, but a save that overwrites an
     // unseen record must be impossible, not merely inconvenient.
+    if (!canEdit) return;
     if (readState !== "ready") {
       setError("These details were never read, so saving would overwrite what is stored. Retry the read first.");
       return;
@@ -401,7 +406,7 @@ function ManualContactDetails({ enquiryId }: { enquiryId: string }) {
     }
   }
 
-  const locked = readState !== "ready";
+  const locked = !canEdit || readState !== "ready";
 
   return (
     <div className="mt-3 border-t border-black/[0.07] pt-3">

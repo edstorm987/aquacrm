@@ -67,8 +67,12 @@ describe("the contact-details route + card are wired (Phase 4)", () => {
   const route = read("src/app/api/portal/website-enquiries/contact-details/route.ts");
   const card = read("src/app/portal/agency/inbox/_EnquiryDetailCard.tsx");
 
-  it("the route is agency-scoped and read/writes the store, never the live row", () => {
-    assert.match(route, /requireRole\(\[\.\.\.AGENCY_ROLES\]\)/);
+  it("the route is enquiry-scoped and read/writes the store, never the live row", () => {
+    assert.match(route, /requireCurrentWorkspaceElementAccess\("staff", "workspace\.inbox", "view"\)/);
+    assert.match(route, /requireCurrentWorkspaceElementAccess\("staff", "workspace\.inbox", "use"\)/);
+    assert.match(route, /loadActorWebsiteEnquiry\([\s\S]*?required: "view"/);
+    assert.match(route, /loadActorWebsiteEnquiry\([\s\S]*?required: "use"/);
+    assert.match(route, /actor\.resourceAgencyId/);
     assert.match(route, /getEnquiryContactDetails/);
     assert.match(route, /saveEnquiryContactDetails/);
     assert.doesNotMatch(route, /createSupabaseAdminClient|brand_enquiries/, "manual details must not touch the live enquiry row");

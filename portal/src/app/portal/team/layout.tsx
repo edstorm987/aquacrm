@@ -17,11 +17,13 @@ import { listGrantedDevWorkspaceProjects } from "@/lib/server/dev/devProjectAcce
 import {
   resolveActorWorkspaceElementAccess,
   staffStationAccessEntries,
+  workspaceElementAtLeast,
+  workspaceElementLevel,
 } from "@/lib/server/access/workspaceElementAccess";
 import { requireCurrentAccessActor } from "@/server/accessControl";
 import { withPersonalChrome } from "@/lib/server/chrome/personalPanels";
 import { buildStaffNavigationPanels } from "./staffNavigation";
-import { staffOnlyRolesForWorkspacePagePath } from "@/lib/staffWorkspacePolicy";
+import { STAFF_WORKSPACE_NAVIGATION, staffOnlyRolesForWorkspacePagePath } from "@/lib/staffWorkspacePolicy";
 
 export default async function TeamLayout({ children }: { children: ReactNode }) {
   await ensureHydrated();
@@ -38,6 +40,7 @@ export default async function TeamLayout({ children }: { children: ReactNode }) 
   const user = getUserById(session.userId);
   const employee = getPeopleEmployeeByUserId(session.agencyId, session.userId);
   const access = staffStationAccessEntries(actor, staffAccess);
+  const myRadarVisible = workspaceElementAtLeast(workspaceElementLevel(staffAccess, "staff.overview"), "view");
   const staffPanels: NavPanel[] = buildStaffNavigationPanels(PEOPLE_STATIONS, access).map(panel => ({
     ...panel,
     // NavPanel's historical union lists foundation panel ids, while Sidebar
@@ -45,6 +48,13 @@ export default async function TeamLayout({ children }: { children: ReactNode }) 
     // ordering and saved rows isolated from the agency workspace's panels.
     id: panel.id as NavPanel["id"],
   }));
+  if (myRadarVisible) {
+    const radarNavigation = STAFF_WORKSPACE_NAVIGATION.find(item => item.id === "my-radar")!;
+    const commandPanel = staffPanels.find(panel => String(panel.id) === "staff-command");
+    const radarItem = { ...radarNavigation, panelId: (commandPanel?.id ?? "staff-command") as NavPanel["id"] };
+    if (commandPanel) commandPanel.items.push(radarItem);
+    else staffPanels.unshift({ id: "staff-command" as NavPanel["id"], label: "Command", order: 0, items: [radarItem] });
+  }
   const devProjects = await listGrantedDevWorkspaceProjects({
     userId: session.userId,
     agencyId: session.agencyId,
@@ -92,6 +102,7 @@ export default async function TeamLayout({ children }: { children: ReactNode }) 
             tenantLabel={`${agency.name} Team`}
             currentPath={currentPath}
             searchRecordsEnabled={false}
+            capabilitySearchHrefs={myRadarVisible ? ["/portal/agency/my-radar"] : []}
             isDemo={session.isDemo}
             sandboxMode={Boolean(session.sandbox)}
             devModeActive={Boolean(session.devReturnAgencyId)}

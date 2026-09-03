@@ -254,7 +254,8 @@ export interface ClientRadarSnapshot {
   readinessPercent: number;
   summary: string;
   sourceAvailability: {
-    finance: "ready" | "unavailable" | "not-connected";
+    /** `hidden` means the caller has no Commercial element and no source state was disclosed. */
+    finance: "ready" | "unavailable" | "not-connected" | "hidden";
   };
   lastRecordedAt?: number;
   checks: BusinessRadarCheck[];

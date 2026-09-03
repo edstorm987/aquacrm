@@ -19,9 +19,10 @@ async function agencySession(request: NextRequest) {
   await ensureHydrated();
   const session = await getSessionFromRequest(request);
   if (!session || !AGENCY_ROLES.includes(session.role)) throw new AuthError(401, "unauthorized");
-  if (session.role === "agency-staff") {
-    await requireCurrentWorkspaceElementAccess("staff", "workspace.actions", request.method === "GET" ? "view" : "use");
-  }
+  // Owners retain their live owner baseline, while showcase/read-only owners
+  // are capped to view by the same resolver as everyone else. Keeping them on
+  // this path prevents a direct API call from bypassing that safety cap.
+  await requireCurrentWorkspaceElementAccess("staff", "workspace.actions", request.method === "GET" ? "view" : "use");
   return session;
 }
 
@@ -72,20 +73,23 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json().catch(() => null) as { id?: string; operationId?: string; expectedRevision?: number; title?: string; notes?: string; status?: AgencyTaskStatus; priority?: AgencyTaskPriority; startAt?: number; dueAt?: number; reminderAt?: number; recurrence?: AgencyTaskRecurrence; assigneeUserId?: string; clientId?: string; sopIds?: string[]; customFields?: Record<string, PortalFormFieldValue> } | null;
     if (!body?.id) return NextResponse.json({ ok: false, error: "id required" }, { status: 400 });
     const { id, operationId, expectedRevision, ...patch } = body;
-    const existing = listAgencyTasks(session.agencyId).find(task => task.id === id);
-    if (session.role === "agency-staff" && (!existing || (existing.assigneeUserId !== session.userId && existing.createdBy !== session.userId))) {
-      return NextResponse.json({ ok: false, error: "task not found" }, { status: 404 });
-    }
-    // BOTH sides of a re-association: you must be allowed to touch the client it
-    // is on now, and the client you are moving it to. Checking only the new one
-    // would let someone detach a task from a client they cannot see.
-    await requireClientAssociation("agency-task", existing?.clientId, "use");
-    await requireClientAssociation("agency-task", patch.clientId, "use");
-    const submittedCustomFields = patch.customFields ?? existing?.customFields ?? {};
-    const safePatch = session.role === "agency-staff" ? { title: patch.title, notes: patch.notes, status: patch.status, priority: patch.priority, startAt: patch.startAt, dueAt: patch.dueAt, reminderAt: patch.reminderAt, recurrence: patch.recurrence, clientId: patch.clientId, customFields: submittedCustomFields } : { ...patch, customFields: submittedCustomFields };
     let replayed = false;
-    const task = await withPortalStateTransaction(privateObjectLifecycleLockKey(session.agencyId), () => {
+    const task = await withPortalStateTransaction(privateObjectLifecycleLockKey(session.agencyId), async () => {
       const current = listAgencyTasks(session.agencyId).find(candidate => candidate.id === id);
+      // Authorise the exact record this transaction is about to mutate. Doing
+      // this before taking the lock let a concurrent owner reassign the task
+      // after staff/client checks but before this write, turning a once-valid
+      // snapshot into an unauthorised update.
+      if (session.role === "agency-staff" && (!current || (current.assigneeUserId !== session.userId && current.createdBy !== session.userId))) {
+        return null;
+      }
+      // BOTH sides of a re-association: you must be allowed to touch the client
+      // it is on now, and the client you are moving it to. Both checks live in
+      // the same causal lane as the update, just like DELETE's ownership gate.
+      await requireClientAssociation("agency-task", current?.clientId, "use");
+      await requireClientAssociation("agency-task", patch.clientId, "use");
+      const submittedCustomFields = patch.customFields ?? current?.customFields ?? {};
+      const safePatch = session.role === "agency-staff" ? { title: patch.title, notes: patch.notes, status: patch.status, priority: patch.priority, startAt: patch.startAt, dueAt: patch.dueAt, reminderAt: patch.reminderAt, recurrence: patch.recurrence, clientId: patch.clientId, customFields: submittedCustomFields } : { ...patch, customFields: submittedCustomFields };
       if (safePatch.status === "done" && (current?.status !== "done" || operationId)) {
         if (!operationId || expectedRevision === undefined || operationId !== taskCompleteOperationId(id, expectedRevision)) throw new TaskValidationError("operationId", "A valid completion operation is required.");
         const receiptInput = { operationId, kind: "task-complete" as const, agencyId: session.agencyId, userId: session.userId, targetId: id, action: `complete@${expectedRevision}` };

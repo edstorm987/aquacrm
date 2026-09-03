@@ -14,6 +14,7 @@ import {
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getClientForAgency } from "@/server/tenants";
 import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 
 type Body = {
   action?: "save" | "test" | "activate" | "revoke";
@@ -46,18 +47,32 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     await ensureHydrated();
-    const session = await requireRole(["agency-owner", "agency-manager"]);
+    const session = await requireRole(["agency-owner", "agency-manager", "agency-staff"]);
     if (!validOrigin(request)) {
       return NextResponse.json({ ok: false, error: "Invalid request origin." }, { status: 403 });
     }
     const body = await request.json().catch(() => null) as Body | null;
     if (!body?.action) return NextResponse.json({ ok: false, error: "Choose an integration action." }, { status: 400 });
-    if (body.clientId && !getClientForAgency(session.agencyId, body.clientId)) {
-      return NextResponse.json({ ok: false, error: "That client is not in this workspace." }, { status: 400 });
-    }
     const existingConnection = body.connectionId
       ? getIntegrationConnection(session.agencyId, body.connectionId)
       : null;
+    // Meta is the Inbox's own channel credential. Let a configurable Inbox
+    // manager administer only that provider; every unrelated integration keeps
+    // the historical owner/manager ceiling.
+    const metaInboxOperation = existingConnection
+      ? existingConnection.provider === "meta"
+      : body.provider === "meta";
+    const canReadFullCatalogue = session.role === "agency-owner" || session.role === "agency-manager";
+    let agencyId = session.agencyId;
+    if (metaInboxOperation) {
+      const current = await requireCurrentWorkspaceElementAccess("staff", "workspace.inbox", "manage");
+      agencyId = current.actor.resourceAgencyId;
+    } else if (!canReadFullCatalogue) {
+      throw new AuthError(403, "forbidden");
+    }
+    if (body.clientId && !getClientForAgency(agencyId, body.clientId)) {
+      return NextResponse.json({ ok: false, error: "That client is not in this workspace." }, { status: 400 });
+    }
     const clientScopes = [...new Set([existingConnection?.clientId, body.clientId].filter((id): id is string => Boolean(id)))];
     for (const clientId of clientScopes) {
       await requireCurrentClientWorkspaceElementAccess(clientId, "client.systems", "manage");
@@ -68,7 +83,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: false, error: "Choose a supported provider." }, { status: 400 });
       }
       const connection = saveIntegrationConnection({
-        agencyId: session.agencyId,
+        agencyId,
         connectionId: body.connectionId,
         provider: body.provider,
         label: body.label,
@@ -78,39 +93,39 @@ export async function POST(request: Request) {
         actorEmail: session.email,
       });
       await flushPendingWrites();
-      return NextResponse.json({ ok: true, connection, connections: listIntegrationConnections(session.agencyId) });
+      return NextResponse.json({ ok: true, connection, connections: responseConnections(agencyId, canReadFullCatalogue) });
     }
 
     if (!body.connectionId) {
       return NextResponse.json({ ok: false, error: "Choose a saved connection." }, { status: 400 });
     }
     if (body.action === "test") {
-      const connection = await testIntegrationConnection(session.agencyId, body.connectionId, {
+      const connection = await testIntegrationConnection(agencyId, body.connectionId, {
         userId: session.userId,
         email: session.email,
       });
       await flushPendingWrites();
-      return NextResponse.json({ ok: true, connection, connections: listIntegrationConnections(session.agencyId) });
+      return NextResponse.json({ ok: true, connection, connections: responseConnections(agencyId, canReadFullCatalogue) });
     }
     if (body.action === "activate") {
       const connection = activateIntegrationConnection({
-        agencyId: session.agencyId,
+        agencyId,
         connectionId: body.connectionId,
         actorUserId: session.userId,
         actorEmail: session.email,
       });
       await flushPendingWrites();
-      return NextResponse.json({ ok: true, connection, connections: listIntegrationConnections(session.agencyId) });
+      return NextResponse.json({ ok: true, connection, connections: responseConnections(agencyId, canReadFullCatalogue) });
     }
     if (body.action === "revoke") {
       const connection = revokeIntegrationConnection({
-        agencyId: session.agencyId,
+        agencyId,
         connectionId: body.connectionId,
         actorUserId: session.userId,
         actorEmail: session.email,
       });
       await flushPendingWrites();
-      return NextResponse.json({ ok: true, connection, connections: listIntegrationConnections(session.agencyId) });
+      return NextResponse.json({ ok: true, connection, connections: responseConnections(agencyId, canReadFullCatalogue) });
     }
     return NextResponse.json({ ok: false, error: "Unsupported integration action." }, { status: 400 });
   } catch (error) {
@@ -119,6 +134,11 @@ export async function POST(request: Request) {
     if (message) return NextResponse.json({ ok: false, error: message }, { status: 400 });
     return authErrorResponse(error);
   }
+}
+
+function responseConnections(agencyId: string, includeAll: boolean) {
+  const connections = listIntegrationConnections(agencyId);
+  return includeAll ? connections : connections.filter(connection => connection.provider === "meta");
 }
 
 function validOrigin(request: Request) {

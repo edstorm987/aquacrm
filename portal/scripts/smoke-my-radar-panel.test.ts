@@ -46,7 +46,7 @@ describe("the form", () => {
 
   it("draws no track at all without a baseline", () => {
     // A meter with no limit is a one-number bar chart pretending to be a ratio.
-    assert.match(source, /Set a weekly baseline to judge this one/);
+    assert.match(source, /Set a weekly baseline to assess this area/);
   });
 });
 

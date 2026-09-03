@@ -30,6 +30,7 @@ import { cookies } from "next/headers";
 import { PortalRouteCanvas } from "@/components/chrome/PortalRouteCanvas";
 import { listOperationalAlerts } from "@/lib/server/inbox/operationalAlerts";
 import { listOperationalAlertViews } from "@/lib/server/inbox/operationalAlertPreferences";
+import { filterOperationalAlertsForActor } from "@/lib/server/access/operationalAlertAccess";
 import { ClientRadarQuickLookControl } from "@/components/chrome/ClientRadarQuickLookControl";
 import { clientWorkspaceHref, resolveClientWorkspaceTab } from "@/lib/clients/clientWorkspace";
 import { resolvePortalProductAssignment } from "@/lib/products/productAssignments";
@@ -81,7 +82,7 @@ export default async function ClientLayout({
 
   const client = getClientForAgency(session.agencyId, clientId);
   if (!client) notFound();
-  const { access: clientAccess } = await currentClientWorkspaceElementAccess(client.id);
+  const { actor, access: clientAccess } = await currentClientWorkspaceElementAccess(client.id);
   if (!clientWorkspaceHasAnyVisibleElement(clientAccess)) redirect("/portal");
   const clientElementVisible = (key: AccessElementKey) => clientWorkspaceElementLevel(clientAccess, key) !== "hidden";
   const devProjects = await listGrantedDevWorkspaceProjects({
@@ -216,7 +217,11 @@ export default async function ClientLayout({
     !welcomeCookie;
   const sessionUser = getUserById(session.userId);
   const alertViews = session.role.startsWith("agency-")
-    ? listOperationalAlertViews(session.agencyId, session.userId, await listOperationalAlerts(session.agencyId))
+    ? listOperationalAlertViews(
+        actor.resourceAgencyId,
+        session.userId,
+        filterOperationalAlertsForActor(actor, await listOperationalAlerts(actor.resourceAgencyId)),
+      )
     : [];
 
   // Phase sidebar override — when the active phase carries a custom

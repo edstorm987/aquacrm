@@ -23,7 +23,7 @@
 // arithmetic rather than effort.
 
 import { useCallback, useMemo, useState } from "react";
-import { Check, LoaderCircle, TriangleAlert } from "lucide-react";
+import { Check, LoaderCircle } from "lucide-react";
 
 import { DEPARTMENT_PROFILES, departmentCapabilities, departmentTemplateName } from "@/lib/access/departmentProfiles";
 
@@ -32,10 +32,7 @@ export interface BaselineValue {
   weeklyHours: number;
 }
 
-/** A full working week, for judging whether the plan is even possible. */
-const REFERENCE_WEEK_HOURS = 40;
-
-export function DepartmentBaselines({ initial }: { initial: BaselineValue[] }) {
+export function DepartmentBaselines({ initial, canManageTemplates }: { initial: BaselineValue[]; canManageTemplates: boolean }) {
   const [hours, setHours] = useState<Record<string, string>>(() => {
     const seed: Record<string, string> = {};
     for (const profile of DEPARTMENT_PROFILES) {
@@ -98,15 +95,14 @@ export function DepartmentBaselines({ initial }: { initial: BaselineValue[] }) {
     setBusy(true);
     setNote(null);
     try {
-      // Blank means "no baseline", which is a real and different statement from
-      // zero — so blanks are omitted rather than sent as 0. A department with
-      // no baseline reads as `unplanned`; one with a baseline of 0 reads as
-      // planned to receive nothing.
+      // Blank means "no baseline". A baseline is a positive allocation; zero
+      // is intentionally not another spelling of unplanned because that would
+      // make the Business Radar report two different inputs identically.
       const departmentBaselines = DEPARTMENT_PROFILES
         .filter(profile => hours[profile.id]?.trim() !== "")
-        .map(profile => ({ departmentId: profile.id, weeklyHours: Number(hours[profile.id]) || 0 }));
+        .map(profile => ({ departmentId: profile.id, weeklyHours: Number(hours[profile.id]) }));
 
-      const response = await fetch("/api/portal/settings", {
+      const response = await fetch("/api/portal/intelligence/business-radar/workload", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ departmentBaselines }),
@@ -126,8 +122,7 @@ export function DepartmentBaselines({ initial }: { initial: BaselineValue[] }) {
         <p className="text-[10px] font-semibold uppercase tracking-wide text-black/45">Baselines</p>
         <h2 className="mt-0.5 text-sm font-semibold text-black/85">Hours a week per department</h2>
         <p className="mt-1 text-xs text-black/55">
-          What each area is meant to get. Leave one blank to say nothing is planned for it —
-          that reads differently from planning zero.
+          What each area is meant to get. Leave one blank to mark it unplanned; otherwise enter a positive number of hours.
         </p>
       </header>
 
@@ -142,8 +137,9 @@ export function DepartmentBaselines({ initial }: { initial: BaselineValue[] }) {
               <span className="sr-only">{profile.label} hours a week</span>
               <input
                 type="number"
-                min={0}
+                min={0.25}
                 max={168}
+                step={0.25}
                 inputMode="numeric"
                 value={hours[profile.id] ?? ""}
                 onChange={event => { setHours(current => ({ ...current, [profile.id]: event.target.value })); setNote(null); }}
@@ -157,18 +153,7 @@ export function DepartmentBaselines({ initial }: { initial: BaselineValue[] }) {
       </ul>
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-        {/* Over-allocation, named as it is being committed to rather than
-            discovered four weeks later as five starved departments. */}
-        <p className={`text-[11px] ${total > REFERENCE_WEEK_HOURS ? "text-amber-800" : "text-black/45"}`}>
-          {total > REFERENCE_WEEK_HOURS ? (
-            <span className="inline-flex items-center gap-1.5">
-              <TriangleAlert size={12} aria-hidden="true" />
-              {total}h planned across a {REFERENCE_WEEK_HOURS}h week — something will be starved by arithmetic.
-            </span>
-          ) : (
-            <>{total}h planned of a {REFERENCE_WEEK_HOURS}h week.</>
-          )}
-        </p>
+        <p className="text-[11px] text-black/45">{total}h planned across the business each week.</p>
 
         <span className="flex items-center gap-3">
           {note ? (
@@ -178,7 +163,7 @@ export function DepartmentBaselines({ initial }: { initial: BaselineValue[] }) {
               settings because this is the page where departments are the
               subject — and a profile nobody created is a seat nobody can be
               given. */}
-          <button
+          {canManageTemplates ? <button
             type="button"
             onClick={() => void createProfiles()}
             disabled={seeding}
@@ -186,7 +171,7 @@ export function DepartmentBaselines({ initial }: { initial: BaselineValue[] }) {
           >
             {seeding ? <LoaderCircle size={13} className="animate-spin" aria-hidden="true" /> : null}
             Create worker profiles
-          </button>
+          </button> : null}
           <button
             type="button"
             onClick={() => void save()}

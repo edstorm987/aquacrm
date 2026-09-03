@@ -2,7 +2,9 @@ import { resolve } from "node:path";
 
 import { NextResponse, type NextRequest } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { authErrorResponse } from "@/lib/server/auth/auth";
+import { loadActorWebsiteEnquiry } from "@/lib/server/access/websiteEnquiryAccess";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 import {
   privateMediaResponse,
   readLocalFileRange,
@@ -11,7 +13,6 @@ import {
 } from "@/lib/server/privateMediaResponse";
 import { readSupabasePrivateUploadRange } from "@/lib/server/privateUploadStorage";
 import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
-import { loadOwnedEnquiry } from "@/lib/supabase/ownedEnquiry";
 import { ensureHydrated } from "@/server/storage";
 
 export const runtime = "nodejs";
@@ -21,14 +22,15 @@ type Recording = { fileName: string; contentType: string; size: number; storageP
 export async function GET(request: NextRequest) {
   try {
     await ensureHydrated();
-    const session = await requireRole(["agency-owner", "agency-manager", "agency-staff"]);
+    const { actor } = await requireCurrentWorkspaceElementAccess("staff", "workspace.inbox", "view");
+    const agencyId = actor.resourceAgencyId;
     const enquiryId = request.nextUrl.searchParams.get("enquiryId")?.trim() ?? "";
     const callId = request.nextUrl.searchParams.get("callId")?.trim() ?? "";
     if (!enquiryId || !callId) return NextResponse.json({ ok: false, error: "Recording not found." }, { status: 404 });
     const supabase = await createScopedSupabaseClient();
     // Ownership-guarded so another agency's recording cannot be streamed by id;
     // a foreign enquiry returns null exactly as a missing one.
-    const data = await loadOwnedEnquiry(supabase, { id: enquiryId, agencyId: session.agencyId });
+    const data = await loadActorWebsiteEnquiry(actor, supabase, { id: enquiryId, required: "view" });
     if (!data) return NextResponse.json({ ok: false, error: "Recording not found." }, { status: 404 });
     const metadata = data.metadata && typeof data.metadata === "object" ? data.metadata as Record<string, unknown> : {};
     const calls = Array.isArray(metadata.inboxCalls) ? metadata.inboxCalls as Array<Record<string, unknown>> : [];
@@ -46,15 +48,15 @@ export async function GET(request: NextRequest) {
     // contract is shared with every other private-media route.
     let read: ((range: ByteRange | null) => Promise<BodyInit | null>) | null = null;
     if (recording.storageProvider === "supabase") {
-      if (!recording.storageKey.startsWith(`inbox-calls/${session.agencyId}/`)) return notFound();
+      if (!recording.storageKey.startsWith(`inbox-calls/${agencyId}/`)) return notFound();
       read = range => readSupabasePrivateUploadRange(recording.storageKey, range);
     } else if (recording.storageProvider === "vercel-blob") {
       let pathname = "";
       try { pathname = new URL(recording.storageKey).pathname; } catch { return notFound(); }
-      if (!pathname.includes(`/inbox-calls/${session.agencyId}/`)) return notFound();
+      if (!pathname.includes(`/inbox-calls/${agencyId}/`)) return notFound();
       read = range => readVercelBlobRange(recording.storageKey, range);
     } else if (recording.storageProvider === "local") {
-      const root = resolve(process.cwd(), ".data", "inbox-call-recordings", session.agencyId);
+      const root = resolve(process.cwd(), ".data", "inbox-call-recordings", agencyId);
       const path = resolve(process.cwd(), ".data", "inbox-call-recordings", recording.storageKey);
       if (!path.startsWith(`${root}/`)) return notFound();
       read = range => readLocalFileRange(path, range);

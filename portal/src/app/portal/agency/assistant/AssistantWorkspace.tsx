@@ -40,7 +40,7 @@ interface Coverage {
   pipelines: number;
   recentActivity: number;
   modules: string[];
-  radar: AdvisorRadarDigest;
+  radar?: AdvisorRadarDigest;
   radarPaused?: boolean;
 }
 
@@ -102,6 +102,13 @@ const STARTERS = [
   "What are the three most valuable actions I should take next?",
   "Give me a clear summary of every active client.",
   "What are the biggest financial or delivery blind spots?",
+];
+
+const LIMITED_STARTERS = [
+  "Summarise the workspace records I am currently allowed to see.",
+  "Which of my visible clients needs attention next?",
+  "Review the open actions I can access and help me prioritise them.",
+  "Tell me which information was withheld by my current role.",
 ];
 
 export function AssistantWorkspace({
@@ -361,10 +368,10 @@ export function AssistantWorkspace({
           </div>
         </header>
 
-        <RadarBar radar={coverage.radar} paused={coverage.radarPaused} configured={configured} onReview={() => void sendMessage("Review every current business radar issue, explain the evidence, and prioritise what I should do now.")} busy={busy} />
+        {coverage.radar ? <RadarBar radar={coverage.radar} paused={coverage.radarPaused} configured={configured} onReview={() => void sendMessage("Review every current business radar issue, explain the evidence, and prioritise what I should do now.")} busy={busy} /> : null}
 
         <div className="mm-assistant-content flex-1 overflow-y-auto px-4 py-6 sm:px-6">
-          {coverage.radar.topIssues.length ? <div className="mx-auto w-full max-w-3xl pb-4"><RadarIssues issues={coverage.radar.topIssues} /></div> : null}
+          {coverage.radar?.topIssues.length ? <div className="mx-auto w-full max-w-3xl pb-4"><RadarIssues issues={coverage.radar.topIssues} /></div> : null}
           {!configured ? (
             <SetupPanel />
           ) : !activeThread || activeThread.messages.length === 0 ? (
@@ -533,17 +540,27 @@ function Welcome({
       <p className="text-xs font-semibold uppercase tracking-wide text-brand">Private operating advisor</p>
       <h2 className="mt-2 text-2xl font-semibold tracking-tight text-black/90 sm:text-3xl">What do you need, {userName.split(" ")[0]}?</h2>
       <p className="mt-3 max-w-xl text-sm leading-6 text-black/55">
-        I read current AquaOasis-Web records each time you ask, including Company health, clients, sales, delivery, finance, support, development, alerts, and open work.
+        {coverage.radar
+          ? "I read current business records each time you ask, within the workspace access assigned to you."
+          : "I only receive the clients, actions and workspace sections your current role allows. Organisation-wide Radar, finance and people data stay withheld unless your role explicitly includes them."}
       </p>
       <div className="mt-6 grid grid-cols-2 gap-px border-y border-black/10 bg-black/10 sm:grid-cols-4">
-        <CoverageItem value={coverage.radar.critical} label="Critical" />
-        <CoverageItem value={coverage.radar.warning} label="Warnings" />
-        <CoverageItem value={coverage.radar.connectedSources} label="Sources checked" />
-        <CoverageItem value={coverage.radar.blindSpots} label="Blind spots" />
+        {coverage.radar ? <>
+          <CoverageItem value={coverage.radar.critical} label="Critical" />
+          <CoverageItem value={coverage.radar.warning} label="Warnings" />
+          <CoverageItem value={coverage.radar.connectedSources} label="Sources checked" />
+          <CoverageItem value={coverage.radar.blindSpots} label="Blind spots" />
+        </> : <>
+          <CoverageItem value={coverage.clients} label="Visible clients" />
+          <CoverageItem value={coverage.team} label="Visible team" />
+          <CoverageItem value={coverage.pipelines} label="Visible pipelines" />
+          <CoverageItem value={coverage.modules.length} label="Visible modules" />
+        </>}
       </div>
-      {!coverage.radar.topIssues.length ? <div className={`mt-6 flex items-center gap-2 border-y border-black/10 py-4 text-sm font-medium ${coverage.radarPaused ? "text-amber-700" : "text-emerald-700"}`}>{coverage.radarPaused ? <AlertTriangle size={16} /> : <CircleCheck size={16} />}{coverage.radarPaused ? "Radar is paused until you request a scan." : "No critical or warning issues are currently detected."}</div> : null}
+      {coverage.radar && !coverage.radar.topIssues.length ? <div className={`mt-6 flex items-center gap-2 border-y border-black/10 py-4 text-sm font-medium ${coverage.radarPaused ? "text-amber-700" : "text-emerald-700"}`}>{coverage.radarPaused ? <AlertTriangle size={16} /> : <CircleCheck size={16} />}{coverage.radarPaused ? "Radar is paused until you request a scan." : "No critical or warning issues are currently detected."}</div> : null}
+      {!coverage.radar ? <div className="mt-6 flex items-center gap-2 border-y border-black/10 py-4 text-sm font-medium text-amber-700"><LockKeyhole size={16} />Business Radar is outside this role&apos;s current workspace access.</div> : null}
       <div className="mt-7 grid gap-2 sm:grid-cols-2">
-        {STARTERS.map(starter => (
+        {(coverage.radar ? STARTERS : LIMITED_STARTERS).map(starter => (
           <button
             type="button"
             key={starter}

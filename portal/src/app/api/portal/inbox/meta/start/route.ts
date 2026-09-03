@@ -1,27 +1,30 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { requireRole, authErrorResponse } from "@/lib/server/auth/auth";
+import { authErrorResponse } from "@/lib/server/auth/auth";
 import { buildMetaAuthorizeUrl, createMetaOAuthState, readMetaMessagingConfig } from "@/lib/server/integrations/metaMessaging";
 import { ensureHydrated } from "@/server/storage";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 
 export async function GET(request: NextRequest) {
   await ensureHydrated();
-  let session;
+  let current;
   try {
-    session = await requireRole(["agency-owner", "agency-manager"]);
+    current = await requireCurrentWorkspaceElementAccess("staff", "workspace.inbox", "manage");
   } catch (cause) {
     return authErrorResponse(cause);
   }
+  const session = current.actor.session;
+  const agencyId = current.actor.resourceAgencyId;
 
   const mode = request.nextUrl.searchParams.get("mode") === "facebook"
     ? "facebook-login" as const
     : "instagram-login" as const;
   const returnUrl = safeReturnUrl(request.nextUrl.searchParams.get("return"));
-  const config = readMetaMessagingConfig(session.agencyId, request.nextUrl.origin);
+  const config = readMetaMessagingConfig(agencyId, request.nextUrl.origin);
   if (!config) return redirectWithResult(request, returnUrl, "not-configured");
 
   const state = createMetaOAuthState({
-    agencyId: session.agencyId,
+    agencyId,
     userId: session.userId,
     mode,
     companyId: cleanId(request.nextUrl.searchParams.get("companyId")),

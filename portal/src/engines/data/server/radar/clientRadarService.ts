@@ -2,7 +2,12 @@ import "server-only";
 
 import { containerFor } from "@/built-ins/modules/agency-finance/src/server";
 import { calculateClientAquaHealth } from "@/lib/clients/clientAquaHealth";
-import { buildClientRadarSnapshot, type ClientRadarInput } from "@/engines/data/radar/clientRadar";
+import {
+  buildClientRadarSnapshot,
+  type ClientRadarElement,
+  type ClientRadarInput,
+  type ClientRadarVisibility,
+} from "@/engines/data/radar/clientRadar";
 import { cleanClientMarketingService } from "@/lib/clients/clientMarketingService";
 import { cleanClientPaymentPlans, summariseClientPaymentPosition } from "@/lib/clients/clientPaymentPlans";
 import { cleanClientRequests } from "@/lib/clients/clientRequests";
@@ -20,15 +25,49 @@ import { getInstall } from "@/server/pluginInstalls";
 import { clientProductWorkspaces } from "@/server/productWorkspaces";
 import { getState } from "@/server/storage";
 import { getClientForAgency, listClients } from "@/server/tenants";
-import type { Client } from "@/server/types";
+import type { Client, RadarSyntheticProbeResult } from "@/server/types";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { listOperationalAlerts } from "@/lib/server/inbox/operationalAlerts";
+import {
+  clientWorkspaceElementAtLeast,
+  clientWorkspaceElementLevel,
+  currentClientWorkspaceElementAccess,
+  type ClientWorkspaceElementAccess,
+} from "@/lib/server/access/clientWorkspaceElementAccess";
 
 interface ClientRadarFleetOptions {
   now?: number;
   clients?: Client[];
   operationalAlerts?: Awaited<ReturnType<typeof listOperationalAlerts>>;
   telemetry?: RadarTelemetrySnapshot;
+  /** Present for actor-scoped client reads; omitted for trusted whole-business aggregation. */
+  visibility?: ClientRadarVisibility;
+}
+
+const CLIENT_RADAR_ACCESS_ELEMENTS = {
+  overview: "client.overview",
+  relationship: "client.relationship",
+  fulfilment: "client.fulfilment",
+  marketing: "client.marketing",
+  systems: "client.systems",
+  commercial: "client.commercial",
+  communications: "client.communications",
+  portal: "client.portal",
+} as const;
+
+export function clientRadarVisibilityForAccess(access: ClientWorkspaceElementAccess): ClientRadarVisibility {
+  const visible = (element: (typeof CLIENT_RADAR_ACCESS_ELEMENTS)[keyof typeof CLIENT_RADAR_ACCESS_ELEMENTS]) =>
+    clientWorkspaceElementAtLeast(clientWorkspaceElementLevel(access, element), "view");
+  return {
+    overview: visible(CLIENT_RADAR_ACCESS_ELEMENTS.overview),
+    relationship: visible(CLIENT_RADAR_ACCESS_ELEMENTS.relationship),
+    fulfilment: visible(CLIENT_RADAR_ACCESS_ELEMENTS.fulfilment),
+    marketing: visible(CLIENT_RADAR_ACCESS_ELEMENTS.marketing),
+    systems: visible(CLIENT_RADAR_ACCESS_ELEMENTS.systems),
+    commercial: visible(CLIENT_RADAR_ACCESS_ELEMENTS.commercial),
+    communications: visible(CLIENT_RADAR_ACCESS_ELEMENTS.communications),
+    portal: visible(CLIENT_RADAR_ACCESS_ELEMENTS.portal),
+  };
 }
 
 export interface RadarInvoice {
@@ -54,33 +93,62 @@ export async function buildClientRadarFleet(
 ): Promise<ClientRadarSnapshot[]> {
   const now = options.now ?? Date.now();
   const clients = options.clients ?? listClients(agencyId, { includeArchived: true });
-  const alerts = options.operationalAlerts ?? await listOperationalAlerts(agencyId, now);
+  const visibility = options.visibility;
+  const visible = (element: ClientRadarElement) => visibility?.[element] ?? true;
+  const actorScopedRead = visibility !== undefined;
+  // Operational-alert synthesis is an agency-wide collector. A client-scoped
+  // request must not trigger that collector; trusted Business Radar callers can
+  // still inject their already-authorized alert set through `operationalAlerts`.
+  const alerts = options.operationalAlerts ?? (actorScopedRead ? [] : await listOperationalAlerts(agencyId, now));
   const state = getState();
-  const telemetry = options.telemetry ?? buildRadarTelemetrySnapshot(
-    state.agencyWebsites[agencyId],
-    clients,
-    state.radarSyntheticProbes[agencyId] ?? {},
-    now,
-  );
-  const invoiceEvidence = await listRadarInvoices(agencyId);
-  const products = listAgencyProducts(agencyId, true);
-  const milestones = listClientMilestones(agencyId);
+  const telemetry = options.telemetry ?? (visible("systems")
+    ? buildRadarTelemetrySnapshot(
+        actorScopedRead ? undefined : state.agencyWebsites[agencyId],
+        clients,
+        actorScopedRead ? clientProbeResults(state.radarSyntheticProbes[agencyId] ?? {}, clients) : state.radarSyntheticProbes[agencyId] ?? {},
+        now,
+      )
+    : emptyTelemetry());
+  const invoiceEvidence = visible("commercial")
+    ? await listRadarInvoices(agencyId, clients.length === 1 ? clients[0]?.id : undefined)
+    : { connected: false, available: true, invoices: [] };
+  const needsProductEvidence = visible("fulfilment") || visible("portal") || visible("marketing");
+  const products = needsProductEvidence ? listAgencyProducts(agencyId, true) : [];
+  const milestones = visible("fulfilment")
+    ? listClientMilestones(agencyId, clients.length === 1 ? clients[0]?.id : undefined)
+    : [];
   const evidence = state.radarEvidence[agencyId];
 
   return clients.map(client => {
     const metadata = client.metadata ?? {};
-    const assignments = resolvePortalProductAssignment(metadata, products).products;
-    const workspaces = new Map(clientProductWorkspaces(client).map(workspace => [workspace.productId, workspace]));
+    const assignments = needsProductEvidence ? resolvePortalProductAssignment(metadata, products).products : [];
+    const workspaces = new Map<string, ReturnType<typeof clientProductWorkspaces>[number]>(
+      visible("fulfilment")
+        ? clientProductWorkspaces(client).map(workspace => [workspace.productId, workspace] as const)
+        : [],
+    );
     const productById = new Map(products.map(product => [product.id, product]));
     const inheritedKeys = inheritedClientServiceKeys(assignments, products);
     const capabilities = clientServiceCapabilities(assignments, inheritedKeys);
-    const clientInvoices = invoiceEvidence.invoices.filter(invoice => invoice.clientId === client.id);
-    const requests = cleanClientRequests(metadata.clientRequests);
-    const contracts = cleanContracts(metadata.contracts);
-    const clientProperties = telemetry.properties.filter(property => property.clientId === client.id);
-    const marketing = cleanClientMarketingService(metadata.clientMarketingService);
+    const clientInvoices = visible("commercial")
+      ? invoiceEvidence.invoices.filter(invoice => invoice.clientId === client.id)
+      : [];
+    const requests = visible("communications") ? cleanClientRequests(metadata.clientRequests) : [];
+    const contracts = visible("commercial") ? cleanContracts(metadata.contracts) : [];
+    const clientProperties = visible("systems")
+      ? telemetry.properties.filter(property => property.clientId === client.id)
+      : [];
+    const marketing = visible("marketing")
+      ? cleanClientMarketingService(metadata.clientMarketingService)
+      : cleanClientMarketingService(undefined);
+    const compositeHealthVisible = visible("relationship")
+      && visible("commercial")
+      && visible("communications")
+      && visible("systems")
+      && visible("marketing");
     const input: ClientRadarInput = {
       now,
+      visibility,
       client: {
         id: client.id,
         name: client.name,
@@ -88,22 +156,22 @@ export async function buildClientRadarFleet(
         stage: client.stage,
         createdAt: client.createdAt,
         updatedAt: client.updatedAt,
-        ownerEmail: client.ownerEmail,
-        portalEmail: stringValue(metadata.portalLoginEmail) || stringValue(metadata.clientEmail),
-        companyId: client.companyId,
+        ownerEmail: visible("communications") ? client.ownerEmail : undefined,
+        portalEmail: visible("communications") ? stringValue(metadata.portalLoginEmail) || stringValue(metadata.clientEmail) : undefined,
+        companyId: visible("overview") ? client.companyId : undefined,
       },
       aquaHealth: calculateClientAquaHealth({
         now,
-        financeConnected: invoiceEvidence.connected,
-        financeAvailable: invoiceEvidence.available,
+        financeConnected: compositeHealthVisible && invoiceEvidence.connected,
+        financeAvailable: compositeHealthVisible ? invoiceEvidence.available : true,
         invoices: clientInvoices,
-        lastContactedAt: numberValue(metadata.lastContactedAt),
-        requestsObserved: Array.isArray(metadata.clientRequests),
+        lastContactedAt: compositeHealthVisible ? numberValue(metadata.lastContactedAt) : undefined,
+        requestsObserved: compositeHealthVisible && Array.isArray(metadata.clientRequests),
         requests,
         contracts,
-        telemetryEvents: Array.isArray(metadata.telemetryEvents) ? metadata.telemetryEvents as ClientTelemetryEvent[] : undefined,
+        telemetryEvents: compositeHealthVisible && Array.isArray(metadata.telemetryEvents) ? metadata.telemetryEvents as ClientTelemetryEvent[] : undefined,
       }),
-      products: assignments.map(assignment => {
+      products: visible("fulfilment") ? assignments.map(assignment => {
         const configured = productById.get(assignment.id);
         const workspace = workspaces.get(assignment.id);
         const pages = workspace ? Object.values(workspace.pages) : [];
@@ -124,7 +192,7 @@ export async function buildClientRadarFleet(
             lastUpdatedAt: workspace.updatedAt,
           } : undefined,
         };
-      }),
+      }) : [],
       properties: clientProperties.map(property => ({
         id: property.id,
         label: property.label,
@@ -149,25 +217,26 @@ export async function buildClientRadarFleet(
         detail: alert.detail,
         href: alert.href,
         occurredAt: alert.occurredAt,
+        element: clientRadarElementForHref(alert.href),
       })),
       financeConnected: invoiceEvidence.connected,
       financeAvailable: invoiceEvidence.available,
-      paymentPosition: invoiceEvidence.available
+      paymentPosition: visible("commercial") && invoiceEvidence.available
         ? summariseClientPaymentPosition(cleanClientPaymentPlans(metadata.clientPaymentPlans), clientInvoices, now)
         : undefined,
       invoices: clientInvoices,
-      requestsObserved: Array.isArray(metadata.clientRequests),
+      requestsObserved: visible("communications") && Array.isArray(metadata.clientRequests),
       requests,
       contracts,
-      portal: {
+      portal: visible("portal") ? {
         expected: assignments.some(assignment => productById.get(assignment.id)?.portalRequirement !== "none"),
         builtAt: numberValue(metadata.portalBuiltAt),
         accessEmail: stringValue(metadata.portalLoginEmail) || stringValue(metadata.clientEmail) || client.ownerEmail,
         accessSentAt: numberValue(metadata.portalAccessSentAt),
         pendingApprovals: recordArray(metadata.portalApprovals).filter(approval => approval.status === "pending").length,
         sharedFiles: recordArray(metadata.files).filter(file => file.customerVisible !== false).length,
-      },
-      marketing: capabilities.marketing || marketing.enabled ? {
+      } : { expected: false, pendingApprovals: 0, sharedFiles: 0 },
+      marketing: visible("marketing") && (capabilities.marketing || marketing.enabled) ? {
         enabled: marketing.enabled,
         attentionProfiles: marketing.profiles.filter(profile => profile.status === "attention").length,
         pendingApprovals: marketing.content.filter(item => item.approval === "pending").length + marketing.campaigns.filter(item => item.approval === "pending").length,
@@ -176,8 +245,11 @@ export async function buildClientRadarFleet(
         campaignsWithoutLeads: marketing.campaigns.filter(campaign => campaign.budgetCents > 0 && campaign.spendCents >= campaign.budgetCents * 0.5 && campaign.leads === 0).length,
         updatedAt: marketing.updatedAt,
       } : undefined,
-      lastContactedAt: numberValue(metadata.lastContactedAt),
-      lastRecordedAt: evidence?.lastRecordedAt,
+      lastContactedAt: visible("relationship") ? numberValue(metadata.lastContactedAt) : undefined,
+      // The vault timestamp belongs to the whole agency sweep. Per-client
+      // readers may receive history for their visible check IDs, but not that
+      // organisation-wide activity timestamp.
+      lastRecordedAt: actorScopedRead ? undefined : evidence?.lastRecordedAt,
     };
     return attachEvidenceHistory(buildClientRadarSnapshot(input), evidence?.series ?? {});
   });
@@ -190,14 +262,21 @@ export async function buildClientRadar(
 ): Promise<ClientRadarSnapshot | null> {
   const client = getClientForAgency(agencyId, clientId);
   if (!client) return null;
-  return (await buildClientRadarFleet(agencyId, { ...options, clients: [client] }))[0] ?? null;
+  // Unlike the fleet builder, this function backs actor-facing RSCs as well as
+  // the API. Never interpret an omitted projection as whole-business access.
+  // Callers already holding an access resolution may pass `visibility` to
+  // avoid resolving the same actor twice.
+  const visibility = options.visibility ?? clientRadarVisibilityForAccess(
+    (await currentClientWorkspaceElementAccess(clientId)).access,
+  );
+  return (await buildClientRadarFleet(agencyId, { ...options, clients: [client], visibility }))[0] ?? null;
 }
 
-async function listRadarInvoices(agencyId: string): Promise<ClientRadarInvoiceEvidence> {
+async function listRadarInvoices(agencyId: string, clientId?: string): Promise<ClientRadarInvoiceEvidence> {
   const financeInstall = getInstall({ agencyId }, "agency-finance");
   return readClientRadarInvoiceEvidence(Boolean(financeInstall?.enabled), async () => {
     if (!financeInstall?.enabled) return [];
-    const invoices = await containerFor({ agencyId, storage: makePluginStorage(financeInstall.id), install: financeInstall }).invoices.list();
+    const invoices = await containerFor({ agencyId, storage: makePluginStorage(financeInstall.id), install: financeInstall }).invoices.list(clientId ? { clientId } : undefined);
     return invoices.map(invoice => ({
       id: invoice.id,
       number: invoice.number,
@@ -209,6 +288,51 @@ async function listRadarInvoices(agencyId: string): Promise<ClientRadarInvoiceEv
       currency: invoice.currency,
     }));
   });
+}
+
+function clientProbeResults(
+  probes: Record<string, RadarSyntheticProbeResult>,
+  clients: readonly Client[],
+): Record<string, RadarSyntheticProbeResult> {
+  const prefixes = clients.map(client => `${client.id}:`);
+  return Object.fromEntries(Object.entries(probes).filter(([key]) => prefixes.some(prefix => key.startsWith(prefix))));
+}
+
+function emptyTelemetry(): RadarTelemetrySnapshot {
+  return {
+    properties: [],
+    issues: [],
+    totals: {
+      properties: 0,
+      expectedProperties: 0,
+      connectedTags: 0,
+      staleTags: 0,
+      pageviews24h: 0,
+      pageviews7d: 0,
+      previousPageviews7d: 0,
+      forms24h: 0,
+      forms7d: 0,
+      conversions7d: 0,
+      errors24h: 0,
+      heartbeats24h: 0,
+      trafficSurges: 0,
+      trafficDrops: 0,
+      slowProperties: 0,
+      searchImpressions28d: 0,
+      searchClicks28d: 0,
+    },
+  };
+}
+
+function clientRadarElementForHref(href: string): ClientRadarElement | undefined {
+  if (/([?&]tab=|\/)(finance|commercial)(?:&|$|\/)/.test(href)) return "commercial";
+  if (/([?&]tab=|\/)(communications|inbox)(?:&|$|\/)/.test(href)) return "communications";
+  if (/([?&]tab=|\/)(delivery|fulfilment|projects?)(?:&|$|\/)/.test(href)) return "fulfilment";
+  if (/([?&]tab=|\/)(marketing|campaigns?)(?:&|$|\/)/.test(href)) return "marketing";
+  if (/([?&]tab=|\/)(systems|development|technical)(?:&|$|\/)/.test(href)) return "systems";
+  if (/([?&]tab=|\/)(portal|approvals?)(?:&|$|\/)/.test(href)) return "portal";
+  if (/([?&]tab=|\/)(relationship)(?:&|$|\/)/.test(href)) return "relationship";
+  return undefined;
 }
 
 /**

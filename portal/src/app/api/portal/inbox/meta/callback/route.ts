@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { requireRole } from "@/lib/server/auth/auth";
 import { encryptInboxSecret } from "@/lib/server/inbox/inboxVault";
 import { saveInboxConnection } from "@/lib/server/inbox/inboxStore";
 import {
@@ -11,6 +10,7 @@ import {
 } from "@/lib/server/integrations/metaMessaging";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 
 export async function GET(request: NextRequest) {
   await ensureHydrated();
@@ -20,20 +20,22 @@ export async function GET(request: NextRequest) {
   if (!state.ok) return redirectResult(request, fallback, state.error);
   const returnUrl = state.data.returnUrl;
 
-  let session;
+  let current;
   try {
-    session = await requireRole(["agency-owner", "agency-manager"]);
+    current = await requireCurrentWorkspaceElementAccess("staff", "workspace.inbox", "manage");
   } catch {
     return redirectResult(request, returnUrl, "session-required");
   }
-  if (session.agencyId !== state.data.agencyId || session.userId !== state.data.userId) {
+  const session = current.actor.session;
+  const agencyId = current.actor.resourceAgencyId;
+  if (agencyId !== state.data.agencyId || session.userId !== state.data.userId) {
     return redirectResult(request, returnUrl, "state-owner-mismatch");
   }
   const providerError = request.nextUrl.searchParams.get("error");
   if (providerError) return redirectResult(request, returnUrl, providerError);
   const code = request.nextUrl.searchParams.get("code");
   if (!code) return redirectResult(request, returnUrl, "missing-code");
-  const config = readMetaMessagingConfig(session.agencyId, request.nextUrl.origin);
+  const config = readMetaMessagingConfig(agencyId, request.nextUrl.origin);
   if (!config) return redirectResult(request, returnUrl, "not-configured");
 
   try {
@@ -43,7 +45,7 @@ export async function GET(request: NextRequest) {
     for (const account of accounts) {
       const subscription = await subscribeMetaWebhooks(config, account);
       await saveInboxConnection({
-        agencyId: session.agencyId,
+        agencyId,
         companyId: state.data.companyId,
         marketingAssetId: state.data.marketingAssetId,
         provider: "meta",
@@ -65,7 +67,7 @@ export async function GET(request: NextRequest) {
       if (subscription.subscribed) connected += 1;
     }
     logActivity({
-      agencyId: session.agencyId,
+      agencyId,
       actorUserId: session.userId,
       actorEmail: session.email,
       category: "integrations",

@@ -972,6 +972,7 @@ export const PORTAL_STATE_COVERAGE: Readonly<Record<string, CollectionClassifica
 
   // Audit & activity
   activity: { entity: "auditEvent", plane: "operational", note: "The durable audit trail; 50k hard cap." },
+  personalMetricDays: { entity: "evidenceItem", plane: "derived", note: "Bounded actor-owned daily metric counts derived from explicit prospect qualification, outreach and client-conversion facts." },
   outbox: { entity: "domainEvent", plane: "operational", note: "Durable event facts; atomic only at same-mutation call sites, then best-effort dispatched to the unacknowledged in-process bus (server/outbox.ts)." },
   clientRecordLedger: { entity: "auditEvent", plane: "derived", note: "Internal client history projection incl. entries a client must never see; actor lives on ActivityEntry." },
   subjectRequests: { plane: "operational", note: "GDPR subject requests driving erasure sweeps." },

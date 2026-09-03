@@ -37,6 +37,7 @@ import {
   agencyRolesForStaffWorkspacePagePath,
   roleMayUseStaffWorkspaceApiPath,
 } from "@/lib/staffWorkspacePolicy";
+import type { CurrentAccessActor } from "@/server/accessControl";
 
 export default async function AgencyLayout({ children }: { children: ReactNode }) {
   await ensureHydrated();
@@ -57,13 +58,74 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
   // Once inside that allow-list, render a reduced shell instead of bouncing
   // them back to Team before the leaf element check can run.
   const delegatedStaff = session.role === "agency-staff";
+  let resourceAgencyId = session.agencyId;
+  let actionsAvailable = true;
+  let calendarAvailable = true;
+  let businessRadarAvailable = session.role === "agency-owner";
+  let businessRadarUsable = session.role === "agency-owner"
+    && !session.publicShowcase
+    && session.sandbox?.access !== "read-only";
+  let inboxAvailable = true;
+  let clientOverviewAvailable = true;
+  let governedClientIds: Set<string> | null = null;
+  let accessActor: CurrentAccessActor | null = null;
+  let businessWorkloadAvailable = session.role === "agency-owner"
+    && !session.publicShowcase
+    && session.sandbox?.access !== "read-only";
+  // Keep the healthy owner shell pristine: owner visibility is the baseline,
+  // so only delegated/narrowable identities need the governance graph here.
+  if (session.role !== "agency-owner") {
+    const [accessKernel, workspaceAccess, clientAccess, personalRadarAccess] = await Promise.all([
+      import("@/server/accessControl"),
+      import("@/lib/server/access/workspaceElementAccess"),
+      import("@/lib/server/access/clientWorkspaceElementAccess"),
+      import("@/lib/server/intelligence/personalRadarAccess"),
+    ]);
+    const actor = await accessKernel.requireCurrentAccessActor();
+    accessActor = actor;
+    resourceAgencyId = actor.resourceAgencyId;
+    const agencyAccess = accessKernel.resolveActorAccess(actor, { kind: "agency", id: actor.resourceAgencyId });
+    const staffAccess = workspaceAccess.resolveActorWorkspaceElementAccess(actor, "staff");
+    const growthAccess = workspaceAccess.resolveActorWorkspaceElementAccess(actor, "growth");
+    const fulfilmentAccess = workspaceAccess.resolveActorWorkspaceElementAccess(actor, "fulfilment");
+    const fullyUnmigratedManager = session.role === "agency-manager"
+      && !accessKernel.actorHasActiveNonProjectAccessPolicy(actor);
+    const agencyCapabilities = new Set([...agencyAccess.capabilities, ...staffAccess.capabilities]);
+    const hasAgencyView = (element: string) => agencyCapabilities.has(`element.${element}.view` as never)
+      || fullyUnmigratedManager;
+    actionsAvailable = workspaceAccess.workspaceElementAtLeast(
+      workspaceAccess.workspaceElementLevel(staffAccess, "workspace.actions"),
+      "view",
+    );
+    calendarAvailable = (await personalRadarAccess.resolvePersonalRadarAccessForActor(actor)).goalsAvailable;
+    businessRadarAvailable = await personalRadarAccess.resolveBusinessRadarAccessForActor(actor);
+    businessRadarUsable = await personalRadarAccess.resolveBusinessRadarCapabilityForActor(actor, "use");
+    inboxAvailable = hasAgencyView("workspace.inbox");
+    clientOverviewAvailable = hasAgencyView("client.overview");
+    governedClientIds = new Set(Object.values(actor.resourceState.clients)
+      .filter(client => client.agencyId === actor.resourceAgencyId)
+      .filter(client => clientAccess.clientWorkspaceHasAnyVisibleElement(
+        clientAccess.resolveActorClientWorkspaceElementAccess(actor, client.id),
+      ))
+      .map(client => client.id));
+    businessWorkloadAvailable = businessRadarAvailable
+      && !session.publicShowcase
+      && session.sandbox?.access !== "read-only"
+      && workspaceAccess.workspaceElementAtLeast(
+        workspaceAccess.workspaceElementLevel(staffAccess, "workspace.settings"),
+        "manage",
+      );
+  }
 
-  const agency = getAgency(session.agencyId);
+  const agency = getAgency(resourceAgencyId);
   if (!agency) redirect("/login");
   const currentUser = getUserById(session.userId);
   const workspaceName = session.publicShowcase ? agency.name : INTERNAL_WORKSPACE_NAME;
   const workspaceSubtitle = session.publicShowcase ? "Fictional demonstration workspace" : INTERNAL_WORKSPACE_SUBTITLE;
-  const privacyTerms = delegatedStaff ? [] : listClients(agency.id, { includeArchived: true }).flatMap(client => {
+  const privacyClientAccessAvailable = clientOverviewAvailable || (governedClientIds?.size ?? 0) > 0;
+  const privacyTerms = delegatedStaff || !privacyClientAccessAvailable ? [] : listClients(agency.id, { includeArchived: true })
+    .filter(client => governedClientIds === null || governedClientIds.has(client.id))
+    .flatMap(client => {
     const metadata = client.metadata ?? {};
     return [
       client.name,
@@ -72,7 +134,7 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
       typeof metadata.businessName === "string" ? metadata.businessName : "",
       typeof metadata.phone === "string" ? metadata.phone : "",
     ];
-  });
+    });
 
   let installs = listInstalledFor({ agencyId: agency.id });
   // New agencies already carry this core install. Keep the legacy self-heal,
@@ -98,11 +160,14 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
   // founder-only Dev Team gate: it can only hide an icon the founder already earns.
   const devIconVisible = await devIconPreference();
   let operationalAlerts: OperationalAlert[] = [];
-  if (!perfMode && !session.publicShowcase && !delegatedStaff) {
+  if (!perfMode && !session.publicShowcase && !delegatedStaff && inboxAvailable) {
     const { getRequestOperationalAlerts } = await import("@/lib/server/inbox/operationalAlerts");
     operationalAlerts = await getRequestOperationalAlerts(agency.id);
   }
-  const alertViews = listOperationalAlertViews(agency.id, session.userId, operationalAlerts);
+  const visibleOperationalAlerts = accessActor
+    ? (await import("@/lib/server/access/operationalAlertAccess")).filterOperationalAlertsForActor(accessActor, operationalAlerts)
+    : operationalAlerts.filter(alert => !alert.id.startsWith("calendar-reminder:"));
+  const alertViews = listOperationalAlertViews(agency.id, session.userId, visibleOperationalAlerts);
   const panels = await withPersonalChrome(addSidebarAttention(basePanels, alertViews.filter(alert =>
     alert.attention || (alert.persistentUntilResolved && alert.state !== "parked")
   )));
@@ -114,7 +179,16 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
   // is set by /demo?embed=1.
   const embed = h.get("cookie")?.includes("lk_demo_embed=1") ?? false;
   const advisorEnabled = !session.publicShowcase && (session.role === "agency-owner" || session.role === "agency-manager");
-  const notificationsEnabled = roleMayUseStaffWorkspaceApiPath(session.role, "/api/portal/notifications");
+  const notificationsEnabled = inboxAvailable && roleMayUseStaffWorkspaceApiPath(session.role, "/api/portal/notifications");
+  const panelHrefs = new Set(panels.flatMap(panel => panel.items.map(item => item.href.split("?")[0])));
+  const capabilitySearchHrefs = [
+    ...(panelHrefs.has("/portal/agency/my-radar") ? ["/portal/agency/my-radar"] : []),
+    ...(actionsAvailable ? ["/portal/agency/actions"] : []),
+    ...(calendarAvailable ? ["/portal/agency/calendar"] : []),
+    ...(inboxAvailable ? ["/portal/agency/inbox"] : []),
+    ...(businessRadarAvailable ? ["/portal/agency/radar"] : []),
+    ...(businessWorkloadAvailable ? ["/portal/agency/radar/workload"] : []),
+  ];
 
   if (embed) {
     return (
@@ -158,10 +232,12 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
             devConsole={devDocsAccessible(session) && devIconVisible}
             devModeActive={Boolean(session.devReturnAgencyId)}
             privacyTerms={privacyTerms}
+            capabilitySearchHrefs={capabilitySearchHrefs}
+            businessRadarAvailable={businessRadarAvailable}
             notifications={notificationsEnabled ? <NotificationCentreButton /> : null}
-            radarControl={advisorEnabled ? <RadarQuickLookControl agencyId={session.agencyId} lightweight={perfMode} /> : null}
+            radarControl={advisorEnabled && businessRadarAvailable ? <RadarQuickLookControl agencyId={resourceAgencyId} lightweight={perfMode} canRunScan={businessRadarUsable} /> : null}
             advisorControl={advisorEnabled ? (
-              <AdvisorDrawerControl agencyId={session.agencyId} userId={session.userId} userName={currentUser?.name || session.email} lightweight={perfMode} />
+              <AdvisorDrawerControl agencyId={resourceAgencyId} userId={session.userId} userName={currentUser?.name || session.email} lightweight={perfMode} />
             ) : null}
           />
           <main id="main-content" className="mm-private-surface min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6 lg:px-8 lg:py-6">

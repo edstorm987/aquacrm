@@ -1,4 +1,4 @@
-// Where the hours actually went — the arithmetic behind My Radar.
+// Where the hours actually went — Business Radar's department-workload maths.
 //
 // Ed, 2026-08-29: *"as a freelancer one-man band you have to judge the
 // departments not the person, since if you judge the departments you'll see if
@@ -152,9 +152,9 @@ export function summariseDepartmentAllocation(
 }
 
 /**
- * The one line worth putting at the top of My Radar.
+ * The one line worth putting above Business Radar's department workload.
  *
- * Names the worst-off PLANNED department, because "which of my departments is
+ * Names the worst-off PLANNED department, because "which business function is
  * starving" is the question the whole model exists to answer. Silent when
  * nothing is planned — a confident sentence built on no baseline would be the
  * macro view wearing a department's name.

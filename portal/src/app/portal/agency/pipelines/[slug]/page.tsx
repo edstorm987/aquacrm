@@ -123,7 +123,7 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
           focusedLeadId={query.lead}
           referenceNow={Date.now()}
           columns={pipeline.columns.map(col => ({ id: col.id, label: col.label, color: col.color }))}
-          scoutingQuota={scoutingQuotaProgress(agency.id, session.userId, prospectList)}
+          scoutingQuota={scoutingQuotaProgress(agency.id, session.userId)}
           prospects={prospectList.filter(prospect => prospect.status === "scouting").map(prospect => ({
             id: prospect.id,
             name: prospect.name,

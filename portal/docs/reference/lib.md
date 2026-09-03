@@ -2071,7 +2071,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports (6):**
 
 - `summariseDepartmentAllocation(blocks: readonly AllocationBlock[], baselines: readonly DepartmentBaseline[], now: number): AllocationSummary` — Total the hours by department and grade them against their baselines. `baselines` decides which departments APPEAR: a department with a baseline and no hours must show as starved …
-- `allocationHeadline(summary: AllocationSummary): string` — The one line worth putting at the top of My Radar. Names the worst-off PLANNED department, because "which of my departments is starving" is the question the whole model exists to …
+- `allocationHeadline(summary: AllocationSummary): string` — The headline for Business Radar's department-workload view. Names the worst-off planned business function without turning it into a personal score …
 - `interface AllocationBlock (4 members)` — rule applies here: absence of evidence, said out loud.
 - `interface DepartmentBaseline (2 members)`
 - `interface DepartmentAllocation (6 members)`
@@ -7190,4 +7190,3 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Depends on:** _No internal imports._
 
 **Used by (2):** [`scripts/smoke-telephony-inbound.test.ts`](scripts.md#file-scripts-smoke-telephony-inbound-test-ts-880e50ee50) · [`src/app/api/webhooks/twilio/voice/route.ts`](app.md#file-src-app-api-webhooks-twilio-voice-route-ts-e6acb0932a)
-

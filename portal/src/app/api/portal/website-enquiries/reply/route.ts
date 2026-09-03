@@ -2,10 +2,11 @@ import { createHash } from "node:crypto";
 
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { authErrorResponse } from "@/lib/server/auth/auth";
+import { loadActorWebsiteEnquiry } from "@/lib/server/access/websiteEnquiryAccess";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 import { sendTransactionalEmail } from "@/lib/server/email/transactionalEmail";
 import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
-import { loadOwnedEnquiry } from "@/lib/supabase/ownedEnquiry";
 import { isTradingBrandSlug, tradingBrandDefinition } from "@/lib/brands/tradingBrands";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated } from "@/server/storage";
@@ -52,7 +53,9 @@ function existingReplies(metadata: Record<string, unknown>): StoredReply[] {
 export async function POST(request: Request) {
   try {
     await ensureHydrated({ fresh: true });
-    const session = await requireRole(["agency-owner", "agency-manager", "agency-staff"]);
+    const { actor } = await requireCurrentWorkspaceElementAccess("staff", "workspace.inbox", "use");
+    const session = actor.session;
+    const agencyId = actor.resourceAgencyId;
     const body = await request.json().catch(() => null) as {
       enquiryId?: unknown;
       subject?: unknown;
@@ -65,9 +68,9 @@ export async function POST(request: Request) {
     }
 
     const supabase = await createScopedSupabaseClient();
-    const data = await loadOwnedEnquiry<EnquiryRow>(supabase, {
+    const data = await loadActorWebsiteEnquiry<EnquiryRow>(actor, supabase, {
       id: enquiryId,
-      agencyId: session.agencyId,
+      required: "use",
       columns: ["brand_slug", "name", "email", "message"],
     });
     if (!data) return NextResponse.json({ ok: false, error: "Website submission not found." }, { status: 404 });
@@ -92,22 +95,35 @@ export async function POST(request: Request) {
     const priorReplies = existingReplies(currentMetadata);
     const priorDelivery = priorReplies.find(item => item.id === replyId && item.status === "sent");
     if (priorDelivery) return NextResponse.json({ ok: true, reply: priorDelivery, replayed: true });
-    const originalMessage = enquiry.message?.trim();
+    // Provider delivery is irreversible. Re-load immediately before it so the
+    // current client association, recipient and original message—not the page's
+    // older snapshot—govern the send.
+    const liveEnquiry = await loadActorWebsiteEnquiry<EnquiryRow>(actor, supabase, {
+      id: enquiry.id,
+      required: "use",
+      columns: ["brand_slug", "name", "email", "message"],
+    });
+    if (!liveEnquiry) return NextResponse.json({ ok: false, error: "Website submission not found." }, { status: 404 });
+    const liveRecipient = liveEnquiry.email?.trim().toLowerCase() ?? "";
+    if (!EMAIL.test(liveRecipient)) {
+      return NextResponse.json({ ok: false, error: "This enquiry does not have a valid email address to reply to." }, { status: 400 });
+    }
+    const liveOriginalMessage = liveEnquiry.message?.trim();
     const result = await sendTransactionalEmail({
-      agencyId: session.agencyId,
-      to: recipient,
+      agencyId,
+      to: liveRecipient,
       signal: request.signal,
       fromName: brandName,
       subject,
       bodyText: [
-        `Hello ${enquiry.name},`,
+        `Hello ${liveEnquiry.name},`,
         "",
         message,
         "",
         `Sent by ${brandName} through AquaCRM.`,
-        ...(originalMessage ? ["", "Your original message:", originalMessage] : []),
+        ...(liveOriginalMessage ? ["", "Your original message:", liveOriginalMessage] : []),
       ].join("\n"),
-      bodyHtml: `<div style="font-family:Arial,sans-serif;background:#f5f6f6;padding:28px;color:#202221"><div style="max-width:680px;margin:auto;background:#fff;border:1px solid #dfe3e2;padding:28px"><p style="margin:0 0 20px;color:#087f8c;font-size:13px;font-weight:700">${escapeHtml(brandName)}</p><p>Hello ${escapeHtml(enquiry.name)},</p><p style="white-space:pre-wrap;line-height:1.65">${escapeHtml(message)}</p>${originalMessage ? `<div style="margin-top:28px;border-top:1px solid #e5e7e6;padding-top:18px;color:#686e6c;font-size:13px"><strong>Your original message</strong><p style="white-space:pre-wrap;line-height:1.55">${escapeHtml(originalMessage)}</p></div>` : ""}</div></div>`,
+      bodyHtml: `<div style="font-family:Arial,sans-serif;background:#f5f6f6;padding:28px;color:#202221"><div style="max-width:680px;margin:auto;background:#fff;border:1px solid #dfe3e2;padding:28px"><p style="margin:0 0 20px;color:#087f8c;font-size:13px;font-weight:700">${escapeHtml(brandName)}</p><p>Hello ${escapeHtml(liveEnquiry.name)},</p><p style="white-space:pre-wrap;line-height:1.65">${escapeHtml(message)}</p>${liveOriginalMessage ? `<div style="margin-top:28px;border-top:1px solid #e5e7e6;padding-top:18px;color:#686e6c;font-size:13px"><strong>Your original message</strong><p style="white-space:pre-wrap;line-height:1.55">${escapeHtml(liveOriginalMessage)}</p></div>` : ""}</div></div>`,
       externalRef: `website-enquiry-reply:${enquiry.id}:${replyId}`,
     });
 
@@ -116,23 +132,31 @@ export async function POST(request: Request) {
       channel: "email",
       subject,
       message,
-      recipient,
+      recipient: liveRecipient,
       sentAt,
       sentBy: session.userId,
       status: result.delivered ? "sent" : "failed",
       via: result.via,
       ...(result.reason ? { error: result.reason } : {}),
     };
+    const persistEnquiry = await loadActorWebsiteEnquiry<EnquiryRow>(actor, supabase, {
+      id: enquiry.id,
+      required: "use",
+      columns: ["brand_slug", "name", "email", "message"],
+    });
+    if (!persistEnquiry) return NextResponse.json({ ok: false, error: "Website submission not found." }, { status: 404 });
+    const persistMetadata = persistEnquiry.metadata ?? {};
+    const persistReplies = existingReplies(persistMetadata);
     const nextMetadata = {
-      ...currentMetadata,
-      inboxReplies: [...priorReplies.filter(item => item.id !== replyId).slice(-99), reply],
+      ...persistMetadata,
+      inboxReplies: [...persistReplies.filter(item => item.id !== replyId).slice(-99), reply],
       ...(result.delivered ? {
-        firstRespondedAt: typeof currentMetadata.firstRespondedAt === "string"
-          ? currentMetadata.firstRespondedAt
+        firstRespondedAt: typeof persistMetadata.firstRespondedAt === "string"
+          ? persistMetadata.firstRespondedAt
           : new Date(sentAt).toISOString(),
         lastRespondedAt: new Date(sentAt).toISOString(),
         lastRespondedBy: session.userId,
-        inboxStatus: currentMetadata.inboxStatus === "resolved" ? "resolved" : "reviewed",
+        inboxStatus: persistMetadata.inboxStatus === "resolved" ? "resolved" : "reviewed",
       } : {}),
     };
     const { error: updateError } = await supabase
@@ -142,7 +166,7 @@ export async function POST(request: Request) {
     if (updateError) throw new Error(`Could not record website enquiry reply: ${updateError.message}`);
 
     logActivity({
-      agencyId: session.agencyId,
+      agencyId,
       actorUserId: session.userId,
       actorEmail: session.email,
       category: "inbox",
@@ -150,7 +174,7 @@ export async function POST(request: Request) {
       message: result.delivered
         ? `Replied to ${enquiry.name}'s ${brandName} enquiry.`
         : `Reply to ${enquiry.name}'s ${brandName} enquiry failed.`,
-      metadata: { enquiryId: enquiry.id, replyId, recipient, via: result.via, error: result.reason },
+      metadata: { enquiryId: enquiry.id, replyId, recipient: liveRecipient, via: result.via, error: result.reason },
     });
 
     if (!result.delivered) {

@@ -8,6 +8,7 @@ import {
 } from "@/lib/server/integrations/googleCalendar";
 import { flushPendingWrites, ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
+import { requirePersonalCalendarAccess } from "@/lib/server/intelligence/personalRadarAccess";
 
 function redirectWithStatus(request: NextRequest, returnUrl: string, key: "calendarConnected" | "calendarError", value: string) {
   const url = new URL(returnUrl.startsWith("/portal/") ? returnUrl : "/portal/agency/calendar", request.nextUrl.origin);
@@ -24,14 +25,15 @@ export async function GET(request: NextRequest) {
     if (!state.ok) return redirectWithStatus(request, fallback, "calendarError", state.error);
     const session = await getSessionFromRequest(request);
     if (!session || !AGENCY_ROLES.includes(session.role)) throw new AuthError(401, "Sign in again before connecting a calendar.");
-    if (session.agencyId !== state.value.agencyId || session.userId !== state.value.userId) throw new AuthError(403, "This calendar grant belongs to a different AquaCRM session.");
+    const actor = await requirePersonalCalendarAccess(session, "use");
+    if (actor.resourceAgencyId !== state.value.agencyId || session.userId !== state.value.userId) throw new AuthError(403, "This calendar grant belongs to a different AquaCRM session.");
     const providerError = request.nextUrl.searchParams.get("error");
     if (providerError) return redirectWithStatus(request, fallback, "calendarError", providerError);
     const code = request.nextUrl.searchParams.get("code");
     if (!code) return redirectWithStatus(request, fallback, "calendarError", "Google did not return an authorization code.");
     const config = readGoogleCalendarConfig(`${request.nextUrl.origin}/api/portal/calendar/google/callback`);
     if (!config) return redirectWithStatus(request, fallback, "calendarError", "Google Calendar OAuth is not configured.");
-    const snapshot = await connectGoogleCalendarAccount({ agencyId: session.agencyId, ownerUserId: session.userId, code, config });
+    const snapshot = await connectGoogleCalendarAccount({ agencyId: actor.resourceAgencyId, ownerUserId: session.userId, code, config });
     await flushPendingWrites();
     const account = snapshot.connections.at(-1)?.accountEmail ?? "Google account";
     return redirectWithStatus(request, fallback, "calendarConnected", account);

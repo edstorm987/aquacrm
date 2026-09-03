@@ -3,6 +3,7 @@ import "server-only";
 import { AuthError } from "@/lib/server/auth/auth";
 import {
   AccessControlError,
+  actorHasActiveNonProjectAccessPolicy,
   requireCurrentAccessActor,
   resolveActorAccess,
   type CurrentAccessActor,
@@ -79,6 +80,12 @@ const ELEMENTS_BY_WORKSPACE: Readonly<Record<GovernedWorkspaceId, readonly Acces
   staff: [...new Set([
     ...Object.values(STAFF_STATION_ELEMENT_KEYS),
     ...Object.values(STAFF_COMMAND_ELEMENT_KEYS),
+    // Shared agency chrome/workspaces that are administered alongside Staff.
+    // Without stable levels here, an owner could grant Inbox/Overview/Calendar
+    // in the role editor but every leaf resolver still answered Hidden.
+    "workspace.overview" as AccessElementKey,
+    "workspace.calendar" as AccessElementKey,
+    "workspace.inbox" as AccessElementKey,
   ])],
   fulfilment: [...new Set(Object.values(FULFILMENT_VIEW_ELEMENT_KEYS))],
   growth: ["growth.overview", "growth.leads", "growth.contacts", "growth.outreach", "growth.campaigns"],
@@ -95,7 +102,7 @@ export interface WorkspaceElementAccess {
   workspace: GovernedWorkspaceId;
   /** True once canonical access replaces the migration fallback. */
   canonical: boolean;
-  source: "owner-baseline" | "canonical-grant" | "legacy";
+  source: "owner-baseline" | "canonical-grant" | "canonical-deny" | "legacy";
   capabilities: AccessCapability[];
   levels: Readonly<Partial<Record<AccessElementKey, WorkspaceElementLevel>>>;
   grantIds: string[];
@@ -228,12 +235,15 @@ export function resolveActorWorkspaceElementAccess(
 ): WorkspaceElementAccess {
   const resolution = resolveActorAccess(actor, { kind: "workspace", id: workspace });
   const canonicalGrant = activeCanonicalGrant(actor, workspace, resolution.grantIds);
-  const canonical = resolution.ownerBaseline || canonicalGrant;
-  const levels = canonical
+  const governed = resolution.ownerBaseline || actorHasActiveNonProjectAccessPolicy(actor);
+  const hasPolicy = resolution.ownerBaseline || canonicalGrant;
+  const levels = hasPolicy
     ? Object.fromEntries(ELEMENTS_BY_WORKSPACE[workspace].map(key => [
         key,
         elementLevel(resolution.capabilities, key),
       ])) as Partial<Record<AccessElementKey, WorkspaceElementLevel>>
+    : governed
+      ? Object.fromEntries(ELEMENTS_BY_WORKSPACE[workspace].map(key => [key, "hidden"])) as Partial<Record<AccessElementKey, WorkspaceElementLevel>>
     : workspace === "staff"
       ? staffLegacyLevels(actor)
       : workspace === "growth"
@@ -241,8 +251,14 @@ export function resolveActorWorkspaceElementAccess(
         : fulfilmentLegacyLevels(actor);
   return {
     workspace,
-    canonical,
-    source: resolution.ownerBaseline ? "owner-baseline" : canonicalGrant ? "canonical-grant" : "legacy",
+    canonical: governed,
+    source: resolution.ownerBaseline
+      ? "owner-baseline"
+      : canonicalGrant
+        ? "canonical-grant"
+        : governed
+          ? "canonical-deny"
+          : "legacy",
     capabilities: resolution.capabilities,
     levels: capReadOnlySession(actor, levels),
     grantIds: resolution.grantIds,

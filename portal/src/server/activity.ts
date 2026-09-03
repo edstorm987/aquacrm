@@ -7,10 +7,91 @@ import "server-only";
 
 import crypto from "crypto";
 import { appendActivityToClientRecordLedger } from "@/lib/server/clients/clientRecordLedger";
+import { businessCalendarDate } from "@/lib/shared/formatDateTime";
 import { getState, mutate } from "./storage";
-import type { ActivityCategory, ActivityEntry } from "./types";
+import type { ActivityCategory, ActivityEntry, PersonalMetricKey, PortalState } from "./types";
 
 const ACTIVITY_HARD_CAP = 50_000;
+const PERSONAL_METRIC_RETENTION_DAYS = 400;
+
+function personalMetricEvidence(entry: ActivityEntry): { metric: PersonalMetricKey; id: string; occurredAt: number } | null {
+  if (!entry.actorUserId) return null;
+  const metadata = entry.metadata ?? {};
+  const text = (key: string) => typeof metadata[key] === "string" && metadata[key] ? String(metadata[key]) : entry.id;
+  if (entry.action === "leads.prospect.created") {
+    return { metric: "prospects-scouted", id: text("prospectId"), occurredAt: entry.ts };
+  }
+  if (entry.action === "leads.prospect.outreach-recorded") {
+    const metric = metadata.channel === "call" ? "calls-made" : metadata.channel === "email" ? "emails-sent" : null;
+    const occurredAt = typeof metadata.contactedAt === "number" && Number.isFinite(metadata.contactedAt) ? metadata.contactedAt : entry.ts;
+    return metric ? { metric, id: text("attemptId"), occurredAt } : null;
+  }
+  if (entry.action === "leads.prospect.qualified") {
+    return { metric: "leads-qualified", id: text("prospectId"), occurredAt: entry.ts };
+  }
+  if (entry.action === "leads.contact.converted") {
+    return { metric: "clients-converted", id: text("contactId"), occurredAt: entry.ts };
+  }
+  return null;
+}
+
+function personalMetricEvidenceId(metric: PersonalMetricKey, id: string): string {
+  return crypto.createHash("sha256").update(`${metric}\u0000${id}`).digest("hex").slice(0, 24);
+}
+
+function projectPersonalMetric(state: PortalState, entry: ActivityEntry): void {
+  const evidence = personalMetricEvidence(entry);
+  if (!evidence || !entry.actorUserId) return;
+  // A scheduled outreach attempt is not work completed yet. It remains in the
+  // audit bridge and becomes countable once its actual occurrence time passes.
+  if (evidence.occurredAt > Date.now()) return;
+  const date = businessCalendarDate(evidence.occurredAt);
+  const key = `${entry.agencyId}\u0000${entry.actorUserId}\u0000${date}`;
+  const current = state.personalMetricDays[key];
+  const evidenceId = personalMetricEvidenceId(evidence.metric, evidence.id);
+  if (current) {
+    if (current.evidenceIds?.includes(evidenceId)) return;
+    state.personalMetricDays[key] = {
+      ...current,
+      counts: { ...current.counts, [evidence.metric]: (current.counts[evidence.metric] ?? 0) + 1 },
+      evidenceIds: [...(current.evidenceIds ?? []), evidenceId],
+      updatedAt: Math.max(current.updatedAt, entry.ts),
+    };
+  } else {
+    // First write after the projection ships: backfill this person's business
+    // day from retained actor-stamped audit rows, including the new row. Later
+    // writes increment the compact counters directly.
+    const counts: Partial<Record<PersonalMetricKey, number>> = {};
+    const evidenceIds = new Set<string>();
+    for (const candidate of state.activity) {
+      if (candidate.agencyId !== entry.agencyId || candidate.actorUserId !== entry.actorUserId) continue;
+      const projected = personalMetricEvidence(candidate);
+      if (!projected || projected.occurredAt > Date.now() || businessCalendarDate(projected.occurredAt) !== date) continue;
+      const projectedId = personalMetricEvidenceId(projected.metric, projected.id);
+      if (evidenceIds.has(projectedId)) continue;
+      evidenceIds.add(projectedId);
+      counts[projected.metric] = (counts[projected.metric] ?? 0) + 1;
+    }
+    state.personalMetricDays[key] = {
+      agencyId: entry.agencyId,
+      userId: entry.actorUserId,
+      date,
+      counts,
+      evidenceIds: [...evidenceIds],
+      updatedAt: entry.ts,
+    };
+  }
+
+  // Daily/weekly targets need seven days; streaks get a generous 400-day
+  // window. Compact daily counters make this bounded by people x days rather
+  // than by call volume.
+  const cutoff = businessCalendarDate(entry.ts - PERSONAL_METRIC_RETENTION_DAYS * 86_400_000);
+  for (const [dayKey, day] of Object.entries(state.personalMetricDays)) {
+    if (day.agencyId === entry.agencyId && day.userId === entry.actorUserId && day.date < cutoff) {
+      delete state.personalMetricDays[dayKey];
+    }
+  }
+}
 
 export interface LogActivityInput {
   /** Stable source-operation identity. Replays return the original entry. */
@@ -48,6 +129,7 @@ export function logActivity(input: LogActivityInput): ActivityEntry {
   };
   mutate(state => {
     state.activity.push(entry);
+    projectPersonalMetric(state, entry);
     if (state.activity.length > ACTIVITY_HARD_CAP) {
       state.activity.splice(0, state.activity.length - ACTIVITY_HARD_CAP);
     }

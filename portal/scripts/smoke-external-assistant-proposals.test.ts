@@ -72,14 +72,14 @@ test("actions:propose grants proposal tools without granting task mutation", asy
     params: {
       name: "aqua_propose_action",
       arguments: {
-        title: "Reply to the oldest waiting lead",
-        detail: "The oldest website enquiry is outside the response target.",
-        expectedOutcome: "The enquiry has a recorded first response and the SLA breach clears.",
-        evidence: ["Oldest lead wait is above the configured target"],
-        sourceIds: ["metric:speed-to-lead-breach"],
-        sourceHref: "/portal/agency/inbox?view=forms",
+        title: "Triage the oldest open action",
+        detail: "The oldest retained action is outside the team response target.",
+        expectedOutcome: "The action has a clear owner and next step.",
+        evidence: ["Oldest action is above the configured target"],
+        sourceIds: ["metric:open-actions"],
+        sourceHref: "/portal/agency/actions",
         priority: "urgent",
-        category: "sales",
+        category: "operations",
       },
     },
   }) as { result: { isError: boolean; structuredContent: { ok: boolean; proposal: { id: string }; message: string } } };
@@ -88,6 +88,7 @@ test("actions:propose grants proposal tools without granting task mutation", asy
   assert.match(response.result.structuredContent.message, /No task was created/);
   assert.equal(tasks.listAgencyTasks(agencyId).length, beforeTasks);
   assert.equal(proposals.listProposalsForExternalAssistant(agencyId, auth.tokenFingerprint).length, 1);
+  assert.deepEqual(proposals.listProposalsForExternalAssistant(agencyId, auth.tokenFingerprint)[0]?.requiredElements, ["workspace.actions"]);
 
   const accepted = proposals.decideExternalAssistantActionProposal({
     agencyId,
@@ -99,12 +100,12 @@ test("actions:propose grants proposal tools without granting task mutation", asy
   });
   assert.ok(accepted.task);
   assert.equal(accepted.task?.assigneeUserId, "owner-user");
-  assert.deepEqual(accepted.task?.evidence, ["Oldest lead wait is above the configured target"]);
-  assert.deepEqual(accepted.task?.reconciliation?.sourceIds, ["metric:speed-to-lead-breach"]);
+  assert.deepEqual(accepted.task?.evidence, ["Oldest action is above the configured target"]);
+  assert.deepEqual(accepted.task?.reconciliation?.sourceIds, ["metric:open-actions"]);
 });
 
 test("accepted tasks resolve and reopen from their retained Radar source", () => {
-  const task = tasks.listAgencyTasks(agencyId).find(item => item.reconciliation?.sourceIds.includes("metric:speed-to-lead-breach"));
+  const task = tasks.listAgencyTasks(agencyId).find(item => item.reconciliation?.sourceIds.includes("metric:open-actions"));
   assert.ok(task);
 
   tasks.reconcileAgencyTasksWithRadar(agencyId, radarWithSources([]));
@@ -112,11 +113,11 @@ test("accepted tasks resolve and reopen from their retained Radar source", () =>
   assert.equal(resolved?.reconciliation?.status, "resolved");
 
   tasks.updateAgencyTask(agencyId, task!.id, { status: "done" }, "owner-user");
-  tasks.reconcileAgencyTasksWithRadar(agencyId, radarWithSources(["metric:speed-to-lead-breach"]));
+  tasks.reconcileAgencyTasksWithRadar(agencyId, radarWithSources(["metric:open-actions"]));
   const reopened = tasks.listAgencyTasks(agencyId).find(item => item.id === task?.id);
   assert.equal(reopened?.status, "in-progress");
   assert.equal(reopened?.reconciliation?.status, "reopened");
-  assert.deepEqual(reopened?.reconciliation?.activeSourceIds, ["metric:speed-to-lead-breach"]);
+  assert.deepEqual(reopened?.reconciliation?.activeSourceIds, ["metric:open-actions"]);
 });
 
 test("assistants without actions:propose cannot discover proposal tools", async () => {
