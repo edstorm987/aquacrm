@@ -57,6 +57,13 @@ export function InvoiceDetailClient({
     return sum + Math.round(Number(item.quantity || 0) * Number(item.unitAmount || 0) * 100);
   }, 0), [items]);
   const draftTax = Math.round(Number(taxAmount || 0) * 100);
+  // The same precedence as `renderInvoiceHtml`: the seller identity captured
+  // when the invoice was created, with the live agency name only for legacy
+  // rows that carry no snapshot, and a saved template's business details
+  // overriding the captured contact block. The preview and the download must
+  // never disagree about who issued the invoice.
+  const sellerName = invoice.issuerSnapshot?.legalName ?? agencyName;
+  const sellerDetails = template.businessDetails || invoice.issuerSnapshot?.businessDetails;
   const downloadUrl = `${API_BASE}/invoices/download?id=${encodeURIComponent(invoice.id)}`;
   const printUrl = `${downloadUrl}&print=1`;
 
@@ -209,7 +216,7 @@ export function InvoiceDetailClient({
         {template.letterheadDataUrl ? <img src={template.letterheadDataUrl} alt="" className="absolute inset-0 size-full object-cover" /> : null}
         <div className="relative z-10 p-6 sm:p-10 lg:p-14">
         <div className="flex flex-wrap items-start justify-between gap-8 border-b-[3px] pb-7" style={{ borderColor: template.accentColor }}>
-          <div><p className="text-xs font-semibold uppercase tracking-wide text-black/40">{template.documentTitle}</p><h2 className="mt-2 text-xl font-semibold text-black/90">{agencyName}</h2>{template.businessDetails ? <p className="mt-2 whitespace-pre-line text-sm leading-6 text-black/50">{template.businessDetails}</p> : null}</div>
+          <div><p className="text-xs font-semibold uppercase tracking-wide text-black/40">{template.documentTitle}</p><h2 className="mt-2 text-xl font-semibold text-black/90">{sellerName}</h2>{sellerDetails ? <p className="mt-2 whitespace-pre-line text-sm leading-6 text-black/50">{sellerDetails}</p> : null}</div>
           <div className="text-right"><p className="text-xs font-semibold uppercase tracking-wide text-black/40">Invoice</p><p className="mt-2 text-2xl font-semibold text-black/90">{invoice.number}</p></div>
         </div>
         <div className="grid gap-8 py-8 sm:grid-cols-2">
@@ -217,7 +224,12 @@ export function InvoiceDetailClient({
           <dl className="grid gap-2 text-sm sm:text-right"><div><dt className="inline text-black/45">Issued </dt><dd className="inline text-black/75">{date(invoice.issuedAt)}</dd></div><div><dt className="inline text-black/45">Due </dt><dd className="inline text-black/75">{date(invoice.dueAt)}</dd></div></dl>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[520px] text-sm">
+          {/* The plugin shell renders every table as its own block scroll
+              container (`display: block; overflow-x: auto`), so below ~560px the
+              TABLE is the scrollable region. A scrollable region with nothing
+              focusable inside it is unreachable from the keyboard — make the
+              table itself the tab stop and give the stop a name. */}
+          <table className="w-full min-w-[520px] text-sm" tabIndex={0} aria-label="Invoice line items">
             <thead className="border-b border-black/15 text-left text-[11px] uppercase tracking-wide text-black/45"><tr><th className="py-3">Description</th><th className="py-3 text-right">Qty</th><th className="py-3 text-right">Unit</th><th className="py-3 text-right">Total</th></tr></thead>
             <tbody>{invoice.lineItems.map((item, index) => <tr key={`${item.description}-${index}`} className="border-b border-black/[0.07]"><td className="py-4 pr-4 font-medium text-black/80">{item.description}</td><td className="py-4 text-right text-black/55">{item.quantity}</td><td className="py-4 text-right font-mono text-black/55">{money(item.unitCents, invoice.currency)}</td><td className="py-4 text-right font-mono font-semibold text-black/80">{money(item.totalCents, invoice.currency)}</td></tr>)}</tbody>
           </table>
