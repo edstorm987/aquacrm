@@ -2,7 +2,7 @@
 
 > Every active, completed and archived phased implementation plan and handoff.
 >
-> Consolidated 2026-09-03 from **60** source documents / **123,145 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-03 from **60** source documents / **123,222 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -50,7 +50,7 @@
 - [`docs/development/plans/operations-command-surface.md`](#source-docs-development-plans-operations-command-surface-md) — 823 words · `89d4c7af83fa`
 - [`docs/development/plans/plugin-data-erasure.md`](#source-docs-development-plans-plugin-data-erasure-md) — 3,211 words · `890e117cab2c`
 - [`docs/development/plans/product-roadmap-2026-09.md`](#source-docs-development-plans-product-roadmap-2026-09-md) — 902 words · `10a7d1b55065`
-- [`docs/development/plans/production-readiness-roadmap-2026-09-03.md`](#source-docs-development-plans-production-readiness-roadmap-2026-09-03-md) — 2,536 words · `45ad20656772`
+- [`docs/development/plans/production-readiness-roadmap-2026-09-03.md`](#source-docs-development-plans-production-readiness-roadmap-2026-09-03-md) — 2,613 words · `72f939872af1`
 - [`docs/development/plans/promote-trading-company.md`](#source-docs-development-plans-promote-trading-company-md) — 4,457 words · `2f9dd8a1af32`
 - [`docs/development/plans/public-bucket-HANDOFF.md`](#source-docs-development-plans-public-bucket-handoff-md) — 1,244 words · `2b7dca7e3698`
 - [`docs/development/plans/public-bucket.md`](#source-docs-development-plans-public-bucket-md) — 764 words · `c13e9ce00332`
@@ -10256,7 +10256,7 @@ Every phase above ships with: a focused smoke, an entry in `updates.md`, a row i
 
 ## Source document — `docs/development/plans/production-readiness-roadmap-2026-09-03.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/production-readiness-roadmap-2026-09-03.md" sha256="45ad20656772ca99119fc1d471854e344dbf552276a9b388b43a7abfbcc32d5f" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/production-readiness-roadmap-2026-09-03.md" sha256="72f939872af187a0ce996782f1651bf63d0044f7e34cc0abda27b5673685acd5" -->
 # Production-readiness roadmap — 3 September 2026
 
 **Status:** living register, written at the release baseline of the commit that adds this document (parent 06abeb9 on `main`) on `main`.
@@ -10341,7 +10341,7 @@ playwright-core 1.62.1, private file-backend state seeded by the lane (`scratchp
 | Ordered application of all pending migrations | **VERIFIED (live)** | Rehearsed in isolation first (idempotent, backfill 52/52, RPC contracts, Aqua Tag cross-process 7/7), then applied to live 2026-09-03: `db push` ran all 14 in order; the `agency_id` backfill and every row count verified read-only afterward. |
 | Explicit table grants (`20260903120000`, new) | **VERIFIED (isolated)** | The older tables inherited cloud default grants and would `42501` on a rebuilt/local project; the new migration writes them down (a no-op subset of the live inherited grants). Reviewed by an independent 3-lens adversarial pass; two findings fixed (audit_events tightened to SELECT+INSERT, rollback doc qualified). Applied on the local stack; RLS audit 51 INFO/0 FAIL. |
 | RLS policy coverage | **PARTIAL** | Static `smoke-rls-policy-coverage`; live `rls-verify.sql` run on 2026-08-28 showed protected tables; three then-empty tables need re-checking once populated (`launch-order-and-blockers.md`). |
-| Backup and point-in-time recovery | **PARTIAL — backups confirmed, restore not rehearsed** | The Management API shows 8 daily physical backups, newest 2026-09-03 05:55 UTC (newer than the last write) — the gate that let the migration proceed. **PITR is OFF.** A restore was not rehearsed, so recovery is not fully verified; runbook in `supabase-alignment-2026-09-03.md` §4. |
+| Backup and point-in-time recovery | **PARTIAL — self-managed backup BUILT + rehearsed, NOT operationally verified; PITR declined** | Supabase's own 8 daily physical backups exist (newest newer than the last write). **PITR was declined (~£200/mo).** A self-managed encrypted, off-Supabase snapshot system (`ops/backup/` + `.github/workflows/db-backup.yml`) is built and was proven end-to-end on a local `supabase start` stack (2026-09-03): dump → CMS-encrypt → decrypt → target-prep → restore → verify, including the private Storage-bucket **object bytes**. It is explicitly **not PITR** (RPO ~24 h, RTO minutes–tens of minutes, no point-in-time) and **not operationally verified** until the owner completes keygen, secrets, a durable versioned off-Supabase destination, one live backup + a downloaded-artifact restore drill (timed), and a missed-backup alert exercise — checklist in `ops/backup/README.md`. The nightly schedule stays inactive (`BACKUP_ENABLED`) until then. Prior runbook: `supabase-alignment-2026-09-03.md` §4. |
 | Relational extraction / backfill (MIGRATION-PLAN Phases 1–7) | **PARTIAL** | Phase 0 shipped; later phases are engineering work, not blocked. |
 
 ## 6. Live providers, payments and webhooks

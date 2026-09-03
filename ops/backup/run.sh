@@ -26,6 +26,13 @@
 #                         AND off GitHub. This is the recommended durable sink.
 #   HC_PING_URL           healthchecks.io ping URL -> pinged only on success
 #                         (dead-man's-switch; also catches non-execution).
+#   STORAGE_S3_ENDPOINT STORAGE_S3_REGION STORAGE_S3_ACCESS_KEY_ID
+#   STORAGE_S3_SECRET_ACCESS_KEY STORAGE_BUCKETS
+#                         Supabase Storage S3 endpoint + a dedicated S3 access key
+#                         + a comma list of buckets (e.g. "aquacrm-uploads"). When
+#                         set, the OBJECT BYTES of those buckets are synced into the
+#                         encrypted bundle (the pg dump only captures metadata).
+#                         Buckets stay private; use a dedicated backup key.
 set -euo pipefail
 
 log() { printf '%s %s\n' "[$(date -u +%H:%M:%S)]" "$*" >&2; }
@@ -86,6 +93,28 @@ supabase db dump --db-url "$SUPABASE_DB_URL" -f "$WORK/data.sql" --data-only --u
 
 for f in roles.sql schema.sql data.sql; do [ -s "$WORK/$f" ] || die "$f is empty — dump failed."; done
 
+# --- Storage object BYTES (optional). The pg dump above holds storage METADATA
+#     only; uploaded files live in Supabase Storage. When STORAGE_S3_ENDPOINT +
+#     creds + STORAGE_BUCKETS are set, sync those private buckets' objects into
+#     the bundle so they are encrypted and versioned with the same snapshot. ---
+STORAGE_ITEMS=""
+if [ -n "${STORAGE_S3_ENDPOINT:-}" ] && [ -n "${STORAGE_BUCKETS:-}" ]; then
+  command -v aws >/dev/null 2>&1 || die "STORAGE_S3_* is configured but the aws CLI is not installed."
+  mkdir -p "$WORK/storage-objects"
+  IFS=',' read -ra _bks <<< "$STORAGE_BUCKETS"
+  for b in "${_bks[@]}"; do
+    b="$(printf '%s' "$b" | tr -d '[:space:]')"; [ -n "$b" ] || continue
+    log "Syncing storage bucket '$b' object bytes"
+    AWS_ACCESS_KEY_ID="${STORAGE_S3_ACCESS_KEY_ID:-}" AWS_SECRET_ACCESS_KEY="${STORAGE_S3_SECRET_ACCESS_KEY:-}" \
+      aws s3 sync "s3://$b" "$WORK/storage-objects/$b" --endpoint-url "$STORAGE_S3_ENDPOINT" \
+      ${STORAGE_S3_REGION:+--region "$STORAGE_S3_REGION"} --only-show-errors \
+      || die "Storage sync failed for bucket '$b'."
+  done
+  ( cd "$WORK/storage-objects" && find . -type f | sort ) > "$WORK/storage-manifest.txt" 2>/dev/null || : > "$WORK/storage-manifest.txt"
+  log "Storage objects captured: $(grep -c . "$WORK/storage-manifest.txt" 2>/dev/null || echo 0) files"
+  STORAGE_ITEMS="storage-objects storage-manifest.txt"
+fi
+
 # --- Manifest + bundle ---
 {
   echo "project: aquacrm"
@@ -93,13 +122,17 @@ for f in roles.sql schema.sql data.sql; do [ -s "$WORK/$f" ] || die "$f is empty
   echo "supabase_cli: $(supabase --version 2>/dev/null | head -1)"
   echo "openssl: $(openssl version)"
   echo "scope: roles + schema(default non-system) + data(public,auth,storage)."
-  echo "note: Storage object BINARIES are NOT in this dump (relational metadata only) — see README."
+  if [ -n "$STORAGE_ITEMS" ]; then
+    echo "storage_objects: INCLUDED for buckets [$STORAGE_BUCKETS] (object bytes, versioned in this snapshot)."
+  else
+    echo "storage_objects: NOT included (object BYTES omitted — set STORAGE_S3_* + STORAGE_BUCKETS to include; see README)."
+  fi
   echo "note: cluster-level event triggers (ensure_rls) may be omitted by scoped dumps — restore-drill re-applies from migrations."
   echo "sha256:"
   ( cd "$WORK" && sha256 roles.sql schema.sql data.sql counts.txt )
 } > "$WORK/MANIFEST.txt"
 
-tar -czf "$WORK/$BASE.tar.gz" -C "$WORK" roles.sql schema.sql data.sql counts.txt MANIFEST.txt
+tar -czf "$WORK/$BASE.tar.gz" -C "$WORK" roles.sql schema.sql data.sql counts.txt MANIFEST.txt $STORAGE_ITEMS
 log "Bundle: $(du -h "$WORK/$BASE.tar.gz" | cut -f1)"
 
 # --- Encrypt: hybrid public-key (CMS). CI holds only the public cert, so nothing
@@ -111,8 +144,9 @@ SHA="$(sha256 "$CMS" | awk '{print $1}')"
 SIZE="$(wc -c < "$CMS" | tr -d ' ')"
 log "Encrypted: $CMS ($SIZE bytes) sha256=$SHA"
 
-# Destroy the plaintext dumps immediately.
-rm -f "$WORK"/roles.sql "$WORK"/schema.sql "$WORK"/data.sql "$WORK"/counts.txt "$WORK"/MANIFEST.txt "$WORK/$BASE.tar.gz"
+# Destroy the plaintext dumps immediately (the WORK dir is also removed on exit).
+rm -f "$WORK"/roles.sql "$WORK"/schema.sql "$WORK"/data.sql "$WORK"/counts.txt "$WORK"/MANIFEST.txt "$WORK"/storage-manifest.txt "$WORK/$BASE.tar.gz"
+rm -rf "$WORK"/storage-objects
 
 # Publish the integrity hash on a channel independent of the emailed attachment
 # (tamper-evidence: forging a backup then requires compromising BOTH the mailbox

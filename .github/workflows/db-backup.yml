@@ -19,6 +19,11 @@ concurrency:
 
 jobs:
   backup:
+    # Activation gate: scheduled runs execute ONLY once the repo variable
+    # BACKUP_ENABLED is set to 'true' (after keygen + secrets are in place), so an
+    # un-activated schedule is SKIPPED (neutral), never a daily red failure.
+    # Manual runs (workflow_dispatch) always execute — that is how you test setup.
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.BACKUP_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -53,6 +58,11 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           HC_PING_URL: ${{ secrets.HC_PING_URL }}
+          STORAGE_S3_ENDPOINT: ${{ secrets.STORAGE_S3_ENDPOINT }}
+          STORAGE_S3_REGION: ${{ vars.STORAGE_S3_REGION }}
+          STORAGE_S3_ACCESS_KEY_ID: ${{ secrets.STORAGE_S3_ACCESS_KEY_ID }}
+          STORAGE_S3_SECRET_ACCESS_KEY: ${{ secrets.STORAGE_S3_SECRET_ACCESS_KEY }}
+          STORAGE_BUCKETS: ${{ vars.STORAGE_BUCKETS }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_SERVER_URL: ${{ github.server_url }}
           GITHUB_RUN_ID: ${{ github.run_id }}
