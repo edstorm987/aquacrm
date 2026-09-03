@@ -174,7 +174,9 @@ findings as (
     'audit_events', 'brand_enquiries', 'app_datastores', 'app_datastore_history',
     'website_consent_events', 'shoots', 'shoot_photos',
     'inbox_channel_connections', 'inbox_contact_identities', 'inbox_conversations',
-    'inbox_messages', 'inbox_webhook_events'
+    'inbox_messages', 'inbox_webhook_events',
+    -- 20260902093000_aqua_tag_submission_delivery.sql (issues #87)
+    'aqua_tag_submissions'
   )
 
   union all

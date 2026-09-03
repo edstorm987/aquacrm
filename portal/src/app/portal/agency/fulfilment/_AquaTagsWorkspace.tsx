@@ -13,6 +13,11 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
+  WEBSITE_SOURCE_ROUTE_FALLBACK,
+  routeWebsiteSourceToInbox,
+  websiteSourceMutationMessage,
+} from "@/lib/client/websiteSourceRegistryRead";
+import {
   AlertTriangle, Boxes, Building2, Check, Code2, Copy, FileSearch, Globe, Inbox, Link2, Loader2, Plus, Radio,
   ScanLine, Sparkles, PencilRuler, Trash2,
 } from "lucide-react";
@@ -345,6 +350,9 @@ function CompanyRouting() {
   const [companyId, setCompanyId] = useState("");
   const [host, setHost] = useState("");
   const [saving, setSaving] = useState(false);
+  // The source whose "route back to inbox" is in flight. Every routing control
+  // is disabled while one is, so a double click cannot send two mutations.
+  const [routingId, setRoutingId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   async function load() {
@@ -403,22 +411,23 @@ function CompanyRouting() {
     }
   }
 
+  // Route back to the agency inbox — NOT removal. The registered site, its tool
+  // injections and imported form schemas stay; only where new enquiries land
+  // changes. The row leaves the company list only once the server confirms
+  // exactly this source with no destination; a transport failure, unreadable
+  // body, non-2xx, ok:false or a receipt for some other source keeps the row,
+  // settles the busy state, is announced, and can be retried.
   async function routeToInbox(id: string) {
+    if (routingId) return;
+    setRoutingId(id);
     setSaveError(null);
     try {
-      const response = await fetch("/api/portal/website-sources", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "route-to-inbox", id }),
-      });
-      const data = await response.json().catch(() => null) as { ok?: boolean; error?: string } | null;
-      if (!response.ok || !data?.ok) {
-        setSaveError(data?.error ?? "That site could not be routed back to the agency inbox.");
-        return;
-      }
-      await load();
-    } catch {
-      setSaveError("That site could not be routed back to the agency inbox.");
+      const routed = await routeWebsiteSourceToInbox(id);
+      setSources(current => current.map(source => source.id === routed.id ? routed : source));
+    } catch (cause) {
+      setSaveError(websiteSourceMutationMessage(cause, WEBSITE_SOURCE_ROUTE_FALLBACK));
+    } finally {
+      setRoutingId(null);
     }
   }
 
@@ -494,7 +503,7 @@ function CompanyRouting() {
           </div>
 
           {saveError && (
-            <p className="mt-3 flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-xs leading-5 text-rose-800">
+            <p role="alert" className="mt-3 flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-xs leading-5 text-rose-800">
               <AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden /><span>{saveError}</span>
             </p>
           )}
@@ -502,7 +511,7 @@ function CompanyRouting() {
           {companyRouted.length > 0 && (
             <ul className="mt-4 grid gap-2">
               {companyRouted.map(source => (
-                <li key={source.id} className="flex items-center gap-3 rounded-md border border-black/10 bg-black/[0.02] px-3 py-2.5">
+                <li key={source.id} aria-busy={routingId === source.id || undefined} className="flex items-center gap-3 rounded-md border border-black/10 bg-black/[0.02] px-3 py-2.5">
                   <Building2 size={15} className="shrink-0 text-brand" aria-hidden />
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-mono text-xs text-black/75">{source.host}</p>
@@ -511,11 +520,12 @@ function CompanyRouting() {
                   <button
                     type="button"
                     onClick={() => void routeToInbox(source.id)}
+                    disabled={routingId !== null}
                     aria-label={`Route ${source.host} back to the agency inbox`}
                     title="Keep the registered site and its tools; only change where new enquiries go"
-                    className="inline-flex size-8 items-center justify-center rounded-md text-black/40 hover:bg-black/[0.05] hover:text-brand"
+                    className="inline-flex size-9 items-center justify-center rounded-md border border-black/10 text-black/40 hover:bg-black/[0.05] hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    <Inbox size={15} aria-hidden />
+                    {routingId === source.id ? <Loader2 size={15} className="animate-spin" aria-hidden /> : <Inbox size={15} aria-hidden />}
                   </button>
                 </li>
               ))}

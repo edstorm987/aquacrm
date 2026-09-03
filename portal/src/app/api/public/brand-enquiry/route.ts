@@ -26,6 +26,23 @@ import {
   normaliseAquaSubmissionId,
 } from "@/lib/enquiries/submissionIdentity";
 import { withEnquirySubmissionOperation } from "@/lib/server/enquirySubmissionOperation";
+import {
+  aquaTagTenantScope,
+  claimAquaTagSubmissionWork,
+  ingestAquaTagSubmission,
+  type SubmissionClaimClient,
+} from "@/lib/supabase/enquirySubmissionClaims";
+import {
+  completionMetadataPatch,
+  deliveryOwnerId,
+  deliveryStateFor,
+  registerBrandEnquiryDelivery,
+  runBrandEnquiryEffectsInline,
+  runClaimedAquaTagSubmissionWork,
+  type BrandEnquiryEffectSet,
+  type BrandEnquiryWork,
+  type DeliveryState,
+} from "@/lib/server/enquirySubmissionDelivery";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE = /^[+()\d\s.-]{7,40}$/;
@@ -182,6 +199,229 @@ export function OPTIONS(req: NextRequest) {
 // times) lives on the site; the fix belongs here, where every path converges.
 const DEDUPE_WINDOW_MS = 2 * 60 * 1_000;
 
+// ─── Downstream effects ───────────────────────────────────────────────────────
+//
+// Everything that happens after the enquiry row is durable, as one named step
+// each. They are implemented here — this is where the public funnel's contract
+// is read and pinned — and registered with the delivery orchestrator, which
+// runs them either under a database claim with a checkpoint after each step
+// (the migrated path, issues #87) or plainly in order (the process-local
+// fallback). A step reads what earlier steps recorded rather than re-deriving
+// it, so a replay after a crash reports what actually happened.
+
+const brandEnquiryEffects: BrandEnquiryEffectSet = {
+  lead: async ({ work, enquiryId }) => {
+    const { brandSlug: brand, brandName, name, email, phone, contactMethod, services, message, sourceUrl, campaign, channel, pagePath, propertyId } = work;
+    if (!email && !phone) return { leadId: null };
+    const { leads } = containerFor({
+      agencyId: work.agencyId,
+      storage: makePluginStorage(work.installId) as never,
+    });
+    const result = await leads.upsert({
+      email: email ?? "",
+      name,
+      phone: phone ?? undefined,
+      source: `website:${brand}`,
+      capturedAt: Date.parse(work.capturedAt),
+      companyId: work.companyId,
+      companyIds: [work.companyId],
+      brandSlugs: [brand],
+      serviceLines: services,
+      tags: [
+        "website-enquiry",
+        `brand:${brand}`,
+        `channel:${channel}`,
+        `contact:${contactMethod}`,
+        ...services.map((service) => `service:${service.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`),
+      ],
+      notes: message || undefined,
+      customFields: {
+        enquiryId,
+        preferredContactMethod: contactMethod,
+        enquiryMessage: message,
+        sourceUrl,
+        campaign,
+        consentCaptured: true,
+        consentCapturedAt: work.capturedAt,
+        publicBrand: brandName,
+        enquiryChannel: channel,
+        enquiryClassification: "unclassified",
+        propertyId,
+        pagePath,
+      },
+    }, work.founderUserId);
+    let leadId: string | undefined;
+    leadId = result.lead.id;
+    return { leadId };
+  },
+
+  identity: async ({ work, enquiryId, effects }) => {
+    const leadId = typeof effects.lead?.leadId === "string" ? effects.lead.leadId : undefined;
+    const identityInput = {
+      agencyId: work.agencyId,
+      sourceType: "website-enquiry" as const,
+      sourceId: enquiryId,
+      sourceLabel: `${work.brandName} · ${work.name}`,
+      sourceHref: `/portal/agency/inbox?view=all&thread=${encodeURIComponent(`website:${enquiryId}`)}`,
+      name: work.name,
+      email: work.email ?? undefined,
+      phone: work.phone ?? undefined,
+      company: work.name,
+      leadId,
+    };
+    const identityResolution = resolveContactIdentity(identityInput);
+    upsertIdentityResolutionReview(identityInput, identityResolution);
+    return {
+      resolutionStatus: identityResolution.status,
+      confidence: identityResolution.confidence,
+      explanation: identityResolution.explanation,
+      clientId: identityResolution.clientId ?? null,
+      clientName: identityResolution.clientName ?? null,
+      resolvedAt: new Date(identityResolution.resolvedAt).toISOString(),
+    };
+  },
+
+  ledger: async ({ work, enquiryId, effects }) => {
+    const { routedClientId, routedCompanyId, channel, name, message } = work;
+    const identityResolution = {
+      clientId: typeof effects.identity?.clientId === "string" ? effects.identity.clientId : undefined,
+    };
+    // The configured route wins over the identity guess: a client's own site
+    // routes to them even if the visitor isn't a known contact yet. A company
+    // route claims the enquiry for that company, so it is not also filed onto a
+    // client via the identity guess.
+    const owningClientId = routedCompanyId ? undefined : (routedClientId ?? identityResolution.clientId);
+    if (owningClientId) {
+      upsertClientRecordLedgerEvent(work.agencyId, owningClientId, {
+        sourceType: "enquiry",
+        sourceId: `website-enquiry:${enquiryId}`,
+        group: "messages",
+        title: `${channel === "chatbot" ? "Chat" : channel === "support" ? "Support" : "Website"} enquiry from ${name}`,
+        body: message || `Submitted via ${work.brandName}.`,
+        occurredAt: Date.parse(work.capturedAt),
+        eyebrow: `${work.siteName} · inbound · open`,
+        visibility: "inherent",
+        href: `/portal/agency/inbox?view=all&thread=${encodeURIComponent(`website:${enquiryId}`)}`,
+      });
+    }
+    return { clientId: owningClientId ?? null };
+  },
+
+  activity: async ({ work, enquiryId, effects }) => {
+    const leadId = typeof effects.lead?.leadId === "string" ? effects.lead.leadId : undefined;
+    const { brandSlug: brand, channel, name } = work;
+    logActivity({
+      idempotencyKey: `brand-enquiry:${enquiryId}`,
+      agencyId: work.agencyId,
+      actorEmail: work.email ?? undefined,
+      category: "public-funnel",
+      action: `${channel}.brand_enquiry.submitted`,
+      message: `${work.brandName} ${channel === "chatbot" ? "chat message" : channel === "support" ? "support request" : "enquiry"} submitted by ${name}.`,
+      metadata: {
+        form: "brand-enquiry",
+        brand,
+        companyId: work.companyId,
+        services: work.services,
+        sourceUrl: work.sourceUrl,
+        campaign: work.campaign,
+        contactMethod: work.contactMethod,
+        channel,
+        siteKey: work.siteKey ?? undefined,
+        propertyId: work.propertyId,
+        siteName: work.siteName,
+        pagePath: work.pagePath,
+        hasPhone: Boolean(work.phone),
+        message: work.message,
+        email: work.email ?? undefined,
+        phone: work.phone ?? undefined,
+        enquiryId,
+        leadCreated: Boolean(leadId),
+        leadId,
+        clientId: typeof effects.identity?.clientId === "string" ? effects.identity.clientId : undefined,
+        identityStatus: typeof effects.identity?.resolutionStatus === "string" ? effects.identity.resolutionStatus : undefined,
+      },
+    });
+    // Plugin leads and activity use the shared portal datastore. Persist them
+    // before a serverless response can end this invocation.
+    await flushPendingWrites();
+    return {};
+  },
+
+  notification: async ({ work, enquiryId }) => {
+    const { routedClientId } = work;
+    let notification = "not-configured";
+    try {
+      const result = await notifyBrandEnquiry({
+        agencyId: work.agencyId,
+        // The CONFIGURED route only — deliberately not the owning client.
+        //
+        // A registered site is a decision Ed made ("this domain belongs to that
+        // client"), so its alert goes out through that client's own Resend
+        // connection to that client's inbox, falling back to the workspace
+        // connection when they have none. The identity resolution is a guess
+        // about the VISITOR, not about whose site this is — routing mail on it
+        // would post one client an enquiry that arrived on somebody else's
+        // unregistered site, because the submitter happened to match a contact
+        // of theirs. That guess is fine for the ledger entry, which stays
+        // inside the portal; it is not fine for outbound mail.
+        clientId: routedClientId,
+        id: enquiryId,
+        brandName: work.brandName,
+        name: work.name,
+        email: work.email,
+        phone: work.phone,
+        contactMethod: work.contactMethod,
+        services: work.services,
+        message: work.message || null,
+        sourceUrl: work.sourceUrl || null,
+        campaign: work.campaign || null,
+      });
+      notification = result.sent ? "sent" : "not-configured";
+    } catch (notificationError) {
+      notification = "failed";
+      console.error("[brand-enquiry] notification failed", notificationError instanceof Error ? notificationError.message : "Unknown error");
+    }
+    return { notification };
+  },
+
+  automation: async ({ work, enquiryId, effects }) => {
+    const leadId = typeof effects.lead?.leadId === "string" ? effects.lead.leadId : null;
+    let automation = "not-configured";
+    try {
+      const runs = await triggerAutomations(work.agencyId, "website-enquiry.received", {
+        enquiryId,
+        leadId,
+        name: work.name,
+        email: work.email,
+        phone: work.phone,
+        brand: work.brandSlug,
+        brandName: work.brandName,
+        channel: work.channel,
+        service: work.services.join(", "),
+        sourceUrl: work.sourceUrl || null,
+        message: work.message || null,
+        awaitingResponse: true,
+      }, { idempotencyKey: `brand-enquiry:${enquiryId}` });
+      automation = runs.length
+        ? (runs.some(run => run.status === "failed") ? "failed" : "triggered")
+        : "not-configured";
+      await flushPendingWrites();
+    } catch (automationError) {
+      automation = "failed";
+      console.error("[brand-enquiry] automation trigger failed", automationError instanceof Error ? automationError.message : "Unknown error");
+    }
+    return { automation };
+  },
+};
+
+// The scheduled inbox sweep recovers claims whose owner died by importing this
+// module; the client factory is the one service-role site this route already
+// documents, handed over by reference rather than called again.
+registerBrandEnquiryDelivery({
+  effects: brandEnquiryEffects,
+  adminClient: createSupabaseAdminClient as unknown as () => SubmissionClaimClient,
+});
+
 export async function POST(req: NextRequest) {
   const requestedOrigin = req.headers.get("origin");
   const origin = allowedOrigin(req);
@@ -294,6 +534,141 @@ export async function POST(req: NextRequest) {
     const capturedAt = new Date().toISOString();
     const supabase = createSupabaseAdminClient();
 
+    // Tenant is written twice on purpose: `agency_id` is the real column RLS
+    // scopes on once the agency_scope migration is applied; `metadata.agencyId`
+    // is what the existing `.from` sites still route by, and what the
+    // migration's backfill and trigger read for rows created before it ran.
+    const baseMetadata: Record<string, unknown> = {
+      agencyId: agency.id,
+      consentPurpose: "reply-to-enquiry",
+      consentVersion: 1,
+      consentCapturedAt: capturedAt,
+      origin: origin || "same-origin",
+      channel,
+      siteKey: publicSite?.siteKey ?? null,
+      propertyId: publicSite?.propertyId ?? brand,
+      siteName: publicSite?.siteName ?? brandDefinition.name,
+      pagePath,
+      ...(submissionId ? { submissionId } : {}),
+      ...(routedCompanyId ? { routedCompanyId } : {}),
+      inboxStatus: "open",
+      enquiryClassification: "unclassified",
+      notification: "pending",
+      ingestionState: "processing",
+    };
+    const enquiryRowWith = (metadata: Record<string, unknown>) => ({
+      brand_slug: brand,
+      name,
+      email: hasEmail ? email : null,
+      phone: hasPhone ? phone : null,
+      contact_method: contactMethod,
+      services,
+      message: message || null,
+      source_url: sourceUrl || null,
+      campaign: campaign || null,
+      consent: true,
+      agency_id: agency.id,
+      metadata,
+    });
+
+    // Everything the downstream steps need, as plain data: it is persisted with
+    // the submission so a replay in another process can finish the delivery.
+    const work: BrandEnquiryWork = {
+      agencyId: agency.id,
+      founderUserId: founder.id,
+      installId: install.id,
+      companyId: company.id,
+      brandSlug: brand,
+      brandName: brandDefinition.name,
+      siteKey: publicSite?.siteKey ?? null,
+      siteName: publicSite?.siteName ?? brandDefinition.name,
+      propertyId: publicSite?.propertyId ?? brand,
+      name,
+      email: hasEmail ? email : null,
+      phone: hasPhone ? phone : null,
+      contactMethod,
+      services,
+      message,
+      sourceUrl,
+      campaign,
+      channel,
+      pagePath,
+      routedClientId,
+      routedCompanyId,
+      capturedAt,
+    };
+
+    // ── The durable boundary (issues #87) ──────────────────────────────────
+    //
+    // With a stable submission id the identity, the canonical row and the
+    // downstream work are committed in ONE database transaction, keyed by
+    // (agency, submission id). A tag-first hold row is promoted in place; a
+    // replay with equal facts changes nothing; a different contact under the
+    // same id is refused. The downstream work then runs under an owner/token
+    // lease with a checkpoint per step, so a crash after a step and before its
+    // acknowledgement is finished by the scheduled sweep without repeating
+    // what cannot be repeated. The receipt says the enquiry is durable and
+    // says separately whether the delivery finished — never that it succeeded
+    // when it is still pending.
+    if (submissionId) {
+      const tenantScope = aquaTagTenantScope(agency.id, publicSite?.siteKey ?? brand);
+      const ingest = await ingestAquaTagSubmission(supabase, {
+        tenantScope,
+        submissionId,
+        siteKey: publicSite?.siteKey ?? `brand:${brand}`,
+        arrival: "brand",
+        facts: {
+          brandSlug: brand,
+          contactKey: hasEmail ? `email:${email}` : `phone:${phone.replace(/\D/g, "")}`,
+        },
+        brand: work as unknown as Record<string, unknown>,
+        enquiryRow: enquiryRowWith(baseMetadata),
+      });
+      if (ingest.kind === "conflict") {
+        return response({ ok: false, error: ingest.message }, 409, origin);
+      }
+      if (ingest.kind === "ingested") {
+        const receipt = ingest.receipt;
+        let delivery: DeliveryState = deliveryStateFor(receipt.workStatus);
+        if (receipt.workStatus === "pending" || receipt.workStatus === "processing") {
+          try {
+            const claims = await claimAquaTagSubmissionWork(supabase, {
+              owner: deliveryOwnerId(),
+              leaseMs: 90_000,
+              tenantScope,
+              submissionId,
+              limit: 1,
+            });
+            const claim = claims?.[0];
+            if (claim) delivery = (await runClaimedAquaTagSubmissionWork(supabase, claim, brandEnquiryEffects)).delivery;
+          } catch (deliveryError) {
+            // The enquiry is already durable and the claim stays leased; the
+            // inbox sweep finishes it after the lease expires.
+            console.error("[brand-enquiry] downstream delivery interrupted; the claim will be recovered", deliveryError instanceof Error ? deliveryError.message : "Unknown error");
+            delivery = "pending";
+          }
+        }
+        return response({
+          ok: true,
+          enquiryId: receipt.enquiryId,
+          submissionId,
+          boundary: "database",
+          delivery,
+          ...(receipt.replay ? { deduped: true } : {}),
+        }, 200, origin);
+      }
+      // `unavailable`: the migration is not applied on this database. Fall
+      // through to the older path below, which says so in its receipt.
+    }
+
+    // ── Process-local fallback ─────────────────────────────────────────────
+    //
+    // The pre-migration path. Identity is only `metadata.submissionId` with no
+    // unique constraint, the tag/host race is serialised per process, and the
+    // downstream steps run inline with no checkpoints — a crash mid-way replays
+    // all of them on the next retry. The receipt reports
+    // `boundary: "process-local"` so this is never mistaken for the database
+    // guarantee above.
     type ExistingEnquiry = {
       id: string;
       agency_id?: string | null;
@@ -341,50 +716,20 @@ export async function POST(req: NextRequest) {
           ok: true,
           enquiryId: existingEnquiry.id,
           submissionId: submissionId || existingEnquiry.id,
+          boundary: "process-local",
+          delivery: "complete",
           deduped: true,
         }, 200, origin);
       }
     }
 
-    // Tenant is written twice on purpose: `agency_id` is the real column RLS
-    // scopes on once the agency_scope migration is applied; `metadata.agencyId`
-    // is what the existing `.from` sites still route by, and what the
-    // migration's backfill and trigger read for rows created before it ran.
     const initialMetadata: Record<string, unknown> = {
       ...(existingEnquiry?.metadata ?? {}),
-      agencyId: agency.id,
-      consentPurpose: "reply-to-enquiry",
-      consentVersion: 1,
-      consentCapturedAt: capturedAt,
-      origin: origin || "same-origin",
-      channel,
-      siteKey: publicSite?.siteKey ?? null,
-      propertyId: publicSite?.propertyId ?? brand,
-      siteName: publicSite?.siteName ?? brandDefinition.name,
-      pagePath,
-      ...(submissionId ? { submissionId } : {}),
-      ...(routedCompanyId ? { routedCompanyId } : {}),
-      inboxStatus: "open",
-      enquiryClassification: "unclassified",
-      notification: "pending",
-      ingestionState: "processing",
+      ...baseMetadata,
     };
     delete initialMetadata.captureOnly;
 
-    const enquiryRow = {
-      brand_slug: brand,
-      name,
-      email: hasEmail ? email : null,
-      phone: hasPhone ? phone : null,
-      contact_method: contactMethod,
-      services,
-      message: message || null,
-      source_url: sourceUrl || null,
-      campaign: campaign || null,
-      consent: true,
-      agency_id: agency.id,
-      metadata: initialMetadata,
-    };
+    const enquiryRow = enquiryRowWith(initialMetadata);
     const persistEnquiry = (row: typeof enquiryRow, existingId?: string) => existingId
       ? supabase.from("brand_enquiries").update(row).eq("id", existingId).select("id").single()
       : supabase.from("brand_enquiries").insert(row).select("id").single();
@@ -401,174 +746,7 @@ export async function POST(req: NextRequest) {
       throw new Error(`Supabase enquiry capture failed: ${captureError?.message || "no record returned"}`);
     }
 
-    let leadId: string | undefined;
-    if (hasEmail || hasPhone) {
-      const { leads } = containerFor({
-        agencyId: agency.id,
-        storage: makePluginStorage(install.id) as never,
-      });
-      const result = await leads.upsert({
-        email: hasEmail ? email : "",
-        name,
-        phone: hasPhone ? phone : undefined,
-        source: `website:${brand}`,
-        capturedAt: Date.parse(capturedAt),
-        companyId: company.id,
-        companyIds: [company.id],
-        brandSlugs: [brand],
-        serviceLines: services,
-        tags: [
-          "website-enquiry",
-          `brand:${brand}`,
-          `channel:${channel}`,
-          `contact:${contactMethod}`,
-          ...services.map((service) => `service:${service.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`),
-        ],
-        notes: message || undefined,
-        customFields: {
-          enquiryId: captured.id,
-          preferredContactMethod: contactMethod,
-          enquiryMessage: message,
-          sourceUrl,
-          campaign,
-          consentCaptured: true,
-          consentCapturedAt: capturedAt,
-          publicBrand: brandDefinition.name,
-          enquiryChannel: channel,
-          enquiryClassification: "unclassified",
-          propertyId: publicSite?.propertyId ?? brand,
-          pagePath,
-        },
-      }, founder.id);
-      leadId = result.lead.id;
-    }
-
-    const identityInput = {
-      agencyId: agency.id,
-      sourceType: "website-enquiry" as const,
-      sourceId: captured.id,
-      sourceLabel: `${brandDefinition.name} · ${name}`,
-      sourceHref: `/portal/agency/inbox?view=all&thread=${encodeURIComponent(`website:${captured.id}`)}`,
-      name,
-      email: hasEmail ? email : undefined,
-      phone: hasPhone ? phone : undefined,
-      company: name,
-      leadId,
-    };
-    const identityResolution = resolveContactIdentity(identityInput);
-    upsertIdentityResolutionReview(identityInput, identityResolution);
-    // The configured route wins over the identity guess: a client's own site
-    // routes to them even if the visitor isn't a known contact yet. A company
-    // route claims the enquiry for that company, so it is not also filed onto a
-    // client via the identity guess.
-    const owningClientId = routedCompanyId ? undefined : (routedClientId ?? identityResolution.clientId);
-    if (owningClientId) {
-      upsertClientRecordLedgerEvent(agency.id, owningClientId, {
-        sourceType: "enquiry",
-        sourceId: `website-enquiry:${captured.id}`,
-        group: "messages",
-        title: `${channel === "chatbot" ? "Chat" : channel === "support" ? "Support" : "Website"} enquiry from ${name}`,
-        body: message || `Submitted via ${brandDefinition.name}.`,
-        occurredAt: Date.parse(capturedAt),
-        eyebrow: `${publicSite?.siteName ?? brandDefinition.name} · inbound · open`,
-        visibility: "inherent",
-        href: identityInput.sourceHref,
-      });
-    }
-
-    logActivity({
-      idempotencyKey: `brand-enquiry:${captured.id}`,
-      agencyId: agency.id,
-      actorEmail: hasEmail ? email : undefined,
-      category: "public-funnel",
-      action: `${channel}.brand_enquiry.submitted`,
-      message: `${brandDefinition.name} ${channel === "chatbot" ? "chat message" : channel === "support" ? "support request" : "enquiry"} submitted by ${name}.`,
-      metadata: {
-        form: "brand-enquiry",
-        brand,
-        companyId: company.id,
-        services,
-        sourceUrl,
-        campaign,
-        contactMethod,
-        channel,
-        siteKey: publicSite?.siteKey,
-        propertyId: publicSite?.propertyId ?? brand,
-        siteName: publicSite?.siteName ?? brandDefinition.name,
-        pagePath,
-        hasPhone,
-        message,
-        email: hasEmail ? email : undefined,
-        phone: hasPhone ? phone : undefined,
-        enquiryId: captured.id,
-        leadCreated: Boolean(leadId),
-        leadId,
-        clientId: identityResolution.clientId,
-        identityStatus: identityResolution.status,
-      },
-    });
-
-    // Plugin leads and activity use the shared portal datastore. Persist them
-    // before a serverless response can end this invocation.
-    await flushPendingWrites();
-
-    let notification = "not-configured";
-    try {
-      const result = await notifyBrandEnquiry({
-        agencyId: agency.id,
-        // The CONFIGURED route only — deliberately not `owningClientId`.
-        //
-        // A registered site is a decision Ed made ("this domain belongs to that
-        // client"), so its alert goes out through that client's own Resend
-        // connection to that client's inbox, falling back to the workspace
-        // connection when they have none. `identityResolution.clientId` is a
-        // guess about the VISITOR, not about whose site this is — routing mail
-        // on it would post one client an enquiry that arrived on somebody
-        // else's unregistered site, because the submitter happened to match a
-        // contact of theirs. That guess is fine for the ledger entry, which
-        // stays inside the portal; it is not fine for outbound mail.
-        clientId: routedClientId,
-        id: captured.id,
-        brandName: brandDefinition.name,
-        name,
-        email: hasEmail ? email : null,
-        phone: hasPhone ? phone : null,
-        contactMethod,
-        services,
-        message: message || null,
-        sourceUrl: sourceUrl || null,
-        campaign: campaign || null,
-      });
-      notification = result.sent ? "sent" : "not-configured";
-    } catch (notificationError) {
-      notification = "failed";
-      console.error("[brand-enquiry] notification failed", notificationError instanceof Error ? notificationError.message : "Unknown error");
-    }
-
-    let automation = "not-configured";
-    try {
-      const runs = await triggerAutomations(agency.id, "website-enquiry.received", {
-        enquiryId: captured.id,
-        leadId: leadId ?? null,
-        name,
-        email: hasEmail ? email : null,
-        phone: hasPhone ? phone : null,
-        brand,
-        brandName: brandDefinition.name,
-        channel,
-        service: services.join(", "),
-        sourceUrl: sourceUrl || null,
-        message: message || null,
-        awaitingResponse: true,
-      }, { idempotencyKey: `brand-enquiry:${captured.id}` });
-      automation = runs.length
-        ? (runs.some(run => run.status === "failed") ? "failed" : "triggered")
-        : "not-configured";
-      await flushPendingWrites();
-    } catch (automationError) {
-      automation = "failed";
-      console.error("[brand-enquiry] automation trigger failed", automationError instanceof Error ? automationError.message : "Unknown error");
-    }
+    const effects = await runBrandEnquiryEffectsInline(brandEnquiryEffects, { work, enquiryId: captured.id });
 
     // Re-read immediately before completion so a form-capture request handled
     // by another process cannot have its richer fields erased by a stale
@@ -586,24 +764,8 @@ export async function POST(req: NextRequest) {
       .update({ metadata: {
         ...latestMetadata,
         ...initialMetadata,
-        notification,
-        automation,
-        source: `website:${brand}`,
-        leadId: leadId ?? null,
-        leadCreated: Boolean(leadId),
-        leadLinkedAt: leadId ? completedAt : null,
-        clientId: identityResolution.clientId ?? null,
-        clientLinkedAt: identityResolution.clientId ? new Date(identityResolution.resolvedAt).toISOString() : null,
-        identityResolution: {
-          status: identityResolution.status,
-          confidence: identityResolution.confidence,
-          explanation: identityResolution.explanation,
-          clientId: identityResolution.clientId ?? null,
-          clientName: identityResolution.clientName ?? null,
-          resolvedAt: new Date(identityResolution.resolvedAt).toISOString(),
-        },
-        ingestionState: "complete",
-        ingestionCompletedAt: completedAt,
+        ...completionMetadataPatch(work, effects, completedAt),
+        deliveryState: "complete",
       } })
       .eq("id", captured.id);
     if (completionError) throw new Error(`Could not complete enquiry ingestion: ${completionError.message}`);
@@ -612,6 +774,8 @@ export async function POST(req: NextRequest) {
       ok: true,
       enquiryId: captured.id,
       submissionId: submissionId || captured.id,
+      boundary: "process-local",
+      delivery: "complete",
     }, 200, origin);
   } catch (cause) {
     console.error("[brand-enquiry] failed to capture enquiry", cause);

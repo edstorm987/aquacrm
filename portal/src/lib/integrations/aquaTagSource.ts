@@ -837,6 +837,10 @@ export const AQUA_TAG_SOURCE = String.raw`(() => {
           if (typeof response.json !== "function") return true;
           return response.json().then(result => {
             if (!result || result.ok !== true) throw new Error("capture not persisted");
+            // A receipt is only a receipt for THIS submission. A proxy, a
+            // cached response or a different endpoint answering ok:true for
+            // some other id must not stop the retry that would persist ours.
+            if (result.submissionId !== submissionId) throw new Error("capture receipt mismatch");
             return true;
           });
         }).catch(() => {

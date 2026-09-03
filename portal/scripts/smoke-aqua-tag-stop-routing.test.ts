@@ -91,12 +91,26 @@ describe("Aqua Tag stop-routing semantics", () => {
       "../src/app/api/portal/website-sources/route.ts",
       import.meta.url,
     ), "utf8");
+    const registry = readFileSync(new URL(
+      "../src/lib/client/websiteSourceRegistryRead.ts",
+      import.meta.url,
+    ), "utf8");
 
+    // Both mounted controls send the dedicated non-destructive action through
+    // ONE checked helper, so neither can drift onto `remove` or onto a bare
+    // fetch that mistakes a 200 for a receipt. → issues #85
     for (const ui of [agencyUi, clientUi]) {
-      assert.match(ui, /action: "route-to-inbox"/);
+      assert.match(ui, /routeWebsiteSourceToInbox\(/);
+      // (ToolInjections removes a TOOL with `action: "remove", siteId, injectionId`;
+      // a SOURCE removal is `action: "remove", id` and must never be sent here.)
+      assert.doesNotMatch(ui, /action: "remove", id/, "a routing control must never send the destructive source action");
       assert.match(ui, /back to the agency inbox/);
       assert.match(ui, /Keep the registered site and its tools/);
     }
+    assert.match(registry, /action: "route-to-inbox"/);
+    assert.match(registry, /checkedJsonMutation</, "the helper must use the existing checked mutation contract");
+    assert.match(registry, /isWebsiteSourceRouteReceipt\(payload, \{ sourceId, routing: \{\} \}\)/,
+      "a route receipt must name the same source with no destination");
     assert.match(route, /action === "route-to-inbox"/);
     // The agency comes from the SERVER, not the body — but it is no longer
     // spelled `session.agencyId` inline. The route resolves an access-kernel
@@ -118,10 +132,21 @@ describe("Aqua Tag stop-routing semantics", () => {
       "../src/app/portal/agency/inbox/_WebsiteSourcesConfig.tsx",
       import.meta.url,
     ), "utf8");
+    const registry = readFileSync(new URL(
+      "../src/lib/client/websiteSourceRegistryRead.ts",
+      import.meta.url,
+    ), "utf8");
     assert.match(configUi, /window\.confirm/);
     assert.match(configUi, /registration, tool injections and imported form schemas/);
     assert.match(configUi, /if \(!confirmed\) return/);
     assert.match(configUi, /aria-label={`Permanently remove/);
-    assert.match(configUi, /action: "remove"/);
+    assert.match(configUi, /removeWebsiteSourceRegistration\(/);
+    assert.match(registry, /action: "remove"/);
+    assert.match(registry, /isWebsiteSourceRemoveReceipt\(payload, \{ sourceId \}\)/,
+      "a removal receipt must name the exact source that was removed");
+    // Nothing optimistic: the row leaves the list only after the receipt.
+    const removeBody = configUi.slice(configUi.indexOf("async function remove("), configUi.indexOf("async function importForms("));
+    assert.ok(removeBody.indexOf("await removeWebsiteSourceRegistration(") < removeBody.indexOf("setSources(current => current.filter"),
+      "the row must not be dropped before the server confirms the removal");
   });
 });

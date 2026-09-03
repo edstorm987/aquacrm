@@ -1,11 +1,17 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+// The Aqua Tag delivery effects are implemented and registered by the public
+// brand-enquiry route; importing it is what lets this sweep finish work whose
+// owner died. → issues #87
+import "@/app/api/public/brand-enquiry/route";
+
 import { processInboxWebhookQueue } from "@/lib/server/inbox/inboxService";
 import { pruneProcessedInboxWebhookEvents } from "@/lib/server/inbox/inboxStore";
 import { runRadarInfraSweep, runRadarScheduledSweep, type RadarScheduledSweepResult } from "@/engines/data/server/radar/radarSweeps";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { listAgencies } from "@/server/tenants";
 import { processPrivateObjectLifecycleSweep } from "@/lib/server/privateObjectLifecycle";
+import { processAquaTagSubmissionDeliveries, type AquaTagDeliverySweepResult } from "@/lib/server/enquirySubmissionDelivery";
 
 export const runtime = "nodejs";
 
@@ -19,6 +25,17 @@ export async function GET(request: NextRequest) {
     processInboxWebhookQueue(100),
     pruneProcessedInboxWebhookEvents(Number(process.env.INBOX_WEBHOOK_RETENTION_DAYS || 30)),
   ]);
+  // Aqua Tag submissions whose downstream delivery was claimed by a process
+  // that died, or that are due a bounded retry, are finished here under a new
+  // lease. Absent database, absent migration and nothing-due are all reported
+  // as a status; a failure inside one delivery is recorded on that row and
+  // must not take the rest of the tick with it.
+  let aquaTagDeliveries: AquaTagDeliverySweepResult | { status: "error"; error: string };
+  try {
+    aquaTagDeliveries = await processAquaTagSubmissionDeliveries({ limit: 25 });
+  } catch (error) {
+    aquaTagDeliveries = { status: "error", error: error instanceof Error ? error.message : "error" };
+  }
   // Infra is app-wide — probe the database ONCE per tick, not once per agency,
   // and in its own try/catch (same shape as cron/radar-probes). It used to run
   // inside runRadarScheduledSweep, so N agencies meant N identical DB round-trips
@@ -39,5 +56,5 @@ export async function GET(request: NextRequest) {
   await flushPendingWrites();
   const privateUploads = await processPrivateObjectLifecycleSweep();
   await flushPendingWrites();
-  return NextResponse.json({ ok: true, ...queue, pruned, radarInfra, radarSweeps, privateUploads });
+  return NextResponse.json({ ok: true, ...queue, pruned, aquaTagDeliveries, radarInfra, radarSweeps, privateUploads });
 }

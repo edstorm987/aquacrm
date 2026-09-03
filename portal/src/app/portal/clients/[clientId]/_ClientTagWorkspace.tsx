@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 import { Globe2, Inbox, LoaderCircle, Plus } from "lucide-react";
 import {
+  WEBSITE_SOURCE_ROUTE_FALLBACK,
   readWebsiteSourceRegistry,
+  routeWebsiteSourceToInbox,
+  websiteSourceMutationMessage,
   websiteSourceRegistryPresentation,
   type WebsiteSourceRegistryReadState,
   type WebsiteSourceRegistrySource,
@@ -26,6 +29,9 @@ export function ClientTagWorkspace({ clientId, clientName, canManage = true }: {
   const [retryToken, setRetryToken] = useState(0);
   const [host, setHost] = useState("");
   const [busy, setBusy] = useState(false);
+  // The one source mutation in flight, if any. While it is set every source
+  // control is disabled, so a second click cannot start a second mutation.
+  const [activeSourceId, setActiveSourceId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const hasConfirmedSnapshot = snapshot?.clientId === clientId;
   const sources = hasConfirmedSnapshot ? snapshot.sources : [];
@@ -74,26 +80,25 @@ export function ClientTagWorkspace({ clientId, clientName, canManage = true }: {
     finally { setBusy(false); }
   }
 
+  // Route back to the agency inbox — NOT deletion. The registration, its tool
+  // injections and imported form schemas stay; only where new enquiries land
+  // changes. The row is removed from this client’s list only once the server
+  // has confirmed exactly that source with no destination; any other answer
+  // keeps the row, settles the busy state, says so, and can be retried.
   async function routeToInbox(source: WebsiteSourceRegistrySource) {
     if (!presentation.canMutate) { setError("Retry the routing read before changing any sites."); return; }
+    if (activeSourceId) return;
+    setActiveSourceId(source.id);
     setError(null);
-    setSnapshot(current => current?.clientId === clientId
-      ? { clientId, sources: current.sources.filter(item => item.id !== source.id) }
-      : current);
     try {
-      const response = await fetch("/api/portal/website-sources", {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "route-to-inbox", id: source.id }),
-      });
-      if (!response.ok) throw new Error();
-    } catch {
-      setError("That site could not be routed back to the agency inbox.");
-      setSnapshot(current => ({
-        clientId,
-        sources: [...(current?.clientId === clientId ? current.sources : []), source]
-          .filter((item, index, items) => items.findIndex(candidate => candidate.id === item.id) === index)
-          .sort((a, b) => a.host.localeCompare(b.host)),
-      }));
+      const routed = await routeWebsiteSourceToInbox(source.id);
+      setSnapshot(current => current?.clientId === clientId
+        ? { clientId, sources: current.sources.filter(item => item.id !== routed.id) }
+        : current);
+    } catch (cause) {
+      setError(websiteSourceMutationMessage(cause, WEBSITE_SOURCE_ROUTE_FALLBACK));
+    } finally {
+      setActiveSourceId(null);
     }
   }
 
@@ -158,16 +163,16 @@ export function ClientTagWorkspace({ clientId, clientName, canManage = true }: {
       {presentation.showRows ? (
         <ul className="mt-4 grid gap-2">
           {sources.map(source => (
-            <li key={source.id} className="flex items-center justify-between gap-3 rounded-md border border-black/10 bg-black/[0.015] px-3 py-2.5">
+            <li key={source.id} aria-busy={activeSourceId === source.id || undefined} className="flex items-center justify-between gap-3 rounded-md border border-black/10 bg-black/[0.015] px-3 py-2.5">
               <span className="truncate text-sm font-medium text-black/80">{source.host}</span>
               {canManage ? <button
                 type="button"
                 onClick={() => void routeToInbox(source)}
-                disabled={!presentation.canMutate}
+                disabled={!presentation.canMutate || activeSourceId !== null}
                 aria-label={`Route ${source.host} back to the agency inbox`}
                 title="Keep the registered site and its tools; only change where new enquiries go"
-                className="grid size-8 place-items-center rounded-md border border-black/10 text-black/35 hover:border-brand/30 hover:bg-brand/[0.05] hover:text-brand disabled:cursor-not-allowed disabled:opacity-40"
-              ><Inbox size={13} aria-hidden /></button> : null}
+                className="grid size-9 place-items-center rounded-md border border-black/10 text-black/35 hover:border-brand/30 hover:bg-brand/[0.05] hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-40"
+              >{activeSourceId === source.id ? <LoaderCircle size={13} className="animate-spin" aria-hidden /> : <Inbox size={13} aria-hidden />}</button> : null}
             </li>
           ))}
         </ul>
