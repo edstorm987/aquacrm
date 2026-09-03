@@ -70,3 +70,14 @@ Dev Team/
 # Browser-matrix run output: screenshots, accessibility trees and records.json
 # written by `npm run browser:matrix`. Evidence for one run, not source.
 portal/.artefacts/
+
+# --- Self-managed DB backup (ops/backup): never commit keys or plaintext dumps ---
+# A blanket *.sql is unsafe here — supabase/migrations/*.sql and
+# supabase/rls-verify.sql are tracked — so ignore the backup surfaces explicitly.
+ops/backup/_local/
+ops/backup/_out/
+*.key.pem
+aquacrm-backup.key.pem
+*.tar.gz.cms
+aquacrm-*.tar.gz
+aquacrm-*.sha256

@@ -1,0 +1,92 @@
+name: aquacrm-backup
+
+# Self-managed, encrypted, off-Supabase database snapshot. Compensating control
+# for declining Supabase PITR. RPO = the schedule interval below (NOT
+# point-in-time). Runbook + setup: ops/backup/README.md.
+
+on:
+  schedule:
+    - cron: '17 3 * * *'      # 03:17 UTC daily. Deliberately off the top of the
+                              # hour, where scheduled runs are most delayed/dropped.
+  workflow_dispatch: {}        # manual runs (first backup, ad-hoc, restore-drill prep)
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aquacrm-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # psql 17 is used only for the connection preflight and the row-count
+      # manifest; the dump itself is done by the Supabase CLI. Non-fatal so a
+      # PGDG hiccup never blocks a backup (run.sh degrades the manifest).
+      - name: Install PostgreSQL 17 client
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          psql --version
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.111.0
+
+      - name: Backup, encrypt, deliver
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          BACKUP_ALERT_EMAIL: ${{ secrets.BACKUP_ALERT_EMAIL }}
+          BACKUP_FROM_EMAIL: ${{ vars.BACKUP_FROM_EMAIL }}
+          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+          S3_REGION: ${{ vars.S3_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          HC_PING_URL: ${{ secrets.HC_PING_URL }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: bash ops/backup/run.sh
+
+      - name: Upload encrypted snapshot (redundant copy; ciphertext only)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aquacrm-backup-${{ github.run_id }}
+          path: ops/backup/_out/*.tar.gz.cms
+          if-no-files-found: error
+          retention-days: 90
+
+      # Loud failure signal. The dead-man's-switch in run.sh (HC_PING_URL) is the
+      # primary detector because it also fires when the schedule never runs; this
+      # is a fast second channel for job failures.
+      - name: Alert on failure
+        if: failure()
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          BACKUP_ALERT_EMAIL: ${{ secrets.BACKUP_ALERT_EMAIL }}
+          BACKUP_FROM_EMAIL: ${{ vars.BACKUP_FROM_EMAIL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          [ -n "${RESEND_API_KEY:-}" ] || { echo "No RESEND_API_KEY — cannot send failure alert."; exit 0; }
+          command -v jq >/dev/null 2>&1 || { echo "jq missing — cannot send failure alert."; exit 0; }
+          to="${BACKUP_ALERT_EMAIL:-edwardhallam07@gmail.com}"
+          from="${BACKUP_FROM_EMAIL:-AquaCRM Backups <enquiries@aqua-crm.com>}"
+          umask 077; printf 'header = "Authorization: Bearer %s"\n' "$RESEND_API_KEY" > cfg
+          jq -n --arg to "$to" --arg from "$from" \
+                --arg subj "AquaCRM backup FAILED" \
+                --arg body "The scheduled database backup failed. Investigate: $RUN_URL" \
+                '{from:$from,to:[$to],subject:$subj,text:$body}' > alert.json
+          curl -fsS --retry 3 --config cfg -X POST https://api.resend.com/emails -H "Content-Type: application/json" -d @alert.json >/dev/null || true
+          rm -f cfg
