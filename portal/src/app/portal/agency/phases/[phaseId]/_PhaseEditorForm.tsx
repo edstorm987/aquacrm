@@ -1,6 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
+import {
+  isPhaseUpdateReceipt,
+  type ExpectedPhaseUpdate,
+  type PhaseUpsertReceipt,
+} from "@/lib/client/phaseAdminMutationPayloads";
 
 interface Initial {
   name: string;
@@ -13,42 +20,61 @@ interface Initial {
   isPublicPreset?: boolean;
 }
 
+// Checked mutation contract (issue #47): the form is uncontrolled, so a refusal
+// keeps every edit exactly as typed and never shows "Saved."; busy settles in
+// `finally`; the error is an inline `role="alert"`; and "Saved." can only
+// follow a receipt whose phase carries THIS phase id and every submitted value.
+
 export function PhaseEditorForm({ phaseId, initial }: { phaseId: string; initial: Initial }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const inFlight = useRef(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setBusy(true); setErr(null); setSaved(false);
+    if (inFlight.current) return;
     const fd = new FormData(e.currentTarget);
-    const body = {
+    const orderingRaw = Number(fd.get("ordering") ?? 0);
+    const expected: ExpectedPhaseUpdate = {
       phaseId,
       name: String(fd.get("name") ?? "").trim(),
       description: String(fd.get("description") ?? ""),
-      ordering: Number(fd.get("ordering") ?? 0),
+      ordering: Number.isFinite(orderingRaw) ? orderingRaw : 0,
       customCss: String(fd.get("customCss") ?? ""),
       customJs: String(fd.get("customJs") ?? ""),
       welcomeHeading: String(fd.get("welcomeHeading") ?? ""),
       welcomeBody: String(fd.get("welcomeBody") ?? ""),
       isPublicPreset: fd.get("isPublicPreset") === "on",
     };
-    const res = await fetch("/api/portal/phases/upsert", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    setBusy(false);
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      setErr(j.error ?? `${res.status}`);
-      return;
+    inFlight.current = true;
+    setBusy(true);
+    setErr(null);
+    setSaved(false);
+    try {
+      await checkedJsonMutation<PhaseUpsertReceipt>(
+        "/api/portal/phases/upsert",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(expected),
+        },
+        {
+          fallback: "The changes could not be saved.",
+          validate: value => isPhaseUpdateReceipt(value, expected),
+        },
+      );
+      setSaved(true);
+    } catch (cause) {
+      setErr(mutationErrorMessage(cause, "The changes could not be saved."));
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
     }
-    setSaved(true);
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex max-w-2xl flex-col gap-4">
+    <form onSubmit={onSubmit} aria-busy={busy || undefined} className="flex max-w-2xl flex-col gap-4">
       <label className="flex flex-col text-xs font-medium text-black/70">
         Name
         <input name="name" defaultValue={initial.name} required className="mt-1 rounded border border-black/15 px-2 py-1 text-sm text-black/90" />
@@ -108,10 +134,10 @@ export function PhaseEditorForm({ phaseId, initial }: { phaseId: string; initial
         </label>
       </fieldset>
 
-      {err && <p className="text-xs text-red-600">Error: {err}</p>}
-      {saved && <p className="text-xs text-green-700">Saved.</p>}
+      {err ? <p role="alert" className="rounded-md bg-red-50 px-2 py-1 text-xs text-red-700">{err}</p> : null}
+      {saved ? <p role="status" className="text-xs text-green-700">Saved.</p> : null}
       <div className="flex gap-2">
-        <button disabled={busy} type="submit" className="rounded-md bg-black/85 px-3 py-1.5 text-xs font-medium text-white hover:bg-black disabled:opacity-50">
+        <button disabled={busy} type="submit" className="rounded-md bg-black/85 px-3 py-1.5 text-xs font-medium text-white hover:bg-black disabled:cursor-not-allowed disabled:opacity-50">
           {busy ? "Saving…" : "Save changes"}
         </button>
       </div>
