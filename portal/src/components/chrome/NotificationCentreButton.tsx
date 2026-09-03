@@ -183,7 +183,7 @@ function NotificationRow({
 }) {
   const tone = alert.severity === "critical" ? "bg-red-50 text-red-700" : alert.severity === "warning" ? "bg-amber-50 text-amber-700" : "bg-blue-50 text-blue-700";
   return (
-    <article title={`${alert.title}\n${alert.detail}`} className="mm-notification-row px-4 py-3.5 transition hover:bg-black/[0.018]">
+    <article title={`${alert.title}\n${alert.detail}`} aria-busy={busy} className="mm-notification-row px-4 py-3.5 transition hover:bg-black/[0.018]">
       <div className="flex items-start gap-3">
         <span className={`mt-0.5 grid size-8 shrink-0 place-items-center rounded-md ${tone}`}><Bell size={15} aria-hidden /></span>
         <div className="min-w-0 flex-1">
@@ -213,13 +213,24 @@ function ParkMenu({ disabled, onPark }: { disabled: boolean; onPark: (until: num
   const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
   tomorrow.setHours(9, 0, 0, 0);
+  // While this alert's own action is in flight the menu is closed to the
+  // keyboard as well as the pointer: a second same-alert action must not be
+  // offered, so a stale outcome can never race a newer intent from here.
+  const park = (until: number) => { if (!disabled) onPark(until); };
   return (
-    <details className="group/park relative">
-      <summary title="Park for later" aria-label="Park notification for later" className={`grid size-8 cursor-pointer list-none place-items-center rounded-md border border-black/10 text-black/45 hover:bg-black/[0.04] [&::-webkit-details-marker]:hidden ${disabled ? "pointer-events-none opacity-40" : ""}`}><Clock3 size={14} /></summary>
+    <details className="group/park relative" open={disabled ? false : undefined}>
+      <summary
+        title="Park for later"
+        aria-label="Park notification for later"
+        aria-disabled={disabled}
+        tabIndex={disabled ? -1 : 0}
+        onClick={event => { if (disabled) event.preventDefault(); }}
+        className={`grid size-8 cursor-pointer list-none place-items-center rounded-md border border-black/10 text-black/45 hover:bg-black/[0.04] [&::-webkit-details-marker]:hidden ${disabled ? "pointer-events-none opacity-40" : ""}`}
+      ><Clock3 size={14} /></summary>
       <div className="absolute left-0 top-9 z-20 w-36 overflow-hidden rounded-md border border-black/10 bg-white py-1 shadow-lg">
-        <ParkOption label="For 1 hour" onClick={() => onPark(now + 60 * 60 * 1000)} />
-        <ParkOption label="Until tomorrow" onClick={() => onPark(tomorrow.getTime())} />
-        <ParkOption label="For 7 days" onClick={() => onPark(now + 7 * 24 * 60 * 60 * 1000)} />
+        <ParkOption label="For 1 hour" onClick={() => park(now + 60 * 60 * 1000)} />
+        <ParkOption label="Until tomorrow" onClick={() => park(tomorrow.getTime())} />
+        <ParkOption label="For 7 days" onClick={() => park(now + 7 * 24 * 60 * 60 * 1000)} />
       </div>
     </details>
   );

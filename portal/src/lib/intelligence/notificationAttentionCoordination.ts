@@ -39,6 +39,37 @@ export interface NotificationCoordinationResult {
   exposeFailure?: boolean;
 }
 
+function record(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+/** One alert row as the notifications API renders it; anything less cannot paint. */
+export function isOperationalAlertViewRow(value: unknown): value is OperationalAlertView {
+  const row = record(value);
+  return typeof row?.id === "string" && row.id.length > 0
+    && typeof row.title === "string" && typeof row.detail === "string" && typeof row.href === "string"
+    && (row.state === "unread" || row.state === "read" || row.state === "parked")
+    && typeof row.attention === "boolean"
+    && typeof row.category === "string" && typeof row.severity === "string"
+    && Number.isFinite(row.occurredAt)
+    && (row.causalVersion === undefined || (Number.isSafeInteger(row.causalVersion) && Number(row.causalVersion) >= 0))
+    && (row.parkedUntil === undefined || Number.isFinite(row.parkedUntil));
+}
+
+/**
+ * The alert list from a refresh, or `null` when the payload is not one. A
+ * refresh that answered 200 with a malformed list must be ignored exactly like
+ * a failed one: it is not authoritative, and committing it would replace real
+ * alerts with rows the centre cannot render or act on.
+ */
+export function refreshedNotificationAlerts(payload: unknown): OperationalAlertView[] | null {
+  const body = record(payload);
+  if (!body || body.ok === false || !Array.isArray(body.alerts)) return null;
+  return body.alerts.every(isOperationalAlertViewRow) ? body.alerts : null;
+}
+
 /**
  * Owns request ordering without owning React state. Refreshes are accepted only
  * when they are still the newest refresh and no mutation began or settled while
@@ -216,7 +247,16 @@ function optimisticAlertValue(
   action: OperationalAlertAction,
   parkedUntil?: number,
 ): OperationalAlertView | undefined {
-  if (!alert || action === "dismiss") return undefined;
+  if (!alert) return undefined;
+  // The server keeps a dismissed alert that persists until its underlying
+  // work is resolved, projecting it as read without attention. The optimistic
+  // value mirrors that projection so the row does not vanish and then return
+  // when the authoritative receipt lands (the mounted #147 walk caught it).
+  if (action === "dismiss") {
+    return alert.persistentUntilResolved
+      ? { ...alert, state: "read", attention: false, parkedUntil: undefined }
+      : undefined;
+  }
   if (action === "read") return { ...alert, state: "read", attention: false, parkedUntil: undefined };
   if (action === "unread") return { ...alert, state: "unread", attention: true, parkedUntil: undefined };
   return { ...alert, state: "parked", attention: false, parkedUntil };

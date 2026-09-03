@@ -3,126 +3,194 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Hash, Loader2, MessageSquare, Send, Users } from "lucide-react";
 
-import type { PeopleChannel, PeopleMessage } from "@/server/types";
+import type { PeopleChannel } from "@/server/types";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
+import { apiResponseError } from "@/lib/client/apiResponseError";
+import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
+import {
+  TeamChatCoordinator,
+  draftAfterSend,
+  isPostedTeamChatSnapshot,
+  isTeamChatSnapshot,
+  type TeamChatRosterEntry as RosterEntry,
+  type TeamChatSnapshot as ChatSnapshot,
+} from "@/lib/client/teamChatCoordination";
 
-type RosterEntry = { userId: string; name: string; presence: { state: "online" | "idle" | "offline"; lastSeenAt?: number }; workingToday: boolean };
-type ChatSnapshot = { channels: PeopleChannel[]; activeChannelId: string; messages: PeopleMessage[]; roster: RosterEntry[]; selfUserId: string };
+const POLL_INTERVAL_MS = 15_000;
+// The server keeps this many characters of a post (`api/portal/team-chat`).
+// The composer stops at the same point so a validated success can compare
+// the exact text it sent with the message the server retained.
+const MESSAGE_MAX_LENGTH = 4_000;
 
 export function TeamChat({ canUse = true }: { canUse?: boolean }) {
   const [snap, setSnap] = useState<ChatSnapshot | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  // One draft per conversation. A draft survives a failed send, a channel
+  // switch and a late response; only a validated success for that exact text
+  // clears it (`draftAfterSend`).
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  // The operator's selection, shown immediately; the painted conversation is
+  // `snap.activeChannelId` and only ever changes through the coordinator.
+  const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const requestSequence = useRef(0);
-  const appliedSequence = useRef(0);
-  const intentSequence = useRef(0);
-  const desiredChannel = useRef<string | null>(null);
+  const coordinatorRef = useRef<TeamChatCoordinator | null>(null);
+  if (!coordinatorRef.current) coordinatorRef.current = new TeamChatCoordinator();
+  // A response that settles after this instance unmounted must not touch
+  // state; a remounted instance has its own coordinator and its own refs.
+  const mountedRef = useRef(false);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  const syncBusy = useCallback(() => {
+    setBusy((coordinatorRef.current?.pendingSendCount() ?? 0) > 0);
+  }, []);
 
   const load = useCallback(async (channelId?: string, isSelection = false) => {
-    const previousDesired = desiredChannel.current;
-    if (isSelection && channelId) {
-      intentSequence.current += 1;
-      desiredChannel.current = channelId;
-    }
-    const requestId = ++requestSequence.current;
-    const intentId = intentSequence.current;
-    try {
-      const response = await fetch(`/api/portal/team-chat${channelId ? `?channel=${channelId}` : ""}`);
-      const result = await response.json() as ChatSnapshot & { ok?: boolean; error?: string };
-      if (!response.ok || result.ok === false) throw new Error(result.error || "Chat could not load.");
-      // A poll for the old channel, or any older request from before a user
-      // selection, must never repaint the conversation the operator chose.
-      if (intentId !== intentSequence.current) return;
-      if (channelId && desiredChannel.current && channelId !== desiredChannel.current) return;
-      if (requestId < appliedSequence.current) return;
-      appliedSequence.current = requestId;
-      desiredChannel.current = result.activeChannelId || desiredChannel.current;
+    const coordinator = coordinatorRef.current!;
+    const token = coordinator.beginLoad(channelId, isSelection);
+    if (token.selection && channelId) {
+      setSelectedChannelId(channelId);
       setError("");
-      setSnap(result);
-    } catch (cause) {
-      if (intentId !== intentSequence.current) return;
-      if (isSelection) desiredChannel.current = previousDesired;
-      setError(cause instanceof Error ? cause.message : "Chat could not load.");
     }
+    let snapshot: ChatSnapshot;
+    try {
+      const response = await fetch(
+        `/api/portal/team-chat${channelId ? `?channel=${encodeURIComponent(channelId)}` : ""}`,
+        { cache: "no-store" },
+      );
+      const result: unknown = await response.json().catch(() => null);
+      if (!response.ok || !isTeamChatSnapshot(result)) {
+        throw new Error(apiResponseError(result, "Chat could not load."));
+      }
+      snapshot = result;
+    } catch (cause) {
+      const outcome = coordinator.rejectLoad(token);
+      if (!mountedRef.current || !outcome.exposeFailure) return;
+      // A failed selection keeps the conversation that was valid before it.
+      setSelectedChannelId(coordinator.desiredChannelId());
+      setError(cause instanceof Error ? cause.message : "Chat could not load.");
+      return;
+    }
+    const outcome = coordinator.acceptLoad(token, snapshot);
+    if (!mountedRef.current || !outcome.applied) return;
+    setSelectedChannelId(snapshot.activeChannelId);
+    setError("");
+    setSnap(snapshot);
   }, []);
 
   useEffect(() => { void load(); }, [load]);
 
-  // Light poll so new messages appear without a manual refresh.
+  // Light poll so new messages appear without a manual refresh. The poll
+  // carries the channel it was started for; the coordinator drops it if the
+  // operator has moved on by the time it answers.
   useEffect(() => {
-    if (!snap?.activeChannelId) return;
-    const timer = setInterval(() => { void load(snap.activeChannelId); }, 15_000);
+    const channelId = snap?.activeChannelId;
+    if (!channelId) return;
+    const timer = setInterval(() => { void load(channelId); }, POLL_INTERVAL_MS);
     return () => clearInterval(timer);
   }, [snap?.activeChannelId, load]);
 
   useEffect(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, [snap?.messages.length, snap?.activeChannelId]);
 
-  async function send(action: string, payload: Record<string, unknown>) {
-    if (!canUse) return;
-    const requestId = ++requestSequence.current;
-    const intentId = ++intentSequence.current;
-    const postingChannel = action === "post" && typeof payload.channelId === "string"
-      ? payload.channelId
-      : null;
-    if (postingChannel) desiredChannel.current = postingChannel;
-    setBusy(true); setError("");
+  const send = useCallback(async (
+    action: "post" | "open-direct",
+    payload: { channelId?: string; body?: string; withUserId?: string },
+  ): Promise<boolean> => {
+    if (!canUse) return false;
+    const coordinator = coordinatorRef.current!;
+    const postingChannel = action === "post" && payload.channelId ? payload.channelId : null;
+    const submitted = postingChannel ? (payload.body ?? "") : "";
+    const token = coordinator.beginSend(action, postingChannel);
+    if (postingChannel) setSelectedChannelId(postingChannel);
+    setError("");
+    syncBusy();
+    const fallback = postingChannel ? "Message not sent." : "The conversation could not be opened.";
+    let snapshot: ChatSnapshot;
     try {
-      const response = await fetch("/api/portal/team-chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, ...payload }) });
-      const result = await response.json() as ChatSnapshot & { ok?: boolean; error?: string };
-      if (!response.ok || result.ok === false) throw new Error(result.error || "Message not sent.");
-      if (intentId !== intentSequence.current || requestId < appliedSequence.current) return;
-      if (postingChannel && result.activeChannelId !== postingChannel) return;
-      appliedSequence.current = requestId;
-      desiredChannel.current = result.activeChannelId || desiredChannel.current;
-      setSnap(result);
+      snapshot = await checkedJsonMutation<ChatSnapshot>("/api/portal/team-chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action, ...payload }),
+      }, {
+        fallback,
+        // Only an authoritative snapshot for the posted channel that carries
+        // the operator's own message counts as sent.
+        validate: result => postingChannel
+          ? isPostedTeamChatSnapshot(result, { channelId: postingChannel, body: submitted })
+          : isTeamChatSnapshot(result),
+      });
     } catch (cause) {
-      if (intentId === intentSequence.current) {
-        setError(cause instanceof Error ? cause.message : "Message not sent.");
+      const outcome = coordinator.rejectSend(token);
+      if (!mountedRef.current) return false;
+      syncBusy();
+      if (outcome.exposeFailure) {
+        const message = mutationErrorMessage(cause, fallback);
+        setError(postingChannel ? `${message} Your draft is kept — press Send to try again.` : message);
       }
-    } finally {
-      if (intentId === intentSequence.current) setBusy(false);
+      return false;
     }
-  }
+    const outcome = coordinator.acceptSend(token, snapshot);
+    if (!mountedRef.current) return true;
+    syncBusy();
+    // The message was retained by the server whether or not this response may
+    // still paint (the operator may have switched conversation meanwhile), so
+    // the draft is cleared either way — but only if it is still the exact text
+    // that was sent.
+    if (postingChannel) setDrafts(current => draftAfterSend(current, postingChannel, submitted, "success"));
+    if (!outcome.applied) return true;
+    setSelectedChannelId(snapshot.activeChannelId);
+    setSnap(snapshot);
+    return true;
+  }, [canUse, syncBusy]);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const input = event.currentTarget.elements.namedItem("body") as HTMLInputElement | null;
-    const value = input?.value.trim();
-    if (!value || !snap?.activeChannelId) return;
-    void send("post", { channelId: snap.activeChannelId, body: value });
-    if (input) input.value = "";
+    const channelId = snap?.activeChannelId;
+    if (!channelId || busy) return;
+    const draft = drafts[channelId] ?? "";
+    if (!draft.trim()) return;
+    void send("post", { channelId, body: draft });
   }
 
   if (!snap) return (
     <div className="grid min-h-64 place-items-center rounded-lg border border-black/10 bg-white p-6 text-center">
       {error ? (
-        <div className="space-y-3"><p className="text-sm text-black/55">{error}</p><button onClick={() => { setError(""); void load(); }} className="min-h-9 rounded-md bg-emerald-800 px-4 text-sm font-semibold text-white">Try again</button></div>
+        <div className="space-y-3"><p role="alert" className="text-sm text-black/55">{error}</p><button type="button" onClick={() => { setError(""); void load(); }} className="min-h-9 rounded-md bg-emerald-800 px-4 text-sm font-semibold text-white">Try again</button></div>
       ) : <Loader2 className="animate-spin text-black/30" size={22} />}
     </div>
   );
 
   const active = snap.channels.find(channel => channel.id === snap.activeChannelId);
+  const highlightedChannelId = selectedChannelId ?? snap.activeChannelId;
+  const selectionPending = highlightedChannelId !== snap.activeChannelId;
   const others = snap.roster.filter(entry => entry.userId !== snap.selfUserId);
   const workingToday = others.filter(entry => entry.workingToday);
+  const draft = drafts[snap.activeChannelId] ?? "";
 
   return (
     <div className="grid gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
       <aside className="space-y-4">
         <section className="rounded-lg border border-black/10 bg-white p-3">
           <p className="px-2 py-1 text-xs font-semibold uppercase text-black/40">Channels</p>
-          {snap.channels.map(channel => (
-            <button key={channel.id} onClick={() => void load(channel.id, true)} className={`flex min-h-10 w-full items-center gap-2 rounded-md px-2 text-left text-sm font-medium ${channel.id === snap.activeChannelId ? "bg-emerald-50 text-emerald-900" : "hover:bg-black/[0.03]"}`}>
-              {channel.kind === "team" ? <Hash size={15} className="text-black/40" /> : <MessageSquare size={15} className="text-black/40" />}
-              <span className="truncate">{channel.kind === "team" ? "Team" : channelName(channel, snap.selfUserId, snap.roster)}</span>
-            </button>
-          ))}
+          {snap.channels.map(channel => {
+            const highlighted = channel.id === highlightedChannelId;
+            return (
+              <button key={channel.id} type="button" onClick={() => void load(channel.id, true)} aria-current={highlighted ? "true" : undefined} className={`flex min-h-10 w-full items-center gap-2 rounded-md px-2 text-left text-sm font-medium ${highlighted ? "bg-emerald-50 text-emerald-900" : "hover:bg-black/[0.03]"}`}>
+                {channel.kind === "team" ? <Hash size={15} className="text-black/40" /> : <MessageSquare size={15} className="text-black/40" />}
+                <span className="truncate">{channel.kind === "team" ? "Team" : channelName(channel, snap.selfUserId, snap.roster)}</span>
+              </button>
+            );
+          })}
         </section>
         <section className="rounded-lg border border-black/10 bg-white p-3">
           <p className="flex items-center gap-1.5 px-2 py-1 text-xs font-semibold uppercase text-black/40"><Users size={13} /> Working today · {workingToday.length}</p>
           <div className="mt-1 space-y-0.5">
             {others.map(entry => (
-              <button key={entry.userId} onClick={() => void send("open-direct", { withUserId: entry.userId })} disabled={busy || !canUse} className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm hover:bg-black/[0.03] disabled:cursor-default disabled:opacity-70">
+              <button key={entry.userId} type="button" onClick={() => void send("open-direct", { withUserId: entry.userId })} disabled={busy || !canUse} className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm hover:bg-black/[0.03] disabled:cursor-default disabled:opacity-70">
                 <span className={`inline-block size-2 shrink-0 rounded-full ${entry.presence.state === "online" ? "bg-emerald-500" : entry.presence.state === "idle" ? "bg-amber-400" : "bg-black/20"}`} />
                 <span className="truncate">{entry.name}</span>
                 {entry.workingToday ? <span className="ml-auto rounded bg-emerald-50 px-1.5 text-[10px] font-semibold text-emerald-700">in</span> : null}
@@ -133,11 +201,12 @@ export function TeamChat({ canUse = true }: { canUse?: boolean }) {
         </section>
       </aside>
 
-      <section className="flex min-h-[28rem] flex-col overflow-hidden rounded-lg border border-black/10 bg-white">
+      <section className="flex min-h-[28rem] flex-col overflow-hidden rounded-lg border border-black/10 bg-white" aria-busy={selectionPending || busy}>
         <header className="flex items-center gap-2 border-b border-black/10 p-4">
           {active?.kind === "team" ? <Hash size={16} className="text-emerald-800" /> : <MessageSquare size={16} className="text-emerald-800" />}
           <h3 className="font-semibold">{active ? (active.kind === "team" ? "Team" : channelName(active, snap.selfUserId, snap.roster)) : "Chat"}</h3>
           {active?.kind === "team" ? <span className="text-xs text-black/40">everyone on the team</span> : null}
+          {selectionPending ? <span role="status" className="ml-auto inline-flex items-center gap-1 text-xs text-black/45"><Loader2 className="animate-spin" size={12} aria-hidden /> Opening…</span> : null}
         </header>
         <div ref={listRef} className="flex-1 space-y-3 overflow-y-auto p-4">
           {snap.messages.length ? snap.messages.map(message => {
@@ -153,10 +222,23 @@ export function TeamChat({ canUse = true }: { canUse?: boolean }) {
             );
           }) : <div className="grid h-full place-items-center text-center text-sm text-black/40"><div><MessageSquare className="mx-auto text-black/20" size={22} /><p className="mt-2">No messages yet — say hello.</p></div></div>}
         </div>
-        {error ? <p className="border-t border-red-100 bg-red-50 px-4 py-2 text-xs text-red-700">{error}</p> : null}
+        {error ? <p role="alert" className="border-t border-red-100 bg-red-50 px-4 py-2 text-xs text-red-700">{error}</p> : null}
         {canUse ? <form onSubmit={submit} className="flex gap-2 border-t border-black/10 p-3">
-          <input name="body" autoComplete="off" placeholder={active?.kind === "team" ? "Message the team… @name to notify someone" : "Message them…"} className="min-h-10 min-w-0 flex-1 rounded-md border border-black/15 px-3 text-sm" />
-          <button disabled={busy} className="inline-flex min-h-10 items-center gap-1 rounded-md bg-emerald-800 px-4 text-sm font-semibold text-white">{busy ? <Loader2 className="animate-spin" size={15} /> : <Send size={15} />} Send</button>
+          <input
+            name="body"
+            autoComplete="off"
+            maxLength={MESSAGE_MAX_LENGTH}
+            value={draft}
+            readOnly={busy}
+            aria-label={active?.kind === "team" ? "Message the team" : "Message them"}
+            onChange={event => {
+              const value = event.currentTarget.value;
+              setDrafts(current => ({ ...current, [snap.activeChannelId]: value }));
+            }}
+            placeholder={active?.kind === "team" ? "Message the team… @name to notify someone" : "Message them…"}
+            className="min-h-10 min-w-0 flex-1 rounded-md border border-black/15 px-3 text-sm read-only:bg-black/[0.02]"
+          />
+          <button type="submit" disabled={busy} aria-busy={busy} className="inline-flex min-h-10 items-center gap-1 rounded-md bg-emerald-800 px-4 text-sm font-semibold text-white disabled:opacity-70">{busy ? <Loader2 className="animate-spin" size={15} aria-hidden /> : <Send size={15} aria-hidden />} Send</button>
         </form> : <p className="border-t border-black/10 px-4 py-3 text-xs text-black/45">View-only chat access. Ask for Use access to send messages or open a new direct conversation.</p>}
       </section>
     </div>

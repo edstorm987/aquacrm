@@ -5,8 +5,10 @@ import test from "node:test";
 import {
   NOTIFICATION_ACTIVATION_REFRESH_INTERVAL_MS,
   NotificationAttentionCoordinator,
+  isOperationalAlertViewRow,
   notificationActivationRefreshDue,
   optimisticAlertUpdate,
+  refreshedNotificationAlerts,
 } from "../src/lib/intelligence/notificationAttentionCoordination";
 import type { OperationalAlertView } from "../src/lib/intelligence/operationalAttention";
 
@@ -97,6 +99,29 @@ test("a prop snapshot rebases pending rollback while retaining the optimistic ac
   assert.equal(failed.alerts[0].title, "new prop snapshot");
 });
 
+test("dismissing an alert that persists until resolved keeps it as read instead of flickering it away", () => {
+  const persistent = alert("task", { persistentUntilResolved: true });
+  const dismissed = optimisticAlertUpdate([persistent, alert("b")], "task", "dismiss");
+  assert.equal(dismissed.length, 2);
+  assert.equal(dismissed[0].state, "read");
+  assert.equal(dismissed[0].attention, false);
+  assert.equal(dismissed[0].persistentUntilResolved, true);
+  // A dismiss that is not persistent still removes the row.
+  assert.equal(optimisticAlertUpdate([alert("plain"), persistent], "plain", "dismiss").length, 1);
+
+  // Through the coordinator: the optimistic row and the authoritative receipt
+  // agree, so accepting the receipt changes nothing the operator can see.
+  const coordinator = new NotificationAttentionCoordinator();
+  const pending = coordinator.beginMutation([persistent], "task", "dismiss");
+  assert.equal(pending.alerts[0]?.state, "read");
+  const settled = coordinator.acceptMutation(pending.token, pending.alerts, [
+    alert("task", { persistentUntilResolved: true, state: "read", attention: false, causalVersion: 1 }),
+  ]);
+  assert.equal(settled.alerts.length, 1);
+  assert.equal(settled.alerts[0].state, "read");
+  assert.equal(settled.alerts[0].causalVersion, 1);
+});
+
 test("optimistic alert updates never modify unrelated alert objects", () => {
   const first = alert("a");
   const second = alert("b");
@@ -105,6 +130,45 @@ test("optimistic alert updates never modify unrelated alert objects", () => {
   assert.equal(updated[0].state, "parked");
   assert.equal(updated[0].parkedUntil, 1234);
   assert.equal(updated[1], second);
+});
+
+test("a refresh started before a scope change is invalidated by the reset, and reversed responses for different alerts replace only their own alert", () => {
+  const coordinator = new NotificationAttentionCoordinator();
+  const previousScope = coordinator.beginRefresh();
+  coordinator.reset();
+  const leaked = coordinator.acceptRefresh(previousScope, [alert("client-b")], [alert("client-a", { title: "previous scope" })]);
+  assert.equal(leaked.applied, false);
+  assert.deepEqual(leaked.alerts.map(item => item.id), ["client-b"]);
+
+  // Two alerts acted on, answered in reverse: each response replaces only its
+  // own alert, and the other keeps its optimistic state until its own answer.
+  const x = coordinator.beginMutation([alert("x"), alert("y")], "x", "read");
+  const y = coordinator.beginMutation(x.alerts, "y", "dismiss");
+  const yFirst = coordinator.acceptMutation(y.token, y.alerts, [alert("x", { title: "server saw x unread" })]);
+  assert.equal(yFirst.applied, true);
+  assert.equal(yFirst.alerts.some(item => item.id === "y"), false);
+  assert.equal(yFirst.alerts.find(item => item.id === "x")?.state, "read");
+  assert.equal(yFirst.alerts.find(item => item.id === "x")?.title, "x", "y's response must not rewrite x from its own stale copy");
+  const xLater = coordinator.acceptMutation(x.token, yFirst.alerts, [alert("x", { state: "read", attention: false, title: "confirmed x", causalVersion: 1 })]);
+  assert.equal(xLater.alerts.find(item => item.id === "x")?.title, "confirmed x");
+  assert.equal(xLater.alerts.some(item => item.id === "y"), false);
+  assert.deepEqual(coordinator.pendingAlertIds(), []);
+});
+
+test("only a well-formed authoritative alert list may replace the snapshot on refresh", () => {
+  const rows = [alert("a", { causalVersion: 2 }), alert("b", { state: "parked", attention: false, parkedUntil: 99 })];
+  assert.deepEqual(refreshedNotificationAlerts({ ok: true, alerts: rows }), rows);
+  assert.deepEqual(refreshedNotificationAlerts({ alerts: [] }), []);
+  assert.equal(refreshedNotificationAlerts({ ok: false, alerts: rows }), null);
+  assert.equal(refreshedNotificationAlerts({ ok: true }), null);
+  assert.equal(refreshedNotificationAlerts({ ok: true, alerts: "later" }), null);
+  assert.equal(refreshedNotificationAlerts({ ok: true, alerts: [{ id: "a" }] }), null);
+  assert.equal(refreshedNotificationAlerts({ ok: true, alerts: [{ ...alert("a"), state: "gone" }] }), null);
+  assert.equal(refreshedNotificationAlerts({ ok: true, alerts: [{ ...alert("a"), causalVersion: -1 }] }), null);
+  assert.equal(refreshedNotificationAlerts(null), null);
+  assert.equal(refreshedNotificationAlerts("<html>"), null);
+  assert.equal(isOperationalAlertViewRow(alert("a")), true);
+  assert.equal(isOperationalAlertViewRow({ ...alert("a"), attention: "yes" }), false);
 });
 
 test("automatic notification refresh waits for the three-minute stale window", () => {
@@ -133,6 +197,21 @@ test("the provider and both attention surfaces use revision coordination and per
   assert.match(centre, /attention\?\.isAlertBusy\(alert\.id\)/);
   assert.match(centre, /if \(!open\) void attention\?\.refreshAlerts\(\)/);
   assert.match(inbox, /notificationAttention\?\.isAlertBusy\(alert\.id\)/);
+
+  // #147 mounted residue: a refresh only paints a validated authoritative
+  // list; a scope change drops the previous scope's in-flight refresh; the
+  // update callback the context hands out is the one built for the current
+  // scope; and the centre closes every same-alert control (park included, to
+  // the keyboard) while that alert's own action is in flight.
+  assert.match(provider, /refreshedNotificationAlerts\(await response\.json\(\)\.catch\(\(\) => null\)\)/);
+  assert.match(provider, /coordinatorRef\.current\.reset\(\);[\s\S]{0,400}?refreshInFlightRef\.current = null;/);
+  assert.match(provider, /const updateAlert = useCallback\(async \(/);
+  assert.match(provider, /setFocusProtectionEnabled, refreshAlerts, updateAlert\]\)/);
+  assert.match(provider, /if \(coordinator\.pendingAlertIds\(\)\.includes\(alertId\)\) return false;/);
+  assert.match(centre, /<article[^>]*aria-busy=\{busy\}/);
+  assert.match(centre, /aria-disabled=\{disabled\}[\s\S]{0,80}?tabIndex=\{disabled \? -1 : 0\}/);
+  assert.match(centre, /const park = \(until: number\) => \{ if \(!disabled\) onPark\(until\); \};/);
+  assert.match(centre, /<p role="alert"[^>]*>\{attention\.error\}<\/p>/);
 });
 
 test("notification storage avoids full file reloads but keeps remote snapshots fresh", () => {
