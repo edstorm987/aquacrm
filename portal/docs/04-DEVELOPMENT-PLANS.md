@@ -2,7 +2,7 @@
 
 > Every active, completed and archived phased implementation plan and handoff.
 >
-> Consolidated 2026-09-03 from **60** source documents / **123,222 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-03 from **60** source documents / **123,423 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -50,7 +50,7 @@
 - [`docs/development/plans/operations-command-surface.md`](#source-docs-development-plans-operations-command-surface-md) — 823 words · `89d4c7af83fa`
 - [`docs/development/plans/plugin-data-erasure.md`](#source-docs-development-plans-plugin-data-erasure-md) — 3,211 words · `890e117cab2c`
 - [`docs/development/plans/product-roadmap-2026-09.md`](#source-docs-development-plans-product-roadmap-2026-09-md) — 902 words · `10a7d1b55065`
-- [`docs/development/plans/production-readiness-roadmap-2026-09-03.md`](#source-docs-development-plans-production-readiness-roadmap-2026-09-03-md) — 2,613 words · `72f939872af1`
+- [`docs/development/plans/production-readiness-roadmap-2026-09-03.md`](#source-docs-development-plans-production-readiness-roadmap-2026-09-03-md) — 2,814 words · `0eeccfa7bd5c`
 - [`docs/development/plans/promote-trading-company.md`](#source-docs-development-plans-promote-trading-company-md) — 4,457 words · `2f9dd8a1af32`
 - [`docs/development/plans/public-bucket-HANDOFF.md`](#source-docs-development-plans-public-bucket-handoff-md) — 1,244 words · `2b7dca7e3698`
 - [`docs/development/plans/public-bucket.md`](#source-docs-development-plans-public-bucket-md) — 764 words · `c13e9ce00332`
@@ -10256,7 +10256,7 @@ Every phase above ships with: a focused smoke, an entry in `updates.md`, a row i
 
 ## Source document — `docs/development/plans/production-readiness-roadmap-2026-09-03.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/production-readiness-roadmap-2026-09-03.md" sha256="72f939872af187a0ce996782f1651bf63d0044f7e34cc0abda27b5673685acd5" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/production-readiness-roadmap-2026-09-03.md" sha256="0eeccfa7bd5c300fe3232633466b4445d0cc3cc826e086e9bf0c98ce66d67001" -->
 # Production-readiness roadmap — 3 September 2026
 
 **Status:** living register, written at the release baseline of the commit that adds this document (parent 06abeb9 on `main`) on `main`.
@@ -10372,6 +10372,7 @@ playwright-core 1.62.1, private file-backend state seeded by the lane (`scratchp
 | Update log, TODO, issues, status and tests reconciled to this cycle | **VERIFIED** | `updates.md` entries dated 2026-09-03 (this session plus the seven previously unlogged integration commits); TODO rows and issue entries carry the evidence pointers. |
 | Generated references and consolidated volumes regenerated | **VERIFIED** | `node scripts/generate-symbol-reference.mjs` and `node scripts/consolidate-authored-docs.mjs` run after the edits (see the update entry). |
 | Deployment runbook | **PARTIAL** | `DEVELOPMENT-HANDOFF.md` + `launch-order-and-blockers.md` cover the two variables and the cutover; a Vercel deployment has not been executed since the last recorded one. |
+| Vercel 8 GB build-memory margin | **PARTIAL — hardened locally, Vercel confirmation pending** | Prior OOM was commit `ea94143` + a restored old cache, killed (SIGKILL) during "Creating an optimized production build". Current main measured locally (arm64, process-tree peak RSS, `PORTAL_BACKEND=memory`): webpack **clean 2.0 GB / 215 s**, warm 2.45 GB / 97 s, 246/246 pages, **8.4 MB client JS** — far under 8 GB, so the OOM was the old commit, not the current tree. **Turbopack rejected**: 3.0 GB peak and 14 MB client JS (+67 %) plus 28 whole-project-tracing warnings from the Dev Team `process.cwd()` reads; route/redirect/rewrite/prerender parity is exact but memory and bundle regress, so production stays on webpack. **Applied (output-identical)**: `experimental.webpackMemoryOptimizations` + a `NODE_OPTIONS=--max-old-space-size=6144` build heap ceiling → hardened build **2.2 GB peak, exit 0, client JS unchanged**, typecheck 0. Root cause of graph weight identified (`src/built-ins/runtime/_registry.ts` eagerly roots ~64 k lines of plugin `api`/server code into ~20 routes; pages are already lazy) — a behaviour-preserving lazy-`api` refactor is the documented fallback if Vercel still shows pressure. Authoritative 8 GB test = the Vercel build triggered by pushing this commit (set `VERCEL_BUILD_SYSTEM_REPORT=1` in Vercel env for the resource report). Caveat: local arm64 ≠ Vercel x64/2-core. |
 | Known-good release baseline commit | **VERIFIED** | the commit that adds this document (parent 06abeb9 on `main`) (pushed to `origin/main`). |
 
 ## 9. Post-release UX and product improvements

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-03T18:05:22.636Z",
+  "generatedAt": "2026-09-03T18:53:47.059Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -871,9 +871,9 @@
       "path": "docs/development/plans/production-readiness-roadmap-2026-09-03.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-production-readiness-roadmap-2026-09-03-md",
-      "sha256": "72f939872af187a0ce996782f1651bf63d0044f7e34cc0abda27b5673685acd5",
-      "words": 2613,
-      "bytes": 18218
+      "sha256": "0eeccfa7bd5c300fe3232633466b4445d0cc3cc826e086e9bf0c98ce66d67001",
+      "words": 2814,
+      "bytes": 19636
     },
     {
       "path": "docs/development/plans/promote-trading-company.md",

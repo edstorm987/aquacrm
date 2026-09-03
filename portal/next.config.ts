@@ -122,6 +122,10 @@ const nextConfig: NextConfig = {
     // command centre alone names ~40 icons), so this trims every route.
     // Behaviour is identical — it only changes how the import is resolved.
     optimizePackageImports: ["lucide-react"],
+    // Lower Webpack's peak build memory: frees per-module cached source/AST once
+    // a module is sealed instead of retaining the whole graph. Trades a little
+    // build time for a lower memory ceiling. Behaviour of the output is unchanged.
+    webpackMemoryOptimizations: true,
   },
   // Anchor optional Turbopack use + output-file tracing at this app root for Vercel.
   outputFileTracingRoot: APP_ROOT,
