@@ -175,6 +175,8 @@ findings as (
     'website_consent_events', 'shoots', 'shoot_photos',
     'inbox_channel_connections', 'inbox_contact_identities', 'inbox_conversations',
     'inbox_messages', 'inbox_webhook_events',
+    'editor_ai_reply_claims', 'lead_conversion_operations', 'product_workspace_leases',
+    'app_datastore_patch_receipts',
     -- 20260902093000_aqua_tag_submission_delivery.sql (issues #87)
     'aqua_tag_submissions'
   )

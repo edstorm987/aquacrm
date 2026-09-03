@@ -2,12 +2,12 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-09-03 from **21** source documents / **36,912 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-03 from **21** source documents / **37,193 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
 - [`AGENTS.md`](#source-agents-md) — 95 words · `63f2c50380ed`
-- [`CLAUDE.md`](#source-claude-md) — 4,324 words · `7b84efec6e2c`
+- [`CLAUDE.md`](#source-claude-md) — 4,508 words · `1d4b04f35463`
 - [`docs/data/adr/ADR-001-semantic-registry-in-code.md`](#source-docs-data-adr-adr-001-semantic-registry-in-code-md) — 217 words · `f092ef6a564d`
 - [`docs/data/adr/ADR-002-domain-modules-are-the-repository-seam.md`](#source-docs-data-adr-adr-002-domain-modules-are-the-repository-seam-md) — 218 words · `361439671762`
 - [`docs/data/adr/ADR-003-one-calculation-path-per-metric.md`](#source-docs-data-adr-adr-003-one-calculation-path-per-metric-md) — 233 words · `9143b1627c97`
@@ -25,7 +25,7 @@
 - [`docs/development/CLOUD-RESUME.md`](#source-docs-development-cloud-resume-md) — 500 words · `03458cdf18bf`
 - [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 2,095 words · `379784a12461`
 - [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,643 words · `38954d1ad66e`
-- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 2,529 words · `27d50117e451`
+- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 2,626 words · `999871e8eba4`
 - [`README.md`](#source-readme-md) — 437 words · `78865db66238`
 
 ---
@@ -52,7 +52,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## Source document — `CLAUDE.md`
 
-<!-- AQUACRM_SOURCE_START path="CLAUDE.md" sha256="7b84efec6e2ceed69f0a39b9dff34a8e8e73740833ddb977fa3607575d21db8b" -->
+<!-- AQUACRM_SOURCE_START path="CLAUDE.md" sha256="1d4b04f354635312e1aa57b5dac778adb0e108b404d0e8bf7226c3e6730b83fd" -->
 @AGENTS.md
 
 # AquaCRM Claude Handoff
@@ -301,6 +301,22 @@ review-and-seed screen. His answers on what transfers are recorded verbatim in
   deployed-live are not interchangeable.
 
 ### Latest trustworthy evidence
+
+*3 September 2026 — Supabase alignment.* The one Supabase project (`dghzbsxbdatskserctgt`, eu-west-1)
+is development, staging AND production — there is no second project — and the LIVE schema is **eleven
+migrations behind the repository** (`node portal/scripts/supabase-schema-status.mjs`, read-only), so the
+current build cannot hydrate against it. Every live probe was a GET/HEAD or PostgREST OpenAPI read with
+the service-role key; nothing live was changed (byte-identical before/after). All 26+1 migrations were
+rehearsed on an isolated local stack (Docker): ordered apply, the 52-row `brand_enquiries.agency_id`
+backfill, idempotency, clean `rls-verify.sql` (51 INFO/0 FAIL), the cross-process Aqua Tag proof 7/7, and
+the full browser suite against `PORTAL_BACKEND=supabase` (release 163/163, matrix 1169/0, Notepad/Finance
+77/77, Phase Admin 10/10). One new migration was added — `20260903120000_explicit_service_role_grants.sql`
+(the older tables inherited cloud default grants and would 42501 on a rebuilt project). **Live `db push`,
+backups/PITR, account reconciliation and the `agency_id` backfill are BLOCKED on Ed's CLI login/DB
+password and approval.** Full register + recovery runbook:
+`docs/development/plans/supabase-alignment-2026-09-03.md`. **Local hazard:** with `.env.local` loaded and
+no `PORTAL_BACKEND`, the portal promotes itself to the Supabase backend and writes the production state
+row — set `PORTAL_BACKEND=file` for local work.
 
 *3 September 2026 — release baseline.* The integrated `main` (six worker lanes, My Tools
 folders/icons, the personal/business Radar split with linked Calendar records) was built
@@ -3874,7 +3890,7 @@ Path prefix: /private/tmp/claude-501/.../scratchpad/
 
 ## Source document — `docs/development/TODO.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="27d50117e45144285a30dbce06b943b89ef9c2d6e4d091b61d206c4ed908bbb9" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="999871e8eba4e4d256ea3d481a7a6f68a8ab4d64a8c6068f2aa41d6606490ca7" -->
 # TODO — the one list
 
 **This is the only task list.** `checklist.md` and `todo-retired.md` are retired; they held the
@@ -3894,7 +3910,7 @@ remains the backing store. This file is the index over it.
 
 ---
 
-## 🔒 Blocked on you — 11
+## 🔒 Blocked on you — 13
 
 Nothing here moves without an account, a credential or a decision from you. Taken from
 the retired files' own Ed-only sections, minus one they had mis-filed (`#1`, RLS, whose
@@ -3905,7 +3921,9 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [ ] Stripe live-account walkthrough  <sub>from checklist.md, no issue number</sub>
 - [ ] Meta Developer app  <sub>from checklist.md, no issue number</sub>
 - [ ] Deployment env verification  <sub>from checklist.md, no issue number</sub>
-- [ ] Apply the pending Supabase migrations before production rollout  <sub>from checklist.md, no issue number</sub>
+- [ ] Apply the pending Supabase migrations before production rollout — **twelve** files, not four (`node portal/scripts/supabase-schema-status.mjs` lists them; rehearsed in isolation 2026-09-03); needs a CLI login or the database password, backup confirmation and approval of the 52-row `brand_enquiries.agency_id` backfill → [supabase-alignment-2026-09-03](plans/supabase-alignment-2026-09-03.md)  <sub>from checklist.md, no issue number</sub>
+- [ ] Supply `supabase login` (personal access token) or the database password so `migration list --linked`, `db push`, `rls-verify.sql` and the Management API (backups/PITR) can run  <sub>added 2026-09-03</sub>
+- [ ] Set `PORTAL_BACKEND=file` in `.env.local` for local work — without it the portal promotes itself to the Supabase backend and local servers write the production `app_datastores` row (daily writes visible through 2026-09-02)  <sub>added 2026-09-03</sub>
 - [ ] Enable Supabase point-in-time recovery and rehearse one restore before production rollout — no backup/recovery runbook exists in the repository (readiness roadmap §5)  <sub>added 2026-09-03</sub>
 - [ ] DPO sign-off  <sub>from checklist.md, no issue number</sub>
 - [ ] Aqua Tag form-capture consent → [#2](issues.md)

@@ -25,6 +25,17 @@ const { chromium } = require("playwright-core");
 
 const BASE = process.env.AQUA_BASE || "http://127.0.0.1:3171";
 const OUT = process.env.AQUA_OUT || "";
+
+// Playwright's APIRequestContext mis-transmits the 2.6 KB base64 Supabase SSR
+// cookie from its jar, so an authenticated session is rejected on page.request
+// API calls. A verbatim Cookie header round-trips (no-op on the file lane, whose
+// only cookie is the small lk_session_v1). Every page.request below routes here.
+async function withCookie(page) {
+  try {
+    const cookies = await page.context().cookies();
+    return cookies.length ? { cookie: cookies.map(c => `${c.name}=${c.value}`).join("; ") } : {};
+  } catch { return {}; }
+}
 const VIEWPORTS = [[390, 844], [1280, 800]];
 const UPSERT = "/api/portal/phases/upsert";
 const DELETE = "/api/portal/phases/delete";
@@ -154,12 +165,21 @@ async function signIn(page) {
   // An isolated production lane has no `/dev`: its seed mints the session and
   // hands the cookie over as AQUA_SESSION_COOKIE=name=value. Proven against the
   // app before any story runs, exactly like the dev-mode path below.
+  // AQUA_AUTH=login: a Supabase-backed lane refuses a bare portal cookie, so
+  // sign in through the real route with AQUA_LOGIN_EMAIL / AQUA_LOGIN_PASSWORD.
+  if (process.env.AQUA_AUTH === "login") {
+    const response = await page.request.post(`${BASE}/api/auth/login`, { data: { email: process.env.AQUA_LOGIN_EMAIL, password: process.env.AQUA_LOGIN_PASSWORD }, headers: { "content-type": "application/json" } });
+    if (!response.ok()) throw new Error(`login failed: POST /api/auth/login → ${response.status()}`);
+    const me = await page.request.get(`${BASE}/api/auth/me`, { headers: await withCookie(page) });
+    if (me.status() !== 200) throw new Error(`/api/auth/me after login → ${me.status()}`);
+    return me.json();
+  }
   const cookie = process.env.AQUA_SESSION_COOKIE || "";
   if (cookie) {
     const separator = cookie.indexOf("=");
     if (separator <= 0) throw new Error("AQUA_SESSION_COOKIE must be name=value");
     await page.context().addCookies([{ name: cookie.slice(0, separator), value: cookie.slice(separator + 1), url: BASE }]);
-    const me = await page.request.get(`${BASE}/api/auth/me`);
+    const me = await page.request.get(`${BASE}/api/auth/me`, { headers: await withCookie(page) });
     if (me.status() !== 200) throw new Error(`/api/auth/me with AQUA_SESSION_COOKIE → ${me.status()}`);
     return me.json();
   }
@@ -169,7 +189,7 @@ async function signIn(page) {
   const response = await page.goto(`${BASE}/dev`, { waitUntil: "load", timeout: NAV_TIMEOUT });
   if (response && response.status() >= 400) throw new Error(`dev sign-in failed: ${response.status()}`);
   await page.waitForLoadState("networkidle", { timeout: NAV_TIMEOUT }).catch(() => undefined);
-  const me = await page.request.get(`${BASE}/api/auth/me`);
+  const me = await page.request.get(`${BASE}/api/auth/me`, { headers: await withCookie(page) });
   if (me.status() !== 200) throw new Error(`/api/auth/me after sign-in → ${me.status()}`);
   return me.json();
 }
@@ -353,7 +373,7 @@ async function runViewport(browser, width, height) {
     // the route hangs off the dev-mode switch and answers 404 "Not available." on
     // a production build by design. Prove that refusal, then stop: the story's
     // demo-client navigation only exists on a Dev Mode lane.
-    const availability = await page.request.post(`${BASE}${PREVIEW}`, { data: { phaseId }, headers: { "content-type": "application/json" } });
+    const availability = await page.request.post(`${BASE}${PREVIEW}`, { data: { phaseId }, headers: { "content-type": "application/json", ...(await withCookie(page)) } });
     if (availability.status() === 404 && /Not available/.test(await availability.text())) {
       throw notApplicable("production build: preview-as-demo-client is refused 404 \"Not available.\" by the dev-mode switch (canUseDevMode); the demo-client navigation is proven on the Dev Mode lane only");
     }
@@ -361,11 +381,11 @@ async function runViewport(browser, width, height) {
     const card = page.locator(`li[data-phase-id="${phaseId}"]`);
     const preview = card.getByRole("button", { name: /^(Preview as demo client|Starting preview…)$/ });
     await page.evaluate(() => { window.__phaseAdminStay = "stay"; });
-    const before = await (await page.request.get(`${BASE}/api/auth/me`)).json();
+    const before = await (await page.request.get(`${BASE}/api/auth/me`, { headers: await withCookie(page) })).json();
     const stayed = async () => {
       if (!page.url().includes("/portal/agency/phases")) throw new Error(`navigated to ${page.url()}`);
       if ((await page.evaluate(() => window.__phaseAdminStay)) !== "stay") throw new Error("the page reloaded");
-      const me = await (await page.request.get(`${BASE}/api/auth/me`)).json();
+      const me = await (await page.request.get(`${BASE}/api/auth/me`, { headers: await withCookie(page) })).json();
       if (me?.user?.role !== before?.user?.role || me?.user?.email !== before?.user?.email) throw new Error("the session changed on a refusal");
     };
     await withForced(page, PREVIEW, slow(500, { ok: false, error: "private seed detail" }, 1500), async () => {
@@ -408,7 +428,7 @@ async function runViewport(browser, width, height) {
     await preview.click();
     if ((await answered).status() !== 200) throw new Error("the live preview did not answer 200");
     await page.waitForURL(url => url.pathname === "/portal/clients/luv-and-ker-demo" && url.searchParams.get("previewPhase") === phaseId, { timeout: NAV_TIMEOUT });
-    const demo = await (await page.request.get(`${BASE}/api/auth/me`)).json();
+    const demo = await (await page.request.get(`${BASE}/api/auth/me`, { headers: await withCookie(page) })).json();
     if (!/client/.test(String(demo?.user?.role))) throw new Error(`preview did not switch to the demo client: ${JSON.stringify(demo)}`);
     // Back to the operator for the delete story; let the redirect chain settle.
     await signIn(page);

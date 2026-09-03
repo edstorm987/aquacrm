@@ -2,7 +2,7 @@
 
 > Verified findings, independent reviews, browser audits and the testing record.
 >
-> Consolidated 2026-09-03 from **11** source documents / **119,775 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-03 from **11** source documents / **120,197 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -13,8 +13,8 @@
 - [`docs/development/findings/2026-08-22-app-audit-salvage.md`](#source-docs-development-findings-2026-08-22-app-audit-salvage-md) — 1,294 words · `16f6f10e5bc4`
 - [`docs/development/findings/2026-08-22-stripe-can-never-be-configured.md`](#source-docs-development-findings-2026-08-22-stripe-can-never-be-configured-md) — 466 words · `e91f13c8620f`
 - [`docs/development/findings/2026-08-22-surfaces-that-state-a-falsehood.md`](#source-docs-development-findings-2026-08-22-surfaces-that-state-a-falsehood-md) — 892 words · `dfeb4a6302c1`
-- [`docs/development/issues.md`](#source-docs-development-issues-md) — 43,590 words · `a600dff7877a`
-- [`docs/development/tests.md`](#source-docs-development-tests-md) — 15,092 words · `48e2f8866931`
+- [`docs/development/issues.md`](#source-docs-development-issues-md) — 43,710 words · `06a223605bb6`
+- [`docs/development/tests.md`](#source-docs-development-tests-md) — 15,394 words · `36625f45df16`
 - [`docs/development/ultra-review-2026-08-24.md`](#source-docs-development-ultra-review-2026-08-24-md) — 15,503 words · `6725e738af21`
 - [`docs/development/visual-browser-audit-2026-08-23.md`](#source-docs-development-visual-browser-audit-2026-08-23-md) — 3,582 words · `3ee9b61d74e3`
 
@@ -2001,7 +2001,7 @@ _Captured from the Dev Team portal. Findings are the input side: review them, tu
 
 ## Source document — `docs/development/issues.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/issues.md" sha256="a600dff7877aed764d76beeb39fdc219f7d32223941a132781b08a9b31b986be" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/issues.md" sha256="06a223605bb6fd0ef762ba551849e19c4461fcc1572246fdc402808fcf0cabf6" -->
 # Issues & risks
 
 ← Back to [development.md](../development.md) (the law)
@@ -2026,6 +2026,8 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
 
 ## 🔴 Security / compliance (from verified source reads)
 1. **Database RLS — live and version-controlled; engineering residue remains.** **CORRECTED 2026-08-23:** RLS is ON in the live project (verified 2026-08-20 across 14 tables with the public anon key), and its policies exist in 16 migrations under `aquaCRM/supabase/migrations/`. Pending migrations still need production application. The real gaps are narrower: `brand_enquiries` has no `agency_id`, and admin/service-role paths bypass RLS, so their current count and app-code tenant scoping must be audited before claiming database-enforced isolation. See [rls-enable](plans/rls-enable.md) and [database.md](../workspace/database.md).
+
+    *2026-09-03:* live anon posture re-probed read-only (0 rows on every private table, `401` on `app_datastore_history`, the three public tables public by design); the live schema is eleven migrations behind the repo, so the agency-scoped `brand_enquiries` policy is not live yet. Grants were found to be inherited from cloud defaults rather than written: `20260903120000_explicit_service_role_grants.sql` states them. Storage object policies and `rls_auto_enable()` need SQL access to verify.
 2. **Aqua Tag form-content capture is NOT consent-gated.** Telemetry is double-gated on cookie consent; the field-value POST to `/api/public/form-capture` is not (and the server route has no consent check). A visitor who declined cookies still has their submitted enquiry fields captured. **Action: a deliberate compliance decision** — legitimate-interest (they submitted a form) vs. gate it. (See [aqua-tag.md](../workspace/aqua-tag.md) finding A.)
 3. **Consent flags are self-reported** — the telemetry server trusts the `consent*` booleans the tag sends; no server-side source of truth ties them to the stored preference.
 22. **✅ RESOLVED 2026-08-27 — central session revocation is enforced on every
@@ -4764,6 +4766,8 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
 
     *2026-09-03 acceptance:* commit 0578ddb added the database-native claim boundary (`enquirySubmissionClaims.ts`, `enquirySubmissionDelivery.ts`) and migration `20260902093000_aqua_tag_submission_delivery.sql`. Source-verified; the migration is unapplied to live PostgreSQL, so cross-process claim acceptance there is NOT TESTED.
 
+    *2026-09-03 isolated PostgreSQL proof:* `20260902093000` applied in order and re-ran cleanly on a local Supabase stack, and `smoke-aqua-tag-ingestion-live-postgres` now runs against a full schema (its fixture named `brand_slug: null`, which the real NOT NULL/foreign-key column refuses; the app always supplies a slug). Live application remains BLOCKED on credentials, backup confirmation and approval — see `plans/supabase-alignment-2026-09-03.md`.
+
 88. **PARTIALLY RESOLVED 2026-09-01 — Dev Team cross-process accepted writes and
     document/ledger process-death recovery now survive; one direct-writer race remains.**
     A shared `devFileTransaction` uses a
@@ -6211,7 +6215,7 @@ Keep the item's number, other docs link to it._
 
 ## Source document — `docs/development/tests.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/tests.md" sha256="48e2f886693133138cfd5e8c9170ec0c00dbf992d159239429a29762d1aff71d" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/tests.md" sha256="36625f45df16707dbe7d6aed873c4697247fccaa14f144abc1a50b14ea756e53" -->
 # Tests
 
 ← Back to [development.md](../development.md) (the law)
@@ -6243,6 +6247,22 @@ conditions. `PORTAL_BACKEND=memory` keeps stateful tests off the live sandbox.
 > subsequent Website Editor gate passed **49/49 files in 9.3s**. The browser/build
 > evidence below is local or isolated-production evidence, not deployed-provider,
 > cold-machine or broad mounted-human acceptance.
+
+## 2026-09-03 Supabase alignment evidence (isolated stack; live untouched)
+
+- Read-only live reconciliation: `node scripts/supabase-schema-status.mjs` → 39 drift rows on
+  `dghzbsxbdatskserctgt` (10 tables, 26 functions, 3 columns missing; `rls_auto_enable` live-only;
+  8/8 buckets match). Pinned by `smoke-supabase-schema-status.test.ts` **4/4**.
+- Isolated rehearsal (Docker `supabase start`, Postgres 17): all 26 migrations in order on an empty
+  database; reset to the live level + synthetic seed → `migration up` applied 13 in order; backfill
+  52/52; twelve pending files re-run verbatim OK; RPC contract probes OK; `rls-verify.sql` 51 INFO /
+  0 FAIL / 0 WARN. Local `supabase migration up` also applied `20260903120000` (27 versions).
+- `smoke-aqua-tag-ingestion-live-postgres` against the local disposable database: **7/7**, including the cross-process exclusivity, fencing-token and crash-recovery subtests (a harness `cwd` bug that percent-encoded the repo path's space was fixed).
+- Application against the local stack (build `DesSeQbMISHb8r-__I6_q`, `PORTAL_BACKEND=supabase`,
+  `INBOX_STORAGE_BACKEND=supabase`, `aquacrm-uploads` bucket): Release gate **163/163** (roles 18, radar 10, calendar 12, tools 12, newsletter 3, layout 108), house matrix **1169/0** (157 observations), Notepad/Finance/loader **77/77**, Phase Admin **10/10** (2 N/A, production preview refusal) — all against `PORTAL_BACKEND=supabase` pointed at the local stack. Personas signed in through the real `/api/auth/login` (the Supabase identity cross-check correctly refuses an HMAC-only cookie; end-customers keep their HMAC session as production does); the newsletter facade proved full tenant isolation (owner read 200, anonymous 401, sales-seat staff 403, other client 404). Harness note: Playwright's APIRequestContext mis-transmits the 2.6 KB base64 Supabase SSR cookie, so the gates now send a verbatim Cookie header on API sub-requests (a no-op on the file lane). The live production project was never contacted (0 supabase.co mentions) and its `app_datastores` rows were byte-identical before and after.
+- Repo-side: `smoke-rls-policy-coverage` 9/9 with the new grants migration.
+- What this is not: live PostgreSQL/RLS/storage-policy verification, backup or PITR verification,
+  or live provider evidence — all BLOCKED on Ed's credentials (`plans/supabase-alignment-2026-09-03.md` §7).
 
 ## 2026-09-03 release-baseline acceptance on the integrated main
 

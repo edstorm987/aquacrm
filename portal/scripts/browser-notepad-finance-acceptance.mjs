@@ -447,7 +447,25 @@ const sessionCookie = (seed, base) => ({
   sameSite: "Lax",
 });
 
+// AQUA_AUTH=login: sign in once through the real /api/auth/login (a
+// Supabase-backed lane refuses a bare portal cookie by design) and reuse the
+// storage state; otherwise attach the seed's HMAC session as before.
+let loginState = null;
 async function openContext(browser, seed, base, viewport, extra = {}) {
+  if (process.env.AQUA_AUTH === "login") {
+    if (!loginState) {
+      const email = seed.users?.owner?.email ?? seed.loginEmail;
+      const password = seed.users?.owner?.password ?? seed.loginPassword;
+      if (!email || !password) throw new Error("AQUA_AUTH=login needs users.owner.email/password in the seed");
+      const bootstrap = await browser.newContext();
+      try {
+        const response = await bootstrap.request.post(`${base}/api/auth/login`, { data: { email, password }, headers: { "content-type": "application/json" } });
+        if (!response.ok()) throw new Error(`login failed: POST /api/auth/login → ${response.status()}`);
+        loginState = await bootstrap.storageState();
+      } finally { await bootstrap.close(); }
+    }
+    return browser.newContext({ viewport: { width: viewport.width, height: viewport.height }, acceptDownloads: true, storageState: loginState, ...extra });
+  }
   const context = await browser.newContext({ viewport: { width: viewport.width, height: viewport.height }, acceptDownloads: true, ...extra });
   await context.addCookies([sessionCookie(seed, base)]);
   return context;
@@ -555,8 +573,17 @@ async function indicatorText(page) {
   });
 }
 
+// Verbatim Cookie header so Playwright's APIRequestContext transmits the large
+// base64 Supabase SSR cookie intact (no-op on the file lane's small cookie).
+async function requestCookie(page) {
+  try {
+    const cookies = await page.context().cookies();
+    return cookies.length ? { cookie: cookies.map(c => `${c.name}=${c.value}`).join("; ") } : {};
+  } catch { return {}; }
+}
+
 async function serverNotes(page, base) {
-  const response = await page.request.get(`${base}${NOTEPAD_API}`);
+  const response = await page.request.get(`${base}${NOTEPAD_API}`, { headers: await requestCookie(page) });
   assert(response.status() === 200, `GET ${NOTEPAD_API} → ${response.status()}`);
   const json = await response.json();
   return json.notes;
@@ -908,13 +935,13 @@ async function saveForm(page, anchorLabel, expectedStatus) {
 }
 
 async function serverSettings(page, base) {
-  const response = await page.request.get(`${base}/api/portal/settings`);
+  const response = await page.request.get(`${base}/api/portal/settings`, { headers: await requestCookie(page) });
   assert(response.status() === 200, `GET /api/portal/settings → ${response.status()}`);
   return (await response.json()).settings;
 }
 
 async function serverInvoices(page, base) {
-  const response = await page.request.get(`${base}${FINANCE_API}/invoices`);
+  const response = await page.request.get(`${base}${FINANCE_API}/invoices`, { headers: await requestCookie(page) });
   assert(response.status() === 200, `GET ${FINANCE_API}/invoices → ${response.status()}`);
   const json = await response.json();
   return json.invoices ?? json.items ?? json.data ?? [];

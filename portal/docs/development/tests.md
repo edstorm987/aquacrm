@@ -30,6 +30,22 @@ conditions. `PORTAL_BACKEND=memory` keeps stateful tests off the live sandbox.
 > evidence below is local or isolated-production evidence, not deployed-provider,
 > cold-machine or broad mounted-human acceptance.
 
+## 2026-09-03 Supabase alignment evidence (isolated stack; live untouched)
+
+- Read-only live reconciliation: `node scripts/supabase-schema-status.mjs` → 39 drift rows on
+  `dghzbsxbdatskserctgt` (10 tables, 26 functions, 3 columns missing; `rls_auto_enable` live-only;
+  8/8 buckets match). Pinned by `smoke-supabase-schema-status.test.ts` **4/4**.
+- Isolated rehearsal (Docker `supabase start`, Postgres 17): all 26 migrations in order on an empty
+  database; reset to the live level + synthetic seed → `migration up` applied 13 in order; backfill
+  52/52; twelve pending files re-run verbatim OK; RPC contract probes OK; `rls-verify.sql` 51 INFO /
+  0 FAIL / 0 WARN. Local `supabase migration up` also applied `20260903120000` (27 versions).
+- `smoke-aqua-tag-ingestion-live-postgres` against the local disposable database: **7/7**, including the cross-process exclusivity, fencing-token and crash-recovery subtests (a harness `cwd` bug that percent-encoded the repo path's space was fixed).
+- Application against the local stack (build `DesSeQbMISHb8r-__I6_q`, `PORTAL_BACKEND=supabase`,
+  `INBOX_STORAGE_BACKEND=supabase`, `aquacrm-uploads` bucket): Release gate **163/163** (roles 18, radar 10, calendar 12, tools 12, newsletter 3, layout 108), house matrix **1169/0** (157 observations), Notepad/Finance/loader **77/77**, Phase Admin **10/10** (2 N/A, production preview refusal) — all against `PORTAL_BACKEND=supabase` pointed at the local stack. Personas signed in through the real `/api/auth/login` (the Supabase identity cross-check correctly refuses an HMAC-only cookie; end-customers keep their HMAC session as production does); the newsletter facade proved full tenant isolation (owner read 200, anonymous 401, sales-seat staff 403, other client 404). Harness note: Playwright's APIRequestContext mis-transmits the 2.6 KB base64 Supabase SSR cookie, so the gates now send a verbatim Cookie header on API sub-requests (a no-op on the file lane). The live production project was never contacted (0 supabase.co mentions) and its `app_datastores` rows were byte-identical before and after.
+- Repo-side: `smoke-rls-policy-coverage` 9/9 with the new grants migration.
+- What this is not: live PostgreSQL/RLS/storage-policy verification, backup or PITR verification,
+  or live provider evidence — all BLOCKED on Ed's credentials (`plans/supabase-alignment-2026-09-03.md` §7).
+
 ## 2026-09-03 release-baseline acceptance on the integrated main
 
 Fresh exact production build bCDk8GQ5KJFAZVYNDvwvq (webpack, compiled in 87s, TypeScript 44s, 246/246 static pages in 522ms) served by `next start` on a

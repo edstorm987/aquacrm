@@ -247,6 +247,22 @@ review-and-seed screen. His answers on what transfers are recorded verbatim in
 
 ### Latest trustworthy evidence
 
+*3 September 2026 — Supabase alignment.* The one Supabase project (`dghzbsxbdatskserctgt`, eu-west-1)
+is development, staging AND production — there is no second project — and the LIVE schema is **eleven
+migrations behind the repository** (`node portal/scripts/supabase-schema-status.mjs`, read-only), so the
+current build cannot hydrate against it. Every live probe was a GET/HEAD or PostgREST OpenAPI read with
+the service-role key; nothing live was changed (byte-identical before/after). All 26+1 migrations were
+rehearsed on an isolated local stack (Docker): ordered apply, the 52-row `brand_enquiries.agency_id`
+backfill, idempotency, clean `rls-verify.sql` (51 INFO/0 FAIL), the cross-process Aqua Tag proof 7/7, and
+the full browser suite against `PORTAL_BACKEND=supabase` (release 163/163, matrix 1169/0, Notepad/Finance
+77/77, Phase Admin 10/10). One new migration was added — `20260903120000_explicit_service_role_grants.sql`
+(the older tables inherited cloud default grants and would 42501 on a rebuilt project). **Live `db push`,
+backups/PITR, account reconciliation and the `agency_id` backfill are BLOCKED on Ed's CLI login/DB
+password and approval.** Full register + recovery runbook:
+`docs/development/plans/supabase-alignment-2026-09-03.md`. **Local hazard:** with `.env.local` loaded and
+no `PORTAL_BACKEND`, the portal promotes itself to the Supabase backend and writes the production state
+row — set `PORTAL_BACKEND=file` for local work.
+
 *3 September 2026 — release baseline.* The integrated `main` (six worker lanes, My Tools
 folders/icons, the personal/business Radar split with linked Calendar records) was built
 fresh as an exact production dist and every browser gate ran against it on isolated lanes:

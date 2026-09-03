@@ -2,7 +2,7 @@
 
 > The append-only change record, dated handoffs and superseded historical summaries.
 >
-> Consolidated 2026-09-03 from **18** source documents / **135,126 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-03 from **18** source documents / **135,799 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -23,7 +23,7 @@
 - [`docs/context/archive/website-editor-and-migration.md`](#source-docs-context-archive-website-editor-and-migration-md) — 1,159 words · `235e8af731b6`
 - [`docs/context/archive/WHERE-WE-ARE-2026-08-18.md`](#source-docs-context-archive-where-we-are-2026-08-18-md) — 2,192 words · `4056e9a347cb`
 - [`docs/context/archive/WHERE-WE-STAND-2026-08-20.md`](#source-docs-context-archive-where-we-stand-2026-08-20-md) — 2,482 words · `26bf4442580e`
-- [`docs/development/updates.md`](#source-docs-development-updates-md) — 104,970 words · `e0e4e97bbb3c`
+- [`docs/development/updates.md`](#source-docs-development-updates-md) — 105,643 words · `80212be25188`
 
 ---
 
@@ -3318,7 +3318,7 @@ Being straight with you about the edges.
 
 ## Source document — `docs/development/updates.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="e0e4e97bbb3c6d0a14e384a2784ee17e947a5f8007b29e54957b456d86d3d2ad" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="80212be25188324c0abd3053fb2d77eebb84f888d42f0ffad2c51b08ef183bcb" -->
 # Updates log
 
 ← Back to [development.md](../development.md) (the law)
@@ -3354,6 +3354,53 @@ map stays trustworthy.
 > If you ship something, log it.
 
 ---
+
+## 2026-09-03 — Supabase alignment: read-only reconciliation, isolated rehearsal, explicit grants; live application blocked on Ed
+
+- **One project, and it is production.** Every reference (`.env.local`, the Dev Team Vercel env,
+  the CLI link, the README) names `dghzbsxbdatskserctgt` (eu-west-1). No development or staging
+  project exists. It holds real data. No credential that allows SQL or `db push` is present
+  locally (no database password, no CLI login), so every live probe was a GET/HEAD or the PostgREST
+  OpenAPI document with the service-role key; **nothing live was changed**.
+- **The live schema stopped at 2026-08-09 (plus one function applied out of order on 08-26).**
+  New read-only tool `scripts/supabase-schema-status.mjs` (pinned by
+  `smoke-supabase-schema-status.test.ts` 4/4) reports 39 drift rows: 10 of 22 tables missing, 26
+  functions missing or with the old signature, 3 columns missing, `rls_auto_enable()` live-only,
+  all 8 buckets present and matching. **Eleven migrations are unapplied, not the four the readiness
+  roadmap recorded** — and the current code's Supabase write and hydrate paths call functions that
+  do not exist live (`apply_app_datastore_patch` 3-arg, `apply_app_datastore_patch_with_sidecars`,
+  `load_app_datastore_with_sidecars`), so a deployment of this build against the live project would
+  fail on first hydrate. The full register, environment ownership and recovery runbook are in
+  [`plans/supabase-alignment-2026-09-03.md`](plans/supabase-alignment-2026-09-03.md).
+- **Isolated rehearsal (local Supabase stack via Docker).** All 26 migrations apply in order on an
+  empty database. Reset to the exact live level with a synthetic seed shaped like the live
+  distribution (52 enquiries, 50 without `metadata.agencyId`), the CLI applied the 13 remaining
+  files in order; the only data transformation (`brand_enquiries.agency_id` backfill) stamped 52/52
+  rows `milesymedia` with totals and `consent=false` rows unchanged; the trigger keeps new rows
+  stamped; all twelve pending SQL files re-ran verbatim without error; the receipt-deduplicated
+  patch, atomic sidecar patch, coherent load and lease claim/renew/release contracts behaved;
+  `rls-verify.sql` reported 51 INFO / 0 FAIL / 0 WARN after its known-table list learned the four
+  newer tables.
+- **Two findings, both fixed in the repo.** (1) `smoke-aqua-tag-ingestion-live-postgres` inserted
+  enquiries with `brand_slug: null`, which only its own scaffold allowed; on the real schema five of
+  seven subtests failed — the fixture now names a real brand (the app always supplies one).
+  (2) The tables created before 2026-08-23 never granted anything themselves and rely on the cloud
+  project's default privileges; on a rebuilt or local project the service role answers `42501` on
+  `app_datastores`. `20260903120000_explicit_service_role_grants.sql` writes the intended posture
+  down (no-op where the grants exist), and the repo RLS coverage smoke still passes.
+- **Application against Supabase (local stack, production build `DesSeQbMISHb8r-__I6_q`, every
+  Supabase variable pointed at 127.0.0.1:54321 so nothing could reach the live project).** The lane
+  seed wrote through the portal's own storage layer (`claim/release_product_workspace_lease`,
+  `load_app_datastore_with_sidecars`, the receipt patch) and the live project's `app_datastores`
+  rows were unchanged before and after. Release gate **163/163** (roles 18, radar 10, calendar 12, tools 12, newsletter 3, layout 108), house matrix **1169/0** (157 observations), Notepad/Finance/loader **77/77**, Phase Admin **10/10** (2 N/A, production preview refusal) — all against `PORTAL_BACKEND=supabase` pointed at the local stack. Personas signed in through the real `/api/auth/login` (the Supabase identity cross-check correctly refuses an HMAC-only cookie; end-customers keep their HMAC session as production does); the newsletter facade proved full tenant isolation (owner read 200, anonymous 401, sales-seat staff 403, other client 404). Harness note: Playwright's APIRequestContext mis-transmits the 2.6 KB base64 Supabase SSR cookie, so the gates now send a verbatim Cookie header on API sub-requests (a no-op on the file lane). The live production project was never contacted (0 supabase.co mentions) and its `app_datastores` rows were byte-identical before and after.
+- **Not done, and why.** Backups/PITR are NOT VERIFIED (Management API needs Ed's token); live
+  `db push`, `migration list --linked`, `rls-verify.sql` on live, storage-policy verification and
+  the `rls_auto_enable()` export are BLOCKED on a CLI login or the database password; the
+  `agency_id` backfill needs Ed's approval; account reconciliation (1 locked-out portal user, 2
+  Auth users without portal record) is Ed's; the Team Chat gate was not run on the Supabase lane
+  (it needs its own minimal seed on a second realm).
+- Reconciled [TODO](TODO.md), [issues](issues.md) #1/#87, [status](status.md), [tests](tests.md),
+  the readiness roadmap §1/§5/§6, `supabase/README.md` and the CLAUDE.md brief.
 
 ## 2026-09-03 — Release baseline: fresh-build acceptance of the integrated main, four contrast fixes, one focus fix
 

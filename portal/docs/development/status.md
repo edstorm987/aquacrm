@@ -16,6 +16,14 @@
 > actually deployed then; a later local build or GitHub push is not by itself a
 > new Vercel deployment.
 >
+> **2026-09-03 Supabase alignment:** the one Supabase project (`dghzbsxbdatskserctgt`) is
+> production and is **eleven migrations behind the repository** (plus one grants migration added
+> today); the current build cannot hydrate against it. Read-only drift tool
+> `scripts/supabase-schema-status.mjs`; isolated rehearsal on a local stack proved ordered
+> application, the 52-row `agency_id` backfill, idempotency and a clean RLS audit; the portal ran
+> its gates against the local stack (release 163/163, matrix 1169/0, Notepad/Finance 77/77, Phase Admin 10/10; the live production project was untouched and byte-identical before/after). Live application, backups/PITR and
+> account reconciliation are BLOCKED on Ed — `plans/supabase-alignment-2026-09-03.md`.
+>
 > **2026-09-03 release baseline (integrated main, fresh exact build bCDk8GQ5KJFAZVYNDvwvq):** house
 > matrix 1326 checks: 1171 passed / 0 failed / 155 evidenced observations / 0 missing; release gate 163 stories: 163 passed / 0 failed / 0 missing (roles 18/18, radar 10/10, calendar 12/12, tools 12/12, newsletter 3/3, layout 108/108) (roles/gates, personal-vs-business Radar,
 > Calendar linked records, My Tools folders/icons, newsletter facade, 12 pages × 9 viewports);

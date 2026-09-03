@@ -20,6 +20,7 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { after, before, describe, it } from "node:test";
 
 const url = process.env.AQUA_TAG_DISPOSABLE_DATABASE_URL?.trim() ?? "";
@@ -51,9 +52,14 @@ type Pg = typeof import("pg");
 let pg: Pg;
 let pool: import("pg").Pool;
 let scaffoldedEnquiries = false;
+// The real `brand_enquiries.brand_slug` is NOT NULL with a foreign key to
+// `brands(slug)` (20260731131500). On a full-schema target the fixture must
+// therefore name a real brand; on the bare scaffold the value is inert.
+const BRAND_SLUG = "aqua-tag-rehearsal-brand";
+let scaffoldedBrand = false;
 
 const enquiryRow = (overrides: Record<string, unknown> = {}) => ({
-  brand_slug: null,
+  brand_slug: BRAND_SLUG,
   name: "Taylor",
   email: "taylor@example.test",
   phone: null,
@@ -128,7 +134,7 @@ function claimInProcess(owner: string, id: string, options: { leaseMs?: number; 
   `;
   return new Promise((resolveChild, rejectChild) => {
     const child = spawn(process.execPath, ["-e", script], {
-      cwd: new URL("..", import.meta.url).pathname,
+      cwd: fileURLToPath(new URL("..", import.meta.url)),
       env: {
         ...process.env,
         OWNER: owner, SUBMISSION: id, SCOPE, LEASE_MS: String(options.leaseMs ?? 90_000),
@@ -166,6 +172,14 @@ describe("Aqua Tag ingestion migration on a disposable PostgreSQL", { skip: skip
         consent boolean not null default false, agency_id text, metadata jsonb not null default '{}'::jsonb,
         created_at timestamptz not null default now())`);
     }
+    const { rows: brands } = await pool.query("select to_regclass('public.brands') as existing");
+    if (brands[0].existing) {
+      const { rowCount } = await pool.query(
+        "insert into public.brands (slug, name) values ($1, $2) on conflict (slug) do nothing",
+        [BRAND_SLUG, "Aqua Tag rehearsal brand"],
+      );
+      scaffoldedBrand = rowCount === 1;
+    }
     await pool.query(MIGRATION);
     await pool.query(MIGRATION); // applying twice must be a no-op
   });
@@ -180,6 +194,7 @@ describe("Aqua Tag ingestion migration on a disposable PostgreSQL", { skip: skip
     await pool.query("drop function if exists public.aqua_tag_merge_facts(jsonb, jsonb)");
     await pool.query("drop table if exists public.aqua_tag_submissions");
     if (scaffoldedEnquiries) await pool.query("drop table if exists public.brand_enquiries");
+    if (scaffoldedBrand) await pool.query("delete from public.brands where slug = $1", [BRAND_SLUG]).catch(() => undefined);
     await pool.end();
   });
 

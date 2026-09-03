@@ -17,7 +17,7 @@ remains the backing store. This file is the index over it.
 
 ---
 
-## 🔒 Blocked on you — 11
+## 🔒 Blocked on you — 13
 
 Nothing here moves without an account, a credential or a decision from you. Taken from
 the retired files' own Ed-only sections, minus one they had mis-filed (`#1`, RLS, whose
@@ -28,7 +28,9 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [ ] Stripe live-account walkthrough  <sub>from checklist.md, no issue number</sub>
 - [ ] Meta Developer app  <sub>from checklist.md, no issue number</sub>
 - [ ] Deployment env verification  <sub>from checklist.md, no issue number</sub>
-- [ ] Apply the pending Supabase migrations before production rollout  <sub>from checklist.md, no issue number</sub>
+- [ ] Apply the pending Supabase migrations before production rollout — **twelve** files, not four (`node portal/scripts/supabase-schema-status.mjs` lists them; rehearsed in isolation 2026-09-03); needs a CLI login or the database password, backup confirmation and approval of the 52-row `brand_enquiries.agency_id` backfill → [supabase-alignment-2026-09-03](plans/supabase-alignment-2026-09-03.md)  <sub>from checklist.md, no issue number</sub>
+- [ ] Supply `supabase login` (personal access token) or the database password so `migration list --linked`, `db push`, `rls-verify.sql` and the Management API (backups/PITR) can run  <sub>added 2026-09-03</sub>
+- [ ] Set `PORTAL_BACKEND=file` in `.env.local` for local work — without it the portal promotes itself to the Supabase backend and local servers write the production `app_datastores` row (daily writes visible through 2026-09-02)  <sub>added 2026-09-03</sub>
 - [ ] Enable Supabase point-in-time recovery and rehearse one restore before production rollout — no backup/recovery runbook exists in the repository (readiness roadmap §5)  <sub>added 2026-09-03</sub>
 - [ ] DPO sign-off  <sub>from checklist.md, no issue number</sub>
 - [ ] Aqua Tag form-capture consent → [#2](issues.md)

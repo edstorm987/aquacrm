@@ -226,14 +226,51 @@ class Monitor {
   }
 }
 
+// ── Two ways to become a persona ──────────────────────────────────────────
+//
+// cookie (default): attach the seed's HMAC session. Right for a file-backend
+// lane, where the portal cookie is the whole identity.
+//
+// login (AQUA_AUTH=login): sign in ONCE per persona through the real
+// /api/auth/login and reuse that browser storage state for every later context.
+// Required on a Supabase-backed lane, where `getSession()` also demands the
+// Supabase auth cookies the login route sets — a bare portal cookie is refused
+// there by design. Once per persona keeps a run under the login rate limit
+// (10 per minute per address), exactly as the house matrix does.
+const AUTH_MODE = process.env.AQUA_AUTH === "login" ? "login" : "cookie";
+const personaStates = new Map();
+const HMAC_ONLY_PERSONAS = new Set(["endCustomer"]);
+
+async function personaStorageState(browser, persona) {
+  if (personaStates.has(persona)) return personaStates.get(persona);
+  const user = SEED.users[persona];
+  if (!user?.password) throw new Error(`AQUA_AUTH=login needs a password for persona "${persona}" in the seed`);
+  const context = await browser.newContext();
+  try {
+    const response = await context.request.post(`${BASE}/api/auth/login`, { data: { email: user.email, password: user.password }, headers: { "content-type": "application/json" } });
+    if (!response.ok()) throw new Error(`login failed for ${persona}: POST /api/auth/login → ${response.status()}`);
+    const cookies = await context.cookies();
+    const cookie = cookies.map(c => `${c.name}=${c.value}`).join("; ");
+    const me = await context.request.get(`${BASE}/api/auth/me`, { headers: { cookie } });
+    if (me.status() !== 200) throw new Error(`login for ${persona} did not yield a session (/api/auth/me → ${me.status()})`);
+    const state = await context.storageState();
+    personaStates.set(persona, state);
+    return state;
+  } finally { await context.close(); }
+}
+
 async function openContext(browser, viewport, persona, extra = {}) {
+  const useHmacCookie = persona && (AUTH_MODE === "cookie" || HMAC_ONLY_PERSONAS.has(persona));
+  const storageState = persona && AUTH_MODE === "login" && !HMAC_ONLY_PERSONAS.has(persona)
+    ? await personaStorageState(browser, persona) : undefined;
   const context = await browser.newContext({
     viewport: { width: viewport.width, height: viewport.height },
     deviceScaleFactor: viewport.scale ?? 1,
     reducedMotion: "no-preference",
+    ...(storageState ? { storageState } : {}),
     ...extra,
   });
-  if (persona) {
+  if (useHmacCookie) {
     await context.addCookies(loopbackBases().map(url => ({ name: "lk_session_v1", value: SEED.users[persona].token, url })));
   }
   const page = await context.newPage();
@@ -285,8 +322,25 @@ async function story({ group, id, name, viewport, page, monitor, run, observatio
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
 function pathOf(page) { const u = new URL(page.url()); return u.pathname + u.search; }
+// Playwright's APIRequestContext (page.request/context.request) URL-normalises
+// cookie values from its jar and mis-transmits the 2.6 KB base64 Supabase SSR
+// auth cookie, so a page-authenticated session is rejected on API sub-requests
+// (`/api/auth/me` 401 while the page renders fine). A verbatim Cookie header —
+// exactly what the browser and curl send — round-trips. On the file lane the
+// only cookie is the small `lk_session_v1`, so this is a no-op there.
+async function rawCookieHeader(page) {
+  try {
+    const cookies = await page.context().cookies();
+    return cookies.length ? cookies.map(c => `${c.name}=${c.value}`).join("; ") : undefined;
+  } catch { return undefined; }
+}
 async function api(page, method, path, body) {
-  const response = await page.request.fetch(`${BASE}${path}`, { method, headers: body ? { "content-type": "application/json" } : {}, data: body ? JSON.stringify(body) : undefined });
+  const cookie = await rawCookieHeader(page);
+  const response = await page.request.fetch(`${BASE}${path}`, {
+    method,
+    headers: { ...(body ? { "content-type": "application/json" } : {}), ...(cookie ? { cookie } : {}) },
+    data: body ? JSON.stringify(body) : undefined,
+  });
   const text = await response.text();
   let json = null; try { json = JSON.parse(text); } catch { /* not json */ }
   return { status: response.status(), json, text };
@@ -305,6 +359,7 @@ async function activeElementInfo(page) {
     return {
       tag: el.tagName.toLowerCase(),
       label: (el.getAttribute("aria-label") || el.getAttribute("title") || el.textContent || "").trim().slice(0, 80),
+      title: (el.getAttribute("title") || "").trim(),
       inDialog: Boolean(el.closest("[role=dialog]")),
       id: el.id,
     };
@@ -578,8 +633,8 @@ async function popoverContract(page, button, dialog, presses = 6) {
   await page.keyboard.press("Escape");
   await dialog.waitFor({ state: "hidden", timeout: 5_000 });
   const after = await activeElementInfo(page);
-  const restored = after.label === label || after.label === title;
-  return { walk: inside, restored, after: after.label };
+  const restored = (title && after.title === title) || after.label === label || after.label === title;
+  return { walk: inside, restored, after: after.title || after.label };
 }
 
 async function runRadarStories(browser, viewport) {
@@ -979,7 +1034,7 @@ async function runToolsStories(browser, viewport) {
         return "N/A on a production lane without a private-upload provider: upload refused with \"Private file storage is not connected…\", announced in the editor, prepared icon kept until undone, no iconAsset written (fail-closed); bytes are proven by smoke-my-tools-icon-route";
       }
       providerRefusal();
-      const icon = await page.request.get(`${BASE}/api/portal/chrome/tools/${toolId}/icon?v=${asset.uploadedAt}`);
+      const icon = await page.request.get(`${BASE}/api/portal/chrome/tools/${toolId}/icon?v=${asset.uploadedAt}`, { headers: { cookie: (await rawCookieHeader(page)) ?? "" } });
       assert(icon.status() === 200 && /^image\//.test(icon.headers()["content-type"] ?? ""), `icon route → ${icon.status()} ${icon.headers()["content-type"]}`);
       const cacheControl = icon.headers()["cache-control"] ?? "";
       return `icon uploaded (${asset.contentType}, ${asset.size} bytes, ${asset.storageProvider}); icon route 200 ${icon.headers()["content-type"]}; cache-control "${cacheControl}"`;
@@ -1058,7 +1113,7 @@ async function runToolsStories(browser, viewport) {
       assert(!layout.savedTools.some(t => t.id === toolId), "tool still saved after removal");
       assert((await page.locator("a.mm-tool-card", { hasText: toolLabel }).count()) === 0, "card still rendered after removal");
       const refusal = monitor.expectStatus(`/api/portal/chrome/tools/${toolId}/icon`, [404, 410]);
-      const icon = await page.request.get(`${BASE}/api/portal/chrome/tools/${toolId}/icon`);
+      const icon = await page.request.get(`${BASE}/api/portal/chrome/tools/${toolId}/icon`, { headers: { cookie: (await rawCookieHeader(page)) ?? "" } });
       refusal();
       return `tool removed; record gone; icon route now ${icon.status()}`;
     } });
@@ -1269,7 +1324,7 @@ async function main() {
   await mkdir(ARTEFACTS, { recursive: true });
   const startedAt = new Date().toISOString();
   const { browser, note } = await launchBrowser();
-  console.log(`\n=== Release acceptance @ ${BASE} ===\n${note}\nrun ${RUN}; groups ${[...GROUPS].join(",")}\n`);
+  console.log(`\n=== Release acceptance @ ${BASE} ===\n${note}\nrun ${RUN}; groups ${[...GROUPS].join(",")}; auth=${AUTH_MODE}\n`);
   const required = requiredKeys();
   try {
     for (const viewport of storyViewports()) {

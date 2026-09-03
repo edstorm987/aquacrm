@@ -228,6 +228,10 @@ test("only the plans that genuinely have no phases yield none", async () => {
     // unstarted work on the roadmap as if it were in flight.
     "production-readiness-roadmap-2026-09-03",
     "product-roadmap-2026-09",
+    // The Supabase alignment register (2026-09-03): a drift/rehearsal/runbook
+    // document, not queued phased work — its sections are "1. Environments",
+    // "2. Drift register", etc., never "## Phase N".
+    "supabase-alignment-2026-09-03",
     "advisor-omega-upgrade",
     "aqua-engine-and-dev-team-plugin",
     // An IDEA, recorded deliberately unstarted (2026-08-29). Ed's reasoning is

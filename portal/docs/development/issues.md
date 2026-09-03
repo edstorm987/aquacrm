@@ -22,6 +22,8 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
 
 ## 🔴 Security / compliance (from verified source reads)
 1. **Database RLS — live and version-controlled; engineering residue remains.** **CORRECTED 2026-08-23:** RLS is ON in the live project (verified 2026-08-20 across 14 tables with the public anon key), and its policies exist in 16 migrations under `aquaCRM/supabase/migrations/`. Pending migrations still need production application. The real gaps are narrower: `brand_enquiries` has no `agency_id`, and admin/service-role paths bypass RLS, so their current count and app-code tenant scoping must be audited before claiming database-enforced isolation. See [rls-enable](plans/rls-enable.md) and [database.md](../workspace/database.md).
+
+    *2026-09-03:* live anon posture re-probed read-only (0 rows on every private table, `401` on `app_datastore_history`, the three public tables public by design); the live schema is eleven migrations behind the repo, so the agency-scoped `brand_enquiries` policy is not live yet. Grants were found to be inherited from cloud defaults rather than written: `20260903120000_explicit_service_role_grants.sql` states them. Storage object policies and `rls_auto_enable()` need SQL access to verify.
 2. **Aqua Tag form-content capture is NOT consent-gated.** Telemetry is double-gated on cookie consent; the field-value POST to `/api/public/form-capture` is not (and the server route has no consent check). A visitor who declined cookies still has their submitted enquiry fields captured. **Action: a deliberate compliance decision** — legitimate-interest (they submitted a form) vs. gate it. (See [aqua-tag.md](../workspace/aqua-tag.md) finding A.)
 3. **Consent flags are self-reported** — the telemetry server trusts the `consent*` booleans the tag sends; no server-side source of truth ties them to the stored preference.
 22. **✅ RESOLVED 2026-08-27 — central session revocation is enforced on every
@@ -2759,6 +2761,8 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     instances and faults at every side-effect boundary before calling it exactly-once.
 
     *2026-09-03 acceptance:* commit 0578ddb added the database-native claim boundary (`enquirySubmissionClaims.ts`, `enquirySubmissionDelivery.ts`) and migration `20260902093000_aqua_tag_submission_delivery.sql`. Source-verified; the migration is unapplied to live PostgreSQL, so cross-process claim acceptance there is NOT TESTED.
+
+    *2026-09-03 isolated PostgreSQL proof:* `20260902093000` applied in order and re-ran cleanly on a local Supabase stack, and `smoke-aqua-tag-ingestion-live-postgres` now runs against a full schema (its fixture named `brand_slug: null`, which the real NOT NULL/foreign-key column refuses; the app always supplies a slug). Live application remains BLOCKED on credentials, backup confirmation and approval — see `plans/supabase-alignment-2026-09-03.md`.
 
 88. **PARTIALLY RESOLVED 2026-09-01 — Dev Team cross-process accepted writes and
     document/ledger process-death recovery now survive; one direct-writer race remains.**

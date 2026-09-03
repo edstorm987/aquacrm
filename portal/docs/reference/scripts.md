@@ -6769,6 +6769,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-supabase-schema-status-test-ts-a5d809abae"></a>
+
+### `scripts/smoke-supabase-schema-status.test.ts`
+
+**What it is:** migrations define, so the drift table cannot go quietly narrow.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-tag-form-capture-test-ts-a77cd0eb6b"></a>
 
 ### `scripts/smoke-tag-form-capture.test.ts`
