@@ -136,6 +136,15 @@ describe("People lifecycle and employee workspace", () => {
     assert.match(teamChat, /renderBody\(message\.body, snap\.roster/);
     // …and the composer tells people how to notify someone.
     assert.match(teamChat, /@name to notify someone/);
+    // #147: the composer is a controlled per-conversation draft that only a
+    // validated success clears, every failure is announced, and the
+    // conversation can only be repainted through the ordering coordinator.
+    assert.match(teamChat, /from "@\/lib\/client\/teamChatCoordination"/);
+    assert.match(teamChat, /const \[drafts, setDrafts\] = useState<Record<string, string>>\(\{\}\)/);
+    assert.doesNotMatch(teamChat, /input\.value = ""/);
+    assert.match(teamChat, /role="alert"/);
+    assert.match(teamChat, /readOnly=\{busy\}/);
+    assert.match(teamChat, /aria-current=\{highlighted \? "true" : undefined\}/);
   });
 
   it("normalises station access and never allows My Day to disappear", async () => {

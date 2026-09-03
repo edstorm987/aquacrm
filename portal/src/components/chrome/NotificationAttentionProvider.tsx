@@ -23,6 +23,7 @@ import {
   NOTIFICATION_ACTIVATION_REFRESH_INTERVAL_MS,
   NotificationAttentionCoordinator,
   notificationActivationRefreshDue,
+  refreshedNotificationAlerts,
 } from "@/lib/intelligence/notificationAttentionCoordination";
 import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
 import { alertActionOperationId, alertOccurrenceKey, isAlertActionResult } from "@/lib/client/actionsMutationTruth";
@@ -96,6 +97,10 @@ export function NotificationAttentionProvider({
     if (clientScopeRef.current !== clientId) {
       coordinatorRef.current.reset();
       clientScopeRef.current = clientId;
+      // A refresh still in flight for the previous scope has already been
+      // invalidated by `reset()`; it must not also be handed back as "the"
+      // in-flight refresh to callers in the new scope.
+      refreshInFlightRef.current = null;
       commitAlerts(scopedAlerts);
       syncBusyAlerts();
       return;
@@ -137,9 +142,11 @@ export function NotificationAttentionProvider({
     const request = (async () => {
       const response = await fetch("/api/portal/notifications", { method: "GET", cache: "no-store" }).catch(() => null);
       if (!response?.ok) return false;
-      const payload = await response.json().catch(() => null) as { alerts?: OperationalAlertView[] } | null;
-      if (!payload?.alerts) return false;
-      const result = coordinator.acceptRefresh(token, alertsRef.current, scopeAlerts(payload.alerts));
+      // Only a well-formed authoritative list may replace the snapshot; a
+      // 200 carrying rows the centre cannot render is treated as no refresh.
+      const refreshed = refreshedNotificationAlerts(await response.json().catch(() => null));
+      if (!refreshed) return false;
+      const result = coordinator.acceptRefresh(token, alertsRef.current, scopeAlerts(refreshed));
       if (coordinator === coordinatorRef.current && result.applied) commitAlerts(result.alerts);
       return true;
     })();
@@ -177,12 +184,12 @@ export function NotificationAttentionProvider({
     return () => window.clearTimeout(timer);
   }, [alerts, refreshAlerts]);
 
-  async function updateAlert(
+  const updateAlert = useCallback(async (
     alertId: string,
     action: OperationalAlertAction,
     parkedUntil?: number,
     expectation?: OperationalAlertMutationExpectation,
-  ): Promise<boolean> {
+  ): Promise<boolean> => {
     if (!enabled) return false;
     const coordinator = coordinatorRef.current;
     // Capture the authoritative occurrence before optimistic dismiss removes
@@ -232,7 +239,7 @@ export function NotificationAttentionProvider({
     } finally {
       if (coordinator === coordinatorRef.current) syncBusyAlerts();
     }
-  }
+  }, [commitAlerts, enabled, refreshAlerts, scopeAlerts, syncBusyAlerts]);
 
   const isAlertBusy = useCallback((alertId: string) => busyAlertIds.has(alertId), [busyAlertIds]);
 
@@ -245,7 +252,7 @@ export function NotificationAttentionProvider({
     setFocusProtectionEnabled,
     refreshAlerts,
     updateAlert,
-  }), [alerts, attentionWindow, focusProtectionEnabled, isAlertBusy, error, setFocusProtectionEnabled, refreshAlerts]);
+  }), [alerts, attentionWindow, focusProtectionEnabled, isAlertBusy, error, setFocusProtectionEnabled, refreshAlerts, updateAlert]);
   return <AttentionContext.Provider value={value}>{children}</AttentionContext.Provider>;
 }
 
