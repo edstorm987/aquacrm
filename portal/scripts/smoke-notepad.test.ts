@@ -106,6 +106,12 @@ describe("personal notepad surface", () => {
     assert.match(workspace, /window\.addEventListener\("pagehide"/);
     assert.match(workspace, /keepalive: true/);
     assert.match(workspace, /Retry save/);
+    // Below the `sm` breakpoint the New note button drops its visible label and
+    // becomes icon-only. Without an explicit name it is an unnamed control —
+    // axe reports `button-name` (critical) at 375/390px in the browser gate
+    // (`scripts/browser-notepad-finance-acceptance.mjs`). The label is also the
+    // visible text, so the name matches what sighted users read.
+    assert.match(workspace, /aria-label="New note"/, "the icon-only New note button has no accessible name below 640px");
     assert.match(workspace, /unsaved .* recovered from this browser/);
     assert.match(workspace, /flushScheduled\(selectedId/);
     assert.match(workspace, /action: "update-note"/);

@@ -126,6 +126,27 @@ test("Finance exposes one visible owner for terms and tax identity", () => {
   assert.match(financeSettings, /\/portal\/agency\/settings#account/);
 });
 
+test("the mounted invoice preview shows the immutable seller snapshot the export shows", () => {
+  // `renderInvoiceHtml` prints `issuerSnapshot.legalName` (falling back to the
+  // live workspace/agency name only for legacy rows) and lets a saved template's
+  // business details override the captured contact block. The on-screen preview
+  // in `InvoiceDetailClient` rendered the live tenant name instead, so opening
+  // an old invoice showed a different seller from downloading it — found by the
+  // browser gate on 2026-09-02 (`previewMatchesSnapshot: false`). Pin the same
+  // precedence on both surfaces.
+  const detail = readFileSync("src/built-ins/modules/agency-finance/src/components/InvoiceDetailClient.tsx", "utf8");
+  assert.match(detail, /invoice\.issuerSnapshot\?\.legalName \?\? agencyName/, "the preview heading ignores the invoice's issuer snapshot");
+  assert.match(detail, /template\.businessDetails \|\| invoice\.issuerSnapshot\?\.businessDetails/, "the preview contact block ignores the captured business details");
+  assert.doesNotMatch(detail, /<h2[^>]*>\{agencyName\}<\/h2>/, "the preview still prints the live tenant name as the seller");
+  // The plugin shell makes every table its own `overflow-x: auto` block, so
+  // below ~560px the line-item TABLE scrolls sideways with nothing focusable
+  // inside it and keyboard users could not reach the overflow — axe
+  // `scrollable-region-focusable` (serious) at 375/390/768px in the same gate.
+  // The table itself must be the (named) tab stop; a focusable wrapper does
+  // nothing because the wrapper never scrolls.
+  assert.match(detail, /<table className="w-full min-w-\[520px\] text-sm" tabIndex=\{0\} aria-label="Invoice line items">/, "the scrollable line-item table is not keyboard reachable");
+});
+
 test("workspace payment terms are stored as a bounded whole-day default", () => {
   const agency = tenants.createAgency({ name: "Terms Bounds", slug: "terms-bounds" });
   assert.equal(settings.updateAgencyWorkspaceSettings(agency.id, { defaultPaymentTermsDays: 12.6 }, "owner").defaultPaymentTermsDays, 13);

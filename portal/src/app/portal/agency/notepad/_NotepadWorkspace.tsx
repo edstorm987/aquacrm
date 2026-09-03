@@ -372,6 +372,7 @@ export function NotepadWorkspace({
             type="button"
             onClick={() => void createNote(quickCapture)}
             disabled={busy}
+            aria-label="New note"
             className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-45"
           >
             {busy ? <LoaderCircle className="animate-spin" size={16} /> : <Plus size={17} />}
