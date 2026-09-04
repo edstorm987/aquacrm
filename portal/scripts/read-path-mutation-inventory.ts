@@ -207,9 +207,21 @@ export const CAUSE_RULINGS: Record<string, CauseRuling> = {
     category: "cron", verdict: "deliberate",
     note: "`/api/cron/radar-probes`, and since 2026-08-30 `/api/cron/inbox` too — the app-wide Infra probe moved OUT of the per-agency `runRadarScheduledSweep` and up into the tick, so both crons now call it directly, once each (issues #131). Direct in both. See #170 — Ed's open decision there is the CADENCE, not the write.",
   },
-  processAutomationSweep: {
+  purgeDeliveredOutbox: {
     category: "cron", verdict: "deliberate",
-    note: "`/api/internal/sweep` — the automation sweep, called by the scheduler. Direct. Deliberate HERE; see `automationWorkspaceData` for the same function reached from a page render, which is not.",
+    note:
+      "`/api/internal/sweep?outbox=purge-delivered` — a founder-gated, opt-in "
+      + "one-time cleanup added 2026-09-04 for the historic `person.updated` "
+      + "outbox flood (delivered events are retained receipts with no pending "
+      + "work; the flood had grown to ~40% of the state blob). It is the FIRST "
+      + "writer the analyser reaches on this route, so it stands in for the "
+      + "route's other deliberate write, `processAutomationSweep` — the "
+      + "scheduler's automation tick, still called on every request and still "
+      + "pinned by the \"scheduler still owns the sweep\" test. Both are "
+      + "deliberate writes behind the same internal `agency-owner` gate; the "
+      + "purge is self-flushing so it never leaves an un-flushable patch behind. "
+      + "Direct. (See `automationWorkspaceData` for `processAutomationSweep` "
+      + "reached from a page render, which is NOT deliberate.)",
   },
 
   // ── Writes about the read ───────────────────────────────────────────────
@@ -302,7 +314,14 @@ export const DECLARED_READ_ROUTES: DeclaredEntry[] = [
   { path: "/api/auth/verify-email", cause: "markEmailVerified" },
   { path: "/api/cron/inbox", cause: "processInboxWebhookQueue" },
   { path: "/api/cron/radar-probes", cause: "runRadarInfraSweep" },
-  { path: "/api/internal/sweep", cause: "processAutomationSweep" },
+  // `/api/internal/sweep` reaches TWO deliberate writes: the routine
+  // `processAutomationSweep` (the scheduler's automation tick) and, since the
+  // 2026-09-04 outbox-flood cleanup, an opt-in `purgeDeliveredOutbox` behind
+  // `?outbox=purge-delivered`. The analyser reports the FIRST writer reached in
+  // source order, and the purge call now precedes the sweep, so `purgeDeliveredOutbox`
+  // is the representative cause. Both are ruled deliberate under that one entry;
+  // the automation sweep stays pinned by the "scheduler still owns the sweep" test.
+  { path: "/api/internal/sweep", cause: "purgeDeliveredOutbox" },
   { path: "/api/portal/attention/plan", cause: "resolutionEvidenceFor" },
   { path: "/api/portal/calendar/google/callback", cause: "connectGoogleCalendarAccount" },
   // Opening an enquiry marks it seen. A GET that writes, deliberately: the

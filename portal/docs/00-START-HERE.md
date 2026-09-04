@@ -2,12 +2,12 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-09-04 from **21** source documents / **37,326 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-04 from **21** source documents / **37,549 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
 - [`AGENTS.md`](#source-agents-md) — 95 words · `63f2c50380ed`
-- [`CLAUDE.md`](#source-claude-md) — 4,577 words · `4d317354e5e2`
+- [`CLAUDE.md`](#source-claude-md) — 4,800 words · `ba701f6dcb2d`
 - [`docs/data/adr/ADR-001-semantic-registry-in-code.md`](#source-docs-data-adr-adr-001-semantic-registry-in-code-md) — 217 words · `f092ef6a564d`
 - [`docs/data/adr/ADR-002-domain-modules-are-the-repository-seam.md`](#source-docs-data-adr-adr-002-domain-modules-are-the-repository-seam-md) — 218 words · `361439671762`
 - [`docs/data/adr/ADR-003-one-calculation-path-per-metric.md`](#source-docs-data-adr-adr-003-one-calculation-path-per-metric-md) — 233 words · `9143b1627c97`
@@ -52,7 +52,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## Source document — `CLAUDE.md`
 
-<!-- AQUACRM_SOURCE_START path="CLAUDE.md" sha256="4d317354e5e267da6e462eafcd08a2e3f2d07d049586346929191f09bc2b56a8" -->
+<!-- AQUACRM_SOURCE_START path="CLAUDE.md" sha256="ba701f6dcb2d253c062cc088aa371f1e588ee34166516edab506ad309bb1facb" -->
 @AGENTS.md
 
 # AquaCRM Claude Handoff
@@ -64,6 +64,28 @@ current operational handoff and supersedes the stale status sentences at the
 bottom of this file. It does not supersede source code or
 `docs/development/TODO.md`: source is the final authority and **`TODO.md` is the one
 current task list** (`checklist.md` and `todo-retired.md` were retired into it on 2026-08-31).
+
+> ### 🔴 LATEST — 4 September 2026: deployment moved Vercel → Railway; storage incident
+> **AquaCRM is no longer on Vercel serverless. It runs on an always-on Railway
+> persistent server in EU-West, at `www.aqua-crm.com`** (GitHub-deployed from
+> `edstorm987/aquacrm@main`, service `aquacrm`, root dir `portal`,
+> `PORTAL_SINGLE_INSTANCE=true`). Any doc below that says "Vercel", "serverless",
+> or "15s function timeout" is describing the OLD substrate — treat it as history.
+>
+> A performance outage was diagnosed and largely fixed the same day. Root causes:
+> one 2.9 MB `app_datastores` row that Postgres rewrites in full on every write;
+> five page renders that `await`ed the durable write; a `person.updated` outbox
+> flood that was 40% of the blob; and a US↔EU app/DB split. Fixes shipped: EU
+> region move, `flushPendingWritesForRender()` (`42f83c44`), the person.updated
+> `substantive` gate (`4d1b8415`), and the login-redirect/base-URL fixes
+> (`59ec0037`). **The durable fix — splitting the one row into per-domain
+> clusters via the existing sidecar machinery (never applied to live data) — plus
+> the full architecture, incident analysis, blob composition, peel order and the
+> non-negotiable rehearse-first migration procedure, is documented in
+> `docs/development/plans/storage-architecture-and-2026-09-04-incident.md`. Read
+> it before touching `storage.ts`, the sidecars, or any state migration.** Still
+> open: apex `aqua-crm.com` DNS (public login links `NXDOMAIN`), clearing the
+> 2,809 stale outbox events, and the cluster migrations themselves.
 
 ### First five minutes: preserve the working state
 

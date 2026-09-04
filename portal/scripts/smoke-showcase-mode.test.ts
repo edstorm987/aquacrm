@@ -340,7 +340,13 @@ test("live client login and public project showcase are separate entry paths", (
   assert.match(login, /redirect\(`\/login\/live\?/);
   assert.match(liveBoundary, /clearSessionCookie/);
   assert.match(liveBoundary, /session\?\.publicShowcase/);
-  assert.match(liveBoundary, /NextResponse\.redirect\(destination, 303\)/);
+  // The boundary issues a 303 to the database login. It builds a RELATIVE
+  // Location (`/login?…`) rather than an absolute one so it survives Railway's
+  // proxy, whose internal bind origin is a dead `localhost:$PORT` — see the
+  // route's own comment. Assert the 303 and the relative target, not the old
+  // `NextResponse.redirect(absoluteUrl, 303)` form.
+  assert.match(liveBoundary, /status: 303/);
+  assert.match(liveBoundary, /const location = `\/login\?/);
   assert.match(projects, /\/login\/live\?brand=aquacrm&next=\/portal/);
   assert.match(projects, /http:\/\/localhost:3032\/showcase/);
   assert.match(projects, /https:\/\/aqua-crm\.com\/showcase/);

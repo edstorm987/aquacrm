@@ -279,6 +279,15 @@ test("only the plans that genuinely have no phases yield none", async () => {
     // "1/2/3/4" headings are an ORDER OF WORK with the two storage moves
     // distinguished, not deliverable phases the roadmap should track.
     "storage-and-remaining-build",
+    // The 2026-09-04 storage/incident record: the deployed-perf outage analysis
+    // (the single ~2.9MB JSONB row Postgres rewrites in full, the render-time
+    // write convoy, the person.updated flood) plus the architecture and the
+    // rehearse-first migration procedure. Its headings are analysis sections,
+    // blob composition and a peel ORDER — not deliverable phases the roadmap
+    // should track. Much of the durable work is a live-data migration gated on
+    // Ed's own go-ahead, so counting it would report the roadmap as behind on
+    // work that is deliberately staged.
+    "storage-architecture-and-2026-09-04-incident",
     "client-owned-form-data",
   ]);
   const empty = (await plans()).filter(p => parsePhases(p.md).length === 0).map(p => p.name);

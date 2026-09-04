@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-04T00:13:40.444Z",
+  "generatedAt": "2026-09-04T23:52:49.342Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -79,9 +79,9 @@
       "path": "CLAUDE.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-claude-md",
-      "sha256": "4d317354e5e267da6e462eafcd08a2e3f2d07d049586346929191f09bc2b56a8",
-      "words": 4577,
-      "bytes": 33899
+      "sha256": "ba701f6dcb2d253c062cc088aa371f1e588ee34166516edab506ad309bb1facb",
+      "words": 4800,
+      "bytes": 35482
     },
     {
       "path": "docs/architecture-noobie.md",
@@ -962,6 +962,14 @@
       "sha256": "e64b344f91ca940330f27710a1fcb15d84cf3fcc8bb7c1e0fe78ab49b8a5f4fb",
       "words": 1535,
       "bytes": 9801
+    },
+    {
+      "path": "docs/development/plans/storage-architecture-and-2026-09-04-incident.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-storage-architecture-and-2026-09-04-incident-md",
+      "sha256": "931ec0578a74a885ea97c4da92cb73f434105046a342bfc43dc3a3126c2e0e10",
+      "words": 1608,
+      "bytes": 10623
     },
     {
       "path": "docs/development/plans/supabase-alignment-2026-09-03.md",
