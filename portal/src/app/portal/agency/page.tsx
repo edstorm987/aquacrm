@@ -248,6 +248,7 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
     businessRadar = buildPausedBusinessRadar(workspaceSettings.advisor.radarPolicy, recommendationTime);
   }
   const radarEvidence = inspectRadarEvidence(agency.id);
+  __ck("after-branch+radarEvidence");
   let intelligenceSnapshot: CommandIntelligenceSnapshot;
   if (preservedScanResult) {
     intelligenceSnapshot = preservedScanResult.intelligence;
@@ -270,6 +271,7 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
   const calendarIntegration = personalCalendarAccess.goalsAvailable
     ? getCommandCalendarIntegrationSnapshot(agency.id, session.userId)
     : { configured: false, connections: [], sources: [], events: [], generatedAt: recommendationTime };
+  __ck("after-calendar-integration");
 
   // Idempotent self-heal for agencies that pre-date the R034 seed in
   // `bootstrapAgency` — now guarded by a pure READ so a fully-provisioned
@@ -299,6 +301,7 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
     fulfilmentCardCount,
     productCount: products.length,
   });
+  __ck("after-pipelines+dashboardSignals");
 
   const account = getUser(session.email);
   const firstName = account?.name?.trim().split(/\s+/)[0] ?? (session.email.split("@")[0] || "there").replace(/[^a-z]/gi, "");
@@ -323,6 +326,7 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
     devTeamLaunchBlockerCount = devTeamLanes.blocked.filter(item => item.kind === "blocker").length;
     devTeamAttentionLoaded = true;
   }
+  __ck("after-devTeam+account (before stations)");
   let calendarWorkspace: ReactNode = null;
   let actionsWorkspace: ReactNode = null;
   let advisorWorkspace: ReactNode = null;
