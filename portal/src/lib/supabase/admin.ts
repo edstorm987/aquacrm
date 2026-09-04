@@ -3,10 +3,11 @@ import "server-only";
 import { createClient, type User } from "@supabase/supabase-js";
 
 import { isMissingAgencyIdColumn } from "./enquiryAgencyColumn";
+import { resolveSupabaseSecretKey, resolveSupabaseUrl } from "./keys";
 
 function requireAdminConfig() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const url = resolveSupabaseUrl();
+  const serviceRoleKey = resolveSupabaseSecretKey();
   if (!url || !serviceRoleKey) {
     throw new Error(
       "Supabase admin access is not configured. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.",

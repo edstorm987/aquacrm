@@ -108,7 +108,7 @@ export interface StoredPublicUpload {
 export function supabasePublicUploadsConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
   return Boolean(
     env.NEXT_PUBLIC_SUPABASE_URL?.trim()
-    && env.SUPABASE_SERVICE_ROLE_KEY?.trim(),
+    && (env.SUPABASE_SECRET_KEY?.trim() || env.SUPABASE_SERVICE_ROLE_KEY?.trim()),
   );
 }
 

@@ -55,7 +55,7 @@ export function planPrivateUpload(input: Pick<StorePrivateUploadInput, "pathname
 export function supabasePrivateUploadsConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
   return Boolean(
     env.NEXT_PUBLIC_SUPABASE_URL?.trim()
-    && env.SUPABASE_SERVICE_ROLE_KEY?.trim(),
+    && (env.SUPABASE_SECRET_KEY?.trim() || env.SUPABASE_SERVICE_ROLE_KEY?.trim()),
   );
 }
 
@@ -133,7 +133,7 @@ export async function readSupabasePrivateUploadRange(
   const bucket = process.env.NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET?.trim()
     || DEFAULT_SUPABASE_UPLOAD_BUCKET;
   const base = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim().replace(/\/+$/, "");
-  const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "").trim();
+  const serviceKey = (process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? "").trim();
   const path = storageKey.split("/").map(encodeURIComponent).join("/");
   let response: Response;
   try {

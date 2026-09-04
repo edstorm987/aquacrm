@@ -193,7 +193,15 @@ const INJECTED_CLIENTS: Record<string, ClientKind> = {
   "src/server/clientErasure.ts": "service",
 };
 
-const SERVICE_MARKERS = ["createSupabaseAdminClient", "SUPABASE_SERVICE_ROLE_KEY"];
+// `resolveSupabaseSecretKey` (lib/supabase/keys.ts) resolves the service-role /
+// new `sb_secret_` key with a legacy fallback, so a site using it is a
+// service-role client just as a raw `SUPABASE_SERVICE_ROLE_KEY` read is.
+const SERVICE_MARKERS = [
+  "createSupabaseAdminClient",
+  "SUPABASE_SERVICE_ROLE_KEY",
+  "SUPABASE_SECRET_KEY",
+  "resolveSupabaseSecretKey",
+];
 const ANON_MARKERS = ["createRouteSupabaseClient", "createServerSupabaseClient", "createScopedSupabaseClient"];
 
 function walk(dir: string, out: string[] = []): string[] {

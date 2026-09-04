@@ -43,7 +43,7 @@ function detectPrimaryBackend(): RadarInfraBackend {
   if (explicit === "file") return "file";
   if (explicit === "memory") return "memory";
   if (process.env.DATABASE_URL) return "postgres";
-  if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) return "supabase";
+  if (process.env.NEXT_PUBLIC_SUPABASE_URL && (process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY)) return "supabase";
   return "file";
 }
 

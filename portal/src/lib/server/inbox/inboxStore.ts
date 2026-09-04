@@ -15,6 +15,7 @@ import {
 } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { resolveSupabaseSecretKey, resolveSupabaseUrl } from "@/lib/supabase/keys";
 
 import type {
   InboxAttachment,
@@ -182,8 +183,8 @@ function useSupabase(): boolean {
 
 function db(): SupabaseClient {
   if (supabase) return supabase;
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const url = resolveSupabaseUrl();
+  const key = resolveSupabaseSecretKey();
   if (!url || !key) throw new Error("inbox_supabase_not_configured");
   supabase = createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },

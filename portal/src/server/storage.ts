@@ -411,7 +411,7 @@ function pickBackend(): Backend {
       if (
         !explicit &&
         process.env.NEXT_PUBLIC_SUPABASE_URL &&
-        process.env.SUPABASE_SERVICE_ROLE_KEY
+        (process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY)
       ) return supabaseBackend;
       // The file backend is the only one that can reach the shared sandbox, so
       // the guard belongs HERE — not at the top of this function, where it also

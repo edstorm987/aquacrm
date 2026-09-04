@@ -1,11 +1,15 @@
+import { resolveSupabasePublicKey, resolveSupabaseUrl } from "./keys";
+
 export interface SupabasePublicConfig {
   url: string;
   anonKey: string;
 }
 
 export function getSupabasePublicConfig(): SupabasePublicConfig | null {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
+  // Prefer the new publishable key (integration-managed), fall back to the
+  // legacy anon key. See lib/supabase/keys.ts for why.
+  const url = resolveSupabaseUrl();
+  const anonKey = resolveSupabasePublicKey();
   if (!url || !anonKey) return null;
   return { url, anonKey };
 }

@@ -9,6 +9,7 @@ import {
 } from "@/lib/server/remoteOperation";
 import type { StoragePatchOperation } from "./storagePatch";
 import type { DevTeamWorkspaceFileMutation } from "./devTeamWorkspacePersistence";
+import { resolveSupabaseSecretKey, resolveSupabaseUrl } from "@/lib/supabase/keys";
 
 const STATE_KEY = process.env.PORTAL_STATE_KEY?.trim() || "aquacrm-portal-state";
 
@@ -48,11 +49,12 @@ export function devWorkspaceKeyForRealm(realmId = "live"): string {
 }
 
 function getConfig() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "");
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  // Prefer the integration-managed keys; fall back to the legacy names.
+  const url = resolveSupabaseUrl()?.replace(/\/$/, "");
+  const serviceRoleKey = resolveSupabaseSecretKey();
   if (!url || !serviceRoleKey) {
     throw new Error(
-      "[supabase-storage] NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required.",
+      "[supabase-storage] a Supabase URL and secret key are required (SUPABASE_SECRET_KEY / SUPABASE_SERVICE_ROLE_KEY).",
     );
   }
   return { url, serviceRoleKey };
