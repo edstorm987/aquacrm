@@ -261,6 +261,29 @@ export function drainOutbox(now = Date.now(), dispatch: OutboxDispatch = emit): 
 }
 
 /**
+ * One-time maintenance: drop every ALREADY-DELIVERED outbox event, regardless of
+ * age. `pruneOutbox` only clears delivered rows older than the 14-day retention,
+ * so a backlog of recently-delivered no-op events — e.g. the historic
+ * `person.updated` flood that reached ~40% of the state blob — sits there
+ * bloating every write until it ages out. Delivered means consumers already have
+ * it and there is no pending work; the row is only a retained receipt. Runs
+ * through `mutate()` so it flushes as an ordinary coordinated patch. Returns the
+ * count removed. Founder-gated at the call site (`/api/internal/sweep`).
+ */
+export function purgeDeliveredOutbox(): number {
+  let removed = 0;
+  mutate(state => {
+    for (const row of Object.values(state.outbox ?? {})) {
+      if (row.status === "delivered") {
+        delete state.outbox[row.id];
+        removed += 1;
+      }
+    }
+  });
+  return removed;
+}
+
+/**
  * Record + drain in one call — the drop-in for `emit()` call sites that are
  * not already inside a `mutate()`. The record is durable before the bus sees
  * it; subscribers still receive the event in this request, as before.
