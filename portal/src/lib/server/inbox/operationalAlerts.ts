@@ -63,7 +63,22 @@ export interface OperationalAlertReadOptions {
 
 interface OperationalAlertsCacheEntry { alerts: OperationalAlert[]; at: number }
 const operationalAlertsCache = new Map<string, OperationalAlertsCacheEntry>();
-const OPERATIONAL_ALERTS_TTL_MS = 8_000;
+// 60s: the sweep itself takes several seconds, so a short TTL never survives the
+// gap between two navigations and the cache never hits. 60s keeps a navigation
+// instant while operational alerts (informational, not real-time) stay fresh
+// enough; `invalidateOperationalAlertsCache` forces an immediate refresh when a
+// mutation must reflect at once.
+const OPERATIONAL_ALERTS_TTL_MS = 60_000;
+
+/** Warm the cache in the background (fire-and-forget) so the next page that
+ *  needs the sweep hits a ready snapshot instead of computing it inline. Safe to
+ *  call on a fast page's render; it no-ops fast when the cache is already warm. */
+export function prewarmOperationalAlerts(agencyId: string): void {
+  if (process.env.NODE_ENV !== "production") return;
+  const hit = operationalAlertsCache.get(agencyId);
+  if (hit && Date.now() - hit.at < OPERATIONAL_ALERTS_TTL_MS) return;
+  void listOperationalAlerts(agencyId).catch(() => undefined);
+}
 
 /** Drop the cached operational-alert snapshot for an agency (call after a
  *  mutation that should reflect immediately, e.g. resolving/parking an alert). */
