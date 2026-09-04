@@ -266,11 +266,16 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
     ? getCommandCalendarIntegrationSnapshot(agency.id, session.userId)
     : { configured: false, connections: [], sources: [], events: [], generatedAt: recommendationTime };
 
-  // Idempotent — guarantees a fresh agency lands on default pipelines
-  // even if it pre-dates the R034 seed in `bootstrapAgency`.
-  seedDefaultPipelines(agency.id);
-
-  const pipelines = listPipelines(agency.id);
+  // Idempotent self-heal for agencies that pre-date the R034 seed in
+  // `bootstrapAgency` — now guarded by a pure READ so a fully-provisioned
+  // agency's dashboard render never enters mutate(). The unguarded call wrote a
+  // datastore patch (×3 default kinds) on every /portal/agency render, feeding
+  // the single-row write convoy that made deployed pages time out.
+  let pipelines = listPipelines(agency.id);
+  if (!(["fulfilment", "leads", "sales"] as const).every(kind => pipelines.some(p => p.kind === kind))) {
+    seedDefaultPipelines(agency.id);
+    pipelines = listPipelines(agency.id);
+  }
   const counts = pipelineCardCounts(agency.id);
   const leadsPipeline = pipelines.find(p => p.kind === "leads" || p.slug === "leads");
   const leadsCardCount = leadsAvailable && leadsPipeline ? counts[leadsPipeline.id] ?? 0 : 0;

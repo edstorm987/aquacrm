@@ -146,6 +146,20 @@ export function upsertIdentityResolutionReview(input: IdentityResolutionInput, r
     createdAt: current?.createdAt ?? now,
     updatedAt: now,
   };
+  // Idempotency guard (mirrors upsertPerson, persons.ts). This helper is called
+  // for up to ~500 website enquiries plus every social conversation on EVERY
+  // clients/inbox render. Without this it rebuilt the review with a fresh
+  // `updatedAt` and called mutate() per item per render, and the page's
+  // flushPendingWrites() then serialised the whole batch into one
+  // apply_app_datastore_patch on the single ~3.25MB app_datastores row — a
+  // multi-minute write convoy on serverless (invisible on a single-process
+  // localhost). Compare on everything except the volatile timestamps: BOTH the
+  // top-level `updatedAt` AND the nested `resolution.resolvedAt`, which
+  // resolveContactIdentity re-stamps with Date.now() on every call. A genuine
+  // change (status, link, candidates, labels…) still differs and still writes.
+  const normalise = (candidate: IdentityResolutionReview): string =>
+    JSON.stringify({ ...candidate, updatedAt: 0, resolution: { ...candidate.resolution, resolvedAt: 0 } });
+  if (current && normalise(current) === normalise(review)) return current;
   mutate(state => {
     state.identityResolutionReviews ??= {};
     state.identityResolutionReviews[id] = review;
