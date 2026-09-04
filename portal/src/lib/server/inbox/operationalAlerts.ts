@@ -61,11 +61,36 @@ export interface OperationalAlertReadOptions {
   websiteEnquiries?: ReadResult<WebsiteEnquiry[]>;
 }
 
+interface OperationalAlertsCacheEntry { alerts: OperationalAlert[]; at: number }
+const operationalAlertsCache = new Map<string, OperationalAlertsCacheEntry>();
+const OPERATIONAL_ALERTS_TTL_MS = 8_000;
+
+/** Drop the cached operational-alert snapshot for an agency (call after a
+ *  mutation that should reflect immediately, e.g. resolving/parking an alert). */
+export function invalidateOperationalAlertsCache(agencyId: string): void {
+  operationalAlertsCache.delete(agencyId);
+}
+
 export async function listOperationalAlerts(
   agencyId: string,
   now = Date.now(),
   readOptions: OperationalAlertReadOptions = {},
 ): Promise<OperationalAlert[]> {
+  // Module-level TTL cache. This sweep — a portfolio scan plus live Supabase
+  // reads and per-source availability observations — is reached UNGATED from
+  // many pages (clients, client detail, inbox, actions), and re-running it on
+  // every navigation made those pages take ~7s. On the single persistent
+  // instance we serve a snapshot at most OPERATIONAL_ALERTS_TTL_MS old, so a
+  // navigation is instant; the uncached run (once per window) still records the
+  // source observations. Bypassed when a caller injects a source read, since the
+  // result then depends on inputs this key does not capture.
+  // Production only — dev/test always compute a fresh sweep so tests can't flake
+  // on a stale cached snapshot and local iteration always sees live data.
+  const canCache = readOptions.websiteEnquiries === undefined && process.env.NODE_ENV === "production";
+  if (canCache) {
+    const hit = operationalAlertsCache.get(agencyId);
+    if (hit && now - hit.at < OPERATIONAL_ALERTS_TTL_MS) return hit.alerts;
+  }
   const clients = listClients(agencyId);
   const alerts: OperationalAlert[] = [];
   const workspaceSettings = getAgencyWorkspaceSettings(agencyId);
@@ -677,8 +702,10 @@ export async function listOperationalAlerts(
   const severityOrder = { critical: 0, warning: 1, notice: 2 };
   // Stamp resolution context on EVERY alert in one place. Doing it at each of
   // the 44 push sites would drift the moment somebody adds the 45th.
-  return withResolutionContexts(alerts)
+  const resolved = withResolutionContexts(alerts)
     .sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity] || b.occurredAt - a.occurredAt);
+  if (canCache) operationalAlertsCache.set(agencyId, { alerts: resolved, at: now });
+  return resolved;
 }
 
 /**
