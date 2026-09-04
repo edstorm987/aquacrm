@@ -1235,6 +1235,13 @@ async function flushRealm(
     ? SIDECAR_COLLECTIONS
       .filter(entry => !entry.dedicatedWriter)
       .flatMap(entry => {
+        // A lazy collection NOT loaded on this request holds only its
+        // post-migration empty main copy in the cache. It must never be seeded
+        // or split from here — doing so would write {} over the authoritative
+        // sidecar row (data loss). A page that legitimately writes the
+        // collection loaded it first (via ensureHydrated include), so it is in
+        // sidecarLoaded and passes.
+        if (entry.lazy && !runtime.sidecarLoaded.has(entry.slug)) return [];
         const collectionOperations = capturedOperations.filter(operation => operation.path[0] === entry.key);
         const held = (runtime.cache as unknown as Record<string, unknown>)[entry.key] ?? {};
         const seeding = !runtime.sidecarPopulated.has(entry.slug) && Object.keys(held as object).length > 0;
@@ -1406,6 +1413,48 @@ function scheduleFlush(realmId: string, runtime: RealmRuntime) {
   }, 250);
 }
 
+// ── Dev/test guard against reading an undeclared lazy collection ────────────
+// A lazy collection returns its (post-migration empty) main copy when a request
+// did not load it — silent wrong/empty data, the worst failure mode of scoped
+// loading. In development and tests, on a sidecar-splitting backend, THROW the
+// instant such a collection is read so an under-declared `ensureHydrated({
+// include })` is caught by the every-route crawl, never by a user. Off in
+// production (there the safe empty-fallback stands) and a no-op on backends
+// without sidecars (memory/file keep every collection in the main document).
+const LAZY_SIDECAR_KEY_TO_SLUG: ReadonlyMap<string, string> = new Map(
+  SIDECAR_COLLECTIONS.filter(entry => entry.lazy).map(entry => [entry.key, entry.slug] as const),
+);
+function isEmptyCollection(value: unknown): boolean {
+  if (value === undefined || value === null) return true;
+  if (Array.isArray(value)) return value.length === 0;
+  if (typeof value === "object") return Object.keys(value as object).length === 0;
+  return false;
+}
+function guardLazyCollectionAccess(state: PortalState, runtime: RealmRuntime): PortalState {
+  if (process.env.NODE_ENV === "production") return state;
+  if (LAZY_SIDECAR_KEY_TO_SLUG.size === 0 || !backend.loadSidecarBlob) return state;
+  return new Proxy(state, {
+    get(target, prop, receiver) {
+      const value = Reflect.get(target, prop, receiver);
+      if (typeof prop === "string") {
+        const slug = LAZY_SIDECAR_KEY_TO_SLUG.get(prop);
+        // Throw only for the real failure: a lazy collection this request did not
+        // load AND which comes back empty. Pre-migration the data is still in the
+        // main document (non-empty) so a read there is fine; post-migration an
+        // undeclared read is empty — the silent-data bug — and is caught here.
+        if (slug && !runtime.sidecarLoaded.has(slug) && isEmptyCollection(value)) {
+          throw new Error(
+            `[portal] getState().${prop} was read but "${prop}" is a lazy collection this request never loaded, `
+            + `so it came back empty. Declare it on the route: ensureHydrated({ include: [${JSON.stringify(prop)}] }). `
+            + `(Dev/test guard — disabled in production.)`,
+          );
+        }
+      }
+      return value;
+    },
+  });
+}
+
 export function getState(): PortalState {
   const realmId = getActiveDataRealmId();
   const transaction = portalStateMutationTransactions.getStore();
@@ -1416,7 +1465,7 @@ export function getState(): PortalState {
   // but unrelated request code must keep seeing the last committed view until
   // that write succeeds. Concurrent ordinary mutations update both views.
   if (runtime.activeAtomicCommit?.recording) return runtime.activeAtomicCommit.committed;
-  return runtime.cache ?? empty();
+  return guardLazyCollectionAccess(runtime.cache ?? empty(), runtime);
 }
 
 function workspaceConflictFrom(error: unknown): DevTeamWorkspaceConflictError | null {

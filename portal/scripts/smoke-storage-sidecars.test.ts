@@ -173,10 +173,10 @@ test("dev workspace files are written to their own row, and the portal is not wi
     // migrated project (the main copy is cleared, the sidecar is not read) — that
     // is the point, the common request stops paying for it.
     await storage.ensureHydrated({ fresh: true });
-    assert.deepEqual(
-      storage.getState().devTeamWorkspaceFiles,
-      {},
-      "a lazy Dev Team collection must NOT be loaded by an ordinary hydrate — the read fix",
+    assert.throws(
+      () => storage.getState().devTeamWorkspaceFiles,
+      /lazy collection this request never loaded/,
+      "post-migration an ordinary hydrate does NOT load the lazy collection, and the dev guard throws on the undeclared empty read — the read fix plus its safety net",
     );
     // The sidecar wins the moment a caller that actually reads these files asks
     // for it. The Dev Team service always does (`ensureHydrated({ include })`),
