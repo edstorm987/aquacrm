@@ -168,12 +168,25 @@ test("dev workspace files are written to their own row, and the portal is not wi
       "once the sidecar is real the main document must not keep a second, diverging copy",
     );
 
-    // The sidecar wins on the next boot.
+    // The read fix: this collection is `lazy`, so an ORDINARY boot no longer
+    // drags its ~29% of the document along. A plain hydrate leaves it empty on a
+    // migrated project (the main copy is cleared, the sidecar is not read) — that
+    // is the point, the common request stops paying for it.
     await storage.ensureHydrated({ fresh: true });
+    assert.deepEqual(
+      storage.getState().devTeamWorkspaceFiles,
+      {},
+      "a lazy Dev Team collection must NOT be loaded by an ordinary hydrate — the read fix",
+    );
+    // The sidecar wins the moment a caller that actually reads these files asks
+    // for it. The Dev Team service always does (`ensureHydrated({ include })`),
+    // and the sidecar must still hold EVERYTHING — proving the read fix loses
+    // nothing, only defers.
+    await storage.ensureHydrated({ include: ["devTeamWorkspaceFiles"] });
     assert.deepEqual(
       Object.keys(storage.getState().devTeamWorkspaceFiles).sort(),
       ["legacy.md", "notes/new.md"],
-      "hydration must prefer the sidecar — and the sidecar must hold everything",
+      "hydration WITH include must prefer the sidecar — and the sidecar must hold everything",
     );
   } finally {
     globalThis.fetch = originalFetch;

@@ -471,10 +471,28 @@ interface SidecarCollection {
    * a row-locking RPC; writing it from the flush as well would race that lock.
    */
   dedicatedWriter: boolean;
+  /**
+   * When true the collection is NOT loaded on an ordinary hydrate — only when a
+   * caller opts in via `ensureHydrated({ include: [key] })`. This is the read
+   * fix for serverless: the biggest collections (each read by only a few pages)
+   * stay out of the common per-request load, so a typical page reads a small
+   * fraction of the old ~3.25MB blob instead of the whole thing. A caller that
+   * reads a lazy collection MUST include it (directly, or via a service that
+   * always calls `ensureHydrated({ include })` before touching it).
+   */
+  lazy?: boolean;
 }
 
 const SIDECAR_COLLECTIONS: readonly SidecarCollection[] = [
-  { key: "devTeamWorkspaceFiles", slug: "dev-workspace-files", dedicatedWriter: true },
+  // Lazy: 967 KB / ~29% of the live document, read by ONLY the Dev Team
+  // workspace pages. It stays out of the common per-request hydrate, so a normal
+  // page reads the small main blob instead of dragging this along. Safe to lazy
+  // BECAUSE it is a dedicated writer (the flush never writes its row, so a page
+  // that loaded without it cannot wipe it) and its sole reader — the async
+  // `devWorkspaceFiles` service — always calls `ensureHydrated({ include })`
+  // before touching it. Pre-migration the data is still in the main blob and is
+  // loaded there regardless; only the post-migration sidecar overlay is deferred.
+  { key: "devTeamWorkspaceFiles", slug: "dev-workspace-files", dedicatedWriter: true, lazy: true },
   // 615 KB, 18.5% of the live document, and no personal data — the reason it is
   // second. Written through ordinary `mutate()`, so the flush owns its row.
   { key: "clientPortalTemplates", slug: "client-portal-templates", dedicatedWriter: false },
@@ -527,6 +545,14 @@ interface RealmRuntime {
    */
   /** Sidecar slugs confirmed to hold their collection. See `SIDECAR_COLLECTIONS`. */
   sidecarPopulated: Set<string>;
+  /**
+   * Sidecar slugs whose row this hydration has already tried to read (whether or
+   * not it was authoritative). Distinct from `sidecarPopulated`: this gates the
+   * supplementary load of a `lazy` collection so a later `ensureHydrated({
+   * include })` fetches its row at most once per hydration. Cleared and rebuilt
+   * on every full hydrate, exactly alongside `sidecarPopulated`.
+   */
+  sidecarLoaded: Set<string>;
 }
 
 interface RealmReconciliationPlan {
@@ -646,6 +672,7 @@ function realmRuntime(realmId = getActiveDataRealmId()): RealmRuntime {
     remoteRefreshPromise: null,
     devTeamWorkspaceMutationQueue: Promise.resolve(),
     sidecarPopulated: new Set<string>(),
+    sidecarLoaded: new Set<string>(),
   };
   realmRuntimes.set(valid, created);
   evictColdRealmRuntimes(valid);
@@ -713,10 +740,73 @@ async function reconcileRealm(runtime: RealmRuntime, realmId: string): Promise<v
   }
 }
 
+/**
+ * Fetch the rows of any `lazy` sidecar collections named in `include` that this
+ * hydration has not already read, and overlay them onto the resident cache. This
+ * is the second half of the read fix: a page's layout hydrates the small common
+ * blob first (no `include`), then a nested service that actually reads a big
+ * collection calls `ensureHydrated({ include: [...] })`, and this brings just
+ * that collection in — at most one extra row read, once per hydration.
+ *
+ * Idempotent and safe to call on every `ensureHydrated` exit: it does nothing
+ * for a non-lazy or already-fetched collection, and a row that cannot be read
+ * leaves the caller with whatever the main document holds rather than throwing.
+ */
+async function loadRequestedLazySidecars(
+  runtime: RealmRuntime,
+  realmId: string,
+  include: readonly SidecarCollection["key"][] | undefined,
+): Promise<void> {
+  if (!include || include.length === 0) return;
+  if (!backend.loadSidecarBlob || !runtime.cache) return;
+  for (const key of include) {
+    const entry = SIDECAR_COLLECTIONS.find(candidate => candidate.key === key && candidate.lazy);
+    // Not lazy (already loaded eagerly) or unknown — nothing to do.
+    if (!entry) continue;
+    // Its row was already read in this hydration (eagerly or by an earlier
+    // include). Re-reading would only cost a round-trip.
+    if (runtime.sidecarLoaded.has(entry.slug)) continue;
+    try {
+      const sidecar = await backend.loadSidecarBlob(entry.slug, realmId);
+      // Mark it attempted regardless of the outcome so an empty/absent row is
+      // not re-fetched on every read within this hydration.
+      runtime.sidecarLoaded.add(entry.slug);
+      if (!sidecar) continue;
+      const parsed = JSON.parse(sidecar) as Record<string, unknown>;
+      const held = parsed[entry.key];
+      const authoritative = parsed.__aquaSidecarAuthoritative === true
+        || Boolean(held && typeof held === "object" && !Array.isArray(held) && Object.keys(held).length > 0);
+      if (held && typeof held === "object" && !Array.isArray(held) && authoritative) {
+        // Same sidecar-wins-else-main rule as the eager loop: overlay the one
+        // collection, never touch the rest of the cache.
+        (runtime.cache as unknown as Record<string, unknown>)[entry.key] = held;
+        runtime.sidecarPopulated.add(entry.slug);
+      }
+    } catch (error) {
+      // A lazy sidecar that cannot be read must not crash the request. The
+      // caller sees the main document's copy (empty once the collection has been
+      // migrated out), never a thrown error on a read path.
+      if (process.env.NODE_ENV !== "test") {
+        console.warn(`[portal] lazy sidecar "${entry.slug}" was unreadable; using the main document:`, error);
+      }
+    }
+  }
+}
+
 export async function ensureHydrated(options?: {
   fresh?: boolean;
   /** Server-only escape hatch for code already wrapped in runInDataRealm(). */
   preserveExplicitRealm?: boolean;
+  /**
+   * Collection keys that MUST be resident before this call returns — the read
+   * fix for `lazy` sidecars (e.g. `["devTeamWorkspaceFiles"]`). A caller that
+   * reads a lazy collection passes it here; every other request omits it and
+   * never fetches that collection's row. Naming a non-lazy (already-eager)
+   * collection is harmless. When the realm is already hydrated, only the named
+   * lazy sidecars not yet fetched this hydration are loaded — nothing else is
+   * re-read.
+   */
+  include?: readonly SidecarCollection["key"][];
 }): Promise<void> {
   const realmId = enterSignedRequestRealm(options?.preserveExplicitRealm === true);
   const runtime = realmRuntime(realmId);
@@ -756,6 +846,7 @@ export async function ensureHydrated(options?: {
       });
     }
     await runtime.remoteRefreshPromise;
+    await loadRequestedLazySidecars(runtime, realmId, options?.include);
     return;
   }
   if (runtime.hydrated && backend.kind === "file" && existsSync(dataFile)) {
@@ -765,13 +856,21 @@ export async function ensureHydrated(options?: {
       runtime.hydratePromise = null;
     }
   }
-  if (runtime.hydrated) return;
+  if (runtime.hydrated) {
+    // Already hydrated: bring in any lazy collection this caller needs that an
+    // earlier (include-less) hydrate left out. No-op when nothing is requested.
+    await loadRequestedLazySidecars(runtime, realmId, options?.include);
+    return;
+  }
   if (!runtime.hydratePromise) {
     runtime.hydratePromise = (async () => {
       const reconciliationAtStart = runtime.reconciliationRequired;
       const cacheBeforeReconciliation = reconciliationAtStart ? runtime.cache : null;
       const sidecarsBeforeReconciliation = reconciliationAtStart
         ? new Set(runtime.sidecarPopulated)
+        : null;
+      const sidecarsLoadedBeforeReconciliation = reconciliationAtStart
+        ? new Set(runtime.sidecarLoaded)
         : null;
       const pendingBeforeReconciliation = reconciliationAtStart
         ? structuredClone(runtime.pendingPatchOperations)
@@ -788,6 +887,9 @@ export async function ensureHydrated(options?: {
       try {
         const ownedSidecarSpecs = SIDECAR_COLLECTIONS
           .filter(entry => !entry.dedicatedWriter)
+          // A lazy collection is not fetched by the common request; the coherent
+          // snapshot skips its row unless this call explicitly includes it.
+          .filter(entry => !entry.lazy || options?.include?.includes(entry.key))
           .map(entry => ({ slug: entry.slug, key: entry.key }));
         const coherentSnapshot = backend.loadBlobWithSidecars
           ? await backend.loadBlobWithSidecars(ownedSidecarSpecs, realmId)
@@ -832,6 +934,7 @@ export async function ensureHydrated(options?: {
         }
         runtime.cache = raw ? parseBlob(raw) : empty();
         runtime.sidecarPopulated.clear();
+        runtime.sidecarLoaded.clear();
         // The Dev Team workspace files live in their own row on backends that
         // support it — 967 KB of a 3.25 MB document when this was measured.
         //
@@ -844,9 +947,16 @@ export async function ensureHydrated(options?: {
         if (backend.loadSidecarBlob && runtime.cache) {
           try {
             for (const sidecarCollection of SIDECAR_COLLECTIONS) {
+              // A lazy collection is fetched only when this call includes it;
+              // otherwise it is left to the supplementary load, so the common
+              // request never reads its row. Pre-migration data still lives in
+              // the main blob (loaded by parseBlob), so skipping the overlay here
+              // is safe — only the post-migration sidecar copy is deferred.
+              if (sidecarCollection.lazy && !options?.include?.includes(sidecarCollection.key)) continue;
               const sidecar = sidecarCollection.dedicatedWriter || !coherentSnapshot
                 ? await backend.loadSidecarBlob(sidecarCollection.slug, realmId)
                 : coherentSnapshot.sidecarBlobs[sidecarCollection.slug];
+              runtime.sidecarLoaded.add(sidecarCollection.slug);
               if (!sidecar) continue;
               const parsed = JSON.parse(sidecar) as Record<string, unknown>;
               const held = parsed[sidecarCollection.key];
@@ -897,6 +1007,8 @@ export async function ensureHydrated(options?: {
           runtime.cache = cacheBeforeReconciliation;
           runtime.sidecarPopulated.clear();
           for (const slug of sidecarsBeforeReconciliation ?? []) runtime.sidecarPopulated.add(slug);
+          runtime.sidecarLoaded.clear();
+          for (const slug of sidecarsLoadedBeforeReconciliation ?? []) runtime.sidecarLoaded.add(slug);
           runtime.hydrated = runtime.cache !== null;
           runtime.lastFlushError = new Error(
             `[portal] storage reconciliation failed: ${error.message}`,
@@ -928,6 +1040,9 @@ export async function ensureHydrated(options?: {
     })();
   }
   await runtime.hydratePromise;
+  // The hydrate above may have been started by a concurrent include-less caller,
+  // so honour this call's own include once the shared hydrate has settled.
+  await loadRequestedLazySidecars(runtime, realmId, options?.include);
 }
 
 function parseBlob(raw: string): PortalState {
