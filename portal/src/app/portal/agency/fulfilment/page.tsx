@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
-import { ensureHydrated, flushPendingWrites } from "@/server/storage";
+import { ensureHydrated, flushPendingWritesForRender } from "@/server/storage";
 import { requireRole } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES, type AgencyProduct, type Client, type ClientMilestone } from "@/server/types";
 import { agencyProductsForRead, listAgencyProducts } from "@/server/agencyProducts";
@@ -126,7 +126,7 @@ export default async function FulfilmentPage({ searchParams }: { searchParams: P
   if (view === "tags") {
     const canUseTags = workspaceElementAtLeast(viewAccess.tags, "use");
     const tagKey = getAgencyMasterSiteKey(agencyId) ?? (canUseTags ? ensureAgencyMasterSiteKey(agencyId) : "");
-    if (canUseTags) await flushPendingWrites();
+    if (canUseTags) await flushPendingWritesForRender();
     tagsWorkspace = <AquaTagsWorkspace
       snippet={tagKey ? masterTagSnippet(connectionLinkOrigin(), tagKey) : "A master tag has not been provisioned yet."}
       siteKey={tagKey}

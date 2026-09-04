@@ -8,7 +8,7 @@ import { Cable, Database, KeyRound, Plug, Radio, TriangleAlert } from "lucide-re
 import { requireRole } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES } from "@/server/types";
 import { devDocsAccessible } from "@/lib/server/dev/devDocs";
-import { ensureHydrated, flushPendingWrites, getBackendInfo, getState } from "@/server/storage";
+import { ensureHydrated, flushPendingWritesForRender, getBackendInfo, getState } from "@/server/storage";
 import { listClients } from "@/server/tenants";
 import {
   ensureAgencyMasterSiteKey,
@@ -117,7 +117,7 @@ export async function ApiSection({ tabs, searchParams }: { tabs?: ReactNode; sea
   // key on first ask and then returns it forever (it must never rotate: the
   // tag is already deployed inside other people's sites).
   const tagKey = ensureAgencyMasterSiteKey(session.agencyId);
-  await flushPendingWrites();
+  await flushPendingWritesForRender();
   const tagOrigin = connectionLinkOrigin(origin);
   const masterTag: MasterTagView = {
     siteKey: tagKey,

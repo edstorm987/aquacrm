@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { JourneyKanbansDesk, type KanbanDirectoryRow } from "./_JourneyKanbansDesk";
 import { listPipelines, pipelineCardCounts } from "@/server/pipelines";
 import { currentWorkspaceElementAccess, workspaceElementLevel } from "@/lib/server/access/workspaceElementAccess";
-import { ensureHydrated, flushPendingWrites } from "@/server/storage";
+import { ensureHydrated, flushPendingWritesForRender } from "@/server/storage";
 import { requireRole } from "@/lib/server/auth/auth";
 import { devDocsAccessible } from "@/lib/server/dev/devDocs";
 import { devIconPreference } from "@/lib/server/devIconPreference";
@@ -330,7 +330,7 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
       await synchroniseInboxIdentityResolutions(session.agencyId, identitySocial.value).catch(() => identitySocial.value);
     }
   }
-  await flushPendingWrites();
+  await flushPendingWritesForRender();
   const identityReviews = session.isDemo ? [] : listIdentityResolutionReviews(session.agencyId, { status: "all" });
   const requestedView = (await searchParams).view;
   const initialView = requestedView === "health"

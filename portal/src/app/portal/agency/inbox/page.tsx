@@ -3,7 +3,7 @@ import { listOperationalAlerts } from "@/lib/server/inbox/operationalAlerts";
 import { listWebsiteEnquiries, synchroniseWebsiteEnquiryIdentities } from "@/lib/server/websiteEnquiries";
 import { triageWebsiteEnquiry, type WebsiteEnquiryPriority } from "@/lib/server/websiteEnquiries";
 import { listActivity } from "@/server/activity";
-import { ensureHydrated, flushPendingWrites } from "@/server/storage";
+import { ensureHydrated, flushPendingWritesForRender } from "@/server/storage";
 import { listClients } from "@/server/tenants";
 import { AGENCY_ROLES } from "@/server/types";
 import { listInboxSnapshot } from "@/lib/server/inbox/inboxStore";
@@ -114,7 +114,7 @@ export default async function AgencyInboxPage() {
     conversations: socialInboxUnscoped.conversations.filter(conversation =>
       !conversation.identity.clientId || visibleClientIds.has(conversation.identity.clientId)),
   };
-  if (!session.publicShowcase) await flushPendingWrites();
+  if (!session.publicShowcase) await flushPendingWritesForRender();
   const conversations = clients.flatMap(client => {
     const clientLabel = clientWorkspaceDisplayName(client);
     const metadata = client.metadata as { clientRequests?: RequestRecord[]; properties?: PropertyRecord[] } | undefined;

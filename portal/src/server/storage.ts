@@ -1808,6 +1808,36 @@ export async function flushPendingWrites(): Promise<void> {
   await flushRealm(realmId, runtime, { throwOnError: true });
 }
 
+/**
+ * Render-path flush. Provision/sync work done *during a page render* queues
+ * patches via `mutate()`, and `mutate()` already schedules a 250 ms debounced
+ * background flush (see `scheduleFlush`). On a single long-lived instance
+ * (`PORTAL_SINGLE_INSTANCE`) the in-memory cache is authoritative for the next
+ * request, so a render must NOT `await` the Supabase round-trip: under a write
+ * convoy that blocks the viewport for seconds and stalls the whole page behind a
+ * durable write it never needed. Here we simply ensure the background flush is
+ * scheduled and return immediately.
+ *
+ * On serverless (no persistent event loop, `PORTAL_SINGLE_INSTANCE` unset) the
+ * process can freeze after the response before the debounced timer fires, so we
+ * fall back to the blocking flush to guarantee durability. Inside an open
+ * mutation transaction we also keep the exact blocking commit semantics.
+ */
+export async function flushPendingWritesForRender(): Promise<void> {
+  if (!trustsInMemoryState()) {
+    await flushPendingWrites();
+    return;
+  }
+  const transaction = portalStateMutationTransactions.getStore();
+  if (transaction?.active) {
+    await flushPendingWrites();
+    return;
+  }
+  const realmId = getActiveDataRealmId();
+  const runtime = realmRuntime(realmId);
+  scheduleFlush(realmId, runtime);
+}
+
 export async function reset(): Promise<void> {
   const realmId = getActiveDataRealmId();
   const runtime = realmRuntime(realmId);

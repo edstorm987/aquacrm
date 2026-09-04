@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ensureHydrated, flushPendingWrites } from "@/server/storage";
+import { ensureHydrated, flushPendingWritesForRender } from "@/server/storage";
 import { requireRoleForClient } from "@/lib/server/auth/auth";
 import { isAgencyRole } from "@/server/types";
 import { getAgency, getClientForAgency, listClients } from "@/server/tenants";
@@ -859,7 +859,7 @@ export default async function ClientHome({
       events: clientRecordLedgerEvents,
       completeSources: ["record-entry", "file", "contract", "invoice", "payment-plan", "delivery"],
     });
-    await flushPendingWrites();
+    await flushPendingWritesForRender();
   }
   const initialClientRecordLedgerPage = queryClientRecordLedger({
     agencyId: session.agencyId,
