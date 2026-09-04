@@ -11,15 +11,22 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const brand = getAuthBrand(requestUrl.searchParams.get("brand") ?? "aquacrm");
-  const destination = new URL("/login", requestUrl.origin);
-  destination.searchParams.set("brand", brand.id);
 
+  // Build a RELATIVE redirect (Location: /login?…) rather than an absolute one.
+  // Behind a proxy (Railway), `request.url` / `requestUrl.origin` is the app's
+  // internal bind origin (`http://localhost:$PORT`), so an absolute redirect
+  // built from it sends the browser to a dead `localhost` host. A relative
+  // Location is resolved by the browser against the current public host, so it
+  // works regardless of proxy, region, or which domain served the request.
+  const params = new URLSearchParams();
+  params.set("brand", brand.id);
   const next = requestUrl.searchParams.get("next");
   if (next?.startsWith("/") && !next.startsWith("//")) {
-    destination.searchParams.set("next", next);
+    params.set("next", next);
   }
+  const location = `/login?${params.toString()}`;
 
-  const response = NextResponse.redirect(destination, 303);
+  const response = new NextResponse(null, { status: 303, headers: { location } });
   const session = await getSessionFromRequest(request);
   if (session?.publicShowcase) {
     const cookie = clearSessionCookie();
