@@ -220,7 +220,7 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
     [operationalAlerts, brandPortfolio, clientsNeedingAttention] = await Promise.all([
       Promise.resolve<OperationalAlert[]>([]),
       brandPortfolioPromise,
-      clientsAvailable ? listClientsNeedingAttention(agency.id, recommendationTime) : Promise.resolve([]),
+      clientsAvailable ? listClientsNeedingAttention(agency.id, recommendationTime, { operationalAlerts: [] }) : Promise.resolve([]),
     ]);
     businessRadar = preservedScanResult.radar;
   } else if (runHeavyPanels) {
@@ -243,7 +243,7 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
     [operationalAlerts, brandPortfolio, clientsNeedingAttention] = await Promise.all([
       Promise.resolve<OperationalAlert[]>([]),
       brandPortfolioPromise,
-      clientsAvailable ? listClientsNeedingAttention(agency.id, recommendationTime) : Promise.resolve([]),
+      clientsAvailable ? listClientsNeedingAttention(agency.id, recommendationTime, { operationalAlerts: [] }) : Promise.resolve([]),
     ]);
     businessRadar = buildPausedBusinessRadar(workspaceSettings.advisor.radarPolicy, recommendationTime);
   }

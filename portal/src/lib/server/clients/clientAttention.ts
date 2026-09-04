@@ -1,6 +1,7 @@
 import "server-only";
 
 import { buildClientRadarFleet } from "@/engines/data/server/radar/clientRadarService";
+import type { OperationalAlert } from "@/lib/server/inbox/operationalAlerts";
 import { listClients } from "@/server/tenants";
 
 /**
@@ -26,10 +27,20 @@ export interface ClientAttentionItem {
  * and traffic factors), so this stays in step with each client's own Radar and
  * needs no second source of truth. Full detail stays in Fulfilment.
  */
-export async function listClientsNeedingAttention(agencyId: string, now = Date.now()): Promise<ClientAttentionItem[]> {
+export async function listClientsNeedingAttention(
+  agencyId: string,
+  now = Date.now(),
+  // When the caller already knows the operational-alert set (or deliberately
+  // wants to skip it — e.g. the Command Centre in performance mode), it passes
+  // it here. `buildClientRadarFleet` otherwise runs the full agency-wide
+  // operational-alert sweep (a portfolio scan + live Supabase fetch) itself,
+  // which is the single most expensive call on the Command Centre render.
+  // Passing `[]` skips that sweep; omitting it preserves the original behaviour.
+  options: { operationalAlerts?: OperationalAlert[] } = {},
+): Promise<ClientAttentionItem[]> {
   const clients = listClients(agencyId).filter(client => client.status === "active" && client.stage !== "churned");
   if (!clients.length) return [];
-  const fleet = await buildClientRadarFleet(agencyId, { now, clients });
+  const fleet = await buildClientRadarFleet(agencyId, { now, clients, operationalAlerts: options.operationalAlerts });
   const rank = { risk: 0, watch: 1 } as const;
   return fleet
     .filter((snapshot): snapshot is typeof snapshot & { healthState: "risk" | "watch" } =>
