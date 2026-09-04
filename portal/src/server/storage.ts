@@ -1750,18 +1750,43 @@ export function mutate(fn: (state: PortalState) => void): void {
   // patch. This keeps failed/tentative transaction state invisible without
   // running a caller's mutation callback twice (callbacks may allocate ids).
   const mutationTarget = activeCommit?.recording ? activeCommit.committed : runtime.cache;
-  const before = backend.applyPatch || activeCommit?.recording
-    ? structuredClone(mutationTarget)
-    : null;
-  fn(mutationTarget);
-  if (before) {
-    const operations = diffStorageValue(before, mutationTarget);
+  const needsDiff = backend.applyPatch || Boolean(activeCommit?.recording);
+  if (needsDiff) {
+    // Snapshot only the TOP-LEVEL collections the callback actually touches, not
+    // the whole ~1.75MB state. A focused mutation (one review, one person) then
+    // clones+diffs a few KB instead of megabytes. Render-time write bursts — e.g.
+    // the inbox identity sync doing 100+ mutate() calls over 58 enquiries — were
+    // paying a full 1.75MB structuredClone PER call, which is seconds of blocking
+    // CPU on the single Node instance. The Proxy captures a key's pre-value the
+    // first time the callback touches that key (read, write, or delete), so
+    // untouched collections are never cloned or diffed. The resulting operations
+    // are identical to a whole-state diff, which only ever emits ops for changed
+    // keys anyway.
+    const beforeByKey = new Map<string, unknown>();
+    const target = mutationTarget as unknown as Record<string, unknown>;
+    const snapshotKey = (key: string | symbol): void => {
+      if (typeof key === "string" && !beforeByKey.has(key)) {
+        beforeByKey.set(key, key in target ? structuredClone(target[key]) : undefined);
+      }
+    };
+    const proxy = new Proxy(target, {
+      get(t, key) { snapshotKey(key); return t[key as string]; },
+      set(t, key, value) { snapshotKey(key); t[key as string] = value; return true; },
+      deleteProperty(t, key) { snapshotKey(key); delete t[key as string]; return true; },
+    });
+    fn(proxy as unknown as PortalState);
+    const operations: StoragePatchOperation[] = [];
+    for (const [key, beforeValue] of beforeByKey) {
+      operations.push(...diffStorageValue(beforeValue, target[key], [key]));
+    }
     if (operations.length === 0) return;
     if (activeCommit?.recording) {
       activeCommit.operations.push(...operations);
       runtime.cache = parseBlob(JSON.stringify(applyStoragePatch(runtime.cache, operations)));
     }
     if (backend.applyPatch) runtime.pendingPatchOperations.push(...operations);
+  } else {
+    fn(mutationTarget);
   }
   runtime.mutationVersion += 1;
   if (backend.kind === "file" && runtime.writable) {
