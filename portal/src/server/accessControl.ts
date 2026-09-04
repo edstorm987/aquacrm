@@ -406,7 +406,12 @@ export const requireCurrentAccessActor = cache(async (): Promise<CurrentAccessAc
   const userId = session.sandbox?.returnUserId ?? session.userId;
   const agencyId = session.sandbox?.returnAgencyId ?? resourceAgencyId;
   const control = await runInDataRealm(LIVE_DATA_REALM_ID, async () => {
-    await ensureHydrated({ fresh: true, preserveExplicitRealm: true });
+    // For a non-sandbox session the active realm already IS the LIVE realm and
+    // was just fresh-loaded above, so re-reading the identical row here is pure
+    // duplicate cost. Only a sandbox session (whose active resource realm differs
+    // from LIVE) needs the extra fresh read. (The per-request fresh-load dedup in
+    // storage.ts also collapses this, but stating the intent keeps it explicit.)
+    await ensureHydrated({ fresh: Boolean(session.sandbox), preserveExplicitRealm: true });
     return {
       governanceState: getState(),
       user: getUserById(userId),

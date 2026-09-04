@@ -354,7 +354,10 @@ export function withPortalStateTransaction<T>(
     // post-commit queue. Refreshing or flushing in the middle would publish a
     // partial outer mutation.
     if (portalStateCommitScopes.getStore()?.active) return operation();
-    await ensureHydrated({ fresh: true });
+    // A write transaction must read the very latest row before it locks, so bypass
+    // the per-request fresh-load dedup even if this realm was already read this
+    // request.
+    await ensureHydrated({ fresh: true, forceFreshReload: true });
     const scope: PortalStateCommitScope = {
       active: true,
       postCommit: [],

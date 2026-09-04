@@ -793,8 +793,49 @@ async function loadRequestedLazySidecars(
   }
 }
 
+// ── Per-request dedup of `fresh:true` full-state reloads ────────────────────
+// A single serverless request often asks for a fresh reload of the same realm
+// several times — e.g. `requireCurrentAccessActor` reloads the active realm and
+// then the LIVE realm, which for a non-sandbox owner are the SAME row. On
+// serverless each such reload is a ~1.3-1.6s round-trip for the whole ~3.25MB
+// document, so three back-to-back loads per navigation was the dominant cost.
+// Within ONE request nothing external mutates the row between those calls, so the
+// second+ fresh read cannot observe anything the first did not — reload each realm
+// under `fresh:true` at most once per request. Keyed on the Next request store so
+// it is a no-op outside a request (scripts/tests reload every time, unchanged) and
+// a WARM serverless instance still performs exactly one fresh reload per request —
+// so a grant/revocation that lands between requests still takes effect on the next
+// navigation. Cross-request freshness and the per-request auth boundary are
+// untouched. Use `forceFreshReload` where a caller must always see the very latest
+// row within the same request (the product-workspace lease before it locks).
+const freshlyLoadedRealmsByRequest = new WeakMap<object, Set<string>>();
+function currentRequestKey(): object | null {
+  const store = workUnitAsyncStorage.getStore();
+  return store?.type === "request" ? store : null;
+}
+function realmLoadedFreshThisRequest(realmId: string): boolean {
+  const key = currentRequestKey();
+  return key ? (freshlyLoadedRealmsByRequest.get(key)?.has(realmId) ?? false) : false;
+}
+function markRealmLoadedFreshThisRequest(realmId: string): void {
+  const key = currentRequestKey();
+  if (!key) return;
+  let set = freshlyLoadedRealmsByRequest.get(key);
+  if (!set) {
+    set = new Set<string>();
+    freshlyLoadedRealmsByRequest.set(key, set);
+  }
+  set.add(realmId);
+}
+
 export async function ensureHydrated(options?: {
   fresh?: boolean;
+  /**
+   * Force a `fresh:true` reload even if this realm was already reloaded fresh
+   * earlier in the same request. Reserved for the few callers that must read the
+   * very latest row before a write/lock (e.g. the product-workspace lease).
+   */
+  forceFreshReload?: boolean;
   /** Server-only escape hatch for code already wrapped in runInDataRealm(). */
   preserveExplicitRealm?: boolean;
   /**
@@ -814,6 +855,9 @@ export async function ensureHydrated(options?: {
   const needsReconciliation = runtime.reconciliationRequired !== null;
   const shouldRefreshPersistent =
     options?.fresh === true &&
+    // Skip a duplicate fresh reload of a realm this request already reloaded
+    // fresh (unless the caller forces it). See freshlyLoadedRealmsByRequest.
+    (options?.forceFreshReload === true || !realmLoadedFreshThisRequest(realmId)) &&
     (backend.kind === "supabase" || backend.kind === "postgres" || backend.kind === "file");
 
   if ((shouldRefreshPersistent || needsReconciliation) && runtime.hydrated) {
@@ -1040,6 +1084,9 @@ export async function ensureHydrated(options?: {
     })();
   }
   await runtime.hydratePromise;
+  // A real backend load just completed for this realm — record it so any further
+  // fresh:true reloads of the same realm within this request are deduped.
+  markRealmLoadedFreshThisRequest(realmId);
   // The hydrate above may have been started by a concurrent include-less caller,
   // so honour this call's own include once the shared hydrate has settled.
   await loadRequestedLazySidecars(runtime, realmId, options?.include);
