@@ -24,6 +24,34 @@ export async function observeOperationalAlertSourceAvailability(input: {
   observedAt: number;
 }): Promise<{ active: boolean; startedAt?: number }> {
   const key = episodeKey(input.agencyId, input.sourceId);
+
+  // ── Read-only fast path ──────────────────────────────────────────────────
+  // This runs on EVERY agency/clients render. The coordinated write transaction
+  // below is expensive on serverless — it forces a fresh full-state hydrate and a
+  // product-workspace lease round-trip even when it writes nothing — and that
+  // per-render cost is a primary driver of the render slowness. So decide
+  // read-only first whether a durable change is even possible, and skip the
+  // transaction entirely for the steady-state healthy observation (which
+  // re-stamped observedAt but persisted nothing any consumer reads). Only cases
+  // that can actually change the episode enter the transaction, which re-reads
+  // under the lock and stays authoritative — so this narrows work, never widens it.
+  const snapshot = getState().operationalAlertSourceEpisodes[key];
+  const snapshotObservedAt = snapshot?.observedAt ?? snapshot?.startedAt;
+  if (
+    typeof snapshotObservedAt === "number"
+    && Number.isFinite(snapshotObservedAt)
+    && input.observedAt < snapshotObservedAt
+  ) {
+    // An older observation than the one already recorded — read-only either way.
+    return snapshot?.available === false || snapshot?.available === undefined
+      ? { active: true, startedAt: snapshot.startedAt }
+      : { active: false };
+  }
+  if (input.available && snapshot?.available === true) {
+    // Already recorded healthy and not an older observation → nothing to persist.
+    return { active: false };
+  }
+
   return withPortalStateTransaction(transactionKey(input.agencyId, input.sourceId), () => {
     const existing = getState().operationalAlertSourceEpisodes[key];
     const existingObservedAt = existing?.observedAt ?? existing?.startedAt;
