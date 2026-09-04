@@ -54,6 +54,13 @@ import { dashboardPlanningSnapshot } from "@/server/dashboardPlanning";
  * subtree, not about any one page.
  */
 export const dynamic = "force-dynamic";
+// Portal renders currently perform several sequential datastore round-trips
+// (state loads, provision/sync writes, workspace-lease claims). Under load that
+// can exceed Vercel's 15s default and the function is killed mid-render → the
+// RSC stream aborts → React #412. Raise the ceiling for the whole portal subtree
+// so a slow render completes instead of crashing, while the per-render round-trip
+// count is brought down separately. 60s is within the Pro plan's limit.
+export const maxDuration = 60;
 
 export default function PortalLayout({ children }: { children: ReactNode }) {
   return (
