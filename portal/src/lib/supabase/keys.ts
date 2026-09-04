@@ -34,6 +34,10 @@ export function resolveSupabaseSecretKey(): string | undefined {
  */
 export function resolveSupabasePublicKey(): string | undefined {
   return (
+    // The Supabase↔Vercel integration names the browser key
+    // NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (confirmed accepted by Auth). Keep the
+    // shorter spelling and the legacy anon name as fallbacks.
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() ||
     process.env.NEXT_PUBLIC_PUBLISHABLE_KEY?.trim() ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ||
     undefined
