@@ -10,6 +10,28 @@ bottom of this file. It does not supersede source code or
 `docs/development/TODO.md`: source is the final authority and **`TODO.md` is the one
 current task list** (`checklist.md` and `todo-retired.md` were retired into it on 2026-08-31).
 
+> ### 🔴 LATEST — 4 September 2026: deployment moved Vercel → Railway; storage incident
+> **AquaCRM is no longer on Vercel serverless. It runs on an always-on Railway
+> persistent server in EU-West, at `www.aqua-crm.com`** (GitHub-deployed from
+> `edstorm987/aquacrm@main`, service `aquacrm`, root dir `portal`,
+> `PORTAL_SINGLE_INSTANCE=true`). Any doc below that says "Vercel", "serverless",
+> or "15s function timeout" is describing the OLD substrate — treat it as history.
+>
+> A performance outage was diagnosed and largely fixed the same day. Root causes:
+> one 2.9 MB `app_datastores` row that Postgres rewrites in full on every write;
+> five page renders that `await`ed the durable write; a `person.updated` outbox
+> flood that was 40% of the blob; and a US↔EU app/DB split. Fixes shipped: EU
+> region move, `flushPendingWritesForRender()` (`42f83c44`), the person.updated
+> `substantive` gate (`4d1b8415`), and the login-redirect/base-URL fixes
+> (`59ec0037`). **The durable fix — splitting the one row into per-domain
+> clusters via the existing sidecar machinery (never applied to live data) — plus
+> the full architecture, incident analysis, blob composition, peel order and the
+> non-negotiable rehearse-first migration procedure, is documented in
+> `docs/development/plans/storage-architecture-and-2026-09-04-incident.md`. Read
+> it before touching `storage.ts`, the sidecars, or any state migration.** Still
+> open: apex `aqua-crm.com` DNS (public login links `NXDOMAIN`), clearing the
+> 2,809 stale outbox events, and the cluster migrations themselves.
+
 ### First five minutes: preserve the working state
 
 - Work in `aquaCRM/portal`. At this documentation refresh the checkout was
