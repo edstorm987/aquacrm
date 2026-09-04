@@ -2,7 +2,7 @@
 
 > The current checklist, status, roadmap, goals, decisions and working queue.
 >
-> Consolidated 2026-09-03 from **7** source documents / **87,169 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-04 from **7** source documents / **87,169 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 

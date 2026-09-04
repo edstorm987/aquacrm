@@ -2,7 +2,7 @@
 
 > Source maps, subsystem dossiers, components, routes, state and built-in module notes.
 >
-> Consolidated 2026-09-03 from **23** source documents / **57,404 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-04 from **23** source documents / **57,404 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
