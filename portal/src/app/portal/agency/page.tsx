@@ -91,7 +91,10 @@ function emptyDashboardPlanningSnapshot(now: number): DashboardPlanningSnapshot 
 }
 
 export default async function AgencyHome({ searchParams }: { searchParams?: Promise<{ [key: string]: string | string[] | undefined }> }) {
+  const __t0 = Date.now();
+  const __ck = (label: string) => { console.error(`[perf] agency-page ${label}: ${Date.now() - __t0}ms`); };
   await ensureHydrated();
+  __ck("after-ensureHydrated");
   const session = await requireRole([...AGENCY_ROLES]);
   const actor = await requireCurrentAccessActor();
   const agency = getAgency(actor.resourceAgencyId);
@@ -130,6 +133,7 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
   // costs off the landing critical path. The operational-alerts sweep (a live
   // Supabase fetch) is skipped, and the dev-team board disk scan that feeds the
   // station badge is not run here — the station still scans itself when opened.
+  __ck("after-access-resolution");
   const perfMode = await performanceModePreference();
   const lightweightMode = perfMode || Boolean(session.publicShowcase);
   const canManageWorkspace = workspaceElementAtLeast(workspaceElementLevel(staffAccess, "workspace.settings"), "manage");
@@ -202,6 +206,7 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
     ? import("@/server/tradingCompanies").then(({ listTradingCompanies }) => listTradingCompanies(agency.id).filter(company => company.status !== "archived"))
     : Promise.resolve([]);
   const workspaceSettings = getAgencyWorkspaceSettings(agency.id);
+  __ck(`after-reads (runHeavyPanels=${runHeavyPanels})`);
   const recommendationTime = Date.now();
   const needsBrandPortfolio = runHeavyPanels || needsExecutiveData;
   const brandPortfolioPromise = needsBrandPortfolio
@@ -440,6 +445,7 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
     ? dashboardPlanningSnapshot(agency.id, session.userId)
     : emptyDashboardPlanningSnapshot(personalRadarNow);
 
+  __ck("before-return");
   return (
     <div className="mm-command-center-workspace mx-auto flex w-full max-w-[1600px] flex-col gap-5 pb-6" data-testid="agency-pipelines-hub">
       {personalRadarBlock ? <PersonalRadarPanel
