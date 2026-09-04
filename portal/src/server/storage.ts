@@ -462,7 +462,7 @@ const backend = pickBackend();
  */
 interface SidecarCollection {
   /** The `PortalState` key that moves out. */
-  key: "devTeamWorkspaceFiles" | "clientPortalTemplates";
+  key: "devTeamWorkspaceFiles" | "clientPortalTemplates" | "radarMemory" | "radarEvidence";
   /** Suffix of the row's `app_key`. */
   slug: string;
   /**
@@ -478,6 +478,17 @@ const SIDECAR_COLLECTIONS: readonly SidecarCollection[] = [
   // 615 KB, 18.5% of the live document, and no personal data — the reason it is
   // second. Written through ordinary `mutate()`, so the flush owns its row.
   { key: "clientPortalTemplates", slug: "client-portal-templates", dedicatedWriter: false },
+  // Radar memory + evidence: ~1.08 MB of the live blob combined (663 KB + 418 KB)
+  // and growing unbounded; agency-internal (no per-tenant/RLS implication). Both are
+  // written only through ordinary `mutate()` (radarMemory.ts, radarEvidenceVault.ts),
+  // so the flush owns their rows — non-dedicated, exactly like client-portal-templates.
+  // Peeling them out shrinks the main blob that every serverless request reads and
+  // rewrites, which is the fix for the write convoy. No SQL migration is needed: the
+  // compare-and-swap seeds each sidecar from the LOCKED main row on the first write and
+  // clears main in the same transaction, and until then the load path falls back to
+  // main (sidecar-wins-else-main, guarded by `__aquaSidecarAuthoritative` + sidecarPopulated).
+  { key: "radarMemory", slug: "radar-memory", dedicatedWriter: false },
+  { key: "radarEvidence", slug: "radar-evidence", dedicatedWriter: false },
 ];
 
 interface RealmRuntime {
