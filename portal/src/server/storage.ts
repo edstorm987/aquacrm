@@ -828,6 +828,19 @@ function markRealmLoadedFreshThisRequest(realmId: string): void {
   set.add(realmId);
 }
 
+// On a single long-lived instance (a persistent server, PORTAL_SINGLE_INSTANCE=true)
+// the in-memory cache IS authoritative: this process is the only writer of the
+// state row, every write updates the cache and persists through to the backend,
+// and there is no sibling instance whose write a fresh reload would need to see.
+// So `fresh:true` reloads — which exist purely for serverless multi-instance
+// coherence — are pure per-request cost here, and dropping them is what makes a
+// persistent deployment as instant as localhost. The initial cold load and
+// post-failure reconciliation still run; only the redundant re-read-every-request
+// is skipped. Off by default, so serverless keeps re-reading for coherence.
+function trustsInMemoryState(): boolean {
+  return process.env.PORTAL_SINGLE_INSTANCE === "true";
+}
+
 export async function ensureHydrated(options?: {
   fresh?: boolean;
   /**
@@ -855,6 +868,10 @@ export async function ensureHydrated(options?: {
   const needsReconciliation = runtime.reconciliationRequired !== null;
   const shouldRefreshPersistent =
     options?.fresh === true &&
+    // On a single persistent instance the in-memory cache is authoritative, so
+    // fresh reloads (a serverless multi-instance-coherence device) are skipped —
+    // this is what makes a persistent deployment localhost-fast.
+    !trustsInMemoryState() &&
     // Skip a duplicate fresh reload of a realm this request already reloaded
     // fresh (unless the caller forces it). See freshlyLoadedRealmsByRequest.
     (options?.forceFreshReload === true || !realmLoadedFreshThisRequest(realmId)) &&

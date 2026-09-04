@@ -11,7 +11,7 @@
     "dev:verify": "node scripts/dev-preflight.mjs && NEXT_DIST_DIR=.next-dev-verify PORTAL_BACKEND=file PORTAL_DATA_FILE=.data/portal-state.verify.json PORTAL_DEV_MODE=true next dev --webpack",
     "dev:all": "npm run dev",
     "build": "NODE_OPTIONS='--max-old-space-size=6144' next build --webpack && node scripts/prepare-vercel-root-manifest.mjs",
-    "start": "next start -p 3032",
+    "start": "next start -p ${PORT:-3032}",
     "typecheck": "tsc --noEmit",
     "smoke": "node scripts/smoke.mjs",
     "smoke:all": "PORTAL_BACKEND=memory NODE_OPTIONS='--conditions react-server' node --import tsx --test scripts/*.test.ts 'src/built-ins/modules/!(website-editor)/src/__smoke__/*.test.ts' && npm run smoke:website-editor",
