@@ -21,10 +21,13 @@ test("ordinary navigation keeps the Next.js default prefetch policy", () => {
   assert.equal(devTeamLinkPrefetch("https://example.com/portal/dev-team/editor"), undefined);
 });
 
-test("shared chrome suppresses hidden localhost compiles without changing production", () => {
+test("shared chrome disables automatic prefetch in every environment", () => {
+  // Automatic prefetch of the whole nav is a heavy-render storm in production
+  // (single Node instance, blob-hydrating renders) and a compile storm in dev,
+  // so it is off everywhere; navigation renders on-demand.
   assert.equal(sharedChromeLinkPrefetch("development"), false);
-  assert.equal(sharedChromeLinkPrefetch("production"), undefined);
-  assert.equal(sharedChromeLinkPrefetch("test"), undefined);
+  assert.equal(sharedChromeLinkPrefetch("production"), false);
+  assert.equal(sharedChromeLinkPrefetch("test"), false);
 });
 
 test("sidebar, topbar, Settings footer and pinned navigation share the development policy", () => {
