@@ -12,7 +12,7 @@
 // events are retained receipts with no pending work).
 
 import { NextRequest, NextResponse } from "next/server";
-import { ensureHydrated, flushPendingWrites } from "@/server/storage";
+import { ensureHydrated } from "@/server/storage";
 import { requireRole, authErrorResponse } from "@/lib/server/auth/auth";
 import { sweepExpired } from "@/lib/server/rateLimit";
 import { processAutomationSweep } from "@/server/automations";
@@ -29,9 +29,10 @@ export async function GET(request: NextRequest) {
 
   let purgedDeliveredOutbox = 0;
   if (new URL(request.url).searchParams.get("outbox") === "purge-delivered") {
-    purgedDeliveredOutbox = purgeDeliveredOutbox();
-    // Explicit maintenance action: flush so the shrink is durable before we reply.
-    if (purgedDeliveredOutbox > 0) await flushPendingWrites();
+    // Self-flushing: drops the whole outbox key in one op (all-delivered case)
+    // or removes delivered rows in flushed chunks, so it never leaves a huge
+    // un-flushable patch behind.
+    purgedDeliveredOutbox = await purgeDeliveredOutbox();
   }
 
   const [stats, automations, inbox] = await Promise.all([

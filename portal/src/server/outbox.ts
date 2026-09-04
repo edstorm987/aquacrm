@@ -45,7 +45,7 @@ import { randomUUID } from "crypto";
 
 import { emit } from "./eventBus";
 import { deferUntilPortalStateCommit } from "./productWorkspaceCoordinator";
-import { getState, mutate, withAtomicPortalStateMutation } from "./storage";
+import { flushPendingWrites, getState, mutate, withAtomicPortalStateMutation } from "./storage";
 import type { OutboxEvent, PortalState } from "./types";
 
 /** Delivered events are kept this long as lineage, then pruned. */
@@ -270,16 +270,40 @@ export function drainOutbox(now = Date.now(), dispatch: OutboxDispatch = emit): 
  * through `mutate()` so it flushes as an ordinary coordinated patch. Returns the
  * count removed. Founder-gated at the call site (`/api/internal/sweep`).
  */
-export function purgeDeliveredOutbox(): number {
+export async function purgeDeliveredOutbox(): Promise<number> {
+  const entries = Object.entries(getState().outbox ?? {});
+  const delivered = entries.filter(([, row]) => row.status === "delivered");
+  const pending = entries.filter(([, row]) => row.status !== "delivered");
+  if (delivered.length === 0) return 0;
+
+  if (pending.length === 0) {
+    // All events are delivered → drop the whole `outbox` key in a SINGLE patch
+    // operation (a whole-key delete). Deleting 2,800+ ids individually is
+    // 2,800+ jsonb operations on the 2.9MB row, which blows past the 8s
+    // statement timeout and — worse — leaves an un-flushable patch that the
+    // reconciliation loop retries on every render. `diffStorageValue` emits one
+    // `delete` op when a top-level key becomes undefined, so this is one cheap
+    // write. `state.outbox` is recreated lazily by the next recordOutboxEvent.
+    mutate(state => {
+      delete (state as { outbox?: Record<string, OutboxEvent> }).outbox;
+    });
+    await flushPendingWrites();
+    return delivered.length;
+  }
+
+  // Pending events remain, so we cannot drop the whole key. Remove delivered
+  // rows in bounded chunks, FLUSHING each chunk so no single write exceeds the
+  // statement timeout or accumulates into one un-flushable patch.
+  const CHUNK = 250;
   let removed = 0;
-  mutate(state => {
-    for (const row of Object.values(state.outbox ?? {})) {
-      if (row.status === "delivered") {
-        delete state.outbox[row.id];
-        removed += 1;
-      }
-    }
-  });
+  for (let i = 0; i < delivered.length; i += CHUNK) {
+    const ids = delivered.slice(i, i + CHUNK).map(([id]) => id);
+    mutate(state => {
+      for (const id of ids) delete state.outbox[id];
+    });
+    await flushPendingWrites();
+    removed += ids.length;
+  }
   return removed;
 }
 
