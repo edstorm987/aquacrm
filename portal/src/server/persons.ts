@@ -314,7 +314,18 @@ export function upsertPerson(agencyId: string, input: UpsertPersonInput): Upsert
       );
       state.persons[next.id] = next;
     });
-    emitDurable({ name: "person.updated", agencyId, source: "server/persons", payload: { personId: next.id } });
+    // Emit the durable `person.updated` ONLY when THIS person actually changed.
+    //
+    // `settled` (a shared-phone sweep) forces the write above so the OTHER owners
+    // of a shared number get marked, but that sweep is idempotent after the first
+    // pass. Emitting on `settled` alone meant every agency render — which calls
+    // this via `listOperationalAlerts` for each enquiry contact — announced
+    // `person.updated` for people who had not changed. That flooded the outbox
+    // (2,800+ no-op events in a day → ~40% of the state blob, bloating every
+    // write). `mutate()` already no-ops when nothing changed; the emit must match.
+    if (substantive) {
+      emitDurable({ name: "person.updated", agencyId, source: "server/persons", payload: { personId: next.id } });
+    }
     return { person: next, created: false };
   }
 
