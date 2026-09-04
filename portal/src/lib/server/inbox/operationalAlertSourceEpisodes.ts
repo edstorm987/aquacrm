@@ -52,7 +52,15 @@ export async function observeOperationalAlertSourceAvailability(input: {
     return { active: false };
   }
 
-  return withPortalStateTransaction(transactionKey(input.agencyId, input.sourceId), () => {
+  // The durable-change lane. On a single persistent instance the in-memory cache
+  // is authoritative, so the per-source product-workspace lease is pure overhead:
+  // its `claim_product_workspace_lease` + write round-trip ran on EVERY agency
+  // render (once per non-healthy source) and was the dominant cost of the multi-
+  // second agency render. `mutate()` updates the cache synchronously and the
+  // debounced background flush persists it, so run the mutation directly and skip
+  // the lease. A multi-instance / serverless deployment still needs the
+  // coordinated transaction (it re-reads under the lock), so keep it there.
+  const apply = (): { active: boolean; startedAt?: number } => {
     const existing = getState().operationalAlertSourceEpisodes[key];
     const existingObservedAt = existing?.observedAt ?? existing?.startedAt;
     if (
@@ -106,5 +114,9 @@ export async function observeOperationalAlertSourceAvailability(input: {
       };
     });
     return { active: true, startedAt: input.observedAt };
-  });
+  };
+
+  return process.env.PORTAL_SINGLE_INSTANCE === "true"
+    ? apply()
+    : withPortalStateTransaction(transactionKey(input.agencyId, input.sourceId), apply);
 }
