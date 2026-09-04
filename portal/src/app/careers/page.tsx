@@ -4,8 +4,6 @@ import { ArrowLeft, LockKeyhole, Radar, Route, ShieldCheck } from "lucide-react"
 
 import { ApplicationForm } from "./_ApplicationForm";
 
-export const dynamic = "force-dynamic";
-
 export default function CareersPage() {
   return (
     <main className="min-h-screen bg-[#f1f1ec] text-[#151813]">

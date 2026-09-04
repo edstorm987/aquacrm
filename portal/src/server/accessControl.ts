@@ -2,6 +2,7 @@ import "server-only";
 
 import crypto from "node:crypto";
 
+import { cache } from "react";
 import { cookies } from "next/headers";
 
 import {
@@ -379,7 +380,17 @@ export interface CurrentAccessActor {
   resourceState: PortalState;
 }
 
-export async function requireCurrentAccessActor(): Promise<CurrentAccessActor> {
+// Perf (Ed's audit): a single /portal navigation renders layout + page + nested
+// server components, and each independently calls this to resolve the access
+// actor — previously re-running two `ensureHydrated({ fresh: true })` full-blob
+// reloads from Supabase EVERY time (2–4 cross-region reloads per click). React
+// `cache()` dedupes the no-arg call within one RSC render, so the whole render
+// resolves the actor ONCE and every caller shares it; the freshness/revocation
+// checks still run, exactly once per request, never skipped. The next request
+// gets a fresh cache scope, so rotation/revocation land on the next navigation
+// exactly as before. Outside an RSC render `cache()` is a pass-through, so API
+// routes keep per-call resolution. Same proven pattern as `getSession`.
+export const requireCurrentAccessActor = cache(async (): Promise<CurrentAccessActor> => {
   await ensureHydrated({ fresh: true });
   const session = await getSession();
   if (!session) {
@@ -414,7 +425,7 @@ export async function requireCurrentAccessActor(): Promise<CurrentAccessActor> {
     governanceState: control.governanceState,
     resourceState,
   };
-}
+});
 
 export function resolveActorAccess(
   actor: CurrentAccessActor,

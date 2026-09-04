@@ -126,6 +126,13 @@ const nextConfig: NextConfig = {
     // a module is sealed instead of retaining the whole graph. Trades a little
     // build time for a lower memory ceiling. Behaviour of the output is unchanged.
     webpackMemoryOptimizations: true,
+    // Client Router Cache reuse. Next 16 defaults the dynamic staleTime to 0, so
+    // every back/forward or quick re-visit to a /portal route refetches the whole
+    // RSC from the (cross-region) origin and re-hydrates. A short window makes the
+    // click-around pattern instant. This cache is per-browser and client-side —
+    // never shared across users — so there is no tenancy/RLS risk; a hard reload
+    // is always fresh, and a soft revisit may show data up to `dynamic` seconds old.
+    staleTimes: { dynamic: 30, static: 300 },
   },
   // Anchor optional Turbopack use + output-file tracing at this app root for Vercel.
   outputFileTracingRoot: APP_ROOT,
