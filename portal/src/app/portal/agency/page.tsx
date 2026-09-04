@@ -132,14 +132,6 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
   // station badge is not run here — the station still scans itself when opened.
   const perfMode = await performanceModePreference();
   const lightweightMode = perfMode || Boolean(session.publicShowcase);
-  // The Command Centre skips the operational-alert sweep for its own speed. Warm
-  // it in the background (fire-and-forget) so the next page that DOES need it
-  // (inbox, clients, actions) hits a ready cache instead of computing inline.
-  if (lightweightMode && !session.publicShowcase) {
-    void import("@/lib/server/inbox/operationalAlerts")
-      .then(({ prewarmOperationalAlerts }) => prewarmOperationalAlerts(agency.id))
-      .catch(() => undefined);
-  }
   const canManageWorkspace = workspaceElementAtLeast(workspaceElementLevel(staffAccess, "workspace.settings"), "manage");
   const canRunRadarScan = await resolveBusinessRadarCapabilityForActor(actor, "use");
   let canManageBusinessWorkload = false;
