@@ -321,10 +321,19 @@ copy-only, statuses unchanged, typecheck + smoke-business-radar 20/20):
   public URL configured" vs "the probe never ran") into one message; split into two, each with its own
   remedy. The "never completed a probe" freshness blind gained the same (and ties to the known
   probe-cron gap in `BLOCKERS-FOR-ED.md`).
-- **Bounded on purpose:** this is "area 1" — the two builders that originate most blind checks. A
-  structured `remedy` field on `BusinessRadarCheck` (vs prose) would be the fuller fix but ripples
-  through every builder + UI + tests; logged as the follow-up rather than started blind. Remaining
-  blind sources to sweep next: `radarPolicyEngine`, `radarClassification`, `radarRuleCatalog`.
+- **Area 2 — the catalog engine** (`30ecfb4b`, checkpoint #5): the two blind messages a *new*
+  business sees across the whole 2,064-check catalog — "no observation registered for X" and "source
+  not connected" — now name the remedy (reconnect under Company → Connections, or register a source in
+  Settings when none exists). Both already refused a false green; now they also say how to un-blind.
+  typecheck clean; smoke-business-radar 20/20.
+- **Coverage check:** `radarPolicyEngine` and `radarClassification` turned out to be *status logic*
+  (deciding when a check is blind/learning), not user-facing prose — so the blind *detail* producers
+  are: sentinels + synthetic (area 1), catalog engine (area 2), infra (improved earlier). That is the
+  substantial set; the blind checks now consistently carry **reason + remedy**. The two remaining
+  self-explanatory watch/learning strings (continuity-without-timestamp, no-prior-period) were left —
+  their implicit remedy ("wait for history") is already in the text.
+- **Structured `remedy` field** on `BusinessRadarCheck` (vs prose) stays the fuller follow-up — it
+  ripples through every builder + UI + tests, so it's logged, not started blind.
 
 **One deliberate docs-correctness deferral:** this run added new exports (`radarNodeTree.ts`:
 `projectRadarNodeTree`, `indexRadarNodes`, `RadarNode…`) and changed one signature
