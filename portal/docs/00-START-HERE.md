@@ -2,7 +2,7 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-09-05 from **23** source documents / **44,530 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-05 from **23** source documents / **44,618 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -27,7 +27,7 @@
 - [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 2,095 words · `379784a12461`
 - [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,643 words · `38954d1ad66e`
 - [`docs/development/OVERNIGHT-RUN-2026-09-05.md`](#source-docs-development-overnight-run-2026-09-05-md) — 5,799 words · `dca6671fd9eb`
-- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 3,107 words · `10443b8564b3`
+- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 3,195 words · `ef98b937d3e1`
 - [`README.md`](#source-readme-md) — 437 words · `78865db66238`
 
 ---
@@ -4551,7 +4551,7 @@ index that's pending, by design.
 
 ## Source document — `docs/development/TODO.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="10443b8564b348fad0a5ebf0b0a8387764e7fc06932a1ad95e82d3441da0267f" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="ef98b937d3e1a7eab361521144b45ee6f78cedae502e168f77770a37551e4676" -->
 # TODO — the one list
 
 **This is the only task list.** `checklist.md` and `todo-retired.md` are retired; they held the
@@ -4687,20 +4687,20 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Published current-page blocks are hydration-stable in default and explicit modes; mounted navigation acceptance remains → [#143](issues.md)
 - [~] Private media has one tested 200/206/416 provider-aware byte-range contract; mounted playback/seek acceptance remains → [#144](issues.md)
 - [~] Finish production-durable Dev Team authoring and live signals  <sub>consolidated from the retired lists; no issue number</sub>
-- [ ] **Confirm showcase `/portal/agency` render — one unreproduced React #441 (found live 2026-09-05).**
-  After the `/showcase` redirect fix (`0220a2cd`) the demo is reachable. I saw the agency workspace
-  error boundary once (*"Something went wrong loading agency workspace. React #441"*), but **could not
-  confirm it's deterministic** — my in-app browser **pane was hidden**, which throttled the loader
-  timers (that, not a real stall, caused the "permanent loader" I first mis-reported) and made reloads
-  take 45s+. Server renders the full 66KB workspace fast (~1.1s); chrome renders. **Needs a FOREGROUND
-  browser** to confirm whether showcase agency reliably errors with #441 or renders fine. Not
-  blind-fixed. Correction + full evidence in `OVERNIGHT-RUN-2026-09-05.md`.  <sub>added 2026-09-05, corrected same day</sub>
-  <sub>Repro kit for the focused session: (1) `react.dev/errors/441` is **404** — #441 is not in
-  React's public decoder, so run the **dev build** (`npm run dev`, showcase enabled) to get the
-  non-minified message; (2) it's the shared `@/components/ui/ErrorBoundary` (dynamic "loading
-  &lt;label&gt; workspace" label) wrapping plugin/tool render in `agency/[...rest]/page.tsx:27`;
-  (3) use a **foreground** browser tab — the in-app pane is hidden and throttles the loader timers.</sub>
-- [ ] Bring dense operator controls to 44×44 (calendar month toolbar, phase card actions, inbox chips, notepad tabs) — recorded per page by `browser-release-acceptance.mjs` on 2026-09-03  <sub>added 2026-09-03</sub>
+- [x] **Public demo showcase agency React #441 — ROOT-CAUSED + FIXED + verified live 2026-09-05 (`301071ee`).**
+  With a foreground browser the error reproduced deterministically. Railway deploy logs decoded #441
+  (React's generic "server component render error"): digest → `Error [AccessControlError]/[AuthError]:
+  stale_session`. **Cause:** `requireCurrentAccessActor` (`accessControl.ts`) resolved the session user
+  in `LIVE_DATA_REALM_ID`, but a public-showcase visitor exists **only** in its fixture realm
+  (`sandbox-public-showcase`) — so `getUserById` returned null and it wrongly threw `stale_session`,
+  killing the whole demo Command Centre. **Fix:** resolve public-showcase users in their fixture realm,
+  mirroring the authoritative `currentUserForSession` in `auth.ts`; every other session path is
+  byte-identical. Verified: typecheck clean, full `smoke:all` 6704/0, security suites (session-revocation
+  #22, showcase, release-access-matrix, access-control kernel) 111/111, **and the live showcase Command
+  Centre now renders fully (`err441:false`, real workspace content)**. Together with the earlier redirect
+  fix, the public demo is now functional end-to-end. (The showcase inbox cleanly redirects to login — that
+  is intentional demo scoping, not a crash; no errors logged post-fix.)  <sub>added 2026-09-05, resolved same day</sub>
+- [~] Bring dense operator controls to 44×44 (calendar month toolbar, phase card actions, inbox chips, notepad tabs). **Objectively audited on the live demo 2026-09-05 (foreground browser):** the app meets **WCAG-AA touch-targets (24×24)** — the Command Centre had **0 real AA violations** and **0 horizontal overflow** at both 375px and 1280px (the only sub-24 controls are the 1px sr-only "Skip to content" links). The 44×44 target is WCAG **AAA** enhancement — 7/58 controls sub-44 at 375px, 45/67 at 1280px — and a blanket bump would bloat dense operator UIs and risk overflow, so it's targeted design polish, **not a compliance gap**. Full per-surface AAA pass on the 4 named dense areas needs a real (non-showcase) session — those surfaces aren't exposed in the public demo. AA is met + verified.  <sub>added 2026-09-03; audited 2026-09-05</sub>
 - [ ] Find the SSR/CSR attribute mismatch in the Dev Team layout's topbar lead (`div[data-topbar-lead]`) that the Dev Editor gate's AI scenario surfaces as one hydration warning on a Dev Mode lane (plain loads are clean; entered with the 2026-09-03 integration). <sub>added 2026-09-03; **static triage 2026-09-05:** `TopbarBackButton` ruled out — its only `window.*` read (`window.history.length`) is inside `onClick`, not render, and it uses SSR/CSR-stable `usePathname()`. Remaining lead children (`MobileNav`, `PinCurrentControl`, title/subtitle) use correct `useState(false)`+`useEffect` hydration patterns; the mismatch is dev-mode-specific and needs the repro to name the exact differing attribute. Blind-fixing unsafe — do not.</sub>
 - [x] Raise the remaining low-opacity small text that no gate walked (`ExternalAiConnectionPanel` emerald /50–/60, `_ActionsWorkspace` /65, `NotificationCentreButton` /62) — **DONE 2026-09-05 (`867a84d9`):** all three raised (ExternalAiConnectionPanel /60→/80 and /50→emerald-900; _ActionsWorkspace /65→/80; NotificationCentreButton /62→/80, icon /60→/70, tab /40→/55); deployed + live. <sub>added 2026-09-03</sub>
 
