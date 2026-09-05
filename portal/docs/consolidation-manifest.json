@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-05T07:16:46.526Z",
+  "generatedAt": "2026-09-05T07:28:13.331Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -1071,9 +1071,9 @@
       "path": "docs/development/TODO.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-todo-md",
-      "sha256": "c7e0282723f4dacd7b8e2691be09f3ab1f585ab080f943eaeeb074df2c1d06a5",
-      "words": 3217,
-      "bytes": 24363
+      "sha256": "840b9b8825f16efcf70c15f80e2f8eff9c3ff8364ae41c8c398e5022559406e9",
+      "words": 3254,
+      "bytes": 24664
     },
     {
       "path": "docs/development/ultra-review-2026-08-24.md",

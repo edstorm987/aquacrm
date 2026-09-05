@@ -601,15 +601,23 @@ async function loadOnce(): Promise<void> {
 }
 
 export function useChromeLayout(): UseChromeLayout {
-  // Starts from the shared value so a component mounting later — the sidebar
-  // section, a reorderable panel — sees what is already loaded instead of
-  // flashing empty. `ready` tells "nothing saved" apart from "not loaded yet".
-  const [state, setState] = useState<ChromeLayoutState>(shared);
-  const [ready, setReady] = useState(loadedOnce);
+  // The FIRST render must be server-consistent. `shared`/`loadedOnce` are
+  // module-scope and mutate as the layout loads, so seeding client state from
+  // them made a topbar control hydrate `disabled=false` (client, already loaded)
+  // against the server's `disabled` (fresh module, not loaded) — a hydration
+  // mismatch (issue #123). Start EMPTY/not-ready like the server always does,
+  // then adopt whatever a prior mount already loaded in the effect below — so
+  // a component mounting later still doesn't flash empty for more than the
+  // initial commit, and `ready` still tells "nothing saved" from "not loaded".
+  const [state, setState] = useState<ChromeLayoutState>(EMPTY);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const listener = (next: ChromeLayoutState) => { setState(next); setReady(true); };
     listeners.add(listener);
+    // Adopt the already-loaded shared state immediately on mount (post-hydration),
+    // so late-mounting sections/panels see it without a visible empty flash.
+    if (loadedOnce) { setState(shared); setReady(true); }
     // Subscribe before the initial GET so a save from another open tab cannot
     // land in the fetch window and disappear without a buffered notification.
     ensureCrossTabSync();

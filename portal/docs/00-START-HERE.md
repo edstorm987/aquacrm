@@ -2,7 +2,7 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-09-05 from **23** source documents / **45,174 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-05 from **23** source documents / **45,211 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -27,7 +27,7 @@
 - [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 2,095 words · `379784a12461`
 - [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,643 words · `38954d1ad66e`
 - [`docs/development/OVERNIGHT-RUN-2026-09-05.md`](#source-docs-development-overnight-run-2026-09-05-md) — 6,120 words · `3998439e88f6`
-- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 3,217 words · `c7e0282723f4`
+- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 3,254 words · `840b9b8825f1`
 - [`README.md`](#source-readme-md) — 437 words · `78865db66238`
 
 ---
@@ -4589,7 +4589,7 @@ index that's pending, by design.
 
 ## Source document — `docs/development/TODO.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="c7e0282723f4dacd7b8e2691be09f3ab1f585ab080f943eaeeb074df2c1d06a5" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="840b9b8825f16efcf70c15f80e2f8eff9c3ff8364ae41c8c398e5022559406e9" -->
 # TODO — the one list
 
 **This is the only task list.** `checklist.md` and `todo-retired.md` are retired; they held the
@@ -4739,7 +4739,7 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
   fix, the public demo is now functional end-to-end. (The showcase inbox cleanly redirects to login — that
   is intentional demo scoping, not a crash; no errors logged post-fix.)  <sub>added 2026-09-05, resolved same day</sub>
 - [x] Bring dense operator controls to 44×44 (calendar month toolbar, phase card actions, inbox chips, notepad tabs). **FULLY AUDITED 2026-09-05 in the local dev sandbox (`/dev`, real agency-owner session, all 5 named surfaces):** every surface — **Command Centre, inbox, notepad, phases, actions/calendar** — has **0 horizontal overflow at 375px** and meets **WCAG-AA touch-targets (24×24)**. Across all five the *only* sub-24 controls are (a) the 1px sr-only "Skip to content" links and (b) one recurring bare native `<input type="checkbox">` at 13×13 — a minor AA edge case (native browser-default size; WCAG 2.5.8 AA has spacing/essential exceptions). **AA is met.** 44×44 is WCAG **AAA** enhancement (a minority of controls, e.g. 1–3 per surface at 375px); a blanket bump would bloat dense operator UIs, so it stays optional polish — **not a compliance gap.** Minor follow-up if desired: give the native checkbox a larger custom hit-area + an explicit label.  <sub>added 2026-09-03; fully audited 2026-09-05 via dev sandbox</sub>
-- [ ] Find the SSR/CSR attribute mismatch in the Dev Team layout's topbar lead (`div[data-topbar-lead]`) that the Dev Editor gate's AI scenario surfaces as one hydration warning on a Dev Mode lane (plain loads are clean; entered with the 2026-09-03 integration). <sub>added 2026-09-03; **static triage 2026-09-05:** `TopbarBackButton` ruled out — its only `window.*` read (`window.history.length`) is inside `onClick`, not render, and it uses SSR/CSR-stable `usePathname()`. Remaining lead children (`MobileNav`, `PinCurrentControl`, title/subtitle) use correct `useState(false)`+`useEffect` hydration patterns; the mismatch is dev-mode-specific and needs the repro to name the exact differing attribute. Blind-fixing unsafe — do not.</sub>
+- [x] SSR/CSR attribute mismatch in the Dev Team topbar lead (`div[data-topbar-lead]`) — **ROOT-CAUSED + FIXED + verified 2026-09-05** in the dev sandbox. Reproduced it (the trigger isn't "AI scenario" specifically — it's any load *after* the chrome layout has loaded once in the session): the pin buttons in `PinCurrentControl` hydrated `disabled={false}` (client) against server `disabled` (`disabled=""`). **Cause:** `useChromeLayout` seeded its state with `useState(loadedOnce)` / `useState(shared)` — module-scope values that mutate as the layout loads, so the client's first render used the already-loaded values while the server (fresh module per request) rendered not-loaded → mismatch. **Fix (`pinnedTabsStore.ts`):** start `EMPTY`/`ready=false` (server-consistent) and adopt the already-loaded state in the mount effect. Verified: typecheck clean, chrome-layout/pinned-tabs/topbar smoke **107/107**, and a **clean-browser repro now shows zero console errors** on the Dev Team load. <sub>added 2026-09-03; fixed 2026-09-05</sub>
 - [x] Raise the remaining low-opacity small text that no gate walked (`ExternalAiConnectionPanel` emerald /50–/60, `_ActionsWorkspace` /65, `NotificationCentreButton` /62) — **DONE 2026-09-05 (`867a84d9`):** all three raised (ExternalAiConnectionPanel /60→/80 and /50→emerald-900; _ActionsWorkspace /65→/80; NotificationCentreButton /62→/80, icon /60→/70, tab /40→/55); deployed + live. <sub>added 2026-09-03</sub>
 
 ## Unprioritised — 25
