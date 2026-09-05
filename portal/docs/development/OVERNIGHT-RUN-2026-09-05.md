@@ -378,30 +378,31 @@ breakpoints — and hit a **real production bug**:
   committed; ships in checkpoint #8). A full sweep confirms these were the only proxy-unsafe absolute
   redirects left in route handlers.
 
-### 🔴 SECOND live bug found via the audit — public demo portal stalls (needs focused debug, NOT blind-fixed)
+### ⚠️ CORRECTED: the showcase "workspace never renders" claim was overstated (test-harness artifact)
 
-With `/showcase` reachable, I drove the live demo portal to audit UI — and found the demo is **still
-broken, a second way**: **the workspace never renders.** It stays frozen on the "Preparing your
-workspace…" loader across every showcase surface (`/portal/agency`, `/portal/clients`), 35s+.
-Evidence gathered on the live app (Railway compute, not Ed's CPU):
-- The **server** renders the full workspace (a direct `fetch('/portal/agency')` returns 66KB with
-  real workspace markup) — so this is a **client-side** stall, not a server failure.
-- The stuck element is the **workspace-scoped Suspense fallback** (`data-loading-scope="workspace"`);
-  the workspace chunks preload but are "never used" — the client Suspense boundary never commits.
-- **No JS exception**, no cross-origin/critical resource failure. Console shows only: read-only `403`
-  on the chrome-layout **PUT** (correct — showcase is read-only: `"This public showcase is read-only."`),
-  transient `401`s on the same during auth settling, a `405` on a `client-notes` GET, and one
-  `ERR_CERT_COMMON_NAME_INVALID` on a non-critical resource.
-- **Scope:** showcase-specific — the **real authed app works** (Ed uses it daily at ~0.2s pages), so
-  this is the read-only/showcase path, not the client-facing product. Hidden until now behind the
-  redirect bug (no one could reach the demo portal to see it stall).
-- **Hypothesis (unconfirmed):** a workspace Suspense boundary awaits something that the read-only
-  showcase refuses (the chrome-layout write 403s), so the client boundary never resolves. Needs a
-  focused client-side RSC/Suspense debug session with the streamed payload — **deliberately not
-  blind-fixed** (touching workspace streaming/Suspense in showcase is exactly the kind of risky change
-  the method forbids overnight). Logged in `BLOCKERS-FOR-ED.md`.
-- **Goal relevance:** "every surface works+means something or is retired" — the public demo is a
-  surface that does **not** work. Two bugs deep. One fixed + verified; one characterized + flagged.
+**Honesty correction — I initially recorded this as a confirmed "second bug: the demo permanently
+stalls on the loader." That was WRONG, and here is the honest version.** After deeper investigation
+the "permanent stall" was substantially a **test-harness artifact**: the in-app browser **pane was
+hidden** (`document.hidden === true` regardless of tab selection), which **throttles the `setTimeout`
+timers** that drive the loader → curtain → reveal handover in `PortalLoadingCoordinator`. So the loader
+*looked* frozen for 30–48s because its dismiss timers were throttled, not because the app is broken.
+When enough (throttled) time passed, the handover **did complete** (`data-aqua-loading-handover=
+"complete"`, curtain gone). What I earlier called a permanent Suspense stall was mostly this.
+- **What IS solid:** the server renders the full 66KB workspace in ~1.1s (fast), and the chrome
+  (topbar + sidebar) renders. The read-only `403` on the chrome-layout PUT is correct behaviour.
+- **The one real residual signal — UNCONFIRMED:** once the throttled handover completed, the agency
+  workspace showed its **error boundary**: *"Something went wrong loading agency workspace. Minified
+  React error #441"* (with a Retry button), sidebar chrome intact. React #441 is a client-side error.
+  **But I could not confirm it is deterministic** — I saw it once; the hidden-pane throttling made each
+  reload take ~45s+ and a follow-up eval timed out. It may be transient (tied to the earlier one-off
+  `500`), or hidden-pane-specific, or a real showcase-only workspace error.
+- **Honest status:** this needs a **foreground browser** (a real visible tab, un-throttled) to confirm
+  whether showcase `/portal/agency` reliably errors with #441 or renders fine. I did **not** confirm a
+  real user-facing bug here, and I did **not** blind-fix anything. The redirect fix (below/above) stands
+  and is verified; this second item is **downgraded from "confirmed bug" to "one unreproduced #441
+  observation, investigation limited by the hidden pane."** TODO.md item corrected to match.
+- **Lesson:** the in-app browser pane being hidden throttles page timers — time-based UI (loaders,
+  animations, debounced reveals) will look stuck. Don't call that an app bug without a foreground tab.
 
 **One deliberate docs-correctness deferral:** this run added new exports (`radarNodeTree.ts`:
 `projectRadarNodeTree`, `indexRadarNodes`, `RadarNode…`) and changed one signature
