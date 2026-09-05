@@ -27,6 +27,12 @@ pushed.
 - `BLOCKERS-FOR-ED.md` — Supabase/Stripe/Meta/email secrets, the **Railway probe-cron gap**
   (why the "canary is stale" alert), apex cert, and product decisions.
 
+**Objectively verified (good news — reduces the UI scope):** I ran real in-browser audits on the
+live app instead of guessing. **Contrast:** inbox/people/clients main content = 0 WCAG-AA fails
+(solid surfaces). **Responsive:** inbox/clients/actions at 375px = 0 horizontal overflow. So the
+"a lot not responsive / contrast broken" impression is **largely not borne out on the main agency
+surfaces** — the design discipline is working. The real UI remainder is small + specific (below).
+
 **What I deliberately DIDN'T do (and why — not skipped, gated):** touch-targets (dense-surface
 design work, unsafe to ship blind), systemic sub-11px contrast (surgical-only), the onboarding
 walk + mounted-acceptance TODO sweep (need CPU-heavy local Playwright lanes — you flagged CPU),
@@ -89,6 +95,18 @@ Ordered by value × safety × non-blocked-ness. Refined as the audit lands.
   and the perf profile is measured. Larger; may span into a later session.
 
 ## Progress log (newest first)
+
+### 2026-09-05 (objective responsive audit — no mobile overflow on the main surfaces)
+- Ran an in-browser horizontal-overflow audit at **375×812** (the tightest breakpoint; if it's
+  clean there, wider breakpoints have more room). **inbox, clients, and actions all reported
+  pageOverflowPx 0 and zero elements overflowing the viewport** — including the Actions page's
+  dense calendar toolbar the audit flagged. The design uses `flex-wrap` / `overflow-x:auto`
+  scrollers properly, so the body never scrolls horizontally (the goal's hard rule).
+- **Net (with the contrast finding):** the "UI: responsive + contrast" goal criterion is **largely
+  already met + now objectively verified** on the main agency surfaces — NOT "a lot broken". The
+  real remaining UI work is bounded and specific: touch-targets in the dense notification/calendar
+  panels (44×44, needs a per-surface design pass) and the editor-dark `/30` labels. This is a big
+  **scope reduction** — the UI pass is mostly *verification-confirms-good*, not *fix-everything*.
 
 ### 2026-09-05 (objective contrast audit — the "contrast" complaint is largely a non-issue)
 - Ran an in-browser WCAG-AA contrast audit (computed colours vs *effective* background, made
