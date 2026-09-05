@@ -2,7 +2,7 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-09-05 from **23** source documents / **45,211 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-05 from **23** source documents / **45,283 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -26,7 +26,7 @@
 - [`docs/development/CLOUD-RESUME.md`](#source-docs-development-cloud-resume-md) — 500 words · `03458cdf18bf`
 - [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 2,095 words · `379784a12461`
 - [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,643 words · `38954d1ad66e`
-- [`docs/development/OVERNIGHT-RUN-2026-09-05.md`](#source-docs-development-overnight-run-2026-09-05-md) — 6,120 words · `3998439e88f6`
+- [`docs/development/OVERNIGHT-RUN-2026-09-05.md`](#source-docs-development-overnight-run-2026-09-05-md) — 6,192 words · `d5ed3a203116`
 - [`docs/development/TODO.md`](#source-docs-development-todo-md) — 3,254 words · `840b9b8825f1`
 - [`README.md`](#source-readme-md) — 437 words · `78865db66238`
 
@@ -4027,7 +4027,7 @@ Path prefix: /private/tmp/claude-501/.../scratchpad/
 
 ## Source document — `docs/development/OVERNIGHT-RUN-2026-09-05.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/OVERNIGHT-RUN-2026-09-05.md" sha256="3998439e88f600d0ffd03617342431e0a640116c0b5d6f6ecd7958a324a604b4" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/OVERNIGHT-RUN-2026-09-05.md" sha256="d5ed3a203116ce294a01555c6e5eddc0a1800bd477e51d7ff1d0ac2c911cf6ef" -->
 # Overnight autonomous run — 2026-09-05 → 06
 
 Ed set the full production-readiness goal and is asleep; this is the run's living
@@ -4055,6 +4055,11 @@ need his keys/decisions) and [`plans/fractal-radar-architecture.md`](plans/fract
 >   objectively audited: **WCAG-AA touch-targets met + 0 overflow at 375px and 1280px.**
 > - **Two real production bugs found + fixed live** (the redirect pair above; I swept the whole
 >   Railway-proxy bug class — those were the only instances).
+> - **Dev-sandbox session (Ed's suggestion) unblocked the browser-gated work:** `npm run dev:sandbox`
+>   → `/dev` = a real writable agency-owner session on local file data. With it: **app-wide UI audit
+>   (9 surfaces: 0 overflow + WCAG-AA at 375px)**, and **hydration mismatch #123 root-caused + fixed +
+>   verified** (`useChromeLayout` seeded client state from module-scope values → topbar pin buttons
+>   hydrated `disabled=false` vs server `disabled`; now SSR-consistent init + adopt-in-effect).
 > - **The semantic/blind-aware DATA model is complete + verified** — jargon→plain, ids→human labels,
 >   BLIND→reason+remedy, KNOWN-BAD→cause+fix, KNOWN-GOOD→evidence. An analyst can read any radar signal
 >   with no decoder.
