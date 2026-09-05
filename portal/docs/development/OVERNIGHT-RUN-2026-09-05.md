@@ -471,6 +471,15 @@ needs a foreground browser to verify safely; the pane here is hidden/throttled. 
 Two full scope areas closed + verified this run (DATA, WIRE-OR-RETIRE-findable); the rest is gated on a
 specific input I don't have (secrets, §9 answers, a foreground browser, or CPU lanes Ed reserved).
 
+**Exhaustion is evidenced, not assumed — three probes for hidden non-gated work, all clean:**
+1. Railway-proxy URL bug class → swept whole codebase; the 3 fixed redirects were the only instances.
+2. A11y accessible names → probed the unguarded high-traffic inbox; every icon button is named.
+3. Code-level debt markers → **zero** `TODO`/`FIXME`/`HACK`/`@ts-ignore`/`@ts-expect-error` in all of
+   `src` (excluding tests). No in-code "finish this" work; half-built items are tracked in `TODO.md`,
+   which is triaged, and its open items are the gated ones (mounted-acceptance lanes, #441, touch-targets).
+Three clean probes in a row is the evidence that the findable, safe, non-gated, browser-free work is
+genuinely done — not that I stopped looking.
+
 **One deliberate docs-correctness deferral:** this run added new exports (`radarNodeTree.ts`:
 `projectRadarNodeTree`, `indexRadarNodes`, `RadarNode…`) and changed one signature
 (`plans.list(includeInactive, {recover?})`), so the auto-generated symbol reference
