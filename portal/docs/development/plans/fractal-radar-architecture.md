@@ -201,6 +201,29 @@ Every phase is flag-gated, independently shippable, and rehearsed on an isolated
 6. **Notification write cost.** "Alerts as it goes" writes a notification row, still a big-row commit (2–6s) even if diff-cheap. **Accept rate-limited/batched notifications, or hold notifications to the daily sweep?**
 7. **The Dev-project subtree** (`development.*`/`project.*`) has no radar today. **In scope for "every workspace has a mini-radar," or explicitly deferred?**
 
+### 9a. My recommended defaults (added 2026-09-05 — approve/adjust in seconds to unblock Phases 3–6)
+
+These are engineering-tradeoff recommendations, each low-risk/reversible so building on them doesn't
+trap you. Say "yes to your §9 defaults" and I can build Phases 3–6 on these; change any line and I
+adjust. I did **not** build ahead on guesses — the node model could shift with your answers, and
+speculative building risks rework (I'd rather have your nod first).
+
+| Q | Recommendation | Why (and how reversible) |
+| --- | --- | --- |
+| **1. Ship Phase 2 first** | **Yes** | Already largely shipped + the only *measured* win. Decouples the perf fix from the fractal build. Zero regret. |
+| **2. ≤daily latency for non-critical deterioration** | **Accept it** | Consistent with the #170 daily-probe decision you already made. The conservative pre-scan still fires *critical*-eligible faults immediately; only derived-lens drift in a cache-clean node waits. Descending every node every render forfeits the win and reintroduces the slowness we just fixed. One flag flips back to descend-all. |
+| **3. Element-level events** | **Whole-client dirtying first; defer element-level** | Whole-client dirty-marking captures most of the value for a fraction of the effort; element-level events are a large new surface across finance/task/milestone writes. Ship whole-client, measure, add element-level only where a hot path proves it's needed. Purely additive later. |
+| **4. Targeted-domain-query** | **Per-client targeting is enough for now; defer domain decomposition** | Splitting the monolithic `buildRadarObservations` into per-domain slices is real net-new work with uncertain payoff; per-client targeting already exists and covers the common "one client changed" case. Revisit only on measured need. |
+| **5. Correlations/memory on partial sweeps** | **Full sweep only** | A blind-correlation path risks the exact silent false-negative ("false green") the north star forbids. Keep compound-risk analysis on the authoritative full sweep. Safety-first; this is the conservative default. |
+| **6. Notification write cost** | **Rate-limited/batched notifications** | An "alert as it goes" still writes a big-row commit (2–6s); batching/rate-limiting keeps the always-on PING without reintroducing the write-convoy the perf work just removed. Tunable by a single rate constant. |
+| **7. Dev-project subtree** | **Defer** | `development.*`/`project.*` has no radar today; adding it is scope expansion. Prove the fractal on the existing business domains first, then add the dev subtree as a later mini-radar using the same pattern. |
+
+**Net effect of these defaults:** Phase 2 ships now (done); Phases 3–5 build the fractal on whole-client
+dirtying + conservative pre-scan + full-sweep correlations + batched notifications; Phase 6 (on-demand
+full + per-client targeted) rides the existing per-client path. Element-level events, domain
+decomposition, and the dev subtree are all deferred-until-measured — smallest safe first step, biggest
+levers, nothing that boxes you in.
+
 ---
 
 ## Confidence & provenance

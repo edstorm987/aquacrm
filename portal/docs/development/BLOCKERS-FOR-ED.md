@@ -36,10 +36,13 @@ moment you hand it over. Nothing here is stalled work elsewhere.
 
 ## 🧭 Decisions I need from you (won't guess)
 
-- Radar fractal §9 open questions (in `plans/fractal-radar-architecture.md`): accept the
-  reframed win / Phase-2-first (Q1); between-sweep alert latency acceptable (Q2);
-  element-level events worth building (Q3); targeted-domain-query a goal (Q4); correlations
-  on partial sweeps (Q5); notification write-cost policy (Q6); Dev-project subtree in scope (Q7).
+- Radar fractal §9 questions (in `plans/fractal-radar-architecture.md`) — **now pre-answered with
+  recommended defaults in §9a** so this is a fast approval, not a deliberation. Each is a low-risk,
+  reversible engineering tradeoff (Phase-2-first; accept ≤daily non-critical latency per #170;
+  whole-client dirtying before element-level events; per-client targeting before domain decomposition;
+  full-sweep-only correlations; batched notifications; defer the dev subtree). **Just say "yes to your
+  §9 defaults" (or change any line) and I build Phases 3–6 on them.** I did not build ahead on guesses
+  — the node model can shift with your answers, so I want your nod first to avoid rework.
 - **#170** Radar probe freshness: restore sub-daily probes or show evidence age everywhere.
 - **#174** permanent last-grant revocation policy.
 - **#163 / #168** client-route refusals: indistinguishable sibling-project 404s vs the house
