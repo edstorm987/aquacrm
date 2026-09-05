@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-04T23:52:49.342Z",
+  "generatedAt": "2026-09-05T06:08:42.658Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -420,6 +420,14 @@
       "bytes": 269187
     },
     {
+      "path": "docs/development/BLOCKERS-FOR-ED.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-development-blockers-for-ed-md",
+      "sha256": "21f5650eff847bc430060a703f29d26a9093258709e94e684c6891b5d6f0e290",
+      "words": 765,
+      "bytes": 5878
+    },
+    {
       "path": "docs/development/CAMPAIGN-LEDGER.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-campaign-ledger-md",
@@ -514,6 +522,14 @@
       "sha256": "f68ea59936dd3e761e7e166cd9336913316dc79edf7c9b76d951a4906f3025ff",
       "words": 1730,
       "bytes": 11850
+    },
+    {
+      "path": "docs/development/OVERNIGHT-RUN-2026-09-05.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-development-overnight-run-2026-09-05-md",
+      "sha256": "dca6671fd9ebd80700434bbdcb18de0af9222ae84944dd7324e0428405b7429a",
+      "words": 5799,
+      "bytes": 41989
     },
     {
       "path": "docs/development/plans/advisor-omega-upgrade.md",
@@ -748,6 +764,14 @@
       "bytes": 9797
     },
     {
+      "path": "docs/development/plans/fractal-radar-architecture.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-fractal-radar-architecture-md",
+      "sha256": "02e7c97fef23e626eb636e4900c67c897a4c5246835fa70820579b1084c8cfc4",
+      "words": 4694,
+      "bytes": 36346
+    },
+    {
       "path": "docs/development/plans/freelancer-workspace-HANDOFF.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-freelancer-workspace-handoff-md",
@@ -866,6 +890,14 @@
       "sha256": "10a7d1b55065a8e47ac29c144eff6aee91ad885092e2d02a263e2f1267493135",
       "words": 902,
       "bytes": 6220
+    },
+    {
+      "path": "docs/development/plans/production-readiness-execution-plan.md",
+      "volume": "docs/04-DEVELOPMENT-PLANS.md",
+      "anchor": "source-docs-development-plans-production-readiness-execution-plan-md",
+      "sha256": "f4105ff5d43bde8f46a7d9897d3d9711de125ee71d0eb141fd8280750f4bd13e",
+      "words": 743,
+      "bytes": 6767
     },
     {
       "path": "docs/development/plans/production-readiness-roadmap-2026-09-03.md",
@@ -1039,9 +1071,9 @@
       "path": "docs/development/TODO.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-todo-md",
-      "sha256": "68603294f1e4ce6931dbbd5c0770554c6f30ac45d4dc9f5ede3434f1b973b1c7",
-      "words": 2690,
-      "bytes": 20298
+      "sha256": "10443b8564b348fad0a5ebf0b0a8387764e7fc06932a1ad95e82d3441da0267f",
+      "words": 3107,
+      "bytes": 23498
     },
     {
       "path": "docs/development/ultra-review-2026-08-24.md",
