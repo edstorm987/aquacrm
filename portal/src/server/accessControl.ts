@@ -20,6 +20,7 @@ import {
   mutate,
   runInDataRealm,
 } from "@/server/storage";
+import { normaliseDataRealmId } from "@/server/dataRealm";
 import type {
   AccessCapability,
   AccessEnvironment,
@@ -405,12 +406,26 @@ export const requireCurrentAccessActor = cache(async (): Promise<CurrentAccessAc
   const resourceAgencyId = getActiveAgencyId(session);
   const userId = session.sandbox?.returnUserId ?? session.userId;
   const agencyId = session.sandbox?.returnAgencyId ?? resourceAgencyId;
-  const control = await runInDataRealm(LIVE_DATA_REALM_ID, async () => {
+  // The public-showcase visitor exists ONLY inside its fixed fixture realm, not
+  // LIVE — mirrors `currentUserForSession` in auth.ts. Resolving it in LIVE finds
+  // no user and wrongly throws stale_session, which broke the entire /showcase
+  // Command Centre render (React #441). Every other session anchors authority in
+  // LIVE (a real sign-in's active realm already IS LIVE; a sandbox persona's live
+  // anchor lives there too).
+  let userRealmId = LIVE_DATA_REALM_ID;
+  if (session.publicShowcase && session.sandbox?.realmId) {
+    try {
+      userRealmId = normaliseDataRealmId(session.sandbox.realmId);
+    } catch {
+      throw new AccessControlError(401, "stale_session"); // a malformed realm id is a refusal
+    }
+  }
+  const control = await runInDataRealm(userRealmId, async () => {
     // For a non-sandbox session the active realm already IS the LIVE realm and
     // was just fresh-loaded above, so re-reading the identical row here is pure
-    // duplicate cost. Only a sandbox session (whose active resource realm differs
-    // from LIVE) needs the extra fresh read. (The per-request fresh-load dedup in
-    // storage.ts also collapses this, but stating the intent keeps it explicit.)
+    // duplicate cost. Only a sandbox/showcase session (whose active resource realm
+    // differs from LIVE) needs the extra fresh read. (The per-request fresh-load
+    // dedup in storage.ts also collapses this, but stating the intent keeps it explicit.)
     await ensureHydrated({ fresh: Boolean(session.sandbox), preserveExplicitRealm: true });
     return {
       governanceState: getState(),
