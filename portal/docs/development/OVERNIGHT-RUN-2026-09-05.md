@@ -351,6 +351,26 @@ detail/evidence) across all radar builders for raw machine ids:
 - typecheck clean; smoke-business-radar 20/20. **Semantic pass now covers all three layers: jargon
   words → plain; blind checks → reason + remedy; raw ids → human labels.**
 
+### Continuation — LIVE production bug found + fixed (checkpoint #7)
+
+Working the **UI scope** on the *live* app (via the browser tool = Railway + Claude's browser, **not**
+Ed's laptop CPU), I went to enter the no-auth `/showcase` demo to audit real portal surfaces across
+breakpoints — and hit a **real production bug**:
+- **`GET /showcase` returned `303 → https://localhost:8080/portal/agency`.** The redirect was built
+  with `new URL(path, request.url)`; behind Railway's proxy `request.url` is the internal bind origin
+  (`localhost:$PORT`), so **the public demo entry sent every visitor to a dead localhost host — the
+  demo was offline in production.** This is the exact bug the client-login fix (`59ec0037`) already
+  solved for `/login/live`; `/showcase` and the two `/dev` redirects were missed by it.
+- **Fixed** (`0220a2cd`): emit a **relative** `Location` (`new NextResponse(null,{status:303,
+  headers:{location}})`) so the browser resolves it against the public host regardless of proxy/region/
+  domain. `/dev` destinations are already origin-checked relative paths (`localDevDestination`), so the
+  same fix is safe there (dev-mode is backend-gated, but this prevents recurrence on any proxied dev
+  deploy). typecheck clean; showcase + dev-mode + post-login-redirect + placement smoke **117/117**.
+- **Why it matters beyond the demo:** this is a genuine WIRE-OR-RETIRE win (a real surface was broken,
+  now works) *and* it unblocks the live UI audit — once deployed, `/showcase` gives a no-auth path into
+  the real portal to audit contrast/responsive/a11y across breakpoints on the live app without Ed's
+  credentials or CPU. Deploy verification: polling live `/showcase` for the relative-Location flip.
+
 **One deliberate docs-correctness deferral:** this run added new exports (`radarNodeTree.ts`:
 `projectRadarNodeTree`, `indexRadarNodes`, `RadarNode…`) and changed one signature
 (`plans.list(includeInactive, {recover?})`), so the auto-generated symbol reference
