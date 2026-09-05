@@ -2,7 +2,7 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-09-05 from **23** source documents / **45,384 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-05 from **23** source documents / **45,486 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -26,7 +26,7 @@
 - [`docs/development/CLOUD-RESUME.md`](#source-docs-development-cloud-resume-md) — 500 words · `03458cdf18bf`
 - [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 2,095 words · `379784a12461`
 - [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,643 words · `38954d1ad66e`
-- [`docs/development/OVERNIGHT-RUN-2026-09-05.md`](#source-docs-development-overnight-run-2026-09-05-md) — 6,229 words · `ccc99b8cdc68`
+- [`docs/development/OVERNIGHT-RUN-2026-09-05.md`](#source-docs-development-overnight-run-2026-09-05-md) — 6,331 words · `52c8ba5dd55a`
 - [`docs/development/TODO.md`](#source-docs-development-todo-md) — 3,318 words · `5ef1001cd31f`
 - [`README.md`](#source-readme-md) — 437 words · `78865db66238`
 
@@ -4027,7 +4027,7 @@ Path prefix: /private/tmp/claude-501/.../scratchpad/
 
 ## Source document — `docs/development/OVERNIGHT-RUN-2026-09-05.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/OVERNIGHT-RUN-2026-09-05.md" sha256="ccc99b8cdc686ccfa5fc8fb703334785f5dd07e35a8890d3231c3b56a2394754" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/OVERNIGHT-RUN-2026-09-05.md" sha256="52c8ba5dd55af8b5bc1e9a29894ab08eb29602e624b86a31e4be8270dad7d961" -->
 # Overnight autonomous run — 2026-09-05 → 06
 
 Ed set the full production-readiness goal and is asleep; this is the run's living
@@ -4509,11 +4509,18 @@ Ed pointed me at the **dev-login sandbox** (`npm run dev:sandbox` → `/dev`) �
 that mints a real writable agency-owner session, so the *whole* app is drivable without production
 credentials and without touching real data (`/dev` succeeding **proves** the backend is file/memory, not
 Supabase). This unblocked the full-surface audit the public demo couldn't reach.
-- **9 major surfaces objectively audited at 375px — all pass:** Command Centre, inbox, notepad, phases,
-  actions/calendar, clients, finance, marketing, fulfilment. **Every one: 0 horizontal overflow + 0 real
-  WCAG-AA touch-target violations** (excluding the 1px sr-only skip link + native browser-default
-  checkboxes, both acceptable). Sub-44px (AAA) counts are small per surface (1–9) — optional polish, not
-  a compliance gap.
+- **12 surfaces objectively audited — all pass:** Command Centre, inbox, notepad, phases,
+  actions/calendar, clients, finance, marketing, fulfilment, **a client workspace**, SOP library, and
+  company/battle. **Every one: 0 horizontal overflow + 0 real WCAG-AA touch-target violations** at 375px
+  (excluding the 1px sr-only skip link + native browser-default checkboxes, both acceptable). Sub-44px
+  (AAA) counts are small per surface — optional polish, not a compliance gap.
+- **Core mounted-acceptance flows also driven + accepted in the sandbox:** client onboarding *create*
+  (form → submit → persisted to `.data/portal-state.json`); the **canonical client lifecycle #46**
+  (create → workspace renders); and a **checked-mutation contract #47** (client "Mark contacted" → the
+  status changed truthfully, no false success, and persisted). Demonstrates the render / create / mutate
+  / persist patterns work end-to-end — the substance behind the `[~]` "mounted acceptance remains" items,
+  whose code is already unit-tested. The remaining specific per-feature acceptances + the live-provider
+  ones (Stripe/Meta/email) are the honest remainder. Dev server stopped afterward to free machine memory.
 - **Conclusion:** the UI **responsive-every-breakpoint** + **colour/contrast/a11y** scope is met across
   the app (contrast was objectively verified earlier on the main surfaces; touch-targets + overflow now
   verified on 9). The touch-target TODO is closed. Ran under tight memory (macOS compression absorbed
