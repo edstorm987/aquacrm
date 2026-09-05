@@ -150,7 +150,10 @@ async function enterLocalDev(request: Request) {
 
     const clientTarget = new URL(request.url).searchParams.get("to");
     const clientDestination = localDevDestination(clientTarget, "/portal/customer", request.url);
-    const clientResponse = NextResponse.redirect(new URL(clientDestination, request.url), 303);
+    // Relative redirect (proxy-safe): `clientDestination` is already an
+    // origin-checked relative path, so a relative Location resolves against the
+    // public host instead of Railway's internal localhost bind. Same fix as 59ec0037.
+    const clientResponse = new NextResponse(null, { status: 303, headers: { location: clientDestination } });
     const cookie = sessionCookie(clientToken);
     clientResponse.cookies.set(cookie.name, cookie.value, cookie.options);
     clientResponse.headers.set("cache-control", "no-store");
@@ -215,7 +218,10 @@ async function enterLocalDev(request: Request) {
       : "/portal/agency/contacts";
   const destination = localDevDestination(target, defaultDestination, request.url);
 
-  const response = NextResponse.redirect(new URL(destination, request.url), 303);
+  // Relative redirect (proxy-safe): `destination` is an origin-checked relative
+  // path, so a relative Location resolves against the public host, not Railway's
+  // internal localhost bind. Same fix as 59ec0037.
+  const response = new NextResponse(null, { status: 303, headers: { location: destination } });
   const cookie = sessionCookie(token);
   response.cookies.set(cookie.name, cookie.value, cookie.options);
   response.headers.set("cache-control", "no-store");

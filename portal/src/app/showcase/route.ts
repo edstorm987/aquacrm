@@ -56,7 +56,13 @@ export async function GET(request: Request) {
       sessionRev: user.sessionRev ?? 0,
     });
   });
-  const response = NextResponse.redirect(new URL("/portal/agency", request.url), 303);
+  // Build a RELATIVE redirect (Location: /portal/agency), not an absolute one.
+  // Behind Railway's proxy `request.url` is the internal bind origin
+  // (http://localhost:$PORT), so an absolute redirect built from it sends the
+  // browser to a dead localhost host — which took the public demo entry offline.
+  // A relative Location resolves against the current public host regardless of
+  // proxy, region, or domain. Same fix as the client-login redirect (59ec0037).
+  const response = new NextResponse(null, { status: 303, headers: { location: "/portal/agency" } });
   const cookie = sessionCookie(token);
   response.cookies.set(cookie.name, cookie.value, cookie.options);
   response.headers.set("cache-control", "no-store");
