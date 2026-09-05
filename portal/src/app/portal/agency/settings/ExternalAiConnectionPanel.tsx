@@ -468,7 +468,7 @@ export function ExternalAiConnectionPanel() {
             </div>
             <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
               <p className="text-xs font-semibold text-emerald-950/80">Fastest setup</p>
-              <p className="mt-1 text-xs leading-5 text-emerald-950/60">Download one Markdown file containing the MCP URL, REST API, operating prompt, exact scope and this one-time token.</p>
+              <p className="mt-1 text-xs leading-5 text-emerald-950/80">Download one Markdown file containing the MCP URL, REST API, operating prompt, exact scope and this one-time token.</p>
               <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                 <button type="button" onClick={() => downloadSetupDocument(revealed.token, revealed.key)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-emerald-900 px-4 text-xs font-semibold text-white">
                   <Download size={14} /> Download complete setup file
@@ -478,7 +478,7 @@ export function ExternalAiConnectionPanel() {
                   {copied === "complete-setup" ? "Setup copied" : "Copy complete setup"}
                 </button>
               </div>
-              <p className="mt-2 text-[11px] leading-4 text-emerald-950/50">The downloaded file contains a live secret. Upload it only to an assistant workspace you trust.</p>
+              <p className="mt-2 text-[11px] leading-4 text-emerald-900">The downloaded file contains a live secret. Upload it only to an assistant workspace you trust.</p>
             </div>
             <div className="mt-5 flex justify-end">
               <button type="button" onClick={() => setRevealed(null)} className="min-h-11 rounded-md bg-black px-5 text-sm font-semibold text-white">I have saved it</button>

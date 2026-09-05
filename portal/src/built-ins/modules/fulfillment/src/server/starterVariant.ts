@@ -1,12 +1,13 @@
-// Starter portal variant — T3 integration shim.
+// Starter portal variant — the T2 (fulfillment) side of the phase→portal apply.
 //
-// **TODO** — once T3 ships `@aqua/plugin-website-editor`, the foundation
-// will register T3's concrete `PortalVariantPort` and the call below will
-// drive a real block-tree apply. Until then this falls back to logging
-// the intent so phase-engine commits don't break.
+// T3 (`@aqua/plugin-website-editor`) is shipped and wired: the foundation
+// registers `portalVariantAdapter` (foundation-adapters/portalVariantAdapter.ts)
+// as `FOUNDATION_SERVICES.variants`, and it calls T3's concrete
+// `applyStarterVariant` to drive the real block-tree apply. `StarterVariantService`
+// below is the T2 wrapper the phase engine calls; that adapter is its port.
 //
-// The contract (per `04-architecture.md §7` + the chief commander's
-// brokering): each phase carries a `portalVariantId` (string). The
+// The contract (per `04-architecture.md §7`): each phase carries a
+// `portalVariantId` (string). The
 // variant content (block tree) lives in T3's editor store. Applying a
 // starter variant copies the named template into the active client variant
 // for the given role (typically `client-owner`).
@@ -47,17 +48,6 @@ export class StarterVariantService {
   }
 }
 
-// Foundation-side fallback: when T3 hasn't shipped, the foundation can
-// register this no-op port so the phase engine still runs end-to-end.
-// Logged to console at info level — never throws.
-export const NOOP_PORTAL_VARIANT_PORT: PortalVariantPort = {
-  async applyStarterVariant(args) {
-    if (typeof console !== "undefined") {
-      // eslint-disable-next-line no-console
-      console.info(
-        `[fulfillment] applyStarterVariant: T3 not yet wired. Would apply ${args.variantId} to client ${args.clientId} as role ${args.role}.`,
-      );
-    }
-    return { ok: true, variantId: args.variantId };
-  },
-};
+// `NOOP_PORTAL_VARIANT_PORT` (the T3-not-shipped fallback) was quarantined 2026-09-05
+// — 0 consumers now that portalVariantAdapter drives the real T3 apply →
+// dead-code/portal/src/built-ins/modules/fulfillment/src/server/starterVariant.ts.NOOP_PORTAL_VARIANT_PORT.snippet

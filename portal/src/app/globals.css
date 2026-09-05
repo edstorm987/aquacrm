@@ -1316,6 +1316,14 @@ html[data-color-mode="dark"] .mm-portal-root .mm-quick-note footer {
   box-shadow: none !important;
 }
 
+/* The input's own outline is removed above, so put the visible focus ring on the
+   field WRAPPER instead — otherwise keyboard focus is invisible in light mode.
+   (The dark-mode ring is defined below; this general rule covers light/default,
+   and the more-specific dark selector wins in dark mode.) */
+.mm-portal-root .mm-universal-search-field:focus-within {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-primary) 24%, transparent) !important;
+}
+
 html[data-color-mode="dark"] .mm-portal-root .mm-universal-search-input {
   border: 0 !important;
   background: transparent !important;

@@ -4606,6 +4606,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-mutate-patch-equivalence-test-ts-9a07e1e090"></a>
+
+### `scripts/smoke-mutate-patch-equivalence.test.ts`
+
+**What it is:** one the Proxy diff feeds, and the one production uses on Railway.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/server/storagePatch.ts`](server.md#file-src-server-storagepatch-ts-c38f552c7a)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-my-radar-panel-test-ts-0a455882ef"></a>
 
 ### `scripts/smoke-my-radar-panel.test.ts`

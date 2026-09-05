@@ -56,6 +56,35 @@ Ordered by value × safety × non-blocked-ness. Refined as the audit lands.
 
 ## Progress log (newest first)
 
+### 2026-09-05 (batch 1 — audit landed, first execution batch)
+- **Production-readiness audit completed** (6 dimensions) → prioritized, safety-ranked plan in
+  [`plans/production-readiness-execution-plan.md`](plans/production-readiness-execution-plan.md).
+  It confirmed my emerald-contrast instinct (its U1) and confirmed deferring the topbar hydration
+  item (render path looks clean; needs a repro lane). Key correction it surfaced: the #122/#123/#124
+  a11y labels are the TODO's own, not `issues.md` numbers (unrelated Stripe items).
+- **Executed the safe batch (typecheck clean; `smoke:all` verifying):**
+  - **Wire-or-retire quarantine:** W1 `FormPickerModal.tsx` (orphaned, imports a non-existent
+    module) → `dead-code/`; W2 dead `parseSourceStamp` export → snippet; W3 dead
+    `NOOP_PORTAL_VARIANT_PORT` → snippet + corrected 2 stale "T3 not shipped" comments (the real
+    `portalVariantAdapter` is live). All in `dead-code/README.md` register.
+  - **W5 caught & reverted:** the audit (and a grep) mis-read `useArrowNav` as 0-callers; `tsc`
+    caught `useMenuKeys` importing its `nextRovingIndex` — restored. *Lesson: grep-by-name misses
+    re-exports; typecheck is the real gate.* **W4 deferred** (nuanced sidebar-label filtering).
+  - **UI contrast (U1):** the 4 named `emerald-950` low-opacity instances → readable
+    (`ExternalAiConnectionPanel` :471 `/80`, :481 live-secret warning → solid `emerald-900`;
+    `_ActionsWorkspace` :742 `/80`; `NotificationCentreButton` :169 `/80`).
+  - **Focus ring (U3):** added a light-mode `:focus-within` ring on the universal-search wrapper
+    (`globals.css`) — the input's outline was killed with only a dark-mode ring defined.
+  - **Jargon (J1):** the radar correlation cause "The commercial engine depends…" → plain
+    "Your lead acquisition leans heavily on one source…" (`radarCorrelations.ts:103`). J2 skipped
+    (visually identical under `uppercase`, marginal + undefined risk).
+  - **Doc-truth (C2a):** corrected the `settingsModules.ts` comment still listing `leads-pipeline`
+    as "deliberately absent" — it graduated to a real settings door on 2026-09-02. C2b skipped
+    (HR header already accurate).
+- **Next:** on `smoke:all` green → regen symbol reference, commit (logical splits), push (deploy
+  checkpoint), browser-verify contrast + focus at breakpoints, then batch 2 (U2 touch targets,
+  C1/C3 removals, mounted-acceptance sweep).
+
 ### 2026-09-05 (evening, run start)
 - Fractal-radar design completed (14-agent workflow) and captured as
   `plans/fractal-radar-architecture.md`. Key reframe: the perf win is caching + loader-
@@ -70,4 +99,22 @@ Ordered by value × safety × non-blocked-ness. Refined as the audit lands.
   **live-provider** acceptance" = Ed-blocked), 18 P2 (several UI/a11y actionable), 25
   unprioritised. Triaged into the phases above.
 - Set up this run's trail: this plan/log, `BLOCKERS-FOR-ED.md`, the `dead-code/` archive.
-- **Next:** launch the production-readiness audit (parallel), then start P-B.
+- Committed the foundations locally (`ec6ac81c`, **not pushed** — docs-only, no deploy).
+- Launched the **production-readiness audit** (6-dimension parallel workflow: dead/unconnected
+  code, UI jargon/opaque-data, responsive/contrast/a11y, unconnected features, config/onboarding,
+  TODO triage → a prioritized safety-ranked execution plan). Running in the background.
+- **Probed two "quick wins" and deferred both to the audit (honest calls, not busy-work):**
+  - #124 low-contrast text — the named emerald/black low-opacity instances are real, but a
+    correct fix is a *holistic* contrast pass (essential vs intentionally-muted secondary text)
+    with visual verification at breakpoints, not a mechanical opacity bump. The audit's a11y
+    dimension produces exactly that inventory; do it coherently then.
+  - #123 Dev-Team topbar hydration warning (`data-topbar-lead`, `Topbar.tsx:206`) — only fires
+    in the Dev-Mode AI scenario ("plain loads are clean"), so diagnosing the exact differing
+    attribute needs that scenario reproduced. Blind-fixing risks a wrong change. Deferred with a
+    note; needs a repro lane.
+- **Verification note for the run:** UI/browser verification needs a local server on
+  `PORTAL_BACKEND=file` (without it the dev server writes the *production* Supabase row — TODO
+  hazard). Any local server I start will force `PORTAL_BACKEND=file` in its command env; I will
+  NOT touch Ed's `.env.local`. Set up when the UI pass begins.
+- **Next (on audit completion):** append its plan here, then execute the top non-blocked,
+  low-risk items in verified batches; deploy at a checkpoint.

@@ -830,13 +830,13 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ### `src/app/api/internal/sweep/route.ts`
 
-**What it is:** login-failure lockout map.
+**What it is:** events are retained receipts with no pending work).
 
 **Exports (1):**
 
-- `async GET()`
+- `async GET(request: NextRequest)`
 
-**Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/inbox/inboxService.ts`](lib.md#file-src-lib-server-inbox-inboxservice-ts-1c9968c293) · [`src/lib/server/rateLimit.ts`](lib.md#file-src-lib-server-ratelimit-ts-4b02277298) · [`src/server/automations.ts`](server.md#file-src-server-automations-ts-3e92d448c5) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (6):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/inbox/inboxService.ts`](lib.md#file-src-lib-server-inbox-inboxservice-ts-1c9968c293) · [`src/lib/server/rateLimit.ts`](lib.md#file-src-lib-server-ratelimit-ts-4b02277298) · [`src/server/automations.ts`](server.md#file-src-server-automations-ts-3e92d448c5) · [`src/server/outbox.ts`](server.md#file-src-server-outbox-ts-de86d78655) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -4891,10 +4891,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (2):**
+**Exports (1):**
 
 - `default CareersPage()`
-- `dynamic = "force-dynamic"`
 
 **Depends on (1):** [`src/app/careers/_ApplicationForm.tsx`](#file-src-app-careers-applicationform-tsx-41c1341750)
 
@@ -10836,10 +10835,11 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** end-customer in /portal/customer/layout.tsx.
 
-**Exports (2):**
+**Exports (3):**
 
 - `default PortalLayout({ children }: { children: ReactNode })`
 - `dynamic = "force-dynamic"` — Every route under `/portal` is behind a session, and every one of them already renders dynamically — the build output marks the whole subtree `ƒ`. Saying so explicitly is not a be…
+- `maxDuration = 60` — count is brought down separately. 60s is within the Pro plan's limit.
 
 **Depends on (18):** [`src/components/chrome/ClientWorkspaceTransition.tsx`](components.md#file-src-components-chrome-clientworkspacetransition-tsx-c6dec0c3b1) · [`src/components/chrome/CommandCenterTransition.tsx`](components.md#file-src-components-chrome-commandcentertransition-tsx-7a5ebf9aef) · [`src/components/chrome/CompanySwitcher.tsx`](components.md#file-src-components-chrome-companyswitcher-tsx-606f77eb01) · [`src/components/chrome/DevModeLoadIn.tsx`](components.md#file-src-components-chrome-devmodeloadin-tsx-6f2d532159) · [`src/components/chrome/DevModeSwitcher.tsx`](components.md#file-src-components-chrome-devmodeswitcher-tsx-c267d44d77) · [`src/components/chrome/SandboxTopBar.tsx`](components.md#file-src-components-chrome-sandboxtopbar-tsx-6fb0a8000c) · [`src/components/chrome/SmartWorkSessionMonitor.tsx`](components.md#file-src-components-chrome-smartworksessionmonitor-tsx-4a1bafbb63) · [`src/components/chrome/UserCssInjector.tsx`](components.md#file-src-components-chrome-usercssinjector-tsx-ac643ccf57) · [`src/components/ui/PortalLoadingCoordinator.tsx`](components.md#file-src-components-ui-portalloadingcoordinator-tsx-ab67a66ae6) · [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/companySwitcherState.ts`](lib.md#file-src-lib-server-auth-companyswitcherstate-ts-df33027a74) · [`src/lib/server/chrome/userChromeLayout.ts`](lib.md#file-src-lib-server-chrome-userchromelayout-ts-e39b7711f4) · [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5) · [`src/server/dashboardPlanning.ts`](server.md#file-src-server-dashboardplanning-ts-e7312f445b) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 

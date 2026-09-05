@@ -2,7 +2,7 @@
 
 ← Back to [the reference index](00-index.md) · [the map](../WORKSPACE-FILE-TREE.md) · [development.md](../development.md)
 
-Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2693 source files; 0 per-source stubs.**
+Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2694 source files; 0 per-source stubs.**
 
 ## Engines — `src/engines/` (86)
 
@@ -168,7 +168,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
 - [`src/server/zimanteTradingCompanies.ts`](server.md#file-src-server-zimantetradingcompanies-ts-ef9a41c5a6)
 
-## Shared logic — `src/lib/` (366)
+## Shared logic — `src/lib/` (367)
 
 - [`src/lib/a11y/contrastValidator.ts`](lib.md#file-src-lib-a11y-contrastvalidator-ts-7c6889cfca) — components. We default to 4.5 for the strictest check.
 - [`src/lib/a11y/isEmbedded.ts`](lib.md#file-src-lib-a11y-isembedded-ts-e91cac9938)
@@ -207,7 +207,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/chrome/savedToolIcon.ts`](lib.md#file-src-lib-chrome-savedtoolicon-ts-d55894c92d)
 - [`src/lib/chrome/savedToolUrl.ts`](lib.md#file-src-lib-chrome-savedtoolurl-ts-0f6f57b2b2) — Longer than any link worth a card; short enough that a full palette stays small.
 - [`src/lib/chrome/settingsModules.ts`](lib.md#file-src-lib-chrome-settingsmodules-ts-f2347695f0) — Agency-scoped modules that declare `settings.groups`, each with the label it should wear in the set…
-- [`src/lib/chrome/sharedChromeLinkPrefetch.ts`](lib.md#file-src-lib-chrome-sharedchromelinkprefetch-ts-5da3605f67) — Local development compiles a destination the first time Next prefetches it. A mounted portal shell …
+- [`src/lib/chrome/sharedChromeLinkPrefetch.ts`](lib.md#file-src-lib-chrome-sharedchromelinkprefetch-ts-5da3605f67) — Whether chrome navigation links let Next automatically prefetch their destination. The answer is no…
 - [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411)
 - [`src/lib/chrome/topbarControls.ts`](lib.md#file-src-lib-chrome-topbarcontrols-ts-e7f3bc1812) — Every control that can be collapsed into the mobile drawer, in bar order.
 - [`src/lib/chrome/workspaces.ts`](lib.md#file-src-lib-chrome-workspaces-ts-d222438340) — override `--brand-primary`.
@@ -527,6 +527,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/supabase/config.ts`](lib.md#file-src-lib-supabase-config-ts-bce56de604)
 - [`src/lib/supabase/enquiryAgencyColumn.ts`](lib.md#file-src-lib-supabase-enquiryagencycolumn-ts-988b0a5281)
 - [`src/lib/supabase/enquirySubmissionClaims.ts`](lib.md#file-src-lib-supabase-enquirysubmissionclaims-ts-27fe89a841)
+- [`src/lib/supabase/keys.ts`](lib.md#file-src-lib-supabase-keys-ts-1b156a0ffd) — The privileged server-side key (`service_role`). Prefers the new secret key. Returns `undefined` in…
 - [`src/lib/supabase/ownedEnquiry.ts`](lib.md#file-src-lib-supabase-ownedenquiry-ts-d9fd6a5183)
 - [`src/lib/supabase/route.ts`](lib.md#file-src-lib-supabase-route-ts-62d79257db)
 - [`src/lib/supabase/scoped.ts`](lib.md#file-src-lib-supabase-scoped-ts-b3ff18df40)
@@ -668,7 +669,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/components/workspaces/PluginSettingsPanel.tsx`](components.md#file-src-components-workspaces-pluginsettingspanel-tsx-1ae842fede)
 - [`src/components/workspaces/PluginWorkspaceNav.tsx`](components.md#file-src-components-workspaces-pluginworkspacenav-tsx-34bb1220e7)
 
-## Plugins — `src/built-ins/` (768)
+## Plugins — `src/built-ins/` (767)
 
 - [`src/built-ins/modules/affiliates/index.ts`](built-ins.md#file-src-built-ins-modules-affiliates-index-ts-68c0702721) — `requires: ["ecommerce"]`, opt-in.
 - [`src/built-ins/modules/affiliates/src/__smoke__/affiliates.test.ts`](built-ins.md#file-src-built-ins-modules-affiliates-src-smoke-affiliates-test-ts-e464cf139b) — - side-effects: activity log + event bus
@@ -1250,7 +1251,6 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/built-ins/modules/website-editor/src/components/editor/EditorTopBar.tsx`](built-ins.md#file-src-built-ins-modules-website-editor-src-components-editor-editortopbar-tsx-5488c17b23)
 - [`src/built-ins/modules/website-editor/src/components/editor/EmbedSnippetBuilder.tsx`](built-ins.md#file-src-built-ins-modules-website-editor-src-components-editor-embedsnippetbuilder-tsx-e0627e4bb9)
 - [`src/built-ins/modules/website-editor/src/components/editor/FindReplaceModal.tsx`](built-ins.md#file-src-built-ins-modules-website-editor-src-components-editor-findreplacemodal-tsx-b295ffeaa0)
-- [`src/built-ins/modules/website-editor/src/components/editor/FormPickerModal.tsx`](built-ins.md#file-src-built-ins-modules-website-editor-src-components-editor-formpickermodal-tsx-772162bcc2)
 - [`src/built-ins/modules/website-editor/src/components/editor/GenerateModal.tsx`](built-ins.md#file-src-built-ins-modules-website-editor-src-components-editor-generatemodal-tsx-adc29a5f75)
 - [`src/built-ins/modules/website-editor/src/components/editor/HistoryToolbar.tsx`](built-ins.md#file-src-built-ins-modules-website-editor-src-components-editor-historytoolbar-tsx-5846d73d43)
 - [`src/built-ins/modules/website-editor/src/components/editor/ImageInpaintModal.tsx`](built-ins.md#file-src-built-ins-modules-website-editor-src-components-editor-imageinpaintmodal-tsx-132ea3f08a)
@@ -1488,7 +1488,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/api/auth/verify-email/route.ts`](app.md#file-src-app-api-auth-verify-email-route-ts-345cec8605) — dev-mode console-logged so retry is cheap.
 - [`src/app/api/cron/inbox/route.ts`](app.md#file-src-app-api-cron-inbox-route-ts-f4b795c54c)
 - [`src/app/api/cron/radar-probes/route.ts`](app.md#file-src-app-api-cron-radar-probes-route-ts-419c161f36)
-- [`src/app/api/internal/sweep/route.ts`](app.md#file-src-app-api-internal-sweep-route-ts-a9937e4004) — login-failure lockout map.
+- [`src/app/api/internal/sweep/route.ts`](app.md#file-src-app-api-internal-sweep-route-ts-a9937e4004) — events are retained receipts with no pending work).
 - [`src/app/api/mcp/route.ts`](app.md#file-src-app-api-mcp-route-ts-da1952d752)
 - [`src/app/api/portal/[module]/[...rest]/route.ts`](app.md#file-src-app-api-portal-module-rest-route-ts-b2456019c9) — tenant from the URL, because it has no session to take it from.
 - [`src/app/api/portal/access/_shared.ts`](app.md#file-src-app-api-portal-access-shared-ts-a8da6acae6)
@@ -2103,7 +2103,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/showcase/exit/route.ts`](app.md#file-src-app-showcase-exit-route-ts-2297ba275f)
 - [`src/app/showcase/route.ts`](app.md#file-src-app-showcase-route-ts-4c24dd82df)
 
-## Scripts — `scripts/` (606)
+## Scripts — `scripts/` (607)
 
 - [`scripts/attention-protection.test.ts`](scripts.md#file-scripts-attention-protection-test-ts-d64d01714c)
 - [`scripts/audit-actions.ts`](scripts.md#file-scripts-audit-actions-ts-862ea31175) — What state Actions is actually in — measured, not remembered. For every alert the checks currently …
@@ -2486,6 +2486,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-mobile-scroll-affordance.test.ts`](scripts.md#file-scripts-smoke-mobile-scroll-affordance-test-ts-fca0591b80) — looks right in review.
 - [`scripts/smoke-modal-keyboard-contract.test.ts`](scripts.md#file-scripts-smoke-modal-keyboard-contract-test-ts-f3f2798bdc) — reader.
 - [`scripts/smoke-multi-agency-users.test.ts`](scripts.md#file-scripts-smoke-multi-agency-users-test-ts-d8134be8b7) — agencyIds + activeAgencyId, auth.ts exports the new helpers.
+- [`scripts/smoke-mutate-patch-equivalence.test.ts`](scripts.md#file-scripts-smoke-mutate-patch-equivalence-test-ts-9a07e1e090) — one the Proxy diff feeds, and the one production uses on Railway.
 - [`scripts/smoke-my-radar-panel.test.ts`](scripts.md#file-scripts-smoke-my-radar-panel-test-ts-0a455882ef) — system, not a shape, and this follows that.
 - [`scripts/smoke-my-radar-topbar.test.ts`](scripts.md#file-scripts-smoke-my-radar-topbar-test-ts-e5a99f82ea) — even for an owner, while Business Radar keeps its own id, icon and route.
 - [`scripts/smoke-my-radar.test.ts`](scripts.md#file-scripts-smoke-my-radar-test-ts-ecac907a42) — the first day of every period.

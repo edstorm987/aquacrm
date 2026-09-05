@@ -19,7 +19,7 @@ export type { PhaseUpsertInput } from "./phases";
 export { TransitionService } from "./transitions";
 export type { AdvancePhaseArgs, AdvancePhaseResult, AdvancePhaseFailure } from "./transitions";
 
-export { StarterVariantService, NOOP_PORTAL_VARIANT_PORT } from "./starterVariant";
+export { StarterVariantService } from "./starterVariant";
 export type { ApplyVariantArgs } from "./starterVariant";
 
 export { DEFAULT_PHASE_PRESETS, buildDefaultPhases } from "./presets";

@@ -1875,7 +1875,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `class PlanService`
     - `constructor(private agencyId: AgencyId, private storage: StoragePort, private tenant: TenantPort, private activity: ActivityLogPort, private events: EventBusPort)`
-    - `async list(includeInactive = false): Promise<Plan[]>`
+    - `async list(includeInactive = false, options: { recover?: boolean } = {}): Promise<Plan[]>`
     - `async get(id: string): Promise<Plan | null>`
     - `async getForClient(clientId: ClientId): Promise<Plan | null>`
     - `async listCommercialAssignments(includeInactive = false): Promise<CommercialPlanAssignment[]>`
@@ -6499,7 +6499,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `{ PhaseUpsertInput } from "./phases"`
 - `{ TransitionService } from "./transitions"`
 - `{ AdvancePhaseArgs, AdvancePhaseResult, AdvancePhaseFailure } from "./transitions"`
-- `{ StarterVariantService, NOOP_PORTAL_VARIANT_PORT } from "./starterVariant"`
+- `{ StarterVariantService } from "./starterVariant"`
 - `{ ApplyVariantArgs } from "./starterVariant"`
 - `{ DEFAULT_PHASE_PRESETS, buildDefaultPhases } from "./presets"`
 - `{ PhasePresetSeed } from "./presets"`
@@ -6605,12 +6605,11 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** for the given role (typically `client-owner`).
 
-**Exports (4):**
+**Exports (3):**
 
 - `class StarterVariantService`
     - `constructor(private port: PortalVariantPort)`
     - `async apply(args: ApplyVariantArgs): Promise<ApplyVariantResult | { ok: false; error: string }>`
-- `NOOP_PORTAL_VARIANT_PORT: PortalVariantPort` — Logged to console at info level — never throws.
 - `interface ApplyVariantArgs (5 members)`
 - `interface ApplyVariantResult (4 members)`
 
@@ -10830,20 +10829,6 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Depends on (2):** [`src/built-ins/modules/website-editor/src/lib/findReplace.ts`](#file-src-built-ins-modules-website-editor-src-lib-findreplace-ts-b6a3a1e011) · [`src/built-ins/modules/website-editor/src/types/block.ts`](#file-src-built-ins-modules-website-editor-src-types-block-ts-68d8cdbe7f)
 
 **Used by (1):** [`src/built-ins/modules/website-editor/src/__smoke__/r023-find-replace.test.ts`](#file-src-built-ins-modules-website-editor-src-smoke-r023-find-replace-test-ts-f60ec4803a)
-
-<a id="file-src-built-ins-modules-website-editor-src-components-editor-formpickermodal-tsx-772162bcc2"></a>
-
-### `src/built-ins/modules/website-editor/src/components/editor/FormPickerModal.tsx`
-
-_No file-level doc-comment; purpose is inferred from the path and exports._
-
-**Exports (1):**
-
-- `default FormPickerModal({ onClose, onPick, createFormHref, fetchImpl }: Props)`
-
-**Depends on:** _No internal imports._
-
-**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 <a id="file-src-built-ins-modules-website-editor-src-components-editor-generatemodal-tsx-adc29a5f75"></a>
 

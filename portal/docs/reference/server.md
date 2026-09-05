@@ -27,7 +27,6 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `accessEnvironmentForSession(session: SessionPayload): AccessEnvironment`
 - `resolveAccess(governanceState: PortalState, input: ResolveAccessInput, resourceState: PortalState = governanceState): AccessResolution`
 - `hasAccessCapability(governanceState: PortalState, input: ResolveAccessInput & { capability: AccessCapability }, resourceState: PortalState = governanceState): boolean`
-- `async requireCurrentAccessActor(): Promise<CurrentAccessActor>`
 - `resolveActorAccess(actor: CurrentAccessActor, scope: AccessScope, now?: number): AccessResolution`
 - `actorHasActiveNonProjectAccessPolicy(actor: CurrentAccessActor, now = Date.now()): boolean` — Whether this identity has crossed the canonical-governance boundary. Legacy role fallbacks are identity-wide: once an owner assigns any active agency, workspace or client policy, …
 - `actorHasAccessCapability(actor: CurrentAccessActor, scope: AccessScope, capability: AccessCapability, now?: number): boolean`
@@ -48,6 +47,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `class AccessControlError`
     - `constructor(status: 400 | 401 | 403 | 404 | 409, code: string, message = code)`
 - `ACCESS_OWNER_BASELINE_CAPABILITIES: readonly AccessCapability[]`
+- `requireCurrentAccessActor = cache(async (): Promise<CurrentAccessActor> => {` — routes keep per-call resolution. Same proven pattern as `getSession`.
 - `interface AccessResolution (8 members)`
 - `interface ResolveAccessInput (7 members)`
 - `interface RequireAccessCapabilityInput (3 members)`
@@ -950,12 +950,13 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (10):**
+**Exports (11):**
 
 - `runWithCorrelation<T>(scope: { correlationId: string; causationId?: string }, fn: () => T): T` — Run `fn` with every recorded event correlated under `correlationId`.
 - `activeCorrelation(): CorrelationScope | undefined` — The active correlation scope, if any — for callers composing envelopes.
 - `recordOutboxEvent(state: PortalState, input: RecordOutboxEventInput): OutboxEvent` — Append one event to the outbox. Call INSIDE the `mutate()` that makes the domain change, so the change and its announcement are one write. Idempotent: an id already present is lef…
 - `drainOutbox(now = Date.now(), dispatch: OutboxDispatch = emit): number` — Dispatch every pending outbox event to the bus (oldest first), then prune. Returns how many rows were attempted or queued for a post-commit attempt. The persisted legacy status is…
+- `async purgeDeliveredOutbox(): Promise<number>` — One-time maintenance: drop every ALREADY-DELIVERED outbox event, regardless of age. `pruneOutbox` only clears delivered rows older than the 14-day retention, so a backlog of recen…
 - `emitDurable(input: RecordOutboxEventInput): OutboxEvent` — Record + drain in one call — the drop-in for `emit()` call sites that are not already inside a `mutate()`. The record is durable before the bus sees it; subscribers still receive …
 - `listOutboxEvents(agencyId: string): OutboxEvent[]` — Read view for tests/inspection: the outbox rows for one agency.
 - `OUTBOX_DELIVERED_RETENTION_MS = 14 * 24 * 60 * 60 * 1_000` — Delivered events are kept this long as lineage, then pruned.
@@ -965,7 +966,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (4):** [`src/server/eventBus.ts`](#file-src-server-eventbus-ts-0d11c56fb0) · [`src/server/productWorkspaceCoordinator.ts`](#file-src-server-productworkspacecoordinator-ts-746a08d0be) · [`src/server/storage.ts`](#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](#file-src-server-types-ts-0409a449c8)
 
-**Used by (9):** [`scripts/smoke-outbox.test.ts`](scripts.md#file-scripts-smoke-outbox-test-ts-1e7c5ed8b3) · [`src/built-ins/runtime/_runtime.ts`](built-ins.md#file-src-built-ins-runtime-runtime-ts-d2a0efb5ed) · [`src/lib/server/plugins/ensureLeadsPipelineInstall.ts`](lib.md#file-src-lib-server-plugins-ensureleadspipelineinstall-ts-bc1dba2897) · [`src/server/completedActions.ts`](#file-src-server-completedactions-ts-93ff9c085e) · [`src/server/organisations.ts`](#file-src-server-organisations-ts-ba6f8d840f) · [`src/server/persons.ts`](#file-src-server-persons-ts-c2f3c0cfec) · [`src/server/productWorkspaces.ts`](#file-src-server-productworkspaces-ts-c20e49f8a5) · [`src/server/tenants.ts`](#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](#file-src-server-users-ts-f6a1ca7f78)
+**Used by (10):** [`scripts/smoke-outbox.test.ts`](scripts.md#file-scripts-smoke-outbox-test-ts-1e7c5ed8b3) · [`src/app/api/internal/sweep/route.ts`](app.md#file-src-app-api-internal-sweep-route-ts-a9937e4004) · [`src/built-ins/runtime/_runtime.ts`](built-ins.md#file-src-built-ins-runtime-runtime-ts-d2a0efb5ed) · [`src/lib/server/plugins/ensureLeadsPipelineInstall.ts`](lib.md#file-src-lib-server-plugins-ensureleadspipelineinstall-ts-bc1dba2897) · [`src/server/completedActions.ts`](#file-src-server-completedactions-ts-93ff9c085e) · [`src/server/organisations.ts`](#file-src-server-organisations-ts-ba6f8d840f) · [`src/server/persons.ts`](#file-src-server-persons-ts-c2f3c0cfec) · [`src/server/productWorkspaces.ts`](#file-src-server-productworkspaces-ts-c20e49f8a5) · [`src/server/tenants.ts`](#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](#file-src-server-users-ts-f6a1ca7f78)
 
 <a id="file-src-server-people-ts-3717f452ee"></a>
 
@@ -1406,15 +1407,16 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (16):**
+**Exports (17):**
 
 - `createEmptyPortalState(): PortalState`
-- `async ensureHydrated(options?: { fresh?: boolean; /** Server-only escape hatch for code already wrapped in runInDataRealm(). */ preserveExplicitRealm?: boolean; }): Promise<void>`
+- `async ensureHydrated(options?: { fresh?: boolean; /** * Force a `fresh:true` reload even if this realm was already reloaded fresh * earlier in the same request. Reserved for the few callers that must read the * very lat…`
 - `getState(): PortalState`
 - `commitDevTeamWorkspaceFiles(operations: DevTeamWorkspaceFileMutation[]): Promise<void>` — Atomically compare-and-swap one or more production Dev Team workspace files. Batches are validated before any file is changed by the database function.
 - `async withAtomicPortalStateMutation<T>(operation: () => T | Promise<T>, options: { beforeCommit?: () => void | Promise<void> } = {}): Promise<T>` — Run one coordinated mutation against an isolated state tree and publish its complete diff in one durable commit. A thrown operation is discarded before it can reach the shared cac…
 - `mutate(fn: (state: PortalState) => void): void`
 - `async flushPendingWrites(): Promise<void>` — Persist every mutation made during the current request before a successful response is returned. This is required for remote/serverless backends where the next request may execute…
+- `async flushPendingWritesForRender(): Promise<void>` — Render-path flush. Provision/sync work done *during a page render* queues patches via `mutate()`, and `mutate()` already schedules a 250 ms debounced background flush (see `schedu…
 - `async reset(): Promise<void>`
 - `isPersistent(): boolean`
 - `getBackendInfo(): BackendInfo`
@@ -1443,7 +1445,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on:** _No internal imports._
 
-**Used by (6):** [`scripts/smoke-product-workspace-lease-fencing.test.ts`](scripts.md#file-scripts-smoke-product-workspace-lease-fencing-test-ts-81883e0c18) · [`scripts/smoke-remote-storage-consistency.test.ts`](scripts.md#file-scripts-smoke-remote-storage-consistency-test-ts-38909d1020) · [`scripts/smoke-storage-sidecars.test.ts`](scripts.md#file-scripts-smoke-storage-sidecars-test-ts-42cb683e8c) · [`scripts/smoke-templates-sidecar.test.ts`](scripts.md#file-scripts-smoke-templates-sidecar-test-ts-bb4da10563) · [`src/server/storage.ts`](#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/storageSupabase.ts`](#file-src-server-storagesupabase-ts-d4f984475f)
+**Used by (7):** [`scripts/smoke-mutate-patch-equivalence.test.ts`](scripts.md#file-scripts-smoke-mutate-patch-equivalence-test-ts-9a07e1e090) · [`scripts/smoke-product-workspace-lease-fencing.test.ts`](scripts.md#file-scripts-smoke-product-workspace-lease-fencing-test-ts-81883e0c18) · [`scripts/smoke-remote-storage-consistency.test.ts`](scripts.md#file-scripts-smoke-remote-storage-consistency-test-ts-38909d1020) · [`scripts/smoke-storage-sidecars.test.ts`](scripts.md#file-scripts-smoke-storage-sidecars-test-ts-42cb683e8c) · [`scripts/smoke-templates-sidecar.test.ts`](scripts.md#file-scripts-smoke-templates-sidecar-test-ts-bb4da10563) · [`src/server/storage.ts`](#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/storageSupabase.ts`](#file-src-server-storagesupabase-ts-d4f984475f)
 
 <a id="file-src-server-storagepostgres-ts-dc03e23a17"></a>
 
@@ -1511,7 +1513,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async releaseProductWorkspaceLease(workspaceKey: string, holderId: string, options: SupabaseStorageRequestOptions = {}, realmId = "live"): Promise<void>`
 - `interface SupabaseStorageRequestOptions (3 members)`
 
-**Depends on (3):** [`src/lib/server/remoteOperation.ts`](lib.md#file-src-lib-server-remoteoperation-ts-60689f2f16) · [`src/server/devTeamWorkspacePersistence.ts`](#file-src-server-devteamworkspacepersistence-ts-86c301f8fd) · [`src/server/storagePatch.ts`](#file-src-server-storagepatch-ts-c38f552c7a)
+**Depends on (4):** [`src/lib/server/remoteOperation.ts`](lib.md#file-src-lib-server-remoteoperation-ts-60689f2f16) · [`src/lib/supabase/keys.ts`](lib.md#file-src-lib-supabase-keys-ts-1b156a0ffd) · [`src/server/devTeamWorkspacePersistence.ts`](#file-src-server-devteamworkspacepersistence-ts-86c301f8fd) · [`src/server/storagePatch.ts`](#file-src-server-storagepatch-ts-c38f552c7a)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 

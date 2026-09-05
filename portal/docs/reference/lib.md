@@ -647,11 +647,11 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ### `src/lib/chrome/sharedChromeLinkPrefetch.ts`
 
-**What it is:** Local development compiles a destination the first time Next prefetches it. A mounted portal shell can expose dozens of navigation links at once, so development-only automatic pre…
+**What it is:** Whether chrome navigation links let Next automatically prefetch their destination. The answer is now NO in every environment. A mounted portal shell exposes dozens of navigation l…
 
 **Exports (1):**
 
-- `sharedChromeLinkPrefetch(environment = process.env.NODE_ENV): false | undefined` — Local development compiles a destination the first time Next prefetches it. A mounted portal shell can expose dozens of navigation links at once, so development-only automatic pre…
+- `sharedChromeLinkPrefetch(_environment = process.env.NODE_ENV): false | undefined` — Whether chrome navigation links let Next automatically prefetch their destination. The answer is now NO in every environment. A mounted portal shell exposes dozens of navigation l…
 
 **Depends on:** _No internal imports._
 
@@ -4039,10 +4039,10 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (2):**
 
-- `async listClientsNeedingAttention(agencyId: string, now = Date.now()): Promise<ClientAttentionItem[]>` — The "clients needing attention" list behind the Command Centre panel — not a bare count, but which clients, how bad, and why. Rides the client-radar fleet (the canonical per-clien…
+- `async listClientsNeedingAttention(agencyId: string, now = Date.now(), options: { operationalAlerts?: OperationalAlert[] } = {}): Promise<ClientAttentionItem[]>` — The "clients needing attention" list behind the Command Centre panel — not a bare count, but which clients, how bad, and why. Rides the client-radar fleet (the canonical per-clien…
 - `interface ClientAttentionItem (6 members)` — One client that currently needs attention, compact enough for a Command Centre roll-up: who, how bad, the single top reason, and a link into their Fulfilment workspace where the f…
 
-**Depends on (2):** [`src/engines/data/server/radar/clientRadarService.ts`](engines.md#file-src-engines-data-server-radar-clientradarservice-ts-8e96620551) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
+**Depends on (3):** [`src/engines/data/server/radar/clientRadarService.ts`](engines.md#file-src-engines-data-server-radar-clientradarservice-ts-8e96620551) · [`src/lib/server/inbox/operationalAlerts.ts`](#file-src-lib-server-inbox-operationalalerts-ts-564a396d10) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
 
 **Used by (4):** [`src/app/portal/agency/_BusinessRadarDashboard.tsx`](app.md#file-src-app-portal-agency-businessradardashboard-tsx-798d90e2ac) · [`src/app/portal/agency/_ClientsNeedingAttention.tsx`](app.md#file-src-app-portal-agency-clientsneedingattention-tsx-854f87726b) · [`src/app/portal/agency/_DashboardCommandCenter.tsx`](app.md#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff) · [`src/app/portal/agency/page.tsx`](app.md#file-src-app-portal-agency-page-tsx-35a1d5c98a)
 
@@ -5552,7 +5552,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface InboxReplyPartClaim (3 members)`
 - `interface InboxReplyPartClaimOptions (2 members)`
 
-**Depends on (4):** [`src/lib/inbox/replyDelivery.ts`](#file-src-lib-inbox-replydelivery-ts-6883580341) · [`src/lib/inbox/types.ts`](#file-src-lib-inbox-types-ts-6a30cf2d14) · [`src/lib/server/dev/devFileTransaction.ts`](#file-src-lib-server-dev-devfiletransaction-ts-7c70ba9568) · [`src/lib/shared/formatDateTime.ts`](#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
+**Depends on (5):** [`src/lib/inbox/replyDelivery.ts`](#file-src-lib-inbox-replydelivery-ts-6883580341) · [`src/lib/inbox/types.ts`](#file-src-lib-inbox-types-ts-6a30cf2d14) · [`src/lib/server/dev/devFileTransaction.ts`](#file-src-lib-server-dev-devfiletransaction-ts-7c70ba9568) · [`src/lib/shared/formatDateTime.ts`](#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/lib/supabase/keys.ts`](#file-src-lib-supabase-keys-ts-1b156a0ffd)
 
 **Used by (18):** [`src/app/api/cron/inbox/route.ts`](app.md#file-src-app-api-cron-inbox-route-ts-f4b795c54c) · [`src/app/api/portal/identity-resolution/route.ts`](app.md#file-src-app-api-portal-identity-resolution-route-ts-9e00e97510) · [`src/app/api/portal/inbox/connections/route.ts`](app.md#file-src-app-api-portal-inbox-connections-route-ts-68cb57d603) · [`src/app/api/portal/inbox/conversations/route.ts`](app.md#file-src-app-api-portal-inbox-conversations-route-ts-8a49625972) · [`src/app/api/portal/inbox/messages/route.ts`](app.md#file-src-app-api-portal-inbox-messages-route-ts-41d7bad35c) · [`src/app/api/portal/inbox/meta/callback/route.ts`](app.md#file-src-app-api-portal-inbox-meta-callback-route-ts-28c2b6dcc4) · [`src/app/api/portal/search/route.ts`](app.md#file-src-app-api-portal-search-route-ts-4b746a12f2) · [`src/app/api/webhooks/meta/route.ts`](app.md#file-src-app-api-webhooks-meta-route-ts-370d38da2d) · [`src/app/portal/agency/inbox/page.tsx`](app.md#file-src-app-portal-agency-inbox-page-tsx-4d64a629ec) · [`src/app/portal/agency/marketing/page.tsx`](app.md#file-src-app-portal-agency-marketing-page-tsx-e2b361f4ba) · [`src/app/portal/clients/[clientId]/page.tsx`](app.md#file-src-app-portal-clients-clientid-page-tsx-f2587fcff8) · [`src/app/portal/clients/page.tsx`](app.md#file-src-app-portal-clients-page-tsx-bffc1e671f) · [`src/app/portal/customer/_portalData.ts`](app.md#file-src-app-portal-customer-portaldata-ts-2f1995696c) · [`src/engines/data/server/radar/businessIssueRadar.ts`](engines.md#file-src-engines-data-server-radar-businessissueradar-ts-df308875cc) · [`src/engines/data/server/radar/radarSourceInspection.ts`](engines.md#file-src-engines-data-server-radar-radarsourceinspection-ts-18f2227fe9) · [`src/lib/server/access/inboxMediaTargetAccess.ts`](#file-src-lib-server-access-inboxmediatargetaccess-ts-fa212ab27c) · [`src/lib/server/inbox/inboxService.ts`](#file-src-lib-server-inbox-inboxservice-ts-1c9968c293) · [`src/lib/server/integrations/metaMessaging.ts`](#file-src-lib-server-integrations-metamessaging-ts-8046b1e34b)
 
@@ -5607,8 +5607,10 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (5):**
+**Exports (7):**
 
+- `prewarmOperationalAlerts(agencyId: string): void` — Warm the cache in the background (fire-and-forget) so the next page that needs the sweep hits a ready snapshot instead of computing it inline. Safe to call on a fast page's render…
+- `invalidateOperationalAlertsCache(agencyId: string): void` — Drop the cached operational-alert snapshot for an agency (call after a mutation that should reflect immediately, e.g. resolving/parking an alert).
 - `async listOperationalAlerts(agencyId: string, now = Date.now(), readOptions: OperationalAlertReadOptions = {}): Promise<OperationalAlert[]>`
 - `OPERATIONAL_ALERT_THRESHOLDS = {`
 - `getRequestOperationalAlerts = cache(` — so API routes, tests and any non-render caller keep the exact same behaviour.
@@ -5617,7 +5619,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (31):** [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-leadspipelinefoundation-ts-a0444ffabc) · [`src/lib/clients/clientAquaHealth.ts`](#file-src-lib-clients-clientaquahealth-ts-423527fa78) · [`src/lib/clients/clientContracts.ts`](#file-src-lib-clients-clientcontracts-ts-e0bc41d74d) · [`src/lib/clients/clientMarketingService.ts`](#file-src-lib-clients-clientmarketingservice-ts-106c46e6a9) · [`src/lib/clients/clientPaymentPlans.ts`](#file-src-lib-clients-clientpaymentplans-ts-e2f45163b3) · [`src/lib/clients/clientTelemetry.ts`](#file-src-lib-clients-clienttelemetry-ts-d3462b0e3b) · [`src/lib/clients/clientWorkspace.ts`](#file-src-lib-clients-clientworkspace-ts-90fa37f756) · [`src/lib/enquiries/enquiryClassification.ts`](#file-src-lib-enquiries-enquiryclassification-ts-e9934c6609) · [`src/lib/inbox/resolutionContext.ts`](#file-src-lib-inbox-resolutioncontext-ts-f21513ba4f) · [`src/lib/inbox/resolutionFocus.ts`](#file-src-lib-inbox-resolutionfocus-ts-6aab5ca8a9) · [`src/lib/intelligence/operationalAttention.ts`](#file-src-lib-intelligence-operationalattention-ts-0aaf482906) · [`src/lib/readAvailability.ts`](#file-src-lib-readavailability-ts-35b000b352) · [`src/lib/server/access/clientAssociationElement.ts`](#file-src-lib-server-access-clientassociationelement-ts-141ea1a836) · [`src/lib/server/assistants/externalAssistantProposals.ts`](#file-src-lib-server-assistants-externalassistantproposals-ts-0cb34ef763) · [`src/lib/server/inbox/operationalAlertSourceEpisodes.ts`](#file-src-lib-server-inbox-operationalalertsourceepisodes-ts-0f294a1c5a) · [`src/lib/server/pluginStorage.ts`](#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/server/requestNow.ts`](#file-src-lib-server-requestnow-ts-60b46024fc) · [`src/lib/server/websiteEnquiries.ts`](#file-src-lib-server-websiteenquiries-ts-e00ecfd23b) · [`src/lib/shared/formatDateTime.ts`](#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/agencySettings.ts`](server.md#file-src-server-agencysettings-ts-6d31afe153) · [`src/server/commandCalendar.ts`](server.md#file-src-server-commandcalendar-ts-70cef8d658) · [`src/server/legalDocuments.ts`](server.md#file-src-server-legaldocuments-ts-9db835baaf) · [`src/server/organisations.ts`](server.md#file-src-server-organisations-ts-ba6f8d840f) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/persons.ts`](server.md#file-src-server-persons-ts-c2f3c0cfec) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tasks.ts`](server.md#file-src-server-tasks-ts-875282c006) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
-**Used by (14):** [`src/app/api/portal/attention/completed/route.ts`](app.md#file-src-app-api-portal-attention-completed-route-ts-11143f1f63) · [`src/app/api/portal/notifications/route.ts`](app.md#file-src-app-api-portal-notifications-route-ts-a17e13f5f1) · [`src/app/api/portal/search/route.ts`](app.md#file-src-app-api-portal-search-route-ts-4b746a12f2) · [`src/app/portal/agency/actions/_ActionsPage.tsx`](app.md#file-src-app-portal-agency-actions-actionspage-tsx-66b9e510e2) · [`src/app/portal/agency/inbox/page.tsx`](app.md#file-src-app-portal-agency-inbox-page-tsx-4d64a629ec) · [`src/app/portal/agency/page.tsx`](app.md#file-src-app-portal-agency-page-tsx-35a1d5c98a) · [`src/app/portal/clients/[clientId]/layout.tsx`](app.md#file-src-app-portal-clients-clientid-layout-tsx-2e7f1d7ce2) · [`src/app/portal/clients/page.tsx`](app.md#file-src-app-portal-clients-page-tsx-bffc1e671f) · [`src/engines/data/server/radar/businessIssueRadar.ts`](engines.md#file-src-engines-data-server-radar-businessissueradar-ts-df308875cc) · [`src/engines/data/server/radar/clientRadarService.ts`](engines.md#file-src-engines-data-server-radar-clientradarservice-ts-8e96620551) · [`src/engines/data/server/radar/radarObservations.ts`](engines.md#file-src-engines-data-server-radar-radarobservations-ts-6bebaf275c) · [`src/lib/server/assistants/advisorContext.ts`](#file-src-lib-server-assistants-advisorcontext-ts-ca2184cd70) · [`src/lib/server/assistants/openaiAssistant.ts`](#file-src-lib-server-assistants-openaiassistant-ts-43bfde0f5e) · [`src/lib/server/resolutionAlertReads.ts`](#file-src-lib-server-resolutionalertreads-ts-e1d03d4d10)
+**Used by (15):** [`src/app/api/portal/attention/completed/route.ts`](app.md#file-src-app-api-portal-attention-completed-route-ts-11143f1f63) · [`src/app/api/portal/notifications/route.ts`](app.md#file-src-app-api-portal-notifications-route-ts-a17e13f5f1) · [`src/app/api/portal/search/route.ts`](app.md#file-src-app-api-portal-search-route-ts-4b746a12f2) · [`src/app/portal/agency/actions/_ActionsPage.tsx`](app.md#file-src-app-portal-agency-actions-actionspage-tsx-66b9e510e2) · [`src/app/portal/agency/inbox/page.tsx`](app.md#file-src-app-portal-agency-inbox-page-tsx-4d64a629ec) · [`src/app/portal/agency/page.tsx`](app.md#file-src-app-portal-agency-page-tsx-35a1d5c98a) · [`src/app/portal/clients/[clientId]/layout.tsx`](app.md#file-src-app-portal-clients-clientid-layout-tsx-2e7f1d7ce2) · [`src/app/portal/clients/page.tsx`](app.md#file-src-app-portal-clients-page-tsx-bffc1e671f) · [`src/engines/data/server/radar/businessIssueRadar.ts`](engines.md#file-src-engines-data-server-radar-businessissueradar-ts-df308875cc) · [`src/engines/data/server/radar/clientRadarService.ts`](engines.md#file-src-engines-data-server-radar-clientradarservice-ts-8e96620551) · [`src/engines/data/server/radar/radarObservations.ts`](engines.md#file-src-engines-data-server-radar-radarobservations-ts-6bebaf275c) · [`src/lib/server/assistants/advisorContext.ts`](#file-src-lib-server-assistants-advisorcontext-ts-ca2184cd70) · [`src/lib/server/assistants/openaiAssistant.ts`](#file-src-lib-server-assistants-openaiassistant-ts-43bfde0f5e) · [`src/lib/server/clients/clientAttention.ts`](#file-src-lib-server-clients-clientattention-ts-cadbc44f73) · [`src/lib/server/resolutionAlertReads.ts`](#file-src-lib-server-resolutionalertreads-ts-e1d03d4d10)
 
 
 ## `src/lib/server/integrations/`
@@ -7260,7 +7262,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async updateSupabasePassword(email: string, password: string)`
 - `interface ProvisionIdentityInput (6 members)`
 
-**Depends on (1):** [`src/lib/supabase/enquiryAgencyColumn.ts`](#file-src-lib-supabase-enquiryagencycolumn-ts-988b0a5281)
+**Depends on (2):** [`src/lib/supabase/enquiryAgencyColumn.ts`](#file-src-lib-supabase-enquiryagencycolumn-ts-988b0a5281) · [`src/lib/supabase/keys.ts`](#file-src-lib-supabase-keys-ts-1b156a0ffd)
 
 **Used by (10):** [`src/app/api/auth/password/reset/route.ts`](app.md#file-src-app-api-auth-password-reset-route-ts-47ec72bf47) · [`src/app/api/portal/clients/[clientId]/erase/route.ts`](app.md#file-src-app-api-portal-clients-clientid-erase-route-ts-7fd81dbf91) · [`src/app/api/portal/customer/setup/route.ts`](app.md#file-src-app-api-portal-customer-setup-route-ts-9d50dd5816) · [`src/app/api/public/brand-enquiry/route.ts`](app.md#file-src-app-api-public-brand-enquiry-route-ts-a6e218f276) · [`src/app/api/public/form-capture/route.ts`](app.md#file-src-app-api-public-form-capture-route-ts-34c5b0f2ed) · [`src/app/api/telemetry/collect/route.ts`](app.md#file-src-app-api-telemetry-collect-route-ts-bdfa138d16) · [`src/lib/server/privateUploadStorage.ts`](#file-src-lib-server-privateuploadstorage-ts-80d5415fe8) · [`src/lib/server/publicUploadStorage.ts`](#file-src-lib-server-publicuploadstorage-ts-7bf29f859e) · [`src/lib/server/websiteEnquiries.ts`](#file-src-lib-server-websiteenquiries-ts-e00ecfd23b) · [`src/server/staffProvisioning.ts`](server.md#file-src-server-staffprovisioning-ts-affcacba17)
 
@@ -7276,7 +7278,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `requireSupabasePublicConfig(): SupabasePublicConfig`
 - `interface SupabasePublicConfig (2 members)`
 
-**Depends on:** _No internal imports._
+**Depends on (1):** [`src/lib/supabase/keys.ts`](#file-src-lib-supabase-keys-ts-1b156a0ffd)
 
 **Used by (6):** [`src/app/portal/account/page.tsx`](app.md#file-src-app-portal-account-page-tsx-3688a56638) · [`src/app/portal/agency/governance/_governanceData.ts`](app.md#file-src-app-portal-agency-governance-governancedata-ts-ecdaa49f02) · [`src/lib/server/auth/auth.ts`](#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/mfa.ts`](#file-src-lib-server-auth-mfa-ts-2eef53bfa4) · [`src/lib/supabase/route.ts`](#file-src-lib-supabase-route-ts-62d79257db) · [`src/lib/supabase/server.ts`](#file-src-lib-supabase-server-ts-54d622904e)
 
@@ -7326,6 +7328,22 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Depends on:** _No internal imports._
 
 **Used by (3):** [`src/app/api/public/brand-enquiry/route.ts`](app.md#file-src-app-api-public-brand-enquiry-route-ts-a6e218f276) · [`src/app/api/public/form-capture/route.ts`](app.md#file-src-app-api-public-form-capture-route-ts-34c5b0f2ed) · [`src/lib/server/enquirySubmissionDelivery.ts`](#file-src-lib-server-enquirysubmissiondelivery-ts-20e07b3f46)
+
+<a id="file-src-lib-supabase-keys-ts-1b156a0ffd"></a>
+
+### `src/lib/supabase/keys.ts`
+
+**What it is:** The privileged server-side key (`service_role`). Prefers the new secret key. Returns `undefined` in the browser bundle (the value is never `NEXT_PUBLIC`, so it is never inlined cl…
+
+**Exports (3):**
+
+- `resolveSupabaseSecretKey(): string | undefined` — The privileged server-side key (`service_role`). Prefers the new secret key. Returns `undefined` in the browser bundle (the value is never `NEXT_PUBLIC`, so it is never inlined cl…
+- `resolveSupabasePublicKey(): string | undefined` — The public key used by the browser client and by Supabase Auth. Prefers the new publishable key. Every name here is written literally so Next inlines the build-time value into the…
+- `resolveSupabaseUrl(): string | undefined` — The project URL. Unchanged by key rotation; kept here for one import site.
+
+**Depends on:** _No internal imports._
+
+**Used by (4):** [`src/lib/server/inbox/inboxStore.ts`](#file-src-lib-server-inbox-inboxstore-ts-e9d74d18ec) · [`src/lib/supabase/admin.ts`](#file-src-lib-supabase-admin-ts-4eb1bf0db0) · [`src/lib/supabase/config.ts`](#file-src-lib-supabase-config-ts-bce56de604) · [`src/server/storageSupabase.ts`](server.md#file-src-server-storagesupabase-ts-d4f984475f)
 
 <a id="file-src-lib-supabase-ownedenquiry-ts-d9fd6a5183"></a>
 
@@ -7486,3 +7504,4 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Depends on:** _No internal imports._
 
 **Used by (2):** [`scripts/smoke-telephony-inbound.test.ts`](scripts.md#file-scripts-smoke-telephony-inbound-test-ts-880e50ee50) · [`src/app/api/webhooks/twilio/voice/route.ts`](app.md#file-src-app-api-webhooks-twilio-voice-route-ts-e6acb0932a)
+

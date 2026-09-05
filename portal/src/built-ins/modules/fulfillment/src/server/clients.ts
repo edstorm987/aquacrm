@@ -162,7 +162,7 @@ export class ClientLifecycleService {
       }
     }
 
-    // Apply starter portal variant (no-op shim until T3 ships).
+    // Apply starter portal variant via the live portalVariantAdapter → T3.
     const priorVariant = resume?.variant;
     let variant: CreateClientWithPhaseResult["variant"] = priorVariant
       && "ok" in priorVariant

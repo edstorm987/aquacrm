@@ -295,6 +295,11 @@ test("only the plans that genuinely have no phases yield none", async () => {
     // and its execution is tracked in the production goal + OVERNIGHT-RUN-2026-09-05,
     // not the dev-team auto-board. So it correctly yields no parsed phases.
     "fractal-radar-architecture",
+    // The 2026-09-05 audit-derived production-readiness execution plan. Its
+    // "TONIGHT / DEFER" batches are prose work-items, not the auto-tracked
+    // `## Phase N` format — execution is tracked in the production goal +
+    // OVERNIGHT-RUN-2026-09-05, so it correctly yields no parsed phases.
+    "production-readiness-execution-plan",
     "client-owned-form-data",
   ]);
   const empty = (await plans()).filter(p => parsePhases(p.md).length === 0).map(p => p.name);

@@ -22,20 +22,17 @@
 //
 // ── Which agency-scoped modules are deliberately absent ──────────────────
 //
-// `public-funnel`, `fulfillment`, `website-editor` and `leads-pipeline` also
-// declare settings, and every field they declare is in `UNWIRED_SETTINGS` —
-// nothing reads any of them. A row here would be a cog opening a panel where
-// every control says "Not connected", which teaches people cogs are decoration.
-// They earn a row the moment one of their fields is wired.
+// `public-funnel`, `fulfillment` and `website-editor` also declare settings, and
+// every field they declare is in `UNWIRED_SETTINGS` — nothing reads any of them.
+// A row here would be a cog opening a panel where every control says "Not
+// connected", which teaches people cogs are decoration. They earn a row the
+// moment one of their fields is wired.
 //
-// `leads-pipeline` was briefly added on 2026-08-30 on the grounds that
-// `campaigns.fromName` is "read for real when a blast is composed". It is not:
-// the module contains zero occurrences of `install.config`, so it reads none of
-// the three settings it declares. The only thing making `fromName` look
-// consulted was an id collision with the SMTP credential declared in
-// `lib/integrations/catalog.ts`. Row withdrawn the same day; `fromName` is now
-// in `UNWIRED_SETTINGS` beside its two siblings, and the sweep no longer treats
-// that catalogue as a reader. See `lib/plugins/unwiredSettings.ts`.
+// `leads-pipeline` used to sit here too: its `campaigns.fromName` only looked
+// consulted because of an id collision with the SMTP credential in
+// `lib/integrations/catalog.ts` (see `lib/plugins/unwiredSettings.ts`). On
+// 2026-09-02 it wired its default lead source + capture column for real, so it
+// graduated to an editable door — it is now in the list below, not here.
 //
 // `bos-auth-gate` declares `loginPath` but is not in the plugin registry at
 // all, so `describePluginSettings` returns null for it and the read below would

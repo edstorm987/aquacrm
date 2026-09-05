@@ -100,7 +100,7 @@ const CORRELATIONS: readonly CorrelationDefinition[] = [
     above("clients", "pending-cancellations", "Pending cancellations", 0),
     above("clients", "attention-clients", "Clients needing attention", 0),
   ]),
-  correlation("source-dependency-attribution", "marketing", "warning", "Acquisition is concentrated while attribution is incomplete", "The commercial engine depends heavily on one retained source while some lead origins remain unclear. Channel resilience and spend decisions cannot yet be trusted together.", "/portal/agency/marketing", [
+  correlation("source-dependency-attribution", "marketing", "warning", "Acquisition is concentrated while attribution is incomplete", "Your lead acquisition leans heavily on one source while some lead origins are still unclear, so channel-resilience and spend decisions cannot yet be trusted together.", "/portal/agency/marketing", [
     attention("marketing", ["source-concentration"], "Source concentration"),
     attention("marketing", ["lead-source-attribution"], "Lead source attribution"),
   ]),
