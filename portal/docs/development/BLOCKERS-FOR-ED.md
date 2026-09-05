@@ -19,6 +19,37 @@ moment you hand it over. Nothing here is stalled work elsewhere.
 - **Other provider keys** — voice/call recorder (#145), any live-provider ledger/webhook
   acceptance across the P1 list.
 
+### 📋 Plug-and-play env-var checklist (set these on Railway — names only, no values here)
+
+So handover is copy-paste, not a hunt. These are the exact `process.env` names the code reads,
+grouped by what they unblock. Anything marked *(likely already set — app runs)* just needs
+verifying. Cross-check against `src/lib/server/productionReadiness.ts`.
+
+- **Supabase — DATA (likely already set — app runs):** `NEXT_PUBLIC_SUPABASE_URL`,
+  `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (+ legacy `NEXT_PUBLIC_SUPABASE_ANON_KEY`),
+  `SUPABASE_SECRET_KEY` (+ legacy `SUPABASE_SERVICE_ROLE_KEY`), `DATABASE_URL`,
+  `NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET`. (New `sb_`-scheme keys with legacy fallback — see the
+  key-rotation note; the app reads both.)
+- **App secrets — sessions/handoff (likely already set):** `SESSION_SECRET` /
+  `PORTAL_SESSION_SECRET`, `PORTAL_HANDOFF_SECRET`, `PORTAL_PREVIEW_SECRET`,
+  `AQUA_EMBED_SIGNING_SECRET`, `AQUA_EMBED_API_TOKEN`, `CRON_SECRET` (also gates the radar-probe cron).
+- **Stripe — payments/onboarding (#33 #42 #45 #69 #122):** `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`.
+- **Email — client comms (#43). Pick ONE provider:** Resend → `RESEND_API_KEY`, `MILESYMEDIA_FROM_EMAIL`,
+  `MILESYMEDIA_FROM_NAME`, `MILESYMEDIA_SUPPORT_EMAIL`; **or** SMTP → `SMTP_HOST`, `SMTP_PORT`,
+  `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`, `SMTP_FROM_NAME`, `SMTP_REPLY_TO`. Plus
+  `ENQUIRY_EMAIL_FROM`, `FOUNDER_EMAIL`.
+- **Meta / Instagram — social inbox (#11):** `META_APP_ID`, `META_APP_SECRET`,
+  `META_WEBHOOK_VERIFY_TOKEN`, `META_GRAPH_API_VERSION`.
+- **Twilio — voice/SMS/WhatsApp (#145, optional):** `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`,
+  `TWILIO_AGENT_PHONE_NUMBER`, `TWILIO_VOICE_FROM_NUMBER`, `TWILIO_SMS_FROM_NUMBER`,
+  `TWILIO_WHATSAPP_FROM_NUMBER`.
+- **Optional extras:** `OPENAI_API_KEY` (Advisor/AI), `GITHUB_TOKEN` (Dev-editor publish walk),
+  `GOOGLE_OAUTH_CLIENT_ID`/`_SECRET` + `GOOGLE_CALENDAR_OAUTH_CLIENT_ID`/`_SECRET` (calendar),
+  `VERCEL_TOKEN` (only if still using the Vercel deployer).
+
+**Minimum to walk a real client onboarding end-to-end:** Supabase (verify) + Stripe + one email
+provider. Meta/Twilio/Google are per-feature and can follow.
+
 ## 🌐 Infra / environment
 
 - **Radar probe cron isn't firing on Railway.** The live inbox shows *"scheduled probe
