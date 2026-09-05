@@ -172,7 +172,7 @@ export function buildInfraHealthChecks(snapshot: RadarInfraHealthSnapshot | unde
         "AquaCRM database",
         "learning",
         "AquaCRM database reachability",
-        "The Infra sweep has not recorded database health yet. It will populate on the next scheduled or full scan.",
+        "The background infrastructure check has not recorded database health yet. It will populate on the next scheduled or full scan.",
         ["Infra sweep not yet run"],
         now,
       ),

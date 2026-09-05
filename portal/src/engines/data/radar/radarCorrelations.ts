@@ -23,7 +23,7 @@ const CORRELATIONS: readonly CorrelationDefinition[] = [
     above("sales", "enquiries-7d", "Weekly enquiries", 0),
     above("sales", "awaiting-response", "Leads awaiting response", 0),
   ]),
-  correlation("traffic-conversion-leak", "marketing", "warning", "Traffic is arriving without a conversion signal", "The properties are receiving meaningful traffic, but the radar cannot see forms or conversions. Check the offer, journey, forms, and event instrumentation together.", "/portal/agency/fulfilment/technical/performance", [
+  correlation("traffic-conversion-leak", "marketing", "warning", "Traffic is arriving without a conversion signal", "The properties are receiving meaningful traffic, but the radar cannot see forms or conversions. Check the offer, journey, forms, and event tracking together.", "/portal/agency/fulfilment/technical/performance", [
     atLeast("marketing", "traffic-7d", "Weekly traffic", 20),
     atMost("marketing", "form-submissions", "Form submissions", 0),
     atMost("marketing", "conversions", "Tracked conversions", 0),
@@ -68,7 +68,7 @@ const CORRELATIONS: readonly CorrelationDefinition[] = [
     attention("development", ["monitoring-silence", "tag-freshness", "tag-coverage"], "Tag or monitoring silence"),
     above("development", "property-coverage", "Tracked properties", 0),
   ]),
-  correlation("integration-ingestion-risk", "systems", "warning", "Integration failure is threatening inbound data", "A failed integration overlaps with weak inbox or telemetry ingestion. The business may be active while AquaCRM receives an incomplete picture.", "/portal/agency/company?view=connections", [
+  correlation("integration-ingestion-risk", "systems", "warning", "Integration failure is threatening inbound data", "A failed integration overlaps with weak inbox or website-tracking intake. The business may be active while AquaCRM receives an incomplete picture.", "/portal/agency/company?view=connections", [
     above("systems", "integration-failures", "Integration failures", 0),
     attention("systems", ["telemetry-ingestion", "inbox-ingestion"], "Inbound data flow"),
   ]),

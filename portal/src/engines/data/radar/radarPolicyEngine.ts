@@ -232,7 +232,7 @@ function buildConclusions(input: AdaptiveRadarInput, checks: BusinessRadarCheck[
       id: "commercial-engine-not-established",
       domain: "company",
       severity: "critical",
-      title: "Commercial engine not yet established",
+      title: "No revenue, clients or pipeline yet",
       detail: "Revenue, active clients, and pipeline are all at zero. This is an operating gap against the plan, not a healthy baseline.",
       href: "/portal/agency?station=battle",
     });
