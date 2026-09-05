@@ -422,6 +422,23 @@ rest is already proxy-correct:
 This is a genuine WIRE-OR-RETIRE verification: the production-correctness of the redirect surface is
 now confirmed complete, not just spot-fixed.
 
+### Semantic/blind-aware north star — all data dimensions now covered (3 fixed + 2 verified-met)
+
+Audited the remaining two BLIND-SPOTS-FIRST-CLASS dimensions I hadn't explicitly checked, to close the
+data-quality scope honestly:
+- **KNOWN-BAD (cause + fix) — VERIFIED MET (no change needed).** Operational alerts (the actionable
+  inbox surface, the CLAUDE.md non-negotiable "never a bare count with nowhere to act") structurally
+  carry `clearsWhen` (a plain-English statement of exactly what clears the alert — the fix), `kind`
+  (`in-app` / `off-system` / judgement — *how* to deal with it), `href` (a direct resolution path), and
+  `detail` (the cause). Cause + fix are both present, by contract.
+- **KNOWN-GOOD (evidence) — met:** every radar check carries an `evidence[]` array of real values;
+  the watchdog even has an "evidence-completeness" self-check that flags any check missing it.
+**Net:** the semantic/analyst-grade + blind-aware **data model** (the biggest non-secret-gated scope
+area) is now fully covered — jargon→plain (fixed), ids→human labels (fixed), BLIND→reason+remedy
+(fixed), KNOWN-BAD→cause+fix (verified met), KNOWN-GOOD→evidence (verified met). What remains in the
+radar scope is the *structural* work (a typed `remedy`/lineage field vs prose) and the *fractal/
+event-driven* Phases 3–6 — both gated on §9 decisions, not on unfinished data-quality.
+
 **One deliberate docs-correctness deferral:** this run added new exports (`radarNodeTree.ts`:
 `projectRadarNodeTree`, `indexRadarNodes`, `RadarNode…`) and changed one signature
 (`plans.list(includeInactive, {recover?})`), so the auto-generated symbol reference
