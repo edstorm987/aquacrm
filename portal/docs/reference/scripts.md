@@ -5965,6 +5965,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-radar-node-tree-test-ts-cc8b3da415"></a>
+
+### `scripts/smoke-radar-node-tree.test.ts`
+
+**What it is:** is not full. Pure function, so no backend/runtime needed.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (2):** [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/engines/data/radar/radarNodeTree.ts`](engines.md#file-src-engines-data-radar-radarnodetree-ts-617facd201)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-radar-realm-cache-test-ts-a4e0b3a767"></a>
 
 ### `scripts/smoke-radar-realm-cache.test.ts`

@@ -56,6 +56,29 @@ Ordered by value × safety × non-blocked-ness. Refined as the audit lands.
 
 ## Progress log (newest first)
 
+### 2026-09-05 (batch 2 — Radar Fractal Phase 1 core)
+- Chose Phase 1 (radar) over the reflow-risky touch-targets for this batch: it advances the
+  North Star, is CPU-light + unit-testable (no browser/lanes/full-suite), additive/flag-gated
+  (zero hot-path risk), and doesn't foreclose Ed's §9 decisions. Touch-targets + systemic
+  contrast deferred to a dedicated visual pass (they need real 375px verification — not safe
+  to ship blind).
+- **Shipped `src/engines/data/radar/radarNodeTree.ts`** — the pure `projectRadarNodeTree(radar)`
+  reducer (agency → domain → family + entity spine). Pins the "never a false green" contract
+  (all-blind → `blind`, blind/learning counted + confidence-discounted). Verified
+  `scripts/smoke-radar-node-tree.test.ts` 6/6; typecheck clean; reference regenerated (green).
+  Standalone (no consumer yet) → committed locally, will ride the next deployable batch (no
+  runtime effect to deploy on its own). See `plans/fractal-radar-architecture.md` §8 Phase 1.
+
+### 2026-09-05 (batch 1 DEPLOYED + verified — checkpoint #1)
+- Committed `867a84d9` (batch 1) + `ec6ac81c` (foundations); pushed → **Railway deploy `14cbca75`
+  live**. Build succeeded (confirms the quarantine + edits don't break the build).
+- **Live regression check (deployed):** all routes 200 + render real content, no regression —
+  `/agency` 195ms, `/settings` 246ms (ExternalAiConnectionPanel edited), `/people` 259ms,
+  `/actions` 1.2s (edited), `/inbox` 1.6s (unchanged from before). Contrast/focus changes are
+  opacity-only (no layout change) so objectively correct; a fuller visual a11y sweep will ride
+  the batch-2 checkpoint (which adds touch-targets = real reflow to verify at 375px).
+- **Next:** batch 2 = touch-targets (44×44) + remaining named contrast (the visible a11y pass).
+
 ### 2026-09-05 (batch 1 — audit landed, first execution batch)
 - **Production-readiness audit completed** (6 dimensions) → prioritized, safety-ranked plan in
   [`plans/production-readiness-execution-plan.md`](plans/production-readiness-execution-plan.md).

@@ -2,9 +2,9 @@
 
 ← Back to [the reference index](00-index.md) · [the map](../WORKSPACE-FILE-TREE.md) · [development.md](../development.md)
 
-Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2694 source files; 0 per-source stubs.**
+Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2696 source files; 0 per-source stubs.**
 
-## Engines — `src/engines/` (86)
+## Engines — `src/engines/` (87)
 
 - [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95)
 - [`src/engines/data/radar/clientRadar.ts`](engines.md#file-src-engines-data-radar-clientradar-ts-d646cd5214)
@@ -13,6 +13,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/engines/data/radar/radarCorrelations.ts`](engines.md#file-src-engines-data-radar-radarcorrelations-ts-6bc5250d27)
 - [`src/engines/data/radar/radarCoverageRegistry.ts`](engines.md#file-src-engines-data-radar-radarcoverageregistry-ts-3121b605b5)
 - [`src/engines/data/radar/radarInfraChecks.ts`](engines.md#file-src-engines-data-radar-radarinfrachecks-ts-6fc9590e9c)
+- [`src/engines/data/radar/radarNodeTree.ts`](engines.md#file-src-engines-data-radar-radarnodetree-ts-617facd201) — on domain nodes only and left undefined on family/entity nodes rather than invented.
 - [`src/engines/data/radar/radarPolicyEngine.ts`](engines.md#file-src-engines-data-radar-radarpolicyengine-ts-30319a823f)
 - [`src/engines/data/radar/radarRuleCatalog.ts`](engines.md#file-src-engines-data-radar-radarrulecatalog-ts-bcd17359cb)
 - [`src/engines/data/radar/radarSentinels.ts`](engines.md#file-src-engines-data-radar-radarsentinels-ts-2417d1365b)
@@ -2103,7 +2104,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/showcase/exit/route.ts`](app.md#file-src-app-showcase-exit-route-ts-2297ba275f)
 - [`src/app/showcase/route.ts`](app.md#file-src-app-showcase-route-ts-4c24dd82df)
 
-## Scripts — `scripts/` (607)
+## Scripts — `scripts/` (608)
 
 - [`scripts/attention-protection.test.ts`](scripts.md#file-scripts-attention-protection-test-ts-d64d01714c)
 - [`scripts/audit-actions.ts`](scripts.md#file-scripts-audit-actions-ts-862ea31175) — What state Actions is actually in — measured, not remembered. For every alert the checks currently …
@@ -2599,6 +2600,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-radar-infra-health.test.ts`](scripts.md#file-scripts-smoke-radar-infra-health-test-ts-80f7f35f54)
 - [`scripts/smoke-radar-inspection.test.ts`](scripts.md#file-scripts-smoke-radar-inspection-test-ts-aea00380e0)
 - [`scripts/smoke-radar-kpi-scorecard.test.ts`](scripts.md#file-scripts-smoke-radar-kpi-scorecard-test-ts-25aa3404d9)
+- [`scripts/smoke-radar-node-tree.test.ts`](scripts.md#file-scripts-smoke-radar-node-tree-test-ts-cc8b3da415) — is not full. Pure function, so no backend/runtime needed.
 - [`scripts/smoke-radar-realm-cache.test.ts`](scripts.md#file-scripts-smoke-radar-realm-cache-test-ts-a4e0b3a767)
 - [`scripts/smoke-radar-retention.test.ts`](scripts.md#file-scripts-smoke-radar-retention-test-ts-8a4a0c1229) — normal", and it can only do that against history it still has.
 - [`scripts/smoke-radar-source-inspection.test.ts`](scripts.md#file-scripts-smoke-radar-source-inspection-test-ts-f2bb4001e9)
