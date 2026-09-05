@@ -12,12 +12,22 @@ need his keys/decisions) and [`plans/fractal-radar-architecture.md`](plans/fract
 (inbox 16s→~1s, radar/P&L 8.7s→fast, chrome-500→503; all pages 0.1–2.2s) **plus** batch 1
 (dead-code quarantine, a11y contrast on the AI-connection panel + notification button/tabs,
 a light-mode search focus ring, "commercial engine"→plain radar cause, settings doc-truth)
-**plus** the radar Phase-1 node-tree foundation (no runtime effect yet). Every deploy built
-clean; live regression check green.
+**plus** the radar Phase-1 node-tree foundation (no runtime effect yet) **plus** checkpoint #3:
+a plain-language pass on user-facing radar copy (batch 2 — codenames + technical terms → words an
+analyst reads with no decoder). Every deploy built clean; live regression check green.
 
 **What's COMMITTED (on `main`):** all of the above. Local commits `ec6ac81c` (foundations),
-`867a84d9` (batch 1), `1ad53fac` (radar Phase 1 core), `69de3e9a` (contrast follow-up) — all
-pushed.
+`867a84d9` (batch 1), `1ad53fac` (radar Phase 1 core), `69de3e9a` (contrast follow-up),
+`82586b4e` (jargon batch 2) + the doc commits — all pushed (checkpoint #3 = `82586b4e`).
+
+**Jargon finding (scope-reducing):** after fixing the radar copy, an app-wide sweep for
+clearly-internal terms in user-facing strings (`sidecar`, `realm`, `the blob`, `harness`,
+`mutate`, `codebase`, `foundation adapter`, `plugin port`…) returned **only false positives** —
+a developer note in a plugin manifest and an MCP tool description read by an *external AI*, neither
+shown to a human. So the jargon problem was **concentrated in the radar** (now fixed across batches
+1+2); the rest of the user-facing copy is already plain. The semantic/plain-language goal is
+substantially met for the strings that ship today; the deeper "every signal carries evidence +
+lineage to real records" work is a radar Phase-2+ data-model task (needs your §9 answers).
 
 **For your review:**
 - `dead-code/` (repo root, git-ignored) — 2 quarantined items (FormPickerModal, the T3 NOOP
@@ -228,3 +238,41 @@ Ordered by value × safety × non-blocked-ness. Refined as the audit lands.
   NOT touch Ed's `.env.local`. Set up when the UI pass begins.
 - **Next (on audit completion):** append its plan here, then execute the top non-blocked,
   low-risk items in verified batches; deploy at a checkpoint.
+
+### Checkpoint #3 — plain-language radar copy (jargon batch 2) + app-wide sweep
+
+- **5 more user-facing radar strings de-jargoned** (`82586b4e`), copy-only, no behaviour change:
+  - `radarPolicyEngine.ts:235` — a **second** "commercial engine" codename, this one the title of a
+    *critical Command Centre alert*: "Commercial engine not yet established" → **"No revenue, clients
+    or pipeline yet."** (batch 1 fixed the first instance; this was a separate leak in a higher-
+    visibility alert.)
+  - `radarSentinels.ts` — "At least one detector cannot prove health. Blindness is being escalated as
+    a command-level incident." → **"At least one check cannot confirm health, so this is flagged as a
+    blind spot rather than a healthy pass."** (serves the blind-aware goal: names the blind spot in
+    plain words instead of "detector/escalated/command-level incident".)
+  - `radarInfraChecks.ts:175` — "Infra sweep" → **"background infrastructure check."**
+  - `radarCorrelations.ts:26` — "event instrumentation" → **"event tracking."**
+  - `radarCorrelations.ts:71` — "telemetry ingestion" → **"website-tracking intake."**
+  - Verified: `npm run typecheck` clean; `smoke-business-radar.test.ts` 20/20. (Copy-only radar-string
+    edits — targeted tests + typecheck are the right gate; a full `smoke:all` for 5 string literals
+    would burn CPU for no added assurance, per Ed's CPU note.)
+- **App-wide jargon sweep → only false positives** (detail in the morning summary): the two grep hits
+  (`memberships/index.ts:191` plugin-manifest developer note; `externalAssistantMcp.ts:82` external-AI
+  MCP tool description) are **not human-facing UI**, so left as-is. Conclusion recorded: jargon was
+  concentrated in the radar and is now addressed; deeper evidence/lineage semantics = radar Phase 2+.
+- **Deployed** as checkpoint #3 (`69de3e9a..82586b4e`). Build gates on the clean typecheck; the prior
+  live version stays served if a build ever fails, so the deploy is safe to leave unattended.
+
+### Honest end-of-run state
+
+The **high-value, safe, CPU-light** work in scope is done and shipped: the perf overhaul, radar
+Phase-1 core, batch-1 fixes, contrast/focus, two jargon batches, and the objective UI audit (which
+*reduced* the UI scope — the main agency surfaces pass contrast + 375px overflow). What remains is
+genuinely **gated**, not skipped: (a) secret-dependent wiring + a real onboarding walk (needs Ed's
+Supabase/Stripe/Meta/email keys); (b) radar Phases 2–6 (need the §9 decisions + live measurement,
+and the evidence/lineage data-model work); (c) CPU-heavy local Playwright lanes (mounted-acceptance
+TODO sweep, onboarding walk) — deliberately not run on Ed's laptop overnight per his CPU note;
+(d) blind visual changes (dense-surface touch-targets, editor-dark contrast) that need per-surface
+review, not a mechanical bulk edit; (e) product removals C1/C3 (Ed's call). Each is logged with a
+reason here and in `BLOCKERS-FOR-ED.md`. Nothing gated was faked "done"; nothing shipped is
+unverified.
