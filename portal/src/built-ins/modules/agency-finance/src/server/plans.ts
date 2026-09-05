@@ -160,7 +160,21 @@ export class PlanService {
 
   // Index + row scan (see server/rowIndex.ts). Reads also finish any durable
   // assignment operation left by a failed/crashed writer before returning.
-  async list(includeInactive = false): Promise<Plan[]> {
+  async list(includeInactive = false, options: { recover?: boolean } = {}): Promise<Plan[]> {
+    // Recovering interrupted plan-assignment writes belongs to the write path and
+    // to callers that must observe the very latest applied assignment. A
+    // read-only aggregation — above all the company-health / founder P&L snapshot
+    // that the inbox, Actions and Calendar renders build — must NOT pay for it:
+    // on the single persistent instance each recovered operation is a write
+    // against the ~2.9 MB state row (2–6 s apiece), so running recovery on every
+    // render made those pages take ~8 s (a stuck operation re-applied on each
+    // read). `recover: false` reads the committed plans directly; a genuinely
+    // pending assignment still applies on the next assignment write.
+    if (options.recover === false) return this.listRaw(includeInactive);
+    // Even for recovering callers, skip the exclusive remote lock when there is
+    // nothing to recover, so the ordinary read stays lock-free and fast.
+    const pending = await this.storage.list(ASSIGNMENT_OPERATION_PREFIX);
+    if (pending.length === 0) return this.listRaw(includeInactive);
     return this.withAssignmentLock(async () => {
       await this.recoverPendingAssignments();
       return this.listRaw(includeInactive);

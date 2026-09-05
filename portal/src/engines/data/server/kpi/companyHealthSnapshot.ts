@@ -83,14 +83,8 @@ export async function buildCompanyHealthSnapshot(agencyId: string, now = Date.no
   };
   let revenueGrowthHistory: CompanyRevenueGrowthPoint[] = [];
 
-  // TEMP diagnostic (2026-09-05): pin the ~7.5s split between the finance P&L
-  // and the leads read, robust to founderSnapshot throwing mid-way.
-  const _chStart = performance.now();
-  let _chFinance = 0;
-  let _chLeads = 0;
   const financeInstall = getInstall({ agencyId }, "agency-finance");
   if (financeInstall?.enabled) {
-    const _fAt = performance.now();
     try {
       ensureAgencyFinanceFoundationRegistered();
       const finance = financeContainerFor({
@@ -118,14 +112,11 @@ export async function buildCompanyHealthSnapshot(agencyId: string, now = Date.no
       });
     } catch {
       // The health view remains usable while finance is being connected.
-    } finally {
-      _chFinance = Math.round(performance.now() - _fAt);
     }
   }
 
   const leadsInstall = getInstall({ agencyId }, "leads-pipeline");
   if (leadsInstall?.enabled) {
-    const _lAt = performance.now();
     try {
       ensureLeadsPipelineFoundationRegistered();
       const leads = await leadsContainerFor({
@@ -144,13 +135,7 @@ export async function buildCompanyHealthSnapshot(agencyId: string, now = Date.no
       ).length;
     } catch {
       // Sales metrics stay at zero until the leads workspace is ready.
-    } finally {
-      _chLeads = Math.round(performance.now() - _lAt);
     }
-  }
-  if (process.env.NODE_ENV === "production") {
-    const _chTotal = Math.round(performance.now() - _chStart);
-    if (_chTotal > 1000) console.log(`[perf] companyHealth blocks ${_chTotal}ms finance=${_chFinance} leads=${_chLeads}`);
   }
 
   const date = new Date(now);

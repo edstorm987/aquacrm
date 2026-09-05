@@ -37,23 +37,15 @@ export class PnLService {
   // `windowDays` is the lookback used for the churn calculation;
   // defaults to 30.
   async founderSnapshot(refNow: number, windowDays = 30, currency: Currency = "gbp"): Promise<FounderSnapshot> {
-    // TEMP diagnostic (2026-09-05): this is the ~7.5s cost of buildCompanyHealthSnapshot
-    // (itself the dominant cost of the inbox/actions/calendar renders). Time each read.
-    const _fs = performance.now();
-    const _fp: Record<string, number> = {};
-    const _ftw = async <T>(label: string, p: Promise<T>): Promise<T> => {
-      const at = performance.now();
-      try { return await p; } finally { _fp[label] = Math.round(performance.now() - at); }
-    };
-    const plans = await _ftw("plans", this.plans.list(false));
-    const assignments = await _ftw("assignments", this.plans.listCommercialAssignments());
-    const allPayments = await _ftw("payments", this.payments.list());
-    const accounting = await _ftw("accountingSnapshot", this.accounting.snapshot({ from: 0, to: refNow, currency }));
-    const trailingMonths = await _ftw("trailingMonths", this.trailingMonths(refNow, 12, currency));
-    if (process.env.NODE_ENV === "production") {
-      const _ft = Math.round(performance.now() - _fs);
-      if (_ft > 1000) console.log(`[perf] founderSnapshot ${_ft}ms phases=${JSON.stringify(_fp)}`);
-    }
+    // A read-only P&L snapshot: read plans without triggering plan-assignment
+    // recovery (a write-path concern). Recovering on this render path meant every
+    // inbox/Actions/Calendar page re-applied any pending assignment operation —
+    // seconds of writes against the single ~2.9 MB state row. See plans.list().
+    const plans = await this.plans.list(false, { recover: false });
+    const assignments = await this.plans.listCommercialAssignments();
+    const allPayments = await this.payments.list();
+    const accounting = await this.accounting.snapshot({ from: 0, to: refNow, currency });
+    const trailingMonths = await this.trailingMonths(refNow, 12, currency);
     const currencyAssignments = assignments.filter(assignment => assignment.currency === currency);
     const mrrCents = currencyAssignments.reduce((sum, assignment) => sum + assignment.monthlyAmountCents, 0);
 

@@ -131,26 +131,13 @@ export async function buildBusinessIssueRadar(
   const team = listUsersForAgency(agencyId);
   const installs = Object.values(state.pluginInstalls).filter(install => install.agencyId === agencyId && install.enabled);
   const leadInstall = installs.find(install => install.pluginId === "leads-pipeline");
-  // TEMP diagnostic (2026-09-05): this build is ~7.6s cold (30s cache) and is the
-  // dominant cost of the inbox/actions/calendar renders. Time each concurrent
-  // read, the client-radar fleet, and the two synchronous processing blocks to
-  // find where the seconds go. Removed once fixed.
-  const _bStart = performance.now();
-  const _bp: Record<string, number> = {};
-  let _bm = _bStart;
-  const _bmark = (label: string): void => { const n = performance.now(); _bp[label] = Math.round(n - _bm); _bm = n; };
-  const _btime = async <T>(label: string, p: Promise<T>): Promise<T> => {
-    const at = performance.now();
-    try { return await p; } finally { _bp[label] = Math.round(performance.now() - at); }
-  };
   const [companyResult, alertResult, enquiryResult, inboxResult, leadResult] = await Promise.allSettled([
-    _btime("companyHealth", inputs.company ? Promise.resolve(inputs.company) : buildCompanyHealthSnapshot(agencyId, now)),
-    _btime("alerts", inputs.operationalAlerts ? Promise.resolve(inputs.operationalAlerts) : listOperationalAlerts(agencyId, now)),
-    _btime("enquiries", getRequestWebsiteEnquiries(agencyId, 500)),
-    _btime("inboxSnapshot", listInboxSnapshot(agencyId)),
-    _btime("radarLeads", leadInstall ? listRadarLeads(agencyId, leadInstall.id) : Promise.resolve([])),
+    inputs.company ? Promise.resolve(inputs.company) : buildCompanyHealthSnapshot(agencyId, now),
+    inputs.operationalAlerts ? Promise.resolve(inputs.operationalAlerts) : listOperationalAlerts(agencyId, now),
+    getRequestWebsiteEnquiries(agencyId, 500),
+    listInboxSnapshot(agencyId),
+    leadInstall ? listRadarLeads(agencyId, leadInstall.id) : Promise.resolve([]),
   ]);
-  _bm = performance.now();
   const company = companyResult.status === "fulfilled" ? companyResult.value : null;
   const operationalAlerts = alertResult.status === "fulfilled"
     ? alertResult.value.filter(alert =>
@@ -444,14 +431,12 @@ export async function buildBusinessIssueRadar(
     },
   );
 
-  _bmark("processA");
-  const clientRadars = await _btime("fleet", buildClientRadarFleet(agencyId, {
+  const clientRadars = await buildClientRadarFleet(agencyId, {
     now,
     clients,
     operationalAlerts,
     telemetry,
-  }));
-  _bm = performance.now();
+  });
   const clientChecks = clientRadars.flatMap(clientRadar => clientRadar.checks);
   issues.push(...clientRadars.flatMap(clientRadar => clientRadar.issues));
 
@@ -652,11 +637,6 @@ export async function buildBusinessIssueRadar(
     findingGroups: summariseFindingGroups(withMemory.incidents),
     memory,
   };
-  _bmark("processB");
-  const _bTotal = Math.round(performance.now() - _bStart);
-  if (process.env.NODE_ENV === "production" && _bTotal > 1500) {
-    console.log(`[perf] businessIssueRadar ${_bTotal}ms agency=${agencyId} phases=${JSON.stringify(_bp)}`);
-  }
   return result;
 }
 

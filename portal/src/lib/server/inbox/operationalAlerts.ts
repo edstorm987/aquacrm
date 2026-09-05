@@ -106,18 +106,6 @@ export async function listOperationalAlerts(
     const hit = operationalAlertsCache.get(agencyId);
     if (hit && now - hit.at < OPERATIONAL_ALERTS_TTL_MS) return hit.alerts;
   }
-  // Phase timing — this sweep dominates the first sweep-needing render per cache
-  // window (~5s uncached on the live blob), and the cost is a moving target as
-  // the portfolio and its Supabase reads grow. Record the awaited phases and log
-  // a breakdown only when the whole sweep runs slow (production), so a regression
-  // is visible in the logs instead of felt as a slow page. Cheap: three
-  // performance.now() reads and one conditional log.
-  const _sweepStart = performance.now();
-  const _phase: Record<string, number> = {};
-  const _time = async <T>(label: string, work: () => Promise<T>): Promise<T> => {
-    const at = performance.now();
-    try { return await work(); } finally { _phase[label] = Math.round(performance.now() - at); }
-  };
   const clients = listClients(agencyId);
   const alerts: OperationalAlert[] = [];
   const workspaceSettings = getAgencyWorkspaceSettings(agencyId);
@@ -216,7 +204,7 @@ export async function listOperationalAlerts(
     : [];
   let taskActor: CurrentAccessActor | null = null;
   if (openTasks.some(task => task.clientId)) {
-    taskActor = await _time("actor", () => requireCurrentAccessActor().catch(() => null));
+    taskActor = await requireCurrentAccessActor().catch(() => null);
   }
   for (const task of openTasks) {
     if (task.clientId && !(taskActor && canReadClientAssociation(taskActor, "agency-task", task.clientId))) continue;
@@ -520,25 +508,25 @@ export async function listOperationalAlerts(
   if (leadsInstall?.enabled) {
     ensureLeadsPipelineFoundationRegistered();
     const { campaigns, leads, prospects } = containerFor({ agencyId, storage: makePluginStorage(leadsInstall.id) as never });
-    const [campaignRows, leadRows, prospectRows, websiteEnquiryRead] = await _time("leadsReads", () => Promise.all([
+    const [campaignRows, leadRows, prospectRows, websiteEnquiryRead] = await Promise.all([
       campaigns.list(),
       leads.list(),
       prospects.list(),
       readOptions.websiteEnquiries
         ? Promise.resolve(readOptions.websiteEnquiries)
         : readOrUnavailable(
-            () => _time("websiteEnquiries", () => getRequestWebsiteEnquiries(agencyId)),
+            () => getRequestWebsiteEnquiries(agencyId),
             [],
             "Website enquiries could not be checked. Retry before treating the enquiry queue as clear.",
           ),
-    ]));
+    ]);
     const websiteEnquiries = websiteEnquiryRead.data;
-    const websiteEnquiryOutage = await _time("observe", () => observeOperationalAlertSourceAvailability({
+    const websiteEnquiryOutage = await observeOperationalAlertSourceAvailability({
       agencyId,
       sourceId: "website-enquiries",
       available: websiteEnquiryRead.available,
       observedAt: now,
-    }));
+    });
     if (!websiteEnquiryRead.available && websiteEnquiryOutage.active) {
       // Keep the rest of the operational feed usable, but put the missing
       // measurement in the feed itself. An omitted source is not a zero-count
@@ -732,17 +720,6 @@ export async function listOperationalAlerts(
   const resolved = withResolutionContexts(alerts)
     .sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity] || b.occurredAt - a.occurredAt);
   if (canCache) operationalAlertsCache.set(agencyId, { alerts: resolved, at: now });
-  const _sweepMs = Math.round(performance.now() - _sweepStart);
-  if (process.env.NODE_ENV === "production" && _sweepMs > 100) {
-    const awaited = Object.values(_phase).reduce((sum, ms) => sum + ms, 0);
-    // `sync` is everything not inside a timed await — the portfolio/client/finance
-    // iteration. If it dominates, the fix is the iteration; if an await dominates,
-    // the fix is that read/write.
-    console.log(
-      `[perf] operationalAlerts sweep ${_sweepMs}ms agency=${agencyId} `
-      + `phases=${JSON.stringify({ ..._phase, sync: Math.max(0, _sweepMs - awaited) })}`,
-    );
-  }
   return resolved;
 }
 

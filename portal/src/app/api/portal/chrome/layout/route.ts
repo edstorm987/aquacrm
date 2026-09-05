@@ -30,7 +30,7 @@ import {
   saveUserChromeLayout,
   userChromeLayoutLockKey,
 } from "@/lib/server/chrome/userChromeLayout";
-import { withPortalStateTransaction } from "@/server/productWorkspaceCoordinator";
+import { ProductWorkspaceBusyError, withPortalStateTransaction } from "@/server/productWorkspaceCoordinator";
 import { ensureHydrated } from "@/server/storage";
 import type { UserChromeLayout } from "@/server/types";
 
@@ -174,8 +174,21 @@ export async function PUT(request: Request) {
     }
     return NextResponse.json({ ok: true, layout: outcome.layout }, { headers: PRIVATE_NO_STORE });
   } catch (error) {
+    if (error instanceof ProductWorkspaceBusyError) return chromeLayoutBusy();
     return authErrorResponse(error);
   }
+}
+
+// Two chrome clients (the sidebar drag store and the topbar pin sheet) write this
+// record, and a whole-record save holds the account lane while its durable write
+// completes. Under a slow persistent write a concurrent save can find the lane
+// busy — a transient, retriable condition, not a server fault. Answer 503 +
+// Retry-After so the client can re-save rather than surfacing a 500.
+function chromeLayoutBusy(): NextResponse {
+  return NextResponse.json(
+    { ok: false, error: "Another change to your layout is still saving. Try again in a moment.", code: "chrome_layout_busy" },
+    { status: 503, headers: { ...PRIVATE_NO_STORE, "retry-after": "1" } },
+  );
 }
 
 /** Put the sidebar back the way it ships. Saved tabs survive — they are not an arrangement. */
@@ -197,6 +210,7 @@ export async function DELETE() {
     );
     return NextResponse.json({ ok: true, layout }, { headers: PRIVATE_NO_STORE });
   } catch (error) {
+    if (error instanceof ProductWorkspaceBusyError) return chromeLayoutBusy();
     return authErrorResponse(error);
   }
 }
