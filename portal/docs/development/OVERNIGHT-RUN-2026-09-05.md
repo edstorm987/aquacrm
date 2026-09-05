@@ -369,7 +369,39 @@ breakpoints — and hit a **real production bug**:
 - **Why it matters beyond the demo:** this is a genuine WIRE-OR-RETIRE win (a real surface was broken,
   now works) *and* it unblocks the live UI audit — once deployed, `/showcase` gives a no-auth path into
   the real portal to audit contrast/responsive/a11y across breakpoints on the live app without Ed's
-  credentials or CPU. Deploy verification: polling live `/showcase` for the relative-Location flip.
+  credentials or CPU.
+- **Deploy VERIFIED live:** polled `/showcase` through the build — it flipped from
+  `303 → https://localhost:8080/portal/agency` to `303 → https://www.aqua-crm.com/portal/agency`. Fixed.
+- **Same bug class swept:** `api/v1/embed/consume` (client-portal access links) had the identical
+  pattern in **both** its success redirect and its `errorRedirect` (`request.nextUrl.origin`) — so a
+  client following an Aqua access link also hit dead localhost. Fixed the same way (`a313e135`,
+  committed; ships in checkpoint #8). A full sweep confirms these were the only proxy-unsafe absolute
+  redirects left in route handlers.
+
+### 🔴 SECOND live bug found via the audit — public demo portal stalls (needs focused debug, NOT blind-fixed)
+
+With `/showcase` reachable, I drove the live demo portal to audit UI — and found the demo is **still
+broken, a second way**: **the workspace never renders.** It stays frozen on the "Preparing your
+workspace…" loader across every showcase surface (`/portal/agency`, `/portal/clients`), 35s+.
+Evidence gathered on the live app (Railway compute, not Ed's CPU):
+- The **server** renders the full workspace (a direct `fetch('/portal/agency')` returns 66KB with
+  real workspace markup) — so this is a **client-side** stall, not a server failure.
+- The stuck element is the **workspace-scoped Suspense fallback** (`data-loading-scope="workspace"`);
+  the workspace chunks preload but are "never used" — the client Suspense boundary never commits.
+- **No JS exception**, no cross-origin/critical resource failure. Console shows only: read-only `403`
+  on the chrome-layout **PUT** (correct — showcase is read-only: `"This public showcase is read-only."`),
+  transient `401`s on the same during auth settling, a `405` on a `client-notes` GET, and one
+  `ERR_CERT_COMMON_NAME_INVALID` on a non-critical resource.
+- **Scope:** showcase-specific — the **real authed app works** (Ed uses it daily at ~0.2s pages), so
+  this is the read-only/showcase path, not the client-facing product. Hidden until now behind the
+  redirect bug (no one could reach the demo portal to see it stall).
+- **Hypothesis (unconfirmed):** a workspace Suspense boundary awaits something that the read-only
+  showcase refuses (the chrome-layout write 403s), so the client boundary never resolves. Needs a
+  focused client-side RSC/Suspense debug session with the streamed payload — **deliberately not
+  blind-fixed** (touching workspace streaming/Suspense in showcase is exactly the kind of risky change
+  the method forbids overnight). Logged in `BLOCKERS-FOR-ED.md`.
+- **Goal relevance:** "every surface works+means something or is retired" — the public demo is a
+  surface that does **not** work. Two bugs deep. One fixed + verified; one characterized + flagged.
 
 **One deliberate docs-correctness deferral:** this run added new exports (`radarNodeTree.ts`:
 `projectRadarNodeTree`, `indexRadarNodes`, `RadarNode…`) and changed one signature
