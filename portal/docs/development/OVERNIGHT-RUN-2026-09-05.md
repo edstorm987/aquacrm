@@ -276,3 +276,16 @@ TODO sweep, onboarding walk) — deliberately not run on Ed's laptop overnight p
 review, not a mechanical bulk edit; (e) product removals C1/C3 (Ed's call). Each is logged with a
 reason here and in `BLOCKERS-FOR-ED.md`. Nothing gated was faked "done"; nothing shipped is
 unverified.
+
+**One deliberate docs-correctness deferral:** this run added new exports (`radarNodeTree.ts`:
+`projectRadarNodeTree`, `indexRadarNodes`, `RadarNode…`) and changed one signature
+(`plans.list(includeInactive, {recover?})`), so the auto-generated symbol reference
+(`docs/reference/`) is now behind source for those symbols. The documented fix is one command —
+`node scripts/generate-symbol-reference.mjs` — but CLAUDE.md's continuation brief explicitly says
+**"do not blanket-regenerate … unless Ed explicitly asks"**, because a blanket regen also sweeps in
+any pre-existing drift from earlier commits into one large, hard-to-review diff. I therefore did
+**not** run it unattended. **Safe follow-up for Ed (or a focused session):** run that one command,
+eyeball the diff is only the expected radar/plans symbols (+ any legitimately-drifted prior symbols),
+then `node scripts/consolidate-authored-docs.mjs` and commit. The *hand-written* dev docs (this log,
+the plans, `BLOCKERS-FOR-ED.md`, the dead-code README) **are** current — it's only the generated
+index that's pending, by design.
