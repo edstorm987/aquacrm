@@ -335,6 +335,22 @@ copy-only, statuses unchanged, typecheck + smoke-business-radar 20/20):
 - **Structured `remedy` field** on `BusinessRadarCheck` (vs prose) stays the fuller follow-up — it
   ripples through every builder + UI + tests, so it's logged, not started blind.
 
+### Continuation — "no ids/vars leaking" audit (checkpoint #6, semantic area 3)
+
+The other half of SEMANTIC/ANALYST-GRADE ("no codenames/ids/vars leaking; an analyst reads it with no
+decoder") — distinct from the jargon-*words* pass. Audited every user-visible radar string (title/
+detail/evidence) across all radar builders for raw machine ids:
+- **Finding (mostly good):** `clientRadar` (what Ed sees most), sentinels, and synthetic canaries
+  already use human labels + real values — no leaks. The **only** leaks were two spots in the catalog
+  engine (`radarCheckEngine`) that printed raw source ids like `core:clients` / `domain:finance` in
+  evidence ("Source core:clients is not connected").
+- **Fixed** (`9a69d20f`): a `readableSource()` resolver → the coverage source's own label ("Clients and
+  contacts") where registered, else the id stripped of its scope prefix and title-cased. Now reads
+  "Clients and contacts is not connected" / "Source: Clients and contacts" — lineage kept, codename
+  gone. Remaining `sourceIds` in the code are structured attribution fields, not display text.
+- typecheck clean; smoke-business-radar 20/20. **Semantic pass now covers all three layers: jargon
+  words → plain; blind checks → reason + remedy; raw ids → human labels.**
+
 **One deliberate docs-correctness deferral:** this run added new exports (`radarNodeTree.ts`:
 `projectRadarNodeTree`, `indexRadarNodes`, `RadarNode…`) and changed one signature
 (`plans.list(includeInactive, {recover?})`), so the auto-generated symbol reference
