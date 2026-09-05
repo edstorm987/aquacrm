@@ -306,6 +306,26 @@ scope (METHOD #4 = build/test *around* secret wiring, don't defer the whole thin
   not blind overnight edits. **Radar Phase 1 remaining wiring** (`nodes?` on the output) is held because
   §9 Q2–Q7 could reshape the node model — building more now risks rework. Both gates verified in code.
 
+### Continuation — semantic/blind-aware data pass, area 1 (checkpoint #4)
+
+Pushed to work the **SEMANTIC/BLIND-AWARE** north star (which is *not* §9-gated — it's data quality,
+not architecture), I audited how blind radar checks explain themselves. Finding: `BusinessRadarCheck`
+has no structured `remedy` field, and the blind checks consistently stated the **reason** but **omitted
+the remedy** — exactly the gap Ed named ("BLIND = couldn't check + exact reason + remedy; never being
+blind but knowing what blind actually means"). Fixed the two central blind builders (`c6df6acd`,
+copy-only, statuses unchanged, typecheck + smoke-business-radar 20/20):
+- **`radarSentinels.ts`** — a disconnected source, an unobservable property, and a missing-proof
+  resilience blind now each say *how to un-blind them* (reconnect under Company → Connections / install
+  or repair the tracking tag / the evidence names which proof — tag, event, heartbeat — is missing).
+- **`radarSyntheticChecks.ts`** — the connection blind was collapsing **two different reasons** ("no
+  public URL configured" vs "the probe never ran") into one message; split into two, each with its own
+  remedy. The "never completed a probe" freshness blind gained the same (and ties to the known
+  probe-cron gap in `BLOCKERS-FOR-ED.md`).
+- **Bounded on purpose:** this is "area 1" — the two builders that originate most blind checks. A
+  structured `remedy` field on `BusinessRadarCheck` (vs prose) would be the fuller fix but ripples
+  through every builder + UI + tests; logged as the follow-up rather than started blind. Remaining
+  blind sources to sweep next: `radarPolicyEngine`, `radarClassification`, `radarRuleCatalog`.
+
 **One deliberate docs-correctness deferral:** this run added new exports (`radarNodeTree.ts`:
 `projectRadarNodeTree`, `indexRadarNodes`, `RadarNode…`) and changed one signature
 (`plans.list(includeInactive, {recover?})`), so the auto-generated symbol reference
