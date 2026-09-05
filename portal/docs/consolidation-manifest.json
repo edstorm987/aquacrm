@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-05T06:55:51.771Z",
+  "generatedAt": "2026-09-05T06:59:35.581Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -423,9 +423,9 @@
       "path": "docs/development/BLOCKERS-FOR-ED.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-blockers-for-ed-md",
-      "sha256": "21f5650eff847bc430060a703f29d26a9093258709e94e684c6891b5d6f0e290",
-      "words": 765,
-      "bytes": 5878
+      "sha256": "b38140c8948901e3ae3e0dd7807af1f90090dc5a2151ba8a7a832544a3e5dcd0",
+      "words": 978,
+      "bytes": 7208
     },
     {
       "path": "docs/development/CAMPAIGN-LEDGER.md",

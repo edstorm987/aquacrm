@@ -74,11 +74,23 @@ provider. Meta/Twilio/Google are per-feature and can follow.
   full-sweep-only correlations; batched notifications; defer the dev subtree). **Just say "yes to your
   §9 defaults" (or change any line) and I build Phases 3–6 on them.** I did not build ahead on guesses
   — the node model can shift with your answers, so I want your nod first to avoid rework.
-- **#170** Radar probe freshness: restore sub-daily probes or show evidence age everywhere.
-- **#174** permanent last-grant revocation policy.
-- **#163 / #168** client-route refusals: indistinguishable sibling-project 404s vs the house
-  404 convention.
-- **#2** Aqua Tag form-capture consent wording.
+These four now have a **recommended default** too — say "yes to your recommendations" (or change a line)
+and I implement the ones with an engineering side:
+- **#170 Radar probe freshness.** *Recommend: do BOTH, and the honest half is already done.* The radar
+  already shows evidence age and degrades stale readings to `blind` (never a false green) — so surfaces
+  are honest today. The remaining half is restoring sub-daily probes = the cron mechanism (Infra above):
+  say the word and I build a self-scheduling probe interval on the persistent instance. Low risk.
+- **#174 Last-grant revocation policy.** *Recommend: no grants = no access.* Revoking an identity's LAST
+  grant should **deny**, not fall back to un-migrated legacy access (the current behaviour widens instead
+  of narrowing — issue #174). "Revocation narrows" is the least-surprise, secure default. Approve and I
+  implement + pin it.
+- **#163 / #168 client-route refusals.** *Recommend: standardise on indistinguishable 404.* Return a
+  house-convention **404** for cross-tenant / sibling-project refusals — it both preserves privacy (never
+  leaks that a sibling project exists, answering #163 "yes") and fixes the 403/404 inconsistency (#168,
+  28 routes). Approve and I do the 403→404 change across those routes + verify with the full suite.
+- **#2 Aqua Tag form-capture consent wording.** *Recommend (draft, subject to your DPO):* "By submitting,
+  you agree we can store and use your details to respond to your enquiry. We won't share them or use them
+  for anything else. See our Privacy Policy." Approve/edit and I wire it into the capture form.
 - **DPO sign-off**, Stripe live walkthrough, Meta app, onboarding-chain walk — the TODO's
   "Blocked on you" section.
 - A **real client's actual details** to do a true end-to-end onboarding (I'll build + test
