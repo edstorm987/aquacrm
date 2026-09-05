@@ -87,7 +87,7 @@ export function NotificationCentreButton({
         aria-haspopup="dialog"
         title="Notifications"
         onClick={toggleNotifications}
-        className="relative grid size-9 place-items-center rounded-md border border-black/10 bg-white text-black/60 shadow-sm transition hover:border-black/20 hover:bg-black/[0.025]"
+        className="relative grid size-9 place-items-center rounded-md border border-black/10 bg-white text-black/70 shadow-sm transition hover:border-black/20 hover:bg-black/[0.025]"
       >
         <Bell size={16} aria-hidden="true" />
         {unread > 0 ? (
@@ -157,7 +157,7 @@ export function NotificationCentreButton({
 }
 
 function CentreTab({ active, label, count, onClick }: { active: boolean; label: string; count: number; onClick: () => void }) {
-  return <button type="button" onClick={onClick} className={`relative min-h-9 text-xs font-semibold ${active ? "text-black/80" : "text-black/40 hover:text-black/65"}`}>{label} <span className="ml-1 tabular-nums">{count}</span>{active ? <span className="mm-notification-tab-indicator absolute inset-x-2 bottom-0 h-0.5 bg-black" /> : null}</button>;
+  return <button type="button" onClick={onClick} className={`relative min-h-9 text-xs font-semibold ${active ? "text-black/80" : "text-black/55 hover:text-black/75"}`}>{label} <span className="ml-1 tabular-nums">{count}</span>{active ? <span className="mm-notification-tab-indicator absolute inset-x-2 bottom-0 h-0.5 bg-black" /> : null}</button>;
 }
 
 function AttentionShieldSummary({ window, onNavigate }: { window: NonNullable<ReturnType<typeof useNotificationAttention>>["attentionWindow"]; onNavigate: () => void }) {

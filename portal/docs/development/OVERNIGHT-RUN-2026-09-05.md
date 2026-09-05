@@ -56,6 +56,26 @@ Ordered by value × safety × non-blocked-ness. Refined as the audit lands.
 
 ## Progress log (newest first)
 
+### 2026-09-05 (batch 3 — safe contrast follow-up + checkpoint #2; deferrals recorded)
+- Two more copy-only contrast fixes on functional controls: NotificationCentreButton persistent
+  button icon `text-black/60`→`/70`, and the notification tab inactive label `text-black/40`
+  (≈2.85:1, clear fail) → `/55`. No reflow, no logic change.
+- **Deferred autonomously, with reasons (NOT skipped — these need a mode I shouldn't fake overnight):**
+  - **Touch-targets (44×44)** — genuine design work in the dense adjacent-control surfaces (the
+    notification panel + calendar toolbar): a visual size bump reflows at 375px, and the
+    pseudo-element hit-area trick makes *adjacent* controls' tap zones overlap → mis-clicks. The
+    right fix is spacing + sizing per surface with a real 375px pass. Not safe to ship blind.
+  - **Systemic sub-11px contrast (~212 files)** — the audit itself says surgical-only; a global
+    floor changes intentional visual hierarchy. Do per-surface with visual review.
+  - **Onboarding walk (C4) + mounted-acceptance TODO sweep** — need `sandbox:fork` / isolated-
+    production Playwright lanes, which are **local-CPU-heavy** (Ed flagged CPU). Batch these into
+    a deliberate lane session rather than hammering the laptop overnight.
+  - **Radar fractal Phases 2–6, C1/C3 removals** — Phase 2 loader-gating largely shipped;
+    Phases 3–6 want Ed's §9 decisions + real perf measurement first; C1/C3 are product-shaped
+    (hide-vs-wire, reservations build-vs-kill) → Ed.
+- **Checkpoint #2:** push Phase 1 core (`1ad53fac`) + these contrast fixes together (Phase 1 has
+  no runtime effect on its own, so it rides this deploy).
+
 ### 2026-09-05 (batch 2 — Radar Fractal Phase 1 core)
 - Chose Phase 1 (radar) over the reflow-risky touch-targets for this batch: it advances the
   North Star, is CPU-light + unit-testable (no browser/lanes/full-suite), additive/flag-gated
