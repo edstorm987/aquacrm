@@ -103,7 +103,7 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Membership/Affiliate runtime validation is code- and behaviour-complete; mounted acceptance remains → [#126](issues.md)
 - [~] Aqua Advisor turns are code/domain-behaviour durable; mounted provider acceptance remains → [#130](issues.md)
 - [~] Server error capture/readiness is mounted and the repaired cross-runtime graph is browser-clean and production-build green (245/245); install and live-prove the production client sink → [#132](issues.md)
-- [~] Every declared modal uses the shared focus/restore contract; mounted representative keyboard acceptance remains → [#135](issues.md)
+- [x] Every declared modal uses the shared focus/restore contract — **browser-accepted 2026-09-05 in the dev sandbox**: the New-client modal opened with `role="dialog"` + `aria-modal="true"`, **trapped focus inside**, and returned focus to its trigger; form modals deliberately keep themselves open on Escape (anti-data-loss), which is correct. → [#135](issues.md)
 - [~] Named internal actions and published fields are guarded; mounted accessibility-tree acceptance remains → [#139](issues.md)
 - [~] Make date-only business values local-calendar safe → [#140](issues.md)
 - [~] Voice/call recorder negotiation and failure cleanup are repaired; mounted cross-browser acceptance remains → [#145](issues.md)
@@ -127,7 +127,7 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Agency Marketing campaign rows, channel indexes and reports are cross-process/crash-atomic on the file backend; finish native Supabase/Postgres constraints and live-provider acceptance → [#84](issues.md)
 - [~] Finance settings control new invoices/documents and are browser-proven on two isolated exact builds (e1b2781; re-run 2026-09-03 notepad 17/17, finance 16/16, layout 42/42, loader 2/2 (77/77, 0 missing)); live-provider rerun remains → [#120](issues.md)
 - [~] The route loader exposes one real live status; its mounted evidence was re-taken on 2026-09-03 (loader 2/2, reduced motion included); screen-reader announcement remains untested (no assistive technology is driven) → [#136](issues.md)
-- [~] Tabs, menus and listboxes now use honest roles and shared keyboard models; mounted representative acceptance remains → [#138](issues.md)
+- [~] Tabs, menus and listboxes now use honest roles and shared keyboard models; mounted representative acceptance remains — **partly verified 2026-09-05 (dev sandbox):** menus expose honest `aria-haspopup="menu"` and the earlier a11y-name audit was clean; a full pass over every tab/listbox surface remains. → [#138](issues.md)
 - [~] The real self-contained global error fallback is shipped; production root-fault/recovery acceptance remains → [#141](issues.md)
 - [~] Chromium-required 192/512 and maskable PWA assets are shipped; eligible/dismissed/installed browser acceptance remains → [#142](issues.md)
 - [~] Published current-page blocks are hydration-stable in default and explicit modes; mounted navigation acceptance remains → [#143](issues.md)
@@ -160,7 +160,7 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [ ] Standardise cross-tenant client-route refusals on the house 404 convention → [#168](issues.md)
 - [~] Customer Bookings code/behaviour is capability-driven; mounted proof remains → [#149](issues.md)
 - [~] Social Inbox's inert More control is removed; mounted confirmation remains → [#150](issues.md)
-- [~] Client-workspace 404 bootstrap code is repaired; browser console recheck remains → [#152](issues.md)
+- [x] Client-workspace 404 bootstrap — **browser-accepted 2026-09-05 in the dev sandbox**: a nonexistent client id renders a clean "404 — that portal page isn't here" (no crash, no app console errors; only dev-HMR WebSocket noise). → [#152](issues.md)
 - [~] Staff Technical and representative Fulfilment runtime enforcement are browser-proven; finish broad exact-client/provider-backed live-persona adoption  <sub>from checklist.md, no issue number</sub>
 - [~] One consolidated release/browser/parity gate remains across the critical journeys  <sub>consolidated from the retired lists; no issue number</sub>
 - [~] Full browser authoring round trip  <sub>from checklist.md, no issue number</sub>
