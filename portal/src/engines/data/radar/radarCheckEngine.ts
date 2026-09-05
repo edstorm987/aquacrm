@@ -102,6 +102,19 @@ export function summarizeRadarChecks(
   });
 }
 
+// Turn a machine source id (e.g. "core:clients", "domain:finance") into the human
+// label an analyst can read without a decoder — the coverage source's own label
+// where one is registered, otherwise the id stripped of its scope prefix and
+// title-cased. Keeps evidence lineage while honouring "no ids/vars leaking".
+function readableSource(sourceId: string, domainCoverage: readonly AdvisorCoverageSource[]): string {
+  const match = domainCoverage.find(source => source.id === sourceId);
+  if (match) return match.label;
+  return sourceId
+    .replace(/^(core|domain|source):/, "")
+    .replace(/[-_:]+/g, " ")
+    .replace(/\b\w/g, letter => letter.toUpperCase());
+}
+
 function evaluateRadarRule(
   rule: BusinessRadarRuleDefinition,
   observation: RadarObservation | undefined,
@@ -123,7 +136,7 @@ function evaluateRadarRule(
     return check(rule, "blind", {
       ...observation,
       detail: `${observation.detail} The source is not connected, so this check cannot prove health — reconnect it under Company → Connections to restore this reading.`,
-      evidence: [`Source ${observation.sourceId} is not connected`, `Expected ${observation.target}`],
+      evidence: [`${readableSource(observation.sourceId, domainCoverage)} is not connected`, `Expected ${observation.target}`],
     });
   }
 
@@ -145,7 +158,7 @@ function evaluateLens(
     return {
       status: "pass",
       detail: `${observation.detail} The source is connected and available to the radar.`,
-      evidence: [`Current ${observation.display}`, `Source ${observation.sourceId}`],
+      evidence: [`Current ${observation.display}`, `Source: ${readableSource(observation.sourceId, domainCoverage)}`],
     };
   }
   if (lens === "freshness") {
