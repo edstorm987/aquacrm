@@ -277,6 +277,35 @@ review, not a mechanical bulk edit; (e) product removals C1/C3 (Ed's call). Each
 reason here and in `BLOCKERS-FOR-ED.md`. Nothing gated was faked "done"; nothing shipped is
 unverified.
 
+### Continuation — TODO backlog processed + Phase 2 verified (post-checkpoint-3)
+
+Prompted to not treat "gated" too broadly, I worked the genuinely-autonomous parts of the remaining
+scope (METHOD #4 = build/test *around* secret wiring, don't defer the whole thing):
+
+- **`docs/development/TODO.md` processed** (`bf84a28a`), the one item I'd read but never worked:
+  - **Closed** the low-opacity small-text item — batch 1 (`867a84d9`) raised all three named components
+    (`ExternalAiConnectionPanel`, `_ActionsWorkspace`, `NotificationCentreButton`); now `[x]` with evidence.
+  - **Hydration item** (`data-topbar-lead`): added a *static triage* that rules out `TopbarBackButton`
+    (its only `window.*` read is inside `onClick`, not render; `usePathname()` is SSR/CSR-stable). The
+    other lead children use correct `useState(false)`+`useEffect` patterns. Mismatch is dev-mode-specific
+    and needs the repro to name the exact attribute — blind-fix stays unsafe. Narrowed, not fixed.
+  - **P1 orientation note**: the ~54 `[~]` items are code-done-needs-*acceptance*, split into
+    **LIVE-PROVIDER** (Ed-blocked secrets) vs **MOUNTED-BROWSER** (CPU-lane) — neither a half-built
+    feature. Makes the list true about what "clearing" each requires.
+- **Onboarding chain re-verified GREEN on the file backend** — `smoke-client-lifecycle-creation` +
+  `smoke-client-project-provisioning` = **24/24** (client creation → project provisioning → deployment-
+  checkpoint reconciliation). So the onboarding *chain* is done + proven; only the live Stripe/Meta
+  *walkthrough* is Ed-blocked. That satisfies METHOD #4 for the onboarding scope item.
+- **Radar Phase 2 investigated properly** (read the actual cache + every caller, not from memory):
+  `listOperationalAlerts` has a 60s module TTL cache (prod) + a React per-request `cache()` wrapper;
+  every render surface (`clients/page`, `clients/[id]/layout`, `inbox`, `actions`) hits the cache and
+  computes once per request; the clients page uses alerts only for the sidebar attention badge and
+  computes them once. **The measured Phase 2 win is shipped.** The plan's own §8 says deeper Phase 2/3
+  must be **measured first** (the "fleet-dominant" premise is an unverified MEMORY assumption) — that
+  measurement needs a built dist + representative data (CPU-heavy), so it's a dedicated-session task,
+  not blind overnight edits. **Radar Phase 1 remaining wiring** (`nodes?` on the output) is held because
+  §9 Q2–Q7 could reshape the node model — building more now risks rework. Both gates verified in code.
+
 **One deliberate docs-correctness deferral:** this run added new exports (`radarNodeTree.ts`:
 `projectRadarNodeTree`, `indexRadarNodes`, `RadarNode…`) and changed one signature
 (`plans.list(includeInactive, {recover?})`), so the auto-generated symbol reference
