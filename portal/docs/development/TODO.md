@@ -141,6 +141,11 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
   take 45s+. Server renders the full 66KB workspace fast (~1.1s); chrome renders. **Needs a FOREGROUND
   browser** to confirm whether showcase agency reliably errors with #441 or renders fine. Not
   blind-fixed. Correction + full evidence in `OVERNIGHT-RUN-2026-09-05.md`.  <sub>added 2026-09-05, corrected same day</sub>
+  <sub>Repro kit for the focused session: (1) `react.dev/errors/441` is **404** — #441 is not in
+  React's public decoder, so run the **dev build** (`npm run dev`, showcase enabled) to get the
+  non-minified message; (2) it's the shared `@/components/ui/ErrorBoundary` (dynamic "loading
+  &lt;label&gt; workspace" label) wrapping plugin/tool render in `agency/[...rest]/page.tsx:27`;
+  (3) use a **foreground** browser tab — the in-app pane is hidden and throttles the loader timers.</sub>
 - [ ] Bring dense operator controls to 44×44 (calendar month toolbar, phase card actions, inbox chips, notepad tabs) — recorded per page by `browser-release-acceptance.mjs` on 2026-09-03  <sub>added 2026-09-03</sub>
 - [ ] Find the SSR/CSR attribute mismatch in the Dev Team layout's topbar lead (`div[data-topbar-lead]`) that the Dev Editor gate's AI scenario surfaces as one hydration warning on a Dev Mode lane (plain loads are clean; entered with the 2026-09-03 integration). <sub>added 2026-09-03; **static triage 2026-09-05:** `TopbarBackButton` ruled out — its only `window.*` read (`window.history.length`) is inside `onClick`, not render, and it uses SSR/CSR-stable `usePathname()`. Remaining lead children (`MobileNav`, `PinCurrentControl`, title/subtitle) use correct `useState(false)`+`useEffect` hydration patterns; the mismatch is dev-mode-specific and needs the repro to name the exact differing attribute. Blind-fixing unsafe — do not.</sub>
 - [x] Raise the remaining low-opacity small text that no gate walked (`ExternalAiConnectionPanel` emerald /50–/60, `_ActionsWorkspace` /65, `NotificationCentreButton` /62) — **DONE 2026-09-05 (`867a84d9`):** all three raised (ExternalAiConnectionPanel /60→/80 and /50→emerald-900; _ActionsWorkspace /65→/80; NotificationCentreButton /62→/80, icon /60→/70, tab /40→/55); deployed + live. <sub>added 2026-09-03</sub>
