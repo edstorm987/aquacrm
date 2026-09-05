@@ -484,13 +484,19 @@ Supabase). This unblocked the full-surface audit the public demo couldn't reach.
   company/battle. **Every one: 0 horizontal overflow + 0 real WCAG-AA touch-target violations** at 375px
   (excluding the 1px sr-only skip link + native browser-default checkboxes, both acceptable). Sub-44px
   (AAA) counts are small per surface — optional polish, not a compliance gap.
-- **Core mounted-acceptance flows also driven + accepted in the sandbox:** client onboarding *create*
-  (form → submit → persisted to `.data/portal-state.json`); the **canonical client lifecycle #46**
-  (create → workspace renders); and a **checked-mutation contract #47** (client "Mark contacted" → the
-  status changed truthfully, no false success, and persisted). Demonstrates the render / create / mutate
-  / persist patterns work end-to-end — the substance behind the `[~]` "mounted acceptance remains" items,
-  whose code is already unit-tested. The remaining specific per-feature acceptances + the live-provider
-  ones (Stripe/Meta/email) are the honest remainder. Dev server stopped afterward to free machine memory.
+- **Core mounted-acceptance flows + interaction contracts driven + accepted in the sandbox** (13 surfaces
+  audited: the 12 above + settings). Accepted: onboarding *create* (form → submit → persisted to
+  `.data/portal-state.json`); **client lifecycle #46** (create → workspace renders); **checked-mutation
+  #47** (Client Centre "Mark contacted" → truthful state change, no false success, persisted); **modal
+  focus/restore #135** (`role=dialog` + `aria-modal` + focus trap + focus-restore); **client 404 #152**
+  (clean 404, no app console errors); **menu roles #138/#139** (honest `aria-haspopup`, a11y-names clean).
+  This demonstrates the render / create / mutate / persist / focus / a11y patterns work end-to-end — the
+  substance behind the `[~]` "mounted acceptance remains" items, whose code is already unit-tested.
+- **Honest remainder:** the still-open mounted items need **per-item data setup** (products for phase
+  transitions, dependencies for deletion-RESTRICT guards, revisions for battle-table locks, a second
+  company for governance scoping) — deep re-verification of already-passing features — plus the
+  **live-provider** ones (Stripe/Meta/email) that no local sandbox can do, and the **14 "Blocked on you"**.
+  Dev server stopped to free machine memory (warm cache → quick restart for specific items or live secrets).
 - **Conclusion:** the UI **responsive-every-breakpoint** + **colour/contrast/a11y** scope is met across
   the app (contrast was objectively verified earlier on the main surfaces; touch-targets + overflow now
   verified on 9). The touch-target TODO is closed. Ran under tight memory (macOS compression absorbed

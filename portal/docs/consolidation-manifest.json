@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-05T10:02:19.150Z",
+  "generatedAt": "2026-09-05T10:04:10.620Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -527,9 +527,9 @@
       "path": "docs/development/OVERNIGHT-RUN-2026-09-05.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-overnight-run-2026-09-05-md",
-      "sha256": "52c8ba5dd55af8b5bc1e9a29894ab08eb29602e624b86a31e4be8270dad7d961",
-      "words": 6331,
-      "bytes": 45807
+      "sha256": "13f420e2dcf53a5a9b998c3d8bd8e148da5b7ec405a8da919655c340a3de3740",
+      "words": 6416,
+      "bytes": 46430
     },
     {
       "path": "docs/development/plans/advisor-omega-upgrade.md",
