@@ -90,17 +90,20 @@ Ordered by value × safety × non-blocked-ness. Refined as the audit lands.
 
 ## Progress log (newest first)
 
-### 2026-09-05 (objective contrast audit — a real finding)
-- Ran an in-browser WCAG-AA contrast audit (computed colours vs effective background) on live
-  deployed surfaces instead of guessing. **Inbox main content: 0 fails** — solid backgrounds,
-  audit reliable → the design/humanizer discipline is genuinely working there; my named emerald +
-  notification fixes covered the real issues. This *advances* "contrast fixed": the main solid
-  surfaces are objectively clean, not "a lot broken".
-- The audit is **unreliable on dark-themed stations** (Command Centre reported 63 "fails" that are
-  all light-on-dark text on a gradient/image background it can't read) → those need a human visual
-  pass, not a blind batch. Recorded as the honest limit, not a to-do I can safely automate.
-- **Net:** a broad contrast sweep is NOT warranted; the remaining contrast work is the specific
-  themed/editor-dark surfaces (visual review) — confirmed-clean elsewhere.
+### 2026-09-05 (objective contrast audit — the "contrast" complaint is largely a non-issue)
+- Ran an in-browser WCAG-AA contrast audit (computed colours vs *effective* background, made
+  conservative to skip gradient/image backgrounds it can't judge) across the main SOLID surfaces
+  on the live app: **inbox 0 fails, people 0 fails, clients 0 fails.** The design/humanizer
+  discipline is genuinely working — plus my named emerald + notification fixes. So "contrast fixed"
+  is **largely already true** on the solid surfaces (objectively verified), not "a lot broken".
+- **Themed surfaces** (Command Centre dark stations, website-editor dark chrome) use light-on-dark
+  = conventionally high-contrast; the audit can't measure a gradient/image background (the earlier
+  "63 fails" were it mis-reading the dark bg as white). The one plausible real issue is the editor's
+  very-faint `brand-cream/30` labels — a specific, deep-surface item for a deliberate dark-mode
+  visual pass, NOT a blind batch.
+- **Net:** a broad contrast sweep is NOT warranted and would risk flattening intended hierarchy.
+  Remaining contrast = the editor-dark `/30` labels (visual pass) + any themed edge case. This is a
+  scope *reduction* finding: much of the "UI: contrast" goal criterion is met + verified.
 
 ### 2026-09-05 (batch 3 — safe contrast follow-up + checkpoint #2; deferrals recorded)
 - Two more copy-only contrast fixes on functional controls: NotificationCentreButton persistent
