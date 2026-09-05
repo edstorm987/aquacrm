@@ -13,10 +13,12 @@ import {
 
 export const dynamic = "force-dynamic";
 
-function errorRedirect(request: NextRequest, message: string) {
-  const url = new URL("/login", request.nextUrl.origin);
-  url.searchParams.set("error", message);
-  return NextResponse.redirect(url);
+function errorRedirect(_request: NextRequest, message: string) {
+  // Relative Location (proxy-safe): behind Railway's proxy `request.nextUrl.origin`
+  // is the internal localhost bind, so an absolute redirect built from it 404s the
+  // browser. A relative Location resolves against the public host. (Same as 59ec0037.)
+  const location = `/login?error=${encodeURIComponent(message)}`;
+  return new NextResponse(null, { status: 303, headers: { location } });
 }
 
 function clientUser(input: {
@@ -86,7 +88,10 @@ export async function GET(request: NextRequest) {
   const destination = payload.mode === "admin"
     ? `/portal/clients/${encodeURIComponent(client.id)}?tab=portal`
     : "/portal/customer";
-  const response = NextResponse.redirect(new URL(destination, request.nextUrl.origin));
+  // Relative Location (proxy-safe): `destination` is a fixed same-site path, so a
+  // relative redirect resolves against the public host, not Railway's internal
+  // localhost bind. (Same fix as 59ec0037.)
+  const response = new NextResponse(null, { status: 303, headers: { location: destination } });
   response.cookies.set(cookie.name, cookie.value, cookie.options);
   return response;
 }
