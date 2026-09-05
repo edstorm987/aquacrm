@@ -404,6 +404,24 @@ When enough (throttled) time passed, the handover **did complete** (`data-aqua-l
 - **Lesson:** the in-app browser pane being hidden throttles page timers — time-based UI (loaders,
   animations, debounced reveals) will look stuck. Don't call that an app bug without a foreground tab.
 
+### Railway-proxy URL bug class — full sweep, verified clean beyond the 3 fixed redirects
+
+To make the redirect fixes trustworthy I swept the whole codebase for the same bug class (absolute
+URLs built from the request origin → `localhost:$PORT` behind Railway's proxy). **Conclusion: the 3
+redirects already fixed (`/showcase`, `/dev`, `embed/consume`) were the only real instances.** The
+rest is already proxy-correct:
+- The auth/session routes (`showcase-mode`, `dev-mode`, `switch-agency`, `sandbox-mode`, twilio voice
+  webhook) read **`x-forwarded-host`** (proxy-aware), not `request.url`.
+- Origin/CSRF checks (e.g. `companies/[id]/portal`) allow **both** the internal origin and the
+  `x-forwarded-host`/`x-forwarded-proto` public origin — defensively correct.
+- All hardcoded absolute URLs are **external APIs** (Stripe, Twilio, Meta/Facebook, Vercel) — correct.
+- The remaining `localhost`/`127.0.0.1` references are legitimate **guards** (SSL detection, dev-only
+  branches, private-host rejection), not link construction.
+- Transactional/enquiry email builds sender config from env, not `request.url`; portal-link embedding
+  isn't `request.url`-based, and email is provider-gated (Ed's keys) anyway.
+This is a genuine WIRE-OR-RETIRE verification: the production-correctness of the redirect surface is
+now confirmed complete, not just spot-fixed.
+
 **One deliberate docs-correctness deferral:** this run added new exports (`radarNodeTree.ts`:
 `projectRadarNodeTree`, `indexRadarNodes`, `RadarNode…`) and changed one signature
 (`plans.list(includeInactive, {recover?})`), so the auto-generated symbol reference
