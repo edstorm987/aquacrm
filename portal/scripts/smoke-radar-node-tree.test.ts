@@ -9,7 +9,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { projectRadarNodeTree, indexRadarNodes, type RadarNode } from "../src/engines/data/radar/radarNodeTree";
+import { projectRadarNodeTree, indexRadarNodes, withRadarNodeTree, type RadarNode } from "../src/engines/data/radar/radarNodeTree";
 import type { BusinessIssueRadar, BusinessRadarCheck, RadarCheckStatus, RadarDomainSummary, AdvisorDomain } from "../src/engines/data/radar/businessRadar";
 
 let seq = 0;
@@ -103,4 +103,21 @@ test("the entity spine surfaces a monitored entity from its checks", () => {
   assert.equal(ent.label, "Acme");
   assert.equal(ent.health, "critical");
   assert.equal(ent.counts.total, 1);
+});
+
+// Fractal Phase 1 "expose on the output" — the flag contract.
+test("withRadarNodeTree flag OFF returns the radar untouched (zero prod cost)", () => {
+  const out = withRadarNodeTree(radar, false);
+  assert.equal(out, radar, "flag off must return the same object, not a copy");
+  assert.equal(out.nodes, undefined, "no nodes attached when disabled");
+});
+
+test("withRadarNodeTree flag ON attaches the same tree projectRadarNodeTree produces", () => {
+  const out = withRadarNodeTree(radar, true);
+  assert.notEqual(out, radar, "flag on must not mutate the input radar");
+  assert.equal(radar.nodes, undefined, "the input radar is left untouched");
+  assert.ok(out.nodes, "nodes attached when enabled");
+  assert.equal(out.nodes!.length, projectRadarNodeTree(radar).length);
+  const agency = out.nodes!.find(node => node.key === "agency");
+  assert.ok(agency && agency.level === "agency" && agency.counts.total === 6, "attached tree has the agency root");
 });

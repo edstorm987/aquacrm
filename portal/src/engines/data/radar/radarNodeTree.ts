@@ -120,6 +120,27 @@ const entKey = (type: RadarEntityType, id: string) => `ent:${type}:${id}`;
  * first, then domains, their families, then the parallel entity spine. Pure — same
  * radar in, same tree out; it never mutates the radar or reads outside it.
  */
+/**
+ * Attach the fractal node tree to a radar as `radar.nodes` — but only when `enabled`.
+ * This is the flag-gated "expose on the output" step of fractal Phase 1: with the flag off
+ * the radar is returned untouched (zero cost, zero risk to the working app); with it on, the
+ * pure projection is attached for the fractal read surface to consume. Kept a tiny pure helper
+ * so the flag contract is unit-testable without running the whole radar build.
+ */
+export function withRadarNodeTree(radar: BusinessIssueRadar, enabled: boolean): BusinessIssueRadar {
+  if (!enabled) return radar;
+  return { ...radar, nodes: projectRadarNodeTree(radar) };
+}
+
+/**
+ * Whether the fractal node tree should be attached to radar output. Off unless the
+ * `RADAR_NODES_ENABLED` env flag is exactly "true", so production is unchanged until the
+ * fractal read surface (Phase 6) is built and the flag is flipped.
+ */
+export function radarNodesEnabled(): boolean {
+  return process.env.RADAR_NODES_ENABLED === "true";
+}
+
 export function projectRadarNodeTree(radar: BusinessIssueRadar): RadarNode[] {
   const checks = radar.checks;
   const nodes: RadarNode[] = [];

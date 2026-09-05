@@ -24,6 +24,7 @@ import {
 import { buildRadarCheckMatrix, summarizeRadarChecks } from "@/engines/data/radar/radarCheckEngine";
 import { classifyRadarCheck, RADAR_FINDING_GROUP_LABELS } from "@/engines/data/radar/radarClassification";
 import { buildInfraHealthChecks } from "@/engines/data/radar/radarInfraChecks";
+import { withRadarNodeTree, radarNodesEnabled } from "@/engines/data/radar/radarNodeTree";
 import { resolveRadarCoverage, type RadarCoverageInputEntity } from "@/engines/data/radar/radarCoverageRegistry";
 import { ensureRadarSeedingRegistered } from "@/engines/data/server/radar/radarSeeding";
 import { listAgencyProducts } from "@/server/agencyProducts";
@@ -637,7 +638,10 @@ export async function buildBusinessIssueRadar(
     findingGroups: summariseFindingGroups(withMemory.incidents),
     memory,
   };
-  return result;
+  // Fractal Phase 1: attach the node-tree projection only when RADAR_NODES_ENABLED
+  // is on. Off by default → `result` is returned untouched, so production is unchanged
+  // until the fractal read surface consumes `radar.nodes`.
+  return withRadarNodeTree(result, radarNodesEnabled());
 }
 
 async function listRadarLeads(agencyId: string, installId: string) {

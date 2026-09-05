@@ -546,6 +546,15 @@ export interface BusinessIssueRadar {
   findingGroups: RadarFindingGroupSummary[];
   /** Coverage manifest — every monitorable entity resolved to a pack (radar upgrade Stage 6). */
   coverageManifest: RadarCoverageManifest;
+  /**
+   * Fractal node tree — the agency → domain → family → entity projection that drives the
+   * "cheap top-level sweep, descend only when red" surface (fractal radar Phase 1). A **pure
+   * projection** of the fields already on this object (no new computation of health), attached
+   * only when the `RADAR_NODES_ENABLED` flag is on so it costs nothing in production until the
+   * fractal read surface consumes it. Absent by default. See `radarNodeTree.ts` +
+   * `plans/fractal-radar-architecture.md` §8 Phase 1.
+   */
+  nodes?: import("@/engines/data/radar/radarNodeTree").RadarNode[];
 }
 
 export type AdvisorRadarDigest = BusinessIssueRadar["summary"] & {
