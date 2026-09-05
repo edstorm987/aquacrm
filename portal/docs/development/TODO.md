@@ -46,6 +46,20 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 
 ## P1 — before broader launch — 55
 
+> **What "clearing" these actually needs (triage 2026-09-05).** Almost every `[~]` here reads
+> "code/behaviour done; <X> acceptance remains" — the *code* is written and unit/smoke-covered; what
+> is outstanding is an *acceptance* run. Those split into two classes, and knowing which is which is
+> the difference between autonomous work and a blocker:
+> - **LIVE-PROVIDER acceptance** (wording: "live Stripe / live-provider / native Supabase/Postgres
+>   constraint / provider delivery") → **Ed-blocked**: needs real Stripe/Meta/email/DB credentials.
+>   Build-and-test-around is already done (file-backend proofs cited inline); this is plug-in-later.
+> - **MOUNTED-BROWSER acceptance** (wording: "mounted acceptance remains") → needs a built exact-dist
+>   + seeded Playwright lane. Deliberately **not** run overnight per Ed's "careful on CPU with local
+>   stuff"; it is a dedicated-session task, not a code gap.
+> Neither class is a half-built feature — they are verification lanes. The onboarding chain, for one,
+> was re-verified green this run (`smoke-client-lifecycle-creation` + `smoke-client-project-provisioning`
+> 24/24 on the file backend); only its live Stripe/Meta walkthrough is Ed-blocked.
+
 - [~] Editor AI database coordination is implemented; live DB proof remains → [#18](issues.md)
 - [~] Editor dirty-state browser acceptance is proven on a Dev Mode lane (28fc767; re-run 2026-09-03 191 passed / 2 failed / 13 explained N/A rows / 47 observations on the full matrix; the two failures were one timing-sensitive held-reply step that passed on an uncontended rerun of the AI scenario (14/14) and one dev-mode hydration-mismatch console warning raised only inside the AI scenario, recorded as an open residual); the recorded SEO-prompt and phone-drawer residuals stay → [#19](issues.md)
 - [~] Public showcase capability boundary and shared fixture are repaired → [#21](issues.md) `⚠ disputed`
@@ -120,8 +134,8 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Private media has one tested 200/206/416 provider-aware byte-range contract; mounted playback/seek acceptance remains → [#144](issues.md)
 - [~] Finish production-durable Dev Team authoring and live signals  <sub>consolidated from the retired lists; no issue number</sub>
 - [ ] Bring dense operator controls to 44×44 (calendar month toolbar, phase card actions, inbox chips, notepad tabs) — recorded per page by `browser-release-acceptance.mjs` on 2026-09-03  <sub>added 2026-09-03</sub>
-- [ ] Find the SSR/CSR attribute mismatch in the Dev Team layout's topbar lead (`div[data-topbar-lead]`) that the Dev Editor gate's AI scenario surfaces as one hydration warning on a Dev Mode lane (plain loads are clean; entered with the 2026-09-03 integration)  <sub>added 2026-09-03</sub>
-- [ ] Raise the remaining low-opacity small text that no gate walked (`ExternalAiConnectionPanel` emerald /50–/60, `_ActionsWorkspace` /65, `NotificationCentreButton` /62) — static observation only  <sub>added 2026-09-03</sub>
+- [ ] Find the SSR/CSR attribute mismatch in the Dev Team layout's topbar lead (`div[data-topbar-lead]`) that the Dev Editor gate's AI scenario surfaces as one hydration warning on a Dev Mode lane (plain loads are clean; entered with the 2026-09-03 integration). <sub>added 2026-09-03; **static triage 2026-09-05:** `TopbarBackButton` ruled out — its only `window.*` read (`window.history.length`) is inside `onClick`, not render, and it uses SSR/CSR-stable `usePathname()`. Remaining lead children (`MobileNav`, `PinCurrentControl`, title/subtitle) use correct `useState(false)`+`useEffect` hydration patterns; the mismatch is dev-mode-specific and needs the repro to name the exact differing attribute. Blind-fixing unsafe — do not.</sub>
+- [x] Raise the remaining low-opacity small text that no gate walked (`ExternalAiConnectionPanel` emerald /50–/60, `_ActionsWorkspace` /65, `NotificationCentreButton` /62) — **DONE 2026-09-05 (`867a84d9`):** all three raised (ExternalAiConnectionPanel /60→/80 and /50→emerald-900; _ActionsWorkspace /65→/80; NotificationCentreButton /62→/80, icon /60→/70, tab /40→/55); deployed + live. <sub>added 2026-09-03</sub>
 
 ## Unprioritised — 25
 
