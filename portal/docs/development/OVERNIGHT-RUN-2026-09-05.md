@@ -439,6 +439,38 @@ area) is now fully covered — jargon→plain (fixed), ids→human labels (fixed
 radar scope is the *structural* work (a typed `remedy`/lineage field vs prose) and the *fractal/
 event-driven* Phases 3–6 — both gated on §9 decisions, not on unfinished data-quality.
 
+### A11y accessible-names — probed the unguarded surfaces, verified clean (no code-fix needed)
+
+The UI scope includes a11y, and accessible names are **code-detectable** (no browser needed). The
+`smoke-accessible-names` guard (11/11 pass) statically enforces "no icon-only button unnamed" on ~15
+key operator surfaces (actions, people, company, team, sop-library, legal, automations, command-
+intelligence, 5 website-editor blocks). I then probed a **high-traffic unguarded** surface — the
+Master Inbox family — for icon-only buttons missing an accessible name. Result: **clean.** Every icon
+button carries one (`aria-label="Close enquiry"`, `"Delete enquiry from …"`, `"Dismiss"`, etc.); the
+few my crude heuristic flagged were false positives (they had text or an aria-label the regex missed).
+So a11y *naming* is in good shape guarded **and** unguarded — a positive verification, not a fix.
+(What a11y work genuinely remains — 44×44 **touch-target sizing** and full-breakpoint focus/overflow —
+needs a foreground browser to verify safely; the pane here is hidden/throttled. Logged, not blind-changed.)
+
+---
+
+## 📊 Scope-area status board (honest, end of autonomous run)
+
+| Scope area | Status | Evidence / gate |
+| --- | --- | --- |
+| **DATA** (semantic + blind-aware model) | ✅ **complete + verified** | 5 dimensions fixed/verified (above); smoke green each step |
+| **WIRE-OR-RETIRE** (findable/verifiable) | ✅ **complete + verified** | 2 real redirect bugs fixed+live-verified; proxy bug-class swept clean; dead-code quarantined |
+| **UI — jargon / contrast / a11y-names** | ✅ **done on main surfaces** | jargon plain; contrast fixed+objectively verified; a11y names verified clean |
+| **Perf (FAST-FIRST)** | 🟡 **Phase 1–2 shipped** | inbox 16s→~1s etc. live; Phase 3+ needs measurement (CPU) |
+| **UI — touch-targets / full-breakpoint** | 🔒 **needs foreground browser** | harness pane hidden/throttled — can't verify safely |
+| **CONFIG/CONNECTIONS + ONBOARDING** | 🔒 **needs secrets** | chain verified 24/24 (file backend); live wiring = Ed's keys |
+| **Radar Phases 3–6 (fractal/event-driven)** | 🔒 **needs §9 decisions** | 7 questions in `plans/fractal-radar-architecture.md` |
+| **Mounted-acceptance (~40 TODO items)** | 🔒 **needs CPU lanes** | Ed asked to spare the laptop; built+file-verified, awaiting lane run |
+| **#441 showcase error** | 🔒 **needs dev build + foreground browser** | react.dev/errors/441 is 404; repro kit in TODO.md |
+
+Two full scope areas closed + verified this run (DATA, WIRE-OR-RETIRE-findable); the rest is gated on a
+specific input I don't have (secrets, §9 answers, a foreground browser, or CPU lanes Ed reserved).
+
 **One deliberate docs-correctness deferral:** this run added new exports (`radarNodeTree.ts`:
 `projectRadarNodeTree`, `indexRadarNodes`, `RadarNode…`) and changed one signature
 (`plans.list(includeInactive, {recover?})`), so the auto-generated symbol reference
