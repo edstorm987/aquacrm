@@ -90,6 +90,18 @@ Ordered by value × safety × non-blocked-ness. Refined as the audit lands.
 
 ## Progress log (newest first)
 
+### 2026-09-05 (objective contrast audit — a real finding)
+- Ran an in-browser WCAG-AA contrast audit (computed colours vs effective background) on live
+  deployed surfaces instead of guessing. **Inbox main content: 0 fails** — solid backgrounds,
+  audit reliable → the design/humanizer discipline is genuinely working there; my named emerald +
+  notification fixes covered the real issues. This *advances* "contrast fixed": the main solid
+  surfaces are objectively clean, not "a lot broken".
+- The audit is **unreliable on dark-themed stations** (Command Centre reported 63 "fails" that are
+  all light-on-dark text on a gradient/image background it can't read) → those need a human visual
+  pass, not a blind batch. Recorded as the honest limit, not a to-do I can safely automate.
+- **Net:** a broad contrast sweep is NOT warranted; the remaining contrast work is the specific
+  themed/editor-dark surfaces (visual review) — confirmed-clean elsewhere.
+
 ### 2026-09-05 (batch 3 — safe contrast follow-up + checkpoint #2; deferrals recorded)
 - Two more copy-only contrast fixes on functional controls: NotificationCentreButton persistent
   button icon `text-black/60`→`/70`, and the notification tab inactive label `text-black/40`
