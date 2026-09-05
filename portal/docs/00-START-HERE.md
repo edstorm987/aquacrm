@@ -2,7 +2,7 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-09-05 from **23** source documents / **44,618 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-05 from **23** source documents / **44,756 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -26,7 +26,7 @@
 - [`docs/development/CLOUD-RESUME.md`](#source-docs-development-cloud-resume-md) — 500 words · `03458cdf18bf`
 - [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 2,095 words · `379784a12461`
 - [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,643 words · `38954d1ad66e`
-- [`docs/development/OVERNIGHT-RUN-2026-09-05.md`](#source-docs-development-overnight-run-2026-09-05-md) — 5,799 words · `dca6671fd9eb`
+- [`docs/development/OVERNIGHT-RUN-2026-09-05.md`](#source-docs-development-overnight-run-2026-09-05-md) — 5,937 words · `b8269019c1e5`
 - [`docs/development/TODO.md`](#source-docs-development-todo-md) — 3,195 words · `ef98b937d3e1`
 - [`README.md`](#source-readme-md) — 437 words · `78865db66238`
 
@@ -4015,7 +4015,7 @@ Path prefix: /private/tmp/claude-501/.../scratchpad/
 
 ## Source document — `docs/development/OVERNIGHT-RUN-2026-09-05.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/OVERNIGHT-RUN-2026-09-05.md" sha256="dca6671fd9ebd80700434bbdcb18de0af9222ae84944dd7324e0428405b7429a" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/OVERNIGHT-RUN-2026-09-05.md" sha256="b8269019c1e5c1fc6478281a91eb495203b8d31707c50a5ebcda98b59b191bc4" -->
 # Overnight autonomous run — 2026-09-05 → 06
 
 Ed set the full production-readiness goal and is asleep; this is the run's living
@@ -4034,9 +4034,15 @@ need his keys/decisions) and [`plans/fractal-radar-architecture.md`](plans/fract
 > clean + live-checked.
 >
 > **Biggest wins this run:**
-> - **Two real production bugs found + fixed live** — the public demo (`/showcase`) and client-portal
->   access links (`embed/consume`) were redirecting to a dead `localhost` behind Railway's proxy. Fixed,
->   verified on the live site. (I swept the whole bug class; those were the only instances.)
+> - **THE PUBLIC DEMO IS FIXED (2 bugs) + VERIFIED LIVE.** (1) `/showcase` + client-portal access links
+>   redirected to a dead `localhost` behind Railway's proxy — fixed. (2) Once reachable, the demo agency
+>   Command Centre threw **React #441**; root-caused via Railway logs (`stale_session`): `requireCurrentAccessActor`
+>   resolved the showcase user in LIVE realm, but a showcase visitor exists only in its fixture realm.
+>   Fixed (`301071ee`) by resolving showcase users in their realm (mirrors `auth.ts`); full `smoke:all`
+>   6704/0 + security suites 111/111. **The live showcase Command Centre now renders fully.** Also
+>   objectively audited: **WCAG-AA touch-targets met + 0 overflow at 375px and 1280px.**
+> - **Two real production bugs found + fixed live** (the redirect pair above; I swept the whole
+>   Railway-proxy bug class — those were the only instances).
 > - **The semantic/blind-aware DATA model is complete + verified** — jargon→plain, ids→human labels,
 >   BLIND→reason+remedy, KNOWN-BAD→cause+fix, KNOWN-GOOD→evidence. An analyst can read any radar signal
 >   with no decoder.
@@ -4053,7 +4059,11 @@ need his keys/decisions) and [`plans/fractal-radar-architecture.md`](plans/fract
 > 2. **Radar Phases 3–6** → I pre-answered the 7 §9 questions with recommended, reversible defaults
 >    (`plans/fractal-radar-architecture.md` §9a). Reply **"yes to your §9 defaults"** (or edit any line) and
 >    I build them.
-> 3. **`#441` + touch-targets + full-breakpoint UI** → need a foreground browser session (repro kit in `TODO.md`).
+> 3. **`#441`** → ✅ FIXED + verified live (`301071ee`). **Touch-targets** → ✅ WCAG-AA met + verified.
+>    **Full-breakpoint sweep of NON-demo surfaces** (inbox/notepad/phases/clients) → needs a real
+>    (non-showcase) session: the public demo only exposes the Command Centre. Ed's login or a local dev
+>    server unlocks the rest; the mounted-acceptance ~40 P1 items sit behind the same real-session gate
+>    (plus live providers for the Stripe/Meta ones).
 > 4. **~40 mounted-acceptance TODO items** → need a CPU-heavy Playwright lane you asked me to spare overnight.
 >
 > Nothing gated was faked; nothing shipped is unverified. Full breakdown in the **📊 Scope-area status board**
