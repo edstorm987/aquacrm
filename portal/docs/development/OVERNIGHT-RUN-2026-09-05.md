@@ -8,6 +8,39 @@ need his keys/decisions) and [`plans/fractal-radar-architecture.md`](plans/fract
 
 ## ☀️ Morning summary (read this first)
 
+> ### ✅ FINAL STATE (updated at end of run — read this box, then the §Scope-area status board below)
+>
+> **The run is honestly not at full DONE, and it can't reach it autonomously — the remaining scope needs
+> your keys, your §9 nod, or a foreground browser this environment can't provide.** But a lot shipped and
+> two full scope areas are closed + verified. Head is **`4543a9c4`**, ~9 deploy checkpoints, all built
+> clean + live-checked.
+>
+> **Biggest wins this run:**
+> - **Two real production bugs found + fixed live** — the public demo (`/showcase`) and client-portal
+>   access links (`embed/consume`) were redirecting to a dead `localhost` behind Railway's proxy. Fixed,
+>   verified on the live site. (I swept the whole bug class; those were the only instances.)
+> - **The semantic/blind-aware DATA model is complete + verified** — jargon→plain, ids→human labels,
+>   BLIND→reason+remedy, KNOWN-BAD→cause+fix, KNOWN-GOOD→evidence. An analyst can read any radar signal
+>   with no decoder.
+> - Perf overhaul, radar Phase-1+2, contrast/a11y on main surfaces, dead-code quarantine — all live.
+>
+> **One honest correction:** I first reported the demo portal "permanently stalls on the loader." That was
+> **overstated** — it was a hidden-browser-pane timer-throttling artifact, not a real permanent stall. The
+> real residual is a React `#441` error I saw once but couldn't reproduce through the throttled pane. Downgraded
+> and flagged with a repro kit. (Details in the "CORRECTED" section below.)
+>
+> **Every remaining gate is now a ONE-STEP action for you:**
+> 1. **Secrets** → the exact Railway env-var checklist is in `BLOCKERS-FOR-ED.md` (§Plug-and-play). Minimum
+>    for a real onboarding walk: Supabase (verify) + Stripe + one email provider.
+> 2. **Radar Phases 3–6** → I pre-answered the 7 §9 questions with recommended, reversible defaults
+>    (`plans/fractal-radar-architecture.md` §9a). Reply **"yes to your §9 defaults"** (or edit any line) and
+>    I build them.
+> 3. **`#441` + touch-targets + full-breakpoint UI** → need a foreground browser session (repro kit in `TODO.md`).
+> 4. **~40 mounted-acceptance TODO items** → need a CPU-heavy Playwright lane you asked me to spare overnight.
+>
+> Nothing gated was faked; nothing shipped is unverified. Full breakdown in the **📊 Scope-area status board**
+> further down. The historical detail below this box is the run's chronological log.
+
 **What's LIVE on aqua-crm.com** (deployed + verified): the perf overhaul from earlier
 (inbox 16s→~1s, radar/P&L 8.7s→fast, chrome-500→503; all pages 0.1–2.2s) **plus** batch 1
 (dead-code quarantine, a11y contrast on the AI-connection panel + notification button/tabs,
