@@ -288,6 +288,13 @@ test("only the plans that genuinely have no phases yield none", async () => {
     // Ed's own go-ahead, so counting it would report the roadmap as behind on
     // work that is deliberately staged.
     "storage-architecture-and-2026-09-04-incident",
+    // The 2026-09-05 fractal-radar architecture/design record. Its migration is
+    // prose under "## 8. Phased migration" (Phase 0–6), deliberately NOT the
+    // auto-tracked `## Phase N` / `## Phases` list format — this doc is the DESIGN
+    // of record (node tree, contract, descent, triggers, caching, open questions),
+    // and its execution is tracked in the production goal + OVERNIGHT-RUN-2026-09-05,
+    // not the dev-team auto-board. So it correctly yields no parsed phases.
+    "fractal-radar-architecture",
     "client-owned-form-data",
   ]);
   const empty = (await plans()).filter(p => parsePhases(p.md).length === 0).map(p => p.name);

@@ -81,3 +81,9 @@ aquacrm-backup.key.pem
 *.tar.gz.cms
 aquacrm-*.tar.gz
 aquacrm-*.sha256
+
+# --- Dead-code quarantine (autonomous run 2026-09-05) ---
+# Code removed during the production cleanup is MOVED here (not deleted) with a
+# README justifying each entry, for Ed's review. Kept out of git on purpose: it is
+# a local review artefact, and git history already preserves the real deletions.
+dead-code/
