@@ -74,7 +74,7 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Installments stop exactly in code; finish live Stripe refusal/retry acceptance → [#42](issues.md)
 - [~] Email Sender setup and SMTP delivery are real; finish live-provider browser acceptance → [#43](issues.md)
 - [~] Affiliate Stripe Connect onboarding/status and payouts are locally durable and gated; finish live Stripe acceptance → [#45](issues.md)
-- [~] Code/behaviour resolved — browser-accept the canonical client lifecycle → [#46](issues.md)
+- [~] Code/behaviour resolved — canonical client lifecycle **browser-accepted 2026-09-05 in the dev sandbox**: New client → form → submit → **persisted** (`cli_98ac…` in `portal-state.json`) → the client workspace renders (`/portal/clients/<id>`, shows "Acme Ltd", account overview + contact actions, **0 overflow + 0 real AA violations at 375px**). Live-provider client comms (WhatsApp/Email send) remain Ed-gated. → [#46](issues.md)
 - [~] Finish live visual acceptance for convergent client phase transitions → [#55](issues.md)
 - [~] Every named consequential empty-on-read-failure source path now has explicit availability/stale-state handling; finish mounted rejection/retry/lost-response/multi-tab and live-provider acceptance → [#57](issues.md)
 - [~] Membership/Affiliate parent deletion now enforces dependency-safe RESTRICT under the durable graph lock; finish mounted/live-provider acceptance → [#63](issues.md)

@@ -2,7 +2,7 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-09-05 from **23** source documents / **45,320 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-05 from **23** source documents / **45,365 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -27,7 +27,7 @@
 - [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 2,095 words · `379784a12461`
 - [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,643 words · `38954d1ad66e`
 - [`docs/development/OVERNIGHT-RUN-2026-09-05.md`](#source-docs-development-overnight-run-2026-09-05-md) — 6,229 words · `ccc99b8cdc68`
-- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 3,254 words · `840b9b8825f1`
+- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 3,299 words · `2473e4fde54e`
 - [`README.md`](#source-readme-md) — 437 words · `78865db66238`
 
 ---
@@ -4597,7 +4597,7 @@ index that's pending, by design.
 
 ## Source document — `docs/development/TODO.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="840b9b8825f16efcf70c15f80e2f8eff9c3ff8364ae41c8c398e5022559406e9" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="2473e4fde54ec7726409ff04a14525fab5b42b1c8fc9569e5c8ca46b17b4e12c" -->
 # TODO — the one list
 
 **This is the only task list.** `checklist.md` and `todo-retired.md` are retired; they held the
@@ -4674,7 +4674,7 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Installments stop exactly in code; finish live Stripe refusal/retry acceptance → [#42](issues.md)
 - [~] Email Sender setup and SMTP delivery are real; finish live-provider browser acceptance → [#43](issues.md)
 - [~] Affiliate Stripe Connect onboarding/status and payouts are locally durable and gated; finish live Stripe acceptance → [#45](issues.md)
-- [~] Code/behaviour resolved — browser-accept the canonical client lifecycle → [#46](issues.md)
+- [~] Code/behaviour resolved — canonical client lifecycle **browser-accepted 2026-09-05 in the dev sandbox**: New client → form → submit → **persisted** (`cli_98ac…` in `portal-state.json`) → the client workspace renders (`/portal/clients/<id>`, shows "Acme Ltd", account overview + contact actions, **0 overflow + 0 real AA violations at 375px**). Live-provider client comms (WhatsApp/Email send) remain Ed-gated. → [#46](issues.md)
 - [~] Finish live visual acceptance for convergent client phase transitions → [#55](issues.md)
 - [~] Every named consequential empty-on-read-failure source path now has explicit availability/stale-state handling; finish mounted rejection/retry/lost-response/multi-tab and live-provider acceptance → [#57](issues.md)
 - [~] Membership/Affiliate parent deletion now enforces dependency-safe RESTRICT under the durable graph lock; finish mounted/live-provider acceptance → [#63](issues.md)
