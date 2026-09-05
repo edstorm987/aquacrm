@@ -112,7 +112,7 @@ function evaluateRadarRule(
   if (!observation) {
     return check(rule, "blind", {
       sourceId: fallbackSource?.id ?? `domain:${rule.domain}`,
-      detail: `No observation is registered for ${rule.familyLabel}. This is an explicit instrumentation gap, not a healthy result.`,
+      detail: `No observation is registered for ${rule.familyLabel}, so its health cannot be evaluated — this is an explicit instrumentation gap, not a healthy result. ${fallbackSource ? "Reconnect or instrument its source under Company → Connections to close it." : "Register a data source for this area in Settings to close it."}`,
       evidence: [fallbackSource ? `${fallbackSource.label}: ${fallbackSource.status}` : "No domain source is registered"],
       href: fallbackSource ? "/portal/agency/company?view=connections" : "/portal/agency/settings",
       measuredAt: now,
@@ -122,7 +122,7 @@ function evaluateRadarRule(
   if (!observation.connected) {
     return check(rule, "blind", {
       ...observation,
-      detail: `${observation.detail} The source is not connected, so this check cannot prove health.`,
+      detail: `${observation.detail} The source is not connected, so this check cannot prove health — reconnect it under Company → Connections to restore this reading.`,
       evidence: [`Source ${observation.sourceId} is not connected`, `Expected ${observation.target}`],
     });
   }
