@@ -6,6 +6,40 @@ need his keys/decisions) and [`plans/fractal-radar-architecture.md`](plans/fract
 (the Radar design). Dead code is **quarantined, never deleted** — see the repo-root
 `dead-code/` folder and its README.
 
+## ☀️ Morning summary (read this first)
+
+**What's LIVE on aqua-crm.com** (deployed + verified): the perf overhaul from earlier
+(inbox 16s→~1s, radar/P&L 8.7s→fast, chrome-500→503; all pages 0.1–2.2s) **plus** batch 1
+(dead-code quarantine, a11y contrast on the AI-connection panel + notification button/tabs,
+a light-mode search focus ring, "commercial engine"→plain radar cause, settings doc-truth)
+**plus** the radar Phase-1 node-tree foundation (no runtime effect yet). Every deploy built
+clean; live regression check green.
+
+**What's COMMITTED (on `main`):** all of the above. Local commits `ec6ac81c` (foundations),
+`867a84d9` (batch 1), `1ad53fac` (radar Phase 1 core), `69de3e9a` (contrast follow-up) — all
+pushed.
+
+**For your review:**
+- `dead-code/` (repo root, git-ignored) — 2 quarantined items (FormPickerModal, the T3 NOOP
+  port) with a README justifying each. **2 audit "dead" calls were WRONG and the test gates
+  caught them** (parseSourceStamp, useArrowNav — both restored). Skim the README.
+- `plans/fractal-radar-architecture.md` — the radar design with **7 decisions for you (§9)**.
+- `BLOCKERS-FOR-ED.md` — Supabase/Stripe/Meta/email secrets, the **Railway probe-cron gap**
+  (why the "canary is stale" alert), apex cert, and product decisions.
+
+**What I deliberately DIDN'T do (and why — not skipped, gated):** touch-targets (dense-surface
+design work, unsafe to ship blind), systemic sub-11px contrast (surgical-only), the onboarding
+walk + mounted-acceptance TODO sweep (need CPU-heavy local Playwright lanes — you flagged CPU),
+and radar Phases 3–6 + the C1/C3 removals (need your §9 answers / product calls). All logged
+with reasons in the progress log + `BLOCKERS-FOR-ED.md`.
+
+**Suggested first moves when you're back:** (1) answer the radar §9 questions; (2) hand me the
+Supabase secrets so I can wire client/service config + do a real onboarding walk; (3) decide the
+probe-cron mechanism (I can build a self-scheduling interval); (4) I'll then run the CPU-heavy
+mounted-acceptance sweep in a dedicated lane session.
+
+---
+
 ## The goal (condensed)
 
 Take AquaCRM to genuine client-onboardable production — phased, documented, verified,
