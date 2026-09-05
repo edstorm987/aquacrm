@@ -70,7 +70,7 @@ export default async function AgencyInboxPage() {
   // Time each awaited phase and log the breakdown to find it. Removed once fixed.
   const _renderStart = performance.now();
   const _p: Record<string, number> = {};
-  const _t = async <T>(label: string, work: () => Promise<T>): Promise<T> => {
+  const _t = async <T,>(label: string, work: () => Promise<T>): Promise<T> => {
     const at = performance.now();
     try { return await work(); } finally { _p[label] = Math.round(performance.now() - at); }
   };
