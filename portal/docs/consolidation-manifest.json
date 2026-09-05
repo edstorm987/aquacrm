@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-05T06:59:35.581Z",
+  "generatedAt": "2026-09-05T07:16:46.526Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -527,9 +527,9 @@
       "path": "docs/development/OVERNIGHT-RUN-2026-09-05.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-overnight-run-2026-09-05-md",
-      "sha256": "b8269019c1e5c1fc6478281a91eb495203b8d31707c50a5ebcda98b59b191bc4",
-      "words": 5937,
-      "bytes": 42924
+      "sha256": "3998439e88f600d0ffd03617342431e0a640116c0b5d6f6ecd7958a324a604b4",
+      "words": 6120,
+      "bytes": 44240
     },
     {
       "path": "docs/development/plans/advisor-omega-upgrade.md",
@@ -1071,9 +1071,9 @@
       "path": "docs/development/TODO.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-todo-md",
-      "sha256": "ef98b937d3e1a7eab361521144b45ee6f78cedae502e168f77770a37551e4676",
-      "words": 3195,
-      "bytes": 24177
+      "sha256": "c7e0282723f4dacd7b8e2691be09f3ab1f585ab080f943eaeeb074df2c1d06a5",
+      "words": 3217,
+      "bytes": 24363
     },
     {
       "path": "docs/development/ultra-review-2026-08-24.md",

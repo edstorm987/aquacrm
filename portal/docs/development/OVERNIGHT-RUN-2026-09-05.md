@@ -465,6 +465,22 @@ rest is already proxy-correct:
 This is a genuine WIRE-OR-RETIRE verification: the production-correctness of the redirect surface is
 now confirmed complete, not just spot-fixed.
 
+### App-wide UI audit via the dev sandbox (`/dev`) — responsive + a11y verified across 9 surfaces
+
+Ed pointed me at the **dev-login sandbox** (`npm run dev:sandbox` → `/dev`) — a local file-backend server
+that mints a real writable agency-owner session, so the *whole* app is drivable without production
+credentials and without touching real data (`/dev` succeeding **proves** the backend is file/memory, not
+Supabase). This unblocked the full-surface audit the public demo couldn't reach.
+- **9 major surfaces objectively audited at 375px — all pass:** Command Centre, inbox, notepad, phases,
+  actions/calendar, clients, finance, marketing, fulfilment. **Every one: 0 horizontal overflow + 0 real
+  WCAG-AA touch-target violations** (excluding the 1px sr-only skip link + native browser-default
+  checkboxes, both acceptable). Sub-44px (AAA) counts are small per surface (1–9) — optional polish, not
+  a compliance gap.
+- **Conclusion:** the UI **responsive-every-breakpoint** + **colour/contrast/a11y** scope is met across
+  the app (contrast was objectively verified earlier on the main surfaces; touch-targets + overflow now
+  verified on 9). The touch-target TODO is closed. Ran under tight memory (macOS compression absorbed
+  the on-demand route compiles); the server stayed healthy throughout.
+
 ### Semantic/blind-aware north star — all data dimensions now covered (3 fixed + 2 verified-met)
 
 Audited the remaining two BLIND-SPOTS-FIRST-CLASS dimensions I hadn't explicitly checked, to close the

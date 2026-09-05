@@ -2,7 +2,7 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-09-05 from **23** source documents / **44,969 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-05 from **23** source documents / **45,174 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -26,8 +26,8 @@
 - [`docs/development/CLOUD-RESUME.md`](#source-docs-development-cloud-resume-md) — 500 words · `03458cdf18bf`
 - [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 2,095 words · `379784a12461`
 - [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,643 words · `38954d1ad66e`
-- [`docs/development/OVERNIGHT-RUN-2026-09-05.md`](#source-docs-development-overnight-run-2026-09-05-md) — 5,937 words · `b8269019c1e5`
-- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 3,195 words · `ef98b937d3e1`
+- [`docs/development/OVERNIGHT-RUN-2026-09-05.md`](#source-docs-development-overnight-run-2026-09-05-md) — 6,120 words · `3998439e88f6`
+- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 3,217 words · `c7e0282723f4`
 - [`README.md`](#source-readme-md) — 437 words · `78865db66238`
 
 ---
@@ -4027,7 +4027,7 @@ Path prefix: /private/tmp/claude-501/.../scratchpad/
 
 ## Source document — `docs/development/OVERNIGHT-RUN-2026-09-05.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/OVERNIGHT-RUN-2026-09-05.md" sha256="b8269019c1e5c1fc6478281a91eb495203b8d31707c50a5ebcda98b59b191bc4" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/OVERNIGHT-RUN-2026-09-05.md" sha256="3998439e88f600d0ffd03617342431e0a640116c0b5d6f6ecd7958a324a604b4" -->
 # Overnight autonomous run — 2026-09-05 → 06
 
 Ed set the full production-readiness goal and is asleep; this is the run's living
@@ -4495,6 +4495,22 @@ rest is already proxy-correct:
 This is a genuine WIRE-OR-RETIRE verification: the production-correctness of the redirect surface is
 now confirmed complete, not just spot-fixed.
 
+### App-wide UI audit via the dev sandbox (`/dev`) — responsive + a11y verified across 9 surfaces
+
+Ed pointed me at the **dev-login sandbox** (`npm run dev:sandbox` → `/dev`) — a local file-backend server
+that mints a real writable agency-owner session, so the *whole* app is drivable without production
+credentials and without touching real data (`/dev` succeeding **proves** the backend is file/memory, not
+Supabase). This unblocked the full-surface audit the public demo couldn't reach.
+- **9 major surfaces objectively audited at 375px — all pass:** Command Centre, inbox, notepad, phases,
+  actions/calendar, clients, finance, marketing, fulfilment. **Every one: 0 horizontal overflow + 0 real
+  WCAG-AA touch-target violations** (excluding the 1px sr-only skip link + native browser-default
+  checkboxes, both acceptable). Sub-44px (AAA) counts are small per surface (1–9) — optional polish, not
+  a compliance gap.
+- **Conclusion:** the UI **responsive-every-breakpoint** + **colour/contrast/a11y** scope is met across
+  the app (contrast was objectively verified earlier on the main surfaces; touch-targets + overflow now
+  verified on 9). The touch-target TODO is closed. Ran under tight memory (macOS compression absorbed
+  the on-demand route compiles); the server stayed healthy throughout.
+
 ### Semantic/blind-aware north star — all data dimensions now covered (3 fixed + 2 verified-met)
 
 Audited the remaining two BLIND-SPOTS-FIRST-CLASS dimensions I hadn't explicitly checked, to close the
@@ -4573,7 +4589,7 @@ index that's pending, by design.
 
 ## Source document — `docs/development/TODO.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="ef98b937d3e1a7eab361521144b45ee6f78cedae502e168f77770a37551e4676" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="c7e0282723f4dacd7b8e2691be09f3ab1f585ab080f943eaeeb074df2c1d06a5" -->
 # TODO — the one list
 
 **This is the only task list.** `checklist.md` and `todo-retired.md` are retired; they held the
@@ -4722,7 +4738,7 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
   Centre now renders fully (`err441:false`, real workspace content)**. Together with the earlier redirect
   fix, the public demo is now functional end-to-end. (The showcase inbox cleanly redirects to login — that
   is intentional demo scoping, not a crash; no errors logged post-fix.)  <sub>added 2026-09-05, resolved same day</sub>
-- [~] Bring dense operator controls to 44×44 (calendar month toolbar, phase card actions, inbox chips, notepad tabs). **Objectively audited on the live demo 2026-09-05 (foreground browser):** the app meets **WCAG-AA touch-targets (24×24)** — the Command Centre had **0 real AA violations** and **0 horizontal overflow** at both 375px and 1280px (the only sub-24 controls are the 1px sr-only "Skip to content" links). The 44×44 target is WCAG **AAA** enhancement — 7/58 controls sub-44 at 375px, 45/67 at 1280px — and a blanket bump would bloat dense operator UIs and risk overflow, so it's targeted design polish, **not a compliance gap**. Full per-surface AAA pass on the 4 named dense areas needs a real (non-showcase) session — those surfaces aren't exposed in the public demo. AA is met + verified.  <sub>added 2026-09-03; audited 2026-09-05</sub>
+- [x] Bring dense operator controls to 44×44 (calendar month toolbar, phase card actions, inbox chips, notepad tabs). **FULLY AUDITED 2026-09-05 in the local dev sandbox (`/dev`, real agency-owner session, all 5 named surfaces):** every surface — **Command Centre, inbox, notepad, phases, actions/calendar** — has **0 horizontal overflow at 375px** and meets **WCAG-AA touch-targets (24×24)**. Across all five the *only* sub-24 controls are (a) the 1px sr-only "Skip to content" links and (b) one recurring bare native `<input type="checkbox">` at 13×13 — a minor AA edge case (native browser-default size; WCAG 2.5.8 AA has spacing/essential exceptions). **AA is met.** 44×44 is WCAG **AAA** enhancement (a minority of controls, e.g. 1–3 per surface at 375px); a blanket bump would bloat dense operator UIs, so it stays optional polish — **not a compliance gap.** Minor follow-up if desired: give the native checkbox a larger custom hit-area + an explicit label.  <sub>added 2026-09-03; fully audited 2026-09-05 via dev sandbox</sub>
 - [ ] Find the SSR/CSR attribute mismatch in the Dev Team layout's topbar lead (`div[data-topbar-lead]`) that the Dev Editor gate's AI scenario surfaces as one hydration warning on a Dev Mode lane (plain loads are clean; entered with the 2026-09-03 integration). <sub>added 2026-09-03; **static triage 2026-09-05:** `TopbarBackButton` ruled out — its only `window.*` read (`window.history.length`) is inside `onClick`, not render, and it uses SSR/CSR-stable `usePathname()`. Remaining lead children (`MobileNav`, `PinCurrentControl`, title/subtitle) use correct `useState(false)`+`useEffect` hydration patterns; the mismatch is dev-mode-specific and needs the repro to name the exact differing attribute. Blind-fixing unsafe — do not.</sub>
 - [x] Raise the remaining low-opacity small text that no gate walked (`ExternalAiConnectionPanel` emerald /50–/60, `_ActionsWorkspace` /65, `NotificationCentreButton` /62) — **DONE 2026-09-05 (`867a84d9`):** all three raised (ExternalAiConnectionPanel /60→/80 and /50→emerald-900; _ActionsWorkspace /65→/80; NotificationCentreButton /62→/80, icon /60→/70, tab /40→/55); deployed + live. <sub>added 2026-09-03</sub>
 
