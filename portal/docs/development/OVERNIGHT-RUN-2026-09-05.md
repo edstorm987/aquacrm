@@ -27,9 +27,12 @@ need his keys/decisions) and [`plans/fractal-radar-architecture.md`](plans/fract
 >   Railway-proxy bug class — those were the only instances).
 > - **Dev-sandbox session (Ed's suggestion) unblocked the browser-gated work:** `npm run dev:sandbox`
 >   → `/dev` = a real writable agency-owner session on local file data. With it: **app-wide UI audit
->   (9 surfaces: 0 overflow + WCAG-AA at 375px)**, and **hydration mismatch #123 root-caused + fixed +
+>   (9 surfaces: 0 overflow + WCAG-AA at 375px)**; **hydration mismatch #123 root-caused + fixed +
 >   verified** (`useChromeLayout` seeded client state from module-scope values → topbar pin buttons
->   hydrated `disabled=false` vs server `disabled`; now SSR-consistent init + adopt-in-effect).
+>   hydrated `disabled=false` vs server `disabled`; now SSR-consistent init + adopt-in-effect); and a
+>   **client-onboarding create-flow acceptance** (New client → form → submit → client persisted to the
+>   backend, verified in `.data/portal-state.json`). Full onboarding "configure + services connected"
+>   still needs live providers; the create step is browser-accepted.
 > - **The semantic/blind-aware DATA model is complete + verified** — jargon→plain, ids→human labels,
 >   BLIND→reason+remedy, KNOWN-BAD→cause+fix, KNOWN-GOOD→evidence. An analyst can read any radar signal
 >   with no decoder.
