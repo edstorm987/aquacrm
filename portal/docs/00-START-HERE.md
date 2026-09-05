@@ -2,7 +2,7 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-09-05 from **23** source documents / **45,365 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-05 from **23** source documents / **45,384 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -27,7 +27,7 @@
 - [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 2,095 words · `379784a12461`
 - [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,643 words · `38954d1ad66e`
 - [`docs/development/OVERNIGHT-RUN-2026-09-05.md`](#source-docs-development-overnight-run-2026-09-05-md) — 6,229 words · `ccc99b8cdc68`
-- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 3,299 words · `2473e4fde54e`
+- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 3,318 words · `5ef1001cd31f`
 - [`README.md`](#source-readme-md) — 437 words · `78865db66238`
 
 ---
@@ -4597,7 +4597,7 @@ index that's pending, by design.
 
 ## Source document — `docs/development/TODO.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="2473e4fde54ec7726409ff04a14525fab5b42b1c8fc9569e5c8ca46b17b4e12c" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="5ef1001cd31f0cff8c92dea835b88029977b6e73665156d36f49c6003b39e0b7" -->
 # TODO — the one list
 
 **This is the only task list.** `checklist.md` and `todo-retired.md` are retired; they held the
@@ -4721,7 +4721,7 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Reference validation remains a broad open class; the audited client-route slice is fixed → [#20](issues.md)
 - [~] Canonical staff workspace capability policy, reusable-role authoring and Staff Technical Hidden/View/Use/Manage plus same-cookie downgrade enforcement are source/isolated-browser proven; finish provider-backed live-persona/shared-credential acceptance → [#25](issues.md)
 - [~] Shared plugin settings is operable and Marketing, Website Editor, Fulfillment and Memberships are truthful; Memberships is exact-build browser-proven, Ecommerce's low-stock default and Leads Pipeline's default source/capture column are now consumed and three dead Finance/Ecommerce/Leads declarations are removed, Client CRM's default tags and signup mirror are consumed and five stored-only promises (HR 2, Affiliates 2, Client CRM 1) are removed; the three that remain (HR staff-edit permission, Public Funnel redirect and session cookie) are safety-shaped access/session controls left labelled "Not connected" pending a security decision → [#44](issues.md)
-- [~] Finance, Dev Team, Governance, Fulfilment, Actions, Performance and Phase Admin mutation controls use checked response contracts; Actions (four viewports), Performance (seven viewports) and Phase Admin (0078567 dev lane 10/10; 2026-09-03 production lane 10/10 stories across 390×844 and 1280×800, 2 recorded N/A (production preview refusal), 0 unexpected console/page/request/HTTP failures, preview N/A by the dev-mode switch) are browser-proven, while Client Centre, SOP, Company and other families stay open → [#47](issues.md)
+- [~] Finance, Dev Team, Governance, Fulfilment, Actions, Performance and Phase Admin mutation controls use checked response contracts; Actions (four viewports), Performance (seven viewports) and Phase Admin (0078567 dev lane 10/10; 2026-09-03 production lane 10/10 stories across 390×844 and 1280×800, 2 recorded N/A (production preview refusal), 0 unexpected console/page/request/HTTP failures, preview N/A by the dev-mode switch) are browser-proven; **Client Centre checked-mutation browser-accepted 2026-09-05 in the dev sandbox** (client "Mark contacted" → truthful state change, no false success, **persisted** to backend); SOP, Company and other families still open → [#47](issues.md)
 - [~] Notepad autosave is browser-proven on two isolated exact builds (e1b2781; re-run 2026-09-03 notepad 17/17, finance 16/16, layout 42/42, loader 2/2 (77/77, 0 missing)); keep open only for a live-provider (Supabase-backed) rerun → [#54](issues.md)
 - [~] Mounted acceptance remains for settled utility controls → [#61](issues.md)
 - [~] Agency Marketing campaign rows, channel indexes and reports are cross-process/crash-atomic on the file backend; finish native Supabase/Postgres constraints and live-provider acceptance → [#84](issues.md)
