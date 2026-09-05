@@ -733,12 +733,12 @@ export async function listOperationalAlerts(
     .sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity] || b.occurredAt - a.occurredAt);
   if (canCache) operationalAlertsCache.set(agencyId, { alerts: resolved, at: now });
   const _sweepMs = Math.round(performance.now() - _sweepStart);
-  if (process.env.NODE_ENV === "production" && _sweepMs > 1500) {
+  if (process.env.NODE_ENV === "production" && _sweepMs > 100) {
     const awaited = Object.values(_phase).reduce((sum, ms) => sum + ms, 0);
     // `sync` is everything not inside a timed await — the portfolio/client/finance
     // iteration. If it dominates, the fix is the iteration; if an await dominates,
     // the fix is that read/write.
-    console.warn(
+    console.log(
       `[perf] operationalAlerts sweep ${_sweepMs}ms agency=${agencyId} `
       + `phases=${JSON.stringify({ ..._phase, sync: Math.max(0, _sweepMs - awaited) })}`,
     );

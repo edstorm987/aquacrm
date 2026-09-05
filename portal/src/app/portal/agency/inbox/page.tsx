@@ -64,7 +64,17 @@ type PropertyRecord = {
 };
 
 export default async function AgencyInboxPage() {
-  await ensureHydrated();
+  // TEMP diagnostic (2026-09-05): the first inbox render per 60s cache window
+  // runs ~6s while cached repeats run ~950ms. The sweep body itself is <1.5s, so
+  // the cost is elsewhere in this render and correlated with the uncached sweep.
+  // Time each awaited phase and log the breakdown to find it. Removed once fixed.
+  const _renderStart = performance.now();
+  const _p: Record<string, number> = {};
+  const _t = async <T>(label: string, work: () => Promise<T>): Promise<T> => {
+    const at = performance.now();
+    try { return await work(); } finally { _p[label] = Math.round(performance.now() - at); }
+  };
+  await _t("ensureHydrated", () => ensureHydrated());
   const session = await requireRole([...AGENCY_ROLES]);
   const { actor, access } = await requireCurrentWorkspaceElementAccess("staff", "workspace.inbox", "view");
   const agencyId = actor.resourceAgencyId;
@@ -78,7 +88,7 @@ export default async function AgencyInboxPage() {
     return clientWorkspaceElementAtLeast(clientWorkspaceElementLevel(clientAccess, "client.communications"), "view");
   });
   const visibleClientIds = new Set(clients.map(client => client.id));
-  const [liveAlerts, activity, websiteFormsResult, socialInboxResult] = await Promise.all([
+  const [liveAlerts, activity, websiteFormsResult, socialInboxResult] = await _t("promiseAll", () => Promise.all([
     listOperationalAlerts(agencyId),
     Promise.resolve(listActivity({ agencyId, limit: 150 })),
     (session.isDemo || session.publicShowcase ? Promise.resolve([]) : listWebsiteEnquiries(agencyId)).then(
@@ -95,7 +105,7 @@ export default async function AgencyInboxPage() {
         error: cause instanceof Error ? cause.message : "Social inbox storage could not be loaded.",
       }),
     ),
-  ]);
+  ]));
   if (session.isDemo && !session.publicShowcase) clearIdentityResolutionReviews(agencyId);
   const alerts = listOperationalAlertViews(
     agencyId,
@@ -104,17 +114,17 @@ export default async function AgencyInboxPage() {
   ).filter(alert => alert.attention);
   const websiteFormsUnscoped = websiteFormsResult.error || session.publicShowcase
     ? websiteFormsResult.submissions
-    : await synchroniseWebsiteEnquiryIdentities(agencyId, websiteFormsResult.submissions).catch(() => websiteFormsResult.submissions);
+    : await _t("syncWebsiteIdentities", () => synchroniseWebsiteEnquiryIdentities(agencyId, websiteFormsResult.submissions).catch(() => websiteFormsResult.submissions));
   const websiteForms = websiteFormsUnscoped.filter(submission => !submission.clientId || visibleClientIds.has(submission.clientId));
   const socialInboxUnscoped = socialInboxResult.error || session.publicShowcase
     ? socialInboxResult.snapshot
-    : await synchroniseInboxIdentityResolutions(agencyId, socialInboxResult.snapshot).catch(() => socialInboxResult.snapshot);
+    : await _t("syncInboxResolutions", () => synchroniseInboxIdentityResolutions(agencyId, socialInboxResult.snapshot).catch(() => socialInboxResult.snapshot));
   const socialInbox = {
     ...socialInboxUnscoped,
     conversations: socialInboxUnscoped.conversations.filter(conversation =>
       !conversation.identity.clientId || visibleClientIds.has(conversation.identity.clientId)),
   };
-  if (!session.publicShowcase) await flushPendingWritesForRender();
+  if (!session.publicShowcase) await _t("flushForRender", () => flushPendingWritesForRender());
   const conversations = clients.flatMap(client => {
     const clientLabel = clientWorkspaceDisplayName(client);
     const metadata = client.metadata as { clientRequests?: RequestRecord[]; properties?: PropertyRecord[] } | undefined;
@@ -160,7 +170,11 @@ export default async function AgencyInboxPage() {
   // One assembly feeds both the Needs-you slot and its badge, so the tab can
   // never again say 0 while the queue below it holds work. Showcase keeps its
   // null slot AND a zero count.
-  const preparedActions = session.publicShowcase ? null : await assembleAgencyActions();
+  const preparedActions = session.publicShowcase ? null : await _t("assembleActions", () => assembleAgencyActions());
+  const _renderMs = Math.round(performance.now() - _renderStart);
+  if (process.env.NODE_ENV === "production" && _renderMs > 1500) {
+    console.log(`[perf] inbox render ${_renderMs}ms phases=${JSON.stringify(_p)}`);
+  }
 
   const inboxActivityCategories = new Set(["inbox", "support", "feedback", "public-funnel"]);
   const visibleActivity = activity.filter(entry => {
