@@ -164,7 +164,7 @@ describe("Dev Console — the topbar wiring", () => {
     // be pinned to the bar; the gate itself is unchanged.
     assert.match(
       topbar,
-      /devConsole && !publicShowcase && !showcaseMode\s*\?\s*\{ id: "dev-console", label: "Dev Console", node: <DevConsoleControl key="dev-console" \/> \}\s*: null/,
+      /devConsole && !publicShowcase && !showcaseMode\s*\?\s*\{ id: "dev-console", label: "Dev Team", node: <DevConsoleControl key="dev-console" \/> \}\s*: null/,
     );
 
     // Every surface that renders a Topbar for an agency operator passes it.

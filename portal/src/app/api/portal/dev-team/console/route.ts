@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
       { headers: { "cache-control": "no-store" } },
     );
   } catch {
-    return NextResponse.json({ ok: false, error: "Could not read the Dev Console status." }, { status: 500 });
+    return NextResponse.json({ ok: false, error: "Could not read the Dev Team status." }, { status: 500 });
   }
 }
 

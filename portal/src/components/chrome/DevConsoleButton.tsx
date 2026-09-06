@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import type { DevConsoleBadge } from "@/lib/server/dev/devConsoleStatus";
 import type { FindingSeverity } from "@/lib/server/dev/devTeamFindings";
 
-// The topbar Dev Console — the ambient half of the Dev Team workspace.
+// The topbar Dev Team — the ambient half of the Dev Team workspace.
 //
 // Same shape as its two neighbours (`RadarQuickLookButton` /
 // `NotificationCentreButton`): a 36px chrome button with an attention badge and
@@ -27,7 +27,7 @@ const DevConsolePanel = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="grid min-h-[12rem] place-items-center text-xs text-black/40">Loading Dev Console…</div>
+      <div className="grid min-h-[12rem] place-items-center text-xs text-black/40">Loading Dev Team…</div>
     ),
   },
 );
@@ -74,8 +74,8 @@ export function DevConsoleButton({ initialBadge }: { initialBadge: DevConsoleBad
 
   const unsaved = Boolean(draft.title.trim() || draft.note.trim() || draft.shots.length);
   const label = attention
-    ? `Dev Console, ${attention} items need attention${unsaved ? ", and an unsaved finding" : ""}`
-    : unsaved ? "Dev Console, an unsaved finding is waiting" : "Dev Console, nothing needs attention";
+    ? `Dev Team, ${attention} items need attention${unsaved ? ", and an unsaved finding" : ""}`
+    : unsaved ? "Dev Team, an unsaved finding is waiting" : "Dev Team, nothing needs attention";
 
   return (
     <div ref={rootRef} className="mm-has-attention-badge relative overflow-visible">
@@ -84,7 +84,7 @@ export function DevConsoleButton({ initialBadge }: { initialBadge: DevConsoleBad
         aria-label={label}
         aria-expanded={open}
         aria-haspopup="dialog"
-        title="Dev Console"
+        title="Dev Team"
         onClick={() => setOpen(value => !value)}
         className="relative grid size-9 place-items-center rounded-md border border-black/10 bg-white text-black/60 shadow-sm transition hover:border-black/20 hover:bg-black/[0.025]"
       >
@@ -105,7 +105,7 @@ export function DevConsoleButton({ initialBadge }: { initialBadge: DevConsoleBad
         <section
           data-chrome-surface
           role="dialog"
-          aria-label="Dev Console"
+          aria-label="Dev Team"
           className="mm-popover mm-dev-console-popover fixed right-3 top-14 z-50 flex max-h-[min(42rem,calc(100dvh-4.5rem))] w-[min(29rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-lg border border-black/10 bg-white shadow-[0_20px_60px_rgba(0,0,0,0.2)] sm:absolute sm:right-0 sm:top-11"
         >
           <DevConsolePanel

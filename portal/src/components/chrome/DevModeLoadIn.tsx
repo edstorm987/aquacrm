@@ -40,7 +40,7 @@ const PERSONA_COPY: Record<string, { label: string; detail: string }> = {
  * here and an overlay that lies about identity is worse than no overlay.
  */
 const WORKSPACE_COPY: LoadInCopy = {
-  label: "Dev Console",
+  label: "Dev Team",
   detail: "Opening plans, workers, findings and the library. You stay signed in as yourself.",
   eyebrow: "DEV CONSOLE WORKSPACE",
   title: "Opening the workspace",
@@ -48,7 +48,7 @@ const WORKSPACE_COPY: LoadInCopy = {
   systems: [
     { icon: UserRound, text: "Still signed in as you" },
     { icon: ShieldCheck, text: "Your real data" },
-    { icon: Hammer, text: "Dev Console" },
+    { icon: Hammer, text: "Dev Team" },
   ],
 };
 
@@ -117,7 +117,7 @@ export function DevModeLoadIn() {
       data-phase={phase}
       role="status"
       aria-live="assertive"
-      aria-label={persona === DEV_MODE_LOADIN_WORKSPACE ? "Opening the Dev Console workspace" : `Loading Dev Mode — ${copy.label} view`}
+      aria-label={persona === DEV_MODE_LOADIN_WORKSPACE ? "Opening the Dev Team workspace" : `Loading Dev Mode — ${copy.label} view`}
     >
       <div className="mm-command-transition__curtain mm-command-transition__curtain--left" aria-hidden="true" />
       <div className="mm-command-transition__curtain mm-command-transition__curtain--right" aria-hidden="true" />

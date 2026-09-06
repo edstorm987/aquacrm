@@ -208,7 +208,7 @@ export function FindingsWorkspace({ initial }: { initial: Finding[] }) {
         </div>
 
         <input className={input} value={title} onChange={e => setTitle(e.target.value)}
-          placeholder="What's wrong? e.g. Battle Table badge shows 0 when there are 7 blocked" maxLength={120} />
+          placeholder="What's wrong? e.g. Plan & targets badge shows 0 when there are 7 blocked" maxLength={120} />
 
         <textarea className={`mt-2 min-h-[76px] resize-y ${input}`} value={note} onChange={e => setNote(e.target.value)}
           placeholder="Anything else — what you expected, what happened, how to reproduce." maxLength={4000} />

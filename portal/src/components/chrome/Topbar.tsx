@@ -183,7 +183,7 @@ export async function Topbar({ title, subtitle, role, email, name, avatarUrl, pa
       ),
     },
     devConsole && !publicShowcase && !showcaseMode
-      ? { id: "dev-console", label: "Dev Console", node: <DevConsoleControl key="dev-console" /> }
+      ? { id: "dev-console", label: "Dev Team", node: <DevConsoleControl key="dev-console" /> }
       : null,
     !publicShowcase && radarControl ? { id: "radar", label: "Business Radar", node: <Fragment key="radar">{radarControl}</Fragment> } : null,
     inspecting ? { id: "inspector", label: "Inspector mode", node: <InspectorModeControl key="inspector" label={inspectingLabel} /> } : null,

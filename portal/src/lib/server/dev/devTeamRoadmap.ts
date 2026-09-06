@@ -440,7 +440,7 @@ const PREAMBLE = `# Roadmap
 
 ← [state.md](../context/state.md) · [todo.md](TODO.md) · **The outer view — what is coming, and when.**
 
-_Written and edited from the Dev Console (\`/portal/dev-team/roadmap\`). Each item is an
+_Written and edited from the Dev Team (\`/portal/dev-team/roadmap\`). Each item is an
 OUTCOME; the plans under it are how it gets built, and their phases are the tasks. Progress
 is computed from those tasks — never typed here — so this file cannot drift on its own._
 

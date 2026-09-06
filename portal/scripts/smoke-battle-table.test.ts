@@ -504,14 +504,14 @@ test("Battle Table is the third command station and owns every executive control
   assert.match(nav, /"executive" \| "day" \| "battle"/);
   assert.match(nav, /label="Day command"/);
   assert.match(nav, /label="Business health"/);
-  assert.match(nav, /label="Battle Table"/);
+  assert.match(nav, /label="Plan & targets"/);
   // Battle Table stays the third of three always-on stations; the nav only
   // widens to four columns when the founder-gated Dev Team station is rendered.
   assert.match(nav, /showDevTeam \? "sm:grid-cols-4" : "sm:grid-cols-3"/);
   assert.match(dashboard, /initialStation === "battle"/);
   assert.match(dashboard, /<BattleTableWorkspace payload=\{battleTablePayload\}/);
 
-  for (const station of ["Strategic plot", "KPI intelligence", "Direction", "Projections", "Objectives", "Capacity", "Plans", "Capital & ownership", "Reviews", "Executive systems"]) {
+  for (const station of ["Strategic plot", "Key numbers", "Direction", "Projections", "Objectives", "Capacity", "Plans", "Capital & ownership", "Reviews", "Executive systems"]) {
     assert.match(table, new RegExp(station));
   }
   for (const workingControl of ["Revenue trajectory and target corridor", "Run scenarios", "Objective command", "Capacity assumptions", "Hiring intelligence", "Where the next unit of capacity matters most", "Accept hiring action", "Area capacity map", "Every supporting system remains one move away"]) {
@@ -973,7 +973,7 @@ test("The war room is the Battle Table front door and the 10 planning sections a
   assert.match(table, /buildWarRoomPulse\(\{ scope, now: warRoomNow, kpiTargets \}\)/);
 
   // Demoted, not deleted: every planning section is still reachable.
-  for (const station of ["Strategic plot", "KPI intelligence", "Direction", "Projections", "Objectives", "Capacity", "Plans", "Capital & ownership", "Reviews", "Executive systems"]) {
+  for (const station of ["Strategic plot", "Key numbers", "Direction", "Projections", "Objectives", "Capacity", "Plans", "Capital & ownership", "Reviews", "Executive systems"]) {
     assert.match(table, new RegExp(station));
   }
 

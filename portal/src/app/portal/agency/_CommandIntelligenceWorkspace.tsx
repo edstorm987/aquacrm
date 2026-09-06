@@ -124,7 +124,7 @@ export function CommandIntelligenceWorkspace({ snapshot, initialView = "overview
 
     <IntelligenceScopeBar scopes={snapshot.scopes} selected={selectedScope} availableKpis={scopedSnapshot.kpis.length} onSelect={setScopeId} />
 
-    <nav className="grid grid-cols-2 border-b border-[#62e8ff]/16 bg-[#020b11] sm:grid-cols-3 xl:grid-cols-6" aria-label="KPI Intelligence views">
+    <nav className="grid grid-cols-2 border-b border-[#62e8ff]/16 bg-[#020b11] sm:grid-cols-3 xl:grid-cols-6" aria-label="Key numbers views">
       <ViewButton active={view === "overview"} icon={<Radar size={14} />} label="Overview" detail="Decision picture" onClick={() => setView("overview")} />
       <ViewButton active={view === "lifecycle"} icon={<Route size={14} />} label="Lifecycle" detail={`${snapshot.commercialIntelligence.people.length} people traced`} onClick={() => setView("lifecycle")} />
       <ViewButton active={view === "campaigns"} icon={<Megaphone size={14} />} label="Campaigns" detail={`${scopedSnapshot.campaigns.length} tracked`} onClick={() => setView("campaigns")} />

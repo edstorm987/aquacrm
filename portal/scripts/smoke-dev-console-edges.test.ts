@@ -311,7 +311,7 @@ describe("Dev Console panel — what a load may repaint, and what it must say", 
       assert.notEqual(readableError(raw, 401), raw);
     }
     // The 500 path already returns a sentence — pass it straight through.
-    assert.equal(readableError("Could not read the Dev Console status.", 500), "Could not read the Dev Console status.");
+    assert.equal(readableError("Could not read the Dev Team status.", 500), "Could not read the Dev Team status.");
     // And an answer with no body at all still says something.
     assert.equal(readableError(undefined, 502), "Status unavailable (502).");
   });

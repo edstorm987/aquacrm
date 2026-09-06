@@ -151,7 +151,7 @@ export function collectLegalDocumentDependants(
         id: decision.id,
         label: label(decision.title, "Untitled executive decision"),
         nested: true,
-        location: "Battle Table · Capital and ownership",
+        location: "Plan & targets · Capital and ownership",
       });
     }
   }

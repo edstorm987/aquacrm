@@ -66,7 +66,7 @@ test("manual inspection covers every Radar layer and links from Command Centre",
   assert.doesNotMatch(stationNav, /KPI Intelligence/);
   assert.match(dashboard, /CommandInstrumentDock/);
   assert.match(dashboard, /Open Radar Workspace/);
-  assert.match(dashboard, /Open KPI Intelligence/);
+  assert.match(dashboard, /Open Key numbers/);
   assert.match(dashboard, /Back to Business health/);
   assert.match(dashboard, /Data inspector/);
   assert.match(dashboard, /initialTab=\{inspectorTarget\.tab\}/);

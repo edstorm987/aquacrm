@@ -172,7 +172,7 @@ test("the Command Centre exposes twenty source-backed decision KPIs and dedicate
   assert.doesNotMatch(stationNav, /Omega Dashboard/);
   assert.match(dashboard, /CommandCentreKpiTrajectory/);
   assert.match(dashboard, /CommandInstrumentDock/);
-  assert.match(dashboard, /Open KPI Intelligence/);
+  assert.match(dashboard, /Open Key numbers/);
   assert.match(dashboard, /Open Radar Workspace/);
   assert.match(dashboard, /Back to Business health/);
   assert.match(dashboard, /data-testid="unified-command-centre"/);
