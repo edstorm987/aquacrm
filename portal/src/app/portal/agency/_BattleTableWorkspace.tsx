@@ -463,7 +463,7 @@ function TargetStateChip({ state, deviationPercent }: { state: WarRoomTargetStat
     : state === "behind" ? "Behind"
     : state === "critical" ? "Off track"
     : state === "no-target" ? "No target"
-    : "Learning";
+    : "Still gathering";
   const tone = state === "critical" ? "border-red-300/25 bg-red-400/10 text-red-200"
     : state === "behind" ? "border-amber-300/25 bg-amber-300/10 text-amber-200"
     : state === "ahead" || state === "on-track" ? "border-[#68f5d0]/22 bg-[#68f5d0]/[0.06] text-[#68f5d0]"
@@ -540,7 +540,7 @@ function KpiStrategyWorkspace({ snapshot, initialScopeId, onOpenIntelligence }: 
       </div>
       <StrategicKpiReadout label="Connected" value={`${snapshot.summary.connectedKpis}/${snapshot.kpis.length}`} tone="clear" />
       <StrategicKpiReadout label="Attention" value={String(attentionCount)} tone={snapshot.summary.criticalKpis ? "critical" : attentionCount ? "warning" : "clear"} />
-      <StrategicKpiReadout label="Blind" value={String(snapshot.summary.blindKpis)} tone={snapshot.summary.blindKpis ? "warning" : "clear"} />
+      <StrategicKpiReadout label="No data yet" value={String(snapshot.summary.blindKpis)} tone={snapshot.summary.blindKpis ? "warning" : "clear"} />
       <div className="flex items-center px-4 py-3"><button type="button" onClick={() => onOpenIntelligence(primaryIds, initialScopeId)} className="inline-flex min-h-10 w-full items-center justify-center gap-2 border border-[#d7b56d]/30 bg-[#d7b56d]/[0.1] px-4 text-[9px] font-semibold uppercase text-[#f1dba9] hover:bg-[#d7b56d]/[0.16]">Full KPI workspace <ArrowUpRight size={13} /></button></div>
     </header>
     <KpiComparisonWorkspace snapshot={snapshot} initialKpiIds={primaryIds.slice(0, 5)} initialRange="quarter" context="strategic" onInspect={(kpi: CommandKpi) => onOpenIntelligence([kpi.id], kpi.scope.id)} />

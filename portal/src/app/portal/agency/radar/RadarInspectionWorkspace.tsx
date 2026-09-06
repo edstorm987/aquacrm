@@ -354,9 +354,9 @@ export function RadarInspectionWorkspace({
       <section className="grid grid-cols-2 overflow-hidden border-y border-black/10 bg-white sm:grid-cols-4 xl:grid-cols-8" aria-label="Radar inspection summary">
         <SummaryMetric label="Checks" value={radar.summary.totalChecks} icon={<RadioTower size={15} />} />
         <SummaryMetric label="Passing" value={radar.summary.passedChecks} icon={<Check size={15} />} tone="good" />
-        <SummaryMetric label="Firing" value={radar.summary.firingChecks} icon={<AlertTriangle size={15} />} tone={radar.summary.firingChecks ? "bad" : "good"} />
-        <SummaryMetric label="Blind" value={radar.summary.blindChecks} icon={<EyeOff size={15} />} tone={radar.summary.blindChecks ? "warn" : "good"} />
-        <SummaryMetric label="Learning" value={radar.summary.learningChecks} icon={<History size={15} />} />
+        <SummaryMetric label="Alerting" value={radar.summary.firingChecks} icon={<AlertTriangle size={15} />} tone={radar.summary.firingChecks ? "bad" : "good"} />
+        <SummaryMetric label="No data yet" value={radar.summary.blindChecks} icon={<EyeOff size={15} />} tone={radar.summary.blindChecks ? "warn" : "good"} />
+        <SummaryMetric label="Still gathering" value={radar.summary.learningChecks} icon={<History size={15} />} />
         <SummaryMetric label="Sources" value={`${radar.summary.connectedSources}/${radar.summary.totalSources}`} icon={<Database size={15} />} />
         <SummaryMetric label="Evidence" value={evidence.totalSamples} icon={<Activity size={15} />} />
         {/*
@@ -522,7 +522,7 @@ function KpiScorecard({ rows, selected, onSelect, onInspectChecks, onInspectEvid
       <SummaryMetric label="On target" value={passing} icon={<Check size={15} />} tone="good" />
       <SummaryMetric label="Attention" value={attention} icon={<AlertTriangle size={15} />} tone={attention ? "bad" : "good"} />
       <SummaryMetric label="Calibrating" value={calibrating} icon={<History size={15} />} />
-      <SummaryMetric label="Blind" value={blind} icon={<EyeOff size={15} />} tone={blind ? "warn" : "good"} />
+      <SummaryMetric label="No data yet" value={blind} icon={<EyeOff size={15} />} tone={blind ? "warn" : "good"} />
     </section>
 
     <div className="flex flex-wrap items-end justify-between gap-3">
@@ -790,7 +790,7 @@ function recordDigest(record: Record<string, unknown>): string {
 function SourcesAndMetrics({ radar }: { radar: BusinessIssueRadar }) {
   return <div className="grid gap-5">
     <PrioritySignalCentre radar={radar} />
-    <section className="overflow-hidden border border-black/10 bg-white"><SectionHeader icon={<RadioTower size={17} />} title="Domain rollups" detail="Complete assurance, readiness, confidence, and outcome counts for each business area." count={radar.domains.length} /><div className="overflow-x-auto"><table className="w-full min-w-[1120px] border-collapse text-left text-xs"><thead className="bg-[#efeee9]"><tr><Th>Domain</Th><Th>Total</Th><Th>Applicable</Th><Th>Pass</Th><Th>Firing</Th><Th>Watch</Th><Th>Blind</Th><Th>Learning</Th><Th>Inactive</Th><Th>Coverage</Th><Th>Assurance</Th><Th>Confidence</Th><Th>Readiness</Th><Th>Last signal</Th></tr></thead><tbody className="divide-y divide-black/10">{radar.domains.map(item => <tr key={item.domain}><Td><strong>{domainLabel(item.domain)}</strong></Td><Td mono>{item.totalChecks}</Td><Td mono>{item.applicableChecks}</Td><Td mono>{item.passedChecks}</Td><Td mono>{item.firingChecks}</Td><Td mono>{item.watchChecks}</Td><Td mono>{item.blindChecks}</Td><Td mono>{item.learningChecks}</Td><Td mono>{item.inactiveChecks}</Td><Td mono>{item.coveragePercent}%</Td><Td mono>{item.assurancePercent}%</Td><Td mono>{item.confidencePercent}%</Td><Td mono>{item.readinessPercent}%</Td><Td>{item.lastSignalAt ? formatDate(item.lastSignalAt) : "None"}</Td></tr>)}</tbody></table></div></section>
+    <section className="overflow-hidden border border-black/10 bg-white"><SectionHeader icon={<RadioTower size={17} />} title="Domain rollups" detail="Complete assurance, readiness, confidence, and outcome counts for each business area." count={radar.domains.length} /><div className="overflow-x-auto"><table className="w-full min-w-[1120px] border-collapse text-left text-xs"><thead className="bg-[#efeee9]"><tr><Th>Domain</Th><Th>Total</Th><Th>Applicable</Th><Th>Pass</Th><Th>Alerting</Th><Th>Watch</Th><Th>No data yet</Th><Th>Still gathering</Th><Th>Inactive</Th><Th>Coverage</Th><Th>Assurance</Th><Th>Confidence</Th><Th>Readiness</Th><Th>Last signal</Th></tr></thead><tbody className="divide-y divide-black/10">{radar.domains.map(item => <tr key={item.domain}><Td><strong>{domainLabel(item.domain)}</strong></Td><Td mono>{item.totalChecks}</Td><Td mono>{item.applicableChecks}</Td><Td mono>{item.passedChecks}</Td><Td mono>{item.firingChecks}</Td><Td mono>{item.watchChecks}</Td><Td mono>{item.blindChecks}</Td><Td mono>{item.learningChecks}</Td><Td mono>{item.inactiveChecks}</Td><Td mono>{item.coveragePercent}%</Td><Td mono>{item.assurancePercent}%</Td><Td mono>{item.confidencePercent}%</Td><Td mono>{item.readinessPercent}%</Td><Td>{item.lastSignalAt ? formatDate(item.lastSignalAt) : "None"}</Td></tr>)}</tbody></table></div></section>
     <div className="grid gap-5 xl:grid-cols-2">
       <section className="overflow-hidden border border-black/10 bg-white"><SectionHeader icon={<Database size={17} />} title="Source coverage" detail="Every source Radar evaluates, including freshness and the exact next activation step." count={radar.coverage.length} /><div className="divide-y divide-black/10">{radar.coverage.map(source => {
         const state = sourceConnectionState(source, radar.generatedAt);

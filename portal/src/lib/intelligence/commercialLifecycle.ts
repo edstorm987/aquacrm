@@ -427,11 +427,11 @@ function clientsObserved(snapshot: CommercialLifecycleSnapshot): number {
 }
 
 function displayPercent(value: number | null): string {
-  return value === null ? "Learning" : `${value}%`;
+  return value === null ? "Still gathering" : `${value}%`;
 }
 
 function displayDuration(value: number | null): string {
-  if (value === null) return "Learning";
+  if (value === null) return "Still gathering";
   if (value < DAY) return `${Math.max(1, Math.round(value / 3_600_000))}h`;
   return `${Math.round(value / DAY)}d`;
 }

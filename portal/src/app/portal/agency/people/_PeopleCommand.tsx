@@ -292,7 +292,7 @@ function CapacityCommand({ capacity, allowedTabs, onOpen }: { capacity: StaffCap
       ) : null}
 
       <section className="rounded-lg border border-black/10 bg-white">
-        <header className="flex items-center justify-between border-b border-black/10 p-4"><div className="flex items-center gap-2"><TriangleAlert className="text-amber-600" size={18} /><h2 className="font-semibold">Where you're stretched</h2></div><span className="text-xs text-black/45">{attention.length} signal{attention.length === 1 ? "" : "s"} firing</span></header>
+        <header className="flex items-center justify-between border-b border-black/10 p-4"><div className="flex items-center gap-2"><TriangleAlert className="text-amber-600" size={18} /><h2 className="font-semibold">Where you're stretched</h2></div><span className="text-xs text-black/45">{attention.length} signal{attention.length === 1 ? "" : "s"} alerting</span></header>
         <div className="divide-y divide-black/10">
           {attention.length ? attention.map((signal, index) => <SignalRow key={`${signal.area ?? "all"}:${signal.familyId}:${index}`} signal={signal} />) : <p className="p-6 text-center text-sm text-black/45">No capacity or hiring pressure is firing right now. The team is balanced.</p>}
         </div>

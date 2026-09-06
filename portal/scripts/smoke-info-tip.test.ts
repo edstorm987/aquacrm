@@ -94,7 +94,7 @@ test("Command Intelligence translates every readout it prints", async () => {
   for (const label of printed) {
     assert.ok(meanings.has(label), `"${label}" is printed with no plain-English meaning behind it`);
   }
-  for (const jargon of ["Blind", "Learning", "Portfolio ROAS", "Unmapped labels"]) {
+  for (const jargon of ["No data yet", "Still gathering", "Portfolio ROAS", "Unmapped labels"]) {
     assert.ok(meanings.has(jargon), `"${jargon}" is the exact wording an operator cannot decode`);
   }
 

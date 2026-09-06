@@ -96,8 +96,8 @@ export function radarCheckStatusClass(status: RadarCheckStatus): string {
 
 export function radarCheckStatusLabel(status: RadarCheckStatus): string {
   if (status === "pass") return "Pass";
-  if (status === "blind") return "Blind";
-  if (status === "learning") return "Learning";
+  if (status === "blind") return "No data yet";
+  if (status === "learning") return "Still gathering";
   if (status === "inactive") return "Inactive";
   return status;
 }
