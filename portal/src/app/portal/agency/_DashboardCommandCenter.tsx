@@ -18,6 +18,7 @@ import {
   Check,
   CheckCircle2,
   ChevronLeft,
+  ClipboardCheck,
   ChevronRight,
   Clock3,
   Compass,
@@ -1336,6 +1337,18 @@ export function DashboardCommandCenter({
         }}
         onSelect={selectCommandStation}
       />
+      <CommandMoreNav
+        keyNumbersActive={activeStation === "intelligence"}
+        advisorActive={dashboardMode === "advisor"}
+        actionsActive={dashboardMode === "actions"}
+        calendarActive={dashboardMode === "calendar"}
+        showPersonal={canUsePersonalCommand}
+        pending={serverNavigationBusy}
+        onOpenKeyNumbers={openIntelligenceOverview}
+        onOpenAdvisor={() => selectWorkspaceMode("advisor")}
+        onOpenActions={() => selectWorkspaceMode("actions")}
+        onOpenCalendar={() => selectWorkspaceMode("calendar")}
+      />
       {displayedScanIsPaused ? (
         <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-[#e5c479]/30 bg-[#e5c479]/[0.06] px-4 py-3 text-sm text-[#f0dcae]" data-testid="command-scan-paused">
           <span className="flex items-center gap-2"><Gauge size={15} /> {scanResultAccessDenied
@@ -1719,6 +1732,38 @@ export function DashboardCommandCenter({
     </section></fieldset>}
     </div>
   );
+}
+
+// One visible menu for the destinations that used to be reachable only through
+// scattered buttons or a URL: Key numbers, Advisor, Actions and Calendar. It
+// sits directly under the four primary stations so the whole Command Centre is
+// findable from one place instead of by knowing where a link happens to live.
+function CommandMoreNav({ keyNumbersActive, advisorActive, actionsActive, calendarActive, showPersonal, pending, onOpenKeyNumbers, onOpenAdvisor, onOpenActions, onOpenCalendar }: {
+  keyNumbersActive: boolean;
+  advisorActive: boolean;
+  actionsActive: boolean;
+  calendarActive: boolean;
+  /** Actions and Calendar are the owner's personal command surfaces; hidden when the viewer cannot use them. */
+  showPersonal: boolean;
+  pending: boolean;
+  onOpenKeyNumbers: () => void;
+  onOpenAdvisor: () => void;
+  onOpenActions: () => void;
+  onOpenCalendar: () => void;
+}) {
+  return <nav aria-label="More views" data-testid="command-more-nav" className="mm-command-more-nav grid grid-cols-2 overflow-hidden rounded-md border border-[#62e8ff]/25 bg-[#031018] text-white sm:grid-flow-col sm:auto-cols-fr">
+    <CommandMoreButton icon={<BarChart3 size={15} />} label="Key numbers" detail="KPIs and the evidence behind them" active={keyNumbersActive} disabled={pending} onClick={onOpenKeyNumbers} />
+    <CommandMoreButton icon={<Bot size={15} />} label="Advisor" detail="Ask about the business" active={advisorActive} disabled={pending} onClick={onOpenAdvisor} />
+    {showPersonal ? <CommandMoreButton icon={<ClipboardCheck size={15} />} label="Actions" detail="Everything that needs you" active={actionsActive} disabled={pending} onClick={onOpenActions} /> : null}
+    {showPersonal ? <CommandMoreButton icon={<CalendarDays size={15} />} label="Calendar" detail="Your week" active={calendarActive} disabled={pending} onClick={onOpenCalendar} /> : null}
+  </nav>;
+}
+
+function CommandMoreButton({ icon, label, detail, active, disabled, onClick }: { icon: React.ReactNode; label: string; detail: string; active: boolean; disabled: boolean; onClick: () => void }) {
+  return <button type="button" aria-pressed={active} disabled={disabled} onClick={onClick} title={`${label} — ${detail}`} className={`mm-command-more-button flex min-h-[52px] items-center gap-2.5 border-b border-r border-[#62e8ff]/12 px-3 py-2 text-left transition last:border-r-0 disabled:cursor-wait disabled:opacity-55 sm:border-b-0 ${active ? "bg-[#62e8ff]/[0.12] text-white" : "text-white/62 hover:bg-[#62e8ff]/[0.06] hover:text-white"}`}>
+    <span className="grid size-7 shrink-0 place-items-center rounded-md border border-[#62e8ff]/20 bg-[#62e8ff]/[0.06] text-[#7edff3]" aria-hidden="true">{icon}</span>
+    <span className="min-w-0"><span className="block text-xs font-semibold">{label}</span><span className="mt-0.5 hidden truncate text-[10px] text-white/40 sm:block">{detail}</span></span>
+  </button>;
 }
 
 function CommandInstrumentDock({ alertCount, checkCount, onOpenIntelligence, onOpenRadar }: {
