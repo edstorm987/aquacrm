@@ -34,6 +34,22 @@ map stays trustworthy.
 
 ---
 
+## 2026-09-06 — Command Centre simplification, slice 6: Projections gets its own door
+
+- Projections/forecasting was buried as one section of ~a dozen inside the Plan &
+  targets (Battle Table) station, reachable only by going there and hunting for
+  the tab. It now has a first-class entry in the visible "More views" menu
+  (Key numbers · **Projections** · Advisor · Actions · Calendar) that deep-links
+  straight to the forecast/target-setting surface (`?station=battle&battle=projections`).
+- Smallest of the options Ed weighed ("just pull Projections out") — nothing else
+  is restructured; the section still also lives inside Plan & targets. Implemented
+  by teaching `navigateServerStation` an optional `battleSection` and adding the
+  door to `CommandMoreNav`. Pinned by `scripts/smoke-command-more-nav.test.ts`.
+- Verified: typecheck clean; dashboard/battle/more-nav/convergence focused tests
+  green; local-browser accepted at 375px and 1280px (door present, navigates to
+  the projections surface, no overflow, 0 console errors). Full `smoke:all` run at
+  commit time.
+
 ## 2026-09-06 — Command Centre simplification, slice 5: one converged "needs you" queue
 
 - The Command Centre priority feed and the Actions list built two different

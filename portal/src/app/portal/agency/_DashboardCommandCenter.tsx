@@ -477,8 +477,11 @@ export function DashboardCommandCenter({
     window.history.replaceState(window.history.state, "", href);
   }, [pathname, requestedServerStation, searchParams]);
 
-  const navigateServerStation = useCallback((station: ServerCommandStation) => {
-    if (pendingServerNavigationRef.current || requestedServerStation === station) return;
+  const navigateServerStation = useCallback((station: ServerCommandStation, options?: { battleSection?: BattleTableSection }) => {
+    // A battle-section deep link (e.g. the Projections door) may target the
+    // battle station even when it is already selected — only then do we allow a
+    // same-station navigation, so the section actually changes.
+    if (pendingServerNavigationRef.current || (requestedServerStation === station && !options?.battleSection)) return;
     const pending = beginServerStationNavigation(null, station, {
       activeStation: activeStationRef.current,
       dashboardMode: dashboardModeRef.current,
@@ -490,7 +493,14 @@ export function DashboardCommandCenter({
     setDashboardMode(optimisticView.dashboardMode);
     // A completed Radar + KPI payload crosses this RSC navigation by its exact
     // bounded result handle. GET navigation has no scan command to replay.
-    const href = serverCommandStationHref(pathname, searchParams.toString(), station, scanResultHandle);
+    let href = serverCommandStationHref(pathname, searchParams.toString(), station, scanResultHandle);
+    // Land the battle station straight on a named section (Projections) rather
+    // than its war-room front door, so the door is a one-click home for it.
+    if (options?.battleSection) {
+      const withSection = new URL(href, "https://command.local");
+      withSection.searchParams.set("battle", options.battleSection);
+      href = `${withSection.pathname}${withSection.search}`;
+    }
     try {
       startServerStationTransition(() => router.replace(href, { scroll: false }));
     } catch {
@@ -1348,12 +1358,14 @@ export function DashboardCommandCenter({
       />
       <CommandMoreNav
         keyNumbersActive={activeStation === "intelligence"}
+        projectionsActive={activeStation === "battle" && requestedBattleSection === "projections"}
         advisorActive={dashboardMode === "advisor"}
         actionsActive={dashboardMode === "actions"}
         calendarActive={dashboardMode === "calendar"}
         showPersonal={canUsePersonalCommand}
         pending={serverNavigationBusy}
         onOpenKeyNumbers={openIntelligenceOverview}
+        onOpenProjections={() => navigateServerStation("battle", { battleSection: "projections" })}
         onOpenAdvisor={() => selectWorkspaceMode("advisor")}
         onOpenActions={() => selectWorkspaceMode("actions")}
         onOpenCalendar={() => selectWorkspaceMode("calendar")}
@@ -1744,11 +1756,14 @@ export function DashboardCommandCenter({
 }
 
 // One visible menu for the destinations that used to be reachable only through
-// scattered buttons or a URL: Key numbers, Advisor, Actions and Calendar. It
-// sits directly under the four primary stations so the whole Command Centre is
-// findable from one place instead of by knowing where a link happens to live.
-function CommandMoreNav({ keyNumbersActive, advisorActive, actionsActive, calendarActive, showPersonal, pending, onOpenKeyNumbers, onOpenAdvisor, onOpenActions, onOpenCalendar }: {
+// scattered buttons or a URL: Key numbers, Projections, Advisor, Actions and
+// Calendar. It sits directly under the four primary stations so the whole
+// Command Centre is findable from one place instead of by knowing where a link
+// happens to live. Projections was buried as one tab of ~a dozen inside Plan &
+// targets; it now has a first-class door straight to the forecast surface.
+function CommandMoreNav({ keyNumbersActive, projectionsActive, advisorActive, actionsActive, calendarActive, showPersonal, pending, onOpenKeyNumbers, onOpenProjections, onOpenAdvisor, onOpenActions, onOpenCalendar }: {
   keyNumbersActive: boolean;
+  projectionsActive: boolean;
   advisorActive: boolean;
   actionsActive: boolean;
   calendarActive: boolean;
@@ -1756,12 +1771,14 @@ function CommandMoreNav({ keyNumbersActive, advisorActive, actionsActive, calend
   showPersonal: boolean;
   pending: boolean;
   onOpenKeyNumbers: () => void;
+  onOpenProjections: () => void;
   onOpenAdvisor: () => void;
   onOpenActions: () => void;
   onOpenCalendar: () => void;
 }) {
   return <nav aria-label="More views" data-testid="command-more-nav" className="mm-command-more-nav grid grid-cols-2 overflow-hidden rounded-md border border-[#62e8ff]/25 bg-[#031018] text-white sm:grid-flow-col sm:auto-cols-fr">
     <CommandMoreButton icon={<BarChart3 size={15} />} label="Key numbers" detail="KPIs and the evidence behind them" active={keyNumbersActive} disabled={pending} onClick={onOpenKeyNumbers} />
+    <CommandMoreButton icon={<TrendingUp size={15} />} label="Projections" detail="Forecast the numbers and set targets" active={projectionsActive} disabled={pending} onClick={onOpenProjections} />
     <CommandMoreButton icon={<Bot size={15} />} label="Advisor" detail="Ask about the business" active={advisorActive} disabled={pending} onClick={onOpenAdvisor} />
     {showPersonal ? <CommandMoreButton icon={<ClipboardCheck size={15} />} label="Actions" detail="Everything that needs you" active={actionsActive} disabled={pending} onClick={onOpenActions} /> : null}
     {showPersonal ? <CommandMoreButton icon={<CalendarDays size={15} />} label="Calendar" detail="Your week" active={calendarActive} disabled={pending} onClick={onOpenCalendar} /> : null}
