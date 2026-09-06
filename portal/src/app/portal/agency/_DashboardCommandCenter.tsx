@@ -49,6 +49,7 @@ import {
 } from "lucide-react";
 
 import type { AdvisorActionSuggestion } from "@/lib/advisor/advisorActions";
+import { buildUnifiedActionQueue, priorityRank, type GeneratedAction, type UnifiedActionItem } from "@/lib/intelligence/unifiedActionQueue";
 import { isTaskMutationResult, taskCompleteOperationId } from "@/lib/client/actionsMutationTruth";
 import { checkedJsonMutation } from "@/lib/client/checkedMutation";
 import {
@@ -62,7 +63,7 @@ import { buildBusinessRecommendedActions } from "@/lib/intelligence/businessReco
 import type { AdvisorCoverageSource, AdvisorDomain, BusinessIssueRadar, BusinessRadarCheck, BusinessRadarIssue, RadarCheckScope, RadarCheckStatus, RadarEvidenceInspectionIndex, RadarRuleLens } from "@/engines/data/radar/businessRadar";
 import type { CommandIntelligenceSnapshot } from "@/lib/intelligence/commandIntelligence";
 import { formatUkDate, isoDateTimeValue, timestampFromValue } from "@/lib/shared/formatDateTime";
-import type { AgencyTask, AgencyTaskOrigin, AgencyTaskPriority, CommandCalendarEntry, CommandCalendarExternalEvent, CommandCalendarSource, CompanyProfile, DashboardDayPlan, DashboardWeekPlan, DashboardWeeklyEvidenceSnapshot, DashboardWorkSession } from "@/server/types";
+import type { AgencyTask, AgencyTaskOrigin, AgencyTaskPriority, CommandCalendarEntry, CommandCalendarExternalEvent, CommandCalendarSource, CompanyProfile, DashboardDayPlan, DashboardWeekPlan, DashboardWeeklyEvidenceSnapshot, DashboardWorkSession, ExternalAssistantActionProposal } from "@/server/types";
 import type { ClockOutReviewDraft } from "./_ClockOutReviewDialog";
 import type { BattleTablePayload, BattleTableSection } from "./_BattleTableWorkspace";
 import type { WarRoomIncident } from "./_battleWarRoom";
@@ -190,10 +191,13 @@ export function DashboardCommandCenter({
   calendarEntries,
   externalCalendarEvents,
   externalCalendarSources,
-  signals,
   businessRadar,
   radarEvidence,
   recommendedActions,
+  generatedActions = [],
+  commandRecommendations = [],
+  externalProposals = [],
+  recommendationsGeneratedAt,
   advisorConfigured,
   counts,
   intelligenceSnapshot,
@@ -223,10 +227,18 @@ export function DashboardCommandCenter({
   calendarEntries: CommandCalendarEntry[];
   externalCalendarEvents: CommandCalendarExternalEvent[];
   externalCalendarSources: CommandCalendarSource[];
-  signals: DashboardSignal[];
   businessRadar: BusinessIssueRadar;
   radarEvidence: RadarEvidenceInspectionIndex;
   recommendedActions: AdvisorActionSuggestion[];
+  /** CRM/inbox-derived actions from the shared `assembleAgencyActions` — the
+   *  same set the Actions list receives. Empty while the scan is paused. */
+  generatedActions?: GeneratedAction[];
+  /** Radar recommendations from the same assembler (the Actions "Radar" source). */
+  commandRecommendations?: AdvisorActionSuggestion[];
+  /** Pending external-AI proposals from the same assembler. */
+  externalProposals?: ExternalAssistantActionProposal[];
+  /** When the server assembled the recommendations/CRM inputs above. */
+  recommendationsGeneratedAt?: number;
   advisorConfigured: boolean;
   counts: { activeClients: number; leads: number; delivery: number; products: number };
   intelligenceSnapshot: CommandIntelligenceSnapshot;
@@ -704,35 +716,32 @@ export function DashboardCommandCenter({
     deterministicRecommendedActions,
     openTasks.map(task => task.title),
   ), [advisorSuggestions, deterministicRecommendedActions, serverRecommendedActions, openTasks]);
+  // The one "needs you" queue. The Command Centre priority feed is built from
+  // the SAME shared assembler the Actions list uses (`buildUnifiedActionQueue`)
+  // over the SAME server-assembled inputs (`assembleAgencyActions`) — so the two
+  // surfaces can never disagree about what needs the owner (Ed: "needs you
+  // notifications is wrong… it's meant to combine the actions + other things
+  // into one"). Committed tasks stay live here (accept/complete mutate
+  // `taskRows`); the suggestion/proposal/CRM inputs are the server's assembly,
+  // pruned client-side for anything accepted during this session so an accepted
+  // item never momentarily doubles as the task it just became.
   const strictPool = useMemo<StrictItem[]>(() => {
-    const taskTitles = new Set(openTasks.map(task => task.title.trim().toLowerCase()));
-    const taskSignals: StrictItem[] = openTasks.map(task => ({
-      id: `task:${task.id}`,
-      title: task.title,
-      detail: task.notes || (task.dueAt ? `Due ${formatDateTime(task.dueAt)}` : "Captured action."),
-      href: "/portal/agency/actions",
-      kind: task.status === "in-progress" ? "In progress" : "Task",
-      priority: task.priority === "urgent" ? "urgent" : task.priority === "high" ? "high" : "normal",
-      dueAt: task.dueAt,
-      taskId: task.id,
-      status: task.status,
-    }));
-    const radarSignals: StrictItem[] = radarSnapshot.incidents
-      .filter(incident => incident.severity !== "watch")
-      .map(issue => ({
-        id: `radar:${issue.id}`,
-        title: issue.title,
-        detail: issue.detail,
-        href: issue.href,
-        kind: domainLabel(issue.domain),
-        priority: issue.severity === "critical" ? "urgent" : "high",
-      }));
-    const businessSignals: StrictItem[] = [...radarSignals, ...signals].filter(signal => !taskTitles.has(signal.title.trim().toLowerCase()));
-    return [...taskSignals, ...businessSignals].sort((a, b) => {
-        const activeRank = (a.status === "in-progress" ? -1 : 0) - (b.status === "in-progress" ? -1 : 0);
-        return activeRank || priorityRank(a.priority) - priorityRank(b.priority) || overdueRank(a, now) - overdueRank(b, now) || (a.dueAt ?? Number.MAX_SAFE_INTEGER) - (b.dueAt ?? Number.MAX_SAFE_INTEGER);
-      });
-  }, [now, openTasks, radarSnapshot.incidents, signals]);
+    const acceptedSourceIds = new Set(openTasks.map(task => task.sourceId).filter((id): id is string => Boolean(id)));
+    const acceptedTitles = new Set(openTasks.map(task => task.title.trim().toLowerCase()));
+    const unaccepted = <T extends { id: string; title: string }>(item: T) =>
+      !acceptedSourceIds.has(item.id) && !acceptedTitles.has(item.title.trim().toLowerCase());
+    const unified = buildUnifiedActionQueue({
+      tasks: openTasks,
+      radar: commandRecommendations.filter(unaccepted),
+      advisor: advisorSuggestions.filter(unaccepted),
+      proposals: externalProposals.filter(unaccepted),
+      crm: generatedActions.filter(unaccepted),
+      recommendationsGeneratedAt: recommendationsGeneratedAt ?? radarSnapshot.generatedAt,
+      advisorReviewedAt: reviewedAt,
+      sort: "priority",
+    });
+    return unified.map(strictItemFromUnified);
+  }, [advisorSuggestions, commandRecommendations, externalProposals, generatedActions, openTasks, radarSnapshot.generatedAt, recommendationsGeneratedAt, reviewedAt]);
   const strictWindow = useMemo(() => buildProtectedAttentionWindow(strictPool, {
     groupKey: item => item.taskId ? "task" : item.kind,
     urgencyRank: item => priorityRank(item.priority),
@@ -1915,12 +1924,37 @@ function normalizeRecommendationTitle(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-function priorityRank(priority: DashboardSignal["priority"]) {
-  return priority === "urgent" ? 0 : priority === "high" ? 1 : 2;
+// The compact priority feed reuses the exact shape (`DashboardSignal & task
+// fields`) and handlers the dashboard already had, so only the SOURCE of the
+// pool changes — one `UnifiedActionItem` maps to one row. Priority is narrowed
+// to the feed's three visible tiers ("low" folds into "normal").
+function strictItemFromUnified(item: UnifiedActionItem): StrictItem {
+  const priority: DashboardSignal["priority"] = item.priority === "urgent" ? "urgent" : item.priority === "high" ? "high" : "normal";
+  if (item.type === "task") {
+    const task = item.task;
+    return {
+      id: `task:${task.id}`,
+      title: task.title,
+      detail: task.notes || (task.dueAt ? `Due ${formatDateTime(task.dueAt)}` : "Captured action."),
+      href: "/portal/agency/actions",
+      kind: task.status === "in-progress" ? "In progress" : "Task",
+      priority,
+      dueAt: task.dueAt,
+      taskId: task.id,
+      status: task.status,
+    };
+  }
+  if (item.type === "suggestion") {
+    const suggestion = item.suggestion;
+    return { id: suggestion.id, title: suggestion.title, detail: suggestion.detail, href: suggestion.href, kind: item.source === "advisor" ? "Advisor" : "Radar", priority, dueAt: item.dueAt };
+  }
+  if (item.type === "proposal") {
+    const proposal = item.proposal;
+    return { id: proposal.id, title: proposal.title, detail: proposal.detail, href: proposal.sourceHref ?? "/portal/agency/actions", kind: "Proposal", priority, dueAt: item.dueAt };
+  }
+  const action = item.action;
+  return { id: action.id, title: action.title, detail: action.detail, href: action.href, kind: action.kind, priority, dueAt: action.dueAt };
 }
-
-
-
 
 
 
@@ -1943,10 +1977,6 @@ function commercialFocus(searchParams: Pick<URLSearchParams, "get">) {
     sourceId: searchParams.get("source")?.trim() || undefined,
     stageId: searchParams.get("stage")?.trim() || undefined,
   };
-}
-
-function overdueRank(item: StrictItem, now: number) {
-  return item.dueAt && item.dueAt < now ? -1 : 0;
 }
 
 function timestampFallsOnDate(value: number | undefined, date: string): boolean {
