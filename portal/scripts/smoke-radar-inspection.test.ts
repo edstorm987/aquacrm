@@ -61,13 +61,13 @@ test("manual inspection covers every Radar layer and links from Command Centre",
   const workspace = read("src/app/portal/agency/radar/RadarInspectionWorkspace.tsx");
   const dashboard = commandCentreSource();
   const stationNav = read("src/app/portal/agency/_CommandStationNav.tsx");
-  assert.match(stationNav, /label="Command Centre"/);
+  assert.match(stationNav, /label="Business health"/);
   assert.doesNotMatch(stationNav, /Radar workspace/);
   assert.doesNotMatch(stationNav, /KPI Intelligence/);
   assert.match(dashboard, /CommandInstrumentDock/);
   assert.match(dashboard, /Open Radar Workspace/);
-  assert.match(dashboard, /Open KPI Intelligence/);
-  assert.match(dashboard, /Back to Command Centre/);
+  assert.match(dashboard, /Open Key numbers/);
+  assert.match(dashboard, /Back to Business health/);
   assert.match(dashboard, /Data inspector/);
   assert.match(dashboard, /initialTab=\{inspectorTarget\.tab\}/);
   assert.match(dashboard, /initialDomain=\{inspectorTarget\.domain\}/);

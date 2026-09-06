@@ -351,7 +351,7 @@ export function AssistantWorkspace({
             <IconButton label="Conversation history" onClick={() => setShowHistory(true)} className="lg:hidden">
               <History size={17} />
             </IconButton>
-            <IconButton label="Assistant memory" onClick={() => setShowMemory(true)}>
+            <IconButton label="Advisor memory" onClick={() => setShowMemory(true)}>
               <Brain size={17} />
             </IconButton>
             <IconButton label="Advisor skills" onClick={() => setShowSkills(true)}>

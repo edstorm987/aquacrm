@@ -1,4 +1,4 @@
-// Dev Console station — the Command Centre's fourth entry point.
+// Dev Team station — the Command Centre's fourth entry point.
 //
 // Deliberately NOT a mount of `/portal/dev-team/page.tsx`: that route carries
 // its own founder gate, its own light portal chrome, and its own header — both
@@ -97,7 +97,7 @@ export async function DevTeamStation() {
         <div className="min-w-0">
           <p className="truncate text-[9px] font-semibold uppercase text-[#76dff1]/58">Build command · Founder and Dev Mode only</p>
           <div className="mt-0.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-            <h2 id="dev-team-station-heading" className="text-base font-semibold text-white sm:text-lg">Dev Console</h2>
+            <h2 id="dev-team-station-heading" className="text-base font-semibold text-white sm:text-lg">Dev Team</h2>
             <span className="text-[9px] font-semibold uppercase text-[#68f5d0]/75">Findings, queues, workers and the library</span>
           </div>
         </div>
@@ -106,7 +106,7 @@ export async function DevTeamStation() {
         </span>
       </header>
 
-      <div className="relative grid grid-cols-2 border-b border-[#62e8ff]/20 bg-[#031018]/94 sm:grid-cols-4" aria-label="Dev Console lane counts">
+      <div className="relative grid grid-cols-2 border-b border-[#62e8ff]/20 bg-[#031018]/94 sm:grid-cols-4" aria-label="Dev Team lane counts">
         <LaneStat href={BOARD_HREF} label="In flight" value={lanes.inFlight.length} basis="workers and plans building" tone="cyan" />
         <LaneStat href={BOARD_HREF} label="Shipped" value={lanes.shipped.length} basis="complete and verified" tone="mint" />
         <LaneStat href={BOARD_HREF} label="Blocked" value={lanes.blocked.length} basis="blockers and stalled work" tone={lanes.blocked.length ? "critical" : "mint"} />
@@ -207,7 +207,7 @@ export async function DevTeamStation() {
           </Queue>
         </div>
 
-        <aside className="flex min-w-0 flex-col justify-between gap-5 border-t border-[#62e8ff]/18 px-4 py-5 sm:px-6 xl:border-l xl:border-t-0" aria-label="Open the Dev Console workspace">
+        <aside className="flex min-w-0 flex-col justify-between gap-5 border-t border-[#62e8ff]/18 px-4 py-5 sm:px-6 xl:border-l xl:border-t-0" aria-label="Open the Dev Team workspace">
           <div>
             <p className="text-[9px] font-semibold uppercase text-[#76dff1]/58">Full workspace</p>
             <p className="mt-1 max-w-md text-xl font-semibold leading-tight text-white">Every plan, worker, finding and audit in one place</p>
@@ -234,7 +234,7 @@ export async function DevTeamStation() {
             >
               <span className="grid size-8 shrink-0 place-items-center border border-[#68f5d0]/35 bg-[#68f5d0]/[0.08] text-[#68f5d0]"><Hammer size={15} /></span>
               <span className="min-w-0">
-                <span className="block text-[8px] font-semibold uppercase text-[#68f5d0]/75">Dev Console</span>
+                <span className="block text-[8px] font-semibold uppercase text-[#68f5d0]/75">Dev Team</span>
                 <span className="mt-0.5 block text-sm font-semibold">Open the workspace</span>
               </span>
               <ArrowUpRight size={15} className="ml-auto shrink-0 text-[#68f5d0] transition group-hover:translate-x-0.5" />

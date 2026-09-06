@@ -22,7 +22,7 @@ test("universal search indexes complete website enquiries and social messages", 
 
 test("universal search routes executive strategy into Battle Table", () => {
   assert.match(searchApi, /category: "Executive"/);
-  assert.match(searchApi, /title: "Battle Table"/);
+  assert.match(searchApi, /title: "Plan & targets"/);
   assert.match(searchApi, /href: "\/portal\/agency\?station=battle"/);
 });
 

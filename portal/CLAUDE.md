@@ -184,10 +184,11 @@ and the current TODO before acting on any line here.*
    `npm run smoke:release-access-matrix` (22/22).
    **Verified two-sided:** a kernel stubbed to answer `true` fails 11, one stubbed
    to answer `false` fails 6. Neither degenerate kernel passes.
-   **It surfaced one thing for Ed — issues #174:** revoking an identity's LAST
-   grant returns them to un-migrated legacy access, so revocation WIDENS instead of
-   narrowing. Documented behaviour followed to its conclusion, pinned exactly, and
-   left as a decision rather than changed unilaterally.
+   **It surfaced one thing for Ed — issues #174 (now DECIDED + FIXED 2026-09-05):**
+   revoking an identity's LAST grant used to return them to un-migrated legacy
+   access, so revocation WIDENED instead of narrowing. Ed chose "revocation
+   narrows"; `actorEverHadNonProjectAccessPolicy` now makes the governance
+   boundary a one-way door and the matrix pin records the new rule. Full suite green.
 6. 🟡 **Close the recorded runtime residue.** Stale preview is closed (issues #19).
    Still open: live two-instance Editor-AI database coordination (needs
    `DATABASE_URL`), unapplied owned-sidecar PostgreSQL migrations, dirty-editor
@@ -244,10 +245,14 @@ review-and-seed screen. His answers on what transfers are recorded verbatim in
   > `#169` a MISSING date rendering as TODAY, including the "Issued" date on the
   > invoice export.
   >
-  > **Green is not the same as finished.** Two items are open and recorded rather
-  > than closed: `#168` (28 routes answer 403 where the house convention is 404 —
-  > consistency, not a hole) and `#170` (Ed's decision: the Radar probe cron is now
-  > daily, so evidence can be 24h stale with no surface saying so).
+  > **Green is not the same as finished.** `#168` (client routes answering 403 where
+  > the house convention is 404) is now **RESOLVED** — every route in its scope is
+  > tenancy-first, verified 2026-09-05 by an exhaustive source sweep + a 10-route pin.
+  > `#170` (Radar probe freshness) now has **both halves addressed** (2026-09-05): the
+  > surfaces already show evidence age + degrade to `blind`, and a flag-gated self-scheduler
+  > (`src/engines/data/server/radar/probeSchedule.ts`) restores a sub-daily cadence on the persistent
+  > instance — Ed activates it with `RADAR_PROBE_INTERVAL_MINUTES` (or points a cron at
+  > `/api/cron/radar-probes`).
   >
   > **Do not brief the 23 August "3,621 pass / 0 fail" result as current** — it is
   > history, and it was green over a smaller suite. When you change behaviour, diff

@@ -26,7 +26,7 @@ export function DayKpiIntelligencePanel({ intelligence, paused = false, onOpen }
       <div className="flex items-center gap-2"><span className={`text-[8px] font-semibold uppercase ${attentionTruth.tone === "warning" ? "text-amber-300" : attentionTruth.tone === "info" ? "text-sky-300" : "text-[#68f5d0]"}`}>{attentionTruth.label}</span><button type="button" onClick={() => onOpen(allKpiIds)} className="inline-flex min-h-8 items-center gap-1.5 border border-[#e5c479]/18 px-2.5 text-[8px] font-semibold uppercase text-[#e5c479] hover:bg-[#e5c479]/[0.06] hover:text-white">Open intelligence <ArrowUpRight size={10} /></button></div>
     </header>
 
-    <button type="button" onClick={() => onOpen(allKpiIds)} className="block w-full px-4 py-4 text-left hover:bg-[#62e8ff]/[0.018]" aria-label="Open all five primary KPI stations in KPI Intelligence">
+    <button type="button" onClick={() => onOpen(allKpiIds)} className="block w-full px-4 py-4 text-left hover:bg-[#62e8ff]/[0.018]" aria-label="Open all five primary KPI stations in Key numbers">
       <div className="grid grid-cols-[24px_minmax(0,1fr)] gap-2">
         <div className="flex flex-col justify-between py-1 text-right text-[7px] text-[#8ec9d5]/25"><span>High</span><span>Mid</span><span>Low</span></div>
         <svg viewBox="0 0 620 146" preserveAspectRatio="none" className="h-[146px] w-full overflow-visible" role="img" aria-label="Directional retained movement for growth, acquisition, finance, systems and operations">
@@ -44,7 +44,7 @@ export function DayKpiIntelligencePanel({ intelligence, paused = false, onOpen }
     </button>
 
     <div className="grid grid-cols-2 border-t border-[#62e8ff]/12 sm:grid-cols-3 xl:grid-cols-5">
-      {stations.map(station => <button key={station.id} type="button" onClick={() => onOpen([...station.openIds])} className="group min-w-0 border-b border-r border-[#62e8ff]/10 px-3 py-3 text-left hover:bg-[#62e8ff]/[0.045]" aria-label={`Open ${station.label} KPI intelligence`}>
+      {stations.map(station => <button key={station.id} type="button" onClick={() => onOpen([...station.openIds])} className="group min-w-0 border-b border-r border-[#62e8ff]/10 px-3 py-3 text-left hover:bg-[#62e8ff]/[0.045]" aria-label={`Open ${station.label} Key numbers`}>
         <div className="flex items-center justify-between gap-2"><span className="flex min-w-0 items-center gap-2"><span className="size-1.5 shrink-0 shadow-[0_0_7px_currentColor]" style={{ backgroundColor: station.colour, color: station.colour }} /><span className="truncate text-[8px] font-semibold uppercase text-white/38">{station.label}</span></span><ArrowUpRight size={10} className="shrink-0 text-white/16 group-hover:text-[#62e8ff]" /></div>
         <strong className="mt-2 block truncate text-base tabular-nums text-white/80">{station.kpi.display}</strong>
         <p className="mt-0.5 truncate text-[7px] text-white/25">{station.kpi.shortLabel}</p>

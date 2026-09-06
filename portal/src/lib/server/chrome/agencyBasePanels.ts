@@ -52,7 +52,7 @@ export async function assembleAgencyBasePanels(session: SessionPayload): Promise
   if (session.role === "agency-owner" || !["agency-manager", "agency-staff"].includes(session.role)) return basePanels;
 
   const [
-    { actorHasActiveNonProjectAccessPolicy, requireCurrentAccessActor },
+    { actorEverHadNonProjectAccessPolicy, requireCurrentAccessActor },
     {
       FULFILMENT_VIEW_ELEMENT_KEYS,
       resolveActorWorkspaceElementAccess,
@@ -80,7 +80,7 @@ export async function assembleAgencyBasePanels(session: SessionPayload): Promise
     ]);
     const agencyAccess = resolveActorAccess(actor, { kind: "agency", id: actor.resourceAgencyId });
     const growthAccess = resolveActorWorkspaceElementAccess(actor, "growth");
-    const canonical = actorHasActiveNonProjectAccessPolicy(actor);
+    const canonical = actorEverHadNonProjectAccessPolicy(actor);
     if (!canonical) return basePanels;
     const agencyAllows = (key: string) => agencyAccess.ownerBaseline
       || agencyAccess.capabilities.includes(`element.${key}.view` as never);

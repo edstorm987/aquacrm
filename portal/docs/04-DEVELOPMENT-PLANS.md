@@ -2,7 +2,7 @@
 
 > Every active, completed and archived phased implementation plan and handoff.
 >
-> Consolidated 2026-09-05 from **63** source documents / **130,472 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-05 from **63** source documents / **130,653 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -35,7 +35,7 @@
 - [`docs/development/plans/enquiry-detail-card-handoff.md`](#source-docs-development-plans-enquiry-detail-card-handoff-md) — 1,100 words · `2588dbdb72f2`
 - [`docs/development/plans/enquiry-detail-card.md`](#source-docs-development-plans-enquiry-detail-card-md) — 898 words · `65c8484af1e5`
 - [`docs/development/plans/finance-command-surface.md`](#source-docs-development-plans-finance-command-surface-md) — 1,197 words · `4aa768e2e1a5`
-- [`docs/development/plans/fractal-radar-architecture.md`](#source-docs-development-plans-fractal-radar-architecture-md) — 4,694 words · `02e7c97fef23`
+- [`docs/development/plans/fractal-radar-architecture.md`](#source-docs-development-plans-fractal-radar-architecture-md) — 4,875 words · `903f539b3d13`
 - [`docs/development/plans/freelancer-workspace-HANDOFF.md`](#source-docs-development-plans-freelancer-workspace-handoff-md) — 2,314 words · `36b7f6bd660c`
 - [`docs/development/plans/freelancer-workspace.md`](#source-docs-development-plans-freelancer-workspace-md) — 1,466 words · `5606024cd4c2`
 - [`docs/development/plans/fulfilment-template-system.md`](#source-docs-development-plans-fulfilment-template-system-md) — 2,642 words · `e0eb52399017`
@@ -5456,7 +5456,7 @@ plan in flight._
 
 ## Source document — `docs/development/plans/fractal-radar-architecture.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/fractal-radar-architecture.md" sha256="02e7c97fef23e626eb636e4900c67c897a4c5246835fa70820579b1084c8cfc4" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/fractal-radar-architecture.md" sha256="903f539b3d13052557bc9335d08ad448b3797df351cff2d487667a8e3c2978e2" -->
 # Fractal Radar — Architecture & Migration Plan
 
 > **Provenance.** Produced 2026-09-05 by a 14-agent design workflow (7 parallel
@@ -5651,6 +5651,7 @@ Every phase is flag-gated, independently shippable, and rehearsed on an isolated
 **Phase 2 — gate the expensive loaders (the first real win).** This is where the measured MEMORY win lives, and it needs none of the tree. Ensure `listOperationalAlerts` (and `getRequestWebsiteEnquiries`/`listInboxSnapshot`) are served from their caches on every render surface, and that render paths pass `{operationalAlerts: []}` where the sweep isn't needed (the pattern Command Centre already uses). *Perf:* the big measured lever. *Risk:* low; alerts up to 60s stale (already production behaviour). *Rollback:* remove the gate. **(Much of this is already shipped 2026-09-04/05: the operationalAlertsCache, the Command Centre `operationalAlerts:[]` branch, and the plans.list `recover:false` render fix. Finishing = auditing every render surface that reaches the sweep and gating the rest.)**
 
 **Phase 3 — per-node cache + conservative fault pre-scan.** Generalise `radarCache` to per-node (§6). Add the pre-scan (§3.3). Serve cache-clean nodes; recompute only pre-scan-red / stale / dirty nodes. *Perf:* saves per-node rule-evaluation CPU for unchanged nodes (the fleet's batch I/O is agency-wide-once and is *not* saved here — only the single-client targeted query narrows I/O). *Risk:* the "green because undescended" hazard — closed by `suppressed-clean→learning` + confidence cap + the pre-scan seeing criticals. *Rollback:* one flag → descend-all.
+> **FOUNDATION SHIPPED 2026-09-05** (Ed green-lit §9a defaults): `src/engines/data/server/radar/radarNodeCache.ts` + `scripts/smoke-radar-node-cache.test.ts` (9/9). The per-node cache the plan sequences FIRST ("node cache first, then event-dirty"): the `RadarNodeResult` contract (three axes + `descent` bookkeeping — `suppressed-clean`/`blocked-blind`/`stale-dirty`, **no new `RadarCheckStatus`**), and `markRadarDirty(agency, key)` which evicts a node + its descendants (`descendantKeysOf`: a domain owns `fam:<d>:*`, the agency owns all, a leaf owns itself) and bubbles `needsAttention` up the structural parent chain (`parentChainOf`: `fam→dom→agency`) **without recomputing parents**. Per-node single-flight + TTL + `${realm}:${agency}` prefix preserved. The "never a false green" contracts are pinned: a dirtied node is **never** served as its old verdict (`readNodeCache` returns null → caller must recompute), a recompute clears recheck-pending but a bubbled attention flag survives. **Pure infrastructure, wired to nothing yet** (zero render/storage/hot-path change) — Phase 3 integration (`radarTopSweep` + the descent condition + the §3.3 pre-scan), Phase 5 (event-dirty) and Phase 6 (targeted) consume it next, each flag-gated. The delicate piece still ahead is the conservative fault pre-scan — it is where a mistake becomes a false green, so it gets its own adversarial pass, not a rushed one.
 
 **Phase 4 — persist the node cache to a fifth sidecar (off the render path).** Register `radar-node-cache` in `SIDECAR_COLLECTIONS` (non-dedicated). Write **only** on the daily rollup, never on GET. Inherits the compare-and-swap machinery (no SQL migration) and its two documented traps. Non-lazy first — flip to `lazy:true` only once all radar reads funnel through one `getRadarNodeTree()` service that owns the `include`. *Risk:* storage — **caveat: those sidecars are proven but NOT applied to live; rehearse on isolated stack before any live write.** *Rollback:* stop writing; loader falls back main-wins.
 

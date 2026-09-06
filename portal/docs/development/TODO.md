@@ -35,10 +35,10 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [ ] Set `PORTAL_BACKEND=file` in `.env.local` for local work — without it the portal promotes itself to the Supabase backend and local servers write the production `app_datastores` row (daily writes visible through 2026-09-02)  <sub>added 2026-09-03</sub>
 - [ ] Enable Supabase point-in-time recovery and rehearse one restore before production rollout — no backup/recovery runbook exists in the repository (readiness roadmap §5)  <sub>added 2026-09-03</sub>
 - [ ] DPO sign-off  <sub>from checklist.md, no issue number</sub>
-- [ ] Aqua Tag form-capture consent → [#2](issues.md)
-- [ ] Choose the permanent last-grant revocation policy → [#174](issues.md)
-- [ ] Decide whether client identities get indistinguishable sibling-project 404s → [#163](issues.md)
-- [ ] Choose Radar probe freshness: restore sub-daily probes or show evidence age on every affected surface → [#170](issues.md)
+- [~] Aqua Tag form-capture consent → [#2](issues.md) — DECIDED (transparency, not gate) + DRAFT notice wired into the Aqua contact form (React + static export) + pinned, 2026-09-05; pending DPO sign-off on final wording (drop-in via `consentNotice` prop)
+- [x] Choose the permanent last-grant revocation policy → [#174](issues.md) — DECIDED (narrows) + FIXED + pinned, 2026-09-05
+- [x] Decide whether client identities get indistinguishable sibling-project 404s → [#163](issues.md) — DECIDED (yes) + FIXED + pinned, 2026-09-05
+- [~] Choose Radar probe freshness: restore sub-daily probes or show evidence age on every affected surface → [#170](issues.md) — BOTH addressed 2026-09-05: evidence-age/blind already honest; sub-daily self-scheduler BUILT (flag-gated OFF, `RADAR_PROBE_INTERVAL_MINUTES`). Left: set that env var on Railway (or point a cron at `/api/cron/radar-probes`)
 
 ## P0 — before any production use — 1
 
@@ -157,7 +157,7 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Governance company scoping is isolated in code; finish mounted acceptance → [#68](issues.md)
 - [~] Role-aware account and portal recovery navigation is implemented; finish mounted acceptance → [#133](issues.md)
 - [~] Customer install help is revisitable from Support; mounted install/revisit acceptance remains → [#134](issues.md)
-- [ ] Standardise cross-tenant client-route refusals on the house 404 convention → [#168](issues.md)
+- [x] Standardise cross-tenant client-route refusals on the house 404 convention → [#168](issues.md) — RESOLVED: every route (tenant client-*/customer-*/product-workspaces, contracts/templates, performance/*) is tenancy-first; exhaustive source sweep + 10-route pin, verified 2026-09-05
 - [~] Customer Bookings code/behaviour is capability-driven; mounted proof remains → [#149](issues.md)
 - [~] Social Inbox's inert More control is removed; mounted confirmation remains → [#150](issues.md)
 - [x] Client-workspace 404 bootstrap — **browser-accepted 2026-09-05 in the dev sandbox**: a nonexistent client id renders a clean "404 — that portal page isn't here" (no crash, no app console errors; only dev-HMR WebSocket noise). → [#152](issues.md)

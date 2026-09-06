@@ -66,6 +66,13 @@ let projectTwo = "";
 let clientOne = "";
 let clientTwo = "";
 let benSession = "";
+// Cara exists to be NEVER governed. Every other identity in this file is granted
+// something (Ben and Ana both hold non-project grants by the end), and issue #174
+// turned "was governed then fully revoked" into a denial — so proving that a
+// genuinely un-migrated identity still keeps the legacy fallback needs someone
+// who never crossed the boundary at all. Do NOT grant Cara anything.
+let cara = "";
+let caraSession = "";
 
 before(async () => {
   await ensureHydrated();
@@ -87,6 +94,7 @@ before(async () => {
   // to reason about.
   ana = person("ana", "agency-staff");
   ben = person("ben", "agency-staff");
+  cara = person("cara", "agency-staff");
 
   clientOne = createClient(agencyId, { name: "Client One", slug: "client-one" }).id;
   clientTwo = createClient(agencyId, { name: "Client Two", slug: "client-two" }).id;
@@ -99,6 +107,13 @@ before(async () => {
     userId: ben, email: benUser.email, role: "agency-staff",
     agencyId, agencyIds: [agencyId], activeAgencyId: agencyId,
     sessionRev: benUser.sessionRev ?? 0,
+  });
+
+  const caraUser = getState().users[Object.keys(getState().users).find(key => getState().users[key].id === cara)!];
+  caraSession = await issueSession({
+    userId: cara, email: caraUser.email, role: "agency-staff",
+    agencyId, agencyIds: [agencyId], activeAgencyId: agencyId,
+    sessionRev: caraUser.sessionRev ?? 0,
   });
 });
 
@@ -381,17 +396,19 @@ describe("a real gated WRITE honours the level — not just the capability resol
   //
   // ── The migration rule, which this section had to be rewritten around ──────
   //
-  // The naive version of this test asserted that a staffer with NO grants is
-  // refused. They are not, and that is deliberate: canonical client access is
-  // opt-in per identity, so an identity holding no agency/workspace/client grant
-  // is treated as UN-MIGRATED and keeps its legacy behaviour
-  // (`legacyLevels` → manage for any agency role). Governance begins at the
-  // first such grant, after which absence becomes meaningful.
-  //
-  // That is documented and intended. Its sharp edge is asserted at the end.
-  async function writeNote(clientId: string, note: string): Promise<number> {
+  // Canonical client access is opt-in per identity: an identity holding NO
+  // agency/workspace/client grant it has ever had is treated as UN-MIGRATED and
+  // keeps its legacy behaviour (`legacyLevels` → manage for any agency role).
+  // Governance begins at the first such grant, after which absence becomes
+  // meaningful — AND STAYS meaningful. Issue #174 (Ed's decision, recorded at
+  // the end of this section): once an identity has crossed that boundary,
+  // revoking its last grant narrows it to Hidden rather than un-migrating it. So
+  // "no ACTIVE grant" no longer means "un-migrated"; only "never governed at
+  // all" does — which is why the un-migrated case below is proven with Cara, an
+  // identity granted nothing, not with Ben, who is governed by earlier tests.
+  async function writeNoteAs(session: string, clientId: string, note: string): Promise<number> {
     const { POST } = await import("../src/app/api/tenants/client-notes/route");
-    const response = await withSession(benSession, () => POST(new Request("http://localhost/api/tenants/client-notes", {
+    const response = await withSession(session, () => POST(new Request("http://localhost/api/tenants/client-notes", {
       method: "POST",
       headers: { "content-type": "application/json" },
       // `notes` is one of the route's four accepted keys; anything else is
@@ -400,6 +417,9 @@ describe("a real gated WRITE honours the level — not just the capability resol
     })));
     return response.status;
   }
+
+  /** The default subject of this section is Ben, governed by the tests above. */
+  const writeNote = (clientId: string, note: string) => writeNoteAs(benSession, clientId, note);
 
   async function clearBensGrants(): Promise<void> {
     // `revokedAt`, not `status`: there is no `status` field on AccessGrant, and
@@ -419,9 +439,13 @@ describe("a real gated WRITE honours the level — not just the capability resol
     return grant.id;
   }
 
-  it("UN-MIGRATED — no grant at all keeps legacy access, by design", async () => {
-    await clearBensGrants();
-    assert.equal(await writeNote(clientOne, "legacy"), 200,
+  it("UN-MIGRATED — an identity that was NEVER granted anything keeps legacy access, by design", async () => {
+    // Cara has never held a grant of any kind, so she is genuinely un-migrated
+    // and the legacy fallback is right for her. This is the migration-safety
+    // half of #174: the one-way governance door must not slam shut on identities
+    // who never walked through it. (Proven with Cara, not Ben: after #174, Ben's
+    // revoked grants keep him governed — that is the SHARP EDGE at the end.)
+    assert.equal(await writeNoteAs(caraSession, clientOne, "legacy"), 200,
       "the migration fallback is gone — every un-migrated agency identity has just lost its client workspace");
   });
 
@@ -474,19 +498,24 @@ describe("a real gated WRITE honours the level — not just the capability resol
       "a revoked staffer still changed the notes");
   });
 
-  it("THE SHARP EDGE — revoking someone's LAST grant returns them to legacy access", async () => {
-    // Stated as a test rather than left to be discovered. Because governance is
-    // opt-in per identity, an identity with zero active grants is un-migrated
-    // again — so revoking the last one WIDENS what they can reach instead of
-    // narrowing it. Revoking Ben's remaining grant restores the legacy `manage`
-    // the first test in this section asserts.
+  it("THE SHARP EDGE — revoking someone's LAST grant NARROWS them, it does not widen (issues #174)", async () => {
+    // Issue #174, DECIDED. Governance is a one-way door: because Ben has held
+    // grants (every test above), he has crossed the canonical boundary, and
+    // revoking his last one no longer un-migrates him back to the legacy
+    // `manage`. Absence, once meaningful, stays meaningful — so "revoke" narrows
+    // to a refusal, which is what the word means and what an operator removing
+    // someone's final grant to lock them down expects.
     //
-    // This is the documented rule followed to its conclusion, not a defect, but
-    // it is the opposite of what "revoke" suggests and an operator will not
-    // expect it. Recorded for Ed as issues #174.
+    // The counterpart is the UN-MIGRATED test above: a genuinely never-governed
+    // identity (Cara) still keeps the legacy fallback, so migration safety is
+    // intact. The two together pin the whole rule: never-governed → legacy;
+    // once-governed-then-revoked → denied. `actorEverHadNonProjectAccessPolicy`
+    // is the seam. (Was 200 here before the decision; changed deliberately.)
     await clearBensGrants();
-    assert.equal(await writeNote(clientOne, "back-to-legacy"), 200,
-      "revoking the last grant no longer restores legacy access — if this changed deliberately, "
-      + "issues #174 has been decided and this test should record the new rule");
+    assert.equal(await writeNote(clientOne, "narrowed"), 403,
+      "revoking Ben's last grant widened him back to legacy manage — #174 was decided as NARROW, "
+      + "so a fully-revoked once-governed identity must be refused, not un-migrated");
+    assert.notEqual(getState().clients[clientOne]?.metadata?.notes, "narrowed",
+      "the route answered 403 but the note was still written");
   });
 });

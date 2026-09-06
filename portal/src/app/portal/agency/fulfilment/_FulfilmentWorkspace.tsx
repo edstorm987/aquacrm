@@ -206,7 +206,7 @@ export function FulfilmentWorkspace({
     : 0;
 
   return (
-    <div className="mx-auto w-full max-w-[1600px]" data-testid="fulfilment-command-centre">
+    <div className="mx-auto w-full max-w-[1600px]" data-resolution-focus="details" data-testid="fulfilment-command-centre">
       <header className="border-b border-black/10 pb-5">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">

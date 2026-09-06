@@ -30,7 +30,7 @@ export function DayCommandSensorPanel({ radar, intelligence, radarPaused = false
   const contacts = radarTruth.contacts;
   const watchState = daySensorWatchState(radar.summary, radarPaused, stations.map(station => station.kpi.status), intelligencePaused);
   const visual = sensorVisual(watchState);
-  const pausedLabel = radarPaused && intelligencePaused ? "Radar and KPI scan paused" : radarPaused ? "Radar paused · scan required" : "KPI intelligence paused · scan required";
+  const pausedLabel = radarPaused && intelligencePaused ? "Radar and KPI scan paused" : radarPaused ? "Radar paused · scan required" : "Key numbers paused · scan required";
 
   return <section data-watch-state={watchState} className="mm-day-sensor-panel mm-command-alert-surface overflow-hidden border border-[#62e8ff]/22 bg-[#020b11] text-white" aria-labelledby="day-sensor-heading">
     <div className={`flex min-h-8 items-center justify-between gap-3 border-b px-4 text-[8px] font-bold uppercase ${sensorBanner(watchState)}`} role="status" aria-live="polite">

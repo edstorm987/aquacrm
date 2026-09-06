@@ -61,9 +61,9 @@ export function CommandStationNav({
     </div>
     <nav className={`relative grid grid-cols-1 bg-[#041119]/96 ${showDevTeam ? "sm:grid-cols-4" : "sm:grid-cols-3"}`} aria-label="Executive command controls">
       <StationButton active={activeMode === "day"} attention={attention.day} tone="gold" onClick={() => onSelect("day")} disabled={navigationPending} icon={<Clock3 size={18} />} label="Day command" detail="Clock in, plan today and record progress" />
-      <StationButton active={activeMode === "executive"} attention={attention.executive} pending={pendingMode === "executive"} disabled={navigationPending} onClick={() => onSelect("executive")} icon={<Radar size={18} />} label="Command Centre" detail={`${attention.executive.count} alerts · unified executive watch`} />
-      <StationButton active={activeMode === "battle"} attention={attention.battle} pending={pendingMode === "battle"} disabled={navigationPending} tone="gold" onClick={() => onSelect("battle")} icon={<Map size={18} />} label="Battle Table" detail="Strategy, projections, targets and executive decisions" />
-      {showDevTeam ? <StationButton active={activeMode === "devteam"} attention={attention.devteam} pending={pendingMode === "devteam"} disabled={navigationPending} tone="aqua" onClick={() => onSelect("devteam")} icon={<Hammer size={18} />} label="Dev Console" detail="Findings, queues, workers and the library" /> : null}
+      <StationButton active={activeMode === "executive"} attention={attention.executive} pending={pendingMode === "executive"} disabled={navigationPending} onClick={() => onSelect("executive")} icon={<Radar size={18} />} label="Business health" detail={`${attention.executive.count} alerts · how your business is doing`} />
+      <StationButton active={activeMode === "battle"} attention={attention.battle} pending={pendingMode === "battle"} disabled={navigationPending} tone="gold" onClick={() => onSelect("battle")} icon={<Map size={18} />} label="Plan & targets" detail="Strategy, projections, targets and executive decisions" />
+      {showDevTeam ? <StationButton active={activeMode === "devteam"} attention={attention.devteam} pending={pendingMode === "devteam"} disabled={navigationPending} tone="aqua" onClick={() => onSelect("devteam")} icon={<Hammer size={18} />} label="Dev Team" detail="Findings, queues, workers and the library" /> : null}
     </nav>
   </div>;
 }

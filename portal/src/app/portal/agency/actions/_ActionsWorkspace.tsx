@@ -784,6 +784,10 @@ function UnifiedCrmCard({ action, accepting, attentionBusyAction, onAccept, onAt
         <button type="button" onClick={onAccept} disabled={accepting || Boolean(attentionBusyAction)} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-brand px-3 text-xs font-semibold text-white disabled:opacity-55">{accepting ? <LoaderCircle className="animate-spin" size={13} /> : <Check size={13} />}{accepting ? "Accepting..." : "Accept"}</button>
       </div>
     </div>
+    {/* The Evidence toggle above was inert here: the button flipped but no panel
+        mounted, so "click evidence to see" showed nothing in the default queue.
+        Mount it exactly as GeneratedCard/UnifiedSuggestionCard do. */}
+    {showEvidence ? <div className="border-t border-black/[0.07] bg-black/[0.012]"><EvidenceCard alertId={alertId} fallback={{ title: action.title, detail: action.detail, href: action.href }} /></div> : null}
   </article>;
 }
 

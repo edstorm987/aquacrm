@@ -184,7 +184,7 @@ export function CompanyWorkspace({ initial, companyName, actuals, staffCount, ca
 
       <nav className="flex gap-1 overflow-x-auto border-b border-black/10" aria-label="Company systems">
         <Link href="/portal/agency?station=battle" className="inline-flex min-h-12 shrink-0 items-center gap-2 border-b-2 border-transparent px-3 text-sm font-medium text-black/50 hover:text-brand">
-          <Compass size={16} />Battle Table
+          <Compass size={16} />Plan &amp; targets
         </Link>
         {([
           ["products", "Products", Package],

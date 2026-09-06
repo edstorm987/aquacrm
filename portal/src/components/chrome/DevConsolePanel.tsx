@@ -24,7 +24,7 @@ import {
   type PluginHealthReport, type PluginHealthRow, type PluginHealthTone,
 } from "@/lib/chrome/pluginHealth";
 
-// The Dev Console popover body — lazily loaded, so none of this ships until the
+// The Dev Team popover body — lazily loaded, so none of this ships until the
 // console is first opened.
 //
 // CAPTURE COMES FIRST, deliberately. The whole reason this console exists in the
@@ -277,7 +277,7 @@ export function DevConsolePanel({
         <div className="flex min-w-0 items-start gap-3">
           <span className="grid size-9 shrink-0 place-items-center border border-cyan-300/25 bg-cyan-300/10 text-cyan-200"><Hammer size={17} aria-hidden="true" /></span>
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold">Dev Console</h2>
+            <h2 className="text-sm font-semibold">Dev Team</h2>
             <p className="mt-0.5 text-[11px] text-white/55">
               {core ? `Live from the working tree · updated ${relativeAge(core.scannedAtMs, now)}` : "Reading the working tree…"}
             </p>
@@ -291,7 +291,7 @@ export function DevConsolePanel({
         )}
       </header>
 
-      <div className="grid grid-cols-3 gap-px border-b border-black/10 bg-black/10" aria-label="Dev Console summary">
+      <div className="grid grid-cols-3 gap-px border-b border-black/10 bg-black/10" aria-label="Dev Team summary">
         <ConsoleMetric href="/portal/dev-team/findings" label="Findings" value={core ? String(core.openFindings) : "—"} tone={core?.openFindings ? "warning" : "normal"} onNavigate={onClose} />
         <ConsoleMetric href="/portal/dev-team" label="Blockers" value={core ? String(core.openBlockers) : "—"} tone={core?.openBlockers ? "critical" : "normal"} onNavigate={onClose} />
         {/* The TRUE total, not the length of the five-row list beside it — the
@@ -526,7 +526,7 @@ export function DevConsolePanel({
             <Waiting copy="Asking the modules how they are…" />
           ) : health.health.length ? (
             <>
-              {/* The ROUTE's tally, printed as given. The Dev Console has
+              {/* The ROUTE's tally, printed as given. The Dev Team has
                   already shipped the other bug once — a worker count derived
                   from a capped list, disagreeing with the station beside it. */}
               <p className="px-4 pb-1.5 text-[10px] text-black/40">{healthSummaryLine(health.summary)}</p>

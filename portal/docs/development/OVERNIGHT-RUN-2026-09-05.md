@@ -36,6 +36,25 @@ need his keys/decisions) and [`plans/fractal-radar-architecture.md`](plans/fract
 > - **The semantic/blind-aware DATA model is complete + verified** — jargon→plain, ids→human labels,
 >   BLIND→reason+remedy, KNOWN-BAD→cause+fix, KNOWN-GOOD→evidence. An analyst can read any radar signal
 >   with no decoder.
+> - **Ed's three approved access decisions shipped (#174, #163, #168), full suite green (6704/0 + WE 49/49):**
+>   (#174) revocation now NARROWS — a new `actorEverHadNonProjectAccessPolicy` makes the governance boundary a
+>   one-way door, so revoking an identity's last grant refuses instead of un-migrating them back to legacy
+>   `manage`; never-governed identities untouched (migration safety intact); all 7 governance-boundary gates use
+>   it; matrix pin records the new rule. (#163) a CLIENT identity's refusal of a project not attached to them is
+>   now the indistinguishable 404 an invented id gets (agency 403 convention preserved) — one guard in the shared
+>   `requireDevProjectAccess`. (#168) verified ALREADY complete in code across its whole route scope (tenant
+>   client-*/customer-*/product-workspaces, contracts/templates, performance/*) — exhaustive source sweep + a
+>   10-route pin; docs were just stale.
+> - **#2 Aqua Tag form-capture consent — draft wired + pinned.** Ed chose transparency-over-gating; the
+>   approved draft data-use notice is now the default on Aqua's own contact form (React block + static export)
+>   as a `consentNotice` prop (final DPO wording drops in without a code change) with an optional
+>   `privacyPolicyUrl` link; pinned in `r033-static-export`. Only remaining piece: DPO sign-off on wording.
+> - **#170 radar probe freshness — both halves now addressed.** Honesty half was already live (evidence age
+>   + blind degradation). Mechanism half built: a self-scheduling probe interval on the Railway persistent
+>   instance (`src/engines/data/server/radar/probeSchedule.ts`), OFF by default, activated by one env var
+>   (`RADAR_PROBE_INTERVAL_MINUTES`); shares `runScheduledProbeSweep` with the HTTP cron; pinned by
+>   `smoke-radar-probe-scheduler` + `smoke-radar-sweeps`. Doesn't foreclose a Railway-cron/GitHub-Action on
+>   `/api/cron/radar-probes`. Only remaining piece: Ed sets the env var (or wires an external cron).
 > - Perf overhaul, radar Phase-1+2, contrast/a11y on main surfaces, dead-code quarantine — all live.
 >
 > **One honest correction:** I first reported the demo portal "permanently stalls on the loader." That was

@@ -430,7 +430,9 @@ export default async function MarketingPage({
           {view === "pulse" ? <MarketingAtAGlance overview={overview} customerProfiles={scopedCustomerProfiles} sourceRows={sourceRows} emailSenderReady={emailReadiness.ready} automationStats={{ total: automationWorkflows.length, active: automationWorkflows.filter(workflow => workflow.status === "active").length }} canSeeCampaigns={canSeeCampaigns} /> : null}
           <MarketingSectionNavigation view={view} section={section} brandScope={brandScope} sections={visibleSections(MARKETING_VIEW_SECTIONS[view] ?? [])} />
           {visibleSections(orderedMarketingSections(view, section)).map(block => (
-            <section key={block} id={marketingSectionAnchor(block)} className="scroll-mt-24">
+            // campaign-* alerts (focus "details") land on this page — highlight
+            // the campaigns block so Resolve rings it rather than the whole page.
+            <section key={block} id={marketingSectionAnchor(block)} data-resolution-focus={block === "campaigns" ? "details" : undefined} className="scroll-mt-24">
               {sectionBlocks[block] ?? null}
             </section>
           ))}
@@ -945,7 +947,7 @@ function MarketingDataSpinePanel({ spine, brandScope }: { spine: MarketingDataSp
           <p className="mt-1 text-xs text-black/45">Measured, not assumed. Enquiries follow the selected brand through the tag&rsquo;s routing registry; traffic and conversions stay agency-wide, because the Radar monitors properties rather than brands.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {firing ? <span className="inline-flex items-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-800"><RadioTower size={13} aria-hidden /> {firing} marketing signal{firing === 1 ? "" : "s"} firing</span> : null}
+          {firing ? <span className="inline-flex items-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-800"><RadioTower size={13} aria-hidden /> {firing} marketing signal{firing === 1 ? "" : "s"} alerting</span> : null}
           <span className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-semibold ${spine.available && tag.connected ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-black/10 bg-black/[0.03] text-black/55"}`}>
             {spine.available ? tag.connected ? "Tag reporting" : "No tag signal yet" : "Radar unavailable"}
           </span>

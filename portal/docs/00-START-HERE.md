@@ -2,12 +2,12 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-09-05 from **23** source documents / **45,651 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-05 from **23** source documents / **46,297 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
 - [`AGENTS.md`](#source-agents-md) — 95 words · `63f2c50380ed`
-- [`CLAUDE.md`](#source-claude-md) — 4,800 words · `ba701f6dcb2d`
+- [`CLAUDE.md`](#source-claude-md) — 4,849 words · `04172bca1a16`
 - [`docs/data/adr/ADR-001-semantic-registry-in-code.md`](#source-docs-data-adr-adr-001-semantic-registry-in-code-md) — 217 words · `f092ef6a564d`
 - [`docs/data/adr/ADR-002-domain-modules-are-the-repository-seam.md`](#source-docs-data-adr-adr-002-domain-modules-are-the-repository-seam-md) — 218 words · `361439671762`
 - [`docs/data/adr/ADR-003-one-calculation-path-per-metric.md`](#source-docs-data-adr-adr-003-one-calculation-path-per-metric-md) — 233 words · `9143b1627c97`
@@ -21,13 +21,13 @@
 - [`docs/DEVELOPMENT-HANDOFF.md`](#source-docs-development-handoff-md) — 1,552 words · `9199166a1f30`
 - [`docs/development-workspace-cleanup.md`](#source-docs-development-workspace-cleanup-md) — 793 words · `bdb46a5cecd3`
 - [`docs/development.md`](#source-docs-development-md) — 3,352 words · `35cab09fe2b9`
-- [`docs/development/BLOCKERS-FOR-ED.md`](#source-docs-development-blockers-for-ed-md) — 978 words · `b38140c89489`
+- [`docs/development/BLOCKERS-FOR-ED.md`](#source-docs-development-blockers-for-ed-md) — 1,213 words · `08f1a4e78b6d`
 - [`docs/development/CAMPAIGN-LEDGER.md`](#source-docs-development-campaign-ledger-md) — 11,346 words · `8906eb267d7b`
 - [`docs/development/CLOUD-RESUME.md`](#source-docs-development-cloud-resume-md) — 500 words · `03458cdf18bf`
 - [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 2,095 words · `379784a12461`
 - [`docs/development/LOOP-PROGRESS.md`](#source-docs-development-loop-progress-md) — 1,643 words · `38954d1ad66e`
-- [`docs/development/OVERNIGHT-RUN-2026-09-05.md`](#source-docs-development-overnight-run-2026-09-05-md) — 6,416 words · `13f420e2dcf5`
-- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 3,398 words · `93979ff1c8ba`
+- [`docs/development/OVERNIGHT-RUN-2026-09-05.md`](#source-docs-development-overnight-run-2026-09-05-md) — 6,692 words · `cc9cb14674c0`
+- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 3,484 words · `819599162565`
 - [`README.md`](#source-readme-md) — 437 words · `78865db66238`
 
 ---
@@ -54,7 +54,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## Source document — `CLAUDE.md`
 
-<!-- AQUACRM_SOURCE_START path="CLAUDE.md" sha256="ba701f6dcb2d253c062cc088aa371f1e588ee34166516edab506ad309bb1facb" -->
+<!-- AQUACRM_SOURCE_START path="CLAUDE.md" sha256="04172bca1a16cab36f3a9b7ddc10cb7167b14c8cc359e4dddc1c924aaea04ec3" -->
 @AGENTS.md
 
 # AquaCRM Claude Handoff
@@ -241,10 +241,11 @@ and the current TODO before acting on any line here.*
    `npm run smoke:release-access-matrix` (22/22).
    **Verified two-sided:** a kernel stubbed to answer `true` fails 11, one stubbed
    to answer `false` fails 6. Neither degenerate kernel passes.
-   **It surfaced one thing for Ed — issues #174:** revoking an identity's LAST
-   grant returns them to un-migrated legacy access, so revocation WIDENS instead of
-   narrowing. Documented behaviour followed to its conclusion, pinned exactly, and
-   left as a decision rather than changed unilaterally.
+   **It surfaced one thing for Ed — issues #174 (now DECIDED + FIXED 2026-09-05):**
+   revoking an identity's LAST grant used to return them to un-migrated legacy
+   access, so revocation WIDENED instead of narrowing. Ed chose "revocation
+   narrows"; `actorEverHadNonProjectAccessPolicy` now makes the governance
+   boundary a one-way door and the matrix pin records the new rule. Full suite green.
 6. 🟡 **Close the recorded runtime residue.** Stale preview is closed (issues #19).
    Still open: live two-instance Editor-AI database coordination (needs
    `DATABASE_URL`), unapplied owned-sidecar PostgreSQL migrations, dirty-editor
@@ -301,10 +302,14 @@ review-and-seed screen. His answers on what transfers are recorded verbatim in
   > `#169` a MISSING date rendering as TODAY, including the "Issued" date on the
   > invoice export.
   >
-  > **Green is not the same as finished.** Two items are open and recorded rather
-  > than closed: `#168` (28 routes answer 403 where the house convention is 404 —
-  > consistency, not a hole) and `#170` (Ed's decision: the Radar probe cron is now
-  > daily, so evidence can be 24h stale with no surface saying so).
+  > **Green is not the same as finished.** `#168` (client routes answering 403 where
+  > the house convention is 404) is now **RESOLVED** — every route in its scope is
+  > tenancy-first, verified 2026-09-05 by an exhaustive source sweep + a 10-route pin.
+  > `#170` (Radar probe freshness) now has **both halves addressed** (2026-09-05): the
+  > surfaces already show evidence age + degrade to `blind`, and a flag-gated self-scheduler
+  > (`src/engines/data/server/radar/probeSchedule.ts`) restores a sub-daily cadence on the persistent
+  > instance — Ed activates it with `RADAR_PROBE_INTERVAL_MINUTES` (or points a cron at
+  > `/api/cron/radar-probes`).
   >
   > **Do not brief the 23 August "3,621 pass / 0 fail" result as current** — it is
   > history, and it was green over a smaller suite. When you change behaviour, diff
@@ -2388,7 +2393,7 @@ else hangs from.*
 
 ## Source document — `docs/development/BLOCKERS-FOR-ED.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/BLOCKERS-FOR-ED.md" sha256="b38140c8948901e3ae3e0dd7807af1f90090dc5a2151ba8a7a832544a3e5dcd0" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/BLOCKERS-FOR-ED.md" sha256="08f1a4e78b6dfb70ba0cfd9f997154221a2da4cd66bd897149a24bbe5b6d8979" -->
 # Blockers for Ed — things I can't do without your keys/accounts/decisions
 
 Running list from the autonomous run started 2026-09-05. I **note these and move on**,
@@ -2424,6 +2429,10 @@ verifying. Cross-check against `src/lib/server/productionReadiness.ts`.
 - **App secrets — sessions/handoff (likely already set):** `SESSION_SECRET` /
   `PORTAL_SESSION_SECRET`, `PORTAL_HANDOFF_SECRET`, `PORTAL_PREVIEW_SECRET`,
   `AQUA_EMBED_SIGNING_SECRET`, `AQUA_EMBED_API_TOKEN`, `CRON_SECRET` (also gates the radar-probe cron).
+- **Radar probe self-scheduler (#170, optional — OFF unless set):** `RADAR_PROBE_INTERVAL_MINUTES` — set to a
+  positive number of minutes (e.g. `180`) on the Railway instance to run the probe sweep in-process on the
+  persistent server. Leave unset to keep it off (and instead use a Railway cron / GitHub Action on
+  `/api/cron/radar-probes`). Only takes effect where `PORTAL_SINGLE_INSTANCE=true`.
 - **Stripe — payments/onboarding (#33 #42 #45 #69 #122):** `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`.
 - **Email — client comms (#43). Pick ONE provider:** Resend → `RESEND_API_KEY`, `MILESYMEDIA_FROM_EMAIL`,
   `MILESYMEDIA_FROM_NAME`, `MILESYMEDIA_SUPPORT_EMAIL`; **or** SMTP → `SMTP_HOST`, `SMTP_PORT`,
@@ -2443,12 +2452,12 @@ provider. Meta/Twilio/Google are per-feature and can follow.
 
 ## 🌐 Infra / environment
 
-- **Radar probe cron isn't firing on Railway.** The live inbox shows *"scheduled probe
-  sweep hasn't run — last checked 22d ago,"* so radar evidence is going stale. On Vercel
-  this was a cron; on Railway it needs a scheduler (Railway cron service, the GitHub
-  Action, or a self-scheduling interval). **Your call on the mechanism** — I can build a
-  self-scheduling interval on the persistent instance if you want (flag it and I will).
-  Directly relevant to the fractal Radar's "always-on" layer.
+- **Radar probe cron isn't firing on Railway — SELF-SCHEDULER NOW BUILT (2026-09-05), just set the env var.**
+  The live inbox showed *"scheduled probe sweep hasn't run,"* so radar evidence was going stale. On Vercel
+  this was a platform cron; Railway has none. A self-scheduling interval on the persistent instance is now
+  built and flag-gated OFF (`src/engines/data/server/radar/probeSchedule.ts`). **Activate it by setting
+  `RADAR_PROBE_INTERVAL_MINUTES`** (e.g. `180`). Alternatives still work if you prefer: a Railway cron
+  service or a GitHub Action hitting `/api/cron/radar-probes` (leave the env var unset). See #170 below.
 - **Apex `aqua-crm.com` cert** — only `www` is registered on the Railway plan; the apex
   serves an invalid cert. Add the apex domain in Railway (needs the plan slot) or drop the
   apex DNS.
@@ -2467,21 +2476,32 @@ provider. Meta/Twilio/Google are per-feature and can follow.
   — the node model can shift with your answers, so I want your nod first to avoid rework.
 These four now have a **recommended default** too — say "yes to your recommendations" (or change a line)
 and I implement the ones with an engineering side:
-- **#170 Radar probe freshness.** *Recommend: do BOTH, and the honest half is already done.* The radar
-  already shows evidence age and degrades stale readings to `blind` (never a false green) — so surfaces
-  are honest today. The remaining half is restoring sub-daily probes = the cron mechanism (Infra above):
-  say the word and I build a self-scheduling probe interval on the persistent instance. Low risk.
-- **#174 Last-grant revocation policy.** *Recommend: no grants = no access.* Revoking an identity's LAST
-  grant should **deny**, not fall back to un-migrated legacy access (the current behaviour widens instead
-  of narrowing — issue #174). "Revocation narrows" is the least-surprise, secure default. Approve and I
-  implement + pin it.
-- **#163 / #168 client-route refusals.** *Recommend: standardise on indistinguishable 404.* Return a
-  house-convention **404** for cross-tenant / sibling-project refusals — it both preserves privacy (never
-  leaks that a sibling project exists, answering #163 "yes") and fixes the 403/404 inconsistency (#168,
-  28 routes). Approve and I do the 403→404 change across those routes + verify with the full suite.
-- **#2 Aqua Tag form-capture consent wording.** *Recommend (draft, subject to your DPO):* "By submitting,
-  you agree we can store and use your details to respond to your enquiry. We won't share them or use them
-  for anything else. See our Privacy Policy." Approve/edit and I wire it into the capture form.
+- **#170 Radar probe freshness. 🟡 BOTH HALVES BUILT 2026-09-05, needs one env var from you.** The honest
+  half was already done (evidence age shown; stale readings degrade to `blind`, never a false green). The
+  mechanism half is now built too: a self-scheduling probe interval on the persistent instance
+  (`src/engines/data/server/radar/probeSchedule.ts`), **OFF by default**. **To turn it on:** set
+  `RADAR_PROBE_INTERVAL_MINUTES` on Railway (e.g. `180` for every 3h) — that's the whole activation. It runs
+  only on the single instance and does the exact same sweep as `/api/cron/radar-probes`, so if you'd rather
+  use a Railway cron service or a GitHub Action hitting that route, that still works and you leave the env
+  var unset. Your call on which; the code is ready for all three.
+- **#174 Last-grant revocation policy. ✅ APPROVED + DONE 2026-09-05.** You chose "no grants = no access".
+  Implemented: a new `actorEverHadNonProjectAccessPolicy` makes the governance boundary a one-way door, so
+  revoking an identity's last grant now **narrows to a refusal** instead of un-migrating them back to legacy
+  `manage`. A genuinely never-governed identity is untouched (migration safety intact). All seven
+  governance-boundary gates use it; the release-access-matrix pin records the new rule; full suite green.
+- **#163 / #168 client-route refusals. ✅ APPROVED + DONE 2026-09-05.** Standardised on the indistinguishable
+  404. #163: a **client** identity's refusal of a project not attached to them is now the same 404 an invented
+  id gets (agency identities keep the honest 403). #168: turned out already complete in code across every named
+  route (tenant client-*/customer-*/product-workspaces, contracts/templates, performance/*) — verified by an
+  exhaustive source sweep + a 10-route pin, docs updated. Full suite green.
+- **#2 Aqua Tag form-capture consent wording. 🟡 DRAFT WIRED 2026-09-05, needs your DPO's final wording.**
+  The approved draft — *"By submitting, you agree we can store and use your details to respond to your
+  enquiry. We won't share them or use them for anything else. See our Privacy Policy."* — is now the default
+  data-use notice on Aqua's own contact form (React block + static export), as a `consentNotice` prop so your
+  DPO's final wording drops in **without a code change**, plus an optional `privacyPolicyUrl` to link the
+  policy. Basis is legitimate-interest-with-transparency (not a hard gate), per your steer. **What's left is
+  yours:** DPO signs off the exact wording, then tell me the final string (or edit the prop default). This is
+  the only remaining piece of #2.
 - **DPO sign-off**, Stripe live walkthrough, Meta app, onboarding-chain walk — the TODO's
   "Blocked on you" section.
 - A **real client's actual details** to do a true end-to-end onboarding (I'll build + test
@@ -4027,7 +4047,7 @@ Path prefix: /private/tmp/claude-501/.../scratchpad/
 
 ## Source document — `docs/development/OVERNIGHT-RUN-2026-09-05.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/OVERNIGHT-RUN-2026-09-05.md" sha256="13f420e2dcf53a5a9b998c3d8bd8e148da5b7ec405a8da919655c340a3de3740" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/OVERNIGHT-RUN-2026-09-05.md" sha256="cc9cb14674c00776974dda957d42e651330c4496f93894997d208bf1411c6441" -->
 # Overnight autonomous run — 2026-09-05 → 06
 
 Ed set the full production-readiness goal and is asleep; this is the run's living
@@ -4066,6 +4086,25 @@ need his keys/decisions) and [`plans/fractal-radar-architecture.md`](plans/fract
 > - **The semantic/blind-aware DATA model is complete + verified** — jargon→plain, ids→human labels,
 >   BLIND→reason+remedy, KNOWN-BAD→cause+fix, KNOWN-GOOD→evidence. An analyst can read any radar signal
 >   with no decoder.
+> - **Ed's three approved access decisions shipped (#174, #163, #168), full suite green (6704/0 + WE 49/49):**
+>   (#174) revocation now NARROWS — a new `actorEverHadNonProjectAccessPolicy` makes the governance boundary a
+>   one-way door, so revoking an identity's last grant refuses instead of un-migrating them back to legacy
+>   `manage`; never-governed identities untouched (migration safety intact); all 7 governance-boundary gates use
+>   it; matrix pin records the new rule. (#163) a CLIENT identity's refusal of a project not attached to them is
+>   now the indistinguishable 404 an invented id gets (agency 403 convention preserved) — one guard in the shared
+>   `requireDevProjectAccess`. (#168) verified ALREADY complete in code across its whole route scope (tenant
+>   client-*/customer-*/product-workspaces, contracts/templates, performance/*) — exhaustive source sweep + a
+>   10-route pin; docs were just stale.
+> - **#2 Aqua Tag form-capture consent — draft wired + pinned.** Ed chose transparency-over-gating; the
+>   approved draft data-use notice is now the default on Aqua's own contact form (React block + static export)
+>   as a `consentNotice` prop (final DPO wording drops in without a code change) with an optional
+>   `privacyPolicyUrl` link; pinned in `r033-static-export`. Only remaining piece: DPO sign-off on wording.
+> - **#170 radar probe freshness — both halves now addressed.** Honesty half was already live (evidence age
+>   + blind degradation). Mechanism half built: a self-scheduling probe interval on the Railway persistent
+>   instance (`src/engines/data/server/radar/probeSchedule.ts`), OFF by default, activated by one env var
+>   (`RADAR_PROBE_INTERVAL_MINUTES`); shares `runScheduledProbeSweep` with the HTTP cron; pinned by
+>   `smoke-radar-probe-scheduler` + `smoke-radar-sweeps`. Doesn't foreclose a Railway-cron/GitHub-Action on
+>   `/api/cron/radar-probes`. Only remaining piece: Ed sets the env var (or wires an external cron).
 > - Perf overhaul, radar Phase-1+2, contrast/a11y on main surfaces, dead-code quarantine — all live.
 >
 > **One honest correction:** I first reported the demo portal "permanently stalls on the loader." That was
@@ -4610,7 +4649,7 @@ index that's pending, by design.
 
 ## Source document — `docs/development/TODO.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="93979ff1c8ba3e9f3bebffb0cc3c8d2c128a8c00520b5f828574bbbe4cd9eecc" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="81959916256502a871a7e26a24bee0aba1decacba59e74fe82f3665b1b6df9e6" -->
 # TODO — the one list
 
 **This is the only task list.** `checklist.md` and `todo-retired.md` are retired; they held the
@@ -4648,10 +4687,10 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [ ] Set `PORTAL_BACKEND=file` in `.env.local` for local work — without it the portal promotes itself to the Supabase backend and local servers write the production `app_datastores` row (daily writes visible through 2026-09-02)  <sub>added 2026-09-03</sub>
 - [ ] Enable Supabase point-in-time recovery and rehearse one restore before production rollout — no backup/recovery runbook exists in the repository (readiness roadmap §5)  <sub>added 2026-09-03</sub>
 - [ ] DPO sign-off  <sub>from checklist.md, no issue number</sub>
-- [ ] Aqua Tag form-capture consent → [#2](issues.md)
-- [ ] Choose the permanent last-grant revocation policy → [#174](issues.md)
-- [ ] Decide whether client identities get indistinguishable sibling-project 404s → [#163](issues.md)
-- [ ] Choose Radar probe freshness: restore sub-daily probes or show evidence age on every affected surface → [#170](issues.md)
+- [~] Aqua Tag form-capture consent → [#2](issues.md) — DECIDED (transparency, not gate) + DRAFT notice wired into the Aqua contact form (React + static export) + pinned, 2026-09-05; pending DPO sign-off on final wording (drop-in via `consentNotice` prop)
+- [x] Choose the permanent last-grant revocation policy → [#174](issues.md) — DECIDED (narrows) + FIXED + pinned, 2026-09-05
+- [x] Decide whether client identities get indistinguishable sibling-project 404s → [#163](issues.md) — DECIDED (yes) + FIXED + pinned, 2026-09-05
+- [~] Choose Radar probe freshness: restore sub-daily probes or show evidence age on every affected surface → [#170](issues.md) — BOTH addressed 2026-09-05: evidence-age/blind already honest; sub-daily self-scheduler BUILT (flag-gated OFF, `RADAR_PROBE_INTERVAL_MINUTES`). Left: set that env var on Railway (or point a cron at `/api/cron/radar-probes`)
 
 ## P0 — before any production use — 1
 
@@ -4770,7 +4809,7 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Governance company scoping is isolated in code; finish mounted acceptance → [#68](issues.md)
 - [~] Role-aware account and portal recovery navigation is implemented; finish mounted acceptance → [#133](issues.md)
 - [~] Customer install help is revisitable from Support; mounted install/revisit acceptance remains → [#134](issues.md)
-- [ ] Standardise cross-tenant client-route refusals on the house 404 convention → [#168](issues.md)
+- [x] Standardise cross-tenant client-route refusals on the house 404 convention → [#168](issues.md) — RESOLVED: every route (tenant client-*/customer-*/product-workspaces, contracts/templates, performance/*) is tenancy-first; exhaustive source sweep + 10-route pin, verified 2026-09-05
 - [~] Customer Bookings code/behaviour is capability-driven; mounted proof remains → [#149](issues.md)
 - [~] Social Inbox's inert More control is removed; mounted confirmation remains → [#150](issues.md)
 - [x] Client-workspace 404 bootstrap — **browser-accepted 2026-09-05 in the dev sandbox**: a nonexistent client id renders a clean "404 — that portal page isn't here" (no crash, no app console errors; only dev-HMR WebSocket noise). → [#152](issues.md)

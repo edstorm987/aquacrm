@@ -24,7 +24,10 @@ const FOCUS_BY_PREFIX: Array<[string, ResolutionFocus]> = [
   // finance ones, or every finance alert would claim the budget focus.
   ["finance:budget-", "budget"],
   ["finance:expense-evidence", "evidence"],
-  ["finance:expense-review", "approval"],
+  // The expenses page marks its records section `data-resolution-focus="evidence"`;
+  // there is no separate `approval` target, so review lands on the same section
+  // (which contains the pending rows) rather than nowhere.
+  ["finance:expense-review", "evidence"],
   ["finance:recurring-expenses", "details"],
   ["finance:overdue-invoices", "payment"],
   ["finance:obligations-overdue", "payment"],
@@ -86,7 +89,27 @@ export function withResolutionContexts(alerts: OperationalAlert[]): OperationalA
     if (classified.href.includes("resolve=")) return classified;
     return {
       ...classified,
-      href: withResolutionContext(classified.href, { alertId: classified.id, focus }),
+      href: withResolutionContext(classified.href, { alertId: classified.id, focus, record: recordIdFromAlert(classified.id) }),
     };
   });
+}
+
+/**
+ * The natural record id an alert points at, for the exact-ROW spotlight.
+ *
+ * Alert ids are `family:...:<recordId>` (e.g. `invoice:cli_1:INV-9`,
+ * `request:cli_1:req_7`, `task:t_3`), so the last segment is the record. This is
+ * stamped on the resolve href as `resolve-record`; a destination that annotates
+ * its rows with `data-resolution-record="<recordId>"` then gets the exact row
+ * ringed, and one that does not falls back to the section focus
+ * (ResolutionSpotlight prefers the record but degrades to focus — never breaks).
+ * Aggregate families whose last segment is a slug, not a record (e.g.
+ * `finance:overdue-invoices`), simply match no row and fall back — harmless.
+ */
+function recordIdFromAlert(alertId: string): string | undefined {
+  const segments = alertId.split(":");
+  const last = segments[segments.length - 1];
+  // A single-segment id has no record part; a trailing empty/placeholder is not one.
+  if (segments.length < 2 || !last || last === "draft") return undefined;
+  return last;
 }

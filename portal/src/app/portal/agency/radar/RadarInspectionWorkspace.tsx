@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type React from "react";
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useDeferredValue, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -27,6 +27,7 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  SlidersHorizontal,
   Square,
   Target,
   TimerReset,
@@ -61,6 +62,18 @@ const SCOPES: RadarCheckScope[] = ["kpi", "source", "property", "synthetic", "hi
 const LENSES: RadarRuleLens[] = ["connection", "freshness", "threshold", "trend", "anomaly", "integrity", "continuity", "baseline", "confidence", "forecast", "volatility", "resilience"];
 const CHECK_BATCH_SIZE = 200;
 const SOURCE_PAGE_SIZE = 100;
+
+// The Data Inspector shows the finished, readable records by default. Raw JSON,
+// internal IDs, and the expert filter set are power-user tools — one honest
+// "Advanced" switch reveals them, rather than a second inspector to maintain.
+const INSPECTOR_ADVANCED_STORAGE_KEY = "aqua-inspector-advanced";
+const InspectorAdvancedContext = createContext(false);
+const useInspectorAdvanced = () => useContext(InspectorAdvancedContext);
+// The default status filter stays to a handful of plain choices; the full
+// instrument set (blind, learning, applicable, assured, …) is revealed under
+// Advanced.
+const SIMPLE_STATUS_OPTIONS = ["all", "attention", "critical", "warning", "watch"] as const;
+const ADVANCED_STATUS_OPTIONS = ["all", "attention", "applicable", "assured", "firing", "live", "critical", "warning", "watch", "blind", "learning", "inactive", "pass"] as const;
 
 interface RadarKpiScorecardRow {
   id: string;
@@ -139,6 +152,26 @@ export function RadarInspectionWorkspace({
   const [visibleCheckCount, setVisibleCheckCount] = useState(CHECK_BATCH_SIZE);
   const [selectedKpiId, setSelectedKpiId] = useState("");
   const deferredQuery = useDeferredValue(query);
+  // Advanced is off by default — the inspector opens on the readable records, not
+  // raw JSON. The choice is remembered per browser so a power user is not made to
+  // re-enable it every visit.
+  const [advanced, setAdvanced] = useState(false);
+  useEffect(() => {
+    // A deep link into the raw tab or an expert-only filter turns Advanced on, so
+    // the requested view is not a dead end; otherwise honour the remembered choice.
+    const deepLinkNeedsAdvanced = initialTab === "raw"
+      || !(SIMPLE_STATUS_OPTIONS as readonly string[]).includes(initialStatus)
+      || initialScope !== "all"
+      || (initialLens as string) !== "all";
+    let stored = false;
+    try { stored = window.localStorage.getItem(INSPECTOR_ADVANCED_STORAGE_KEY) === "1"; } catch { /* private mode: stay simple */ }
+    setAdvanced(stored || deepLinkNeedsAdvanced);
+  }, [initialLens, initialScope, initialStatus, initialTab]);
+  const toggleAdvanced = useCallback(() => setAdvanced(current => {
+    const next = !current;
+    try { window.localStorage.setItem(INSPECTOR_ADVANCED_STORAGE_KEY, next ? "1" : "0"); } catch { /* ignore */ }
+    return next;
+  }), []);
 
   const allKpis = useMemo(() => buildKpiScorecard(radar, evidence), [evidence, radar]);
   const kpis = useMemo(() => {
@@ -299,6 +332,7 @@ export function RadarInspectionWorkspace({
   }
 
   return (
+    <InspectorAdvancedContext.Provider value={advanced}>
     <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-5" data-testid="radar-inspection-workspace">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="max-w-3xl">
@@ -308,6 +342,7 @@ export function RadarInspectionWorkspace({
           <p className="mt-2 text-sm leading-6 text-black/55">Inspect the actual business records first, then trace every calculation, source, policy decision, incident, and retained data point behind the business radar.</p>
         </div>
         <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
+          <button type="button" role="switch" aria-checked={advanced} data-testid="inspector-advanced-toggle" onClick={toggleAdvanced} aria-label={`Advanced details ${advanced ? "on" : "off"}. ${advanced ? "Hide raw records, internal IDs and expert filters." : "Show raw records, internal IDs and expert filters."}`} title={advanced ? "Advanced on — raw records, internal IDs and expert filters are shown" : "Advanced off — showing the readable records only"} className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-3 text-sm font-semibold transition ${advanced ? "border-black bg-black text-white hover:bg-black/85" : "border-black/10 bg-white text-black/65 hover:bg-black/[0.03]"}`}><SlidersHorizontal size={15} /> Advanced</button>
           <button type="button" onClick={() => void selectInspectionTab(tab === "records" ? "checks" : "records")} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-black/65 hover:bg-black/[0.03]"><Database size={15} /> {tab === "records" ? "View check ledger" : "Browse source records"}</button>
           <button type="button" onClick={exportSnapshot} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-black/65 hover:bg-black/[0.03]"><Download size={15} /> Export snapshot</button>
           <button type="button" onClick={() => void scanNow()} disabled={scanBusy} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white hover:bg-black/85 disabled:opacity-50">{scanBusy ? <LoaderCircle size={15} className="animate-spin" /> : <RefreshCw size={15} />} {scanBusy ? "Scanning" : "Scan now"}</button>
@@ -319,9 +354,9 @@ export function RadarInspectionWorkspace({
       <section className="grid grid-cols-2 overflow-hidden border-y border-black/10 bg-white sm:grid-cols-4 xl:grid-cols-8" aria-label="Radar inspection summary">
         <SummaryMetric label="Checks" value={radar.summary.totalChecks} icon={<RadioTower size={15} />} />
         <SummaryMetric label="Passing" value={radar.summary.passedChecks} icon={<Check size={15} />} tone="good" />
-        <SummaryMetric label="Firing" value={radar.summary.firingChecks} icon={<AlertTriangle size={15} />} tone={radar.summary.firingChecks ? "bad" : "good"} />
-        <SummaryMetric label="Blind" value={radar.summary.blindChecks} icon={<EyeOff size={15} />} tone={radar.summary.blindChecks ? "warn" : "good"} />
-        <SummaryMetric label="Learning" value={radar.summary.learningChecks} icon={<History size={15} />} />
+        <SummaryMetric label="Alerting" value={radar.summary.firingChecks} icon={<AlertTriangle size={15} />} tone={radar.summary.firingChecks ? "bad" : "good"} />
+        <SummaryMetric label="No data yet" value={radar.summary.blindChecks} icon={<EyeOff size={15} />} tone={radar.summary.blindChecks ? "warn" : "good"} />
+        <SummaryMetric label="Still gathering" value={radar.summary.learningChecks} icon={<History size={15} />} />
         <SummaryMetric label="Sources" value={`${radar.summary.connectedSources}/${radar.summary.totalSources}`} icon={<Database size={15} />} />
         <SummaryMetric label="Evidence" value={evidence.totalSamples} icon={<Activity size={15} />} />
         {/*
@@ -360,7 +395,7 @@ export function RadarInspectionWorkspace({
             ["sources", "Connections & coverage", radar.coverage.length + radar.signals.length],
             ["incidents", "Incidents", radar.incidents.length],
             ["raw", "Raw data", null],
-          ] as const).map(([id, label, count]) => (
+          ] as const).filter(([id]) => advanced || id !== "raw").map(([id, label, count]) => (
             <button key={id} type="button" aria-current={tab === id ? "true" : undefined} onClick={() => void selectInspectionTab(id)} className={`min-h-12 border-b-2 text-sm font-semibold ${tab === id ? "border-black text-black" : "border-transparent text-black/45 hover:text-black/70"}`}>{label}{count !== null ? <span className="ml-2 text-xs tabular-nums text-black/35">{count}</span> : null}</button>
           ))}
         </div>
@@ -451,9 +486,20 @@ export function RadarInspectionWorkspace({
         setLens(check.lens);
         void selectInspectionTab("checks");
       }} onInspectSource={check => void inspectCheckSource(check)} /> : null}
-      {tab === "raw" ? <RawInspection radar={radar} evidence={evidence} copied={copied} onCopy={() => void copyRaw()} onExport={exportSnapshot} /> : null}
+      {tab === "raw" ? (advanced ? <RawInspection radar={radar} evidence={evidence} copied={copied} onCopy={() => void copyRaw()} onExport={exportSnapshot} /> : <AdvancedLocked onEnable={toggleAdvanced} />) : null}
     </div>
+    </InspectorAdvancedContext.Provider>
   );
+}
+
+// Shown when a raw/expert surface is requested while Advanced is off — an honest
+// door rather than a dead end.
+function AdvancedLocked({ onEnable }: { onEnable: () => void }) {
+  return <section className="border border-black/10 bg-white px-4 py-12 text-center" aria-label="Advanced details are off">
+    <p className="text-sm font-semibold text-black/70">Raw data is an advanced view</p>
+    <p className="mx-auto mt-1 max-w-md text-xs leading-5 text-black/45">Turn on Advanced to see the complete raw records, internal IDs, and the full filter set. Everyday inspection needs none of it.</p>
+    <button type="button" onClick={onEnable} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white hover:bg-black/85">Turn on Advanced</button>
+  </section>;
 }
 
 function KpiScorecard({ rows, selected, onSelect, onInspectChecks, onInspectEvidence }: {
@@ -476,7 +522,7 @@ function KpiScorecard({ rows, selected, onSelect, onInspectChecks, onInspectEvid
       <SummaryMetric label="On target" value={passing} icon={<Check size={15} />} tone="good" />
       <SummaryMetric label="Attention" value={attention} icon={<AlertTriangle size={15} />} tone={attention ? "bad" : "good"} />
       <SummaryMetric label="Calibrating" value={calibrating} icon={<History size={15} />} />
-      <SummaryMetric label="Blind" value={blind} icon={<EyeOff size={15} />} tone={blind ? "warn" : "good"} />
+      <SummaryMetric label="No data yet" value={blind} icon={<EyeOff size={15} />} tone={blind ? "warn" : "good"} />
     </section>
 
     <div className="flex flex-wrap items-end justify-between gap-3">
@@ -589,15 +635,20 @@ function InspectionFilters({ query, onQuery, domain, onDomain, status, onStatus,
   onLens: (value: RadarRuleLens | "all") => void;
   mode: "kpis" | "checks" | "evidence" | "records" | "incidents";
 }) {
+  const advanced = useInspectorAdvanced();
   const showStatus = mode === "checks" || mode === "kpis" || mode === "incidents";
   const showCheckFilters = mode === "checks";
+  // Scope and Lens are expert dimensions; behind Advanced the default view stays
+  // to search + domain + a plain status.
+  const showExpertFilters = showCheckFilters && advanced;
+  const statusOptions = mode === "incidents" || !advanced ? SIMPLE_STATUS_OPTIONS : ADVANCED_STATUS_OPTIONS;
   const placeholder = mode === "records" ? "Search datasets, source IDs, fields, or domains..." : mode === "evidence" ? "Search series, source IDs, or values..." : mode === "incidents" ? "Search incidents, findings, evidence, check IDs, or sources..." : mode === "kpis" ? "Search KPI, owner, target, source, or domain..." : "Search any check field, evidence, source, or ID...";
   return <div className="grid gap-2 border-y border-black/10 bg-white p-3 sm:grid-cols-2 lg:grid-cols-[minmax(260px,1fr)_160px_160px_160px_160px]">
     <label className="relative block min-w-0"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-black/35" /><input value={query} onChange={event => onQuery(event.target.value)} placeholder={placeholder} className="mm-field min-h-10 w-full pl-10 text-sm" /></label>
     <Select label="Domain" value={domain} onChange={value => onDomain(value as AdvisorDomain | "all")} options={["all", ...DOMAINS]} />
-    {showStatus ? <Select label="Status" value={status} onChange={value => onStatus(value as StatusFilter)} options={mode === "incidents" ? ["all", "attention", "critical", "warning", "watch"] : ["all", "attention", "applicable", "assured", "firing", "live", "critical", "warning", "watch", "blind", "learning", "inactive", "pass"]} /> : <div className="hidden lg:block" />}
-    {showCheckFilters ? <Select label="Scope" value={scope} onChange={value => onScope(value as ScopeFilter)} options={["all", "sentinel", ...SCOPES]} /> : <div className="hidden lg:block" />}
-    {showCheckFilters ? <Select label="Lens" value={lens} onChange={value => onLens(value as RadarRuleLens | "all")} options={["all", ...LENSES]} /> : <div className="hidden lg:block" />}
+    {showStatus ? <Select label="Status" value={status} onChange={value => onStatus(value as StatusFilter)} options={statusOptions} /> : <div className="hidden lg:block" />}
+    {showExpertFilters ? <Select label="Scope" value={scope} onChange={value => onScope(value as ScopeFilter)} options={["all", "sentinel", ...SCOPES]} /> : <div className="hidden lg:block" />}
+    {showExpertFilters ? <Select label="Lens" value={lens} onChange={value => onLens(value as RadarRuleLens | "all")} options={["all", ...LENSES]} /> : <div className="hidden lg:block" />}
   </div>;
 }
 
@@ -611,6 +662,7 @@ function CheckLedgerRow({ check, selected, onSelect }: { check: BusinessRadarChe
 }
 
 function CheckInspector({ check, onInspectSource }: { check: BusinessRadarCheck; onInspectSource: () => void }) {
+  const advanced = useInspectorAdvanced();
   const measurementRows = [
     ["Current value", check.value === undefined ? "Not numeric" : formatNumber(check.value)],
     ["Previous value", check.previousValue === undefined ? "Not retained" : formatNumber(check.previousValue)],
@@ -624,8 +676,8 @@ function CheckInspector({ check, onInspectSource }: { check: BusinessRadarCheck;
     <InspectorSection title="Measurement"><div className="grid grid-cols-2 gap-px overflow-hidden border border-black/10 bg-black/10">{measurementRows.map(([label, value]) => <DataCell key={label} label={label} value={value} />)}</div></InspectorSection>
     <InspectorSection title="Evidence used">{check.evidence.length ? <ul className="divide-y divide-black/10 border-y border-black/10">{check.evidence.map((item, index) => <li key={`${index}:${item}`} className="flex gap-3 py-2.5 text-sm leading-5 text-black/62"><span className="mt-1 size-1.5 shrink-0 rounded-full bg-brand" />{item}</li>)}</ul> : <p className="text-sm text-black/40">No human-readable evidence was emitted for this check.</p>}</InspectorSection>
     <InspectorSection title="Resolved policy"><dl className="grid gap-x-4 gap-y-3 sm:grid-cols-2">{Object.entries(check.policy ?? {}).map(([key, value]) => <div key={key}><dt className="text-[10px] font-semibold uppercase text-black/35">{readable(key)}</dt><dd className="mt-1 break-words text-sm text-black/65">{Array.isArray(value) ? value.join(", ") : String(value)}</dd></div>)}{!check.policy ? <p className="text-sm text-black/40">This detector does not expose an adaptive policy record.</p> : null}</dl></InspectorSection>
-    <InspectorSection title="Provenance"><dl className="space-y-2 text-xs"><Identifier label="Check ID" value={check.id} /><Identifier label="Rule ID" value={check.ruleId} /><Identifier label="Family ID" value={check.familyId} /><Identifier label="Source ID" value={check.sourceId} /><Identifier label="Measured" value={formatDate(check.measuredAt)} /><Identifier label="Last source signal" value={check.lastSeenAt ? formatDate(check.lastSeenAt) : "Not declared"} />{check.exceptionId ? <Identifier label="Exception ID" value={check.exceptionId} /> : null}</dl><div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={onInspectSource} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white"><Database size={13} /> Inspect source records</button><Link href={check.href} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/65 hover:bg-black/[0.03]">Open source workspace <ArrowUpRight size={13} /></Link></div></InspectorSection>
-    <InspectorSection title="Raw check record"><pre className="max-h-80 overflow-auto bg-[#171815] p-4 text-[11px] leading-5 text-white/72">{JSON.stringify(check, null, 2)}</pre></InspectorSection>
+    <InspectorSection title="Provenance">{advanced ? <dl className="space-y-2 text-xs"><Identifier label="Check ID" value={check.id} /><Identifier label="Rule ID" value={check.ruleId} /><Identifier label="Family ID" value={check.familyId} /><Identifier label="Source ID" value={check.sourceId} /><Identifier label="Measured" value={formatDate(check.measuredAt)} /><Identifier label="Last source signal" value={check.lastSeenAt ? formatDate(check.lastSeenAt) : "Not declared"} />{check.exceptionId ? <Identifier label="Exception ID" value={check.exceptionId} /> : null}</dl> : <p className="text-xs leading-5 text-black/45">Measured {formatDate(check.measuredAt)}{check.lastSeenAt ? ` · last source signal ${formatDate(check.lastSeenAt)}` : ""}. Turn on Advanced for the internal identifiers.</p>}<div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={onInspectSource} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white"><Database size={13} /> Inspect source records</button><Link href={check.href} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/65 hover:bg-black/[0.03]">Open source workspace <ArrowUpRight size={13} /></Link></div></InspectorSection>
+    {advanced ? <InspectorSection title="Raw check record"><pre className="max-h-80 overflow-auto bg-[#171815] p-4 text-[11px] leading-5 text-white/72">{JSON.stringify(check, null, 2)}</pre></InspectorSection> : null}
   </div>;
 }
 
@@ -634,12 +686,13 @@ function EvidenceSeriesRow({ series, selected, onSelect }: { series: RadarEviden
 }
 
 function EvidenceInspector({ summary, detail, onLoad }: { summary: RadarEvidenceSeriesSummary; detail: RadarEvidenceSeriesInspection | null; onLoad: () => void }) {
+  const advanced = useInspectorAdvanced();
   const points = detail?.points ?? summary.recentPoints;
   return <div className="max-h-[calc(100dvh-18rem)] min-h-[420px] overflow-y-auto">
-    <header className="border-b border-black/10 px-4 py-4 sm:px-5"><p className="text-[10px] font-semibold uppercase text-brand">{domainLabel(summary.domain)} evidence series</p><h2 className="mt-2 text-lg font-semibold text-black/85">{summary.familyLabel}</h2><p className="mt-1 break-all font-mono text-[11px] text-black/38">{summary.id}</p></header>
+    <header className="border-b border-black/10 px-4 py-4 sm:px-5"><p className="text-[10px] font-semibold uppercase text-brand">{domainLabel(summary.domain)} evidence series</p><h2 className="mt-2 text-lg font-semibold text-black/85">{summary.familyLabel}</h2>{advanced ? <p className="mt-1 break-all font-mono text-[11px] text-black/38">{summary.id}</p> : null}</header>
     <InspectorSection title="Retained movement"><EvidenceBars points={points} /><div className="mt-3 grid grid-cols-2 gap-px border border-black/10 bg-black/10 sm:grid-cols-4"><DataCell label="Latest" value={summary.latestValue === undefined ? "Unavailable" : formatNumber(summary.latestValue)} /><DataCell label="All samples" value={summary.totalSamples.toLocaleString()} /><DataCell label="Recent points" value={summary.retainedPointCount.toLocaleString()} /><DataCell label="Hourly rollups" value={summary.hourlyRollupCount.toLocaleString()} /></div></InspectorSection>
-    <InspectorSection title="Series provenance"><dl className="space-y-2 text-xs"><Identifier label="Source ID" value={summary.sourceId} /><Identifier label="Family ID" value={summary.familyId} /><Identifier label="Direction" value={readable(summary.expectedDirection)} /><Identifier label="First seen" value={formatDate(summary.firstSeenAt)} /><Identifier label="Last seen" value={formatDate(summary.lastSeenAt)} /></dl></InspectorSection>
-    {!detail ? <div className="px-4 pb-5 sm:px-5"><button type="button" onClick={onLoad} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white"><Database size={15} /> Load every retained point</button><p className="mt-2 text-xs text-black/38">The chart currently shows the latest {summary.recentPoints.length} points from the index.</p></div> : <><InspectorSection title={`Individual points (${detail.points.length})`}><PointTable points={detail.points} /></InspectorSection><InspectorSection title={`Hourly rollups (${detail.hourly.length})`}><HourlyTable rows={detail.hourly} /></InspectorSection><InspectorSection title="Raw evidence series"><pre className="max-h-96 overflow-auto bg-[#171815] p-4 text-[11px] leading-5 text-white/72">{JSON.stringify(detail, null, 2)}</pre></InspectorSection></>}
+    {advanced ? <InspectorSection title="Series provenance"><dl className="space-y-2 text-xs"><Identifier label="Source ID" value={summary.sourceId} /><Identifier label="Family ID" value={summary.familyId} /><Identifier label="Direction" value={readable(summary.expectedDirection)} /><Identifier label="First seen" value={formatDate(summary.firstSeenAt)} /><Identifier label="Last seen" value={formatDate(summary.lastSeenAt)} /></dl></InspectorSection> : null}
+    {!detail ? <div className="px-4 pb-5 sm:px-5"><button type="button" onClick={onLoad} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white"><Database size={15} /> Load every retained point</button><p className="mt-2 text-xs text-black/38">The chart currently shows the latest {summary.recentPoints.length} points from the index.</p></div> : <><InspectorSection title={`Individual points (${detail.points.length})`}><PointTable points={detail.points} /></InspectorSection><InspectorSection title={`Hourly rollups (${detail.hourly.length})`}><HourlyTable rows={detail.hourly} /></InspectorSection>{advanced ? <InspectorSection title="Raw evidence series"><pre className="max-h-96 overflow-auto bg-[#171815] p-4 text-[11px] leading-5 text-white/72">{JSON.stringify(detail, null, 2)}</pre></InspectorSection> : null}</>}
   </div>;
 }
 
@@ -703,10 +756,11 @@ function SourceDatasetInspector({ dataset, detail, onPage }: { dataset: RadarSou
 }
 
 function SourceRecordRow({ record, index }: { record: Record<string, unknown>; index: number }) {
+  const advanced = useInspectorAdvanced();
   const title = recordIdentity(record, index);
   const stamp = recordTimestamp(record);
   const digest = recordDigest(record);
-  return <details className="group px-4 py-3 sm:px-5"><summary className="flex cursor-pointer list-none items-start justify-between gap-4"><span className="min-w-0"><strong className="block truncate text-sm font-semibold text-black/70">{title}</strong><span className="mt-1 block line-clamp-2 text-xs leading-5 text-black/42">{digest || "Open to inspect the complete sanitized record."}</span></span><span className="shrink-0 text-right text-[10px] tabular-nums text-black/35">#{index + 1}{stamp ? <span className="mt-1 block">{stamp}</span> : null}</span></summary><pre className="mt-3 max-h-96 overflow-auto bg-[#171815] p-4 text-[11px] leading-5 text-white/72">{JSON.stringify(record, null, 2)}</pre></details>;
+  return <details className="group px-4 py-3 sm:px-5"><summary className="flex cursor-pointer list-none items-start justify-between gap-4"><span className="min-w-0"><strong className="block truncate text-sm font-semibold text-black/70">{title}</strong><span className="mt-1 block line-clamp-2 text-xs leading-5 text-black/42">{digest || "Open to inspect the complete sanitized record."}</span></span><span className="shrink-0 text-right text-[10px] tabular-nums text-black/35">#{index + 1}{stamp ? <span className="mt-1 block">{stamp}</span> : null}</span></summary>{advanced ? <pre className="mt-3 max-h-96 overflow-auto bg-[#171815] p-4 text-[11px] leading-5 text-white/72">{JSON.stringify(record, null, 2)}</pre> : <p className="mt-3 text-xs text-black/40">Turn on Advanced to view the raw record.</p>}</details>;
 }
 
 function SourceStatusBadge({ status }: { status: RadarSourceDatasetSummary["status"] }) {
@@ -736,7 +790,7 @@ function recordDigest(record: Record<string, unknown>): string {
 function SourcesAndMetrics({ radar }: { radar: BusinessIssueRadar }) {
   return <div className="grid gap-5">
     <PrioritySignalCentre radar={radar} />
-    <section className="overflow-hidden border border-black/10 bg-white"><SectionHeader icon={<RadioTower size={17} />} title="Domain rollups" detail="Complete assurance, readiness, confidence, and outcome counts for each business area." count={radar.domains.length} /><div className="overflow-x-auto"><table className="w-full min-w-[1120px] border-collapse text-left text-xs"><thead className="bg-[#efeee9]"><tr><Th>Domain</Th><Th>Total</Th><Th>Applicable</Th><Th>Pass</Th><Th>Firing</Th><Th>Watch</Th><Th>Blind</Th><Th>Learning</Th><Th>Inactive</Th><Th>Coverage</Th><Th>Assurance</Th><Th>Confidence</Th><Th>Readiness</Th><Th>Last signal</Th></tr></thead><tbody className="divide-y divide-black/10">{radar.domains.map(item => <tr key={item.domain}><Td><strong>{domainLabel(item.domain)}</strong></Td><Td mono>{item.totalChecks}</Td><Td mono>{item.applicableChecks}</Td><Td mono>{item.passedChecks}</Td><Td mono>{item.firingChecks}</Td><Td mono>{item.watchChecks}</Td><Td mono>{item.blindChecks}</Td><Td mono>{item.learningChecks}</Td><Td mono>{item.inactiveChecks}</Td><Td mono>{item.coveragePercent}%</Td><Td mono>{item.assurancePercent}%</Td><Td mono>{item.confidencePercent}%</Td><Td mono>{item.readinessPercent}%</Td><Td>{item.lastSignalAt ? formatDate(item.lastSignalAt) : "None"}</Td></tr>)}</tbody></table></div></section>
+    <section className="overflow-hidden border border-black/10 bg-white"><SectionHeader icon={<RadioTower size={17} />} title="Domain rollups" detail="Complete assurance, readiness, confidence, and outcome counts for each business area." count={radar.domains.length} /><div className="overflow-x-auto"><table className="w-full min-w-[1120px] border-collapse text-left text-xs"><thead className="bg-[#efeee9]"><tr><Th>Domain</Th><Th>Total</Th><Th>Applicable</Th><Th>Pass</Th><Th>Alerting</Th><Th>Watch</Th><Th>No data yet</Th><Th>Still gathering</Th><Th>Inactive</Th><Th>Coverage</Th><Th>Assurance</Th><Th>Confidence</Th><Th>Readiness</Th><Th>Last signal</Th></tr></thead><tbody className="divide-y divide-black/10">{radar.domains.map(item => <tr key={item.domain}><Td><strong>{domainLabel(item.domain)}</strong></Td><Td mono>{item.totalChecks}</Td><Td mono>{item.applicableChecks}</Td><Td mono>{item.passedChecks}</Td><Td mono>{item.firingChecks}</Td><Td mono>{item.watchChecks}</Td><Td mono>{item.blindChecks}</Td><Td mono>{item.learningChecks}</Td><Td mono>{item.inactiveChecks}</Td><Td mono>{item.coveragePercent}%</Td><Td mono>{item.assurancePercent}%</Td><Td mono>{item.confidencePercent}%</Td><Td mono>{item.readinessPercent}%</Td><Td>{item.lastSignalAt ? formatDate(item.lastSignalAt) : "None"}</Td></tr>)}</tbody></table></div></section>
     <div className="grid gap-5 xl:grid-cols-2">
       <section className="overflow-hidden border border-black/10 bg-white"><SectionHeader icon={<Database size={17} />} title="Source coverage" detail="Every source Radar evaluates, including freshness and the exact next activation step." count={radar.coverage.length} /><div className="divide-y divide-black/10">{radar.coverage.map(source => {
         const state = sourceConnectionState(source, radar.generatedAt);
@@ -794,6 +848,7 @@ function sourceActivation(sourceId: string, domain: AdvisorDomain): { detail: st
 }
 
 function IncidentInspection({ radar, query, domain, status, onSelectIncident, onInspectCheck, onInspectSource }: { radar: BusinessIssueRadar; query: string; domain: AdvisorDomain | "all"; status: StatusFilter; onSelectIncident: (incident: BusinessRadarIncident) => void; onInspectCheck: (check: BusinessRadarCheck) => void; onInspectSource: (check: BusinessRadarCheck) => void }) {
+  const advanced = useInspectorAdvanced();
   const normalized = query.trim().toLowerCase();
   const selectedIncident = radar.incidents.find(item => item.id.toLowerCase() === normalized);
   const matches = (item: unknown, itemDomain: AdvisorDomain, severity: BusinessRadarIssue["severity"] | "info") => (domain === "all" || itemDomain === domain) && matchesIncidentStatus(severity, status) && (!normalized || JSON.stringify(item).toLowerCase().includes(normalized));
@@ -802,8 +857,8 @@ function IncidentInspection({ radar, query, domain, status, onSelectIncident, on
   const issues = selectedIncident ? radar.issues.filter(item => selectedIncident.issueIds.includes(item.id)) : radar.issues.filter(item => matches(item, item.domain, item.severity));
   const exactChecks = selectedIncident ? selectedIncident.checkIds.map(checkId => radar.checks.find(check => check.id === checkId)).filter((check): check is BusinessRadarCheck => Boolean(check)) : [];
   return <div className="grid gap-5">{selectedIncident ? <IncidentExactBreakdown incident={selectedIncident} issues={issues} checks={exactChecks} onInspectCheck={onInspectCheck} onInspectSource={onInspectSource} /> : <section className="overflow-hidden border border-black/10 bg-white"><SectionHeader icon={<ShieldCheck size={17} />} title="Adaptive conclusions" detail="High-level conclusions generated from health, confidence, readiness, and operating stage." count={conclusions.length} /><div className="grid sm:grid-cols-2 xl:grid-cols-4">{conclusions.map((item, index) => <article key={item.id} className={`px-4 py-4 sm:px-5 ${index ? "border-t border-black/10 sm:border-l sm:border-t-0" : ""}`}><div className="flex items-center gap-2"><span className={`size-2 rounded-full ${item.severity === "critical" ? "bg-red-600" : item.severity === "warning" ? "bg-amber-500" : item.severity === "watch" ? "bg-sky-500" : "bg-black/25"}`} /><span className="text-[10px] font-semibold uppercase text-black/35">{domainLabel(item.domain)}</span></div><h3 className="mt-2 text-sm font-semibold text-black/75">{item.title}</h3><p className="mt-1 text-xs leading-5 text-black/45">{item.detail}</p></article>)}</div>{!conclusions.length ? <Empty title="No matching conclusions" detail="Adjust the search or domain filter to inspect a broader command summary." /> : null}</section>}
-    <section className="overflow-hidden border border-black/10 bg-white"><SectionHeader icon={<AlertTriangle size={17} />} title="Grouped incidents" detail="Related findings stay grouped at command level, while the exact issues and checks remain independently inspectable." count={incidents.length} /><div className="divide-y divide-black/10">{incidents.map(incident => <article key={incident.id} className="grid gap-4 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_260px] sm:px-5"><div><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${severityClass(incident.severity)}`}>{incident.severity}</span><span className="text-[10px] font-semibold uppercase text-black/35">{domainLabel(incident.domain)} · {incident.issueIds.length} issues · {incident.checkIds.length} checks</span></div><h3 className="mt-2 text-sm font-semibold text-black/80">{incident.title}</h3><p className="mt-1 text-sm leading-6 text-black/50">{incident.detail}</p><ul className="mt-3 space-y-1">{incident.evidence.map((item, index) => <li key={`${index}:${item}`} className="text-xs text-black/45">• {item}</li>)}</ul></div><div className="space-y-2"><Identifier label="Incident ID" value={incident.id} /><Identifier label="Source IDs" value={incident.sourceIds.join(", ") || "None"} /><Identifier label="Check IDs" value={incident.checkIds.join(", ") || "None"} /><div className="flex flex-wrap gap-2"><button type="button" onClick={() => onSelectIncident(incident)} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white"><Database size={13} /> Exact breakdown</button><Link href={incident.href} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 px-3 text-xs font-semibold text-black/65">Open source <ArrowUpRight size={13} /></Link></div></div></article>)}{!incidents.length ? <Empty title="No matching grouped incidents" detail="The complete finding ledger remains available below and in the Checks view." /> : null}</div></section>
-    <section className="overflow-hidden border border-black/10 bg-white"><SectionHeader icon={<Activity size={17} />} title="Underlying findings" detail="The ungrouped issue records retained before incident correlation." count={issues.length} /><div className="divide-y divide-black/10">{issues.map(issue => <details key={issue.id} className="group px-4 py-3 sm:px-5"><summary className="flex cursor-pointer list-none items-center justify-between gap-3"><span className="min-w-0"><span className={`mr-2 inline-block rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${severityClass(issue.severity)}`}>{issue.severity}</span><strong className="text-sm font-semibold text-black/72">{issue.title}</strong></span><span className="shrink-0 text-[10px] font-semibold uppercase text-black/35">{domainLabel(issue.domain)}</span></summary><div className="pb-2 pt-3"><p className="text-sm leading-6 text-black/50">{issue.detail}</p><pre className="mt-3 max-h-80 overflow-auto bg-[#171815] p-4 text-[11px] leading-5 text-white/72">{JSON.stringify(issue, null, 2)}</pre></div></details>)}{!issues.length ? <Empty title="No matching underlying findings" detail="Adjust the search or domain filter to inspect a broader set of findings." /> : null}</div></section>
+    <section className="overflow-hidden border border-black/10 bg-white"><SectionHeader icon={<AlertTriangle size={17} />} title="Grouped incidents" detail="Related findings stay grouped at command level, while the exact issues and checks remain independently inspectable." count={incidents.length} /><div className="divide-y divide-black/10">{incidents.map(incident => <article key={incident.id} className="grid gap-4 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_260px] sm:px-5"><div><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${severityClass(incident.severity)}`}>{incident.severity}</span><span className="text-[10px] font-semibold uppercase text-black/35">{domainLabel(incident.domain)} · {incident.issueIds.length} issues · {incident.checkIds.length} checks</span></div><h3 className="mt-2 text-sm font-semibold text-black/80">{incident.title}</h3><p className="mt-1 text-sm leading-6 text-black/50">{incident.detail}</p><ul className="mt-3 space-y-1">{incident.evidence.map((item, index) => <li key={`${index}:${item}`} className="text-xs text-black/45">• {item}</li>)}</ul></div><div className="space-y-2">{advanced ? <><Identifier label="Incident ID" value={incident.id} /><Identifier label="Source IDs" value={incident.sourceIds.join(", ") || "None"} /><Identifier label="Check IDs" value={incident.checkIds.join(", ") || "None"} /></> : null}<div className="flex flex-wrap gap-2"><button type="button" onClick={() => onSelectIncident(incident)} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white"><Database size={13} /> Exact breakdown</button><Link href={incident.href} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 px-3 text-xs font-semibold text-black/65">Open source <ArrowUpRight size={13} /></Link></div></div></article>)}{!incidents.length ? <Empty title="No matching grouped incidents" detail="The complete finding ledger remains available below and in the Checks view." /> : null}</div></section>
+    <section className="overflow-hidden border border-black/10 bg-white"><SectionHeader icon={<Activity size={17} />} title="Underlying findings" detail="The ungrouped issue records retained before incident correlation." count={issues.length} /><div className="divide-y divide-black/10">{issues.map(issue => <details key={issue.id} className="group px-4 py-3 sm:px-5"><summary className="flex cursor-pointer list-none items-center justify-between gap-3"><span className="min-w-0"><span className={`mr-2 inline-block rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${severityClass(issue.severity)}`}>{issue.severity}</span><strong className="text-sm font-semibold text-black/72">{issue.title}</strong></span><span className="shrink-0 text-[10px] font-semibold uppercase text-black/35">{domainLabel(issue.domain)}</span></summary><div className="pb-2 pt-3"><p className="text-sm leading-6 text-black/50">{issue.detail}</p>{advanced ? <pre className="mt-3 max-h-80 overflow-auto bg-[#171815] p-4 text-[11px] leading-5 text-white/72">{JSON.stringify(issue, null, 2)}</pre> : null}</div></details>)}{!issues.length ? <Empty title="No matching underlying findings" detail="Adjust the search or domain filter to inspect a broader set of findings." /> : null}</div></section>
   </div>;
 }
 

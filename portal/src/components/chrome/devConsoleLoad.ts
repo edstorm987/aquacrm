@@ -104,7 +104,7 @@ export async function runDevConsoleLoad(input: {
   const message = (result: PromiseSettledResult<void>) =>
     result.status === "rejected" && result.reason instanceof Error ? result.reason.message : "";
   if (results.every(result => result.status === "rejected")) {
-    sinks.setError(message(results[0]) || "Could not read the Dev Console status.");
+    sinks.setError(message(results[0]) || "Could not read the Dev Team status.");
   } else if (results[1].status === "rejected") {
     sinks.setStatusError(message(results[1]) || "Could not read worker activity.");
   }

@@ -33,6 +33,10 @@ verifying. Cross-check against `src/lib/server/productionReadiness.ts`.
 - **App secrets — sessions/handoff (likely already set):** `SESSION_SECRET` /
   `PORTAL_SESSION_SECRET`, `PORTAL_HANDOFF_SECRET`, `PORTAL_PREVIEW_SECRET`,
   `AQUA_EMBED_SIGNING_SECRET`, `AQUA_EMBED_API_TOKEN`, `CRON_SECRET` (also gates the radar-probe cron).
+- **Radar probe self-scheduler (#170, optional — OFF unless set):** `RADAR_PROBE_INTERVAL_MINUTES` — set to a
+  positive number of minutes (e.g. `180`) on the Railway instance to run the probe sweep in-process on the
+  persistent server. Leave unset to keep it off (and instead use a Railway cron / GitHub Action on
+  `/api/cron/radar-probes`). Only takes effect where `PORTAL_SINGLE_INSTANCE=true`.
 - **Stripe — payments/onboarding (#33 #42 #45 #69 #122):** `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`.
 - **Email — client comms (#43). Pick ONE provider:** Resend → `RESEND_API_KEY`, `MILESYMEDIA_FROM_EMAIL`,
   `MILESYMEDIA_FROM_NAME`, `MILESYMEDIA_SUPPORT_EMAIL`; **or** SMTP → `SMTP_HOST`, `SMTP_PORT`,
@@ -52,12 +56,12 @@ provider. Meta/Twilio/Google are per-feature and can follow.
 
 ## 🌐 Infra / environment
 
-- **Radar probe cron isn't firing on Railway.** The live inbox shows *"scheduled probe
-  sweep hasn't run — last checked 22d ago,"* so radar evidence is going stale. On Vercel
-  this was a cron; on Railway it needs a scheduler (Railway cron service, the GitHub
-  Action, or a self-scheduling interval). **Your call on the mechanism** — I can build a
-  self-scheduling interval on the persistent instance if you want (flag it and I will).
-  Directly relevant to the fractal Radar's "always-on" layer.
+- **Radar probe cron isn't firing on Railway — SELF-SCHEDULER NOW BUILT (2026-09-05), just set the env var.**
+  The live inbox showed *"scheduled probe sweep hasn't run,"* so radar evidence was going stale. On Vercel
+  this was a platform cron; Railway has none. A self-scheduling interval on the persistent instance is now
+  built and flag-gated OFF (`src/engines/data/server/radar/probeSchedule.ts`). **Activate it by setting
+  `RADAR_PROBE_INTERVAL_MINUTES`** (e.g. `180`). Alternatives still work if you prefer: a Railway cron
+  service or a GitHub Action hitting `/api/cron/radar-probes` (leave the env var unset). See #170 below.
 - **Apex `aqua-crm.com` cert** — only `www` is registered on the Railway plan; the apex
   serves an invalid cert. Add the apex domain in Railway (needs the plan slot) or drop the
   apex DNS.
@@ -76,21 +80,32 @@ provider. Meta/Twilio/Google are per-feature and can follow.
   — the node model can shift with your answers, so I want your nod first to avoid rework.
 These four now have a **recommended default** too — say "yes to your recommendations" (or change a line)
 and I implement the ones with an engineering side:
-- **#170 Radar probe freshness.** *Recommend: do BOTH, and the honest half is already done.* The radar
-  already shows evidence age and degrades stale readings to `blind` (never a false green) — so surfaces
-  are honest today. The remaining half is restoring sub-daily probes = the cron mechanism (Infra above):
-  say the word and I build a self-scheduling probe interval on the persistent instance. Low risk.
-- **#174 Last-grant revocation policy.** *Recommend: no grants = no access.* Revoking an identity's LAST
-  grant should **deny**, not fall back to un-migrated legacy access (the current behaviour widens instead
-  of narrowing — issue #174). "Revocation narrows" is the least-surprise, secure default. Approve and I
-  implement + pin it.
-- **#163 / #168 client-route refusals.** *Recommend: standardise on indistinguishable 404.* Return a
-  house-convention **404** for cross-tenant / sibling-project refusals — it both preserves privacy (never
-  leaks that a sibling project exists, answering #163 "yes") and fixes the 403/404 inconsistency (#168,
-  28 routes). Approve and I do the 403→404 change across those routes + verify with the full suite.
-- **#2 Aqua Tag form-capture consent wording.** *Recommend (draft, subject to your DPO):* "By submitting,
-  you agree we can store and use your details to respond to your enquiry. We won't share them or use them
-  for anything else. See our Privacy Policy." Approve/edit and I wire it into the capture form.
+- **#170 Radar probe freshness. 🟡 BOTH HALVES BUILT 2026-09-05, needs one env var from you.** The honest
+  half was already done (evidence age shown; stale readings degrade to `blind`, never a false green). The
+  mechanism half is now built too: a self-scheduling probe interval on the persistent instance
+  (`src/engines/data/server/radar/probeSchedule.ts`), **OFF by default**. **To turn it on:** set
+  `RADAR_PROBE_INTERVAL_MINUTES` on Railway (e.g. `180` for every 3h) — that's the whole activation. It runs
+  only on the single instance and does the exact same sweep as `/api/cron/radar-probes`, so if you'd rather
+  use a Railway cron service or a GitHub Action hitting that route, that still works and you leave the env
+  var unset. Your call on which; the code is ready for all three.
+- **#174 Last-grant revocation policy. ✅ APPROVED + DONE 2026-09-05.** You chose "no grants = no access".
+  Implemented: a new `actorEverHadNonProjectAccessPolicy` makes the governance boundary a one-way door, so
+  revoking an identity's last grant now **narrows to a refusal** instead of un-migrating them back to legacy
+  `manage`. A genuinely never-governed identity is untouched (migration safety intact). All seven
+  governance-boundary gates use it; the release-access-matrix pin records the new rule; full suite green.
+- **#163 / #168 client-route refusals. ✅ APPROVED + DONE 2026-09-05.** Standardised on the indistinguishable
+  404. #163: a **client** identity's refusal of a project not attached to them is now the same 404 an invented
+  id gets (agency identities keep the honest 403). #168: turned out already complete in code across every named
+  route (tenant client-*/customer-*/product-workspaces, contracts/templates, performance/*) — verified by an
+  exhaustive source sweep + a 10-route pin, docs updated. Full suite green.
+- **#2 Aqua Tag form-capture consent wording. 🟡 DRAFT WIRED 2026-09-05, needs your DPO's final wording.**
+  The approved draft — *"By submitting, you agree we can store and use your details to respond to your
+  enquiry. We won't share them or use them for anything else. See our Privacy Policy."* — is now the default
+  data-use notice on Aqua's own contact form (React block + static export), as a `consentNotice` prop so your
+  DPO's final wording drops in **without a code change**, plus an optional `privacyPolicyUrl` to link the
+  policy. Basis is legitimate-interest-with-transparency (not a hard gate), per your steer. **What's left is
+  yours:** DPO signs off the exact wording, then tell me the final string (or edit the prop default). This is
+  the only remaining piece of #2.
 - **DPO sign-off**, Stripe live walkthrough, Meta app, onboarding-chain walk — the TODO's
   "Blocked on you" section.
 - A **real client's actual details** to do a true end-to-end onboarding (I'll build + test

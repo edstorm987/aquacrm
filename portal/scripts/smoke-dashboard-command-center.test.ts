@@ -307,7 +307,7 @@ describe("dashboard command centre surface", () => {
     assert.match(page, /AgencyActionsPage/);
     assert.match(page, /actionsWorkspace=/);
     assert.match(page, /Command Centre Actions/);
-    assert.match(executive, /Command Centre\s*<\/h1>/);
+    assert.match(executive, /Business health\s*<\/h1>/);
     assert.match(executive, /Command deck/);
     for (const initialDeckLabel of ["Executive overview", "Health, evidence, priorities and controls", "Checks monitored", "Sources connected", "Officer watch summary", "Command Centre quick actions", "Captain&apos;s log"]) {
       assert.match(executive, new RegExp(initialDeckLabel));
@@ -401,7 +401,7 @@ describe("dashboard command centre surface", () => {
     assert.match(workspace, /dashboardMode === "actions"/);
     assert.match(workspace, /mm-omega-actions-workspace/);
     assert.match(workspace, /workspaceBodyRef\.current\?\.scrollTo/);
-    for (const station of ["Executive command controls", "Command Centre", "Day command", "Battle Table", "Radar online"]) {
+    for (const station of ["Executive command controls", "Business health", "Day command", "Plan & targets", "Radar online"]) {
       assert.match(stationNav, new RegExp(station));
     }
     assert.doesNotMatch(stationNav, /KPI Intelligence/);
@@ -411,7 +411,7 @@ describe("dashboard command centre surface", () => {
     // Three permanent stations, widening to four only when the founder-gated Dev
     // Team station is shown. Non-founders must keep the exact three-column nav.
     assert.match(stationNav, /showDevTeam \? "sm:grid-cols-4" : "sm:grid-cols-3"/);
-    assert.match(stationNav, /\{showDevTeam \? <StationButton[^\n]*label="Dev Console"/);
+    assert.match(stationNav, /\{showDevTeam \? <StationButton[^\n]*label="Dev Team"/);
     assert.match(stationNav, /activeMode: CommandStationMode/);
     assert.match(stationNav, /onSelect: \(mode: CommandStationMode\) => void/);
     assert.match(stationNav, /aria-pressed=\{active\}/);
@@ -440,9 +440,9 @@ describe("dashboard command centre surface", () => {
     assert.match(stationNav, /Command Centre · Business watch, personal command and Radar in one system/);
     assert.match(workspace, /data-testid="unified-command-centre"/);
     assert.match(workspace, /CommandInstrumentDock/);
-    assert.match(workspace, /Open KPI Intelligence/);
+    assert.match(workspace, /Open Key numbers/);
     assert.match(workspace, /Open Radar Workspace/);
-    assert.match(workspace, /Back to Command Centre/);
+    assert.match(workspace, /Back to Business health/);
     assert.match(workspace, /<CommandCentreKpiTrajectory intelligence=\{intelligenceState\} onOpen=\{openIntelligence\}/);
     assert.match(workspace, /if \(value === "omega"\) return "executive"/);
     assert.match(workspace, /role="region"/);
@@ -454,7 +454,7 @@ describe("dashboard command centre surface", () => {
     assert.match(workspace, /Open workspace/);
     assert.match(workspace, /Executive view/);
     assert.match(workspace, /slice\(0, 3\)/);
-    for (const bridgeLabel of ["Executive bridge radar", "Watch condition", "PPI-01", "Current watch", "Data inspector", "Primary plotting indicator", "Officer of the watch"]) {
+    for (const bridgeLabel of ["Business radar", "Current mode", "Data inspector", "Selected area", "Priorities"]) {
       assert.match(workspace, new RegExp(bridgeLabel));
     }
     assert.match(workspace, /Scanner ledger/);

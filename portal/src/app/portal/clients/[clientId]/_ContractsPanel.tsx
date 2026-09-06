@@ -397,7 +397,8 @@ export function ContractsPanel({
       ) : (
         <ul className="divide-y divide-black/8">
           {contracts.map(contract => (
-            <li key={contract.id} className="grid gap-4 p-4 lg:grid-cols-[1fr_auto] lg:items-center">
+            // contract-awaiting:<client>:<contract.id> alerts ring the exact contract.
+            <li key={contract.id} data-resolution-record={contract.id} className="grid scroll-mt-24 gap-4 p-4 lg:grid-cols-[1fr_auto] lg:items-center">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-sm font-medium text-black/85">{contract.title}</p>

@@ -108,6 +108,18 @@ export async function register(): Promise<void> {
     environment: process.env.SENTRY_ENVIRONMENT ?? process.env.NODE_ENV ?? "development",
     sentry: capability.capturing ? "reporting" : "logs-only",
   });
+
+  // Radar probe self-scheduler (issues #170). A no-op unless this is the single
+  // persistent instance AND `RADAR_PROBE_INTERVAL_MINUTES` is set — so it stays
+  // off in every serverless/build/test process. Dynamically imported so its
+  // radar graph never enters the Edge bundle. Its own errors must never break the
+  // server boot, so it is isolated in its own try/catch.
+  try {
+    const { startProbeSchedulerIfEnabled } = await import("@/engines/data/server/radar/probeSchedule");
+    startProbeSchedulerIfEnabled();
+  } catch (error) {
+    recordBreadcrumb("server.start", { radarProbeScheduler: `failed:${error instanceof Error ? error.message : String(error)}` });
+  }
 }
 
 /**

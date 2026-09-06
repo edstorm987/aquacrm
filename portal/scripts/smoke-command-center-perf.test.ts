@@ -562,7 +562,7 @@ test("inactive server station modules and nodes stay off the default render", ()
   assert.match(client, /router\.replace\(href, \{ scroll: false \}\)/);
   assert.match(client, /if \(mode === "executive"\) \{\s*navigateServerStation\("executive"\)/);
   assert.match(client, /if \(mode === "battle"\) \{\s*navigateServerStation\("battle"\)/);
-  assert.match(client, /<button type="button" onClick=\{\(\) => navigateServerStation\("executive"\)\} disabled=\{serverNavigationBusy\}[^>]*>[\s\S]*Back to Command Centre/, "Back uses the same pending-aware server navigation");
+  assert.match(client, /<button type="button" onClick=\{\(\) => navigateServerStation\("executive"\)\} disabled=\{serverNavigationBusy\}[^>]*>[\s\S]*Back to Business health/, "Back uses the same pending-aware server navigation");
   assert.match(client, /DayCommandSensorPanel[^>]*onOpenRadar=\{\(\) => navigateServerStation\("executive"\)\}/);
   assert.match(client, /if \(mode === "calendar" \|\| mode === "actions" \|\| mode === "advisor"\) \{\s*navigateServerStation\(mode\)/);
   assert.match(client, /if \(mode === "devteam"\) \{\s*if \(devTeamVisible\) navigateServerStation\("devteam"\)/);
@@ -572,7 +572,7 @@ test("inactive server station modules and nodes stay off the default render", ()
   assert.match(client, /if \(requestedServerStation === "calendar" \|\| requestedServerStation === "actions"\) \{\s*setActiveStation\("day"\);\s*setDashboardMode\(requestedServerStation\)/);
   assert.match(client, /if \(!requestedServerStation\) \{[\s\S]*serverWorkspaceMissing[\s\S]*setActiveStation\("day"\);[\s\S]*setDashboardMode\("day"\)/, "removing the query cannot strand a preserved client station without its server workspace");
   assert.match(client, /devTeamWorkspace \?\? <StationLoading label="Dev Team" \/>/);
-  assert.match(client, /executiveWorkspace \?\? <StationLoading label="Command Centre" \/>/);
+  assert.match(client, /executiveWorkspace \?\? <StationLoading label="Business health" \/>/);
   assert.match(client, /calendarWorkspace \?\? <StationLoading label="Command Calendar" \/>/);
   assert.match(client, /advisorWorkspace \?\? <StationLoading label="Aqua Advisor" \/>/);
   assert.match(client, /actionsWorkspace \?\? <StationLoading label="Command Centre Actions" \/>/);

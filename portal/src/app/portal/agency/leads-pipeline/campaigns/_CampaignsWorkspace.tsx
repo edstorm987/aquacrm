@@ -587,7 +587,8 @@ export function CampaignsWorkspace({ campaigns, availableTags, availableSources,
               No campaigns yet.
             </div>
           ) : campaigns.map(campaign => (
-            <article key={campaign.id} className="mm-surface-card mm-hover-lift rounded-md p-3">
+            // campaign-budget/target:<campaign.id> alerts ring the exact campaign.
+            <article key={campaign.id} data-resolution-record={campaign.id} className="mm-surface-card mm-hover-lift scroll-mt-24 rounded-md p-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2"><h3 className="truncate text-sm font-semibold text-black/90">{campaign.name}</h3><CampaignBrandBadges companyIds={campaign.companyIds} companies={companies} /></div>

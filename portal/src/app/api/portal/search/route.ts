@@ -65,7 +65,7 @@ export interface GlobalSearchResult {
     | "File"
     | "Form"
     | "Activity"
-    | "Assistant"
+    | "Advisor"
     | "Workflow"
     | "Experiment"
     | "Website"
@@ -367,7 +367,7 @@ async function buildCandidates(
   push(candidates, {
     id: `company:${agencyId}`,
     category: "Executive",
-    title: "Battle Table",
+    title: "Plan & targets",
     subtitle: "Mission, objectives, projections, capacity, capital, ownership and quarterly reviews",
     href: "/portal/agency?station=battle",
   }, company ? [
@@ -764,7 +764,7 @@ function addCommandIntelligenceCandidates(candidates: Candidate[], snapshot: Com
       title: scope.label,
       subtitle: [readable(scope.kind), `${scope.propertyCount} ${scope.propertyCount === 1 ? "property" : "properties"}`, `${scope.inheritGlobalKpis ? snapshot.kpis.length : scope.readings.length}/20 KPIs available`].join(" · "),
       href: scopeHref,
-    }, [scope.detail, scope.publicUrl, scope.parentId, safeSerialise(scope.readings), "KPI intelligence scope website traffic forms conversions company client whole Aqua ecosystem"], {
+    }, [scope.detail, scope.publicUrl, scope.parentId, safeSerialise(scope.readings), "key numbers KPI intelligence scope website traffic forms conversions company client whole Aqua ecosystem"], {
       detail: scope.detail,
       matchLabel: `${readable(scope.kind)} intelligence scope`,
       timestamp: snapshot.generatedAt,
@@ -1232,8 +1232,8 @@ function addWorkspaceCandidates(
     for (const message of thread.messages) {
       push(candidates, {
         id: message.id,
-        category: "Assistant",
-        title: thread.title || "Assistant conversation",
+        category: "Advisor",
+        title: thread.title || "Advisor conversation",
         subtitle: snippet(message.content),
         href: "/portal/agency/assistant",
       }, [message.content, message.role]);
@@ -1242,8 +1242,8 @@ function addWorkspaceCandidates(
   for (const memory of assistant?.memories ?? []) {
     push(candidates, {
       id: memory.id,
-      category: "Assistant",
-      title: "Assistant memory",
+      category: "Advisor",
+      title: "Advisor memory",
       subtitle: snippet(memory.content),
       href: "/portal/agency/assistant",
     }, [memory.content]);

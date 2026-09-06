@@ -105,11 +105,11 @@ const StationLoading = ({ label }: { label: string }) => (
 
 const BattleTableWorkspace = dynamic(
   () => import("./_BattleTableWorkspace").then(m => m.BattleTableWorkspace),
-  { loading: () => <StationLoading label="Battle Table" /> },
+  { loading: () => <StationLoading label="Plan & targets" /> },
 );
 const CommandIntelligenceWorkspace = dynamic(
   () => import("./_CommandIntelligenceWorkspace").then(m => m.CommandIntelligenceWorkspace),
-  { loading: () => <StationLoading label="KPI Intelligence" /> },
+  { loading: () => <StationLoading label="Key numbers" /> },
 );
 const RadarInspectionWorkspace = dynamic(
   () => import("./radar/RadarInspectionWorkspace").then(m => m.RadarInspectionWorkspace),
@@ -406,7 +406,7 @@ export function DashboardCommandCenter({
     attemptedScanHandleRef.current = null;
     if (scanResultHandle === attempted && !scanPaused) {
       setScanError("");
-      setStatusMessage("Radar and KPI intelligence scan complete.");
+      setStatusMessage("Radar and Key numbers scan complete.");
       return;
     }
     setScanError("The completed scan could not be resumed. Run it again to create a fresh result.");
@@ -1339,10 +1339,10 @@ export function DashboardCommandCenter({
       {displayedScanIsPaused ? (
         <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-[#e5c479]/30 bg-[#e5c479]/[0.06] px-4 py-3 text-sm text-[#f0dcae]" data-testid="command-scan-paused">
           <span className="flex items-center gap-2"><Gauge size={15} /> {scanResultAccessDenied
-            ? "Radar and KPI intelligence are unavailable under your current Workspace overview access."
+            ? "Radar and Key numbers are unavailable under your current Workspace overview access."
             : scanResultUnavailable
-              ? "The completed scan store is temporarily unavailable. Radar and KPI intelligence remain safely paused; retry the scan when the provider recovers."
-              : "Radar and KPI intelligence are paused for a faster Command Centre. Run a secure scan to load live business signals."}</span>
+              ? "The completed scan store is temporarily unavailable. Radar and Key numbers remain safely paused; retry the scan when the provider recovers."
+              : "Radar and Key numbers are paused for a faster Command Centre. Run a secure scan to load live business signals."}</span>
           {!scanResultAccessDenied && canRunRadarScan ? <button type="button" onClick={() => void runCommandScan()} disabled={scanRequestBusy || scanNavigationPending} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-[#e5c479]/40 bg-[#e5c479]/[0.12] px-3 font-semibold text-[#f6e8c6] hover:bg-[#e5c479]/20 disabled:cursor-wait disabled:opacity-60">
             <RefreshCw size={14} className={scanRequestBusy || scanNavigationPending ? "animate-spin" : ""} />
             {scanRequestBusy || scanNavigationPending ? "Running scan…" : scanResultUnavailable ? "Retry scan" : "Run scan"}
@@ -1350,13 +1350,13 @@ export function DashboardCommandCenter({
           {scanError ? <span className="basis-full text-xs text-rose-200" data-testid="command-scan-error">{scanError}</span> : null}
         </div>
       ) : null}
-      {activeStation === "devteam" ? <div className="grid min-w-0 gap-0" data-testid="dev-team-station">{pendingServerStation === "devteam" ? <StationLoading label="Dev Team" /> : devTeamWorkspace ?? <StationLoading label="Dev Team" />}</div> : activeStation === "executive" ? <div className="grid min-w-0 gap-0" data-testid="unified-command-centre">{pendingServerStation === "executive" ? <StationLoading label="Command Centre" /> : <>{executiveWorkspace ?? <StationLoading label="Command Centre" />}<CommandInstrumentDock alertCount={radarSnapshot.summary.critical + radarSnapshot.summary.warning} checkCount={radarSnapshot.summary.totalChecks} onOpenIntelligence={openIntelligenceOverview} onOpenRadar={openRadarWorkspace} /><CommandCentreKpiTrajectory intelligence={intelligenceState} onOpen={openIntelligence} /></>}</div> : activeStation === "battle" ? pendingServerStation === "battle" ? <StationLoading label="Battle Table" /> : battleTablePayload ? <BattleTableWorkspace payload={battleTablePayload} intelligence={intelligenceState} onOpenIntelligence={openIntelligence} radarIncidents={warRoomIncidents} initialSection={requestedBattleSection} initialScopeId={requestedScopeId} /> : <StationLoading label="Battle Table" /> : <fieldset disabled={dashboardMode === "day" && !canUsePersonalCommand} className="contents"><section id="command-workspace" role="region" aria-label={`${activeStation === "day" ? "Day Command" : activeStation === "intelligence" ? "KPI Intelligence" : "Radar"} station`} data-command-mode={dashboardMode === "inspector" ? "workspace" : dashboardMode} className="mm-command-workspace-shell mm-command-workspace-inline relative flex min-h-[42rem] min-w-0 flex-col overflow-hidden rounded-md border border-[#62e8ff]/30 bg-[#020b11]">
+      {activeStation === "devteam" ? <div className="grid min-w-0 gap-0" data-testid="dev-team-station">{pendingServerStation === "devteam" ? <StationLoading label="Dev Team" /> : devTeamWorkspace ?? <StationLoading label="Dev Team" />}</div> : activeStation === "executive" ? <div className="grid min-w-0 gap-0" data-testid="unified-command-centre">{pendingServerStation === "executive" ? <StationLoading label="Business health" /> : <>{executiveWorkspace ?? <StationLoading label="Business health" />}<CommandInstrumentDock alertCount={radarSnapshot.summary.critical + radarSnapshot.summary.warning} checkCount={radarSnapshot.summary.totalChecks} onOpenIntelligence={openIntelligenceOverview} onOpenRadar={openRadarWorkspace} /><CommandCentreKpiTrajectory intelligence={intelligenceState} onOpen={openIntelligence} /></>}</div> : activeStation === "battle" ? pendingServerStation === "battle" ? <StationLoading label="Plan & targets" /> : battleTablePayload ? <BattleTableWorkspace payload={battleTablePayload} intelligence={intelligenceState} onOpenIntelligence={openIntelligence} radarIncidents={warRoomIncidents} initialSection={requestedBattleSection} initialScopeId={requestedScopeId} /> : <StationLoading label="Plan & targets" /> : <fieldset disabled={dashboardMode === "day" && !canUsePersonalCommand} className="contents"><section id="command-workspace" role="region" aria-label={`${activeStation === "day" ? "Day Command" : activeStation === "intelligence" ? "Key numbers" : "Radar"} station`} data-command-mode={dashboardMode === "inspector" ? "workspace" : dashboardMode} className="mm-command-workspace-shell mm-command-workspace-inline relative flex min-h-[42rem] min-w-0 flex-col overflow-hidden rounded-md border border-[#62e8ff]/30 bg-[#020b11]">
       <header className="mm-command-workspace-header flex min-h-14 shrink-0 items-center gap-3 border-b border-[#62e8ff]/25 bg-[#020b11] px-3 text-white shadow-[0_8px_24px_rgba(0,20,28,.16)] sm:px-5">
         <span className="mm-command-workspace-emblem grid size-8 shrink-0 place-items-center border border-[#62e8ff]/35 bg-[#62e8ff]/[0.07] text-[#62e8ff]"><Compass size={16} /></span>
-        <div className="min-w-0"><p className="text-[8px] font-semibold uppercase text-[#76dff1]/55">Aqua command network · Integrated station</p><p className="truncate text-sm font-semibold">{activeStation === "day" ? "Day Command" : activeStation === "intelligence" ? "Command Centre · KPI Intelligence" : "Command Centre · Radar Workspace"}</p></div>
+        <div className="min-w-0"><p className="text-[8px] font-semibold uppercase text-[#76dff1]/55">Aqua command network · Integrated station</p><p className="truncate text-sm font-semibold">{activeStation === "day" ? "Day Command" : activeStation === "intelligence" ? "Command Centre · Key numbers" : "Command Centre · Radar Workspace"}</p></div>
         <div className="ml-auto flex items-center gap-2">
           {activeStation === "day" ? <button type="button" onClick={() => void returnToToday()} disabled={dateBusy || (dashboardMode === "day" && isToday)} title="Return to today’s Day Command" className="inline-flex min-h-8 items-center gap-1.5 border border-[#e5c479]/20 bg-[#e5c479]/[0.05] px-2.5 text-[8px] font-semibold uppercase text-[#e5c479] hover:bg-[#e5c479]/[0.1] hover:text-white disabled:cursor-default disabled:opacity-35"><CalendarDays size={12} /><span className="hidden sm:inline">Back to today</span><span className="sm:hidden">Today</span></button> : null}
-          {activeStation === "intelligence" || activeStation === "radar" ? <button type="button" onClick={() => navigateServerStation("executive")} disabled={serverNavigationBusy} className="inline-flex min-h-8 items-center gap-1.5 border border-[#62e8ff]/22 bg-[#62e8ff]/[0.055] px-2.5 text-[8px] font-semibold uppercase text-[#8ef1ff] hover:bg-[#62e8ff]/[0.1] hover:text-white disabled:opacity-45"><ArrowLeft size={12} /><span className="hidden sm:inline">Back to Command Centre</span><span className="sm:hidden">Command</span></button> : null}
+          {activeStation === "intelligence" || activeStation === "radar" ? <button type="button" onClick={() => navigateServerStation("executive")} disabled={serverNavigationBusy} className="inline-flex min-h-8 items-center gap-1.5 border border-[#62e8ff]/22 bg-[#62e8ff]/[0.055] px-2.5 text-[8px] font-semibold uppercase text-[#8ef1ff] hover:bg-[#62e8ff]/[0.1] hover:text-white disabled:opacity-45"><ArrowLeft size={12} /><span className="hidden sm:inline">Back to Business health</span><span className="sm:hidden">Health</span></button> : null}
           <span className="hidden items-center gap-2 border border-[#68f5d0]/20 bg-[#68f5d0]/[0.05] px-2.5 py-1.5 text-[8px] font-semibold uppercase text-[#68f5d0] sm:inline-flex"><span className="size-1.5 animate-pulse bg-current shadow-[0_0_7px_currentColor]" /> Station active</span>
         </div>
       </header>
@@ -1370,7 +1370,7 @@ export function DashboardCommandCenter({
       {activeStation === "intelligence" ? (
         <div className="-m-3 sm:-m-5"><CommandIntelligenceWorkspace key={intelligenceEntry.version} snapshot={intelligenceState} initialView={intelligenceEntry.view} initialKpiIds={intelligenceEntry.kpiIds} initialScopeId={intelligenceEntry.scopeId} initialCommercialFocus={intelligenceEntry.commercialFocus} /></div>
       ) : dashboardMode === "calendar" ? (
-        <div className="mm-omega-actions-workspace mm-command-calendar-workspace">{pendingServerStation === "calendar" ? <StationLoading label="Command Calendar" /> : calendarWorkspace ?? <StationLoading label="Command Calendar" />}</div>
+        <div data-resolution-focus="task" className="mm-omega-actions-workspace mm-command-calendar-workspace">{pendingServerStation === "calendar" ? <StationLoading label="Command Calendar" /> : calendarWorkspace ?? <StationLoading label="Command Calendar" />}</div>
       ) : dashboardMode === "inspector" ? (
         <RadarInspectionWorkspace key={inspectorTarget.version} initialRadar={radarSnapshot} initialEvidence={radarEvidence} initialTab={inspectorTarget.tab} initialQuery={inspectorTarget.query} initialDomain={inspectorTarget.domain} initialStatus={inspectorTarget.status} initialScope={inspectorTarget.scope} initialLens={inspectorTarget.lens} initialSourceId={inspectorTarget.sourceId} initialDatasetId={inspectorTarget.datasetId} embedded />
       ) : dashboardMode === "workspace" ? (
@@ -1728,7 +1728,7 @@ function CommandInstrumentDock({ alertCount, checkCount, onOpenIntelligence, onO
   onOpenRadar: () => void;
 }) {
   return <nav aria-label="Command Centre instruments" className="grid border-x border-[#62e8ff]/30 bg-[#020b11] sm:grid-cols-2">
-    <CommandInstrumentButton icon={<BarChart3 size={16} />} eyebrow="Integrated instrument · INT-20" label="Open KPI Intelligence" detail="Twenty KPIs, comparisons, campaigns and audiences" tone="aqua" onClick={onOpenIntelligence} />
+    <CommandInstrumentButton icon={<BarChart3 size={16} />} eyebrow="Integrated instrument · INT-20" label="Open Key numbers" detail="Twenty KPIs, comparisons, campaigns and audiences" tone="aqua" onClick={onOpenIntelligence} />
     <CommandInstrumentButton icon={<ScanSearch size={16} />} eyebrow="Integrated instrument · RADAR OPS" label="Open Radar Workspace" detail={`${checkCount.toLocaleString()} checks · ${alertCount} contacts · evidence, sources and policy`} tone="cyan" onClick={onOpenRadar} />
   </nav>;
 }
@@ -2029,7 +2029,7 @@ function battleTableAttention(payload: BattleTablePayload | null): CommandStatio
     return {
       count: 0,
       tone: "info",
-      label: "Battle Table intelligence is calculated when the station opens",
+      label: "Plan & targets intelligence is calculated when the station opens",
     };
   }
   const target = payload.initial.monthlyRevenueTargetCents;

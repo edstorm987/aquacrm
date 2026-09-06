@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-05T10:04:10.620Z",
+  "generatedAt": "2026-09-05T20:23:36.645Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -79,9 +79,9 @@
       "path": "CLAUDE.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-claude-md",
-      "sha256": "ba701f6dcb2d253c062cc088aa371f1e588ee34166516edab506ad309bb1facb",
-      "words": 4800,
-      "bytes": 35482
+      "sha256": "04172bca1a16cab36f3a9b7ddc10cb7167b14c8cc359e4dddc1c924aaea04ec3",
+      "words": 4849,
+      "bytes": 35922
     },
     {
       "path": "docs/architecture-noobie.md",
@@ -423,9 +423,9 @@
       "path": "docs/development/BLOCKERS-FOR-ED.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-blockers-for-ed-md",
-      "sha256": "b38140c8948901e3ae3e0dd7807af1f90090dc5a2151ba8a7a832544a3e5dcd0",
-      "words": 978,
-      "bytes": 7208
+      "sha256": "08f1a4e78b6dfb70ba0cfd9f997154221a2da4cd66bd897149a24bbe5b6d8979",
+      "words": 1213,
+      "bytes": 8913
     },
     {
       "path": "docs/development/CAMPAIGN-LEDGER.md",
@@ -503,9 +503,9 @@
       "path": "docs/development/issues.md",
       "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
       "anchor": "source-docs-development-issues-md",
-      "sha256": "06a223605bb6fd0ef762ba551849e19c4461fcc1572246fdc402808fcf0cabf6",
-      "words": 43710,
-      "bytes": 338248
+      "sha256": "63f478c40b5e1dfebd11bc6d15e25b97d4af79369760a022a2d6c347d2f26c1a",
+      "words": 44151,
+      "bytes": 342298
     },
     {
       "path": "docs/development/LOOP-PROGRESS.md",
@@ -527,9 +527,9 @@
       "path": "docs/development/OVERNIGHT-RUN-2026-09-05.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-overnight-run-2026-09-05-md",
-      "sha256": "13f420e2dcf53a5a9b998c3d8bd8e148da5b7ec405a8da919655c340a3de3740",
-      "words": 6416,
-      "bytes": 46430
+      "sha256": "cc9cb14674c00776974dda957d42e651330c4496f93894997d208bf1411c6441",
+      "words": 6692,
+      "bytes": 48419
     },
     {
       "path": "docs/development/plans/advisor-omega-upgrade.md",
@@ -767,9 +767,9 @@
       "path": "docs/development/plans/fractal-radar-architecture.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-fractal-radar-architecture-md",
-      "sha256": "02e7c97fef23e626eb636e4900c67c897a4c5246835fa70820579b1084c8cfc4",
-      "words": 4694,
-      "bytes": 36346
+      "sha256": "903f539b3d13052557bc9335d08ad448b3797df351cff2d487667a8e3c2978e2",
+      "words": 4875,
+      "bytes": 37768
     },
     {
       "path": "docs/development/plans/freelancer-workspace-HANDOFF.md",
@@ -1071,9 +1071,9 @@
       "path": "docs/development/TODO.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-todo-md",
-      "sha256": "93979ff1c8ba3e9f3bebffb0cc3c8d2c128a8c00520b5f828574bbbe4cd9eecc",
-      "words": 3398,
-      "bytes": 25737
+      "sha256": "81959916256502a871a7e26a24bee0aba1decacba59e74fe82f3665b1b6df9e6",
+      "words": 3484,
+      "bytes": 26454
     },
     {
       "path": "docs/development/ultra-review-2026-08-24.md",

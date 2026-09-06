@@ -65,6 +65,15 @@ test("golden sweep stamps every check with a valid tier + data dependency (Stage
   for (const check of radar.checks) {
     assert.ok(check.tier && TIERS.has(check.tier), `${check.id} is missing a valid tier`);
     assert.ok(check.dataDependency && DEPENDENCIES.has(check.dataDependency), `${check.id} is missing a valid data dependency`);
+    // Every check must be ACTIONABLE and UNDERSTANDABLE, not a raw count/status
+    // with nowhere to go: a destination to act (href), a plain-language reason
+    // (detail), and at least one piece of evidence. This enforces per-check what
+    // was previously only guaranteed by construction — so a NEW check builder
+    // that emits an empty href or no evidence fails here rather than shipping a
+    // dead-end (the "never a vague count with nowhere to act" contract).
+    assert.ok(check.href.trim().length > 0, `${check.id} has no destination (href) to act on`);
+    assert.ok(check.detail.trim().length > 0, `${check.id} has no plain-language detail`);
+    assert.ok(check.evidence.length > 0, `${check.id} carries no evidence`);
   }
   // Every domain is represented in the sweep's domain summary.
   const summarised = new Set(radar.domains.map(domain => domain.domain));

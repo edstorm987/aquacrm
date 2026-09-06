@@ -19,10 +19,15 @@ test("Needs Attention exposes visible resolve, reminder, and dismissal controls"
   const inbox = readFileSync("src/app/portal/agency/inbox/_MasterInbox.tsx", "utf8");
   const alerts = readFileSync("src/lib/server/inbox/operationalAlerts.ts", "utf8");
   const actions = readFileSync("src/app/portal/agency/actions/_ActionsWorkspace.tsx", "utf8");
-  assert.match(inbox, />Resolve</);
-  assert.match(inbox, /Remind later/);
-  assert.match(inbox, />Dismiss</);
-  assert.match(inbox, /The signal clears automatically once the underlying evidence is healthy/);
+  // Needs Attention now renders the SHARED AttentionControls, which gate Resolve
+  // on kind === "in-app" (no Resolve button on off-system/judgement work — the
+  // CLAUDE.md contract), expose an in-place Evidence panel, and offer Remind/
+  // Dismiss. The kind is computed from the alert, not assumed, and the row states
+  // the real clearance condition rather than a generic "clears automatically".
+  assert.match(inbox, /<AttentionControls/);
+  assert.match(inbox, /resolutionKindOf/);
+  assert.match(inbox, /<EvidenceCard/);
+  assert.match(inbox, /Clears when:/);
   assert.match(alerts, /actions#task-/);
   assert.match(alerts, /pipelines\/leads\?lead=/);
   assert.match(actions, /id=\{`task-\$\{task\.id\}`\}/);

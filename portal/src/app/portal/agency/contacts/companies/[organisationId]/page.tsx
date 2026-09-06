@@ -88,7 +88,7 @@ export default async function CompanyCardPage({
       </header>
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <section className="rounded-lg border border-black/10 bg-white p-4">
+        <section data-resolution-focus="company" className="rounded-lg border border-black/10 bg-white p-4">
           <h2 className="text-sm font-semibold text-black/80">
             People at this company ({people.length})
           </h2>

@@ -3,7 +3,7 @@ import "server-only";
 import { AuthError } from "@/lib/server/auth/auth";
 import {
   AccessControlError,
-  actorHasActiveNonProjectAccessPolicy,
+  actorEverHadNonProjectAccessPolicy,
   requireCurrentAccessActor,
   resolveActorAccess,
   type CurrentAccessActor,
@@ -235,7 +235,9 @@ export function resolveActorWorkspaceElementAccess(
 ): WorkspaceElementAccess {
   const resolution = resolveActorAccess(actor, { kind: "workspace", id: workspace });
   const canonicalGrant = activeCanonicalGrant(actor, workspace, resolution.grantIds);
-  const governed = resolution.ownerBaseline || actorHasActiveNonProjectAccessPolicy(actor);
+  // #174 — once ever governed here, revoking the last grant narrows to Hidden
+  // rather than un-migrating back to the legacy workspace rules.
+  const governed = resolution.ownerBaseline || actorEverHadNonProjectAccessPolicy(actor);
   const hasPolicy = resolution.ownerBaseline || canonicalGrant;
   const levels = hasPolicy
     ? Object.fromEntries(ELEMENTS_BY_WORKSPACE[workspace].map(key => [

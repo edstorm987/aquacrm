@@ -28,6 +28,28 @@ describe("an alert is classified when it is created, not when it is drawn", () =
     assert.ok(stamped.focus, "focus must be populated");
   });
 
+  it("stamps the exact-record id (last id segment) onto the resolve href", () => {
+    // invoice:<client>:<number> → resolve-record=<number>, so a destination that
+    // annotates its invoice row with data-resolution-record=<number> rings the
+    // exact row (ResolutionSpotlight prefers record, falls back to focus).
+    const [stamped] = withResolutionContexts([alert({ id: "invoice:cli_1:INV-9", href: "/portal/clients/cli_1?tab=finance" })]);
+    assert.equal(new URL(stamped.href, "https://x.test").searchParams.get("record"), "INV-9");
+  });
+
+  it("stamps a real record-bearing id, and skips single-segment ids and draft placeholders", () => {
+    // A 2-segment record id (task:<id>) is a record and is stamped. A single
+    // segment has no record part, and a `:draft` placeholder names no row — both
+    // yield no record and fall back to the section focus. (A family SLUG that
+    // happens to trail an id, e.g. finance:overdue-invoices, is stamped too but is
+    // harmless: it matches no annotated row, so the spotlight falls back.)
+    const [task] = withResolutionContexts([alert({ id: "task:t_7", href: "/portal/agency/actions" })]);
+    assert.equal(new URL(task.href, "https://x.test").searchParams.get("record"), "t_7");
+    const [single] = withResolutionContexts([alert({ id: "chatbot", href: "/portal/agency/inbox" })]);
+    assert.equal(new URL(single.href, "https://x.test").searchParams.get("record"), null);
+    const [draft] = withResolutionContexts([alert({ id: "invoice:cli_1:draft", href: "/portal/clients/cli_1?tab=finance" })]);
+    assert.equal(new URL(draft.href, "https://x.test").searchParams.get("record"), null);
+  });
+
   it("a check's own declaration wins over the id table", () => {
     // The id says in-app; the check says judgement. The check is right.
     const declared = alert({ id: "task:t1", kind: "judgement" });

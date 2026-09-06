@@ -64,7 +64,7 @@ export function TradingCompaniesPanel({
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/portal/agency?station=battle&battle=systems" className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-black/65 hover:border-black/20 hover:text-black">
-            <Gauge size={15} /> Battle Table
+            <Gauge size={15} /> Plan &amp; targets
           </Link>
           {canEdit ? (
             <button type="button" onClick={() => setEditing("new")} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white">

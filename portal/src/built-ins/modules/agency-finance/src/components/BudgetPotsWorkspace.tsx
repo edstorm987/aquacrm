@@ -140,7 +140,8 @@ function BudgetPotCard({ pot, onEdit }: { pot: BudgetPotSnapshot; onEdit: () => 
   const signal = signalStyle(pot.signal);
   const usage = Math.min(100, Math.max(0, pot.usagePercent));
   const funding = pot.allocatedCents > 0 ? Math.min(100, Math.round(pot.fundedCents / pot.allocatedCents * 100)) : 0;
-  return <article className={`rounded-md border bg-white p-4 ${pot.signal === "overspent" ? "border-red-200" : pot.signal === "unfunded" || pot.signal === "watch" ? "border-amber-200" : "border-black/10"}`}>
+  // finance:budget-*:<pot.id> alerts ring the exact pot.
+  return <article data-resolution-record={pot.id} className={`scroll-mt-24 rounded-md border bg-white p-4 ${pot.signal === "overspent" ? "border-red-200" : pot.signal === "unfunded" || pot.signal === "watch" ? "border-amber-200" : "border-black/10"}`}>
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold text-black/82">{pot.name}</h3><span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${signal.className}`}>{signal.label}</span>{pot.status !== "active" ? <span className="rounded-full bg-black/5 px-2 py-0.5 text-[10px] font-semibold capitalize text-black/50">{pot.status}</span> : null}</div><p className="mt-1 text-xs capitalize text-black/42">{pot.purpose.replace("-", " ")} · {pot.period.replace("-", " ")}</p></div>
       <button type="button" onClick={onEdit} title="Edit budget pot" className="grid size-9 place-items-center rounded-md border border-black/10 text-black/45 hover:bg-black/[0.03]"><Pencil size={15} /></button>

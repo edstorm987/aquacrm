@@ -472,7 +472,7 @@ function resultIcon(category: string) {
   if (category === "Message") return <MessageSquare size={16} />;
   if (category === "Note" || category === "Client data") return <NotebookPen size={16} />;
   if (category === "Meeting") return <CalendarDays size={16} />;
-  if (category === "Assistant") return <Bot size={16} />;
+  if (category === "Advisor") return <Bot size={16} />;
   if (category === "Notification") return <Bell size={16} />;
   if (category === "KPI") return <BarChart3 size={16} />;
   if (category === "Radar") return <Radar size={16} />;

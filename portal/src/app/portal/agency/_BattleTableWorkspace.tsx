@@ -56,7 +56,7 @@ import {
 
 const KpiComparisonWorkspace = dynamic(
   () => import("./_CommandIntelligenceWorkspace").then(module => module.KpiComparisonWorkspace),
-  { loading: () => <BattleSectionLoading label="KPI intelligence" /> },
+  { loading: () => <BattleSectionLoading label="Key numbers" /> },
 );
 const CapitalOwnershipWorkspace = dynamic(
   () => import("./_CapitalOwnershipWorkspace").then(module => module.CapitalOwnershipWorkspace),
@@ -125,7 +125,7 @@ export type BattleTableScopePayload = {
 // room above them is the daily surface; these are where a decision is settled.
 const sections: Array<{ id: BattleTableSection; label: string; icon: React.ReactNode }> = [
   { id: "overview", label: "Strategic plot", icon: <Map size={14} /> },
-  { id: "intelligence", label: "KPI intelligence", icon: <BarChart3 size={14} /> },
+  { id: "intelligence", label: "Key numbers", icon: <BarChart3 size={14} /> },
   { id: "strategy", label: "Direction", icon: <Telescope size={14} /> },
   { id: "projections", label: "Projections", icon: <TrendingUp size={14} /> },
   { id: "objectives", label: "Objectives", icon: <Target size={14} /> },
@@ -203,7 +203,7 @@ export function BattleTableWorkspace({ payload, intelligence, onOpenIntelligence
   // either advances or honestly reports that somebody else moved it first. The
   // profile carries the `revision` it was loaded at; the server refuses a stale
   // one with the live plan rather than overwriting it.
-  async function save(next: CompanyProfile, success = "Battle Table updated.") {
+  async function save(next: CompanyProfile, success = "Plan & targets updated.") {
     if (!payload.canEdit) return false;
     const base = company;
     setSaving(true);
@@ -241,7 +241,7 @@ export function BattleTableWorkspace({ payload, intelligence, onOpenIntelligence
   /** Reapply only the sections this editor changed onto the newer plan. */
   async function retryOntoLatest() {
     if (!conflict) return;
-    await save(rebaseCompanyProfile(conflict), "Battle Table updated on the latest plan.");
+    await save(rebaseCompanyProfile(conflict), "Plan & targets updated on the latest plan.");
   }
 
   function selectSection(next: BattleTableSection) {
@@ -272,7 +272,7 @@ export function BattleTableWorkspace({ payload, intelligence, onOpenIntelligence
         <span className="relative grid size-11 shrink-0 place-items-center border border-[#d7b56d]/45 bg-[#d7b56d]/[0.07] text-[#e4c783] shadow-[inset_0_0_18px_rgba(215,181,109,.08),0_0_16px_rgba(215,181,109,.08)]"><Map size={20} /><span className="absolute -right-1 -top-1 size-2 bg-[#68f5d0] shadow-[0_0_8px_#68f5d0]" /></span>
         <div className="min-w-0">
           <p className="text-[9px] font-semibold uppercase text-[#e4c783]/60">BT-01 - Strategic operations room - {selectedScope.label}</p>
-          <div className="mt-0.5 flex flex-wrap items-baseline gap-x-3 gap-y-1"><h1 id="battle-table-heading" className="text-lg font-semibold">Battle Table</h1><span className="text-[9px] font-semibold uppercase text-[#62e8ff]/65">Strategy, projections, targets and executive decisions</span></div>
+          <div className="mt-0.5 flex flex-wrap items-baseline gap-x-3 gap-y-1"><h1 id="battle-table-heading" className="text-lg font-semibold">Plan &amp; targets</h1><span className="text-[9px] font-semibold uppercase text-[#62e8ff]/65">Battle Table · Strategy, projections, targets and executive decisions</span></div>
         </div>
       </div>
       <div className="flex items-center gap-2 text-[9px] font-semibold uppercase">
@@ -291,7 +291,7 @@ export function BattleTableWorkspace({ payload, intelligence, onOpenIntelligence
       </div>
     </div> : null}
 
-    <section className="relative grid border-b border-[#d7b56d]/20 bg-[#050d11]/96 lg:grid-cols-[minmax(240px,.55fr)_minmax(0,1fr)_auto] lg:items-stretch" aria-label="Battle Table scope">
+    <section className="relative grid border-b border-[#d7b56d]/20 bg-[#050d11]/96 lg:grid-cols-[minmax(240px,.55fr)_minmax(0,1fr)_auto] lg:items-stretch" aria-label="Plan & targets scope">
       <label className="border-b border-[#d7b56d]/14 p-3 lg:border-b-0 lg:border-r sm:px-5">
         <span className="flex items-center gap-2 text-[8px] font-semibold uppercase text-[#e4c783]/60"><Building2 size={12} /> Projection scope</span>
         <select value={selectedScope.id} onChange={event => { setNavigation(current => ({ ...current, scopeId: event.target.value })); setMessage(""); setError(""); setConflict(null); }} className="mt-2 min-h-10 w-full border border-[#d7b56d]/24 bg-[#071116] px-3 text-xs font-semibold text-white outline-none focus:border-[#d7b56d]/60">
@@ -308,7 +308,7 @@ export function BattleTableWorkspace({ payload, intelligence, onOpenIntelligence
         <button type="button" aria-pressed={section === "warroom"} onClick={() => selectSection("warroom")} className={`flex min-h-14 flex-1 items-center justify-center gap-2 border-r border-[#d7b56d]/12 px-4 text-[11px] font-semibold uppercase transition ${section === "warroom" ? "bg-[#d7b56d]/[0.14] text-[#f1dba9] shadow-[inset_0_-2px_0_#d7b56d]" : "text-white/60 hover:bg-white/[0.04] hover:text-white"}`}><Zap size={15} /> War room{decisions.length ? <span className={`ml-1 px-2 py-0.5 text-[9px] tabular-nums ${decisions.some(item => item.severity === "critical") ? "bg-red-400/15 text-red-200" : "bg-amber-300/15 text-amber-200"}`}>{decisions.length}</span> : null}</button>
         <span className="hidden items-center px-4 text-[8px] font-semibold uppercase text-white/28 lg:flex">Set-up and planning · drill in below</span>
       </div>
-      <nav aria-label="Battle Table views" className="grid grid-flow-col auto-cols-[minmax(9.5rem,1fr)] overflow-x-auto xl:grid-flow-row xl:grid-cols-10">
+      <nav aria-label="Plan & targets views" className="grid grid-flow-col auto-cols-[minmax(9.5rem,1fr)] overflow-x-auto xl:grid-flow-row xl:grid-cols-10">
         {sections.map(item => <button key={item.id} type="button" aria-pressed={section === item.id} onClick={() => selectSection(item.id)} className={`flex min-h-12 items-center justify-center gap-2 border-r border-[#d7b56d]/12 px-3 text-[10px] font-semibold uppercase transition ${section === item.id ? "bg-[#d7b56d]/[0.12] text-[#f1dba9] shadow-[inset_0_-2px_0_#d7b56d]" : "text-white/40 hover:bg-white/[0.035] hover:text-white/78"}`}>{item.icon}{item.label}</button>)}
       </nav>
     </div>
@@ -410,7 +410,7 @@ function WarRoom({ rows, decisions, pulse, selectedScopeId, scopeLabel, radarCri
           {pulse.map(metric => <PulseRow key={metric.id} metric={metric} />)}
         </div>
         <div className="p-5">
-          <button type="button" onClick={() => onOpenIntelligence(undefined, selectedScopeId)} className="inline-flex min-h-10 w-full items-center justify-center gap-2 border border-[#62e8ff]/22 bg-[#62e8ff]/[0.055] px-3 text-[9px] font-semibold uppercase text-[#8ef1ff] hover:bg-[#62e8ff]/[0.1]"><BarChart3 size={14} /> Full KPI intelligence <ArrowUpRight size={12} /></button>
+          <button type="button" onClick={() => onOpenIntelligence(undefined, selectedScopeId)} className="inline-flex min-h-10 w-full items-center justify-center gap-2 border border-[#62e8ff]/22 bg-[#62e8ff]/[0.055] px-3 text-[9px] font-semibold uppercase text-[#8ef1ff] hover:bg-[#62e8ff]/[0.1]"><BarChart3 size={14} /> Full Key numbers <ArrowUpRight size={12} /></button>
         </div>
       </aside>
     </div>
@@ -463,7 +463,7 @@ function TargetStateChip({ state, deviationPercent }: { state: WarRoomTargetStat
     : state === "behind" ? "Behind"
     : state === "critical" ? "Off track"
     : state === "no-target" ? "No target"
-    : "Learning";
+    : "Still gathering";
   const tone = state === "critical" ? "border-red-300/25 bg-red-400/10 text-red-200"
     : state === "behind" ? "border-amber-300/25 bg-amber-300/10 text-amber-200"
     : state === "ahead" || state === "on-track" ? "border-[#68f5d0]/22 bg-[#68f5d0]/[0.06] text-[#68f5d0]"
@@ -540,7 +540,7 @@ function KpiStrategyWorkspace({ snapshot, initialScopeId, onOpenIntelligence }: 
       </div>
       <StrategicKpiReadout label="Connected" value={`${snapshot.summary.connectedKpis}/${snapshot.kpis.length}`} tone="clear" />
       <StrategicKpiReadout label="Attention" value={String(attentionCount)} tone={snapshot.summary.criticalKpis ? "critical" : attentionCount ? "warning" : "clear"} />
-      <StrategicKpiReadout label="Blind" value={String(snapshot.summary.blindKpis)} tone={snapshot.summary.blindKpis ? "warning" : "clear"} />
+      <StrategicKpiReadout label="No data yet" value={String(snapshot.summary.blindKpis)} tone={snapshot.summary.blindKpis ? "warning" : "clear"} />
       <div className="flex items-center px-4 py-3"><button type="button" onClick={() => onOpenIntelligence(primaryIds, initialScopeId)} className="inline-flex min-h-10 w-full items-center justify-center gap-2 border border-[#d7b56d]/30 bg-[#d7b56d]/[0.1] px-4 text-[9px] font-semibold uppercase text-[#f1dba9] hover:bg-[#d7b56d]/[0.16]">Full KPI workspace <ArrowUpRight size={13} /></button></div>
     </header>
     <KpiComparisonWorkspace snapshot={snapshot} initialKpiIds={primaryIds.slice(0, 5)} initialRange="quarter" context="strategic" onInspect={(kpi: CommandKpi) => onOpenIntelligence([kpi.id], kpi.scope.id)} />
@@ -594,7 +594,7 @@ function ObjectivesWorkspace({ company, canEdit, saving, onSave }: WorkspaceProp
   async function add() {
     if (!form.title.trim()) return;
     const objective: CompanyObjective = { id: `obj-${Date.now()}`, title: form.title.trim(), metric: form.metric.trim(), currentValue: form.current, targetValue: Math.max(1, form.target), unit: form.unit.trim(), status: form.status };
-    if (await onSave({ ...company, objectives: [...company.objectives, objective] }, "Objective added to the Battle Table.")) setForm({ title: "", metric: "", current: 0, target: 1, unit: "", status: "on-track" });
+    if (await onSave({ ...company, objectives: [...company.objectives, objective] }, "Objective added to Plan & targets.")) setForm({ title: "", metric: "", current: 0, target: 1, unit: "", status: "on-track" });
   }
   async function update(id: string, patch: Partial<CompanyObjective>) { await onSave({ ...company, objectives: company.objectives.map(item => item.id === id ? { ...item, ...patch } : item) }, "Objective updated."); }
   async function remove(id: string) { await onSave({ ...company, objectives: company.objectives.filter(item => item.id !== id) }, "Objective removed."); }
@@ -732,7 +732,7 @@ function ExecutiveSystems({ payload }: { payload: BattleTablePayload }) {
     { label: "Journey and pipeline", value: String(payload.actuals.leadCount), detail: "Demand, conversion, deals and source quality", href: "/portal/clients?view=journey", icon: <BriefcaseBusiness size={17} /> },
     { label: "Executive actions", value: String(payload.actuals.openTasks), detail: "Owned work created from strategic decisions", href: "/portal/agency/actions", icon: <CheckCircle2 size={17} /> },
   ];
-  return <BattleSection eyebrow="Executive systems map" title="Every supporting system remains one move away" detail="Battle Table owns strategic direction. Specialist workspaces retain the detailed records and controls behind each decision."><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">{systems.map(system => <Link key={system.label} href={system.href} className="group flex min-h-36 flex-col border border-white/10 bg-[#071116]/75 p-4 hover:border-[#d7b56d]/35 hover:bg-[#d7b56d]/[0.045]"><div className="flex items-start justify-between"><span className="grid size-9 place-items-center border border-[#d7b56d]/20 text-[#e4c783]">{system.icon}</span><ArrowUpRight size={14} className="text-white/25 group-hover:text-[#62e8ff]" /></div><strong className="mt-4 text-sm">{system.label}</strong><span className="mt-1 text-2xl font-semibold text-[#f1dba9]">{system.value}</span><span className="mt-2 text-xs leading-5 text-white/38">{system.detail}</span></Link>)}</div></BattleSection>;
+  return <BattleSection eyebrow="Executive systems map" title="Every supporting system remains one move away" detail="Plan & targets owns strategic direction. Specialist workspaces retain the detailed records and controls behind each decision."><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">{systems.map(system => <Link key={system.label} href={system.href} className="group flex min-h-36 flex-col border border-white/10 bg-[#071116]/75 p-4 hover:border-[#d7b56d]/35 hover:bg-[#d7b56d]/[0.045]"><div className="flex items-start justify-between"><span className="grid size-9 place-items-center border border-[#d7b56d]/20 text-[#e4c783]">{system.icon}</span><ArrowUpRight size={14} className="text-white/25 group-hover:text-[#62e8ff]" /></div><strong className="mt-4 text-sm">{system.label}</strong><span className="mt-1 text-2xl font-semibold text-[#f1dba9]">{system.value}</span><span className="mt-2 text-xs leading-5 text-white/38">{system.detail}</span></Link>)}</div></BattleSection>;
 }
 
 type WorkspaceProps = { company: CompanyProfile; canEdit: boolean; saving: boolean; onSave: (next: CompanyProfile, success?: string) => Promise<boolean> };

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { buildBusinessRecommendedActions } from "../src/lib/intelligence/businessRecommendedActions";
+import { radarFindingGroup } from "../src/engines/data/radar/radarClassification";
 import type { AdvisorDomain, BusinessIssueRadar, BusinessIssueSeverity } from "../src/engines/data/radar/businessRadar";
 
 const now = new Date("2026-08-12T10:00:00Z").getTime();
@@ -123,5 +124,8 @@ function incident(id: string, domain: AdvisorDomain, severity: BusinessIssueSeve
     issueIds: [`issue:${id}`],
     checkIds: [`check:${id}`],
     findingCount,
+    // `group` is a required part of the incident contract; derive it the same way
+    // the real radar builder does so the fixture is valid and exercises real groups.
+    group: radarFindingGroup({ domain, id }),
   };
 }

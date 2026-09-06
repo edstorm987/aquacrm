@@ -2,9 +2,9 @@
 
 ← Back to [the reference index](00-index.md) · [the map](../WORKSPACE-FILE-TREE.md) · [development.md](../development.md)
 
-Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2696 source files; 0 per-source stubs.**
+Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2701 source files; 0 per-source stubs.**
 
-## Engines — `src/engines/` (87)
+## Engines — `src/engines/` (89)
 
 - [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95)
 - [`src/engines/data/radar/clientRadar.ts`](engines.md#file-src-engines-data-radar-clientradar-ts-d646cd5214)
@@ -26,8 +26,10 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/engines/data/server/kpi/kpiTargets.ts`](engines.md#file-src-engines-data-server-kpi-kpitargets-ts-05e8c86b01)
 - [`src/engines/data/server/radar/businessIssueRadar.ts`](engines.md#file-src-engines-data-server-radar-businessissueradar-ts-df308875cc)
 - [`src/engines/data/server/radar/clientRadarService.ts`](engines.md#file-src-engines-data-server-radar-clientradarservice-ts-8e96620551)
+- [`src/engines/data/server/radar/probeSchedule.ts`](engines.md#file-src-engines-data-server-radar-probeschedule-ts-ba49920a96) — Synthetic probes self-gate at 5 min; never schedule below a sane floor.
 - [`src/engines/data/server/radar/radarEvidenceVault.ts`](engines.md#file-src-engines-data-server-radar-radarevidencevault-ts-b2576f422c)
 - [`src/engines/data/server/radar/radarMemory.ts`](engines.md#file-src-engines-data-server-radar-radarmemory-ts-15fa89c0b7)
+- [`src/engines/data/server/radar/radarNodeCache.ts`](engines.md#file-src-engines-data-server-radar-radarnodecache-ts-4ac88f81f7)
 - [`src/engines/data/server/radar/radarObservations.ts`](engines.md#file-src-engines-data-server-radar-radarobservations-ts-6bebaf275c)
 - [`src/engines/data/server/radar/radarSeeding.ts`](engines.md#file-src-engines-data-server-radar-radarseeding-ts-226a391575)
 - [`src/engines/data/server/radar/radarSourceInspection.ts`](engines.md#file-src-engines-data-server-radar-radarsourceinspection-ts-18f2227fe9)
@@ -2104,7 +2106,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/showcase/exit/route.ts`](app.md#file-src-app-showcase-exit-route-ts-2297ba275f)
 - [`src/app/showcase/route.ts`](app.md#file-src-app-showcase-route-ts-4c24dd82df)
 
-## Scripts — `scripts/` (608)
+## Scripts — `scripts/` (611)
 
 - [`scripts/attention-protection.test.ts`](scripts.md#file-scripts-attention-protection-test-ts-d64d01714c)
 - [`scripts/audit-actions.ts`](scripts.md#file-scripts-audit-actions-ts-862ea31175) — What state Actions is actually in — measured, not remembered. For every alert the checks currently …
@@ -2595,12 +2597,15 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-radar-coverage-seeding.test.ts`](scripts.md#file-scripts-smoke-radar-coverage-seeding-test-ts-5eb2cb2b61)
 - [`scripts/smoke-radar-evidence.test.ts`](scripts.md#file-scripts-smoke-radar-evidence-test-ts-467d25d3f6)
 - [`scripts/smoke-radar-external-db.test.ts`](scripts.md#file-scripts-smoke-radar-external-db-test-ts-8c24ca7572)
+- [`scripts/smoke-radar-finding-families.test.ts`](scripts.md#file-scripts-smoke-radar-finding-families-test-ts-aca679ab28)
 - [`scripts/smoke-radar-finding-groups.test.ts`](scripts.md#file-scripts-smoke-radar-finding-groups-test-ts-7e6da53624)
 - [`scripts/smoke-radar-golden-sweep.test.ts`](scripts.md#file-scripts-smoke-radar-golden-sweep-test-ts-f8c2bb2e86)
 - [`scripts/smoke-radar-infra-health.test.ts`](scripts.md#file-scripts-smoke-radar-infra-health-test-ts-80f7f35f54)
 - [`scripts/smoke-radar-inspection.test.ts`](scripts.md#file-scripts-smoke-radar-inspection-test-ts-aea00380e0)
 - [`scripts/smoke-radar-kpi-scorecard.test.ts`](scripts.md#file-scripts-smoke-radar-kpi-scorecard-test-ts-25aa3404d9)
+- [`scripts/smoke-radar-node-cache.test.ts`](scripts.md#file-scripts-smoke-radar-node-cache-test-ts-8ad0cce353) — the whole-radar cache is preserved per node.
 - [`scripts/smoke-radar-node-tree.test.ts`](scripts.md#file-scripts-smoke-radar-node-tree-test-ts-cc8b3da415) — is not full. Pure function, so no backend/runtime needed.
+- [`scripts/smoke-radar-probe-scheduler.test.ts`](scripts.md#file-scripts-smoke-radar-probe-scheduler-test-ts-b481cd7b6f) — branch is asserted here without a live server or a real timer.
 - [`scripts/smoke-radar-realm-cache.test.ts`](scripts.md#file-scripts-smoke-radar-realm-cache-test-ts-a4e0b3a767)
 - [`scripts/smoke-radar-retention.test.ts`](scripts.md#file-scripts-smoke-radar-retention-test-ts-8a4a0c1229) — normal", and it can only do that against history it still has.
 - [`scripts/smoke-radar-source-inspection.test.ts`](scripts.md#file-scripts-smoke-radar-source-inspection-test-ts-f2bb4001e9)

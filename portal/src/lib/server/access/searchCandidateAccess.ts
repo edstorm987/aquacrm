@@ -18,7 +18,7 @@ import {
   type WorkspaceElementAccess,
 } from "@/lib/server/access/workspaceElementAccess";
 import {
-  actorHasActiveNonProjectAccessPolicy,
+  actorEverHadNonProjectAccessPolicy,
   resolveActorAccess,
   type CurrentAccessActor,
 } from "@/server/accessControl";
@@ -186,7 +186,7 @@ export function searchCandidateAccess(actor: CurrentAccessActor): SearchCandidat
     && !staff.canonical
     && !growth.canonical
     && !fulfilment.canonical
-    && !actorHasActiveNonProjectAccessPolicy(actor)) return FULL_ACCESS;
+    && !actorEverHadNonProjectAccessPolicy(actor)) return FULL_ACCESS;
   const clients = new Map(
     Object.values(actor.resourceState.clients)
       .filter(client => client.agencyId === actor.resourceAgencyId)

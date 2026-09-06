@@ -210,6 +210,11 @@ export function PeopleCommand({ initial, accessLevels, canManageAccess = false, 
       <fieldset disabled={!canUseTab} className="contents">
       {tab === "overview" && initial.overview ? <Overview summary={initial.overview} allowedTabs={allowedTabs} onOpen={openTab} /> : null}
       {tab === "capacity" && initial.capacity ? <CapacityCommand capacity={initial.capacity} allowedTabs={allowedTabs} onOpen={openTab} /> : null}
+      {/* People alerts (application-backlog / leave-decisions / training-overdue /
+          employment-terms / chat-attention) land on these sub-views with focus
+          "details"; only one renders at a time, so one wrapper is the target for
+          whichever is shown. The overview keeps its own nested "details" target. */}
+      <div data-resolution-focus="details">
       {tab === "candidates" && initial.people ? <Candidates applications={initial.people.applications} hiringStages={initial.people.hiringStages} focusedApplicationId={applicationId} busy={busy} action={action} /> : null}
       {tab === "team" && initial.people ? <Directory directory={initial.people.directory} cards={initial.people.cards} delegatable={initial.people.delegatable} contractTemplates={initial.people.contractTemplates} focusedEmployeeId={employeeId} onOpenTab={openTab} accessLevels={accessLevels} busy={busy} action={action} /> : null}
       {tab === "org" && initial.people ? <OrgChart chart={initial.people.orgChart} onOpenPerson={openPerson} /> : null}
@@ -226,6 +231,7 @@ export function PeopleCommand({ initial, accessLevels, canManageAccess = false, 
       {tab === "time" && initial.schedule ? <TimeAndLeave employees={initial.schedule.people} requests={initial.schedule.leaveRequests} shifts={initial.schedule.shifts} busy={busy} action={action} /> : null}
       {tab === "development" && initial.training ? <Development employees={initial.training.people} training={initial.training.assignments} onboardingTemplate={initial.training.onboardingTemplate} modules={initial.training.modules} busy={busy} action={action} /> : null}
       {tab === "rewards" && initial.pay ? <Rewards employees={initial.pay.people} selectedEmployeeId={selectedEmployeeId} setSelectedEmployeeId={setSelectedEmployeeId} busy={busy} action={action} /> : null}
+      </div>
       </fieldset>
     </div>
   );
@@ -286,7 +292,7 @@ function CapacityCommand({ capacity, allowedTabs, onOpen }: { capacity: StaffCap
       ) : null}
 
       <section className="rounded-lg border border-black/10 bg-white">
-        <header className="flex items-center justify-between border-b border-black/10 p-4"><div className="flex items-center gap-2"><TriangleAlert className="text-amber-600" size={18} /><h2 className="font-semibold">Where you're stretched</h2></div><span className="text-xs text-black/45">{attention.length} signal{attention.length === 1 ? "" : "s"} firing</span></header>
+        <header className="flex items-center justify-between border-b border-black/10 p-4"><div className="flex items-center gap-2"><TriangleAlert className="text-amber-600" size={18} /><h2 className="font-semibold">Where you're stretched</h2></div><span className="text-xs text-black/45">{attention.length} signal{attention.length === 1 ? "" : "s"} alerting</span></header>
         <div className="divide-y divide-black/10">
           {attention.length ? attention.map((signal, index) => <SignalRow key={`${signal.area ?? "all"}:${signal.familyId}:${index}`} signal={signal} />) : <p className="p-6 text-center text-sm text-black/45">No capacity or hiring pressure is firing right now. The team is balanced.</p>}
         </div>

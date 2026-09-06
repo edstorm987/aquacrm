@@ -2,7 +2,7 @@ import "server-only";
 
 import type { AccessCapability, SessionPayload } from "@/server/types";
 import {
-  actorHasActiveNonProjectAccessPolicy,
+  actorEverHadNonProjectAccessPolicy,
   type CurrentAccessActor,
 } from "@/server/accessControl";
 
@@ -78,7 +78,7 @@ function hasCanonicalWorkspacePolicy(
   actor: CurrentAccessActor,
   grantIds: readonly string[],
 ): boolean {
-  if (actorHasActiveNonProjectAccessPolicy(actor)) return true;
+  if (actorEverHadNonProjectAccessPolicy(actor)) return true;
   return grantIds.some(grantId => {
     const grant = actor.governanceState.accessGrants[grantId];
     if (!grant) return false;
@@ -122,7 +122,7 @@ export async function resolveBusinessRadarCapabilityForActor(
   const canonicallyGoverned = staffAccess.canonical
     || growthAccess.canonical
     || fulfilmentAccess.canonical
-    || actorHasActiveNonProjectAccessPolicy(actor);
+    || actorEverHadNonProjectAccessPolicy(actor);
   if (!canonicallyGoverned) return true;
 
   const overviewRequired = action === "use" ? "use" : "view";

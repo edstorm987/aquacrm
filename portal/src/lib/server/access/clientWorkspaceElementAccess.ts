@@ -4,7 +4,7 @@ import { AuthError } from "@/lib/server/auth/auth";
 import type { ClientWorkspaceTabId } from "@/lib/clients/clientWorkspace";
 import {
   AccessControlError,
-  actorHasActiveNonProjectAccessPolicy,
+  actorEverHadNonProjectAccessPolicy,
   requireCurrentAccessActor,
   resolveActorAccess,
   type CurrentAccessActor,
@@ -167,8 +167,11 @@ export function resolveActorClientWorkspaceElementAccess(
   // workspace behaviour. Agency, workspace and client policies do: in
   // particular, a Fulfilment-only workspace grant must not retain the old
   // implicit tunnel into every client.
+  // #174 — governance is a one-way door: an identity who was ever governed here
+  // stays governed after their last grant is revoked, so revocation narrows to
+  // Hidden rather than un-migrating them back to legacy `manage`.
   const governed = resolution.ownerBaseline
-    || actorHasActiveNonProjectAccessPolicy(actor, now);
+    || actorEverHadNonProjectAccessPolicy(actor);
   const hasPolicy = resolution.ownerBaseline || policyGrantIds.length > 0;
   const levels = hasPolicy
     ? Object.fromEntries(CLIENT_WORKSPACE_ELEMENT_KEYS.map(key => [

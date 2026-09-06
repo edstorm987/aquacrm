@@ -47,7 +47,7 @@ export const PORTAL_DESTINATIONS: readonly PortalDestination[] = [
   { href: "/portal/agency", label: "Agency", area: "Agency" },
   { href: "/portal/agency/actions", label: "Actions", area: "Agency" },
   { href: "/portal/agency/activity-inbox", label: "Activity inbox", area: "Agency" },
-  { href: "/portal/agency/assistant", label: "Assistant", area: "Agency" },
+  { href: "/portal/agency/assistant", label: "Advisor", area: "Agency" },
   { href: "/portal/agency/automations", label: "Automations", area: "Agency" },
   { href: "/portal/agency/calendar", label: "Calendar", area: "Agency" },
   { href: "/portal/agency/command-center", label: "Command center", area: "Agency" },

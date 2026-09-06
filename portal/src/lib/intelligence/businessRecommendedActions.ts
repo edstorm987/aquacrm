@@ -3,6 +3,7 @@ import { ADVISOR_CATEGORY_HREF } from "@/lib/advisor/advisorActions";
 import type { AdvisorDomain, BusinessIssueRadar, BusinessIssueSeverity, RadarFindingGroup } from "@/engines/data/radar/businessRadar";
 import { radarFindingGroup } from "@/engines/data/radar/radarClassification";
 import { stepsFor } from "@/lib/inbox/evidenceSteps";
+import type { ResolutionKind } from "@/lib/inbox/resolutionExplain";
 import { resolutionKindOf } from "@/lib/inbox/resolutionExplain";
 import type { OperationalAlert, OperationalAlertCategory } from "@/lib/intelligence/operationalAttention";
 
@@ -18,6 +19,89 @@ type RankedAction = AdvisorActionSuggestion & {
 
 // Groups whose incidents have a concrete fix elsewhere — a judgement default widens to off-system.
 const RESTORABLE_GROUPS: ReadonlySet<RadarFindingGroup> = new Set<RadarFindingGroup>(["infrastructure", "reliability", "compliance", "delivery"]);
+
+/**
+ * A deliberate resolution profile per radar finding-GROUP (Stage 7, family map).
+ *
+ * A rolled-up radar incident keys on its most specific finding id, but that id is
+ * usually a raw metric/source id (`metric:speed-to-lead`, `core:clients`) that
+ * matches no per-family entry in `CLEARS_WHEN` — so it would fall to the generic
+ * `{kind: "judgement"}` default with no clearance and no steps. That is exactly
+ * the "shrugs to judgement / go look" fluff the loop must not ship.
+ *
+ * Instead, when no specific family matched, the finding is resolved by its GROUP:
+ * every one of the six groups carries a group-appropriate kind, a real clears-when
+ * and concrete steps. Four groups have a doable fix (infra/reliability/compliance
+ * are off-system, delivery is in-app); the two that are genuinely a business call
+ * (commercial, people) stay `judgement` — but even they carry specific investigate
+ * steps and a real clearance, never a bare "go look". The `Record` is exhaustive
+ * by construction: adding a seventh `RadarFindingGroup` fails to compile until it
+ * has a deliberate profile here, so a new family can never silently mis-default.
+ */
+type GroupResolutionProfile = {
+  kind: ResolutionKind;
+  /** What makes the finding go away — the honest clearance condition for the group. */
+  clearsWhen: string;
+  /** Concrete, group-appropriate steps; the first navigates to the destination. */
+  steps: readonly string[];
+};
+
+export const RADAR_GROUP_RESOLUTION: Record<RadarFindingGroup, GroupResolutionProfile> = {
+  infrastructure: {
+    kind: "off-system",
+    clearsWhen: "The affected system, database, storage, or integration is reconnected and Radar reads it as healthy again.",
+    steps: [
+      "Open the affected system or integration below.",
+      "Reconnect or repair it — the fix happens in the provider, not inside Aqua.",
+      "Confirm Radar can read fresh records once it is back.",
+    ],
+  },
+  reliability: {
+    kind: "off-system",
+    clearsWhen: "The monitored service reports healthy, the error stops recurring, or the missing source is reconnected.",
+    steps: [
+      "Open the failing monitor, probe, or disconnected source below.",
+      "Restore the service or reconnect the source off-screen.",
+      "Confirm the check clears on the next sweep.",
+    ],
+  },
+  compliance: {
+    kind: "off-system",
+    clearsWhen: "The document, licence, or obligation is renewed or actioned, and its status or expiry is updated here.",
+    steps: [
+      "Open the compliance record below.",
+      "Renew it, complete the required action, or file the missing document.",
+      "Update the record's status or expiry so the check clears.",
+    ],
+  },
+  delivery: {
+    kind: "in-app",
+    clearsWhen: "The blocked, pending, or overdue item is unblocked, completed, or rescheduled.",
+    steps: [
+      "Open the client or delivery workspace below.",
+      "Clear the blocker — unblock the milestone, answer the decision, or reschedule.",
+      "Confirm the item leaves the blocked or overdue state.",
+    ],
+  },
+  commercial: {
+    kind: "judgement",
+    clearsWhen: "The measure returns to its target range, or you decide the movement is acceptable and dismiss it.",
+    steps: [
+      "Open the commercial workspace below and read the trend against its evidence.",
+      "Decide whether the movement is real and worth acting on, or noise to accept.",
+      "Act on it off-screen, or dismiss it as an accepted business change.",
+    ],
+  },
+  people: {
+    kind: "judgement",
+    clearsWhen: "The staffing gap, backlog, or capacity pressure is resolved, or you accept it as the current plan.",
+    steps: [
+      "Open the People workspace below and read the capacity or backlog evidence.",
+      "Make the staffing or scheduling decision it calls for.",
+      "Act on it, or accept it as the current plan and dismiss.",
+    ],
+  },
+};
 
 export function buildBusinessRecommendedActions({
   radar,
@@ -59,6 +143,7 @@ export function buildBusinessRecommendedActions({
   }
 
   for (const incident of radar.incidents) {
+    const incidentGroup = incident.group ?? radarFindingGroup({ domain: incident.domain, id: incident.id });
     candidates.push({
       id: `recommended-radar:${incident.id}`,
       title: incident.title,
@@ -73,8 +158,11 @@ export function buildBusinessRecommendedActions({
       domain: incident.domain,
       score: incidentScore(incident.severity, incident.findingCount, incident.detectedAt, now),
       findingId: incident.sourceIds[0] ?? incident.issueIds[0] ?? incident.id,
-      group: incident.group,
-      restorable: RESTORABLE_GROUPS.has(incident.group),
+      // `group` is a required part of the incident contract, but derive it as a
+      // safety net if one ever arrives without it — this feeds the Actions /
+      // Command render, and a missing group must not crash the page.
+      group: incidentGroup,
+      restorable: RESTORABLE_GROUPS.has(incidentGroup),
     });
   }
 
@@ -186,21 +274,65 @@ function enrichAction(
   action: AdvisorActionSuggestion,
   { findingId, group, restorable }: { findingId: string; group: RadarFindingGroup; restorable: boolean },
 ): AdvisorActionSuggestion {
-  const resolution = resolutionKindOf({ id: findingId });
-  let kind = resolution.kind;
-  let expectedOutcome = resolution.clearsWhen;
-  if (kind === "judgement" && restorable) {
-    kind = "off-system";
-    expectedOutcome = expectedOutcome ?? `${action.title.replace(/[.\s]+$/, "")} is resolved and Radar can read it as healthy again.`;
-  }
+  const { kind, expectedOutcome, steps } = resolveFindingAction({ findingId, group, restorable, href: action.href });
   return {
     ...action,
     kind,
     expectedOutcome,
-    steps: stepsFor(findingId, { href: action.href }),
+    steps,
     suggestedOwner: ownerForGroup(group),
     group,
   };
+}
+
+/**
+ * The resolution decision for one finding, exported so every finding-family can
+ * be pinned directly (Stage 7 family map). Returns the kind, the honest clearance
+ * and concrete steps for a finding, given its most specific id, its group and
+ * whether a concrete remediation exists.
+ *
+ * A finding whose id matched a SPECIFIC resolution family keeps it — that match is
+ * signalled by a clearance coming back from `resolutionKindOf`. Otherwise the id
+ * fell to the bare judgement default, so it is resolved by its finding GROUP's
+ * deliberate profile: a group-appropriate kind, a real clears-when and concrete
+ * steps, so a rolled-up incident is resolved as what it is (an infra / reliability
+ * / compliance fix, a delivery unblock, or a genuine commercial / people judgement
+ * WITH steps) — never a generic "…is resolved" or a bare "go look".
+ */
+export function resolveFindingAction(input: {
+  findingId: string;
+  group: RadarFindingGroup;
+  restorable: boolean;
+  href: string;
+}): { kind: ResolutionKind; expectedOutcome?: string; steps: { label: string; href?: string }[] } {
+  const { findingId, group, restorable, href } = input;
+  const resolution = resolutionKindOf({ id: findingId });
+  if (resolution.clearsWhen) {
+    return { kind: resolution.kind, expectedOutcome: resolution.clearsWhen, steps: stepsFor(findingId, { href }) };
+  }
+  const profile = RADAR_GROUP_RESOLUTION[group];
+  // A finding the radar flagged as concretely restorable (a source to reconnect,
+  // a readiness gap to close) has a doable fix even under a judgement-shaped
+  // group, so widen it rather than leaving it a judgement call.
+  const kind: ResolutionKind = profile.kind === "judgement" && restorable ? "off-system" : profile.kind;
+  const steps = profile.steps.map((label, index) => (index === 0 ? { label, href } : { label }));
+  return { kind, expectedOutcome: profile.clearsWhen, steps };
+}
+
+/**
+ * Just the resolution KIND for a finding, given its id and problem group — for
+ * surfaces that show a one-word kind badge (in-app / off-system / judgement)
+ * without building a whole action. Same rule as `resolveFindingAction`: a
+ * specific per-family match wins; otherwise the finding's GROUP decides, so a
+ * rolled-up incident (whose id always misses the family table) reads as what its
+ * group is — a fixable infra/reliability/compliance/delivery problem, not a blanket
+ * "judgement call". Falls back to the id-only kind only when no group is known.
+ */
+export function resolveFindingKind(input: { id: string; group?: RadarFindingGroup }): ResolutionKind {
+  const resolution = resolutionKindOf({ id: input.id });
+  if (resolution.clearsWhen) return resolution.kind;
+  if (input.group) return RADAR_GROUP_RESOLUTION[input.group].kind;
+  return resolution.kind;
 }
 
 function ownerForGroup(group: RadarFindingGroup): string {

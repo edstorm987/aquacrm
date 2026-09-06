@@ -80,10 +80,10 @@ export function ClientRadarQuickLookButton({ initialRadar }: { initialRadar: Cli
         </header>
 
         <div className="grid grid-cols-2 gap-px border-b border-black/10 bg-black/10 sm:grid-cols-4">
-          <ClientMetric href={radarHref} label="Health" value={radar.healthScore === null ? "Learning" : `${radar.healthScore}/100`} tone={radar.healthState === "risk" ? "critical" : "normal"} />
+          <ClientMetric href={radarHref} label="Health" value={radar.healthScore === null ? "Still gathering" : `${radar.healthScore}/100`} tone={radar.healthState === "risk" ? "critical" : "normal"} />
           <ClientMetric href={radarHref} label="Confidence" value={`${radar.confidencePercent}%`} />
           <ClientMetric href={radarHref} label="Readiness" value={`${radar.readinessPercent}%`} />
-          <ClientMetric href={radarHref} label="Blind" value={String(radar.totals.blind)} tone={radar.totals.blind ? "warning" : "normal"} />
+          <ClientMetric href={radarHref} label="No data yet" value={String(radar.totals.blind)} tone={radar.totals.blind ? "warning" : "normal"} />
         </div>
 
         <div className="flex items-center justify-between gap-3 border-b border-black/10 px-4 py-2.5 text-[11px]"><span className="inline-flex items-center gap-2 font-medium text-black/58"><ShieldCheck size={14} className="text-emerald-700" />{radar.totals.live} applicable checks</span><span className="inline-flex items-center gap-1 font-semibold text-black/48"><EyeOff size={13} />{radar.totals.blind} blind</span></div>

@@ -115,7 +115,7 @@ export function ClientWorkspaceHeader({
         <ContextStat
           icon={HeartHandshake}
           label="Relationship health"
-          value={relationship.score === null ? "Learning" : `${relationship.score}/100`}
+          value={relationship.score === null ? "Still gathering" : `${relationship.score}/100`}
           detail={`${relationship.openRequests} open request${relationship.openRequests === 1 ? "" : "s"}`}
           tone={relationshipTone}
         />

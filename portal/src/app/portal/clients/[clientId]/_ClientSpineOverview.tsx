@@ -502,7 +502,7 @@ export function ClientSpineOverview({ clientId, relatedWorkspaces, relationship,
           icon={HeartHandshake}
           eyebrow="Relationship"
           title="Aqua Health"
-          value={relationship.score === null ? "Learning" : `${relationship.score}/100`}
+          value={relationship.score === null ? "Still gathering" : `${relationship.score}/100`}
           detail={`${relationship.confidence}% evidence confidence · ${relationship.openRequests} open request${relationship.openRequests === 1 ? "" : "s"}`}
           summary={relationship.summary}
           tone={relationship.state === "risk" ? "risk" : relationship.state === "strong" ? "strong" : "watch"}

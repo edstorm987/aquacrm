@@ -203,9 +203,9 @@ export const CAUSE_RULINGS: Record<string, CauseRuling> = {
     category: "cron", verdict: "deliberate",
     note: "`/api/cron/inbox` — the scheduler calls it with GET. Gated as a cron route, not reachable as an ordinary user read.",
   },
-  runRadarInfraSweep: {
+  runScheduledProbeSweep: {
     category: "cron", verdict: "deliberate",
-    note: "`/api/cron/radar-probes`, and since 2026-08-30 `/api/cron/inbox` too — the app-wide Infra probe moved OUT of the per-agency `runRadarScheduledSweep` and up into the tick, so both crons now call it directly, once each (issues #131). Direct in both. See #170 — Ed's open decision there is the CADENCE, not the write.",
+    note: "`/api/cron/radar-probes` — the whole probe tick (Infra once, app-wide, via `runRadarInfraSweep`, plus a Deep refresh per active agency) now lives in `runScheduledProbeSweep`, shared verbatim with the persistent-instance self-scheduler (issues #170, the mechanism now built). A CRON_SECRET-gated cron route, not an ordinary user read. `/api/cron/inbox` reaches the same app-wide Infra write, but its declared cause there is `processInboxWebhookQueue` (the first write in its tick). See #170 — the cadence is Ed's operational call, not the write.",
   },
   purgeDeliveredOutbox: {
     category: "cron", verdict: "deliberate",
@@ -313,7 +313,7 @@ export const DECLARED_READ_ROUTES: DeclaredEntry[] = [
   { path: "/api/auth/oauth/google/callback", cause: "bootstrapAgency" },
   { path: "/api/auth/verify-email", cause: "markEmailVerified" },
   { path: "/api/cron/inbox", cause: "processInboxWebhookQueue" },
-  { path: "/api/cron/radar-probes", cause: "runRadarInfraSweep" },
+  { path: "/api/cron/radar-probes", cause: "runScheduledProbeSweep" },
   // `/api/internal/sweep` reaches TWO deliberate writes: the routine
   // `processAutomationSweep` (the scheduler's automation tick) and, since the
   // 2026-09-04 outbox-flood cleanup, an opt-in `purgeDeliveredOutbox` behind

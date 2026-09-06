@@ -12,10 +12,11 @@
 
 import type {
   AdvisorCoverageSource, AdvisorDomain, BusinessRadarIssue, RadarCheckScope,
-  RadarCheckStatus, RadarRuleLens,
+  RadarCheckStatus, RadarFindingGroup, RadarRuleLens,
 } from "@/engines/data/radar/businessRadar";
 import type { RadarInspectionTab } from "./radar/RadarInspectionWorkspace";
 import { timestampFromValue } from "@/lib/shared/formatDateTime";
+import { resolveFindingKind } from "@/lib/intelligence/businessRecommendedActions";
 
 export function domainLabel(domain: AdvisorDomain): string {
   const labels: Record<AdvisorDomain, string> = {
@@ -95,8 +96,8 @@ export function radarCheckStatusClass(status: RadarCheckStatus): string {
 
 export function radarCheckStatusLabel(status: RadarCheckStatus): string {
   if (status === "pass") return "Pass";
-  if (status === "blind") return "Blind";
-  if (status === "learning") return "Learning";
+  if (status === "blind") return "No data yet";
+  if (status === "learning") return "Still gathering";
   if (status === "inactive") return "Inactive";
   return status;
 }
@@ -116,6 +117,40 @@ export function coverageStatusLabel(status: AdvisorCoverageSource["status"]): st
   if (status === "empty") return "Watching";
   if (status === "unavailable") return "Unavailable";
   return "Disconnected";
+}
+
+// Turn a machine source id (e.g. "core:clients", "metric:speed-to-lead",
+// "module:leads-pipeline:<installId>") into the human label an analyst reads
+// without a decoder — the registered coverage source's own label where one is
+// found (which also resolves the module:<plugin>:<install> form cleanly),
+// otherwise the id stripped of its scope prefix, separators spaced and
+// title-cased. Mirrors the engine's evidence-side `readableSource` so the same
+// id never reads one way in evidence and another on a dashboard card.
+// The plain action-KIND label for a radar issue, so an operator reading the
+// signals feed knows whether it can be fixed in-app, is handled elsewhere, or is
+// a judgement call — the "action types must be clear, otherwise it's fluff"
+// bar. A rolled-up incident's id (`incident:<domain>:<category>`) matches no
+// resolution family and would resolve to `judgement` on id alone — so key the
+// label off the incident's problem GROUP instead: an infrastructure/reliability/
+// compliance incident reads "handled elsewhere", a delivery one "fix here", and
+// only genuine commercial/people deviations read "judgement call". This mirrors
+// exactly the resolution the Actions/Command path computes for the same finding.
+export function radarIssueKindLabel(issue: { id: string; group?: RadarFindingGroup }): "fix here" | "handled elsewhere" | "judgement call" {
+  const kind = resolveFindingKind({ id: issue.id, group: issue.group });
+  return kind === "in-app" ? "fix here" : kind === "off-system" ? "handled elsewhere" : "judgement call";
+}
+
+export function readableSourceId(
+  sourceId: string,
+  coverage?: readonly { id: string; label: string }[],
+): string {
+  const match = coverage?.find(source => source.id === sourceId);
+  if (match) return match.label;
+  return sourceId
+    .replace(/^(core|domain|source|module|metric):/, "")
+    .replace(/[-_:]+/g, " ")
+    .replace(/\b\w/g, letter => letter.toUpperCase())
+    .trim();
 }
 
 export type RadarInspectorTarget = {

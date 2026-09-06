@@ -462,7 +462,7 @@ function HelpPane() {
         <div>
           <h3 className="text-sm font-semibold text-black/80">Reaching a person</h3>
           <p className="mt-1 text-xs leading-5 text-black/60">
-            The Dev Console in the topbar captures a finding with a screenshot and the page you were
+            The Dev Team panel in the topbar captures a finding with a screenshot and the page you were
             on, which is far more useful than a description written afterwards.
           </p>
         </div>

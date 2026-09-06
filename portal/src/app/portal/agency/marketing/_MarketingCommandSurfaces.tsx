@@ -37,7 +37,7 @@ const STATUS_STYLES: Record<string, string> = {
 
 const STATUS_LABELS: Record<string, string> = {
   critical: "Critical", warning: "Warning", watch: "Watch", healthy: "Healthy", pass: "Passing",
-  learning: "Learning", blind: "No data", inactive: "Inactive", unmeasured: "Not measured",
+  learning: "Still gathering", blind: "No data yet", inactive: "Inactive", unmeasured: "Not measured",
 };
 
 function statusChip(status: string) {
@@ -162,7 +162,7 @@ export function MarketingRadarWorkspace({ spine }: { spine: MarketingDataSpine }
     <div className="space-y-7">
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-md border border-black/10 bg-white p-4">
-          <p className="text-xs font-medium text-black/45">Signals firing</p>
+          <p className="text-xs font-medium text-black/45">Signals alerting</p>
           <p className="mt-1 text-2xl font-semibold tabular-nums text-black/85">{attention.length}</p>
           <p className="mt-1 text-xs text-black/42">of {measures.length} marketing families</p>
         </div>
@@ -187,7 +187,7 @@ export function MarketingRadarWorkspace({ spine }: { spine: MarketingDataSpine }
         <div className="flex items-end justify-between gap-3 border-b border-black/10 pb-3">
           <div>
             <h2 id="marketing-radar-attention" className="text-lg font-semibold text-black/85">Needs action</h2>
-            <p className="mt-1 text-sm text-black/50">Marketing signals currently firing, most severe first.</p>
+            <p className="mt-1 text-sm text-black/50">Marketing signals currently alerting, most severe first.</p>
           </div>
           <Link href="/portal/agency/actions" className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65">All actions</Link>
         </div>

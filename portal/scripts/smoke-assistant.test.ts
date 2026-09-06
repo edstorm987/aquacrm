@@ -67,7 +67,7 @@ test("Aqua Advisor remains available globally with history, memory, and voice", 
   const journeyPage = read("src/app/portal/clients/page.tsx");
   const clientLayout = read("src/app/portal/clients/[clientId]/layout.tsx");
   assert.match(ui, /Conversation history/);
-  assert.match(ui, /Assistant memory/);
+  assert.match(ui, /Advisor memory/);
   assert.match(ui, /SpeechRecognition/);
   assert.match(ui, /speechSynthesis/);
   assert.match(ui, /Connect the OpenAI API/);

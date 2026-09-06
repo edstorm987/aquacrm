@@ -54,10 +54,40 @@ export default function CrmContactFormBlock({ block, editorMode, renderChildren 
 /** The real, existing public ingest. See the note at the top of this file. */
 const ENDPOINT = "/api/public/contact";
 
+// #2 — form-content capture must be transparent. This form (and the Aqua Tag
+// that may also read a page's forms) stores what a visitor submits, and until
+// now nothing on the form said so. This is the DRAFT wording Ed approved on
+// 2026-09-05, and it is SUBJECT TO DPO SIGN-OFF: it is a configurable prop
+// (`consentNotice`) so the final legal text drops in without a code change, and
+// `privacyPolicyUrl` turns "Privacy Policy" into a link when the site sets one.
+// The basis is legitimate interest (they submitted an enquiry), disclosed here —
+// deliberately NOT a hard consent gate, per Ed's "transparency over gating".
+export const DEFAULT_CONSENT_NOTICE =
+  "By submitting, you agree we can store and use your details to respond to your "
+  + "enquiry. We won't share them or use them for anything else. See our Privacy Policy.";
+
+/** Render the notice, linking the words "Privacy Policy" when a URL is set. */
+function consentNoticeContent(notice: string, policyUrl?: string): React.ReactNode {
+  const marker = "Privacy Policy";
+  const at = policyUrl ? notice.indexOf(marker) : -1;
+  if (at < 0) return notice;
+  return (
+    <>
+      {notice.slice(0, at)}
+      <a href={policyUrl} style={{ color: "inherit", textDecoration: "underline" }}>{marker}</a>
+      {notice.slice(at + marker.length)}
+    </>
+  );
+}
+
 function BuiltInContactForm({ block, editorMode }: BlockRenderProps) {
   const heading = (block.props.heading as string | undefined) ?? "Get in touch";
   const subheading = (block.props.subheading as string | undefined) ?? "We'll reply within 1 business day.";
   const submitLabel = (block.props.submitLabel as string | undefined) ?? "Send message";
+  // #2 — the transparency notice. Defaults to Ed's approved DPO-draft; a site can
+  // override the wording, and set `privacyPolicyUrl` to link its own policy.
+  const consentNotice = (block.props.consentNotice as string | undefined) ?? DEFAULT_CONSENT_NOTICE;
+  const privacyPolicyUrl = (block.props.privacyPolicyUrl as string | undefined)?.trim() || undefined;
   // NOTE: the block's `tag` prop is not forwarded. `/api/public/contact` sets
   // its own tags (`website-enquiry`, `contact:<method>`) and takes no custom
   // ones; inventing a field it ignores would be the same fiction this change
@@ -215,6 +245,12 @@ function BuiltInContactForm({ block, editorMode }: BlockRenderProps) {
       >
         {submitting ? "Sending…" : submitLabel}
       </button>
+
+      {consentNotice && (
+        <p style={{ fontSize: 11, opacity: 0.6, margin: "12px 0 0", lineHeight: 1.5 }}>
+          {consentNoticeContent(consentNotice, privacyPolicyUrl)}
+        </p>
+      )}
     </form>
   );
 }

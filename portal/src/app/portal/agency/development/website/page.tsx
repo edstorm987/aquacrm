@@ -12,11 +12,15 @@ export default async function WebsiteDevelopmentPage() {
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-7">
       <DevelopmentNav active="website" />
-      <WebsiteWorkspace
-        initialWebsite={website}
-        initialSummary={summarizeAgencyWebsite(website)}
-        canManage={session.role === "agency-owner" || session.role === "agency-manager"}
-      />
+      {/* development:errors:* / development:monitoring-stale alerts (focus
+          "evidence") land here — highlight the website telemetry workspace. */}
+      <div data-resolution-focus="evidence">
+        <WebsiteWorkspace
+          initialWebsite={website}
+          initialSummary={summarizeAgencyWebsite(website)}
+          canManage={session.role === "agency-owner" || session.role === "agency-manager"}
+        />
+      </div>
     </div>
   );
 }

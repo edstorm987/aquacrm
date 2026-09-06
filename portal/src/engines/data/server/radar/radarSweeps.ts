@@ -1,7 +1,8 @@
 import "server-only";
 
 import type { BusinessIssueRadar, RadarCheckTier, RadarInfraHealthSnapshot, RadarMemoryDigest } from "@/engines/data/radar/businessRadar";
-import { mutate } from "@/server/storage";
+import { ensureHydrated, flushPendingWrites, mutate } from "@/server/storage";
+import { listAgencies } from "@/server/tenants";
 import { reconcileAgencyTasksWithRadar } from "@/server/tasks";
 import type { RadarSyntheticProbeResult } from "@/server/types";
 import { buildBusinessIssueRadar, invalidateBusinessIssueRadarCache } from "@/engines/data/server/radar/businessIssueRadar";
@@ -335,4 +336,41 @@ export async function runRadarProbeRefresh(
   } catch (error) {
     return { agencyId, ok: false, error: error instanceof Error ? error.message : "radar_probe_refresh_failed" };
   }
+}
+
+export interface ScheduledProbeSweepResult {
+  ok: boolean;
+  /** App-wide Infra probe status, or `error:<message>` if it threw. */
+  infra: string;
+  /** One per active agency. */
+  probes: RadarProbeRefreshResult[];
+}
+
+/**
+ * ONE dedicated probe tick — the whole `cron/radar-probes` job as a function.
+ *
+ * Hydrates fresh, probes Infra once (app-wide, not per agency), refreshes each
+ * active agency's Deep probes, and flushes the durable writes. It is the single
+ * home for that work so the `cron/radar-probes` HTTP route (an external cron) and
+ * the persistent-instance self-scheduler (`probeSchedule.ts`, issues #170) run
+ * byte-identical sweeps. Per-agency failures are captured inside
+ * `runRadarProbeRefresh`, so one bad tenant never aborts the tick.
+ */
+export async function runScheduledProbeSweep(): Promise<ScheduledProbeSweepResult> {
+  await ensureHydrated({ fresh: true });
+
+  let infra: string;
+  try {
+    infra = (await runRadarInfraSweep()).primary.status;
+  } catch (error) {
+    infra = error instanceof Error ? `error:${error.message}` : "error";
+  }
+
+  const probes: RadarProbeRefreshResult[] = [];
+  for (const agency of listAgencies().filter(item => item.status === "active")) {
+    probes.push(await runRadarProbeRefresh(agency.id));
+  }
+
+  await flushPendingWrites();
+  return { ok: true, infra, probes };
 }

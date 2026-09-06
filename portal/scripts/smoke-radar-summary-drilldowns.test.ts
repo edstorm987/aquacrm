@@ -30,7 +30,7 @@ const DETAIL_LABELS = [
   "Awaiting reply",
   "Within target",
   "Check coverage",
-  "Learning",
+  "Still gathering",
   "Inactive by policy",
   "Evidence assured",
   "Compound risks",
@@ -49,7 +49,7 @@ const DETAIL_LABELS = [
   "Lifecycle checks",
 ] as const;
 
-const HEADLINE_LABELS = ["Health", "Confidence", "Setup", "Critical", "Warnings", "Checks live", "Learning", "Blind"] as const;
+const HEADLINE_LABELS = ["Health", "Confidence", "Setup", "Critical", "Warnings", "Checks live", "Still gathering", "No data yet"] as const;
 const MEMORY_LABELS = ["New", "Worsening", "Recovered", "Recurring", "Flapping", "Oldest open"] as const;
 const EVIDENCE_LABELS = ["KPI streams", "Baselines ready", "Pattern breaks", "Recording gaps"] as const;
 const COMMERCIAL_LABELS = ["Leads retained", "Converted", "Retention", "Pending exits"] as const;

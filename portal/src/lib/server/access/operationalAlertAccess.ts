@@ -12,7 +12,7 @@ import {
   workspaceElementLevel,
 } from "@/lib/server/access/workspaceElementAccess";
 import {
-  actorHasActiveNonProjectAccessPolicy,
+  actorEverHadNonProjectAccessPolicy,
   resolveActorAccess,
   type CurrentAccessActor,
 } from "@/server/accessControl";
@@ -80,7 +80,7 @@ function actorAlertPredicate(actor: CurrentAccessActor): (alert: OperationalAler
   if (actor.session.role === "agency-owner") {
     return alert => !alert.id.startsWith("calendar-reminder:");
   }
-  if (actor.session.role === "agency-manager" && !actorHasActiveNonProjectAccessPolicy(actor)) {
+  if (actor.session.role === "agency-manager" && !actorEverHadNonProjectAccessPolicy(actor)) {
     const proposalVisible = externalProposalVisibleToActor(actor);
     return alert => {
       if (alert.id.startsWith("calendar-reminder:") || alert.id === "people:chat-attention") return false;

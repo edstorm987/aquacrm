@@ -277,6 +277,24 @@ function findEntry(zip: Uint8Array, name: string): { offset: number; size: numbe
   expect("a form with a destination is submittable",
     !/<button type="submit" disabled>/.test(wiredHtml));
 
+  // ─── #2 the contact form carries the data-use transparency notice ────────
+  // Form-content capture must disclose that it stores what the visitor submits.
+  // The default is Ed's approved DPO-draft; it is a `consentNotice` prop so the
+  // final legal text drops in without a code change, and `privacyPolicyUrl`
+  // links the policy. Kept in sync with CrmContactFormBlock's React twin.
+  const contactDefault = renderBlockToHtml({ id: "cf1", type: "contact-form", props: {} } as Block);
+  expect("contact form shows the default data-use notice",
+    contactDefault.includes("agree we can store and use your details"));
+  const contactCustom = renderBlockToHtml({
+    id: "cf2", type: "contact-form",
+    props: { consentNotice: "We keep your data 12 months. See our Privacy Policy.", privacyPolicyUrl: "https://site.example/privacy" },
+  } as Block);
+  expect("consent notice is overridable", contactCustom.includes("We keep your data 12 months"));
+  expect("privacyPolicyUrl links the Privacy Policy phrase",
+    contactCustom.includes('<a href="https://site.example/privacy"') && contactCustom.includes(">Privacy Policy</a>"));
+  expect("the notice HTML-escapes its text (no injection)",
+    !renderBlockToHtml({ id: "cf3", type: "contact-form", props: { consentNotice: "<script>x</script>" } } as Block).includes("<script>x</script>"));
+
   // ─── Handler ───────────────────────────────────────────────────────────
   const ctx: PluginCtx = {
     storage, agencyId: a, clientId: c,
