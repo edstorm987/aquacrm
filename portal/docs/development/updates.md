@@ -34,6 +34,24 @@ map stays trustworthy.
 
 ---
 
+## 2026-09-06 — Command Centre simplification, slice 5: one converged "needs you" queue
+
+- The Command Centre priority feed and the Actions list built two different
+  pools and disagreed about what needed the owner ("needs you notifications is
+  wrong… it's meant to combine the actions + other things into one"). They now
+  build from the ONE shared assembler (`buildUnifiedActionQueue`) over the ONE
+  server assembly (`assembleAgencyActions`). `page.tsx` assembles once and
+  shares it with both the Actions/Calendar station slot (`prepared`) and the
+  dashboard feed; the feed maps each `UnifiedActionItem` to the existing
+  `StrictItem` shape, so only the pool's source changed. Skipped while the scan
+  is paused (performance mode), where the feed falls back to committed tasks.
+- Retired the coarse `buildDashboardSignals` heuristic and the dashboard's
+  private `priorityRank`/`overdueRank` copies. Pinned by
+  `scripts/smoke-command-priority-convergence.test.ts`. Full `smoke:all` green
+  (6,742 pass / 0 fail / 3 skipped; Website Editor gate 49/49). Regenerated
+  `docs/reference`. Static + focused-test evidence — browser acceptance still
+  recommended before merge.
+
 ## 2026-09-03 — Supabase migrations APPLIED to live and verified
 
 - Ed supplied the database password and a `sbp_` personal access token (both to be rotated), so the
