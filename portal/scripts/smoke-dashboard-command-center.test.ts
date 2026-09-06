@@ -454,7 +454,7 @@ describe("dashboard command centre surface", () => {
     assert.match(workspace, /Open workspace/);
     assert.match(workspace, /Executive view/);
     assert.match(workspace, /slice\(0, 3\)/);
-    for (const bridgeLabel of ["Executive bridge radar", "Watch condition", "PPI-01", "Current watch", "Data inspector", "Primary plotting indicator", "Officer of the watch"]) {
+    for (const bridgeLabel of ["Business radar", "Current mode", "Data inspector", "Selected area", "Priorities"]) {
       assert.match(workspace, new RegExp(bridgeLabel));
     }
     assert.match(workspace, /Scanner ledger/);
