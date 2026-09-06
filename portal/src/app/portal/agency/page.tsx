@@ -333,7 +333,7 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
       serviceBrandsPromise,
     ]);
     executiveWorkspace = (
-      <Suspense key="executive-workspace" fallback={<StationStreaming label="Command Centre" />}>
+      <Suspense key="executive-workspace" fallback={<StationStreaming label="Business health" />}>
         <ExecutiveCommandWorkspace
           agencyId={agency.id}
           workspaceName={workspaceName}

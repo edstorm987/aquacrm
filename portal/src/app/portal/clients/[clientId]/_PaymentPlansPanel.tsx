@@ -514,7 +514,9 @@ export function PaymentPlansPanel({
                         const invoicePending = Boolean(milestone.invoiceOperationId && !milestone.invoiceId);
                         const locked = Boolean(milestone.invoiceId || invoicePending);
                         const missed = invoiceEvidenceCurrent && plan.status === "active" && milestone.status !== "paid" && milestone.status !== "waived" && milestone.dueAt < Date.now();
-                        return <tr key={milestone.id}>
+                        // payment-plan:<client>:<plan>:<milestone> alerts stamp
+                        // resolve-record=<milestone.id>; ring the exact instalment.
+                        return <tr key={milestone.id} data-resolution-record={milestone.id} className="scroll-mt-24">
                           <td className="px-3 py-3">{editing && !locked ? <input value={milestone.title} onChange={event => updateMilestone(plan.id, milestone.id, { title: event.target.value })} className={`${CONTROL} w-64`} /> : <><p className="font-medium text-black/80">{milestone.title}</p>{milestone.invoiceNumber ? <p className="mt-0.5 text-[10px] text-black/40">{milestone.invoiceNumber}</p> : null}</>}</td>
                           <td className="px-3 py-3 text-xs text-black/55">{editing && !locked ? <select value={milestone.productId ?? ""} onChange={event => { const product = products.find(item => item.id === event.target.value); updateMilestone(plan.id, milestone.id, { productId: product?.id, productName: product?.name }); }} className={`${CONTROL} w-44`}><option value="">Whole relationship</option>{products.map(product => <option key={product.id} value={product.id}>{product.name}</option>)}</select> : milestone.productName ?? "Whole relationship"}</td>
                           <td className="px-3 py-3 text-xs text-black/55">{editing && !locked ? <input type="date" value={dateInput(milestone.dueAt)} onChange={event => updateMilestone(plan.id, milestone.id, { dueAt: Date.parse(event.target.value) })} className={CONTROL} /> : formatUkDate(milestone.dueAt, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}</td>

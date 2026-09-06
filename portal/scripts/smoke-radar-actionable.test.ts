@@ -29,6 +29,9 @@ test("every recommended action carries a full resolution model", async () => {
   assert.ok(actions.length > 0, "an uninstrumented agency should still surface actionable work");
   for (const action of actions) {
     assert.ok(action.kind && KINDS.has(action.kind), `${action.id} is missing a valid kind`);
+    // A destination to act is what makes it an action rather than a notice — no
+    // recommended action may ship without somewhere to go.
+    assert.ok(action.href.trim().length > 0, `${action.id} has no destination (href) to act on`);
     assert.ok(action.steps && action.steps.length >= 1, `${action.id} must carry at least one concrete step (never a dead end)`);
     assert.ok(action.steps.every(step => step.label.trim().length > 0), `${action.id} has an empty step`);
     assert.ok(action.group && GROUPS.has(action.group), `${action.id} is missing a valid group`);
@@ -38,10 +41,12 @@ test("every recommended action carries a full resolution model", async () => {
   }
 });
 
-test("a restorable finding is widened from judgement to a doable action", async () => {
+test("coverage / readiness findings surface as a doable off-system action, never a judgement dead-end", async () => {
   const actions = await actionsForFreshAgency();
-  // Coverage / readiness findings default to judgement by id, but have a concrete
-  // remediation — they must be widened to off-system and carry a clearance.
+  // Coverage / readiness findings match no specific family, so they resolve by
+  // their reliability group profile — which is off-system with a clearance (NOT a
+  // judgement dead-end). (The judgement→off-system RESTORABLE widening for the two
+  // judgement groups is exercised directly in smoke-radar-finding-families.)
   const restorable = actions.filter(action => action.id.startsWith("recommended-source:") || action.id.startsWith("recommended-readiness:"));
   assert.ok(restorable.length > 0, "an empty agency should surface coverage/readiness restoration actions");
   for (const action of restorable) {
@@ -56,10 +61,18 @@ test("incident actions inherit the incident's problem group (ties to Stage 5)", 
   const agency = createAgency({ name: "Group Tie Co", ownerEmail: "owner@example.com" });
   const radar = await buildBusinessIssueRadar(agency.id, NOW);
   const actions = buildBusinessRecommendedActions({ radar, now: NOW, limit: 12 });
+  let matched = 0;
   for (const incident of radar.incidents) {
     const action = actions.find(candidate => candidate.id === `recommended-radar:${incident.id}`);
-    if (action) assert.equal(action.group, incident.group, `${action.id} should carry its incident's group`);
+    if (action) {
+      matched += 1;
+      assert.equal(action.group, incident.group, `${action.id} should carry its incident's group`);
+    }
   }
+  // Floor: the group-inheritance contract must actually be exercised — if a future
+  // ranking/dedup change stopped incidents surfacing as actions this loop would
+  // pass vacuously, so require at least one real incident→action to have been checked.
+  assert.ok(matched > 0, "at least one incident must surface as a recommended-radar action for this contract to bite");
 });
 
 test("existing tasks still suppress duplicate actions (contract preserved)", async () => {

@@ -9737,9 +9737,10 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (1):**
+**Exports (2):**
 
 - `default CrmContactFormBlock({ block, editorMode, renderChildren }: BlockRenderProps)`
+- `DEFAULT_CONSENT_NOTICE = "By submitting, you agree we can store and use your details to respond to your "` — deliberately NOT a hard consent gate, per Ed's "transparency over gating".
 
 **Depends on (3):** [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](#file-src-built-ins-modules-website-editor-src-components-blockregistry-ts-28285b9913) · [`src/built-ins/modules/website-editor/src/components/blockStyles.ts`](#file-src-built-ins-modules-website-editor-src-components-blockstyles-ts-4baaa846b8) · [`src/built-ins/modules/website-editor/src/components/blocks/FormRenderBlock.tsx`](#file-src-built-ins-modules-website-editor-src-components-blocks-formrenderblock-tsx-ad56dfee43)
 

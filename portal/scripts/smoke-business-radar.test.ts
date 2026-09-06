@@ -174,11 +174,11 @@ test("the Command Centre exposes twenty source-backed decision KPIs and dedicate
   assert.match(dashboard, /CommandInstrumentDock/);
   assert.match(dashboard, /Open KPI Intelligence/);
   assert.match(dashboard, /Open Radar Workspace/);
-  assert.match(dashboard, /Back to Command Centre/);
+  assert.match(dashboard, /Back to Business health/);
   assert.match(dashboard, /data-testid="unified-command-centre"/);
   assert.match(dashboard, /CommandIntelligenceWorkspace/);
   assert.match(dashboard, /requestedStation \?\? "day"/);
-  assert.ok(stationNav.indexOf('label="Day command"') < stationNav.indexOf('label="Command Centre"'));
+  assert.ok(stationNav.indexOf('label="Day command"') < stationNav.indexOf('label="Business health"'));
   assert.match(dashboard, /if \(value === "omega"\) return "executive"/);
   assert.match(page, /buildCommandIntelligenceSnapshot/);
   assert.match(page, /intelligenceSnapshot=\{intelligenceSnapshot\}/);

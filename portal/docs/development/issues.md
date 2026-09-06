@@ -24,7 +24,7 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
 1. **Database RLS — live and version-controlled; engineering residue remains.** **CORRECTED 2026-08-23:** RLS is ON in the live project (verified 2026-08-20 across 14 tables with the public anon key), and its policies exist in 16 migrations under `aquaCRM/supabase/migrations/`. Pending migrations still need production application. The real gaps are narrower: `brand_enquiries` has no `agency_id`, and admin/service-role paths bypass RLS, so their current count and app-code tenant scoping must be audited before claiming database-enforced isolation. See [rls-enable](plans/rls-enable.md) and [database.md](../workspace/database.md).
 
     *2026-09-03:* live anon posture re-probed read-only (0 rows on every private table, `401` on `app_datastore_history`, the three public tables public by design); the live schema is eleven migrations behind the repo, so the agency-scoped `brand_enquiries` policy is not live yet. Grants were found to be inherited from cloud defaults rather than written: `20260903120000_explicit_service_role_grants.sql` states them. Storage object policies and `rls_auto_enable()` need SQL access to verify.
-2. **Aqua Tag form-content capture is NOT consent-gated.** Telemetry is double-gated on cookie consent; the field-value POST to `/api/public/form-capture` is not (and the server route has no consent check). A visitor who declined cookies still has their submitted enquiry fields captured. **Action: a deliberate compliance decision** — legitimate-interest (they submitted a form) vs. gate it. (See [aqua-tag.md](../workspace/aqua-tag.md) finding A.)
+2. **🟡 DECIDED + DRAFT WIRED 2026-09-05, pending DPO sign-off — Aqua Tag form-content capture now DISCLOSES.** Telemetry is double-gated on cookie consent; the field-value POST to `/api/public/form-capture` is not (and the server route has no consent check), so a visitor who declined cookies still had their submitted enquiry fields captured with nothing on the form saying so. **Ed's decision (BLOCKERS-FOR-ED §#2): legitimate-interest with transparency, NOT a hard gate.** Implemented as a data-use notice on Aqua's own rendered contact form — both the React block (`components/blocks/CrmContactFormBlock.tsx`, `DEFAULT_CONSENT_NOTICE`) and its static-export twin (`server/staticExport.ts`, `renderContactFormHtml`) — as a configurable `consentNotice` prop (default = Ed's approved draft) with an optional `privacyPolicyUrl` link, pinned in `r033-static-export` (default text, override, link, HTML-escape). **Still open:** DPO must sign off the final wording (drop-in via the prop, no code change) — DPO sign-off is a listed Ed-blocker. The server route is deliberately left un-gated (transparency over gating); the tag reading a CLIENT's own forms is a processor matter for the client's own policy, not something Aqua notices on their markup. (See [aqua-tag.md](../workspace/aqua-tag.md) finding A.)
 3. **Consent flags are self-reported** — the telemetry server trusts the `consent*` booleans the tag sends; no server-side source of truth ties them to the stored preference.
 22. **✅ RESOLVED 2026-08-27 — central session revocation is enforced on every
     authenticated request.** One central primitive, `resolveFreshSessionUser()`
@@ -114,21 +114,31 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     a route or loader defect; it does mean browser matrices should open a fresh tab per
     navigation, or run against a production build where HMR is absent.
 
-163. **🟠 A client-scoped identity can tell "exists in this agency" from "does not exist"
-    (found 2026-08-27 while building the phase-18 client suite).** The Dev routes use a
-    deliberate, widely-asserted convention: an ungranted project **inside your own agency**
-    answers **403** (a capability refusal), while another agency's project or an invented id
-    answers **404** — proven for the tenant boundary in `smoke-dev-project-api-access`
-    ("404s another agency's project — same words as an invented one"). For an AGENCY identity
-    that is honest. For a **client** identity it means Bright Coffee can learn that a project
-    id belongs to *someone* in the agency, because Rival Coffee's project returns 403 where an
-    invented id returns 404. **Bounded, not urgent:** project ids are opaque
-    (`devproj_<20 hex>`), so nothing is enumerable, and neither answer leaks the sibling's name
-    or repository — pinned by `smoke-client-dev-workspace` ("is refused a SIBLING client's
-    project…"). **Not changed unilaterally:** flipping same-agency refusals to 404 would
-    contradict 15+ existing assertions that deliberately expect 403, so this is a decision
-    about whether a *cross-client* refusal should be indistinguishable the way a cross-tenant
-    one already is. Decide before the editor is offered to two clients of the same agency.
+163. **✅ DECIDED + FIXED 2026-09-05 — a CLIENT identity's cross-client project
+    refusal is now the indistinguishable 404.** Found 2026-08-27 while building
+    the phase-18 client suite. The Dev routes use a deliberate, widely-asserted
+    convention: an ungranted project **inside your own agency** answers **403** (a
+    capability refusal), while another agency's project or an invented id answers
+    **404** — proven for the tenant boundary in `smoke-dev-project-api-access`.
+    For an AGENCY identity that is honest. For a **client** identity it leaked:
+    Bright Coffee could learn that a project id belonged to *someone* in the
+    agency, because Rival Coffee's project returned 403 where an invented id
+    returned 404. Bounded (ids are opaque `devproj_<20 hex>`, nothing enumerable,
+    no name/repo leaked), but a cross-client existence signal all the same.
+
+    Ed's decision (BLOCKERS-FOR-ED §#163/#168): make the cross-client refusal
+    indistinguishable the way the cross-tenant one already is. **The fix**
+    (`src/lib/server/dev/devProjectAccess.ts`, the one shared gate both the
+    site-editor files route and the preview route use): after the agency-scoped
+    project lookup, a **client-scoped caller** (`resourceClientId ?? user.clientId`
+    is set) accessing a project whose `clientId` is not their own gets the same
+    404 an invented id gets — the kernel already refuses that project as
+    `resource_ownership`, so this only changes the STATUS, never what is reachable.
+    An **agency identity carries no `clientId`**, so its same-agency capability
+    refusal stays the honest 403 the 15+ existing assertions (and
+    `smoke-dev-project-api-access`, still green) depend on. The `smoke-client-dev-
+    workspace` pin now asserts the sibling and the invented id are byte-identical
+    (status + body), recording the new rule deliberately.
 
 164. **✅ FIXED 2026-08-27 — exiting Dev/Sandbox Mode left the operator flagged
     demo, which suppressed the Supabase identity cross-check.**
@@ -465,43 +475,57 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     serialised state.** A fifth test proves the fix did not become "delete more
     than asked" — another client's grant survives untouched.
 
-174. **🟠 OPEN — Ed's decision: revoking someone's LAST grant WIDENS their access.**
-    Surfaced by the release access matrix, 2026-08-27, and proven end-to-end
-    through a real gated route rather than inferred from the code.
+174. **✅ DECIDED + FIXED 2026-09-05 — revocation NARROWS; the legacy fallback is a
+    one-way door.** Surfaced by the release access matrix, 2026-08-27, and proven
+    end-to-end through a real gated route rather than inferred from the code. Ed
+    chose the "revocation narrows" default (BLOCKERS-FOR-ED §#174: *"no grants =
+    no access"*), the second of the three options below — a `governed` marker
+    that survives revocation — and it is now implemented and pinned.
 
     Canonical client access is opt-in per identity, for migration safety: an
-    identity holding no agency/workspace/client grant is treated as un-migrated
-    and keeps its legacy behaviour, which for any agency role is `manage` on every
-    client element. Governance begins at the first such grant, after which absence
-    becomes meaningful (`clientWorkspaceElementAccess.ts`, `governed`).
+    identity that has **never** held an agency/workspace/client grant is treated
+    as un-migrated and keeps its legacy behaviour, which for any agency role is
+    `manage` on every client element. Governance begins at the first such grant,
+    after which absence becomes meaningful (`clientWorkspaceElementAccess.ts`,
+    `governed`) — **and stays meaningful**. The bug was that "governed" was read
+    from `actorHasActiveNonProjectAccessPolicy` (is there a live policy NOW), so
+    revoking the last grant flipped the identity back to un-migrated and WIDENED
+    it to legacy `manage` — the opposite of what "revoke" means.
 
-    Followed to its conclusion, that means:
+    **The fix** (`src/server/accessControl.ts`): a new
+    `actorEverHadNonProjectAccessPolicy` answers *was there ever such a policy in
+    this realm* — it drops only the `revokedAt`/`expiresAt` freshness filters
+    (keeping the realm check), because a spent grant still proves the boundary was
+    crossed. Every governance-boundary gate now reads it instead of the "active"
+    form: the two element write-gates (`clientWorkspaceElementAccess`,
+    `workspaceElementAccess`) and the five read surfaces that fall back to a wider
+    view for an un-migrated manager (`searchCandidateAccess`,
+    `assistantContextScope` ×2, `operationalAlertAccess`, `agencyBasePanels`,
+    `personalRadarAccess` ×2). The change only ever narrows an identity that was
+    **previously governed**; a genuinely never-governed identity is untouched, so
+    migration safety holds.
 
     | Ben (agency-staff) | `client.record` on client one |
     |---|---|
-    | no grants at all | **manage** (un-migrated, legacy) |
+    | **never granted anything** (Cara) | **manage** (un-migrated, legacy) ✓ |
     | granted elsewhere, nothing here | hidden ✓ |
     | granted `view` here | view ✓ |
     | granted `use` here | use ✓ |
     | that grant revoked, still governed | hidden ✓ |
-    | **his LAST grant revoked** | **manage again** |
+    | **his LAST grant revoked** | **hidden — revocation narrows** ✓ |
 
-    Every row is asserted, including the last: a real `POST` to
-    `api/tenants/client-notes` answers **403 while governed and 200 once the last
-    grant is gone**.
+    Every row is asserted through a real `POST` to `api/tenants/client-notes`
+    (`smoke-release-access-matrix`, 22/22). The last row now answers **403, not
+    200**, and the never-governed row is proven with a fresh identity (Cara) who
+    was granted nothing — the old test reached "un-migrated" by revoking every
+    grant, which the new rule correctly denies. The matrix records the new rule
+    deliberately, as this issue always required. Full suite green
+    (6704/0 fail + Website Editor 49/49).
 
-    This is the documented rule working, not a defect — but "revoke" widening
-    access is the opposite of what the word suggests, and an operator removing
-    someone's final grant to lock them down would achieve the reverse. Three ways
-    to settle it, all Ed's call:
-    - leave it, and make the UI say so when revoking a last grant;
-    - keep a `governed` marker on the identity once set, so revocation cannot
-      un-migrate them;
-    - retire the legacy fallback entirely on a date, once every identity is
-      migrated.
-
-    The matrix pins the CURRENT behaviour exactly, so whichever is chosen has to
-    come here and change the recorded rule deliberately.
+    *(Options considered — leave it + warn in the UI; keep a `governed` marker so
+    revocation cannot un-migrate; retire the legacy fallback on a date. Ed took
+    the marker, implemented here as "ever governed" rather than a stored flag so
+    no migration or new persisted field was needed.)*
 
 173. **✅ CONVERGED 2026-08-27 — three agency HR routes were still deciding access
     on a broad role while the rest of People decided on elements.** The other half
@@ -613,28 +637,39 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     Worth stating plainly: three gates individually green added up to a product
     nobody could log into. Per-gate assertions cannot catch that class.
 
-170. **🟠 OPEN — Ed's decision: Radar's probe cron is now DAILY, and no surface
-    says the evidence may be a day old.** Found by triage 2026-08-27.
+170. **🟡 BOTH HALVES ADDRESSED 2026-09-05 — silence half already honest; mechanism
+    half now BUILT (flag-gated). Activation is one env var, Ed's operational call.**
+    Found by triage 2026-08-27. Ed's steer (BLOCKERS-FOR-ED §#170): *do both.*
 
-    `vercel.json` schedules `/api/cron/radar-probes` at `15 6 * * *` — once a
-    day. It used to be `*/10 * * * *`, and the sweep's own argument for existing
-    was that *"the cheap Pulse now reads genuinely fresh probe data"*. The likely
-    reason for the change is already recorded in the docs — **"a Vercel plan
-    allowing sub-daily crons (Hobby is daily-only)"** — so this reads as making
-    the config deployable, not as a slip. `vercel.json` was left alone: the
-    cadence is a hosting decision and an outward-facing one.
+    **The honesty half was already done and stays done.** On a stale cron, Radar's
+    Deep and Infra evidence can be up to 24 hours old — and the repo's rule is that
+    *missing or unconfident evidence is a visible blind spot, never a healthy pass*.
+    The surfaces already state evidence age and degrade a reading to `blind` once it
+    passes `RADAR_PROBE_CADENCE_MS` (`radarInfraChecks.ts`, `radarSyntheticChecks.ts`),
+    so nothing is ever presented as fresh when it is not.
 
-    **The gap is not the schedule, it is the silence.** On a daily cron, Radar's
-    Deep and Infra evidence can be up to 24 hours stale while the UI presents it
-    the same way it presents fresh evidence — and this repo's own rule is that
-    *missing or unconfident evidence is a visible blind spot, never a healthy
-    pass*. Two honest resolutions, both Ed's call:
-    - a plan with sub-daily crons, restore `*/10 * * * *`; or
-    - keep daily, and have the Radar surfaces state the evidence age.
+    **The mechanism half — restoring a sub-daily cadence — is now built.** On Vercel
+    the cadence came from a platform cron (`vercel.json`, `/api/cron/radar-probes`);
+    on the Railway persistent instance there is no platform cron, so the probes went
+    stale ("scheduled probe sweep hasn't run"). The fix is a self-scheduler on the one
+    long-lived process (`src/engines/data/server/radar/probeSchedule.ts`): `register()` in
+    `instrumentation.ts` starts an interval that runs the SAME `runScheduledProbeSweep`
+    the HTTP cron does. It is **OFF by default and safe** — schedules nothing unless
+    `RADAR_PROBE_INTERVAL_MINUTES` is set to a positive number, and even then only on
+    the single persistent instance (`PORTAL_SINGLE_INSTANCE=true`), never in
+    test/build/Edge/multi-instance; the timer is `unref`'d, overlap-guarded and
+    error-swallowing. Pinned by `smoke-radar-probe-scheduler` (every gate branch) and
+    `smoke-radar-sweeps` (the shared sweep). The `cron/radar-probes` route is unchanged
+    for callers, so a **Railway cron service or a GitHub Action** hitting it is an
+    equally valid mechanism — this build adds the in-process option without foreclosing
+    those.
 
-    `smoke-radar-sweeps` now pins the exact schedule rather than loosening to
-    "any cadence", so whoever changes it next has to come here and say which of
-    the two they mean.
+    **What's left is Ed's operational call:** set `RADAR_PROBE_INTERVAL_MINUTES` on
+    Railway (e.g. `180`) to turn the self-scheduler on, OR point a Railway cron/GitHub
+    Action at `/api/cron/radar-probes`. Optionally, once the deployed cadence is fixed,
+    tighten `RADAR_PROBE_CADENCE_MS` (the freshness window, still a conservative day) to
+    match — a deliberate follow-up, safe to leave as-is since more-frequent probes only
+    make evidence fresher than the window requires.
 
 169. **✅ FIXED 2026-08-27 — a MISSING date rendered as TODAY, including on the
     invoice export.** Found by triage: `smoke-date-resilience` asserts that every
@@ -660,31 +695,33 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     suite. Finance invoice-identity, aging, accounting-semantics and
     recurring-occurrence all stay green.
 
-168. **🟠 OPEN, low severity — 29 client routes now answer a cross-tenant id with
-    403 where the house convention is 404.** A direct and expected consequence of
-    #166, recorded rather than left to be rediscovered.
+168. **✅ RESOLVED — every client route now answers a cross-tenant id with the
+    house-convention 404, tenancy before permission.** A direct consequence of
+    #166 that was recorded rather than left to be rediscovered, and then swept.
 
     The house convention is stated at `src/server/phaseApplier.ts:51`: *a client
     outside the caller's agency answers `client_not_found`* — the same as one that
     does not exist, so the answer discloses nothing and reads sensibly in the UI.
-    A route gets that right by checking TENANCY first (`getClientForAgency` → 404)
-    and PERMISSION second (the element gate → 403). While the element gate fell
-    back to legacy `manage` for an unreachable client, gate-first routes reached
-    their 404 anyway. Now the gate refuses first, so they answer 403.
+    A route gets that right by checking TENANCY first (`getClientForAgency` — or
+    `routeTenantScope(...).client` — → 404) and PERMISSION second (the element gate
+    → 403). #166 stopped the element gate falling back to legacy `manage` for an
+    unreachable client, so any route that gated BEFORE its own tenancy lookup
+    briefly answered 403 where the convention is 404.
 
-    **Nothing is disclosed and nothing is opened** — 403 is returned identically
-    for a nonexistent id, and both answers are refusals. This is a consistency
-    and message-quality item, not a security one.
-
-    `src/app/api/tenants/close-deal/route.ts` is fixed (tenancy first, then
-    permission — the UI behind it is real and `smoke-close-deal-route` pins the
-    404). **28 routes remain gate-first**, all under `api/tenants/client-*`,
-    `api/tenants/customer-*`, `api/tenants/product-workspaces`,
-    `api/portal/contracts/templates` and `api/portal/performance/*`. Reordering
-    them is a mechanical sweep, but it changes the answer on 28 live surfaces at
-    once, so it wants its own pass and its own suite run rather than riding along
-    with a security fix. Get the order from the sweep in this file's history:
-    the gate must sit AFTER the route's own `getClientForAgency` check.
+    **Nothing was ever disclosed** — 403 was returned identically for a
+    nonexistent id, both refusals — so this was a consistency and message-quality
+    item, not a security one. Every route named in the original sweep is now
+    tenancy-first: all of `api/tenants/client-*`, `api/tenants/customer-*`,
+    `api/tenants/product-workspaces`, `api/portal/contracts/templates` and the
+    `api/portal/performance/*` handlers (which resolve tenancy through
+    `routeTenantScope(...).client` + a `!client → 404` guard). Verified 2026-09-05
+    two ways: `smoke-client-element-ceiling` drives ten representative routes and
+    asserts each answers **404 for another agency's client, identical to an
+    invented id** (and staff, not just the owner), AND — the regression backstop —
+    an **exhaustive source sweep of `src/app/api/tenants`** that fails if ANY
+    handler places `requireCurrentClientWorkspaceElementAccess(` before its
+    tenancy resolution, so a NEW route cannot reintroduce the 403. Full suite
+    green.
 
 167. **✅ FIXED 2026-08-27 — an internal fault inside the Finance access gate was
     reported to the caller as `400` with the internal message in the body.**

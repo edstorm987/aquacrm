@@ -307,7 +307,7 @@ describe("dashboard command centre surface", () => {
     assert.match(page, /AgencyActionsPage/);
     assert.match(page, /actionsWorkspace=/);
     assert.match(page, /Command Centre Actions/);
-    assert.match(executive, /Command Centre\s*<\/h1>/);
+    assert.match(executive, /Business health\s*<\/h1>/);
     assert.match(executive, /Command deck/);
     for (const initialDeckLabel of ["Executive overview", "Health, evidence, priorities and controls", "Checks monitored", "Sources connected", "Officer watch summary", "Command Centre quick actions", "Captain&apos;s log"]) {
       assert.match(executive, new RegExp(initialDeckLabel));
@@ -401,7 +401,7 @@ describe("dashboard command centre surface", () => {
     assert.match(workspace, /dashboardMode === "actions"/);
     assert.match(workspace, /mm-omega-actions-workspace/);
     assert.match(workspace, /workspaceBodyRef\.current\?\.scrollTo/);
-    for (const station of ["Executive command controls", "Command Centre", "Day command", "Battle Table", "Radar online"]) {
+    for (const station of ["Executive command controls", "Business health", "Day command", "Battle Table", "Radar online"]) {
       assert.match(stationNav, new RegExp(station));
     }
     assert.doesNotMatch(stationNav, /KPI Intelligence/);
@@ -442,7 +442,7 @@ describe("dashboard command centre surface", () => {
     assert.match(workspace, /CommandInstrumentDock/);
     assert.match(workspace, /Open KPI Intelligence/);
     assert.match(workspace, /Open Radar Workspace/);
-    assert.match(workspace, /Back to Command Centre/);
+    assert.match(workspace, /Back to Business health/);
     assert.match(workspace, /<CommandCentreKpiTrajectory intelligence=\{intelligenceState\} onOpen=\{openIntelligence\}/);
     assert.match(workspace, /if \(value === "omega"\) return "executive"/);
     assert.match(workspace, /role="region"/);

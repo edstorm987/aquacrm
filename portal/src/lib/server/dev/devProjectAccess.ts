@@ -65,6 +65,24 @@ export async function requireDevProjectAccess(input: {
   if (!project) {
     throw new AccessControlError(404, "project_not_found", "That project could not be found.");
   }
+  // #163 — a client-scoped identity must not tell a SIBLING client's project
+  // (same agency, not attached to them) from one that never existed.
+  //
+  // The kernel already refuses both: `userCanReachScope` lets a client role
+  // reach only a project whose `clientId` is its own, so a sibling's project is
+  // as inert to them as an invented id. But the two arrived by different doors —
+  // a foreign-agency/invented id 404s at the lookup above, while a sibling's got
+  // past it (same agency) and came back 403 from the capability check below,
+  // disclosing that the id belongs to SOMEONE in the agency. For a client that
+  // is a cross-client existence leak; the tenant boundary is already
+  // indistinguishable, and Ed's decision on #163 is that the cross-client one
+  // should be too. An AGENCY identity carries no `clientId`, so its same-agency
+  // capability refusal stays the honest 403 the Dev convention documents; only a
+  // client collapses into the identical 404.
+  const callerClientId = actor.resourceClientId ?? actor.user.clientId;
+  if (callerClientId && project.clientId !== callerClientId) {
+    throw new AccessControlError(404, "project_not_found", "That project could not be found.");
+  }
   const access = await requireAccessCapability({
     capability: input.capability,
     scope,

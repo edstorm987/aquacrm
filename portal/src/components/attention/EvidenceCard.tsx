@@ -11,6 +11,7 @@ import {
 } from "@/lib/inbox/attentionPlanRead";
 import type { ReadResult } from "@/lib/readAvailability";
 import type { ResolutionEvidence } from "@/lib/inbox/resolutionEvidence";
+import type { ResolutionExplain } from "@/lib/inbox/resolutionExplain";
 import { MetricSparkline } from "@/components/attention/MetricSparkline";
 import { stepsFor } from "@/lib/inbox/evidenceSteps";
 
@@ -56,6 +57,12 @@ function EvidenceCardForAlert({
   fallback?: { title: string; detail: string; href?: string };
 }) {
   const [evidence, setEvidence] = useState<ResolutionEvidence | null>(null);
+  // The plain-language reading of the alert (why it fired, what it really means,
+  // how it clears, and whether it can be fixed here at all) arrives in the SAME
+  // /attention/plan fetch and used to be dropped — so a statistical alert read
+  // "99 robust deviations" here with no translation. It is the operator's answer
+  // to "what does this actually mean and what do I do", so it renders first.
+  const [explain, setExplain] = useState<ResolutionExplain | null>(null);
   const [read, setRead] = useState<ReadResult<ResolutionEvidence | null> | null>(null);
   const [retryAttempt, setRetryAttempt] = useState(0);
 
@@ -77,6 +84,7 @@ function EvidenceCardForAlert({
         // A failed retry changes availability only. The last confirmed record
         // remains visible and is explicitly labelled as retained below.
         if (next.available) setEvidence(next.data);
+        if (payload.reads.explain.available) setExplain(payload.reads.explain.data);
       } catch {
         if (!cancelled) {
           setRead(unavailableAttentionPlanReads(
@@ -96,6 +104,34 @@ function EvidenceCardForAlert({
       </p>
     );
   }
+
+  // The plain reading, mirroring ResolutionBanner: what it means in English, the
+  // caveat when the numbers are thin, how it can be dealt with (in-app /
+  // off-system / judgement) and the observable thing that clears it. Rendered
+  // wherever the card renders — including the no-live-records fallback — because
+  // "what does this mean and what clears it" matters most exactly when there is
+  // no tidy record list to read.
+  const kindLabel = explain?.kind === "in-app"
+    ? "Fix it here"
+    : explain?.kind === "off-system"
+      ? "Handled outside Aqua"
+      : "Judgement call";
+  const explainBlock = explain && (explain.plainMeaning || explain.weakEvidence || explain.clearsWhen || explain.kind) ? (
+    <div className="grid gap-1.5 rounded-md border border-black/10 bg-black/[0.02] p-3 text-xs leading-5">
+      <span className="w-fit rounded-full bg-black/[0.06] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-black/55">{kindLabel}</span>
+      {explain.plainMeaning ? (
+        <p className="text-black/70"><strong className="font-semibold text-black/80">In plain terms:</strong> {explain.plainMeaning}</p>
+      ) : null}
+      {explain.weakEvidence ? (
+        <p className="text-amber-800"><strong className="font-semibold">Worth knowing:</strong> {explain.weakEvidence}</p>
+      ) : null}
+      {explain.clearsWhen ? (
+        <p className="text-black/70"><strong className="font-semibold text-black/80">Clears when:</strong> {explain.clearsWhen}</p>
+      ) : explain.kind === "judgement" ? (
+        <p className="text-black/55">There is no control that clears this — it is a call for you to make.</p>
+      ) : null}
+    </div>
+  ) : null;
 
   const unavailableNotice = !read.available ? (
     <div role="alert" className="flex flex-wrap items-center justify-between gap-2 border-l-2 border-amber-600 bg-amber-50 px-3 py-2 text-xs text-amber-950">
@@ -121,6 +157,7 @@ function EvidenceCardForAlert({
     return (
       <div className="grid gap-2 px-4 py-3">
         {unavailableNotice}
+        {explainBlock}
         <p className="text-xs font-semibold text-black/60">{fallback.title}</p>
         <p className="text-xs leading-5 text-black/60">{fallback.detail}</p>
         <ol className="grid gap-1.5">
@@ -146,9 +183,12 @@ function EvidenceCardForAlert({
 
   if (!evidence) {
     return (
-      <p className="px-4 py-3 text-xs text-black/45">
-        No inline records for this one yet — open Evidence to inspect it at source.
-      </p>
+      <div className="grid gap-2 px-4 py-3">
+        {explainBlock}
+        <p className="text-xs text-black/45">
+          No inline records for this one yet — open Evidence to inspect it at source.
+        </p>
+      </div>
     );
   }
 
@@ -165,6 +205,7 @@ function EvidenceCardForAlert({
   return (
     <div className="grid gap-3 px-4 py-3" data-testid="evidence-card">
       {unavailableNotice}
+      {explainBlock}
       <p className="flex items-center gap-1.5 text-xs font-semibold text-black/60">
         <FileSearch size={13} className="text-black/35" aria-hidden />
         {evidence.summary}

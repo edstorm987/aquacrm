@@ -103,11 +103,16 @@ test("a dedicated probe cron gives the Deep + Infra sweeps a real fast cadence",
   const vercel = read("vercel.json");
   // The light refresh runs the Deep sweep + invalidates, without a full rebuild/rollup.
   assert.match(sweeps, /export async function runRadarProbeRefresh/);
-  // The cron is CRON_SECRET-guarded, probes Infra once (app-wide) and Deep per active agency.
+  // The whole tick lives in ONE function — Infra once (app-wide), Deep per active
+  // agency — shared verbatim by the HTTP cron and the persistent-instance
+  // self-scheduler (issues #170) so both do byte-identical work.
+  assert.match(sweeps, /export async function runScheduledProbeSweep/);
+  assert.match(sweeps, /runRadarInfraSweep\(\)/);
+  assert.match(sweeps, /runRadarProbeRefresh\(agency\.id\)/);
+  // The cron is CRON_SECRET-guarded and delegates to that one function.
   assert.match(cron, /CRON_SECRET/);
   assert.match(cron, /Bearer \$\{secret\}/);
-  assert.match(cron, /runRadarInfraSweep\(\)/);
-  assert.match(cron, /runRadarProbeRefresh\(agency\.id\)/);
+  assert.match(cron, /runScheduledProbeSweep\(\)/);
   // It is its own cron, distinct from the daily cron/inbox rebuild.
   assert.match(vercel, /\/api\/cron\/radar-probes/);
   const config = JSON.parse(vercel) as { crons?: Array<{ path: string; schedule: string }> };

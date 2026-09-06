@@ -592,9 +592,11 @@ test("workspace tab destinations expose shared attention points", () => {
   assert.match(provider, /export function AttentionDot/);
   assert.match(provider, /title=\{title\}/);
   assert.match(inbox, /attentionHref="\/portal\/agency\/inbox\?view=forms"/);
-  assert.match(inbox, /<span>Resolve<\/span>/);
-  assert.match(inbox, /Remind later/);
-  assert.match(inbox, /Dismiss/);
+  // The inbox alert row now renders the SHARED AttentionControls — Resolve gated
+  // to in-app work, plus Remind later / Dismiss / Evidence — instead of bespoke
+  // buttons, so the controls (and their kind-gating) live in one place.
+  assert.match(inbox, /<AttentionControls/);
+  assert.match(inbox, /<EvidenceCard/);
   assert.match(finance, /<AttentionDot href=\{href\}/);
   assert.match(development, /<AttentionDot href=\{item.href\}/);
   assert.match(clientTabs, /<AttentionDot href=\{href\}/);

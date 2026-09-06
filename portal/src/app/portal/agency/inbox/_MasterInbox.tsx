@@ -21,6 +21,9 @@ import { AttentionDot, useNotificationAttention } from "@/components/chrome/Noti
 import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
 import { resolveAttentionThreadKey, type AttentionThreadCandidate } from "@/lib/inbox/attentionThread";
 import { resolveAttentionAction } from "@/lib/inbox/attentionResolution";
+import { AttentionControls } from "@/components/attention/AttentionControls";
+import { EvidenceCard } from "@/components/attention/EvidenceCard";
+import { resolutionKindOf } from "@/lib/inbox/resolutionExplain";
 import {
   WEBSITE_ENQUIRY_CLASSIFICATIONS,
   WEBSITE_ENQUIRY_CLASSIFICATION_LABELS,
@@ -650,7 +653,9 @@ function WebsiteEnquirySection({
   // position:fixed modal nested under a transformed ancestor would anchor to the
   // row instead of the viewport.
   const openItem = items.find(entry => entry.id === openId);
-  return <section>
+  // reply-focus alerts (enquiry:/website-message:) land on these enquiry views;
+  // the exact enquiry already expands via `&form=`, and this rings the section.
+  return <section data-resolution-focus="reply">
     <SectionHeader title={title} detail={detail} />
     {error ? <div role="alert" className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">The message history could not be loaded. {error}</div> : null}
     <div className="mt-3 grid gap-2">
@@ -873,33 +878,43 @@ function Tab({ active, onClick, label, count, icon: Icon, attentionHref, attenti
 
 function AlertRow({ alert, contactAvailable, onContact, busy, canMutate, onAction }: { alert: OperationalAlertView; contactAvailable: boolean; onContact: () => void; busy: boolean; canMutate: boolean; onAction: (action: "park" | "dismiss", parkedUntil?: number) => Promise<boolean> }) {
   const router = useRouter();
+  const [showEvidence, setShowEvidence] = useState(false);
   const styles = alert.severity === "critical" ? "bg-red-50 text-red-700" : alert.severity === "warning" ? "bg-amber-50 text-amber-700" : "bg-blue-50 text-blue-700";
-  const resolution = resolveAttentionAction(alert);
-  // Resolve now clears the item as well as opening the record. It used to be a
-  // plain link, so clicking it navigated but left the alert sitting in the
-  // list — the "why is this still here?" complaint. Clearing it on the way is
-  // the honest reading of pressing Resolve: you are handling it. If the
-  // underlying issue genuinely persists, the signal re-derives and returns.
+  // The alert's own declared kind (or the family fallback) decides which control
+  // makes sense — a Resolve button on an off-system/judgement item promises a fix
+  // that does not exist (CLAUDE.md contract). A matched conversation is always an
+  // in-app resolve: the fix is replying to the person.
+  const { kind, clearsWhen } = resolutionKindOf({ id: alert.id, kind: alert.kind, clearsWhen: alert.clearsWhen });
+  const effectiveKind = contactAvailable ? "in-app" : kind;
+  const kindLabel = effectiveKind === "in-app" ? "fix here" : effectiveKind === "off-system" ? "off-system" : "judgement call";
+  // Resolve clears the item as well as opening the record: pressing Resolve is
+  // you handling it. If the underlying issue persists, the signal re-derives.
   const resolveAndOpen = async () => {
     await onAction("dismiss");
     router.push(alert.href);
   };
-  const resolveControl = contactAvailable
-    ? <button type="button" disabled={busy} onClick={onContact} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85 disabled:opacity-40"><span>Resolve</span><ArrowRight size={13} /></button>
-    : <button type="button" disabled={busy || !canMutate} onClick={() => void resolveAndOpen()} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85 disabled:opacity-40"><span>Resolve</span><ArrowRight size={13} /></button>;
-  return <article title={`${alert.title}\n${alert.detail}`} className="mm-surface-card mm-interactive-row grid gap-3 rounded-md p-3 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center">
-    <span className={`grid size-10 place-items-center rounded-md ${styles}`}><AlertTriangle size={18} /></span>
-    <span className="min-w-0">
-      <span className="flex flex-wrap items-center gap-2"><strong className="text-sm font-semibold text-black/80">{alert.title}</strong><Pill>{alert.category}</Pill>{contactAvailable ? <Pill tone="blue">Conversation matched</Pill> : null}</span>
-      <span className="mt-1 block text-xs leading-5 text-black/50">{alert.detail} · {formatDate(alert.occurredAt)}</span>
-      <span className="mt-2 block text-[11px] leading-5 text-black/42"><strong className="font-semibold text-black/58">Resolution:</strong> Open {resolution.destination}. {resolution.action} The signal clears automatically once the underlying evidence is healthy.</span>
-    </span>
-    <span className="flex flex-wrap items-center gap-2 lg:justify-end">
-      {resolveControl}
-      <RemindLaterMenu disabled={busy || !canMutate} title={alert.title} onPark={parkedUntil => void onAction("park", parkedUntil)} />
-      <button type="button" disabled={busy || !canMutate} onClick={() => void onAction("dismiss")} title="Hide until the underlying issue changes" aria-label={`Dismiss ${alert.title} until it changes`} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-medium text-black/50 hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:opacity-40"><X size={13} />Dismiss</button>
-    </span>
-  </article>;
+  return <div data-resolution-record={alert.id} className="mm-surface-card mm-interactive-row scroll-mt-24 overflow-hidden rounded-md">
+    <article title={`${alert.title}\n${alert.detail}`} className="grid gap-3 p-3 lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center">
+      <span className={`grid size-10 place-items-center rounded-md ${styles}`}><AlertTriangle size={18} /></span>
+      <span className="min-w-0">
+        <span className="flex flex-wrap items-center gap-2"><strong className="text-sm font-semibold text-black/80">{alert.title}</strong><Pill>{alert.category}</Pill><Pill tone={effectiveKind === "in-app" ? "green" : "amber"}>{kindLabel}</Pill>{contactAvailable ? <Pill tone="blue">Conversation matched</Pill> : null}</span>
+        <span className="mt-1 block text-xs leading-5 text-black/50">{alert.detail} · {formatDate(alert.occurredAt)}</span>
+        <span className="mt-2 block text-[11px] leading-5 text-black/42"><strong className="font-semibold text-black/58">Clears when:</strong> {clearsWhen ?? "there is no control that clears this — it is a decision for you to make. Open Evidence to weigh it."}</span>
+      </span>
+      <AttentionControls
+        title={alert.title}
+        kind={effectiveKind}
+        busy={busy || !canMutate}
+        evidenceOpen={showEvidence}
+        onToggleEvidence={() => setShowEvidence(open => !open)}
+        onResolve={contactAvailable ? onContact : () => void resolveAndOpen()}
+        onMarkDone={() => void onAction("dismiss")}
+        onPark={parkedUntil => void onAction("park", parkedUntil)}
+        onDismiss={() => void onAction("dismiss")}
+      />
+    </article>
+    {showEvidence ? <div className="border-t border-black/[0.07] bg-black/[0.012]"><EvidenceCard alertId={alert.id} fallback={{ title: alert.title, detail: alert.detail, href: alert.href }} /></div> : null}
+  </div>;
 }
 
 function RemindLaterMenu({ disabled, title, onPark }: { disabled: boolean; title: string; onPark: (until: number) => void }) {

@@ -391,6 +391,16 @@ function renderFormHtml(block: Block, id: string, styleAttr: string, aria: strin
  * not connected, rather than presenting a Send button that throws the message
  * away. The same decision `FormBlock` makes in the editor.
  */
+/** Escape the consent notice, linking the words "Privacy Policy" when a URL is set. */
+function consentNoticeHtml(notice: string, policyUrl: string): string {
+  const marker = "Privacy Policy";
+  const at = policyUrl ? notice.indexOf(marker) : -1;
+  if (at < 0) return escapeHtml(notice);
+  return escapeHtml(notice.slice(0, at))
+    + `<a href="${escapeAttr(policyUrl)}" style="color:inherit;text-decoration:underline">${escapeHtml(marker)}</a>`
+    + escapeHtml(notice.slice(at + marker.length));
+}
+
 function renderContactFormHtml(
   block: Block,
   supabase: ExportSupabaseTarget | undefined,
@@ -404,6 +414,17 @@ function renderContactFormHtml(
   const submitLabel = String(props.submitLabel ?? "Send message");
   const showPhone = props.showPhone !== false;
   const formId = `aqua-contact-${block.id}`;
+  // #2 — transparency notice, mirroring CrmContactFormBlock. Default is Ed's
+  // approved DPO-draft (SUBJECT TO DPO SIGN-OFF); a site overrides `consentNotice`
+  // and may set `privacyPolicyUrl` to link its policy. Kept in sync with the
+  // `DEFAULT_CONSENT_NOTICE` in components/blocks/CrmContactFormBlock.tsx.
+  const consentNotice = String(props.consentNotice
+    ?? "By submitting, you agree we can store and use your details to respond to your "
+      + "enquiry. We won't share them or use them for anything else. See our Privacy Policy.");
+  const policyUrl = typeof props.privacyPolicyUrl === "string" ? props.privacyPolicyUrl.trim() : "";
+  const consentHtml = consentNotice
+    ? `<p style="margin:12px 0 0;font-size:11px;opacity:0.6;line-height:1.5">${consentNoticeHtml(consentNotice, policyUrl)}</p>`
+    : "";
 
   const notConnected = !supabase
     ? `<p role="note" style="margin:0 0 12px;padding:10px 12px;border:1px dashed #c66;border-radius:8px;font-size:13px">This form is not connected yet, so it cannot be sent.</p>`
@@ -454,6 +475,7 @@ function renderContactFormHtml(
     <label style="display:flex;flex-direction:column;gap:4px"><span>Message</span><textarea name="message" rows="4" required></textarea></label>
     <input name="website" type="text" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" />
     <button type="submit"${supabase ? "" : " disabled"}>${escapeHtml(submitLabel)}</button>
+    ${consentHtml}
     <p data-aqua-status role="status" aria-live="polite" style="margin:0;font-size:13px"></p>
   </form>
 </section>${script}`;

@@ -108,7 +108,7 @@ import {
 import { devTeamStationAttention, radarStationAttention } from "./commandStationAttention";
 import { PortalViewportLoading } from "@/components/ui/PortalViewportLoading";
 import {
-  coverageStatusLabel, domainLabel, formatRadarAge, formatRadarDuration,
+  coverageStatusLabel, domainLabel, formatRadarAge, formatRadarDuration, readableSourceId, radarIssueKindLabel,
   radarCheckIconClass, radarCheckStatusClass, radarCheckStatusLabel,
   radarNodeClass, radarSeverityClass, radarSeverityRank,
   signedDecimal, signedInteger,
@@ -577,6 +577,9 @@ export function BusinessRadarDashboard({
                       <div className="flex flex-wrap items-center gap-2">
                         <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${radarSeverityClass(issue.severity)}`}>{issue.severity}</span>
                         <span className="text-[10px] font-semibold uppercase text-white/35">{domainLabel(issue.domain)}</span>
+                        {/* The action KIND, so a judgement call reads as one rather than as a
+                            dead end with no Resolve button. */}
+                        <span className="rounded-full bg-white/[0.08] px-2 py-0.5 text-[9px] font-semibold uppercase text-white/50">{radarIssueKindLabel(issue)}</span>
                       </div>
                       <h4 className="mt-2 text-sm font-semibold leading-5 text-white">{issue.title}</h4>
                       <p className="mt-1 text-xs leading-5 text-white/48">{issue.detail}</p>
@@ -592,7 +595,7 @@ export function BusinessRadarDashboard({
                     </div>
                   </article>
                 );
-              }) : displayedChecks.map(check => <RadarCheckRow key={check.id} check={check} onInspectCheck={() => onOpenInspector({ tab: "checks", query: check.id, domain: check.domain })} onInspectRecords={() => onOpenInspector({ tab: "records", query: check.sourceId, domain: check.domain })} />)}
+              }) : displayedChecks.map(check => <RadarCheckRow key={check.id} check={check} sourceLabel={readableSourceId(check.sourceId, radar.coverage)} onInspectCheck={() => onOpenInspector({ tab: "checks", query: check.id, domain: check.domain })} onInspectRecords={() => onOpenInspector({ tab: "records", query: check.sourceId, domain: check.domain })} />)}
               {feedMode === "signals" && !visibleIssues.length ? <div className="px-6 py-16 text-center"><ShieldCheck className="mx-auto text-emerald-300" size={26} /><p className="mt-3 text-sm font-semibold text-white">Domain clear</p><p className="mt-1 text-xs text-white/40">No current signals in this scope.</p></div> : null}
               {feedMode === "checks" && !displayedChecks.length ? <div className="px-6 py-16 text-center"><ScanSearch className="mx-auto text-emerald-300" size={26} /><p className="mt-3 text-sm font-semibold text-white">No matching checks</p><p className="mt-1 text-xs text-white/40">Change the domain, status, or search phrase.</p></div> : null}
               {feedMode === "checks" && matchingChecks.length > displayedChecks.length ? <div className="px-6 py-3 text-center text-[11px] text-white/35">Showing the first {displayedChecks.length} of {matchingChecks.length} matching checks. Select a domain to narrow the scanner.</div> : null}
@@ -773,7 +776,7 @@ function CommercialLifecycleStrip({ commercial, onInspect }: { commercial: Busin
   );
 }
 
-function RadarCheckRow({ check, onInspectCheck, onInspectRecords }: { check: BusinessRadarCheck; onInspectCheck: () => void; onInspectRecords: () => void }) {
+function RadarCheckRow({ check, sourceLabel, onInspectCheck, onInspectRecords }: { check: BusinessRadarCheck; sourceLabel: string; onInspectCheck: () => void; onInspectRecords: () => void }) {
   return <article className="grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:px-6">
     <button type="button" onClick={onInspectCheck} aria-label={`Inspect Radar check ${check.title}`} className="group grid min-w-0 gap-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-300 sm:grid-cols-[auto_minmax(0,1fr)]">
       <span className={`mt-0.5 grid size-8 shrink-0 place-items-center rounded-md border ${radarCheckIconClass(check.status)}`} title={radarCheckStatusLabel(check.status)}>
@@ -786,7 +789,7 @@ function RadarCheckRow({ check, onInspectCheck, onInspectRecords }: { check: Bus
         </span>
         <span className="mt-2 flex items-start justify-between gap-2 text-sm font-semibold leading-5 text-white"><span>{check.familyLabel}</span><ArrowUpRight size={12} className="mt-0.5 shrink-0 text-white/20 transition group-hover:text-emerald-200" /></span>
         <span className="mt-1 block text-xs leading-5 text-white/48">{check.detail}</span>
-        <span className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-white/32"><span>Source {check.sourceId}</span>{check.evidence.slice(0, 2).map(item => <span key={item}>{item}</span>)}</span>
+        <span className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-white/32"><span>Source {sourceLabel}</span>{check.evidence.slice(0, 2).map(item => <span key={item}>{item}</span>)}</span>
       </span>
     </button>
     <div className="flex gap-1"><button type="button" onClick={onInspectRecords} title="Inspect source records" aria-label={`Inspect source records for ${check.title}`} className="grid size-9 place-items-center rounded-md border border-white/15 text-white/60 hover:bg-white/10 hover:text-white"><Database size={14} /></button><Link href={check.href} title="Open operational workspace" aria-label={`Open workspace for ${check.title}`} className="grid size-9 place-items-center rounded-md border border-white/15 text-white/60 hover:bg-white/10 hover:text-white"><ArrowUpRight size={14} /></Link></div>

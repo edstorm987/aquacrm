@@ -211,22 +211,30 @@ describe("a client identity in the governed Dev Workspace", () => {
     );
   });
 
-  it("is refused a SIBLING client's project with the same words as one that does not exist", async () => {
+  it("is refused a SIBLING client's project INDISTINGUISHABLY from one that does not exist (issues #163)", async () => {
     await grantProject(home, home.theirProject.id, EDIT_EDITOR);
 
     const sibling = await callGet(home.clientToken, filesGet, `/api/portal/site-editor/files?project=${home.siblingProject.id}`);
     const invented = await callGet(home.clientToken, filesGet, "/api/portal/site-editor/files?project=devproj_does_not_exist");
 
-    // The established convention across the Dev routes: a capability refusal
-    // inside your own agency is an honest 403, while anything outside the
-    // tenant — or invented — is a 404. Both are refusals; what matters for a
-    // client is that NOTHING about the sibling comes back with either.
-    assert.equal(sibling.status, 403, "an ungranted same-agency project is a capability refusal");
+    // Ed's decision on #163, recorded here deliberately. The Dev routes answer
+    // an ungranted SAME-AGENCY project with an honest 403 for an AGENCY caller —
+    // that convention still holds and is pinned in smoke-dev-project-api-access.
+    // For a CLIENT it leaked existence: a sibling client's project came back 403
+    // where an invented id came back 404, so Bright Coffee could learn that a
+    // project id belonged to SOMEONE in the agency. The tenant boundary was
+    // already indistinguishable; now the cross-client one is too. A client's
+    // refusal of any project not attached to them is the SAME 404 an invented id
+    // gets — same status, same words, nothing about the sibling in either.
+    const siblingBody = await sibling.json();
+    const inventedBody = await invented.json();
+    assert.equal(sibling.status, 404, "a sibling client's project must not be distinguishable by status");
     assert.equal(invented.status, 404, "an invented project does not exist");
-    for (const [label, response] of [["sibling", sibling], ["invented", invented]] as const) {
-      const payload = JSON.stringify(await response.json());
-      assert.ok(!/rival-coffee/i.test(payload), `${label} response leaked the sibling repository`);
-      assert.ok(!/Rival Coffee/i.test(payload), `${label} response leaked the sibling name`);
+    assert.deepEqual(siblingBody, inventedBody, "a client can still tell a sibling's project from a missing one");
+    for (const [label, payload] of [["sibling", siblingBody], ["invented", inventedBody]] as const) {
+      const serialised = JSON.stringify(payload);
+      assert.ok(!/rival-coffee/i.test(serialised), `${label} response leaked the sibling repository`);
+      assert.ok(!/Rival Coffee/i.test(serialised), `${label} response leaked the sibling name`);
     }
   });
 

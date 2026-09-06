@@ -503,7 +503,7 @@ test("Battle Table is the third command station and owns every executive control
 
   assert.match(nav, /"executive" \| "day" \| "battle"/);
   assert.match(nav, /label="Day command"/);
-  assert.match(nav, /label="Command Centre"/);
+  assert.match(nav, /label="Business health"/);
   assert.match(nav, /label="Battle Table"/);
   // Battle Table stays the third of three always-on stations; the nav only
   // widens to four columns when the founder-gated Dev Team station is rendered.

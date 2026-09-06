@@ -481,7 +481,10 @@ export async function listOperationalAlerts(
         category: "client",
         title: `Check in with ${clientLabel}`,
         detail: metadata?.lastContactedAt ? `No contact has been recorded for more than ${OPERATIONAL_ALERT_THRESHOLDS.clientContactDays} days.` : "No client contact has been recorded yet.",
-        href: `/portal/clients/${client.id}?tab=relationship`,
+        // Lands on the communications tab, where the reply/message controls (and
+        // the `data-resolution-focus="reply"` target this contact alert points at)
+        // actually are — the relationship tab has no such control to highlight.
+        href: `/portal/clients/${client.id}?tab=communications`,
         clientId: client.id,
         clientName: client.name,
         occurredAt: metadata?.lastContactedAt ?? client.createdAt,

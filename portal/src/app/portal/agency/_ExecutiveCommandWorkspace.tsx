@@ -97,7 +97,7 @@ export function ExecutiveCommandWorkspace({
           <div className="min-w-0">
             <p className="truncate text-[9px] font-semibold uppercase text-[#76dff1]/58">{workspaceName} · Executive overview</p>
             <div className="mt-0.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-              <h1 id="command-centre-heading" className="text-base font-semibold text-white sm:text-lg">Command Centre</h1>
+              <h1 id="command-centre-heading" className="text-base font-semibold text-white sm:text-lg">Business health</h1>
               <span className="text-[9px] font-semibold uppercase text-[#68f5d0]/75">Health, evidence, priorities and controls</span>
             </div>
           </div>

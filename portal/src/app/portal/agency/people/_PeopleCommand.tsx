@@ -210,6 +210,11 @@ export function PeopleCommand({ initial, accessLevels, canManageAccess = false, 
       <fieldset disabled={!canUseTab} className="contents">
       {tab === "overview" && initial.overview ? <Overview summary={initial.overview} allowedTabs={allowedTabs} onOpen={openTab} /> : null}
       {tab === "capacity" && initial.capacity ? <CapacityCommand capacity={initial.capacity} allowedTabs={allowedTabs} onOpen={openTab} /> : null}
+      {/* People alerts (application-backlog / leave-decisions / training-overdue /
+          employment-terms / chat-attention) land on these sub-views with focus
+          "details"; only one renders at a time, so one wrapper is the target for
+          whichever is shown. The overview keeps its own nested "details" target. */}
+      <div data-resolution-focus="details">
       {tab === "candidates" && initial.people ? <Candidates applications={initial.people.applications} hiringStages={initial.people.hiringStages} focusedApplicationId={applicationId} busy={busy} action={action} /> : null}
       {tab === "team" && initial.people ? <Directory directory={initial.people.directory} cards={initial.people.cards} delegatable={initial.people.delegatable} contractTemplates={initial.people.contractTemplates} focusedEmployeeId={employeeId} onOpenTab={openTab} accessLevels={accessLevels} busy={busy} action={action} /> : null}
       {tab === "org" && initial.people ? <OrgChart chart={initial.people.orgChart} onOpenPerson={openPerson} /> : null}
@@ -226,6 +231,7 @@ export function PeopleCommand({ initial, accessLevels, canManageAccess = false, 
       {tab === "time" && initial.schedule ? <TimeAndLeave employees={initial.schedule.people} requests={initial.schedule.leaveRequests} shifts={initial.schedule.shifts} busy={busy} action={action} /> : null}
       {tab === "development" && initial.training ? <Development employees={initial.training.people} training={initial.training.assignments} onboardingTemplate={initial.training.onboardingTemplate} modules={initial.training.modules} busy={busy} action={action} /> : null}
       {tab === "rewards" && initial.pay ? <Rewards employees={initial.pay.people} selectedEmployeeId={selectedEmployeeId} setSelectedEmployeeId={setSelectedEmployeeId} busy={busy} action={action} /> : null}
+      </div>
       </fieldset>
     </div>
   );

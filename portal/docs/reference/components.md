@@ -115,7 +115,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (1):** [`src/lib/inbox/resolutionExplain.ts`](lib.md#file-src-lib-inbox-resolutionexplain-ts-66c88b777a)
 
-**Used by (2):** [`src/app/portal/agency/actions/_ActionsWorkspace.tsx`](app.md#file-src-app-portal-agency-actions-actionsworkspace-tsx-3feedac0a1) · [`src/app/portal/agency/actions/_TodayView.tsx`](app.md#file-src-app-portal-agency-actions-todayview-tsx-05fe111052)
+**Used by (3):** [`src/app/portal/agency/actions/_ActionsWorkspace.tsx`](app.md#file-src-app-portal-agency-actions-actionsworkspace-tsx-3feedac0a1) · [`src/app/portal/agency/actions/_TodayView.tsx`](app.md#file-src-app-portal-agency-actions-todayview-tsx-05fe111052) · [`src/app/portal/agency/inbox/_MasterInbox.tsx`](app.md#file-src-app-portal-agency-inbox-masterinbox-tsx-2323adcb4b)
 
 <a id="file-src-components-attention-completedregister-tsx-a8e3ab99f5"></a>
 
@@ -155,9 +155,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `EvidenceCard({ alertId, fallback, }: { alertId: string; /** * What the row already knows, used when the id does not resolve to a live * alert — pipeline signals are generated from leads and invoices, not from * the aler…` — The records behind an alert, shown where the alert is. Built as a panel rather than a destination on purpose. Sending somebody to a list to "see the evidence" costs them the queue…
 
-**Depends on (5):** [`src/components/attention/MetricSparkline.tsx`](#file-src-components-attention-metricsparkline-tsx-c12d244144) · [`src/lib/inbox/attentionPlanRead.ts`](lib.md#file-src-lib-inbox-attentionplanread-ts-546cbf0e86) · [`src/lib/inbox/evidenceSteps.ts`](lib.md#file-src-lib-inbox-evidencesteps-ts-b5a8aa9227) · [`src/lib/inbox/resolutionEvidence.ts`](lib.md#file-src-lib-inbox-resolutionevidence-ts-06653fc0dc) · [`src/lib/readAvailability.ts`](lib.md#file-src-lib-readavailability-ts-35b000b352)
+**Depends on (6):** [`src/components/attention/MetricSparkline.tsx`](#file-src-components-attention-metricsparkline-tsx-c12d244144) · [`src/lib/inbox/attentionPlanRead.ts`](lib.md#file-src-lib-inbox-attentionplanread-ts-546cbf0e86) · [`src/lib/inbox/evidenceSteps.ts`](lib.md#file-src-lib-inbox-evidencesteps-ts-b5a8aa9227) · [`src/lib/inbox/resolutionEvidence.ts`](lib.md#file-src-lib-inbox-resolutionevidence-ts-06653fc0dc) · [`src/lib/inbox/resolutionExplain.ts`](lib.md#file-src-lib-inbox-resolutionexplain-ts-66c88b777a) · [`src/lib/readAvailability.ts`](lib.md#file-src-lib-readavailability-ts-35b000b352)
 
-**Used by (1):** [`src/app/portal/agency/actions/_ActionsWorkspace.tsx`](app.md#file-src-app-portal-agency-actions-actionsworkspace-tsx-3feedac0a1)
+**Used by (2):** [`src/app/portal/agency/actions/_ActionsWorkspace.tsx`](app.md#file-src-app-portal-agency-actions-actionsworkspace-tsx-3feedac0a1) · [`src/app/portal/agency/inbox/_MasterInbox.tsx`](app.md#file-src-app-portal-agency-inbox-masterinbox-tsx-2323adcb4b)
 
 <a id="file-src-components-attention-metricsparkline-tsx-c12d244144"></a>
 

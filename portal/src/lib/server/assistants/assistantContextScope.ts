@@ -148,7 +148,7 @@ export async function assistantContextScopeForActor(
   const growth = workspaceAccess.resolveActorWorkspaceElementAccess(actor, "growth");
   const fulfilment = workspaceAccess.resolveActorWorkspaceElementAccess(actor, "fulfilment");
   const legacyManager = actor.session.role === "agency-manager"
-    && !accessKernel.actorHasActiveNonProjectAccessPolicy(actor);
+    && !accessKernel.actorEverHadNonProjectAccessPolicy(actor);
   if (agency.ownerBaseline || legacyManager) return fullAssistantContextScope();
 
   const agencyCapabilities = new Set(agency.capabilities);
@@ -220,8 +220,8 @@ export async function assistantHistoryVisibleToActor(
 ): Promise<boolean> {
   if (actor.session.role === "agency-owner") return true;
   if (actor.session.role !== "agency-manager") return false;
-  const { actorHasActiveNonProjectAccessPolicy } = await import("@/server/accessControl");
-  return !actorHasActiveNonProjectAccessPolicy(actor);
+  const { actorEverHadNonProjectAccessPolicy } = await import("@/server/accessControl");
+  return !actorEverHadNonProjectAccessPolicy(actor);
 }
 
 /** Pure redaction seam: titles, turns and memories may all contain revoked data. */

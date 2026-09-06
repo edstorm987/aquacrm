@@ -141,7 +141,7 @@ export function ProductsWorkspace({ initialProducts, sops, companies, customFiel
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+    <div data-resolution-focus="details" className="mx-auto flex w-full max-w-7xl flex-col gap-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div><p className="text-xs font-semibold uppercase tracking-wide text-brand">{embedded ? embeddedLabel : "Products"}</p><h2 className={`${embedded ? "text-2xl" : "text-3xl"} mt-1 font-semibold tracking-tight text-black/90`}>Your complete offer catalogue.</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-black/55">Every service, package, price and delivery process, organised around the company that sells it.</p></div>
         <div className="flex flex-wrap gap-2"><button type="button" onClick={() => openNewProduct(selectedCompanyId, selectedCategory, "draft")} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-black/65"><Lightbulb size={15} />Draft idea</button><button type="button" onClick={() => openNewProduct()} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-sm font-semibold text-white"><Plus size={15} />New service</button></div>

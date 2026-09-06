@@ -1614,7 +1614,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on (2):** [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/lib/intelligence/businessRecommendedActions.ts`](lib.md#file-src-lib-intelligence-businessrecommendedactions-ts-b89f9ec998)
+**Depends on (3):** [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/engines/data/radar/radarClassification.ts`](engines.md#file-src-engines-data-radar-radarclassification-ts-c5cc578e62) · [`src/lib/intelligence/businessRecommendedActions.ts`](lib.md#file-src-lib-intelligence-businessrecommendedactions-ts-b89f9ec998)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -5905,6 +5905,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-radar-finding-families-test-ts-aca679ab28"></a>
+
+### `scripts/smoke-radar-finding-families.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (6):** [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/engines/data/server/radar/businessIssueRadar.ts`](engines.md#file-src-engines-data-server-radar-businessissueradar-ts-df308875cc) · [`src/lib/inbox/resolutionExplain.ts`](lib.md#file-src-lib-inbox-resolutionexplain-ts-66c88b777a) · [`src/lib/intelligence/businessRecommendedActions.ts`](lib.md#file-src-lib-intelligence-businessrecommendedactions-ts-b89f9ec998) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-radar-finding-groups-test-ts-7e6da53624"></a>
 
 ### `scripts/smoke-radar-finding-groups.test.ts`
@@ -5965,6 +5977,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-radar-node-cache-test-ts-8ad0cce353"></a>
+
+### `scripts/smoke-radar-node-cache.test.ts`
+
+**What it is:** the whole-radar cache is preserved per node.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-radar-node-tree-test-ts-cc8b3da415"></a>
 
 ### `scripts/smoke-radar-node-tree.test.ts`
@@ -5974,6 +5998,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on (2):** [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/engines/data/radar/radarNodeTree.ts`](engines.md#file-src-engines-data-radar-radarnodetree-ts-617facd201)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-radar-probe-scheduler-test-ts-b481cd7b6f"></a>
+
+### `scripts/smoke-radar-probe-scheduler.test.ts`
+
+**What it is:** branch is asserted here without a live server or a real timer.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/engines/data/server/radar/probeSchedule.ts`](engines.md#file-src-engines-data-server-radar-probeschedule-ts-ba49920a96)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 

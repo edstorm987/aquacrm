@@ -206,6 +206,28 @@ test("a fresh agency's Command Centre reports pageviews and forms as unmeasured,
   assert.equal(snapshot.kpis.find(kpi => kpi.id === "forms-7d")?.display, "—");
 });
 
+test("every KPI is analyst-ready: a plain meaning, a destination, and evidence — never a bare number", async () => {
+  // The KPI-intelligence twin of the radar "no vague count" contract. Enforces
+  // per-KPI what was guaranteed only by construction: a NEW KPI shipped with an
+  // empty href (a number with nowhere to go) or no stated measurement fails here.
+  const { agencyId, radar } = await freshAgencyRadar();
+  const snapshot = await snapshotFor(agencyId, radar);
+  assert.ok(snapshot.kpis.length > 0, "the Command Centre must surface KPIs");
+  for (const kpi of snapshot.kpis) {
+    // Understandable: a label, a plain reading, and a stated measurement (what
+    // the unit is and how it is computed) — read without a decoder.
+    assert.ok(kpi.label.trim().length > 0, `${kpi.id} has no label`);
+    assert.ok(kpi.detail.trim().length > 0, `${kpi.id} has no plain-language detail`);
+    assert.ok(kpi.measurement.unit.trim().length > 0, `${kpi.id} states no unit`);
+    assert.ok(kpi.measurement.formula.trim().length > 0, `${kpi.id} states no formula`);
+    // Actionable: a destination to drill into and operate on.
+    assert.ok(kpi.href.trim().length > 0, `${kpi.id} has no destination (href) to act on`);
+    // Evidence behind the number (or an honest empty display for unmeasured — but
+    // the evidence array itself is always populated).
+    assert.ok(kpi.evidence.length > 0, `${kpi.id} carries no evidence`);
+  }
+});
+
 test("a real Aqua Tag reading is measured and reaches the funnel unchanged", async () => {
   const { agencyId, radar } = await freshAgencyRadar();
   makeAssessed(radar, "traffic-7d", 1_240);

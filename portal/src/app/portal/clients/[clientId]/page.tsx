@@ -1227,13 +1227,15 @@ export default async function ClientHome({
       )}
 
       {tab === "marketing" && (
-        <ClientMarketingServiceWorkspace
-          clientId={client.id}
-          clientName={client.name}
-          initial={cleanClientMarketingService(meta.clientMarketingService)}
-          canManage={canManageClient}
-          canApprove={!session.publicShowcase && !isAgencyRole(session.role)}
-        />
+        <div data-resolution-focus="details">
+          <ClientMarketingServiceWorkspace
+            clientId={client.id}
+            clientName={client.name}
+            initial={cleanClientMarketingService(meta.clientMarketingService)}
+            canManage={canManageClient}
+            canApprove={!session.publicShowcase && !isAgencyRole(session.role)}
+          />
+        </div>
       )}
 
       {tab === "portal" && (
@@ -1287,7 +1289,7 @@ export default async function ClientHome({
 
       {tab === "systems" && (
         <RequirePermission session={session} requires={["clients.view"]}>
-          <div className="grid gap-6">
+          <div data-resolution-focus="evidence" className="grid gap-6">
             <nav aria-label="Technical workspace views" className="grid gap-px overflow-hidden border border-black/10 bg-black/10 sm:grid-cols-3">
               <Link href={clientWorkspaceHref(client.id, "systems")} className={`flex min-h-16 items-center gap-3 bg-white px-4 text-sm font-semibold ${systemView === "monitoring" ? "text-brand" : "text-black/58"}`}><MonitorCog size={17} /> Monitoring</Link>
               <Link href={clientWorkspaceHref(client.id, "systems", { systemView: "properties" })} className={`flex min-h-16 items-center gap-3 bg-white px-4 text-sm font-semibold ${systemView === "properties" ? "text-brand" : "text-black/58"}`}><Boxes size={17} /> Properties and deployments</Link>

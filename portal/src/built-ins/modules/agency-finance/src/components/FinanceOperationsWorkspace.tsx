@@ -160,7 +160,7 @@ export function FinanceOperationsWorkspace({
       {(overdue.length || duePayments.some(payment => payment.dueAt < now)) ? <div className="flex items-start gap-3 border-l-4 border-red-600 bg-red-50 px-4 py-3 text-sm text-red-900"><AlertTriangle size={18} className="mt-0.5 shrink-0" /><div><p className="font-semibold">Financial actions are overdue</p><p className="mt-1 text-red-800">{overdue.length} compliance item{overdue.length === 1 ? "" : "s"} and {duePayments.filter(payment => payment.dueAt < now).length} people payment{duePayments.filter(payment => payment.dueAt < now).length === 1 ? "" : "s"} need review.</p></div></div> : null}
 
       <div className="grid gap-7 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)]">
-        <section>
+        <section data-resolution-focus="payment">
           <SectionHeading title="Next financial obligations" detail="Statutory, insurance, audit and renewal deadlines." action="Open compliance" onAction={() => setView("compliance")} />
           <div className="mt-3 divide-y divide-black/10 border-y border-black/10">
             {activeObligations.slice(0, 6).map(item => <ObligationRow key={item.id} item={item} now={now} onEdit={() => setEditingObligation(item)} />)}

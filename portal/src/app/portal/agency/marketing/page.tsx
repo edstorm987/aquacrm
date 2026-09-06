@@ -430,7 +430,9 @@ export default async function MarketingPage({
           {view === "pulse" ? <MarketingAtAGlance overview={overview} customerProfiles={scopedCustomerProfiles} sourceRows={sourceRows} emailSenderReady={emailReadiness.ready} automationStats={{ total: automationWorkflows.length, active: automationWorkflows.filter(workflow => workflow.status === "active").length }} canSeeCampaigns={canSeeCampaigns} /> : null}
           <MarketingSectionNavigation view={view} section={section} brandScope={brandScope} sections={visibleSections(MARKETING_VIEW_SECTIONS[view] ?? [])} />
           {visibleSections(orderedMarketingSections(view, section)).map(block => (
-            <section key={block} id={marketingSectionAnchor(block)} className="scroll-mt-24">
+            // campaign-* alerts (focus "details") land on this page — highlight
+            // the campaigns block so Resolve rings it rather than the whole page.
+            <section key={block} id={marketingSectionAnchor(block)} data-resolution-focus={block === "campaigns" ? "details" : undefined} className="scroll-mt-24">
               {sectionBlocks[block] ?? null}
             </section>
           ))}

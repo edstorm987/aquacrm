@@ -606,7 +606,9 @@ export function FinanceTabClient({
             </thead>
             <tbody>
               {invoices.map(inv => (
-                <tr key={inv.id} className="border-t border-black/5">
+                // invoice:<client>:<number> alerts stamp resolve-record=<number>;
+                // this rings the exact invoice row rather than the finance section.
+                <tr key={inv.id} data-resolution-record={inv.number} className="scroll-mt-24 border-t border-black/5">
                   <td className="px-3 py-2">
                     <p className="font-medium text-black/85">{inv.number}</p>
                     {inv.lineItems?.[0]?.description ? (

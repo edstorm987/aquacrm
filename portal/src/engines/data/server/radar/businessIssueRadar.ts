@@ -352,7 +352,7 @@ export async function buildBusinessIssueRadar(
       readable(install.pluginId),
       pluginRecordCount(state, install.id) ? "connected" : "empty",
       pluginRecordCount(state, install.id),
-      `Installed module ${install.pluginId} is included in Advisor business context.`,
+      `Installed module ${readable(install.pluginId)} is included in Advisor business context.`,
       // Only a real health check dates this source. It used to fall back to
       // `installedAt`, which reported the day the module was INSTALLED as the
       // day it was last seen alive — a substituted timestamp that made a module

@@ -492,6 +492,43 @@ export function actorHasActiveNonProjectAccessPolicy(
   ));
 }
 
+/**
+ * Whether this identity has EVER crossed the canonical-governance boundary in
+ * this realm — including through a grant that was later revoked or has expired.
+ *
+ * Governance is a one-way door (issue #174, Ed's decision: revocation narrows).
+ * `actorHasActiveNonProjectAccessPolicy` answers "is there a live policy now",
+ * and that is the wrong question for the legacy fallback: an identity who held a
+ * grant and lost it would, on that question alone, fall straight back to the
+ * un-migrated "manage everything" fallback — so revoking their LAST grant would
+ * WIDEN their access, the opposite of what "revoke" means. This question is
+ * "was there ever a policy", so once an owner has brought an identity under an
+ * agency/workspace/client policy, absence stays meaningful: the fallback is
+ * gone for good and revocation denies. Only a genuinely never-governed identity
+ * (no such grant has ever existed for them here) keeps the migration fallback.
+ *
+ * The realm check is retained so a sandbox grant cannot govern the live realm;
+ * only the `revokedAt`/`expiresAt` freshness filters are dropped versus the
+ * "active" form, because a spent grant still proves the boundary was crossed.
+ */
+export function actorEverHadNonProjectAccessPolicy(
+  actor: CurrentAccessActor,
+): boolean {
+  return Object.values(actor.governanceState.accessGrants).some(grant => (
+    grant.agencyId === actor.agencyId
+    && grant.userId === actor.user.id
+    && grant.environment === actor.environment
+    && grant.scope.kind !== "project"
+    && grantBelongsToActiveRealm(
+      actor.resourceState,
+      actor.resourceAgencyId,
+      actor.agencyId,
+      actor.environment,
+      grant.scope,
+    )
+  ));
+}
+
 export function actorHasAccessCapability(
   actor: CurrentAccessActor,
   scope: AccessScope,

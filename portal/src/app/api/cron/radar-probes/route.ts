@@ -1,8 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { runRadarInfraSweep, runRadarProbeRefresh, type RadarProbeRefreshResult } from "@/engines/data/server/radar/radarSweeps";
-import { ensureHydrated, flushPendingWrites } from "@/server/storage";
-import { listAgencies } from "@/server/tenants";
+import { runScheduledProbeSweep } from "@/engines/data/server/radar/radarSweeps";
 
 export const runtime = "nodejs";
 
@@ -20,21 +18,10 @@ export async function GET(request: NextRequest) {
   const supplied = request.headers.get("authorization");
   if (!secret) return NextResponse.json({ ok: false, error: "cron_secret_not_configured" }, { status: 503 });
   if (supplied !== `Bearer ${secret}`) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  await ensureHydrated({ fresh: true });
 
-  // Infra is app-wide — probe the database once per tick, not per agency.
-  let infra: string;
-  try {
-    infra = (await runRadarInfraSweep()).primary.status;
-  } catch (error) {
-    infra = error instanceof Error ? `error:${error.message}` : "error";
-  }
-
-  const probes: RadarProbeRefreshResult[] = [];
-  for (const agency of listAgencies().filter(item => item.status === "active")) {
-    probes.push(await runRadarProbeRefresh(agency.id));
-  }
-
-  await flushPendingWrites();
-  return NextResponse.json({ ok: true, infra, probes });
+  // The whole tick is `runScheduledProbeSweep`, shared verbatim with the
+  // persistent-instance self-scheduler (issues #170) so an external cron and an
+  // in-process interval do identical work.
+  const result = await runScheduledProbeSweep();
+  return NextResponse.json(result);
 }
