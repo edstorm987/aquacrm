@@ -5744,6 +5744,21 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-src-app-portal-agency-focushome-tsx-8c50d650e9"></a>
+
+### `src/app/portal/agency/_FocusHome.tsx`
+
+**What it is:** `focusHome.ts` for why this can be a purely presentational surface.
+
+**Exports (2):**
+
+- `FocusHome({ config, greet, stats, meetings, scouting }: FocusHomeProps)`
+- `interface FocusHomeProps (5 members)`
+
+**Depends on (2):** [`src/app/portal/agency/leads-pipeline/_UpcomingMeetings.tsx`](#file-src-app-portal-agency-leads-pipeline-upcomingmeetings-tsx-18fcadc035) · [`src/lib/access/focusHome.ts`](lib.md#file-src-lib-access-focushome-ts-da6ef52919)
+
+**Used by (1):** [`src/app/portal/agency/page.tsx`](#file-src-app-portal-agency-page-tsx-35a1d5c98a)
+
 <a id="file-src-app-portal-agency-founderdashboardkpis-tsx-0068dbe993"></a>
 
 ### `src/app/portal/agency/_FounderDashboardKpis.tsx`
@@ -6240,15 +6255,16 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (3):**
+**Exports (4):**
 
+- `focusLandingStation(departmentId: string | undefined): ServerCommandStation | null` — Where a "Working as <department>" hat lands when the Command Centre opens with no explicit `?station=`. The hat replaces the generic Command Centre with its own home; `?station=` …
 - `resolveServerCommandStation(value: SearchParamValue, devTeamVisible = false): ServerCommandStation | null` — Only these stations need a server-rendered workspace. Dev Team remains founder-gated even when somebody hand-types its query parameter.
 - `serverCommandStationHref(pathname: string, currentQuery: string, station: ServerCommandStation | null, scanResultHandle?: string | null): string` — Preserve every unrelated query parameter while selecting or clearing the one server-backed station.
 - `type ServerCommandStation = "executive" | "battle" | "calendar" | "actions" | "advisor" | "devteam"`
 
 **Depends on:** _No internal imports._
 
-**Used by (5):** [`scripts/smoke-command-center-perf.test.ts`](scripts.md#file-scripts-smoke-command-center-perf-test-ts-03d7758302) · [`src/app/portal/agency/_BusinessRadarDashboard.tsx`](#file-src-app-portal-agency-businessradardashboard-tsx-798d90e2ac) · [`src/app/portal/agency/_DashboardCommandCenter.tsx`](#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff) · [`src/app/portal/agency/page.tsx`](#file-src-app-portal-agency-page-tsx-35a1d5c98a) · [`src/app/portal/agency/serverStationNavigation.ts`](#file-src-app-portal-agency-serverstationnavigation-ts-a2741da569)
+**Used by (7):** [`scripts/smoke-command-center-perf.test.ts`](scripts.md#file-scripts-smoke-command-center-perf-test-ts-03d7758302) · [`scripts/smoke-department-focus.test.ts`](scripts.md#file-scripts-smoke-department-focus-test-ts-6ed06869e5) · [`scripts/smoke-focus-home.test.ts`](scripts.md#file-scripts-smoke-focus-home-test-ts-248f6a2b0c) · [`src/app/portal/agency/_BusinessRadarDashboard.tsx`](#file-src-app-portal-agency-businessradardashboard-tsx-798d90e2ac) · [`src/app/portal/agency/_DashboardCommandCenter.tsx`](#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff) · [`src/app/portal/agency/page.tsx`](#file-src-app-portal-agency-page-tsx-35a1d5c98a) · [`src/app/portal/agency/serverStationNavigation.ts`](#file-src-app-portal-agency-serverstationnavigation-ts-a2741da569)
 
 
 ## `src/app/portal/agency/company/`
@@ -7274,12 +7290,12 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (2):**
 
-- `UpcomingMeetings({ meetings, onShowAll, onOpenCommercial, }: { meetings: UpcomingMeeting[]; onShowAll?: () => void; onOpenCommercial?: (meeting: UpcomingMeeting) => void; })`
+- `UpcomingMeetings({ meetings, onShowAll, onOpenCommercial, limit = 5, }: { meetings: UpcomingMeeting[]; onShowAll?: () => void; onOpenCommercial?: (meeting: UpcomingMeeting) => void; /** How many to render. The dashboard…`
 - `interface UpcomingMeeting (15 members)`
 
 **Depends on (1):** [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
 
-**Used by (2):** [`src/app/portal/agency/leads-pipeline/contacts/_ContactsWorkspace.tsx`](#file-src-app-portal-agency-leads-pipeline-contacts-contactsworkspace-tsx-9e6c6879f9) · [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspace.tsx`](#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspace-tsx-f2c8061bae)
+**Used by (5):** [`src/app/portal/agency/_FocusHome.tsx`](#file-src-app-portal-agency-focushome-tsx-8c50d650e9) · [`src/app/portal/agency/leads-pipeline/contacts/_ContactsWorkspace.tsx`](#file-src-app-portal-agency-leads-pipeline-contacts-contactsworkspace-tsx-9e6c6879f9) · [`src/app/portal/agency/meetings/page.tsx`](#file-src-app-portal-agency-meetings-page-tsx-f498aebb68) · [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspace.tsx`](#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspace-tsx-f2c8061bae) · [`src/lib/server/agency/meetingsFeed.ts`](lib.md#file-src-lib-server-agency-meetingsfeed-ts-8a3327ba19)
 
 <a id="file-src-app-portal-agency-leads-pipeline-workflowsteps-tsx-9b27f1ecac"></a>
 
@@ -7496,6 +7512,23 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 
+## `src/app/portal/agency/meetings/`
+
+<a id="file-src-app-portal-agency-meetings-page-tsx-f498aebb68"></a>
+
+### `src/app/portal/agency/meetings/page.tsx`
+
+**What it is:** derivation (`loadUpcomingMeetings`), so the two surfaces can never disagree.
+
+**Exports (1):**
+
+- `default async AgencyMeetingsPage()`
+
+**Depends on (7):** [`src/app/portal/agency/leads-pipeline/_UpcomingMeetings.tsx`](#file-src-app-portal-agency-leads-pipeline-upcomingmeetings-tsx-18fcadc035) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/agency/meetingsFeed.ts`](lib.md#file-src-lib-server-agency-meetingsfeed-ts-8a3327ba19) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
 ## `src/app/portal/agency/my-radar/`
 
 <a id="file-src-app-portal-agency-my-radar-page-tsx-065cdf2270"></a>
@@ -7573,7 +7606,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default async AgencyHome({ searchParams }: { searchParams?: Promise<{ [key: string]: string | string[] | undefined }> })`
 
-**Depends on (39):** [`src/app/portal/agency/_BattleTableWorkspace.tsx`](#file-src-app-portal-agency-battletableworkspace-tsx-ec652c2c58) · [`src/app/portal/agency/_DashboardCommandCenter.tsx`](#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff) · [`src/app/portal/agency/commandPerformance.ts`](#file-src-app-portal-agency-commandperformance-ts-4c3c4f6dfd) · [`src/app/portal/agency/commandStationRouting.ts`](#file-src-app-portal-agency-commandstationrouting-ts-1348113223) · [`src/components/intelligence/PersonalRadarPanel.tsx`](components.md#file-src-components-intelligence-personalradarpanel-tsx-8dec88d633) · [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d) · [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/engines/data/server/radar/radarEvidenceVault.ts`](engines.md#file-src-engines-data-server-radar-radarevidencevault-ts-b2576f422c) · [`src/lib/brands/brandPortfolio.ts`](lib.md#file-src-lib-brands-brandportfolio-ts-85e5ae26f9) · [`src/lib/intelligence/businessRecommendedActions.ts`](lib.md#file-src-lib-intelligence-businessrecommendedactions-ts-b89f9ec998) · [`src/lib/intelligence/commandIntelligence.ts`](lib.md#file-src-lib-intelligence-commandintelligence-ts-365dc38397) · [`src/lib/intelligence/personalRadar.ts`](lib.md#file-src-lib-intelligence-personalradar-ts-d1e0282176) · [`src/lib/server/access/clientAssociationElement.ts`](lib.md#file-src-lib-server-access-clientassociationelement-ts-141ea1a836) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/assistants/assistantContextScope.ts`](lib.md#file-src-lib-server-assistants-assistantcontextscope-ts-94c69e3f23) · [`src/lib/server/assistants/openaiAssistant.ts`](lib.md#file-src-lib-server-assistants-openaiassistant-ts-43bfde0f5e) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/clients/clientAttention.ts`](lib.md#file-src-lib-server-clients-clientattention-ts-cadbc44f73) · [`src/lib/server/commandScanAccess.ts`](lib.md#file-src-lib-server-commandscanaccess-ts-ea52b2d560) · [`src/lib/server/commandScanResults.ts`](lib.md#file-src-lib-server-commandscanresults-ts-4bfdcad62d) · [`src/lib/server/dev/devTeamAccess.ts`](lib.md#file-src-lib-server-dev-devteamaccess-ts-9e6ff72cf8) · [`src/lib/server/inbox/operationalAlerts.ts`](lib.md#file-src-lib-server-inbox-operationalalerts-ts-564a396d10) · [`src/lib/server/integrations/googleCalendar.ts`](lib.md#file-src-lib-server-integrations-googlecalendar-ts-457297d4a6) · [`src/lib/server/intelligence/myRadar.ts`](lib.md#file-src-lib-server-intelligence-myradar-ts-440d4e5adb) · [`src/lib/server/intelligence/personalRadarAccess.ts`](lib.md#file-src-lib-server-intelligence-personalradaraccess-ts-2d7bf41648) · [`src/lib/server/intelligence/personalRadarActions.ts`](lib.md#file-src-lib-server-intelligence-personalradaractions-ts-073ebadc5e) · [`src/lib/server/performanceMode.ts`](lib.md#file-src-lib-server-performancemode-ts-4cd4548229) · [`src/lib/shared/internalWorkspace.ts`](lib.md#file-src-lib-shared-internalworkspace-ts-469a3bb9e7) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/agencySettings.ts`](server.md#file-src-server-agencysettings-ts-6d31afe153) · [`src/server/commandCalendar.ts`](server.md#file-src-server-commandcalendar-ts-70cef8d658) · [`src/server/dashboardPlanning.ts`](server.md#file-src-server-dashboardplanning-ts-e7312f445b) · [`src/server/pipelines.ts`](server.md#file-src-server-pipelines-ts-b3d01c6a82) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tasks.ts`](server.md#file-src-server-tasks-ts-875282c006) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (44):** [`src/app/portal/agency/_BattleTableWorkspace.tsx`](#file-src-app-portal-agency-battletableworkspace-tsx-ec652c2c58) · [`src/app/portal/agency/_DashboardCommandCenter.tsx`](#file-src-app-portal-agency-dashboardcommandcenter-tsx-a2efce0bff) · [`src/app/portal/agency/_FocusHome.tsx`](#file-src-app-portal-agency-focushome-tsx-8c50d650e9) · [`src/app/portal/agency/commandPerformance.ts`](#file-src-app-portal-agency-commandperformance-ts-4c3c4f6dfd) · [`src/app/portal/agency/commandStationRouting.ts`](#file-src-app-portal-agency-commandstationrouting-ts-1348113223) · [`src/components/intelligence/PersonalRadarPanel.tsx`](components.md#file-src-components-intelligence-personalradarpanel-tsx-8dec88d633) · [`src/components/ui/PortalViewportLoading.tsx`](components.md#file-src-components-ui-portalviewportloading-tsx-d997565c6d) · [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/engines/data/server/radar/radarEvidenceVault.ts`](engines.md#file-src-engines-data-server-radar-radarevidencevault-ts-b2576f422c) · [`src/lib/access/focusHome.ts`](lib.md#file-src-lib-access-focushome-ts-da6ef52919) · [`src/lib/brands/brandPortfolio.ts`](lib.md#file-src-lib-brands-brandportfolio-ts-85e5ae26f9) · [`src/lib/intelligence/businessRecommendedActions.ts`](lib.md#file-src-lib-intelligence-businessrecommendedactions-ts-b89f9ec998) · [`src/lib/intelligence/commandIntelligence.ts`](lib.md#file-src-lib-intelligence-commandintelligence-ts-365dc38397) · [`src/lib/intelligence/personalRadar.ts`](lib.md#file-src-lib-intelligence-personalradar-ts-d1e0282176) · [`src/lib/server/access/clientAssociationElement.ts`](lib.md#file-src-lib-server-access-clientassociationelement-ts-141ea1a836) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/agency/meetingsFeed.ts`](lib.md#file-src-lib-server-agency-meetingsfeed-ts-8a3327ba19) · [`src/lib/server/assistants/assistantContextScope.ts`](lib.md#file-src-lib-server-assistants-assistantcontextscope-ts-94c69e3f23) · [`src/lib/server/assistants/openaiAssistant.ts`](lib.md#file-src-lib-server-assistants-openaiassistant-ts-43bfde0f5e) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/chrome/activeDepartment.ts`](lib.md#file-src-lib-server-chrome-activedepartment-ts-14973fdc11) · [`src/lib/server/clients/clientAttention.ts`](lib.md#file-src-lib-server-clients-clientattention-ts-cadbc44f73) · [`src/lib/server/commandScanAccess.ts`](lib.md#file-src-lib-server-commandscanaccess-ts-ea52b2d560) · [`src/lib/server/commandScanResults.ts`](lib.md#file-src-lib-server-commandscanresults-ts-4bfdcad62d) · [`src/lib/server/dev/devTeamAccess.ts`](lib.md#file-src-lib-server-dev-devteamaccess-ts-9e6ff72cf8) · [`src/lib/server/inbox/operationalAlerts.ts`](lib.md#file-src-lib-server-inbox-operationalalerts-ts-564a396d10) · [`src/lib/server/integrations/googleCalendar.ts`](lib.md#file-src-lib-server-integrations-googlecalendar-ts-457297d4a6) · [`src/lib/server/intelligence/myRadar.ts`](lib.md#file-src-lib-server-intelligence-myradar-ts-440d4e5adb) · [`src/lib/server/intelligence/personalRadarAccess.ts`](lib.md#file-src-lib-server-intelligence-personalradaraccess-ts-2d7bf41648) · [`src/lib/server/intelligence/personalRadarActions.ts`](lib.md#file-src-lib-server-intelligence-personalradaractions-ts-073ebadc5e) · [`src/lib/server/intelligence/scoutingQuota.ts`](lib.md#file-src-lib-server-intelligence-scoutingquota-ts-fe272dfda1) · [`src/lib/server/performanceMode.ts`](lib.md#file-src-lib-server-performancemode-ts-4cd4548229) · [`src/lib/shared/internalWorkspace.ts`](lib.md#file-src-lib-shared-internalworkspace-ts-469a3bb9e7) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/agencySettings.ts`](server.md#file-src-server-agencysettings-ts-6d31afe153) · [`src/server/commandCalendar.ts`](server.md#file-src-server-commandcalendar-ts-70cef8d658) · [`src/server/dashboardPlanning.ts`](server.md#file-src-server-dashboardplanning-ts-e7312f445b) · [`src/server/pipelines.ts`](server.md#file-src-server-pipelines-ts-b3d01c6a82) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tasks.ts`](server.md#file-src-server-tasks-ts-875282c006) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by (1):** [`src/app/portal/agency/command-center/page.tsx`](#file-src-app-portal-agency-command-center-page-tsx-8b13e6ca66)
 

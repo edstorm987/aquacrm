@@ -22,15 +22,19 @@ export function UpcomingMeetings({
   meetings,
   onShowAll,
   onOpenCommercial,
+  limit = 5,
 }: {
   meetings: UpcomingMeeting[];
   onShowAll?: () => void;
   onOpenCommercial?: (meeting: UpcomingMeeting) => void;
+  /** How many to render. The dashboard card keeps the five-row preview; the
+   *  standalone Meetings surface passes a larger number to show the lot. */
+  limit?: number;
 }) {
   const upcoming = meetings
     .filter(item => timestampFromValue(item.meetingAt) !== undefined)
     .sort((a, b) => a.meetingAt - b.meetingAt)
-    .slice(0, 5);
+    .slice(0, limit);
 
   return (
     <section className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">

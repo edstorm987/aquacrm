@@ -85,6 +85,25 @@ revisit lifecycle as [issue #142](../development/issues.md).
 - `_DynamicRadarConsole.tsx`, `_RadarPolicyPanel.tsx`, `_RadarScanControl.tsx` (radar console / policy / scan trigger).
 - `_NewClientButton.tsx` — inline "+ New client" modal.
 
+**Role focus modes — "Working as <department>"**
+- The `DepartmentSwitcher` puts a department hat on. Phase 1 narrows the sidebar
+  (`lib/chrome/departmentLens.ts` remove-only lens + `lib/chrome/focusReveal.ts`
+  un-hiding the search-only "ops" panel). Phase 3 decides the LANDING: Executive
+  lands on its own Command Centre station (`commandStationRouting.ts`
+  `focusLandingStation`); the five other departments land on a focused home.
+- `_FocusHome.tsx` — the focused landing (a header, the seat's two or three
+  numbers, big link-cards to where its work lives, and — Sales only — the
+  booked-meetings feed + a scouting nudge). Data-driven by
+  `lib/access/focusHome.ts` (per-department config + `isFocusHomeEnabled()`, the
+  `PORTAL_ROLE_FOCUS_HOME` off-switch). `page.tsx` returns it in place of the
+  Command Centre when a focus-home hat is on and the URL has no `?station=` — an
+  initial default, never a redirect, so nav is never trapped; it never builds the
+  heavy radar/intelligence graph. Pinned by `scripts/smoke-focus-home.test.ts`.
+- `meetings/page.tsx` — the standalone **Meetings** surface (Ed's Sales ask),
+  reusing the `leads-pipeline/_UpcomingMeetings` card from one server derivation,
+  `lib/server/agency/meetingsFeed.ts` `loadUpcomingMeetings` (identical to the
+  leads pipeline's, so the two can't drift).
+
 **Master Inbox — `inbox/`**
 - `page.tsx` — the master inbox route. *(Dev/demo sessions load ZERO enquiries here — `session.isDemo ? []`.)*
 - `_MasterInbox.tsx` ⊕ **(697L)** — the unified attention inbox.

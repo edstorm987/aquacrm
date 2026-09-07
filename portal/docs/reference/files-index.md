@@ -2,7 +2,7 @@
 
 ← Back to [the reference index](00-index.md) · [the map](../WORKSPACE-FILE-TREE.md) · [development.md](../development.md)
 
-Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2701 source files; 0 per-source stubs.**
+Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2709 source files; 0 per-source stubs.**
 
 ## Engines — `src/engines/` (89)
 
@@ -171,7 +171,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
 - [`src/server/zimanteTradingCompanies.ts`](server.md#file-src-server-zimantetradingcompanies-ts-ef9a41c5a6)
 
-## Shared logic — `src/lib/` (367)
+## Shared logic — `src/lib/` (370)
 
 - [`src/lib/a11y/contrastValidator.ts`](lib.md#file-src-lib-a11y-contrastvalidator-ts-7c6889cfca) — components. We default to 4.5 for the strictest check.
 - [`src/lib/a11y/isEmbedded.ts`](lib.md#file-src-lib-a11y-isembedded-ts-e91cac9938)
@@ -180,6 +180,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/a11y/useMenuKeys.ts`](lib.md#file-src-lib-a11y-usemenukeys-ts-403e5f37d6)
 - [`src/lib/a11y/useViewport.ts`](lib.md#file-src-lib-a11y-useviewport-ts-2d7456f7d0)
 - [`src/lib/access/departmentProfiles.ts`](lib.md#file-src-lib-access-departmentprofiles-ts-343cc6ceea) — a macro dashboard averages five departments into one reassuring number.
+- [`src/lib/access/focusHome.ts`](lib.md#file-src-lib-access-focushome-ts-da6ef52919) — taking the hat off both move off it freely. Nobody is trapped in a hat.
 - [`src/lib/access/navElementKeys.ts`](lib.md#file-src-lib-access-navelementkeys-ts-bebe1ec3e3) — placed yet is not sales. Taking the hat off shows everything again.
 - [`src/lib/advisor/advisorActions.ts`](lib.md#file-src-lib-advisor-advisoractions-ts-5bfe1090c9)
 - [`src/lib/advisor/advisorSkills.ts`](lib.md#file-src-lib-advisor-advisorskills-ts-7aa68b16ab)
@@ -203,6 +204,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/chrome/devIconPreference.ts`](lib.md#file-src-lib-chrome-deviconpreference-ts-361b143329) — Cookie name. Read on the server by `devIconPreference()`.
 - [`src/lib/chrome/devModeLoadIn.ts`](lib.md#file-src-lib-chrome-devmodeloadin-ts-dcaae38ef2) — same-tab reload, which a signed-cookie swap forces.
 - [`src/lib/chrome/devTeamLinkPrefetch.ts`](lib.md#file-src-lib-chrome-devteamlinkprefetch-ts-cbcd40fdec)
+- [`src/lib/chrome/focusReveal.ts`](lib.md#file-src-lib-chrome-focusreveal-ts-e4a01b4bb8) — switches profile gets exactly today's sidebar, unrebuilt.
 - [`src/lib/chrome/performanceMode.ts`](lib.md#file-src-lib-chrome-performancemode-ts-bdcd1c163c) — Cookie name. Read on the server by `performanceModePreference()`.
 - [`src/lib/chrome/pluginHealth.ts`](lib.md#file-src-lib-chrome-pluginhealth-ts-d71c78b8c0) — cannot drift apart the way the Dev Console's worker count once did.
 - [`src/lib/chrome/privacyMode.ts`](lib.md#file-src-lib-chrome-privacymode-ts-5d95d06163) — conclude the app is broken.
@@ -334,6 +336,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/server/access/searchCandidateAccess.ts`](lib.md#file-src-lib-server-access-searchcandidateaccess-ts-fd83a2341f)
 - [`src/lib/server/access/websiteEnquiryAccess.ts`](lib.md#file-src-lib-server-access-websiteenquiryaccess-ts-3def274122)
 - [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485)
+- [`src/lib/server/agency/meetingsFeed.ts`](lib.md#file-src-lib-server-agency-meetingsfeed-ts-8a3327ba19)
 - [`src/lib/server/aquaEmbedToken.ts`](lib.md#file-src-lib-server-aquaembedtoken-ts-1a3b5086bf)
 - [`src/lib/server/assistants/advisorContext.ts`](lib.md#file-src-lib-server-assistants-advisorcontext-ts-ca2184cd70)
 - [`src/lib/server/assistants/advisorSkillContext.ts`](lib.md#file-src-lib-server-assistants-advisorskillcontext-ts-ca45c8b25b)
@@ -1442,7 +1445,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/built-ins/runtime/foundation-adapters/publicFunnelFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-publicfunnelfoundation-ts-18280e9710)
 - [`src/built-ins/runtime/foundation-adapters/publicMediaAdapter.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-publicmediaadapter-ts-4b47d9ab84)
 
-## App routes & UI — `src/app/` (661)
+## App routes & UI — `src/app/` (663)
 
 - [`src/app/(seeds)/aquaOasisDemoContent.ts`](app.md#file-src-app-seeds-aquaoasisdemocontent-ts-f2e90ac84c) — agency record (so a prod tenant flip doesn't spawn fake data).
 - [`src/app/(website)/business-os/page.tsx`](app.md#file-src-app-website-business-os-page-tsx-0cbb0528df)
@@ -1771,6 +1774,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/portal/agency/_DynamicRadarConsole.tsx`](app.md#file-src-app-portal-agency-dynamicradarconsole-tsx-b6d1c7a05a)
 - [`src/app/portal/agency/_ExecutiveCommandWorkspace.tsx`](app.md#file-src-app-portal-agency-executivecommandworkspace-tsx-bac840fa46)
 - [`src/app/portal/agency/_FindingGroupBar.tsx`](app.md#file-src-app-portal-agency-findinggroupbar-tsx-edd191eb45)
+- [`src/app/portal/agency/_FocusHome.tsx`](app.md#file-src-app-portal-agency-focushome-tsx-8c50d650e9) — `focusHome.ts` for why this can be a purely presentational surface.
 - [`src/app/portal/agency/_FounderDashboardKpis.tsx`](app.md#file-src-app-portal-agency-founderdashboardkpis-tsx-0068dbe993)
 - [`src/app/portal/agency/_InfraHealthPanel.tsx`](app.md#file-src-app-portal-agency-infrahealthpanel-tsx-6e3790f895)
 - [`src/app/portal/agency/_NewClientButton.tsx`](app.md#file-src-app-portal-agency-newclientbutton-tsx-933174699b)
@@ -1877,6 +1881,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/portal/agency/marketing/_MarketingCommandSurfaces.tsx`](app.md#file-src-app-portal-agency-marketing-marketingcommandsurfaces-tsx-ed3c63aa76)
 - [`src/app/portal/agency/marketing/_marketingViews.ts`](app.md#file-src-app-portal-agency-marketing-marketingviews-ts-40d3847a22) — The six tabs, plus the demoted-but-still-addressable client services view.
 - [`src/app/portal/agency/marketing/page.tsx`](app.md#file-src-app-portal-agency-marketing-page-tsx-e2b361f4ba)
+- [`src/app/portal/agency/meetings/page.tsx`](app.md#file-src-app-portal-agency-meetings-page-tsx-f498aebb68) — derivation (`loadUpcomingMeetings`), so the two surfaces can never disagree.
 - [`src/app/portal/agency/my-radar/page.tsx`](app.md#file-src-app-portal-agency-my-radar-page-tsx-065cdf2270)
 - [`src/app/portal/agency/notepad/_NotepadWorkspace.tsx`](app.md#file-src-app-portal-agency-notepad-notepadworkspace-tsx-02e35d35f5)
 - [`src/app/portal/agency/notepad/page.tsx`](app.md#file-src-app-portal-agency-notepad-page-tsx-4f8074aa94)
@@ -2106,7 +2111,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/showcase/exit/route.ts`](app.md#file-src-app-showcase-exit-route-ts-2297ba275f)
 - [`src/app/showcase/route.ts`](app.md#file-src-app-showcase-route-ts-4c24dd82df)
 
-## Scripts — `scripts/` (611)
+## Scripts — `scripts/` (614)
 
 - [`scripts/attention-protection.test.ts`](scripts.md#file-scripts-attention-protection-test-ts-d64d01714c)
 - [`scripts/audit-actions.ts`](scripts.md#file-scripts-audit-actions-ts-862ea31175) — What state Actions is actually in — measured, not remembered. For every alert the checks currently …
@@ -2270,6 +2275,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-date-resilience.test.ts`](scripts.md#file-scripts-smoke-date-resilience-test-ts-2373e56ca2)
 - [`scripts/smoke-day-command-paused-truth.test.ts`](scripts.md#file-scripts-smoke-day-command-paused-truth-test-ts-4df966bede)
 - [`scripts/smoke-department-allocation.test.ts`](scripts.md#file-scripts-smoke-department-allocation-test-ts-5c9901e42a) — for reads as a failure.
+- [`scripts/smoke-department-focus.test.ts`](scripts.md#file-scripts-smoke-department-focus-test-ts-6ed06869e5) — it never adds a row; owner/no-hat is byte-identical).
 - [`scripts/smoke-department-lens.test.ts`](scripts.md#file-scripts-smoke-department-lens-test-ts-36aa779f14) — disagreed would be a breach rather than a bug.
 - [`scripts/smoke-department-profiles.test.ts`](scripts.md#file-scripts-smoke-department-profiles-test-ts-087baae536) — on a trial who nobody has met.
 - [`scripts/smoke-department-switcher.test.ts`](scripts.md#file-scripts-smoke-department-switcher-test-ts-3608e721e9) — `smoke-department-lens`, from the switcher's side.
@@ -2406,6 +2412,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-finance-section-gates.test.ts`](scripts.md#file-scripts-smoke-finance-section-gates-test-ts-bb835c5a2c) — stops the class reopening when the next plugin is written.
 - [`scripts/smoke-finance-settings-convergence.test.ts`](scripts.md#file-scripts-smoke-finance-settings-convergence-test-ts-e75f6d1e3f)
 - [`scripts/smoke-finance-stripe.test.ts`](scripts.md#file-scripts-smoke-finance-stripe-test-ts-fb2e5939d5) — fake client. Record + surface only; the app never holds funds.
+- [`scripts/smoke-focus-home.test.ts`](scripts.md#file-scripts-smoke-focus-home-test-ts-248f6a2b0c) — redirect, reversible from the environment).
 - [`scripts/smoke-form-capture.test.ts`](scripts.md#file-scripts-smoke-form-capture-test-ts-1e6481390f)
 - [`scripts/smoke-founder-seed.test.ts`](scripts.md#file-scripts-smoke-founder-seed-test-ts-6db25a3d0b) — runner wire-up + the deploy-runbook entry.
 - [`scripts/smoke-freelancer-real-journey.test.ts`](scripts.md#file-scripts-smoke-freelancer-real-journey-test-ts-279cd39873)
@@ -2602,6 +2609,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-radar-golden-sweep.test.ts`](scripts.md#file-scripts-smoke-radar-golden-sweep-test-ts-f8c2bb2e86)
 - [`scripts/smoke-radar-infra-health.test.ts`](scripts.md#file-scripts-smoke-radar-infra-health-test-ts-80f7f35f54)
 - [`scripts/smoke-radar-inspection.test.ts`](scripts.md#file-scripts-smoke-radar-inspection-test-ts-aea00380e0)
+- [`scripts/smoke-radar-inspector-advanced.test.ts`](scripts.md#file-scripts-smoke-radar-inspector-advanced-test-ts-2e07ac4aff) — the gate — or quietly puts raw JSON back on the default view — fails here.
 - [`scripts/smoke-radar-kpi-scorecard.test.ts`](scripts.md#file-scripts-smoke-radar-kpi-scorecard-test-ts-25aa3404d9)
 - [`scripts/smoke-radar-node-cache.test.ts`](scripts.md#file-scripts-smoke-radar-node-cache-test-ts-8ad0cce353) — the whole-radar cache is preserved per node.
 - [`scripts/smoke-radar-node-tree.test.ts`](scripts.md#file-scripts-smoke-radar-node-tree-test-ts-cc8b3da415) — is not full. Pure function, so no backend/runtime needed.

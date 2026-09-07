@@ -2,7 +2,7 @@
 
 > Source maps, subsystem dossiers, components, routes, state and built-in module notes.
 >
-> Consolidated 2026-09-07 from **23** source documents / **57,404 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-07 from **23** source documents / **57,574 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -19,7 +19,7 @@
 - [`docs/workspace/hazards-and-duplication.md`](#source-docs-workspace-hazards-and-duplication-md) — 7,937 words · `16f6a1abda87`
 - [`docs/workspace/kpi-intelligence.md`](#source-docs-workspace-kpi-intelligence-md) — 2,283 words · `d641f1291cbc`
 - [`docs/workspace/plugins.md`](#source-docs-workspace-plugins-md) — 2,193 words · `85bf55b735d1`
-- [`docs/workspace/portal-ui.md`](#source-docs-workspace-portal-ui-md) — 4,055 words · `a2a7dcfcf88a`
+- [`docs/workspace/portal-ui.md`](#source-docs-workspace-portal-ui-md) — 4,225 words · `9c1c845bd0d8`
 - [`docs/workspace/radar.md`](#source-docs-workspace-radar-md) — 3,419 words · `094abc931f83`
 - [`docs/workspace/scripts-config-docs.md`](#source-docs-workspace-scripts-config-docs-md) — 705 words · `6c64dba30a6b`
 - [`docs/workspace/shared-logic.md`](#source-docs-workspace-shared-logic-md) — 3,911 words · `34a172e29b5e`
@@ -3328,7 +3328,7 @@ Plus **10 per-plugin boot bindings** (`*Foundation.ts`, side-effect-imported by
 
 ## Source document — `docs/workspace/portal-ui.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/portal-ui.md" sha256="a2a7dcfcf88ad66267df0618c0a0b83c66d9f0ccd8c7d5e1f8128de2fa6151e5" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/portal-ui.md" sha256="9c1c845bd0d8bf99979e5de0bdc3b4febf5b45bf3405a53a8fa913f2e88ae2de" -->
 # Chapter — Portal UI (`src/app/portal/`)
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
@@ -3415,6 +3415,25 @@ revisit lifecycle as [issue #142](../development/issues.md).
 - `_ClockOutReviewDialog.tsx`, `_QuarterlyStrategyReview.tsx`, `_WeeklyReviewWorkspace.tsx`.
 - `_DynamicRadarConsole.tsx`, `_RadarPolicyPanel.tsx`, `_RadarScanControl.tsx` (radar console / policy / scan trigger).
 - `_NewClientButton.tsx` — inline "+ New client" modal.
+
+**Role focus modes — "Working as <department>"**
+- The `DepartmentSwitcher` puts a department hat on. Phase 1 narrows the sidebar
+  (`lib/chrome/departmentLens.ts` remove-only lens + `lib/chrome/focusReveal.ts`
+  un-hiding the search-only "ops" panel). Phase 3 decides the LANDING: Executive
+  lands on its own Command Centre station (`commandStationRouting.ts`
+  `focusLandingStation`); the five other departments land on a focused home.
+- `_FocusHome.tsx` — the focused landing (a header, the seat's two or three
+  numbers, big link-cards to where its work lives, and — Sales only — the
+  booked-meetings feed + a scouting nudge). Data-driven by
+  `lib/access/focusHome.ts` (per-department config + `isFocusHomeEnabled()`, the
+  `PORTAL_ROLE_FOCUS_HOME` off-switch). `page.tsx` returns it in place of the
+  Command Centre when a focus-home hat is on and the URL has no `?station=` — an
+  initial default, never a redirect, so nav is never trapped; it never builds the
+  heavy radar/intelligence graph. Pinned by `scripts/smoke-focus-home.test.ts`.
+- `meetings/page.tsx` — the standalone **Meetings** surface (Ed's Sales ask),
+  reusing the `leads-pipeline/_UpcomingMeetings` card from one server derivation,
+  `lib/server/agency/meetingsFeed.ts` `loadUpcomingMeetings` (identical to the
+  leads pipeline's, so the two can't drift).
 
 **Master Inbox — `inbox/`**
 - `page.tsx` — the master inbox route. *(Dev/demo sessions load ZERO enquiries here — `session.isDemo ? []`.)*

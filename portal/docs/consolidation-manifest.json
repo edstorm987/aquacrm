@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-07T07:25:34.399Z",
+  "generatedAt": "2026-09-07T13:47:45.498Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -1087,9 +1087,9 @@
       "path": "docs/development/updates.md",
       "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
       "anchor": "source-docs-development-updates-md",
-      "sha256": "75a3c768079e577f2f829616336a5af872aebe9e3600150c7316e7b2383a5061",
-      "words": 106186,
-      "bytes": 794503
+      "sha256": "7b688821c4f9fc4ab61d19cf619f66d45e7eca351347605fd700ccc770f9f57d",
+      "words": 106516,
+      "bytes": 796886
     },
     {
       "path": "docs/development/visual-browser-audit-2026-08-23.md",
@@ -1231,9 +1231,9 @@
       "path": "docs/workspace/portal-ui.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-portal-ui-md",
-      "sha256": "a2a7dcfcf88ad66267df0618c0a0b83c66d9f0ccd8c7d5e1f8128de2fa6151e5",
-      "words": 4055,
-      "bytes": 35371
+      "sha256": "9c1c845bd0d8bf99979e5de0bdc3b4febf5b45bf3405a53a8fa913f2e88ae2de",
+      "words": 4225,
+      "bytes": 36718
     },
     {
       "path": "docs/workspace/radar.md",

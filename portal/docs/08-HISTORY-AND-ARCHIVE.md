@@ -2,7 +2,7 @@
 
 > The append-only change record, dated handoffs and superseded historical summaries.
 >
-> Consolidated 2026-09-07 from **18** source documents / **136,342 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-07 from **18** source documents / **136,672 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -23,7 +23,7 @@
 - [`docs/context/archive/website-editor-and-migration.md`](#source-docs-context-archive-website-editor-and-migration-md) — 1,159 words · `235e8af731b6`
 - [`docs/context/archive/WHERE-WE-ARE-2026-08-18.md`](#source-docs-context-archive-where-we-are-2026-08-18-md) — 2,192 words · `4056e9a347cb`
 - [`docs/context/archive/WHERE-WE-STAND-2026-08-20.md`](#source-docs-context-archive-where-we-stand-2026-08-20-md) — 2,482 words · `26bf4442580e`
-- [`docs/development/updates.md`](#source-docs-development-updates-md) — 106,186 words · `75a3c768079e`
+- [`docs/development/updates.md`](#source-docs-development-updates-md) — 106,516 words · `7b688821c4f9`
 
 ---
 
@@ -3318,7 +3318,7 @@ Being straight with you about the edges.
 
 ## Source document — `docs/development/updates.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="75a3c768079e577f2f829616336a5af872aebe9e3600150c7316e7b2383a5061" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="7b688821c4f9fc4ab61d19cf619f66d45e7eca351347605fd700ccc770f9f57d" -->
 # Updates log
 
 ← Back to [development.md](../development.md) (the law)
@@ -3354,6 +3354,39 @@ map stays trustworthy.
 > If you ship something, log it.
 
 ---
+
+## 2026-09-07 — Role focus modes, phase 3: each hat lands on its own focused home
+
+- Phase 1 narrowed the sidebar under a hat; this decides the LANDING, closing the
+  rest of Ed's complaint ("if i choose to work as executive i get a full executive
+  mode… same for sales it shows the sales stuff… right now it shows the same for
+  any working as"). Executive already lands on its Command Centre station
+  (`focusLandingStation`); the five other departments (Sales, Delivery, Finance,
+  Marketing, Support) now land on their own small **focus home** instead of the
+  full macro dashboard.
+- New pure config `src/lib/access/focusHome.ts` — per department: the two or three
+  numbers that matter to the seat, the few places its work lives, and (Sales only)
+  the booked-meetings feed + a scouting nudge. `src/app/portal/agency/_FocusHome.tsx`
+  renders it. `page.tsx` returns the focus home in place of the Command Centre when
+  a focus-home hat is on AND the URL has no `?station=` — an initial default, not a
+  redirect, so in-app nav and taking the hat off both leave it (nobody is trapped),
+  and it never builds the heavy radar/intelligence graph.
+- **Invariant now pinned:** every department lands somewhere of its own — a station
+  or a focus home — so no hat can regress to the shared dashboard again
+  (`scripts/smoke-focus-home.test.ts`). It also pins the safety model (destinations
+  only ever link to gated portal surfaces; the swap grants nothing) and the flag.
+- **Sales, concretely (Ed's asks):** a standalone **Meetings** surface at
+  `/portal/agency/meetings` reusing the shared `UpcomingMeetings` card from one
+  server derivation (`src/lib/server/agency/meetingsFeed.ts` → `loadUpcomingMeetings`,
+  identical to the leads pipeline's, so the two can't drift); a **Scouting-only**
+  link (`…/pipelines/leads#scouting`); and a small sales dashboard.
+- **Reversible from the environment (phase 6 flag):** `PORTAL_ROLE_FOCUS_HOME=off`
+  disables the landing swap without a code redeploy; default on.
+- Static + focused-test green (`smoke-focus-home`, `smoke-department-focus`,
+  `smoke-department-switcher`, `smoke-department-profiles`, `smoke-date-resilience`);
+  `smoke-department-focus` page-pin updated for the split-out `activeDepartmentId`;
+  full `smoke:all` + browser acceptance at commit time. Docs: symbol reference
+  regenerated; this entry.
 
 ## 2026-09-07 — Role focus modes, phase 1: the "Working as" sidebar actually narrows
 

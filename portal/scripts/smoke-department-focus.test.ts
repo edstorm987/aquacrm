@@ -113,7 +113,8 @@ test("Executive is the one focus with a landing station today", () => {
 test("the landing follows the hat, as an initial default only (never a trap)", () => {
   // Server: with no ?station and a focus landing, the Command Centre opens on it.
   const page = readFileSync("src/app/portal/agency/page.tsx", "utf8");
-  assert.match(page, /const focusLanding = resolvedSearchParams\?\.station \? null : focusLandingStation\(await getActiveDepartmentId\(\)\);/);
+  assert.match(page, /const activeDepartmentId = await getActiveDepartmentId\(\);/);
+  assert.match(page, /const focusLanding = resolvedSearchParams\?\.station \? null : focusLandingStation\(activeDepartmentId\);/);
   assert.match(page, /if \(!requestedServerStation && focusLanding\) requestedServerStation = focusLanding;/);
   assert.match(page, /focusDefaultStation=\{focusLanding \?\? undefined\}/);
   // Client: it only seeds the INITIAL station (when the URL has no ?station), so
