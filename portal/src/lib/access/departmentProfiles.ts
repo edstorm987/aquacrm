@@ -30,7 +30,7 @@
 
 import type { AccessCapability, AccessElementKey } from "@/server/types";
 
-export type DepartmentId = "sales" | "delivery" | "finance" | "marketing" | "support";
+export type DepartmentId = "executive" | "sales" | "delivery" | "finance" | "marketing" | "support";
 
 export interface DepartmentProfile {
   id: DepartmentId;
@@ -60,6 +60,18 @@ export interface DepartmentProfile {
  * principle behind each: the narrowest set that lets the job be done.
  */
 export const DEPARTMENT_PROFILES: readonly DepartmentProfile[] = [
+  {
+    id: "executive",
+    label: "Executive",
+    purpose: "Steer the business — health, the numbers, targets and the decisions only the owner makes.",
+    // The oversight seat. Ed chose Executive as a real department (its own time
+    // bucket), not a view-only macro peek: wearing it should still narrow the
+    // shell to the strategic surfaces and clock the hours as executive work.
+    // `use` is the day-to-day executive surface (the command centre + actions);
+    // everything else is `view` — a glance across the business, never the doing.
+    use: ["workspace.overview", "workspace.actions"],
+    view: ["client.commercial", "client.overview", "growth.overview", "growth.leads", "fulfilment.overview", "client.marketing", "staff.overview"],
+  },
   {
     id: "sales",
     label: "Sales",

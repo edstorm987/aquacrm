@@ -55,7 +55,7 @@ test("no hat is byte-identical: revealFocusPanels returns the SAME array", () =>
   assert.equal(revealFocusPanels(panels, "not-a-department"), panels, "an unknown hat changes nothing");
 });
 
-test("each of the five departments paints a distinct, narrowed sidebar", () => {
+test("each department paints a distinct, narrowed sidebar", () => {
   const shapes = new Map<string, string>();
   for (const profile of DEPARTMENT_PROFILES) {
     const lensed = applyDepartmentLens(fixture(), profile.id);
@@ -72,6 +72,10 @@ test("each of the five departments paints a distinct, narrowed sidebar", () => {
   assert.match(shapes.get("delivery")!, /fulfilment/);
   assert.match(shapes.get("finance")!, /finance/);
   assert.match(shapes.get("sales")!, /pipelines/);
+  // Executive is a real hat too (Ed's choice): its oversight lens spans the
+  // business rather than a single function.
+  assert.match(shapes.get("executive")!, /finance/);
+  assert.match(shapes.get("executive")!, /fulfilment/);
 });
 
 test("reveal only un-hides — it never adds a row (the safety model)", () => {
