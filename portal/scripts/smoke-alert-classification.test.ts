@@ -98,8 +98,9 @@ describe("the classification reaches the controls", () => {
 
   it("keeps the classification separate from the badge label", () => {
     // GeneratedAction.kind is already the badge ("Needs attention"); conflating
-    // the two would silently mislabel every row.
-    const workspace = read("src", "app", "portal", "agency", "actions", "_ActionsWorkspace.tsx");
-    assert.match(workspace, /resolutionKind\?: ResolutionKind/);
+    // the two would silently mislabel every row. The type now lives in the shared
+    // unified-queue module every attention surface builds from.
+    const queue = read("src", "lib", "intelligence", "unifiedActionQueue.ts");
+    assert.match(queue, /resolutionKind\?: ResolutionKind/);
   });
 });

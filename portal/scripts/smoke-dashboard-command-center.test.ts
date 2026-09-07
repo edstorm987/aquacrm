@@ -383,7 +383,9 @@ describe("dashboard command centre surface", () => {
     }
     assert.doesNotMatch(workspace, /Day Command views/);
     assert.doesNotMatch(workspace, /label="My day & time"/);
-    assert.doesNotMatch(workspace, /label="Actions"/);
+    // "Actions" now lives in the visible "More views" menu (asserted by
+    // smoke-command-more-nav), not as a Day Command sub-tab; the Day Command still
+    // reaches it through the "All actions" link pinned below.
     // Narrowed 2026-08-28: this used to pin the whole className string, so
     // adding `min-h-6` for a WCAG 2.5.8 fix (it measured 79×16) failed a test
     // about behaviour. What matters is that "All actions" switches mode and is

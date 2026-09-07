@@ -2,7 +2,7 @@
 
 ← Back to [the reference index](00-index.md) · [the map](../WORKSPACE-FILE-TREE.md) · [development.md](../development.md)
 
-Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2708 source files; 0 per-source stubs.**
+Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2711 source files; 0 per-source stubs.**
 
 ## Engines — `src/engines/` (89)
 
@@ -171,7 +171,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
 - [`src/server/zimanteTradingCompanies.ts`](server.md#file-src-server-zimantetradingcompanies-ts-ef9a41c5a6)
 
-## Shared logic — `src/lib/` (370)
+## Shared logic — `src/lib/` (371)
 
 - [`src/lib/a11y/contrastValidator.ts`](lib.md#file-src-lib-a11y-contrastvalidator-ts-7c6889cfca) — components. We default to 4.5 for the strictest check.
 - [`src/lib/a11y/isEmbedded.ts`](lib.md#file-src-lib-a11y-isembedded-ts-e91cac9938)
@@ -288,6 +288,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/intelligence/notificationAttentionCoordination.ts`](lib.md#file-src-lib-intelligence-notificationattentioncoordination-ts-fe6a3855f7)
 - [`src/lib/intelligence/operationalAttention.ts`](lib.md#file-src-lib-intelligence-operationalattention-ts-0aaf482906)
 - [`src/lib/intelligence/personalRadar.ts`](lib.md#file-src-lib-intelligence-personalradar-ts-d1e0282176)
+- [`src/lib/intelligence/unifiedActionQueue.ts`](lib.md#file-src-lib-intelligence-unifiedactionqueue-ts-94fb0fe101) — same list from the exact same rule.
 - [`src/lib/people/customerProfileScope.ts`](lib.md#file-src-lib-people-customerprofilescope-ts-01ec624e4a)
 - [`src/lib/people/personDestination.ts`](lib.md#file-src-lib-people-persondestination-ts-38a88646e9)
 - [`src/lib/performance/companyHealth.ts`](lib.md#file-src-lib-performance-companyhealth-ts-c24e507af4)
@@ -2110,7 +2111,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/showcase/exit/route.ts`](app.md#file-src-app-showcase-exit-route-ts-2297ba275f)
 - [`src/app/showcase/route.ts`](app.md#file-src-app-showcase-route-ts-4c24dd82df)
 
-## Scripts — `scripts/` (614)
+## Scripts — `scripts/` (616)
 
 - [`scripts/attention-protection.test.ts`](scripts.md#file-scripts-attention-protection-test-ts-d64d01714c)
 - [`scripts/audit-actions.ts`](scripts.md#file-scripts-audit-actions-ts-862ea31175) — What state Actions is actually in — measured, not remembered. For every alert the checks currently …
@@ -2242,7 +2243,9 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-command-calendar.test.ts`](scripts.md#file-scripts-smoke-command-calendar-test-ts-82b9f54d64)
 - [`scripts/smoke-command-center-perf.test.ts`](scripts.md#file-scripts-smoke-command-center-perf-test-ts-03d7758302)
 - [`scripts/smoke-command-center-transition.test.ts`](scripts.md#file-scripts-smoke-command-center-transition-test-ts-eee74f68cf)
+- [`scripts/smoke-command-more-nav.test.ts`](scripts.md#file-scripts-smoke-command-more-nav-test-ts-8965bc0761) — of the dashboard suite.
 - [`scripts/smoke-command-overlay-theme.test.ts`](scripts.md#file-scripts-smoke-command-overlay-theme-test-ts-52381e4072)
+- [`scripts/smoke-command-priority-convergence.test.ts`](scripts.md#file-scripts-smoke-command-priority-convergence-test-ts-d0a3b29cb0) — rest of the dashboard suite (readFileSync + assert.match on source strings).
 - [`scripts/smoke-command-recommendations.test.ts`](scripts.md#file-scripts-smoke-command-recommendations-test-ts-833e52a81f)
 - [`scripts/smoke-command-sidebar-motion.test.ts`](scripts.md#file-scripts-smoke-command-sidebar-motion-test-ts-b15aa75667)
 - [`scripts/smoke-commercial-durable-processes.test.ts`](scripts.md#file-scripts-smoke-commercial-durable-processes-test-ts-0233056ad1) — the mutation at the same moment.

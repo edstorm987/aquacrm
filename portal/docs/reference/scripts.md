@@ -1594,11 +1594,35 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-command-more-nav-test-ts-8965bc0761"></a>
+
+### `scripts/smoke-command-more-nav.test.ts`
+
+**What it is:** of the dashboard suite.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-command-overlay-theme-test-ts-52381e4072"></a>
 
 ### `scripts/smoke-command-overlay-theme.test.ts`
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-command-priority-convergence-test-ts-d0a3b29cb0"></a>
+
+### `scripts/smoke-command-priority-convergence.test.ts`
+
+**What it is:** rest of the dashboard suite (readFileSync + assert.match on source strings).
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 

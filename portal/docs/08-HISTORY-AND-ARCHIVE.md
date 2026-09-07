@@ -2,7 +2,7 @@
 
 > The append-only change record, dated handoffs and superseded historical summaries.
 >
-> Consolidated 2026-09-07 from **18** source documents / **137,090 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-07 from **18** source documents / **137,391 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -23,7 +23,7 @@
 - [`docs/context/archive/website-editor-and-migration.md`](#source-docs-context-archive-website-editor-and-migration-md) — 1,159 words · `235e8af731b6`
 - [`docs/context/archive/WHERE-WE-ARE-2026-08-18.md`](#source-docs-context-archive-where-we-are-2026-08-18-md) — 2,192 words · `4056e9a347cb`
 - [`docs/context/archive/WHERE-WE-STAND-2026-08-20.md`](#source-docs-context-archive-where-we-stand-2026-08-20-md) — 2,482 words · `26bf4442580e`
-- [`docs/development/updates.md`](#source-docs-development-updates-md) — 106,934 words · `bc484f6b23af`
+- [`docs/development/updates.md`](#source-docs-development-updates-md) — 107,235 words · `c1c9a2ed6ed9`
 
 ---
 
@@ -3318,7 +3318,7 @@ Being straight with you about the edges.
 
 ## Source document — `docs/development/updates.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="bc484f6b23afebea10927564d46806c1080beffa336af5844bd95059d114778b" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="c1c9a2ed6ed965db11d8a522ef9954bad5652e3ae111a6dc8da958a7a3b4d5ec" -->
 # Updates log
 
 ← Back to [development.md](../development.md) (the law)
@@ -3450,6 +3450,39 @@ map stays trustworthy.
   branch so PR #9 (the Command Centre simplification) stays independently
   mergeable. Static + focused-test; full `smoke:all` at commit time; browser
   acceptance to follow.
+## 2026-09-06 — Command Centre simplification, slice 6: Projections gets its own door
+
+- Projections/forecasting was buried as one section of ~a dozen inside the Plan &
+  targets (Battle Table) station, reachable only by going there and hunting for
+  the tab. It now has a first-class entry in the visible "More views" menu
+  (Key numbers · **Projections** · Advisor · Actions · Calendar) that deep-links
+  straight to the forecast/target-setting surface (`?station=battle&battle=projections`).
+- Smallest of the options Ed weighed ("just pull Projections out") — nothing else
+  is restructured; the section still also lives inside Plan & targets. Implemented
+  by teaching `navigateServerStation` an optional `battleSection` and adding the
+  door to `CommandMoreNav`. Pinned by `scripts/smoke-command-more-nav.test.ts`.
+- Verified: typecheck clean; dashboard/battle/more-nav/convergence focused tests
+  green; local-browser accepted at 375px and 1280px (door present, navigates to
+  the projections surface, no overflow, 0 console errors). Full `smoke:all` run at
+  commit time.
+
+## 2026-09-06 — Command Centre simplification, slice 5: one converged "needs you" queue
+
+- The Command Centre priority feed and the Actions list built two different
+  pools and disagreed about what needed the owner ("needs you notifications is
+  wrong… it's meant to combine the actions + other things into one"). They now
+  build from the ONE shared assembler (`buildUnifiedActionQueue`) over the ONE
+  server assembly (`assembleAgencyActions`). `page.tsx` assembles once and
+  shares it with both the Actions/Calendar station slot (`prepared`) and the
+  dashboard feed; the feed maps each `UnifiedActionItem` to the existing
+  `StrictItem` shape, so only the pool's source changed. Skipped while the scan
+  is paused (performance mode), where the feed falls back to committed tasks.
+- Retired the coarse `buildDashboardSignals` heuristic and the dashboard's
+  private `priorityRank`/`overdueRank` copies. Pinned by
+  `scripts/smoke-command-priority-convergence.test.ts`. Full `smoke:all` green
+  (6,742 pass / 0 fail / 3 skipped; Website Editor gate 49/49). Regenerated
+  `docs/reference`. Static + focused-test evidence — browser acceptance still
+  recommended before merge.
 
 ## 2026-09-03 — Supabase migrations APPLIED to live and verified
 
