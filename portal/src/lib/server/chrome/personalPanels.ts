@@ -22,6 +22,7 @@ import { applyPersonalChrome, type NavPanel } from "@/lib/chrome/sidebarLayout";
 import { getUserChromeLayout } from "@/lib/server/chrome/userChromeLayout";
 import { applyDepartmentLens } from "@/lib/chrome/departmentLens";
 import { revealFocusPanels } from "@/lib/chrome/focusReveal";
+import { focusLockdown } from "@/lib/chrome/focusLockdown";
 import { getActiveDepartmentId } from "@/lib/server/chrome/activeDepartment";
 
 /**
@@ -45,14 +46,19 @@ export async function withPersonalChrome(panels: NavPanel[]): Promise<NavPanel[]
     // sidebar actually paints as that department. No-hat returns `lensed`
     // unchanged, so the owner's sidebar is untouched.
     const focused = revealFocusPanels(lensed, department);
+    // A department hat is a lockdown, not just a narrowing: strip the macro shell
+    // (Command Centre, the Operations hub, Tools) so only the role's own surfaces
+    // — plus My Radar and the Inbox — remain. Owner/Executive pass through
+    // unchanged. Still subtractive: it re-adds only rows already in `panels`.
+    const locked = focusLockdown(panels, focused, department);
 
     const layout = getUserChromeLayout(session.agencyId, session.userId);
     // Nothing arranged and nothing saved: return the very same array, so a
     // person who has never touched this gets today's behaviour exactly.
     if (!layout.panelOrder.length && !Object.keys(layout.itemOrder).length && !layout.savedTabs.length) {
-      return focused;
+      return locked;
     }
-    return applyPersonalChrome(focused, {
+    return applyPersonalChrome(locked, {
       panelOrder: layout.panelOrder,
       itemOrder: layout.itemOrder,
       savedTabs: layout.savedTabs.map(tab => ({

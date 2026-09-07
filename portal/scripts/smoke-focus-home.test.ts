@@ -121,10 +121,13 @@ describe("the switcher drives the landing (a hard nav, not a fragile redirect)",
     assert.match(topbar, /focusHomeEnabled=\{isFocusHomeEnabled\(\)\}/);
   });
 
-  it("page.tsx does NOT redirect /portal/agency for a hat — it would flash and trap", () => {
-    // A direct visit to /portal/agency under a hat renders the Command Centre
-    // (narrowed), never a bounce. The landing is the switcher's job.
-    assert.doesNotMatch(page, /focusHomeHref\(/, "the page must not perform the focus-home redirect");
+  it("page.tsx RENDERS a focused stub for a hat — never a redirect (it would flash)", () => {
+    // A direct visit to /portal/agency under a hat renders the focused stub, not
+    // the Command Centre and not a bounce. The landing into the real workspace is
+    // the switcher's job; the page only ever renders here.
+    assert.match(page, /return <FocusedStub /, "the page renders the focused stub under a hat");
+    const branch = page.slice(page.indexOf("if (!resolvedSearchParams?.station && isFocusHomeEnabled())"), page.indexOf("return <FocusedStub") + 120);
+    assert.doesNotMatch(branch, /redirect\(/, "the focus branch must render, never redirect");
   });
 });
 

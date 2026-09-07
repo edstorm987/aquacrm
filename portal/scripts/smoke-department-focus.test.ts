@@ -100,8 +100,8 @@ test("the lens it builds on stays remove-only (items are a subset of input)", ()
 
 test("the reveal runs on the one choke point, after the lens", () => {
   const personal = readFileSync("src/lib/server/chrome/personalPanels.ts", "utf8");
-  assert.match(personal, /const lensed = applyDepartmentLens\(panels, department\);[\s\S]*const focused = revealFocusPanels\(lensed, department\);/, "reveal must run after the lens in withPersonalChrome");
-  assert.match(personal, /return applyPersonalChrome\(focused,/, "the personal arrangement applies to the focused panels");
+  assert.match(personal, /const lensed = applyDepartmentLens\(panels, department\);[\s\S]*const focused = revealFocusPanels\(lensed, department\);[\s\S]*const locked = focusLockdown\(panels, focused, department\);/, "reveal then lockdown must run after the lens in withPersonalChrome");
+  assert.match(personal, /return applyPersonalChrome\(locked,/, "the personal arrangement applies to the locked-down panels");
 });
 
 test("Executive is the one focus with a landing station today", () => {
