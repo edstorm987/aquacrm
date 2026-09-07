@@ -1,62 +1,77 @@
-// The focused landing a department hat lands on.
+// Where a "Working as <department>" hat lands.
 //
 // Ed: switching the hat "shows the same for any working as, which is weird… if i
 // choose to work as executive i get a full executive mode… same for sales it
-// shows the sales stuff". Phase 1 narrowed the sidebar; this is the landing.
-// Executive lands on its Command Centre station; every OTHER department lands on
-// its own focus home. These pins hold that invariant — no hat lands on the
-// generic macro dashboard — AND the safety model (presentation only, never a
-// redirect, reversible from the environment).
+// shows the sales stuff… the department things all custom ui so the owner can
+// truly lock in". Phase 1 narrowed the sidebar; this is the LANDING. Ed's choice
+// was to EMBED THE FULL WORKSPACE for each hat: a hat lands you directly in that
+// department's real workspace. Executive lands on its Command Centre station
+// (already the full deck in place); the other five redirect to their real route.
+//
+// These pins hold that invariant (every hat lands on its own real workspace, so
+// no hat can regress to the identical macro dashboard) AND the safety model
+// (redirect only, no ?station override, reversible from the environment).
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import {
-  FOCUS_HOME_CONFIG,
-  focusHomeConfig,
+  DEPARTMENT_WORKSPACE_HREF,
+  focusHomeHref,
   focusHomeDepartment,
   isFocusHomeEnabled,
 } from "../src/lib/access/focusHome";
 import { DEPARTMENT_PROFILES } from "../src/lib/access/departmentProfiles";
 import { focusLandingStation } from "../src/app/portal/agency/commandStationRouting";
 
-describe("every hat lands somewhere distinct — never the generic dashboard", () => {
-  it("every department has a focus home — nobody falls through to the shared dashboard", () => {
+describe("every hat lands on its own real workspace — never the generic dashboard", () => {
+  it("each department lands somewhere of its own — a workspace route or a station", () => {
     // The exact regression Ed hit: put on any hat and the landing was identical.
-    // Now every department lands on its own focused home.
+    // Now Executive → its station, everyone else → their real workspace route.
     for (const profile of DEPARTMENT_PROFILES) {
-      assert.ok(focusHomeConfig(profile.id), `${profile.id} has no focus home to land on`);
+      const href = focusHomeHref(profile.id);
+      const station = focusLandingStation(profile.id);
+      assert.ok(href || station, `${profile.id} lands nowhere of its own`);
+      assert.ok(!(href && station), `${profile.id} must not claim both a workspace and a station`);
     }
   });
 
-  it("Executive opens on a simplified home, with its full deck as the flag-off fallback", () => {
-    // Ed wanted Executive "better and simplified", not the dense naval HUD as the
-    // cold-open. So the default landing is a focus home whose first card is the
-    // full Executive Command Deck; the deck itself is preserved at ?station=
-    // executive, and `focusLandingStation` keeps it as the fallback when the
-    // focus-home flag is off.
-    const home = focusHomeConfig("executive");
-    assert.ok(home, "Executive has a focus home by default");
-    assert.equal(focusHomeDepartment("executive"), "executive");
-    assert.equal(focusLandingStation("executive"), "executive", "the full deck stays the flag-off fallback");
-    assert.ok(home!.destinations.some(d => d.href === "/portal/agency?station=executive"),
-      "the executive home links straight to the full command deck");
-  });
-
-  it("the five non-Executive departments each have a focus home and no station", () => {
-    for (const id of ["sales", "delivery", "finance", "marketing", "support"] as const) {
-      assert.ok(focusHomeConfig(id), `${id} must have a focus home`);
-      assert.equal(focusLandingStation(id), null, `${id} has no Command Centre station`);
+  it("the five non-Executive departments each embed a distinct real workspace", () => {
+    const expected: Record<string, string> = {
+      sales: "/portal/agency/pipelines/leads",
+      delivery: "/portal/agency/fulfilment",
+      finance: "/portal/agency/agency-finance",
+      marketing: "/portal/agency/marketing",
+      support: "/portal/agency/inbox",
+    };
+    for (const [id, href] of Object.entries(expected)) {
+      assert.equal(focusHomeHref(id), href, `${id} must land in ${href}`);
       assert.equal(focusHomeDepartment(id), id);
+      assert.equal(focusLandingStation(id), null, `${id} embeds a workspace, not a Command Centre station`);
     }
+    // Distinct: no two hats land on the same workspace, or they'd feel identical.
+    const targets = Object.values(DEPARTMENT_WORKSPACE_HREF);
+    assert.equal(new Set(targets).size, targets.length, "each department must embed a different workspace");
   });
 
-  it("no hat, an unknown hat, and a path-traversal value all resolve to no focus home", () => {
-    assert.equal(focusHomeConfig(undefined), null);
-    assert.equal(focusHomeConfig("not-a-department"), null);
-    assert.equal(focusHomeConfig("../../etc/passwd"), null);
+  it("Executive lands on its station, not a redirect", () => {
+    assert.equal(focusLandingStation("executive"), "executive");
+    assert.equal(focusHomeHref("executive"), null, "Executive keeps its in-place deck station");
+    assert.equal(focusHomeDepartment("executive"), null);
+  });
+
+  it("no hat, an unknown hat, and a path-traversal value all resolve to no landing", () => {
+    assert.equal(focusHomeHref(undefined), null);
+    assert.equal(focusHomeHref("not-a-department"), null);
+    assert.equal(focusHomeHref("../../etc/passwd"), null);
     assert.equal(focusHomeDepartment(undefined), null);
+  });
+
+  it("every landing target is a gated portal route (presentation, not permission)", () => {
+    for (const [id, href] of Object.entries(DEPARTMENT_WORKSPACE_HREF)) {
+      assert.match(href!, /^\/portal\/agency\//, `${id} must land on an agency route`);
+    }
   });
 });
 
@@ -88,52 +103,28 @@ describe("the flag is on by default and reversible from the environment", () => 
   });
 });
 
-describe("a focus home is presentation, never permission", () => {
-  it("every stat and destination points at a gated portal surface", () => {
-    for (const [id, config] of Object.entries(FOCUS_HOME_CONFIG)) {
-      assert.ok(config, `${id} has no config`);
-      assert.ok(config!.destinations.length > 0, `${id} must offer somewhere to go`);
-      for (const destination of config!.destinations) {
-        assert.match(destination.href, /^\/portal\//, `${id} destination "${destination.label}" must be a portal path`);
-      }
-      for (const stat of config!.stats) {
-        if (stat.href) assert.match(stat.href, /^\/portal\//, `${id} stat "${stat.label}" must link to a portal path`);
-      }
-    }
-  });
-
-  it("Sales carries the meetings feed, a Meetings surface and a scouting-only link", () => {
-    const sales = focusHomeConfig("sales")!;
-    assert.equal(sales.showMeetingsFeed, true, "Sales shows the booked-meetings feed");
-    assert.ok(sales.destinations.some(d => d.href === "/portal/agency/meetings"), "a link to the standalone Meetings surface");
-    assert.ok(sales.destinations.some(d => d.href.includes("#scouting")), "a scouting-only link (Ed: 'a link for scouting only')");
-  });
-});
-
-describe("the landing swap is an initial default, wired at the one page", () => {
+describe("the switcher drives the landing (a hard nav, not a fragile redirect)", () => {
+  const switcher = readFileSync("src/components/chrome/DepartmentSwitcher.tsx", "utf8");
   const page = readFileSync("src/app/portal/agency/page.tsx", "utf8");
 
-  it("replaces the Command Centre only with no ?station and only when enabled", () => {
-    assert.match(page, /const focusHome = !resolvedSearchParams\?\.station && isFocusHomeEnabled\(\)/);
-    assert.match(page, /focusHomeConfig\(activeDepartmentId\)/);
-    assert.match(page, /if \(focusHome\) \{[\s\S]*?return renderFocusHome\(/, "the focus home returns in place of the dashboard");
+  it("hard-navigates to the hat's workspace, falling back to /portal/agency", () => {
+    // The streamed agency layout flushes its shell before the page renders, so a
+    // redirect() at /portal/agency would degrade to a flashing client bounce. The
+    // switcher hard-navigates to the workspace instead — clean, no flash.
+    assert.match(switcher, /const landing = \(focusHomeEnabled && focusHomeHref\(id\)\) \|\| "\/portal\/agency";/);
+    assert.match(switcher, /window\.location\.assign\(landing\)/);
+    assert.doesNotMatch(switcher, /router\.refresh\(\)/, "the soft refresh no longer moves the landing");
   });
 
-  it("never redirects for the focus home — it returns a render, so nav is never trapped", () => {
-    // A redirect from /portal/agency would bounce every 'Command Centre' click
-    // straight back, trapping the operator in the hat. The focus home must be a
-    // returned render, reached only when the URL has no ?station.
-    const branch = page.slice(page.indexOf("const focusHome ="), page.indexOf("renderFocusHome({") + 200);
-    assert.doesNotMatch(branch, /redirect\(/, "the focus-home branch must not redirect");
+  it("the flag reaches the switcher from the server via the top bar", () => {
+    const topbar = readFileSync("src/components/chrome/Topbar.tsx", "utf8");
+    assert.match(topbar, /focusHomeEnabled=\{isFocusHomeEnabled\(\)\}/);
   });
 
-  it("the focus home does not build the heavy radar/intelligence graph", () => {
-    // renderFocusHome loads only light counts; the heavy builders live after the
-    // early return, so a hat never pays for the macro dashboard it isn't showing.
-    const renderStart = page.indexOf("async function renderFocusHome(");
-    const renderEnd = page.indexOf("function buildDashboardSignals(");
-    const body = page.slice(renderStart, renderEnd);
-    assert.doesNotMatch(body, /getCachedBusinessIssueRadar|buildCommandIntelligenceSnapshot/, "the focus home must not run the heavy Command Centre graph");
+  it("page.tsx does NOT redirect /portal/agency for a hat — it would flash and trap", () => {
+    // A direct visit to /portal/agency under a hat renders the Command Centre
+    // (narrowed), never a bounce. The landing is the switcher's job.
+    assert.doesNotMatch(page, /focusHomeHref\(/, "the page must not perform the focus-home redirect");
   });
 });
 

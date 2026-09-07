@@ -13,7 +13,7 @@
 // `applyDepartmentLens` is an intersection with panels that were already
 // assembled and role-filtered, so this control cannot hand anybody a row they
 // were not already entitled to — which is why it is allowed to be a cookie and
-// a client-side reload rather than a server round-trip through the access
+// a client-side navigation rather than a server round-trip through the access
 // authority.
 //
 // The label says "Working as" rather than "View as" on purpose. Viewing is
@@ -25,6 +25,7 @@ import { useCallback, useRef, useState, useTransition } from "react";
 import { ChevronDown, Check, LoaderCircle } from "lucide-react";
 
 import { DEPARTMENT_PROFILES } from "@/lib/access/departmentProfiles";
+import { focusHomeHref } from "@/lib/access/focusHome";
 import { useMenuKeys } from "@/lib/a11y/useMenuKeys";
 
 // The cookie is written by the SERVER, not here.
@@ -34,7 +35,7 @@ import { useMenuKeys } from "@/lib/a11y/useMenuKeys";
 // `switchDashboardWorkDepartment`. One POST now does both, so a future change
 // cannot do one without the other. See `api/portal/chrome/department`.
 
-export function DepartmentSwitcher({ active }: { active?: string }) {
+export function DepartmentSwitcher({ active, focusHomeEnabled = true }: { active?: string; focusHomeEnabled?: boolean }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -62,15 +63,18 @@ export function DepartmentSwitcher({ active }: { active?: string }) {
       setNote("Could not switch.");
       return;
     }
-    // A hard reload of the current page, not a soft refresh. Two things move
-    // when the hat changes and both are rebuilt server-side: the sidebar (the
-    // cookie re-lenses the panels) AND the LANDING — a focus's home (Executive →
-    // the executive workspace) is chosen on the server, but the Command Centre
-    // holds its active station in client state that a soft refresh would
-    // preserve, leaving the sidebar narrowed while the landing sat unchanged.
-    // Reloading rebuilds both, and staying on the current URL means switching a
-    // hat elsewhere in the app just re-lenses in place rather than yanking you home.
-    startTransition(() => window.location.reload());
+    // Land where the hat lives. Putting on a department hat hard-navigates
+    // straight into that department's full workspace (Sales → the leads board,
+    // Delivery → Fulfilment, …); Executive and Owner go to /portal/agency (the
+    // executive deck, or the Command Centre). A HARD navigation, not a soft
+    // refresh: it rebuilds the server-lensed sidebar AND lands the workspace,
+    // and it avoids a redirect at /portal/agency, which this streamed layout
+    // would only be able to serve as a flashing client-side bounce. The flag can
+    // turn the landing off from the environment (`PORTAL_ROLE_FOCUS_HOME=off`),
+    // in which case every hat just re-lenses in place at /portal/agency. See
+    // `focusHome.ts`.
+    const landing = (focusHomeEnabled && focusHomeHref(id)) || "/portal/agency";
+    startTransition(() => window.location.assign(landing));
   }, []);
 
   const wrapRef = useRef<HTMLDivElement | null>(null);

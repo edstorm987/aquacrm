@@ -41,10 +41,6 @@ import type { BattleTablePayload } from "./_BattleTableWorkspace";
 import { devTeamAccessible } from "@/lib/server/dev/devTeamAccess";
 import { focusLandingStation, resolveServerCommandStation } from "./commandStationRouting";
 import { getActiveDepartmentId } from "@/lib/server/chrome/activeDepartment";
-import { focusHomeConfig, isFocusHomeEnabled, type FocusHomeConfig } from "@/lib/access/focusHome";
-import { FocusHome } from "./_FocusHome";
-import { loadUpcomingMeetings } from "@/lib/server/agency/meetingsFeed";
-import { scoutingQuotaProgress } from "@/lib/server/intelligence/scoutingQuota";
 import { PortalViewportLoading } from "@/components/ui/PortalViewportLoading";
 import {
   assistantBusinessContextForActor,
@@ -140,32 +136,17 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
   let requestedServerStation = resolveServerCommandStation(resolvedSearchParams?.station, devTeamVisible);
   if (!requestedServerStation && focusLanding) requestedServerStation = focusLanding;
 
-  // Landing follows the hat, part two. The non-Executive departments have no
-  // Command Centre station, so a hat lands on its own focused home instead of
-  // the full macro dashboard (Executive keeps its station, resolved above). Only
-  // when no ?station= is in the URL, and only when the flag is on — so in-app
-  // navigation and taking the hat off both leave it, and the whole swap is
-  // reversible from the deploy environment. The focus home never loads the heavy
-  // radar/intelligence graph below it. See `focusHome.ts`.
-  const focusHome = !resolvedSearchParams?.station && isFocusHomeEnabled()
-    ? focusHomeConfig(activeDepartmentId)
-    : null;
-  if (focusHome) {
-    return renderFocusHome({
-      config: focusHome,
-      agencyId: agency.id,
-      session,
-      actor,
-      availability: {
-        clientsAvailable,
-        actionsAvailable,
-        leadsAvailable,
-        fulfilmentAvailable,
-        productsAvailable,
-        publicShowcase: Boolean(session.publicShowcase),
-      },
-    });
-  }
+  // Landing follows the hat, part two. Ed's choice was to EMBED THE FULL
+  // WORKSPACE for each non-Executive hat, so choosing a hat takes you straight
+  // into that department's real workspace (Sales → the leads board, Delivery →
+  // Fulfilment, and so on). That navigation is driven by the "Working as"
+  // switcher, not a redirect here: this layout streams its shell before the page
+  // renders, so a `redirect()` at /portal/agency would fire after the first byte
+  // and degrade to a flashing client-side redirect. The switcher hard-navigates
+  // to the workspace instead — clean, and reversible from the environment via the
+  // same flag. Executive keeps its Command Centre station (resolved above); a
+  // direct visit to /portal/agency under any hat still renders the Command Centre
+  // (narrowed to the hat), so nobody is ever trapped. See `focusHome.ts`.
   // Performance mode (server-read cookie): keep the two heaviest *repeated*
   // costs off the landing critical path. The operational-alerts sweep (a live
   // Supabase fetch) is skipped, and the dev-team board disk scan that feeds the
@@ -537,75 +518,6 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
         devTeamWorkspace={devTeamWorkspace}
       />
     </div>
-  );
-}
-
-// The focused landing for a non-Executive hat. Loads only the light numbers the
-// department home shows — it never triggers the heavy radar/intelligence graph
-// the full Command Centre builds — and links out to surfaces gated at their own
-// routes, so this render grants nothing. See `_FocusHome.tsx` / `focusHome.ts`.
-async function renderFocusHome({
-  config,
-  agencyId,
-  session,
-  actor,
-  availability,
-}: {
-  config: FocusHomeConfig;
-  agencyId: string;
-  session: Awaited<ReturnType<typeof requireRole>>;
-  actor: Awaited<ReturnType<typeof requireCurrentAccessActor>>;
-  availability: {
-    clientsAvailable: boolean;
-    actionsAvailable: boolean;
-    leadsAvailable: boolean;
-    fulfilmentAvailable: boolean;
-    productsAvailable: boolean;
-    publicShowcase: boolean;
-  };
-}): Promise<ReactNode> {
-  const canReadClient = (clientId?: string) => session.role === "agency-owner"
-    || canReadClientAssociation(actor, "agency-task", clientId);
-  const clients = availability.clientsAvailable
-    ? listClients(agencyId).filter(client => canReadClient(client.id))
-    : [];
-  const activeClients = clients.filter(client => client.stage !== "churned").length;
-  const openActions = availability.actionsAvailable
-    ? listAgencyTasks(agencyId).filter(task => canReadClient(task.clientId) && task.status !== "done").length
-    : 0;
-
-  const pipelines = listPipelines(agencyId);
-  const counts = pipelineCardCounts(agencyId);
-  const leadsPipeline = pipelines.find(pipeline => pipeline.kind === "leads" || pipeline.slug === "leads");
-  const leads = availability.leadsAvailable && leadsPipeline ? counts[leadsPipeline.id] ?? 0 : 0;
-  const fulfilmentPipeline = pipelines.find(pipeline => pipeline.kind === "fulfilment" || pipeline.slug === "fulfilment");
-  const delivery = availability.fulfilmentAvailable && fulfilmentPipeline ? counts[fulfilmentPipeline.id] ?? 0 : 0;
-
-  if (availability.productsAvailable && !availability.publicShowcase) agencyProductsForRead(agencyId);
-  const products = availability.productsAvailable ? listAgencyProducts(agencyId).length : 0;
-
-  let meetings: Awaited<ReturnType<typeof loadUpcomingMeetings>> | undefined;
-  let scouting: { done: number; target: number } | null = null;
-  if (config.showMeetingsFeed && availability.leadsAvailable) {
-    meetings = await loadUpcomingMeetings(agencyId);
-    const quota = scoutingQuotaProgress(agencyId, session.userId);
-    const target = quota.quotas.reduce((sum, entry) => sum + entry.target, 0);
-    const done = quota.quotas.reduce((sum, entry) => sum + entry.current, 0);
-    scouting = target > 0 ? { done, target } : null;
-  }
-
-  const account = getUser(session.email);
-  const firstName = account?.name?.trim().split(/\s+/)[0] ?? (session.email.split("@")[0] || "there").replace(/[^a-z]/gi, "");
-  const greet = firstName ? firstName[0]!.toUpperCase() + firstName.slice(1) : "there";
-
-  return (
-    <FocusHome
-      config={config}
-      greet={greet}
-      stats={{ leads, meetings: meetings?.length ?? 0, delivery, activeClients, products, openActions }}
-      meetings={meetings}
-      scouting={scouting}
-    />
   );
 }
 

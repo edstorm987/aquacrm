@@ -88,17 +88,22 @@ revisit lifecycle as [issue #142](../development/issues.md).
 **Role focus modes — "Working as <department>"**
 - The `DepartmentSwitcher` puts a department hat on. Phase 1 narrows the sidebar
   (`lib/chrome/departmentLens.ts` remove-only lens + `lib/chrome/focusReveal.ts`
-  un-hiding the search-only "ops" panel). Phase 3 decides the LANDING: Executive
-  lands on its own Command Centre station (`commandStationRouting.ts`
-  `focusLandingStation`); the five other departments land on a focused home.
-- `_FocusHome.tsx` — the focused landing (a header, the seat's two or three
-  numbers, big link-cards to where its work lives, and — Sales only — the
-  booked-meetings feed + a scouting nudge). Data-driven by
-  `lib/access/focusHome.ts` (per-department config + `isFocusHomeEnabled()`, the
-  `PORTAL_ROLE_FOCUS_HOME` off-switch). `page.tsx` returns it in place of the
-  Command Centre when a focus-home hat is on and the URL has no `?station=` — an
-  initial default, never a redirect, so nav is never trapped; it never builds the
-  heavy radar/intelligence graph. Pinned by `scripts/smoke-focus-home.test.ts`.
+  un-hiding the search-only "ops" panel). The LANDING then **embeds the full
+  workspace** for the hat (Ed's choice over a launcher): choosing a hat
+  hard-navigates straight into that department's real workspace —
+  `lib/access/focusHome.ts` `focusHomeHref` maps Sales → `/pipelines/leads`,
+  Delivery → `/fulfilment`, Finance → `/agency-finance`, Marketing → `/marketing`,
+  Support → `/inbox`. Executive is the exception: it lands on its own Command
+  Centre deck station (`commandStationRouting.ts` `focusLandingStation`).
+- **Why the switcher navigates, not a `page.tsx` redirect.** The agency layout
+  streams its shell before the page renders, so a `redirect()` at `/portal/agency`
+  fires after the first byte and degrades to a flashing client-side bounce. So
+  `DepartmentSwitcher` does `window.location.assign(focusHomeHref(id) ?? "/portal/agency")`
+  — a clean hard nav to a real route, zero duplication of the heavy workspaces. The
+  flag reaches it from the server (`Topbar` → `isFocusHomeEnabled()`, the
+  `PORTAL_ROLE_FOCUS_HOME` off-switch); off = re-lens in place, no landing swap.
+  A direct visit to `/portal/agency` under a hat still renders the Command Centre
+  (narrowed), so nobody is trapped. Pinned by `scripts/smoke-focus-home.test.ts`.
 - `meetings/page.tsx` — the standalone **Meetings** surface (Ed's Sales ask),
   reusing the `leads-pipeline/_UpcomingMeetings` card from one server derivation,
   `lib/server/agency/meetingsFeed.ts` `loadUpcomingMeetings` (identical to the

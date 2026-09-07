@@ -3626,7 +3626,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ### `scripts/smoke-focus-home.test.ts`
 
-**What it is:** redirect, reversible from the environment).
+**What it is:** (redirect only, no ?station override, reversible from the environment).
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 

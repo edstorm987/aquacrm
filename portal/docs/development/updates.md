@@ -34,6 +34,48 @@ map stays trustworthy.
 
 ---
 
+## 2026-09-07 — Role focus modes: a hat now embeds the department's FULL workspace
+
+- Ed, on the focus-home launcher: *"make all custom views for the roles… full
+  custom when owner goes for sales… the department things all custom ui so the
+  owner can truly lock in and get what needs to happen done."* He chose **embed
+  the full workspace** over a launcher of link-cards. So a "Working as
+  <department>" hat now lands you **directly in that department's real,
+  purpose-built workspace**, not a summary page:
+  - Sales → the leads/scouting/meetings board (`/portal/agency/pipelines/leads`)
+  - Delivery → Fulfilment (`/portal/agency/fulfilment`)
+  - Finance → the finance workspace (`/portal/agency/agency-finance`)
+  - Marketing → Marketing (`/portal/agency/marketing`)
+  - Support → the master inbox (`/portal/agency/inbox`)
+  - Executive → unchanged: its own Command Centre deck station (already the full
+    executive workspace in place).
+- **Why the switcher navigates, not a server redirect.** These five workspaces are
+  heavy, tightly-coupled routes whose data-prep lives in their own page, not a
+  reusable component — re-rendering them inside a wrapper would duplicate hundreds
+  of lines per route (the one thing this repo forbids). And a `redirect()` at
+  `/portal/agency` degrades badly here: the agency layout streams its shell before
+  the page renders, so the redirect fires after the first byte and becomes a
+  flashing client-side bounce (200 + `NEXT_REDIRECT` in the body — confirmed).
+  So the **"Working as" switcher hard-navigates straight to the hat's workspace**
+  (`DepartmentSwitcher` → `window.location.assign(focusHomeHref(id) ?? "/portal/agency")`),
+  a clean nav to a real route. Executive/Owner go to `/portal/agency` (the exec
+  deck / the Command Centre). Zero duplication; the whole workspace, reused verbatim.
+- **Not a trap.** The sidebar is already narrowed to the department (phase 1), the
+  top bar still shows "Working as <department>" with the one-click way back to
+  Owner, and a direct visit to `/portal/agency` under any hat still renders the
+  Command Centre (narrowed) — so nobody is ever stuck. The flag reaches the
+  switcher from the server (`Topbar` → `isFocusHomeEnabled()`); set
+  `PORTAL_ROLE_FOCUS_HOME=off` and every hat just re-lenses in place at
+  `/portal/agency`, no landing swap — reversible from the environment, no redeploy.
+- Removed the interim `_FocusHome` launcher + `renderFocusHome` (superseded by the
+  embed). Kept the standalone Meetings surface (`/portal/agency/meetings`) and its
+  shared feed. `focusHome.ts` is now the department→workspace map + the flag.
+- Static + focused-test green (`smoke-focus-home` rewritten for the redirect map;
+  `smoke-department-switcher` navigation pin updated; portal-destinations +
+  read-path-mutations still green — the redirect is not a render-path write);
+  typecheck clean; full `smoke:all` + browser acceptance at commit time. Docs:
+  symbol reference regenerated; this entry; `docs/workspace/portal-ui.md`.
+
 ## 2026-09-07 — Role focus modes, phase 3: each hat lands on its own focused home
 
 - Phase 1 narrowed the sidebar under a hat; this decides the LANDING, closing the

@@ -128,22 +128,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ### `src/lib/access/focusHome.ts`
 
-**What it is:** taking the hat off both move off it freely. Nobody is trapped in a hat.
+**What it is:** route already gated by its own access checks.
 
-**Exports (8):**
+**Exports (4):**
 
-- `focusHomeConfig(departmentId: string | undefined): FocusHomeConfig | null` — The focus-home config for a hat, or `null` when the hat has no focus home (no hat at all, an unknown value, or Executive — which lands on its station).
-- `focusHomeDepartment(departmentId: string | undefined): DepartmentId | null` — The department id when it has a focus home, else `null`.
-- `isFocusHomeEnabled(): boolean` — Whether the landing-replacement is on. Default ON; it exists so the swap can be turned off from the deploy's environment (Railway) without a code redeploy if a department home eve…
-- `FOCUS_HOME_CONFIG: Readonly<Partial<Record<DepartmentId, FocusHomeConfig>>>` — home here, so the switcher never lands a hat on the generic macro dashboard.
-- `type FocusStatKey = | "leads" | "meetings" | "delivery" | "activeClients" | "products" | "openActions"` — A number worth putting on the department's home, by the key the page fills.
-- `interface FocusStat (3 members)`
-- `interface FocusDestination (4 members)`
-- `interface FocusHomeConfig (6 members)`
+- `focusHomeHref(departmentId: string | undefined): string | null` — The workspace route a hat should land in, or `null` when the hat has none (no hat, an unknown value, or Executive — which lands on its station).
+- `focusHomeDepartment(departmentId: string | undefined): DepartmentId | null` — The department id when it has a workspace landing, else `null`.
+- `isFocusHomeEnabled(): boolean` — Whether the landing-follows-the-hat behaviour is on. Default ON; it exists so the swap can be turned off from the deploy's environment (Railway) without a code redeploy if it ever…
+- `DEPARTMENT_WORKSPACE_HREF: Readonly<Partial<Record<DepartmentId, string>>>` — The real workspace route each hat lands in. Executive is absent — it lands on its Command Centre station instead (`focusLandingStation`).
 
 **Depends on (1):** [`src/lib/access/departmentProfiles.ts`](#file-src-lib-access-departmentprofiles-ts-343cc6ceea)
 
-**Used by (3):** [`scripts/smoke-focus-home.test.ts`](scripts.md#file-scripts-smoke-focus-home-test-ts-248f6a2b0c) · [`src/app/portal/agency/_FocusHome.tsx`](app.md#file-src-app-portal-agency-focushome-tsx-8c50d650e9) · [`src/app/portal/agency/page.tsx`](app.md#file-src-app-portal-agency-page-tsx-35a1d5c98a)
+**Used by (3):** [`scripts/smoke-focus-home.test.ts`](scripts.md#file-scripts-smoke-focus-home-test-ts-248f6a2b0c) · [`src/components/chrome/DepartmentSwitcher.tsx`](components.md#file-src-components-chrome-departmentswitcher-tsx-b003716fea) · [`src/components/chrome/Topbar.tsx`](components.md#file-src-components-chrome-topbar-tsx-9a91269432)
 
 <a id="file-src-lib-access-navelementkeys-ts-bebe1ec3e3"></a>
 
@@ -3250,11 +3246,11 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
-- `async loadUpcomingMeetings(agencyId: string, actorId: string): Promise<UpcomingMeeting[]>` — Every journey lead with a booked meeting, mapped to the shape the shared `UpcomingMeetings` card renders, sorted soonest first. Returns `[]` — never throws — when the leads module…
+- `async loadUpcomingMeetings(agencyId: string): Promise<UpcomingMeeting[]>` — Every journey lead with a booked meeting, mapped to the shape the shared `UpcomingMeetings` card renders, sorted soonest first. Returns `[]` — never throws, and never writes — whe…
 
-**Depends on (6):** [`src/app/portal/agency/leads-pipeline/_UpcomingMeetings.tsx`](app.md#file-src-app-portal-agency-leads-pipeline-upcomingmeetings-tsx-18fcadc035) · [`src/built-ins/runtime/_runtime.ts`](built-ins.md#file-src-built-ins-runtime-runtime-ts-d2a0efb5ed) · [`src/lib/enquiries/enquiryClassification.ts`](#file-src-lib-enquiries-enquiryclassification-ts-e9934c6609) · [`src/lib/server/pluginStorage.ts`](#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/shared/formatDateTime.ts`](#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40)
+**Depends on (5):** [`src/app/portal/agency/leads-pipeline/_UpcomingMeetings.tsx`](app.md#file-src-app-portal-agency-leads-pipeline-upcomingmeetings-tsx-18fcadc035) · [`src/lib/enquiries/enquiryClassification.ts`](#file-src-lib-enquiries-enquiryclassification-ts-e9934c6609) · [`src/lib/server/pluginStorage.ts`](#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/shared/formatDateTime.ts`](#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40)
 
-**Used by (2):** [`src/app/portal/agency/meetings/page.tsx`](app.md#file-src-app-portal-agency-meetings-page-tsx-f498aebb68) · [`src/app/portal/agency/page.tsx`](app.md#file-src-app-portal-agency-page-tsx-35a1d5c98a)
+**Used by (1):** [`src/app/portal/agency/meetings/page.tsx`](app.md#file-src-app-portal-agency-meetings-page-tsx-f498aebb68)
 
 
 ## `src/lib/server/`
@@ -6006,7 +6002,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (4):** [`src/lib/shared/formatDateTime.ts`](#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/commandCalendar.ts`](server.md#file-src-server-commandcalendar-ts-70cef8d658) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by (3):** [`src/app/portal/agency/page.tsx`](app.md#file-src-app-portal-agency-page-tsx-35a1d5c98a) · [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspaceServer.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspaceserver-tsx-90294b0e08) · [`src/app/portal/agency/pipelines/[slug]/page.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-page-tsx-6d47eb0c95)
+**Used by (2):** [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspaceServer.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspaceserver-tsx-90294b0e08) · [`src/app/portal/agency/pipelines/[slug]/page.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-page-tsx-6d47eb0c95)
 
 
 ## `src/lib/server/`

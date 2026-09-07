@@ -81,11 +81,14 @@ describe("the server side of the cookie", () => {
 describe("the switcher control", () => {
   const source = readFileSync("src/components/chrome/DepartmentSwitcher.tsx", "utf8");
 
-  it("hard-reloads, because both the sidebar and the landing are built on the server", () => {
-    // A soft refresh would re-lens the sidebar but leave the Command Centre's
-    // client-held active station in place, so the focus's landing (Executive →
-    // the executive workspace) would not move. A reload rebuilds both.
-    assert.match(source, /window\.location\.reload\(\)/);
+  it("hard-navigates to the hat's landing, so the landing follows the hat", () => {
+    // Putting a hat on lands you in that department's full workspace; Executive
+    // and Owner land on /portal/agency. A hard navigation rebuilds the
+    // server-lensed sidebar and lands the workspace; a soft refresh would leave
+    // the Command Centre's client-held station in place, so the landing wouldn't
+    // move. The landing is the switcher's job, not a fragile redirect.
+    assert.match(source, /window\.location\.assign\(landing\)/);
+    assert.match(source, /focusHomeHref\(id\)/);
     assert.doesNotMatch(source, /router\.refresh\(\)/, "the soft refresh no longer moves the landing");
   });
 

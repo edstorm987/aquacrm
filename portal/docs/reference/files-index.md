@@ -2,7 +2,7 @@
 
 ← Back to [the reference index](00-index.md) · [the map](../WORKSPACE-FILE-TREE.md) · [development.md](../development.md)
 
-Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2709 source files; 0 per-source stubs.**
+Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2708 source files; 0 per-source stubs.**
 
 ## Engines — `src/engines/` (89)
 
@@ -180,7 +180,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/a11y/useMenuKeys.ts`](lib.md#file-src-lib-a11y-usemenukeys-ts-403e5f37d6)
 - [`src/lib/a11y/useViewport.ts`](lib.md#file-src-lib-a11y-useviewport-ts-2d7456f7d0)
 - [`src/lib/access/departmentProfiles.ts`](lib.md#file-src-lib-access-departmentprofiles-ts-343cc6ceea) — a macro dashboard averages five departments into one reassuring number.
-- [`src/lib/access/focusHome.ts`](lib.md#file-src-lib-access-focushome-ts-da6ef52919) — taking the hat off both move off it freely. Nobody is trapped in a hat.
+- [`src/lib/access/focusHome.ts`](lib.md#file-src-lib-access-focushome-ts-da6ef52919) — route already gated by its own access checks.
 - [`src/lib/access/navElementKeys.ts`](lib.md#file-src-lib-access-navelementkeys-ts-bebe1ec3e3) — placed yet is not sales. Taking the hat off shows everything again.
 - [`src/lib/advisor/advisorActions.ts`](lib.md#file-src-lib-advisor-advisoractions-ts-5bfe1090c9)
 - [`src/lib/advisor/advisorSkills.ts`](lib.md#file-src-lib-advisor-advisorskills-ts-7aa68b16ab)
@@ -1445,7 +1445,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/built-ins/runtime/foundation-adapters/publicFunnelFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-publicfunnelfoundation-ts-18280e9710)
 - [`src/built-ins/runtime/foundation-adapters/publicMediaAdapter.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-publicmediaadapter-ts-4b47d9ab84)
 
-## App routes & UI — `src/app/` (663)
+## App routes & UI — `src/app/` (662)
 
 - [`src/app/(seeds)/aquaOasisDemoContent.ts`](app.md#file-src-app-seeds-aquaoasisdemocontent-ts-f2e90ac84c) — agency record (so a prod tenant flip doesn't spawn fake data).
 - [`src/app/(website)/business-os/page.tsx`](app.md#file-src-app-website-business-os-page-tsx-0cbb0528df)
@@ -1774,7 +1774,6 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/portal/agency/_DynamicRadarConsole.tsx`](app.md#file-src-app-portal-agency-dynamicradarconsole-tsx-b6d1c7a05a)
 - [`src/app/portal/agency/_ExecutiveCommandWorkspace.tsx`](app.md#file-src-app-portal-agency-executivecommandworkspace-tsx-bac840fa46)
 - [`src/app/portal/agency/_FindingGroupBar.tsx`](app.md#file-src-app-portal-agency-findinggroupbar-tsx-edd191eb45)
-- [`src/app/portal/agency/_FocusHome.tsx`](app.md#file-src-app-portal-agency-focushome-tsx-8c50d650e9) — `focusHome.ts` for why this can be a purely presentational surface.
 - [`src/app/portal/agency/_FounderDashboardKpis.tsx`](app.md#file-src-app-portal-agency-founderdashboardkpis-tsx-0068dbe993)
 - [`src/app/portal/agency/_InfraHealthPanel.tsx`](app.md#file-src-app-portal-agency-infrahealthpanel-tsx-6e3790f895)
 - [`src/app/portal/agency/_NewClientButton.tsx`](app.md#file-src-app-portal-agency-newclientbutton-tsx-933174699b)
@@ -2412,7 +2411,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-finance-section-gates.test.ts`](scripts.md#file-scripts-smoke-finance-section-gates-test-ts-bb835c5a2c) — stops the class reopening when the next plugin is written.
 - [`scripts/smoke-finance-settings-convergence.test.ts`](scripts.md#file-scripts-smoke-finance-settings-convergence-test-ts-e75f6d1e3f)
 - [`scripts/smoke-finance-stripe.test.ts`](scripts.md#file-scripts-smoke-finance-stripe-test-ts-fb2e5939d5) — fake client. Record + surface only; the app never holds funds.
-- [`scripts/smoke-focus-home.test.ts`](scripts.md#file-scripts-smoke-focus-home-test-ts-248f6a2b0c) — redirect, reversible from the environment).
+- [`scripts/smoke-focus-home.test.ts`](scripts.md#file-scripts-smoke-focus-home-test-ts-248f6a2b0c) — (redirect only, no ?station override, reversible from the environment).
 - [`scripts/smoke-form-capture.test.ts`](scripts.md#file-scripts-smoke-form-capture-test-ts-1e6481390f)
 - [`scripts/smoke-founder-seed.test.ts`](scripts.md#file-scripts-smoke-founder-seed-test-ts-6db25a3d0b) — runner wire-up + the deploy-runbook entry.
 - [`scripts/smoke-freelancer-real-journey.test.ts`](scripts.md#file-scripts-smoke-freelancer-real-journey-test-ts-279cd39873)
