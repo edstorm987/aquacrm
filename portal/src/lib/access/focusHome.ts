@@ -4,13 +4,14 @@
 // mode across the app… same for sales it shows the sales stuff… right now it
 // shows the same for any working as which is weird."*
 //
-// Phase 1 narrowed the SIDEBAR under a hat. This decides the LANDING. Executive
-// already has a real workspace (its own Command Centre station), so it is served
-// there — see `focusLandingStation`. The other departments have no station, so
-// each gets a small, focused home instead of the full macro Command Centre: the
-// two or three numbers that matter to that seat, the few places its work lives,
-// and — for Sales — the booked meetings. Simple enough that, in Ed's words, a
-// four-year-old would not get lost.
+// Phase 1 narrowed the SIDEBAR under a hat. This decides the LANDING. Each
+// department gets a small, focused home instead of the full macro Command
+// Centre: the two or three numbers that matter to that seat, the few places its
+// work lives, and — for Sales — the booked meetings. Simple enough that, in Ed's
+// words, a four-year-old would not get lost. Executive's home opens simply and
+// links straight to the full Executive Command Deck (preserved at
+// `?station=executive`); with the focus-home flag off it falls back to landing
+// on that deck directly (`focusLandingStation`).
 //
 // ── This is presentation, never permission ────────────────────────────────
 //
@@ -63,10 +64,29 @@ function purposeOf(id: DepartmentId): string {
   return departmentProfile(id)?.purpose ?? "";
 }
 
-// Executive is deliberately absent: it lands on its own Command Centre station
-// (`focusLandingStation`), not on one of these. Every other department has a
-// home here, so the switcher never lands a hat on the generic macro dashboard.
+// Every department — Executive included — has a home here, so no hat ever lands
+// on the generic macro dashboard. Executive's home is a SIMPLIFIED cold-open (Ed:
+// "make it better and simplified… a 4 year old would get lost"): the numbers that
+// matter plus a card straight to the full Executive Command Deck, which is
+// preserved untouched at `?station=executive`. With the flag off, Executive falls
+// back to landing directly on that deck (`focusLandingStation`).
 export const FOCUS_HOME_CONFIG: Readonly<Partial<Record<DepartmentId, FocusHomeConfig>>> = {
+  executive: {
+    id: "executive",
+    heading: "Executive",
+    purpose: purposeOf("executive"),
+    stats: [
+      { key: "activeClients", label: "Active clients" },
+      { key: "products", label: "Sellable offers", href: "/portal/agency/fulfilment?view=services" },
+      { key: "openActions", label: "Open actions", href: "/portal/agency/actions" },
+    ],
+    destinations: [
+      { label: "Executive command deck", description: "The full business-health instrument panel — radar, brand portfolio, the numbers behind the numbers.", href: "/portal/agency?station=executive", icon: "Gauge" },
+      { label: "Key numbers", description: "Revenue, pipeline and the KPIs that steer the decisions only you make.", href: "/portal/agency?station=intelligence", icon: "BarChart3" },
+      { label: "Plan & targets", description: "Set the targets and see the plan to hit them.", href: "/portal/agency?station=battle", icon: "Target" },
+      { label: "Clients", description: "Every client, and who needs attention.", href: "/portal/clients", icon: "Users" },
+    ],
+  },
   sales: {
     id: "sales",
     heading: "Sales",

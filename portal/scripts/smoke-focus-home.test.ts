@@ -22,22 +22,26 @@ import { DEPARTMENT_PROFILES } from "../src/lib/access/departmentProfiles";
 import { focusLandingStation } from "../src/app/portal/agency/commandStationRouting";
 
 describe("every hat lands somewhere distinct — never the generic dashboard", () => {
-  it("each department has EITHER a landing station or a focus home", () => {
+  it("every department has a focus home — nobody falls through to the shared dashboard", () => {
     // The exact regression Ed hit: put on any hat and the landing was identical.
-    // Now Executive → a station, everyone else → a focus home; nobody falls
-    // through to the shared macro Command Centre.
+    // Now every department lands on its own focused home.
     for (const profile of DEPARTMENT_PROFILES) {
-      const station = focusLandingStation(profile.id);
-      const home = focusHomeConfig(profile.id);
-      assert.ok(station || home, `${profile.id} lands nowhere of its own`);
-      assert.ok(!(station && home), `${profile.id} must not claim both a station and a focus home`);
+      assert.ok(focusHomeConfig(profile.id), `${profile.id} has no focus home to land on`);
     }
   });
 
-  it("Executive lands on its station, not a focus home", () => {
-    assert.equal(focusLandingStation("executive"), "executive");
-    assert.equal(focusHomeConfig("executive"), null, "Executive keeps its dedicated workspace station");
-    assert.equal(focusHomeDepartment("executive"), null);
+  it("Executive opens on a simplified home, with its full deck as the flag-off fallback", () => {
+    // Ed wanted Executive "better and simplified", not the dense naval HUD as the
+    // cold-open. So the default landing is a focus home whose first card is the
+    // full Executive Command Deck; the deck itself is preserved at ?station=
+    // executive, and `focusLandingStation` keeps it as the fallback when the
+    // focus-home flag is off.
+    const home = focusHomeConfig("executive");
+    assert.ok(home, "Executive has a focus home by default");
+    assert.equal(focusHomeDepartment("executive"), "executive");
+    assert.equal(focusLandingStation("executive"), "executive", "the full deck stays the flag-off fallback");
+    assert.ok(home!.destinations.some(d => d.href === "/portal/agency?station=executive"),
+      "the executive home links straight to the full command deck");
   });
 
   it("the five non-Executive departments each have a focus home and no station", () => {

@@ -14,16 +14,16 @@
 
 import Link from "next/link";
 import {
-  Banknote, Binoculars, CalendarClock, Inbox, KanbanSquare, ListChecks,
-  Megaphone, PackageCheck, Send, Target, Users, ArrowUpRight, type LucideIcon,
+  Banknote, BarChart3, Binoculars, CalendarClock, Gauge, Inbox, KanbanSquare,
+  ListChecks, Megaphone, PackageCheck, Send, Target, Users, ArrowUpRight, type LucideIcon,
 } from "lucide-react";
 
 import type { FocusHomeConfig, FocusStatKey } from "@/lib/access/focusHome";
 import { UpcomingMeetings, type UpcomingMeeting } from "@/app/portal/agency/leads-pipeline/_UpcomingMeetings";
 
 const ICONS: Readonly<Record<string, LucideIcon>> = {
-  Banknote, Binoculars, CalendarClock, Inbox, KanbanSquare, ListChecks,
-  Megaphone, PackageCheck, Send, Target, Users,
+  Banknote, BarChart3, Binoculars, CalendarClock, Gauge, Inbox, KanbanSquare,
+  ListChecks, Megaphone, PackageCheck, Send, Target, Users,
 };
 
 export interface FocusHomeProps {
