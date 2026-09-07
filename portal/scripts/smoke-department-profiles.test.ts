@@ -138,7 +138,7 @@ describe("lookup", () => {
   it("covers every department Ed asked for", () => {
     assert.deepEqual(
       DEPARTMENT_PROFILES.map(profile => profile.id).sort(),
-      ["delivery", "finance", "marketing", "sales", "support"],
+      ["delivery", "executive", "finance", "marketing", "sales", "support"],
     );
   });
 });

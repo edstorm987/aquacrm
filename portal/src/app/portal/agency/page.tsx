@@ -39,7 +39,8 @@ import { getCommandCalendarIntegrationSnapshot } from "@/lib/server/integrations
 import { listClientsNeedingAttention } from "@/lib/server/clients/clientAttention";
 import type { BattleTablePayload } from "./_BattleTableWorkspace";
 import { devTeamAccessible } from "@/lib/server/dev/devTeamAccess";
-import { resolveServerCommandStation } from "./commandStationRouting";
+import { focusLandingStation, resolveServerCommandStation } from "./commandStationRouting";
+import { getActiveDepartmentId } from "@/lib/server/chrome/activeDepartment";
 import { PortalViewportLoading } from "@/components/ui/PortalViewportLoading";
 import {
   assistantBusinessContextForActor,
@@ -125,7 +126,27 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
   const personalCalendarAccess = await resolvePersonalRadarAccessForActor(actor);
   const resolvedSearchParams = await searchParams;
   const devTeamVisible = devTeamAccessible(session);
-  const requestedServerStation = resolveServerCommandStation(resolvedSearchParams?.station, devTeamVisible);
+  // Landing follows the hat: with a department focus on and no explicit
+  // ?station=, the Command Centre opens on that focus's home (Executive → the
+  // executive workspace) instead of the generic Day surface. It only sets the
+  // INITIAL landing — ?station= and the in-app station nav still override it, so
+  // the operator is never trapped; taking the hat off restores the Day surface.
+  const activeDepartmentId = await getActiveDepartmentId();
+  const focusLanding = resolvedSearchParams?.station ? null : focusLandingStation(activeDepartmentId);
+  let requestedServerStation = resolveServerCommandStation(resolvedSearchParams?.station, devTeamVisible);
+  if (!requestedServerStation && focusLanding) requestedServerStation = focusLanding;
+
+  // Landing follows the hat, part two. Ed's choice was to EMBED THE FULL
+  // WORKSPACE for each non-Executive hat, so choosing a hat takes you straight
+  // into that department's real workspace (Sales → the leads board, Delivery →
+  // Fulfilment, and so on). That navigation is driven by the "Working as"
+  // switcher, not a redirect here: this layout streams its shell before the page
+  // renders, so a `redirect()` at /portal/agency would fire after the first byte
+  // and degrade to a flashing client-side redirect. The switcher hard-navigates
+  // to the workspace instead — clean, and reversible from the environment via the
+  // same flag. Executive keeps its Command Centre station (resolved above); a
+  // direct visit to /portal/agency under any hat still renders the Command Centre
+  // (narrowed to the hat), so nobody is ever trapped. See `focusHome.ts`.
   // Performance mode (server-read cookie): keep the two heaviest *repeated*
   // costs off the landing critical path. The operational-alerts sweep (a live
   // Supabase fetch) is skipped, and the dev-team board disk scan that feeds the
@@ -449,6 +470,7 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
         headline={personalRadarHeadline(personalRadarBlock.reading, personalRadarBlock.actions, personalRadarNow, personalRadarBlock.actionSummary)}
       /> : null}
       <DashboardCommandCenter
+        focusDefaultStation={focusLanding ?? undefined}
         canUsePersonalCommand={personalCommandAccess.writable}
         canRunRadarScan={canRunRadarScan}
         canManageRadarPolicy={canManageWorkspace}

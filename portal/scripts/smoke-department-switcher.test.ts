@@ -81,10 +81,15 @@ describe("the server side of the cookie", () => {
 describe("the switcher control", () => {
   const source = readFileSync("src/components/chrome/DepartmentSwitcher.tsx", "utf8");
 
-  it("refreshes, because the sidebar is built on the server", () => {
-    // Without this the hat goes on and the nav sits unchanged, which reads as
-    // broken rather than as narrow.
-    assert.match(source, /router\.refresh\(\)/);
+  it("hard-navigates to the hat's landing, so the landing follows the hat", () => {
+    // Putting a hat on lands you in that department's full workspace; Executive
+    // and Owner land on /portal/agency. A hard navigation rebuilds the
+    // server-lensed sidebar and lands the workspace; a soft refresh would leave
+    // the Command Centre's client-held station in place, so the landing wouldn't
+    // move. The landing is the switcher's job, not a fragile redirect.
+    assert.match(source, /window\.location\.assign\(landing\)/);
+    assert.match(source, /focusHomeHref\(id\)/);
+    assert.doesNotMatch(source, /router\.refresh\(\)/, "the soft refresh no longer moves the landing");
   });
 
   it("offers the way out first", () => {
@@ -114,15 +119,18 @@ describe("the order the chrome hook applies things", () => {
 
   it("narrows before applying the personal arrangement", () => {
     // Arranging is about the rows you HAVE. Narrowing afterwards would leave a
-    // person's saved order applied to rows they cannot currently see.
+    // person's saved order applied to rows they cannot currently see. The hat's
+    // hidden rows are then revealed, and the arrangement applies to that result.
     const lensAt = source.indexOf("applyDepartmentLens(panels, department)");
-    const arrangeAt = source.indexOf("applyPersonalChrome(lensed");
+    const revealAt = source.indexOf("revealFocusPanels(lensed, department)");
+    const arrangeAt = source.indexOf("applyPersonalChrome(focused");
     assert.ok(lensAt > 0, "the lens must be applied in the shared hook");
-    assert.ok(arrangeAt > lensAt, "the arrangement must be applied to the lensed panels");
+    assert.ok(revealAt > lensAt, "the department's rows are revealed after narrowing");
+    assert.ok(arrangeAt > revealAt, "the arrangement must be applied to the focused panels");
   });
 
-  it("returns the lensed panels even when nothing is arranged", () => {
-    assert.match(source, /return lensed;/,
+  it("returns the focused panels even when nothing is arranged", () => {
+    assert.match(source, /return focused;/,
       "a person who never arranged their sidebar must still get their hat");
   });
 });

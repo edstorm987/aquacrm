@@ -31,6 +31,7 @@ import type { SidebarVariant } from "@/components/chrome/Sidebar";
 import { DepartmentSwitcher } from "@/components/chrome/DepartmentSwitcher";
 import { MyRadarControl } from "@/components/chrome/MyRadarControl";
 import { getActiveDepartmentId } from "@/lib/server/chrome/activeDepartment";
+import { isFocusHomeEnabled } from "@/lib/access/focusHome";
 import { isAgencyRole } from "@/server/types";
 import { destinationSearchItemsFor } from "@/lib/chrome/destinations";
 
@@ -150,7 +151,7 @@ export async function Topbar({ title, subtitle, role, email, name, avatarUrl, pa
     // customer has no department to wear, and offering one would be nonsense
     // rather than merely useless.
     !publicShowcase && !showcaseMode && isAgencyRole(role)
-      ? { id: "department", label: "Working as", node: <DepartmentSwitcher key="department" active={activeDepartment} /> }
+      ? { id: "department", label: "Working as", node: <DepartmentSwitcher key="department" active={activeDepartment} focusHomeEnabled={isFocusHomeEnabled()} /> }
       : null,
     // The judgement of the hat, beside the hat — same gate as "department", and
     // handed the same server-read department so the embedded switcher, the

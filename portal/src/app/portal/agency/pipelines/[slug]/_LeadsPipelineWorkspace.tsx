@@ -923,6 +923,11 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
             <Stat label="Won" value={String(won)} />
           </section>
           <UpcomingMeetings meetings={upcomingMeetings} onShowAll={() => setWorkFilter("meeting")} />
+          <div className="flex justify-end">
+            <Link href="/portal/agency/meetings" className="inline-flex min-h-9 items-center rounded-md border border-black/12 bg-white px-3 text-xs font-medium text-black/70 hover:bg-black/[0.03]">
+              Open the Meetings view
+            </Link>
+          </div>
           <WorkflowSteps active="work" contactsHref={importHref} boardHref="/portal/agency/pipelines/leads" campaignsHref={campaignsHref} />
         </div>
       </details>

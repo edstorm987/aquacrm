@@ -2,7 +2,7 @@
 
 > The append-only change record, dated handoffs and superseded historical summaries.
 >
-> Consolidated 2026-09-06 from **18** source documents / **136,442 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-07 from **18** source documents / **137,391 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -23,7 +23,7 @@
 - [`docs/context/archive/website-editor-and-migration.md`](#source-docs-context-archive-website-editor-and-migration-md) — 1,159 words · `235e8af731b6`
 - [`docs/context/archive/WHERE-WE-ARE-2026-08-18.md`](#source-docs-context-archive-where-we-are-2026-08-18-md) — 2,192 words · `4056e9a347cb`
 - [`docs/context/archive/WHERE-WE-STAND-2026-08-20.md`](#source-docs-context-archive-where-we-stand-2026-08-20-md) — 2,482 words · `26bf4442580e`
-- [`docs/development/updates.md`](#source-docs-development-updates-md) — 106,286 words · `0743c1fb3f89`
+- [`docs/development/updates.md`](#source-docs-development-updates-md) — 107,235 words · `c1c9a2ed6ed9`
 
 ---
 
@@ -3318,7 +3318,7 @@ Being straight with you about the edges.
 
 ## Source document — `docs/development/updates.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="0743c1fb3f894845900891e652ccb02fc103720eaf54b1deecfc6bf5be4195eb" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="c1c9a2ed6ed965db11d8a522ef9954bad5652e3ae111a6dc8da958a7a3b4d5ec" -->
 # Updates log
 
 ← Back to [development.md](../development.md) (the law)
@@ -3355,6 +3355,101 @@ map stays trustworthy.
 
 ---
 
+## 2026-09-07 — Role focus modes: a hat now embeds the department's FULL workspace
+
+- Ed, on the focus-home launcher: *"make all custom views for the roles… full
+  custom when owner goes for sales… the department things all custom ui so the
+  owner can truly lock in and get what needs to happen done."* He chose **embed
+  the full workspace** over a launcher of link-cards. So a "Working as
+  <department>" hat now lands you **directly in that department's real,
+  purpose-built workspace**, not a summary page:
+  - Sales → the leads/scouting/meetings board (`/portal/agency/pipelines/leads`)
+  - Delivery → Fulfilment (`/portal/agency/fulfilment`)
+  - Finance → the finance workspace (`/portal/agency/agency-finance`)
+  - Marketing → Marketing (`/portal/agency/marketing`)
+  - Support → the master inbox (`/portal/agency/inbox`)
+  - Executive → unchanged: its own Command Centre deck station (already the full
+    executive workspace in place).
+- **Why the switcher navigates, not a server redirect.** These five workspaces are
+  heavy, tightly-coupled routes whose data-prep lives in their own page, not a
+  reusable component — re-rendering them inside a wrapper would duplicate hundreds
+  of lines per route (the one thing this repo forbids). And a `redirect()` at
+  `/portal/agency` degrades badly here: the agency layout streams its shell before
+  the page renders, so the redirect fires after the first byte and becomes a
+  flashing client-side bounce (200 + `NEXT_REDIRECT` in the body — confirmed).
+  So the **"Working as" switcher hard-navigates straight to the hat's workspace**
+  (`DepartmentSwitcher` → `window.location.assign(focusHomeHref(id) ?? "/portal/agency")`),
+  a clean nav to a real route. Executive/Owner go to `/portal/agency` (the exec
+  deck / the Command Centre). Zero duplication; the whole workspace, reused verbatim.
+- **Not a trap.** The sidebar is already narrowed to the department (phase 1), the
+  top bar still shows "Working as <department>" with the one-click way back to
+  Owner, and a direct visit to `/portal/agency` under any hat still renders the
+  Command Centre (narrowed) — so nobody is ever stuck. The flag reaches the
+  switcher from the server (`Topbar` → `isFocusHomeEnabled()`); set
+  `PORTAL_ROLE_FOCUS_HOME=off` and every hat just re-lenses in place at
+  `/portal/agency`, no landing swap — reversible from the environment, no redeploy.
+- Removed the interim `_FocusHome` launcher + `renderFocusHome` (superseded by the
+  embed). Kept the standalone Meetings surface (`/portal/agency/meetings`) and its
+  shared feed. `focusHome.ts` is now the department→workspace map + the flag.
+- Static + focused-test green (`smoke-focus-home` rewritten for the redirect map;
+  `smoke-department-switcher` navigation pin updated; portal-destinations +
+  read-path-mutations still green — the redirect is not a render-path write);
+  typecheck clean; full `smoke:all` + browser acceptance at commit time. Docs:
+  symbol reference regenerated; this entry; `docs/workspace/portal-ui.md`.
+
+## 2026-09-07 — Role focus modes, phase 3: each hat lands on its own focused home
+
+- Phase 1 narrowed the sidebar under a hat; this decides the LANDING, closing the
+  rest of Ed's complaint ("if i choose to work as executive i get a full executive
+  mode… same for sales it shows the sales stuff… right now it shows the same for
+  any working as"). Executive already lands on its Command Centre station
+  (`focusLandingStation`); the five other departments (Sales, Delivery, Finance,
+  Marketing, Support) now land on their own small **focus home** instead of the
+  full macro dashboard.
+- New pure config `src/lib/access/focusHome.ts` — per department: the two or three
+  numbers that matter to the seat, the few places its work lives, and (Sales only)
+  the booked-meetings feed + a scouting nudge. `src/app/portal/agency/_FocusHome.tsx`
+  renders it. `page.tsx` returns the focus home in place of the Command Centre when
+  a focus-home hat is on AND the URL has no `?station=` — an initial default, not a
+  redirect, so in-app nav and taking the hat off both leave it (nobody is trapped),
+  and it never builds the heavy radar/intelligence graph.
+- **Invariant now pinned:** every department lands somewhere of its own — a station
+  or a focus home — so no hat can regress to the shared dashboard again
+  (`scripts/smoke-focus-home.test.ts`). It also pins the safety model (destinations
+  only ever link to gated portal surfaces; the swap grants nothing) and the flag.
+- **Sales, concretely (Ed's asks):** a standalone **Meetings** surface at
+  `/portal/agency/meetings` reusing the shared `UpcomingMeetings` card from one
+  server derivation (`src/lib/server/agency/meetingsFeed.ts` → `loadUpcomingMeetings`,
+  identical to the leads pipeline's, so the two can't drift); a **Scouting-only**
+  link (`…/pipelines/leads#scouting`); and a small sales dashboard.
+- **Reversible from the environment (phase 6 flag):** `PORTAL_ROLE_FOCUS_HOME=off`
+  disables the landing swap without a code redeploy; default on.
+- Static + focused-test green (`smoke-focus-home`, `smoke-department-focus`,
+  `smoke-department-switcher`, `smoke-department-profiles`, `smoke-date-resilience`);
+  `smoke-department-focus` page-pin updated for the split-out `activeDepartmentId`;
+  full `smoke:all` + browser acceptance at commit time. Docs: symbol reference
+  regenerated; this entry.
+
+## 2026-09-07 — Role focus modes, phase 1: the "Working as" sidebar actually narrows
+
+- "Working as <department>" felt broken — the sidebar looked the same under every
+  hat (Ed: "it shows the same for any working as, which is weird"). Root cause:
+  the department lens (`applyDepartmentLens`) narrows correctly, but the agency
+  IA-v2 override files the business functions into a `hidden: true` "ops" panel
+  the Sidebar never renders, so the surviving rows lived in the data and never
+  painted. New pure `src/lib/chrome/focusReveal.ts` (`revealFocusPanels`) un-hides
+  that panel and relabels it to the department, called in `withPersonalChrome`
+  right after the lens. No-hat returns the same array (owner sidebar untouched);
+  reveal only un-hides/relabels, never adds a row (the lens's remove-only safety
+  model is preserved). Now each of the five departments paints a distinct,
+  narrowed sidebar. Pinned by `scripts/smoke-department-focus.test.ts`;
+  `smoke-department-switcher` order pins updated for the reveal step.
+- First slice of the role-focus-mode plan Ed approved (Executive as a real 6th
+  department, per-role focused landings, a standalone Meetings surface, Sales
+  Scouting/Meetings links) — those land in later phases. Built on a separate
+  branch so PR #9 (the Command Centre simplification) stays independently
+  mergeable. Static + focused-test; full `smoke:all` at commit time; browser
+  acceptance to follow.
 ## 2026-09-06 — Command Centre simplification, slice 6: Projections gets its own door
 
 - Projections/forecasting was buried as one section of ~a dozen inside the Plan &

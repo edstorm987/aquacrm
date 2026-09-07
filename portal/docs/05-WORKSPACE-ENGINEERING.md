@@ -2,7 +2,7 @@
 
 > Source maps, subsystem dossiers, components, routes, state and built-in module notes.
 >
-> Consolidated 2026-09-06 from **23** source documents / **57,404 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-07 from **23** source documents / **57,622 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -19,7 +19,7 @@
 - [`docs/workspace/hazards-and-duplication.md`](#source-docs-workspace-hazards-and-duplication-md) — 7,937 words · `16f6a1abda87`
 - [`docs/workspace/kpi-intelligence.md`](#source-docs-workspace-kpi-intelligence-md) — 2,283 words · `d641f1291cbc`
 - [`docs/workspace/plugins.md`](#source-docs-workspace-plugins-md) — 2,193 words · `85bf55b735d1`
-- [`docs/workspace/portal-ui.md`](#source-docs-workspace-portal-ui-md) — 4,055 words · `a2a7dcfcf88a`
+- [`docs/workspace/portal-ui.md`](#source-docs-workspace-portal-ui-md) — 4,273 words · `b60da39354b2`
 - [`docs/workspace/radar.md`](#source-docs-workspace-radar-md) — 3,419 words · `094abc931f83`
 - [`docs/workspace/scripts-config-docs.md`](#source-docs-workspace-scripts-config-docs-md) — 705 words · `6c64dba30a6b`
 - [`docs/workspace/shared-logic.md`](#source-docs-workspace-shared-logic-md) — 3,911 words · `34a172e29b5e`
@@ -3328,7 +3328,7 @@ Plus **10 per-plugin boot bindings** (`*Foundation.ts`, side-effect-imported by
 
 ## Source document — `docs/workspace/portal-ui.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/portal-ui.md" sha256="a2a7dcfcf88ad66267df0618c0a0b83c66d9f0ccd8c7d5e1f8128de2fa6151e5" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/portal-ui.md" sha256="b60da39354b2a77f77952c3247407132ebd70c6c85efa69250af27788c2e0b7b" -->
 # Chapter — Portal UI (`src/app/portal/`)
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
@@ -3415,6 +3415,30 @@ revisit lifecycle as [issue #142](../development/issues.md).
 - `_ClockOutReviewDialog.tsx`, `_QuarterlyStrategyReview.tsx`, `_WeeklyReviewWorkspace.tsx`.
 - `_DynamicRadarConsole.tsx`, `_RadarPolicyPanel.tsx`, `_RadarScanControl.tsx` (radar console / policy / scan trigger).
 - `_NewClientButton.tsx` — inline "+ New client" modal.
+
+**Role focus modes — "Working as <department>"**
+- The `DepartmentSwitcher` puts a department hat on. Phase 1 narrows the sidebar
+  (`lib/chrome/departmentLens.ts` remove-only lens + `lib/chrome/focusReveal.ts`
+  un-hiding the search-only "ops" panel). The LANDING then **embeds the full
+  workspace** for the hat (Ed's choice over a launcher): choosing a hat
+  hard-navigates straight into that department's real workspace —
+  `lib/access/focusHome.ts` `focusHomeHref` maps Sales → `/pipelines/leads`,
+  Delivery → `/fulfilment`, Finance → `/agency-finance`, Marketing → `/marketing`,
+  Support → `/inbox`. Executive is the exception: it lands on its own Command
+  Centre deck station (`commandStationRouting.ts` `focusLandingStation`).
+- **Why the switcher navigates, not a `page.tsx` redirect.** The agency layout
+  streams its shell before the page renders, so a `redirect()` at `/portal/agency`
+  fires after the first byte and degrades to a flashing client-side bounce. So
+  `DepartmentSwitcher` does `window.location.assign(focusHomeHref(id) ?? "/portal/agency")`
+  — a clean hard nav to a real route, zero duplication of the heavy workspaces. The
+  flag reaches it from the server (`Topbar` → `isFocusHomeEnabled()`, the
+  `PORTAL_ROLE_FOCUS_HOME` off-switch); off = re-lens in place, no landing swap.
+  A direct visit to `/portal/agency` under a hat still renders the Command Centre
+  (narrowed), so nobody is trapped. Pinned by `scripts/smoke-focus-home.test.ts`.
+- `meetings/page.tsx` — the standalone **Meetings** surface (Ed's Sales ask),
+  reusing the `leads-pipeline/_UpcomingMeetings` card from one server derivation,
+  `lib/server/agency/meetingsFeed.ts` `loadUpcomingMeetings` (identical to the
+  leads pipeline's, so the two can't drift).
 
 **Master Inbox — `inbox/`**
 - `page.tsx` — the master inbox route. *(Dev/demo sessions load ZERO enquiries here — `session.isDemo ? []`.)*

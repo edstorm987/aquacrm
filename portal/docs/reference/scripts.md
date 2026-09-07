@@ -2002,6 +2002,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-department-focus-test-ts-6ed06869e5"></a>
+
+### `scripts/smoke-department-focus.test.ts`
+
+**What it is:** it never adds a row; owner/no-hat is byte-identical).
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (5):** [`src/app/portal/agency/commandStationRouting.ts`](app.md#file-src-app-portal-agency-commandstationrouting-ts-1348113223) · [`src/lib/access/departmentProfiles.ts`](lib.md#file-src-lib-access-departmentprofiles-ts-343cc6ceea) · [`src/lib/chrome/departmentLens.ts`](lib.md#file-src-lib-chrome-departmentlens-ts-6c583d18f2) · [`src/lib/chrome/focusReveal.ts`](lib.md#file-src-lib-chrome-focusreveal-ts-e4a01b4bb8) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-department-lens-test-ts-36aa779f14"></a>
 
 ### `scripts/smoke-department-lens.test.ts`
@@ -3631,6 +3643,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on (7):** [`src/built-ins/modules/agency-finance/src/lib/aquaPluginTypes.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-lib-aquaplugintypes-ts-9ba9f50217) · [`src/built-ins/modules/agency-finance/src/lib/idempotency.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-lib-idempotency-ts-1b35d44cd8) · [`src/built-ins/modules/agency-finance/src/lib/stripe.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-lib-stripe-ts-3832f7b0e6) · [`src/built-ins/modules/agency-finance/src/lib/tenancy.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-lib-tenancy-ts-b0727e7982) · [`src/built-ins/modules/agency-finance/src/server/foundationAdapter.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-server-foundationadapter-ts-e614648c40) · [`src/built-ins/modules/agency-finance/src/server/ports.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-server-ports-ts-915a5d5a35) · [`src/built-ins/modules/agency-finance/src/server/stripeReconcile.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-server-stripereconcile-ts-961b970b28)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-focus-home-test-ts-248f6a2b0c"></a>
+
+### `scripts/smoke-focus-home.test.ts`
+
+**What it is:** (redirect only, no ?station override, reversible from the environment).
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (3):** [`src/app/portal/agency/commandStationRouting.ts`](app.md#file-src-app-portal-agency-commandstationrouting-ts-1348113223) · [`src/lib/access/departmentProfiles.ts`](lib.md#file-src-lib-access-departmentprofiles-ts-343cc6ceea) · [`src/lib/access/focusHome.ts`](lib.md#file-src-lib-access-focushome-ts-da6ef52919)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
