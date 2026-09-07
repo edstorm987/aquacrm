@@ -581,7 +581,9 @@ test("inactive server station modules and nodes stay off the default render", ()
   // Every server-backed station gets an immediate optimistic surface, one
   // coalesced transition, disabled controls, and a forced loading boundary.
   assert.match(client, /const \[serverStationTransitionPending, startServerStationTransition\] = useTransition\(\)/);
-  assert.match(client, /if \(pendingServerNavigationRef\.current \|\| requestedServerStation === station\) return/);
+  // A same-station navigation is skipped UNLESS a battle-section deep link (the
+  // Projections door) needs the section to change while battle is already active.
+  assert.match(client, /if \(pendingServerNavigationRef\.current \|\| \(requestedServerStation === station && !options\?\.battleSection\)\) return/);
   assert.match(client, /serverStationSettlementFallback\(pendingServerNavigation, requestedServerStation\)/);
   for (const station of ["executive", "battle", "devteam", "calendar", "actions", "advisor"]) {
     assert.match(client, new RegExp(`pendingServerStation === "${station}"`), `${station} needs an immediate pending surface`);

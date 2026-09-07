@@ -25,7 +25,7 @@ import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
 import { INTERNAL_WORKSPACE_NAME } from "@/lib/shared/internalWorkspace";
 import { dashboardPlanningSnapshot, type DashboardPlanningSnapshot } from "@/server/dashboardPlanning";
 import { assistantModel, isAssistantConfigured } from "@/lib/server/assistants/openaiAssistant";
-import { DashboardCommandCenter, type DashboardSignal } from "./_DashboardCommandCenter";
+import { DashboardCommandCenter } from "./_DashboardCommandCenter";
 import { inspectRadarEvidence } from "@/engines/data/server/radar/radarEvidenceVault";
 import type { OperationalAlert } from "@/lib/server/inbox/operationalAlerts";
 import { performanceModePreference } from "@/lib/server/performanceMode";
@@ -282,19 +282,6 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
   const fulfilmentPipeline = pipelines.find(p => p.kind === "fulfilment" || p.slug === "fulfilment");
   const fulfilmentCardCount = fulfilmentAvailable && fulfilmentPipeline ? counts[fulfilmentPipeline.id] ?? 0 : 0;
   const activeClients = clients.filter(c => c.stage !== "churned");
-  const staleClients = clients.filter(c => {
-    const m = (c.metadata ?? {}) as { lastContactedAt?: number };
-    if (!m.lastContactedAt) return true;
-    return Date.now() - m.lastContactedAt > 7 * 24 * 60 * 60 * 1000;
-  });
-  const dashboardSignals = buildDashboardSignals({
-    clients,
-    staleClients,
-    leadsCardCount,
-    fulfilmentCardCount,
-    productCount: products.length,
-  });
-
   const account = getUser(session.email);
   const firstName = account?.name?.trim().split(/\s+/)[0] ?? (session.email.split("@")[0] || "there").replace(/[^a-z]/gi, "");
   const greet = firstName ? firstName[0]!.toUpperCase() + firstName.slice(1) : "there";
@@ -318,6 +305,16 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
     devTeamLaunchBlockerCount = devTeamLanes.blocked.filter(item => item.kind === "blocker").length;
     devTeamAttentionLoaded = true;
   }
+  // Full convergence: the Command Centre priority feed reads the SAME assembled
+  // action queue the Actions list does, so the two surfaces can never disagree
+  // about what needs the owner. Assemble once here and share it with both the
+  // Actions/Calendar station slot (as `prepared`) and the dashboard feed. Skipped
+  // while the scan is paused (performance mode / showcase / missing result),
+  // where the landing deliberately avoids the live alerts sweep and radar build —
+  // there the feed falls back to committed tasks, matching that honest paused view.
+  const preparedActions = !scanPaused
+    ? await import("./actions/_ActionsPage").then(({ assembleAgencyActions }) => assembleAgencyActions())
+    : null;
   let calendarWorkspace: ReactNode = null;
   let actionsWorkspace: ReactNode = null;
   let advisorWorkspace: ReactNode = null;
@@ -361,6 +358,7 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
           description={calendar
             ? "Dated work, meetings, reminders and business deadlines in the same Command Centre viewport."
             : "Radar, Advisor, manual and CRM work in one controlled queue. Approve suggested work before it enters your committed list."}
+          prepared={preparedActions ?? undefined}
         />
       </Suspense>
     );
@@ -465,7 +463,6 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
         calendarEntries={personalCalendarAccess.goalsAvailable ? listCommandCalendarEntries(agency.id, session.userId) : []}
         externalCalendarEvents={calendarIntegration.events.filter(event => calendarIntegration.sources.some(source => source.id === event.sourceId && source.selected))}
         externalCalendarSources={calendarIntegration.sources}
-        signals={dashboardSignals}
         businessRadar={businessRadar}
         radarEvidence={radarEvidence}
         recommendedActions={buildBusinessRecommendedActions({
@@ -475,6 +472,10 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
           now: recommendationTime,
           limit: 5,
         })}
+        generatedActions={preparedActions?.generatedActions ?? []}
+        commandRecommendations={preparedActions?.commandRecommendations ?? []}
+        externalProposals={preparedActions?.externalProposals ?? []}
+        recommendationsGeneratedAt={preparedActions?.businessRadar?.generatedAt ?? businessRadar.generatedAt}
         advisorConfigured={advisorConfigured}
         counts={{
           activeClients: activeClients.length,
@@ -499,69 +500,3 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
   );
 }
 
-function buildDashboardSignals({
-  clients,
-  staleClients,
-  leadsCardCount,
-  fulfilmentCardCount,
-  productCount,
-}: {
-  clients: ReturnType<typeof listClients>;
-  staleClients: ReturnType<typeof listClients>;
-  leadsCardCount: number;
-  fulfilmentCardCount: number;
-  productCount: number;
-}): DashboardSignal[] {
-  const signals: DashboardSignal[] = [];
-  if (leadsCardCount > 0) {
-    signals.push({
-      id: "sales:leads",
-      title: "Clear the lead pipeline",
-      detail: `${leadsCardCount} lead${leadsCardCount === 1 ? "" : "s"} need a next step, follow-up, quote, or meeting decision.`,
-      href: "/portal/agency/pipelines/leads",
-      kind: "Sales",
-      priority: "high",
-    });
-  }
-  if (fulfilmentCardCount > 0) {
-    signals.push({
-      id: "delivery:fulfilment",
-      title: "Move fulfilment forward",
-      detail: `${fulfilmentCardCount} delivery item${fulfilmentCardCount === 1 ? "" : "s"} are active. Pick the blocker and move it today.`,
-      href: "/portal/agency/fulfilment",
-      kind: "Delivery",
-      priority: "high",
-    });
-  }
-  for (const client of staleClients.slice(0, 3)) {
-    signals.push({
-      id: `client:${client.id}:health`,
-      title: `Check in with ${client.name}`,
-      detail: "Client health needs a touchpoint. Log the note, next decision, or risk after contact.",
-      href: `/portal/clients/${client.id}`,
-      kind: "Client health",
-      priority: "urgent",
-    });
-  }
-  if (clients.length > 0 && productCount === 0) {
-    signals.push({
-      id: "offers:products",
-      title: "Define the sellable offers",
-      detail: "Products are still empty, so projections and delivery planning have weak inputs.",
-      href: "/portal/agency/fulfilment?view=services",
-      kind: "Company",
-      priority: "high",
-    });
-  }
-  if (signals.length === 0) {
-    signals.push({
-      id: "growth:marketing",
-      title: "Create one growth asset",
-      detail: "Build a campaign step, social post, Google Business update, or funnel page that can create demand.",
-      href: "/portal/agency/marketing",
-      kind: "Growth",
-      priority: "normal",
-    });
-  }
-  return signals;
-}

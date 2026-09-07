@@ -34,6 +34,40 @@ map stays trustworthy.
 
 ---
 
+## 2026-09-06 — Command Centre simplification, slice 6: Projections gets its own door
+
+- Projections/forecasting was buried as one section of ~a dozen inside the Plan &
+  targets (Battle Table) station, reachable only by going there and hunting for
+  the tab. It now has a first-class entry in the visible "More views" menu
+  (Key numbers · **Projections** · Advisor · Actions · Calendar) that deep-links
+  straight to the forecast/target-setting surface (`?station=battle&battle=projections`).
+- Smallest of the options Ed weighed ("just pull Projections out") — nothing else
+  is restructured; the section still also lives inside Plan & targets. Implemented
+  by teaching `navigateServerStation` an optional `battleSection` and adding the
+  door to `CommandMoreNav`. Pinned by `scripts/smoke-command-more-nav.test.ts`.
+- Verified: typecheck clean; dashboard/battle/more-nav/convergence focused tests
+  green; local-browser accepted at 375px and 1280px (door present, navigates to
+  the projections surface, no overflow, 0 console errors). Full `smoke:all` run at
+  commit time.
+
+## 2026-09-06 — Command Centre simplification, slice 5: one converged "needs you" queue
+
+- The Command Centre priority feed and the Actions list built two different
+  pools and disagreed about what needed the owner ("needs you notifications is
+  wrong… it's meant to combine the actions + other things into one"). They now
+  build from the ONE shared assembler (`buildUnifiedActionQueue`) over the ONE
+  server assembly (`assembleAgencyActions`). `page.tsx` assembles once and
+  shares it with both the Actions/Calendar station slot (`prepared`) and the
+  dashboard feed; the feed maps each `UnifiedActionItem` to the existing
+  `StrictItem` shape, so only the pool's source changed. Skipped while the scan
+  is paused (performance mode), where the feed falls back to committed tasks.
+- Retired the coarse `buildDashboardSignals` heuristic and the dashboard's
+  private `priorityRank`/`overdueRank` copies. Pinned by
+  `scripts/smoke-command-priority-convergence.test.ts`. Full `smoke:all` green
+  (6,742 pass / 0 fail / 3 skipped; Website Editor gate 49/49). Regenerated
+  `docs/reference`. Static + focused-test evidence — browser acceptance still
+  recommended before merge.
+
 ## 2026-09-03 — Supabase migrations APPLIED to live and verified
 
 - Ed supplied the database password and a `sbp_` personal access token (both to be rotated), so the

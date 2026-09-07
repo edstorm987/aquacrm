@@ -5,13 +5,13 @@ import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { AlarmClock, ArrowUpDown, ArrowUpRight, Bell, BookOpen, Bot, BriefcaseBusiness, Building2, CalendarCheck2, CalendarDays, CalendarRange, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CirclePause, Clock3, Cloud, CloudOff, ExternalLink, FileText, Flag, Inbox, Info, Layers3, Link2, List, LoaderCircle, LockKeyhole, NotebookPen, Pencil, Plus, Radar, RefreshCw, Repeat2, Save, Search, Settings2, ShieldCheck, Sparkles, Target, Trash2, UserRound, UsersRound, Workflow, X } from "lucide-react";
 import type { AdvisorActionSuggestion } from "@/lib/advisor/advisorActions";
+import { buildUnifiedActionQueue, deferralsOf, priorityRank, promoteLinkedTask, taskOrigin, type ActionSort, type GeneratedAction, type UnifiedActionItem } from "@/lib/intelligence/unifiedActionQueue";
 import {
   buildProtectedAttentionWindow,
   promoteForDeferrals,
   type ProtectedAttentionWindow,
 } from "@/lib/intelligence/attentionProtection";
 import { AttentionControls, type AttentionBusyAction } from "@/components/attention/AttentionControls";
-import type { ResolutionKind } from "@/lib/inbox/resolutionExplain";
 import { EvidenceCard } from "@/components/attention/EvidenceCard";
 import { CompletedRegister } from "@/components/attention/CompletedRegister";
 import { DeferralNote } from "@/components/attention/DeferralNote";
@@ -28,37 +28,9 @@ import { useNotificationAttention } from "@/components/chrome/NotificationAttent
 import { PortalCustomFields, type PortalCustomFieldValues } from "@/components/forms/PortalCustomFields";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
-export type GeneratedAction = {
-  id: string;
-  title: string;
-  detail: string;
-  href: string;
-  kind: string;
-  dueAt?: number;
-  priority: "normal" | "high" | "urgent";
-  clientId?: string;
-  // Defaults to "crm" for the pipeline-derived signals that predate this.
-  // Needs-attention alerts set "inbox" so they are not mislabelled.
-  origin?: Extract<AgencyTaskOrigin, "crm" | "inbox">;
-  /** Lands on the exact record behind this, not the list containing it. */
-  evidenceHref?: string;
-  /**
-   * How many times this has been put off, and since when.
-   *
-   * Off-system work is the case that needs it: nothing in Aqua does the job,
-   * so the only pressure to act is knowing how long you have not.
-   */
-  deferrals?: number;
-  firstDeferredAt?: number;
-  /**
-   * How it can be dealt with, declared by the check. Named apart from `kind`
-   * above, which is the badge label ("Needs attention"), not a classification.
-   */
-  resolutionKind?: ResolutionKind;
-  causalVersion?: number;
-  /** Exact source-alert identity used by the server's causal mutation check. */
-  alertOccurrenceKey?: string;
-};
+// The canonical queue types + builder now live in one shared module so every
+// attention surface agrees. Re-exported here for this workspace's own importers.
+export type { GeneratedAction };
 
 export type TeamMember = { id: string; name: string; email: string };
 export type ActionClient = { id: string; name: string; status: string; stage: string };
@@ -70,12 +42,6 @@ export type ActionsView = "list" | "calendar";
 // origin at once.
 // "today" and "completed" are views over the same work, not origins.
 type ActionSource = "all" | "today" | "completed" | AgencyTaskOrigin;
-type ActionSort = "priority" | "due-soon" | "newest" | "oldest" | "recently-updated";
-type UnifiedActionItem =
-  | { type: "task"; id: string; source: AgencyTaskOrigin; priority: AgencyTaskPriority; dueAt?: number; createdAt: number; updatedAt: number; task: AgencyTask }
-  | { type: "suggestion"; id: string; source: "radar" | "advisor"; priority: AgencyTaskPriority; dueAt?: number; createdAt: number; updatedAt: number; suggestion: AdvisorActionSuggestion }
-  | { type: "proposal"; id: string; source: "advisor"; priority: AgencyTaskPriority; dueAt?: number; createdAt: number; updatedAt: number; proposal: ExternalAssistantActionProposal }
-  | { type: "crm"; id: string; source: "crm"; priority: AgencyTaskPriority; dueAt?: number; createdAt: number; updatedAt: number; action: GeneratedAction };
 
 export function ActionsWorkspace({
   initialTasks,
@@ -1908,7 +1874,6 @@ function addMonths(date: Date, amount: number) { return new Date(date.getFullYea
 function sameDay(a: number, b: number) { const x = new Date(a), y = new Date(b); return x.getFullYear() === y.getFullYear() && x.getMonth() === y.getMonth() && x.getDate() === y.getDate(); }
 function overlapsDay(start: number | undefined, end: number | undefined, day: Date) { if (!start && !end) return false; const dayStart = startOfDay(day.getTime()), dayEnd = dayStart + 86_400_000 - 1; return (start ?? end ?? 0) <= dayEnd && (end ?? start ?? 0) >= dayStart; }
 function calendarDays(month: Date) { const first = startOfMonth(month); const offset = (first.getDay() + 6) % 7; const start = new Date(first.getFullYear(), first.getMonth(), 1 - offset); return Array.from({ length: 42 }, (_, index) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + index)); }
-function taskOrigin(task: AgencyTask): AgencyTaskOrigin { return task.origin ?? "manual"; }
 function sourceLabel(source: Exclude<ActionSource, "all">): string { return source === "crm" ? "CRM" : source === "inbox" ? "Needs attention" : source.charAt(0).toUpperCase() + source.slice(1); }
 function normaliseTitle(value: string): string { return value.trim().toLowerCase().replace(/\s+/g, " "); }
 function clientIdFromHref(href: string): string | undefined { return href.match(/^\/portal\/clients\/([^/?#]+)/)?.[1]; }
@@ -1931,44 +1896,6 @@ function sourceCountMap(tasks: AgencyTask[], radar: AdvisorActionSuggestion[], a
   return counts;
 }
 
-function buildUnifiedActionQueue({ tasks, radar, advisor, proposals, crm, recommendationsGeneratedAt, advisorReviewedAt, sort }: { tasks: AgencyTask[]; radar: AdvisorActionSuggestion[]; advisor: AdvisorActionSuggestion[]; proposals: ExternalAssistantActionProposal[]; crm: GeneratedAction[]; recommendationsGeneratedAt: number; advisorReviewedAt: number | null; sort: ActionSort }): UnifiedActionItem[] {
-  const rows: UnifiedActionItem[] = [
-    ...tasks.map(task => ({ type: "task" as const, id: task.id, source: taskOrigin(task), priority: task.priority, dueAt: task.dueAt, createdAt: task.createdAt, updatedAt: task.updatedAt, task })),
-    ...radar.map(suggestion => ({ type: "suggestion" as const, id: suggestion.id, source: "radar" as const, priority: suggestion.priority, dueAt: suggestion.dueAt, createdAt: recommendationsGeneratedAt, updatedAt: recommendationsGeneratedAt, suggestion })),
-    ...advisor.map(suggestion => ({ type: "suggestion" as const, id: suggestion.id, source: "advisor" as const, priority: suggestion.priority, dueAt: suggestion.dueAt, createdAt: advisorReviewedAt ?? recommendationsGeneratedAt, updatedAt: advisorReviewedAt ?? recommendationsGeneratedAt, suggestion })),
-    ...proposals.filter(proposal => proposal.status === "pending").map(proposal => ({ type: "proposal" as const, id: proposal.id, source: "advisor" as const, priority: proposal.priority, dueAt: proposal.suggestedDueAt, createdAt: proposal.submittedAt, updatedAt: proposal.updatedAt, proposal })),
-    ...crm.map(action => ({ type: "crm" as const, id: action.id, source: "crm" as const, priority: action.priority, dueAt: action.dueAt, createdAt: recommendationsGeneratedAt, updatedAt: recommendationsGeneratedAt, action })),
-  ];
-  return rows.sort((left, right) => {
-    const completion = Number(left.type === "task" && left.task.status === "done") - Number(right.type === "task" && right.task.status === "done");
-    if (completion) return completion;
-    if (sort === "due-soon") return (left.dueAt ?? Number.MAX_SAFE_INTEGER) - (right.dueAt ?? Number.MAX_SAFE_INTEGER) || priorityRank(left.priority) - priorityRank(right.priority);
-    if (sort === "newest") return right.createdAt - left.createdAt;
-    if (sort === "oldest") return left.createdAt - right.createdAt;
-    if (sort === "recently-updated") return right.updatedAt - left.updatedAt;
-    return priorityRank(left.priority) - priorityRank(right.priority) || (left.dueAt ?? Number.MAX_SAFE_INTEGER) - (right.dueAt ?? Number.MAX_SAFE_INTEGER) || right.updatedAt - left.updatedAt;
-  });
-}
-
-function promoteLinkedTask(window: ProtectedAttentionWindow<UnifiedActionItem>, taskId: string | null): ProtectedAttentionWindow<UnifiedActionItem> {
-  if (!taskId || window.focus.some(item => item.type === "task" && item.id === taskId)) return window;
-  const linked = window.reserve.find(item => item.type === "task" && item.id === taskId);
-  if (!linked) return window;
-  const displaced = window.focus.at(-1);
-  const focus = [linked, ...window.focus.filter(item => item.id !== linked.id)].slice(0, window.focusLimit);
-  const reserve = [
-    ...window.reserve.filter(item => item.id !== linked.id),
-    ...(displaced && !focus.some(item => item.id === displaced.id) ? [displaced] : []),
-  ];
-  const reserveGroups = [...reserve.reduce((groups, item) => {
-    groups.set(item.source, (groups.get(item.source) ?? 0) + 1);
-    return groups;
-  }, new Map<string, number>())]
-    .map(([key, count]) => ({ key, count }))
-    .sort((left, right) => right.count - left.count || left.key.localeCompare(right.key));
-  return { ...window, focus, reserve, reserveCount: reserve.length, reserveGroups };
-}
-
 function sortTasks(tasks: AgencyTask[], sort: ActionSort): AgencyTask[] {
   const rows = [...tasks];
   if (sort === "due-soon") return rows.sort((a, b) => (a.dueAt ?? Number.MAX_SAFE_INTEGER) - (b.dueAt ?? Number.MAX_SAFE_INTEGER) || priorityRank(a.priority) - priorityRank(b.priority));
@@ -1983,12 +1910,3 @@ function alertIdOf(action: GeneratedAction): string {
   return action.id.startsWith("attention:") ? action.id.slice("attention:".length) : action.id;
 }
 
-/**
- * Only inbox-derived rows carry a deferral count — a task or an Advisor
- * suggestion has never been "put off", it has simply not been done yet.
- */
-function deferralsOf(item: UnifiedActionItem): number | undefined {
-  return item.type === "crm" ? item.action.deferrals : undefined;
-}
-
-function priorityRank(priority: AgencyTaskPriority): number { return priority === "urgent" ? 0 : priority === "high" ? 1 : priority === "normal" ? 2 : 3; }
