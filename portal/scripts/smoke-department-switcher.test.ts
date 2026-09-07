@@ -81,10 +81,12 @@ describe("the server side of the cookie", () => {
 describe("the switcher control", () => {
   const source = readFileSync("src/components/chrome/DepartmentSwitcher.tsx", "utf8");
 
-  it("refreshes, because the sidebar is built on the server", () => {
-    // Without this the hat goes on and the nav sits unchanged, which reads as
-    // broken rather than as narrow.
-    assert.match(source, /router\.refresh\(\)/);
+  it("hard-reloads, because both the sidebar and the landing are built on the server", () => {
+    // A soft refresh would re-lens the sidebar but leave the Command Centre's
+    // client-held active station in place, so the focus's landing (Executive →
+    // the executive workspace) would not move. A reload rebuilds both.
+    assert.match(source, /window\.location\.reload\(\)/);
+    assert.doesNotMatch(source, /router\.refresh\(\)/, "the soft refresh no longer moves the landing");
   });
 
   it("offers the way out first", () => {

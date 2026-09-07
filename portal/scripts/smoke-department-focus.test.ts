@@ -14,6 +14,7 @@ import { test } from "node:test";
 import { revealFocusPanels } from "../src/lib/chrome/focusReveal";
 import { applyDepartmentLens } from "../src/lib/chrome/departmentLens";
 import { DEPARTMENT_PROFILES } from "../src/lib/access/departmentProfiles";
+import { focusLandingStation } from "../src/app/portal/agency/commandStationRouting";
 import type { NavPanel } from "../src/lib/chrome/sidebarLayout";
 
 // A faithful miniature of the agency IA-v2 sidebar: a visible "main" panel and
@@ -101,4 +102,23 @@ test("the reveal runs on the one choke point, after the lens", () => {
   const personal = readFileSync("src/lib/server/chrome/personalPanels.ts", "utf8");
   assert.match(personal, /const lensed = applyDepartmentLens\(panels, department\);[\s\S]*const focused = revealFocusPanels\(lensed, department\);/, "reveal must run after the lens in withPersonalChrome");
   assert.match(personal, /return applyPersonalChrome\(focused,/, "the personal arrangement applies to the focused panels");
+});
+
+test("Executive is the one focus with a landing station today", () => {
+  assert.equal(focusLandingStation("executive"), "executive");
+  assert.equal(focusLandingStation("sales"), null, "departments without a landing yet fall through to the Command Centre");
+  assert.equal(focusLandingStation(undefined), null, "no hat has no landing");
+});
+
+test("the landing follows the hat, as an initial default only (never a trap)", () => {
+  // Server: with no ?station and a focus landing, the Command Centre opens on it.
+  const page = readFileSync("src/app/portal/agency/page.tsx", "utf8");
+  assert.match(page, /const focusLanding = resolvedSearchParams\?\.station \? null : focusLandingStation\(await getActiveDepartmentId\(\)\);/);
+  assert.match(page, /if \(!requestedServerStation && focusLanding\) requestedServerStation = focusLanding;/);
+  assert.match(page, /focusDefaultStation=\{focusLanding \?\? undefined\}/);
+  // Client: it only seeds the INITIAL station (when the URL has no ?station), so
+  // in-app station nav still moves off it — the operator is never trapped.
+  const dashboard = readFileSync("src/app/portal/agency/_DashboardCommandCenter.tsx", "utf8");
+  assert.match(dashboard, /const effectiveServerStation = requestedServerStation \?\? \(requestedStationValue \? null : focusDefaultStation \?\? null\);/);
+  assert.match(dashboard, /const initialStation: CommandSurfaceMode = effectiveServerStation === "advisor"/, "the initial station derives from the effective (focus-aware) station");
 });

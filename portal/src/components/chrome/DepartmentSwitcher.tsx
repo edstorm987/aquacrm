@@ -13,7 +13,7 @@
 // `applyDepartmentLens` is an intersection with panels that were already
 // assembled and role-filtered, so this control cannot hand anybody a row they
 // were not already entitled to — which is why it is allowed to be a cookie and
-// a `router.refresh()` rather than a server round-trip through the access
+// a client-side reload rather than a server round-trip through the access
 // authority.
 //
 // The label says "Working as" rather than "View as" on purpose. Viewing is
@@ -21,7 +21,6 @@
 // its own narrow view, so the time and output can be judged against that
 // department rather than blended into one reassuring average.
 
-import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState, useTransition } from "react";
 import { ChevronDown, Check, LoaderCircle } from "lucide-react";
 
@@ -36,7 +35,6 @@ import { useMenuKeys } from "@/lib/a11y/useMenuKeys";
 // cannot do one without the other. See `api/portal/chrome/department`.
 
 export function DepartmentSwitcher({ active }: { active?: string }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -64,11 +62,16 @@ export function DepartmentSwitcher({ active }: { active?: string }) {
       setNote("Could not switch.");
       return;
     }
-    // The sidebar is assembled on the SERVER — the cookie alone changes
-    // nothing on screen until the server rebuilds the panels. Without this the
-    // hat goes on and the nav sits there unchanged, which reads as broken.
-    startTransition(() => router.refresh());
-  }, [router]);
+    // A hard reload of the current page, not a soft refresh. Two things move
+    // when the hat changes and both are rebuilt server-side: the sidebar (the
+    // cookie re-lenses the panels) AND the LANDING — a focus's home (Executive →
+    // the executive workspace) is chosen on the server, but the Command Centre
+    // holds its active station in client state that a soft refresh would
+    // preserve, leaving the sidebar narrowed while the landing sat unchanged.
+    // Reloading rebuilds both, and staying on the current URL means switching a
+    // hat elsewhere in the app just re-lenses in place rather than yanking you home.
+    startTransition(() => window.location.reload());
+  }, []);
 
   const wrapRef = useRef<HTMLDivElement | null>(null);
   // issues #138 — arrow keys, Home/End and a focus-returning Escape for the

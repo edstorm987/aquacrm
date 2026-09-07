@@ -1,5 +1,20 @@
 export type ServerCommandStation = "executive" | "battle" | "calendar" | "actions" | "advisor" | "devteam";
 
+/**
+ * Where a "Working as <department>" hat lands when the Command Centre opens with
+ * no explicit `?station=`. The hat replaces the generic Command Centre with its
+ * own home; `?station=` and the in-app station nav still override it (this is the
+ * INITIAL landing only, never a lock).
+ *
+ * Only Executive maps to an existing server station today; the other
+ * departments get their own focused landings in later slices. Returns null for
+ * no hat, an unknown hat, or a department without a landing yet — all of which
+ * fall through to the ordinary Command Centre.
+ */
+export function focusLandingStation(departmentId: string | undefined): ServerCommandStation | null {
+  return departmentId === "executive" ? "executive" : null;
+}
+
 type SearchParamValue = string | string[] | null | undefined;
 
 /**

@@ -39,7 +39,8 @@ import { getCommandCalendarIntegrationSnapshot } from "@/lib/server/integrations
 import { listClientsNeedingAttention } from "@/lib/server/clients/clientAttention";
 import type { BattleTablePayload } from "./_BattleTableWorkspace";
 import { devTeamAccessible } from "@/lib/server/dev/devTeamAccess";
-import { resolveServerCommandStation } from "./commandStationRouting";
+import { focusLandingStation, resolveServerCommandStation } from "./commandStationRouting";
+import { getActiveDepartmentId } from "@/lib/server/chrome/activeDepartment";
 import { PortalViewportLoading } from "@/components/ui/PortalViewportLoading";
 import {
   assistantBusinessContextForActor,
@@ -125,7 +126,14 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
   const personalCalendarAccess = await resolvePersonalRadarAccessForActor(actor);
   const resolvedSearchParams = await searchParams;
   const devTeamVisible = devTeamAccessible(session);
-  const requestedServerStation = resolveServerCommandStation(resolvedSearchParams?.station, devTeamVisible);
+  // Landing follows the hat: with a department focus on and no explicit
+  // ?station=, the Command Centre opens on that focus's home (Executive → the
+  // executive workspace) instead of the generic Day surface. It only sets the
+  // INITIAL landing — ?station= and the in-app station nav still override it, so
+  // the operator is never trapped; taking the hat off restores the Day surface.
+  const focusLanding = resolvedSearchParams?.station ? null : focusLandingStation(await getActiveDepartmentId());
+  let requestedServerStation = resolveServerCommandStation(resolvedSearchParams?.station, devTeamVisible);
+  if (!requestedServerStation && focusLanding) requestedServerStation = focusLanding;
   // Performance mode (server-read cookie): keep the two heaviest *repeated*
   // costs off the landing critical path. The operational-alerts sweep (a live
   // Supabase fetch) is skipped, and the dev-team board disk scan that feeds the
@@ -451,6 +459,7 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
         headline={personalRadarHeadline(personalRadarBlock.reading, personalRadarBlock.actions, personalRadarNow, personalRadarBlock.actionSummary)}
       /> : null}
       <DashboardCommandCenter
+        focusDefaultStation={focusLanding ?? undefined}
         canUsePersonalCommand={personalCommandAccess.writable}
         canRunRadarScan={canRunRadarScan}
         canManageRadarPolicy={canManageWorkspace}

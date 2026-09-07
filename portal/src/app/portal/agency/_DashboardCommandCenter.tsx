@@ -216,6 +216,7 @@ export function DashboardCommandCenter({
   canManageRadarPolicy = true,
   canCreateRadarActions = true,
   canManageBusinessWorkload = false,
+  focusDefaultStation,
 }: {
   planning: DashboardPlanningPayload;
   tasks: AgencyTask[];
@@ -266,6 +267,10 @@ export function DashboardCommandCenter({
   canCreateRadarActions?: boolean;
   /** Exact element-gated authority for the company workload configuration. */
   canManageBusinessWorkload?: boolean;
+  /** The active "Working as" focus's landing station (Executive → "executive"),
+   *  used only as the INITIAL station when the URL carries no ?station=. The
+   *  in-app station nav and an explicit ?station= still override it. */
+  focusDefaultStation?: ServerCommandStation;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -279,13 +284,18 @@ export function DashboardCommandCenter({
   const requestedKpiIds = searchParams.get("kpi")?.split(",").map(value => value.trim()).filter(Boolean) ?? [];
   const requestedScopeId = searchParams.get("scope")?.trim() || "ecosystem";
   const requestedBattleSection = battleTableSection(searchParams.get("battle"));
-  const initialStation: CommandSurfaceMode = requestedServerStation === "advisor"
+  // With no ?station in the URL, a department focus's landing (Executive → the
+  // executive workspace) supplies the INITIAL station — mirrors what the server
+  // built. It seeds initial state only; navigation still syncs to the URL, so
+  // the operator can move off it freely and is never trapped.
+  const effectiveServerStation = requestedServerStation ?? (requestedStationValue ? null : focusDefaultStation ?? null);
+  const initialStation: CommandSurfaceMode = effectiveServerStation === "advisor"
     ? "radar"
-    : requestedServerStation === "calendar" || requestedServerStation === "actions"
+    : effectiveServerStation === "calendar" || effectiveServerStation === "actions"
       ? "day"
-      : requestedServerStation === "executive"
+      : effectiveServerStation === "executive"
         ? "executive"
-        : requestedServerStation === "devteam"
+        : effectiveServerStation === "devteam"
           ? "devteam"
           : isDayCommandRoute
             ? "day"
@@ -338,7 +348,7 @@ export function DashboardCommandCenter({
   const [now, setNow] = useState(Date.now());
   const [activeStation, setActiveStation] = useState<CommandSurfaceMode>(initialStation);
   const [intelligenceEntry, setIntelligenceEntry] = useState<{ view: IntelligenceView; kpiIds: string[]; scopeId: string; commercialFocus: { metricId?: string; recordId?: string; sourceId?: string; stageId?: string }; version: number }>({ view: requestedIntelligenceView, kpiIds: requestedKpiIds, scopeId: requestedScopeId, commercialFocus: commercialFocus(searchParams), version: 0 });
-  const [dashboardMode, setDashboardMode] = useState<CommandWorkspaceMode>(requestedServerStation === "calendar" || requestedServerStation === "actions" || requestedServerStation === "advisor" ? requestedServerStation : initialStation === "day" ? "day" : initialStation === "battle" ? "battle" : initialStation === "intelligence" ? "intelligence" : pathname.startsWith("/portal/agency/radar") ? "inspector" : initialStation === "radar" ? "workspace" : "radar");
+  const [dashboardMode, setDashboardMode] = useState<CommandWorkspaceMode>(effectiveServerStation === "calendar" || effectiveServerStation === "actions" || effectiveServerStation === "advisor" ? effectiveServerStation : initialStation === "day" ? "day" : initialStation === "battle" ? "battle" : initialStation === "intelligence" ? "intelligence" : pathname.startsWith("/portal/agency/radar") ? "inspector" : initialStation === "radar" ? "workspace" : "radar");
   const [serverStationTransitionPending, startServerStationTransition] = useTransition();
   const [scanNavigationPending, startScanNavigation] = useTransition();
   const [pendingServerNavigation, setPendingServerNavigation] = useState<PendingServerStationNavigation | null>(null);
