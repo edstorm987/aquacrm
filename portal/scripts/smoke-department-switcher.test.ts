@@ -114,15 +114,18 @@ describe("the order the chrome hook applies things", () => {
 
   it("narrows before applying the personal arrangement", () => {
     // Arranging is about the rows you HAVE. Narrowing afterwards would leave a
-    // person's saved order applied to rows they cannot currently see.
+    // person's saved order applied to rows they cannot currently see. The hat's
+    // hidden rows are then revealed, and the arrangement applies to that result.
     const lensAt = source.indexOf("applyDepartmentLens(panels, department)");
-    const arrangeAt = source.indexOf("applyPersonalChrome(lensed");
+    const revealAt = source.indexOf("revealFocusPanels(lensed, department)");
+    const arrangeAt = source.indexOf("applyPersonalChrome(focused");
     assert.ok(lensAt > 0, "the lens must be applied in the shared hook");
-    assert.ok(arrangeAt > lensAt, "the arrangement must be applied to the lensed panels");
+    assert.ok(revealAt > lensAt, "the department's rows are revealed after narrowing");
+    assert.ok(arrangeAt > revealAt, "the arrangement must be applied to the focused panels");
   });
 
-  it("returns the lensed panels even when nothing is arranged", () => {
-    assert.match(source, /return lensed;/,
+  it("returns the focused panels even when nothing is arranged", () => {
+    assert.match(source, /return focused;/,
       "a person who never arranged their sidebar must still get their hat");
   });
 });

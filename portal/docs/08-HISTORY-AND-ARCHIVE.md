@@ -2,7 +2,7 @@
 
 > The append-only change record, dated handoffs and superseded historical summaries.
 >
-> Consolidated 2026-09-05 from **18** source documents / **136,141 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-07 from **18** source documents / **136,342 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -23,7 +23,7 @@
 - [`docs/context/archive/website-editor-and-migration.md`](#source-docs-context-archive-website-editor-and-migration-md) — 1,159 words · `235e8af731b6`
 - [`docs/context/archive/WHERE-WE-ARE-2026-08-18.md`](#source-docs-context-archive-where-we-are-2026-08-18-md) — 2,192 words · `4056e9a347cb`
 - [`docs/context/archive/WHERE-WE-STAND-2026-08-20.md`](#source-docs-context-archive-where-we-stand-2026-08-20-md) — 2,482 words · `26bf4442580e`
-- [`docs/development/updates.md`](#source-docs-development-updates-md) — 105,985 words · `e1be1ccef202`
+- [`docs/development/updates.md`](#source-docs-development-updates-md) — 106,186 words · `75a3c768079e`
 
 ---
 
@@ -3318,7 +3318,7 @@ Being straight with you about the edges.
 
 ## Source document — `docs/development/updates.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="e1be1ccef2023009a6ee803bd498678ab8927df1fa1b98768ba342e4bf2c0fda" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="75a3c768079e577f2f829616336a5af872aebe9e3600150c7316e7b2383a5061" -->
 # Updates log
 
 ← Back to [development.md](../development.md) (the law)
@@ -3354,6 +3354,27 @@ map stays trustworthy.
 > If you ship something, log it.
 
 ---
+
+## 2026-09-07 — Role focus modes, phase 1: the "Working as" sidebar actually narrows
+
+- "Working as <department>" felt broken — the sidebar looked the same under every
+  hat (Ed: "it shows the same for any working as, which is weird"). Root cause:
+  the department lens (`applyDepartmentLens`) narrows correctly, but the agency
+  IA-v2 override files the business functions into a `hidden: true` "ops" panel
+  the Sidebar never renders, so the surviving rows lived in the data and never
+  painted. New pure `src/lib/chrome/focusReveal.ts` (`revealFocusPanels`) un-hides
+  that panel and relabels it to the department, called in `withPersonalChrome`
+  right after the lens. No-hat returns the same array (owner sidebar untouched);
+  reveal only un-hides/relabels, never adds a row (the lens's remove-only safety
+  model is preserved). Now each of the five departments paints a distinct,
+  narrowed sidebar. Pinned by `scripts/smoke-department-focus.test.ts`;
+  `smoke-department-switcher` order pins updated for the reveal step.
+- First slice of the role-focus-mode plan Ed approved (Executive as a real 6th
+  department, per-role focused landings, a standalone Meetings surface, Sales
+  Scouting/Meetings links) — those land in later phases. Built on a separate
+  branch so PR #9 (the Command Centre simplification) stays independently
+  mergeable. Static + focused-test; full `smoke:all` at commit time; browser
+  acceptance to follow.
 
 ## 2026-09-03 — Supabase migrations APPLIED to live and verified
 
