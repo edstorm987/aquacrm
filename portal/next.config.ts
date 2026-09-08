@@ -65,9 +65,18 @@ const DEV_LOOPBACK_FRAME_SOURCES = process.env.NODE_ENV === "production"
 //
 // Split rather than deleted, because deleting it outright would have broken the
 // dev server the moment anybody ran it (2026-08-27, Phase D header audit).
+// Assume-breach containment (Phase 0-C): the broad `https:` source is REMOVED
+// from script-src. It let a stored/injected `<script src="https://evil.example/…">`
+// load and run from ANY https origin — the exact escalation CSP exists to stop.
+// Scripts are now `'self'` only (plus the CDNs the app genuinely loads, if any
+// are added later, pinned by host). `'unsafe-inline'` remains until the
+// nonce/hash migration lands (tracked PARTIAL): that migration must thread a
+// per-request nonce through the layouts' inline scripts, which is a larger,
+// separately-tested change — but narrowing script hosts is the higher-value
+// half and ships now. `'unsafe-eval'` stays dev-only.
 const SCRIPT_SRC = process.env.NODE_ENV === "production"
-  ? "script-src 'self' 'unsafe-inline' https:"
-  : "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:";
+  ? "script-src 'self' 'unsafe-inline'"
+  : "script-src 'self' 'unsafe-inline' 'unsafe-eval'";
 
 const SECURITY_HEADERS = [
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
@@ -86,7 +95,11 @@ const SECURITY_HEADERS = [
       "connect-src 'self' https: wss:",
       // Aqua embeds and branded sign-in surfaces are hosted in client-owned portals.
       `frame-src 'self'${DEV_LOOPBACK_FRAME_SOURCES} https:`,
-      `frame-ancestors 'self'${DEV_LOOPBACK_FRAME_SOURCES} https:`,
+      // Assume-breach containment (Phase 0-C): frame-ancestors narrowed from
+      // `https:` (which let ANY https site frame the authenticated portal — a
+      // clickjacking surface) to 'self' only. The editor previews same-origin
+      // content, so 'self' is sufficient; the dev-loopback exception stays.
+      `frame-ancestors 'self'${DEV_LOOPBACK_FRAME_SOURCES}`,
       "object-src 'none'",
       "base-uri 'self'",
       "form-action 'self'",

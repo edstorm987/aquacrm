@@ -9,6 +9,7 @@ import {
 import { flushPendingWrites, ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 import { requirePersonalCalendarAccess } from "@/lib/server/intelligence/personalRadarAccess";
+import { resolveSigningSecret } from "@/lib/server/auth/sessionToken";
 
 function redirectWithStatus(request: NextRequest, returnUrl: string, key: "calendarConnected" | "calendarError", value: string) {
   const url = new URL(returnUrl.startsWith("/portal/") ? returnUrl : "/portal/agency/calendar", request.nextUrl.origin);
@@ -19,7 +20,7 @@ function redirectWithStatus(request: NextRequest, returnUrl: string, key: "calen
 export async function GET(request: NextRequest) {
   await ensureHydrated();
   const stateRaw = request.nextUrl.searchParams.get("state") ?? "";
-  const state = verifyGoogleCalendarState(stateRaw, process.env.PORTAL_SESSION_SECRET ?? "dev-secret-do-not-use-in-prod");
+  const state = verifyGoogleCalendarState(stateRaw, resolveSigningSecret());
   const fallback = state.ok ? state.value.returnUrl : "/portal/agency/calendar";
   try {
     if (!state.ok) return redirectWithStatus(request, fallback, "calendarError", state.error);

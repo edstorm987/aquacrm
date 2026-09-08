@@ -1,5 +1,6 @@
 import "server-only";
 
+import { resolvePgTls } from "@/lib/server/pgTls";
 import type {
   RadarInfraBackend,
   RadarInfraDatabaseHealth,
@@ -142,16 +143,12 @@ async function probeExternalTarget(spec: ExternalTargetSpec): Promise<RadarInfra
   }
 }
 
-function externalSsl(connectionString: string): { ssl?: { rejectUnauthorized: boolean } } {
-  try {
-    const url = new URL(connectionString);
-    const sslmode = url.searchParams.get("sslmode");
-    const isLocal = url.hostname === "localhost" || url.hostname === "127.0.0.1";
-    const wantsTls = (sslmode && sslmode !== "disable") || (!sslmode && !isLocal);
-    return wantsTls ? { ssl: { rejectUnauthorized: false } } : {};
-  } catch {
-    return {};
-  }
+function externalSsl(connectionString: string): { ssl?: { rejectUnauthorized: true; ca?: string } | { rejectUnauthorized: false } } {
+  // Verified TLS — same fail-closed policy as the storage pool (pgTls.ts);
+  // the probe must never accept a certificate the real connection would not.
+  const tls = resolvePgTls(connectionString);
+  if (tls.warning) console.warn(tls.warning);
+  return tls.ssl === false ? {} : { ssl: tls.ssl };
 }
 
 function storageHealth(backend: RadarInfraBackend): RadarInfraStorageHealth {

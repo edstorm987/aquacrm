@@ -10,6 +10,9 @@ test("development CSP permits supervised ephemeral loopback preview frames only 
   assert.match(config, /http:\/\/localhost:\*/);
   assert.match(config, /http:\/\/127\.0\.0\.1:\*/);
   assert.match(config, /`frame-src 'self'\$\{DEV_LOOPBACK_FRAME_SOURCES\} https:`/);
-  assert.match(config, /`frame-ancestors 'self'\$\{DEV_LOOPBACK_FRAME_SOURCES\} https:`/);
+  // Phase 0-C narrowed frame-ancestors: the broad `https:` embedder allowance was a
+  // clickjacking surface (ANY https site could frame the authenticated portal).
+  // The dev loopback exception this suite exists to supervise is unchanged.
+  assert.match(config, /`frame-ancestors 'self'\$\{DEV_LOOPBACK_FRAME_SOURCES\}`/);
   assert.match(config, /\? ""\s*:\s*" http:\/\/localhost:\* http:\/\/127\.0\.0\.1:\*"/);
 });

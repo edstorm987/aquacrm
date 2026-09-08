@@ -110,6 +110,17 @@ export async function register(): Promise<void> {
   //     → runs. A `=== "nodejs"` guard would wrongly SKIP these, silencing the
   //     observability probe the smoke suite exercises (see the note above).
   if (process.env.NEXT_RUNTIME !== "edge") {
+    // FAIL-CLOSED BOOT (assume-breach containment, 2026-09-08). The startup
+    // environment self-check existed since T1 R029 but had ZERO callers — the
+    // "fail-closed boot" was dead code, so a production deploy with a missing
+    // or dev-sentinel PORTAL_SESSION_SECRET, or portal security switched off,
+    // booted and served. It now runs first, before anything else warms: in
+    // production it THROWS (Next aborts the server start), in dev it warns.
+    // Deliberately NOT wrapped in try/catch — a production boot with a broken
+    // security environment must die, loudly.
+    const { runStartupEnvCheck } = await import("@/lib/server/env");
+    runStartupEnvCheck();
+
     const { inspectObservabilityCapability } = await import("@/lib/server/observabilityCapability");
     const capability = inspectObservabilityCapability();
     if (capability.dsnConfigured && !capability.capturing && process.env.NODE_ENV !== "test") {

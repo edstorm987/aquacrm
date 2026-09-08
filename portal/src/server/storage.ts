@@ -73,6 +73,7 @@ const empty = (): PortalState => ({
   clients: {},
   endCustomers: {},
   users: {},
+  securityControl: { globalEpoch: 0, tenantEpochs: {}, userEpochs: {}, suspendedUsers: {}, sessions: {} },
   accessRoleTemplates: {},
   accessGrants: {},
   accessRequests: {},
@@ -1133,6 +1134,7 @@ function parseBlob(raw: string): PortalState {
       clients: parsed.clients ?? {},
       endCustomers: parsed.endCustomers ?? {},
       users: parsed.users ?? {},
+      securityControl: parsed.securityControl,
       accessRoleTemplates: parsed.accessRoleTemplates ?? {},
       accessGrants: parsed.accessGrants ?? {},
       accessRequests: parsed.accessRequests ?? {},
@@ -1738,11 +1740,43 @@ export async function withAtomicPortalStateMutation<T>(
   return result;
 }
 
-export function mutate(fn: (state: PortalState) => void): void {
+/**
+ * Thrown by `mutate()` while the global read-only kill switch is set
+ * (assume-breach containment, Phase 1). Reads keep serving; every write except
+ * the security control plane's own is refused BEFORE the mutation callback
+ * runs, so a refused write can never partially apply.
+ */
+export class SecurityLockdownError extends Error {
+  constructor(reason: string) {
+    super(
+      `[security] write refused: the portal is in global read-only lockdown (${reason}). ` +
+        "Lift the lockdown via the security control plane to resume writes.",
+    );
+    this.name = "SecurityLockdownError";
+  }
+}
+
+export interface MutateOptions {
+  /**
+   * The security control plane's own writes (securityControl.ts only) — these
+   * stay allowed during lockdown so the switch can be lifted and sessions
+   * revoked/suspended while it holds. Application code must never set this.
+   */
+  securityControlPlane?: boolean;
+}
+
+export function mutate(fn: (state: PortalState) => void, options?: MutateOptions): void {
   const realmId = getActiveDataRealmId();
   const runtime = realmRuntime(realmId);
   if (runtime.reconciliationRequired) throw runtime.reconciliationRequired;
   const transaction = portalStateMutationTransactions.getStore();
+  // KILL SWITCH — checked before the callback runs so nothing partially
+  // applies. Realm-scoped: each data realm's own securityControl governs it.
+  const lockdown = (transaction?.active && transaction.realmId === realmId
+    ? transaction.working
+    : runtime.cache
+  )?.securityControl?.globalReadOnly;
+  if (lockdown && !options?.securityControlPlane) throw new SecurityLockdownError(lockdown.reason);
   if (transaction?.active && transaction.realmId === realmId) {
     fn(transaction.working);
     return;

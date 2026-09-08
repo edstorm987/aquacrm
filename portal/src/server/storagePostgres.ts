@@ -20,6 +20,7 @@ import "server-only";
 // is retried on next mutation).
 
 import { Pool, type PoolConfig } from "pg";
+import { resolvePgTls } from "@/lib/server/pgTls";
 import type { PortalState } from "./types";
 import {
   applyDevTeamWorkspaceFileMutations,
@@ -41,15 +42,16 @@ export function sidecarKeyForRealm(slug: string, realmId = "live"): string {
 let pool: Pool | null = null;
 
 function buildPool(connectionString: string): Pool {
-  // Cloud Postgres providers (Neon / Supabase / Vercel Postgres) all
-  // require TLS. Honour the URL's sslmode if present; fall back to
-  // requiring TLS for any non-localhost host. Self-signed certs accepted
-  // — `DATABASE_URL` is a private secret pinned to a known provider.
-  const url = new URL(connectionString);
-  const sslmode = url.searchParams.get("sslmode");
-  const isLocal = url.hostname === "localhost" || url.hostname === "127.0.0.1";
-  const wantsTls =
-    (sslmode && sslmode !== "disable") || (!sslmode && !isLocal);
+  // Cloud Postgres providers (Neon / Supabase / Vercel Postgres) all require
+  // TLS. Certificate verification is now MANDATORY outside localhost
+  // (assume-breach containment, 2026-09-08): the previous
+  // `rejectUnauthorized: false` accepted ANY certificate, leaving the channel
+  // that carries every tenant's state and the database password MITM-able.
+  // Policy — including the PORTAL_PG_CA_CERT provider-CA input and the
+  // explicit non-production-only escape hatch that production IGNORES —
+  // lives in lib/server/pgTls.ts and is regression-tested.
+  const tls = resolvePgTls(connectionString);
+  if (tls.warning) console.warn(tls.warning);
   const config: PoolConfig = {
     connectionString,
     // Pool defaults: 10 idle connections, 30s idleTimeout. Overridable
@@ -57,7 +59,7 @@ function buildPool(connectionString: string): Pool {
     max: parseInt(process.env.PORTAL_PG_POOL_MAX ?? "10", 10),
     idleTimeoutMillis: parseInt(process.env.PORTAL_PG_IDLE_MS ?? "30000", 10),
     connectionTimeoutMillis: parseInt(process.env.PORTAL_PG_CONNECT_MS ?? "10000", 10),
-    ssl: wantsTls ? { rejectUnauthorized: false } : undefined,
+    ssl: tls.ssl === false ? undefined : tls.ssl,
   };
   return new Pool(config);
 }

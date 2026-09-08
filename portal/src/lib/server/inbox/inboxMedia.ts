@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 import type { InboxOutboundAttachmentKind } from "@/lib/inbox/media";
 import { readLocalFileRange, readVercelBlobRange, type ByteRange } from "@/lib/server/privateMediaResponse";
 import { readSupabasePrivateUploadRange, type PrivateUploadStorageProvider } from "@/lib/server/privateUploadStorage";
+import { resolveSigningSecret } from "@/lib/server/auth/sessionToken";
 
 export type InboxMediaTargetKind = "website" | "social" | "client";
 
@@ -24,7 +25,7 @@ export interface InboxMediaTokenPayload {
 }
 
 function secret(): string {
-  return process.env.PORTAL_SESSION_SECRET?.trim() || "dev-secret-do-not-use-in-prod";
+  return resolveSigningSecret();
 }
 
 export function signInboxMediaToken(input: Omit<InboxMediaTokenPayload, "exp">, lifetimeMs = 30 * 24 * 60 * 60_000): string {

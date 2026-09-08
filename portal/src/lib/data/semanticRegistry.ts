@@ -913,6 +913,7 @@ export const PORTAL_STATE_COVERAGE: Readonly<Record<string, CollectionClassifica
   clients: { entity: "client", plane: "operational", note: "Client workspaces; metadata governed by metadataContracts." },
   endCustomers: { entity: "endCustomer", plane: "operational", note: "Customers of clients." },
   users: { entity: "userAccount", plane: "operational", note: "Logins keyed by lower-cased email; scrypt hashes; credential-class." },
+  securityControl: { entity: "userAccount", plane: "operational", note: "Assume-breach control plane (singleton): security epochs, suspensions, session registry. Credential-class; never seeded or promoted." },
   accessRoleTemplates: { entity: "resourceEntitlement", plane: "operational", note: "Reusable capability sets." },
   accessGrants: { entity: "resourceEntitlement", plane: "operational", note: "Grants; revoked retained as audit." },
   accessRequests: { entity: "approvalRequest", plane: "operational", note: "pending|approved|denied|cancelled." },

@@ -4,6 +4,7 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { buildAuthorizeUrl, readGoogleOAuthConfig } from "@/lib/server/integrations/oauthGoogle";
+import { resolveSigningSecret } from "@/lib/server/auth/sessionToken";
 
 export async function GET(req: NextRequest) {
   const origin = req.nextUrl.origin;
@@ -11,7 +12,7 @@ export async function GET(req: NextRequest) {
   if (!config) return NextResponse.json({ ok: false, error: "google_oauth_not_configured" }, { status: 404 });
 
   const returnUrl = req.nextUrl.searchParams.get("return") ?? "/portal";
-  const secret = process.env.PORTAL_SESSION_SECRET ?? "dev-secret-do-not-use-in-prod";
+  const secret = resolveSigningSecret();
   const { url } = buildAuthorizeUrl(config, { returnUrl, secret });
   return NextResponse.redirect(url, 302);
 }

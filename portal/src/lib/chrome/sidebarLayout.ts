@@ -213,6 +213,12 @@ export function buildSidebar(input: BuildSidebarInput): NavPanel[] {
     appendIntoPanel(itemsByPanel, input.publicShowcase
       ? { id: "showcase-permissions", label: "Permissions", href: "/portal/account/permissions", panelId: "settings", order: 100 }
       : { id: "agency-settings", label: "Agency settings", href: "/portal/agency/settings", panelId: "settings", order: 100 });
+    // The threat centre (Phase 6): owner-only, sits with the other settings-tier
+    // controls. Owner-gated here to match the route's own requireRole so the
+    // link never dangles to a 403 for managers/staff.
+    if (!input.publicShowcase && input.role === "agency-owner") {
+      appendIntoPanel(itemsByPanel, { id: "agency-security", label: "Security", href: "/portal/agency/security", panelId: "settings", order: 101 });
+    }
   } else if (input.scope === "client" && input.currentClient && (isAgencyRole(input.role) || isClientRole(input.role))) {
     appendIntoPanel(itemsByPanel, {
       id: "client-settings",

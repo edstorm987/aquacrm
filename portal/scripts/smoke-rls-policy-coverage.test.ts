@@ -413,16 +413,28 @@ describe("brand_enquiries tenant scoping — the agency_id column and its policy
     );
   });
 
-  it("scopes the internal-users policy by agency", () => {
-    const policy = [...written.policies.values()].find(
-      candidate => candidate.table === "brand_enquiries" && candidate.command === "all",
+  it("gives browser roles NO read/manage path on brand_enquiries (assume-breach containment)", () => {
+    // 20260908210000 replaced the null-fail-open "ratchet" manage policy with
+    // default-deny: enquiry triage is server-mediated (service role, which
+    // bypasses RLS). The ONLY browser-role policy allowed on this table is the
+    // consented public INSERT. A FOR ALL / SELECT / UPDATE / DELETE policy
+    // reappearing here reopens cross-tenant enquiry access and fails this test.
+    const browserPolicies = [...written.policies.values()].filter(
+      candidate => candidate.table === "brand_enquiries" && appliesToSignedInUser(candidate),
     );
-    assert.ok(policy, "brand_enquiries has no FOR ALL policy for internal users at all.");
+    const nonInsert = browserPolicies.filter(policy => policy.command !== "insert");
+    assert.deepEqual(
+      nonInsert.map(policy => `${policy.command}:${policy.name} (${policy.migration})`),
+      [],
+      "brand_enquiries must have NO browser-role policy beyond the consented INSERT — " +
+        "triage is service-role only. A manage/select policy here reopens cross-tenant access.",
+    );
+    const insertPolicy = browserPolicies.find(policy => policy.command === "insert");
+    assert.ok(insertPolicy, "The consented public INSERT policy (contact form) has been lost.");
     assert.match(
-      policy!.using ?? "",
-      /current_profile_agency_id/,
-      `The brand_enquiries manage policy ("${policy!.name}", ${policy!.migration}) no longer compares ` +
-        `agency_id against current_profile_agency_id(). That reverts tenant scoping to app code only.`,
+      insertPolicy!.name,
+      /consented/i,
+      `The surviving INSERT policy ("${insertPolicy!.name}") is not the consent-checked one.`,
     );
   });
 

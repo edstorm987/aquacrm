@@ -219,8 +219,14 @@ describe("the non-plugin app API routes — the class with no class-level guard"
     // tenant input, and writes only `actor.resourceAgencyId`.
     // 161 → 162 on 2026-09-03: `chrome/tools/[toolId]/icon` (My Tools private icon
     // bytes; tenant and owner come from `requireSelf()`, never from the request).
-    assert.equal(routes.length, 162,
-      `there are now ${routes.length} non-plugin routes under src/app/api/portal, not 162.`
+    // 162 → 164 on 2026-09-08: the Phase-6 threat centre — `security/overview`
+    // and `security/actions`. Both `requireRole("agency-owner")`, take tenant
+    // scope from the SESSION (`session.agencyId`), and never read an agency from
+    // the request; actions additionally re-verify the owner's password, require
+    // a typed confirmation, refuse cross-tenant user/session targets, and gate
+    // platform-wide switches to the operator's own owner.
+    assert.equal(routes.length, 164,
+      `there are now ${routes.length} non-plugin routes under src/app/api/portal, not 164.`
       + " A new one has appeared: decide where IT gets its tenant from, then update this count.");
   });
 

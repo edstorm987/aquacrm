@@ -416,6 +416,7 @@ async function generateEditorAiReplyOnce(
   try {
     payload = await requestOpenAiResponse({
       apiKey: token,
+      tenantId: agencyId,
       payload: {
         model,
         instructions,

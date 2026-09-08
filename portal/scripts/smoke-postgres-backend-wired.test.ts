@@ -98,11 +98,14 @@ describe("Postgres backend — smoke skips cleanly without DATABASE_URL (R027 D)
 });
 
 describe("Postgres backend — TLS posture (R027)", () => {
-  it("storagePostgres builds a Pool with TLS for non-localhost hosts", () => {
+  it("storagePostgres builds a Pool with VERIFIED TLS for non-localhost hosts", () => {
+    // Phase 0-E: the old posture (`ssl: { rejectUnauthorized: false }`) accepted
+    // ANY certificate. TLS decisions now come from the shared fail-closed
+    // resolver, which verifies certificates and only skips TLS for genuinely
+    // local connections.
     const src = readFileSync(STORAGE_PG, "utf8");
-    assert.ok(src.includes("rejectUnauthorized: false"));
-    assert.ok(src.includes("isLocal"));
-    assert.ok(src.includes("sslmode"));
+    assert.ok(src.includes("resolvePgTls"), "the pool must take its TLS decision from resolvePgTls");
+    assert.ok(!src.includes("ssl: { rejectUnauthorized: false"), "the unverified-TLS idiom must not return");
   });
 
   it("describePostgres exposes diagnostics — pool counts + ssl + connectionHost", () => {

@@ -648,7 +648,14 @@ function VisualEditorPageInner({ enabledPluginIds }: { enabledPluginIds: readonl
                     ref={iframeRef}
                     src={iframeSrc}
                     title={currentPage.title}
-                    sandbox="allow-forms allow-same-origin allow-scripts allow-popups allow-modals allow-clipboard-write"
+                    // Assume-breach containment (Phase 0-C): `allow-scripts`
+                    // AND `allow-same-origin` together let sandboxed content
+                    // reach back into this same-origin document and its cookies
+                    // — the sandbox becomes a no-op. `allow-same-origin` is
+                    // dropped: the preview is a plain document that does not
+                    // need to script the parent. (Full isolation is a separate
+                    // preview origin — tracked; this removes the escape now.)
+                    sandbox="allow-forms allow-popups allow-modals allow-clipboard-write"
                     onLoad={() => setIframeReady(true)}
                     style={{
                       width: "100%",

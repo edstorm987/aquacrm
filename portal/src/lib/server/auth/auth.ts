@@ -30,6 +30,7 @@ import {
 } from "@/lib/server/auth/sessionToken";
 import { LIVE_DATA_REALM_ID, ensureHydrated, runInDataRealm } from "@/server/storage";
 import { normaliseDataRealmId } from "@/server/dataRealm";
+import { currentEpochStamp, enforceSessionSecurity, newSessionId } from "@/lib/server/auth/securityControl";
 
 const COOKIE_NAME = SESSION_COOKIE_NAME;
 const COOKIE_MAX_AGE = SESSION_COOKIE_MAX_AGE;
@@ -80,6 +81,9 @@ interface IssueSessionInput {
   // "aal1". Optional so existing callers (demo / dev / preview mints) are
   // untouched — an absent value reads as "not proven", never as aal2.
   aal?: "aal1" | "aal2";
+  // Assume-breach containment: caller-supplied session id (so the login route
+  // can record the registry row under the same id). Defaults to a fresh UUID.
+  sid?: string;
 }
 
 export function issueSession(input: IssueSessionInput): string {
@@ -112,6 +116,11 @@ export function issueSession(input: IssueSessionInput): string {
     sessionRev: input.sessionRev ?? 0,
     accessRev: input.accessRev ?? getUserById(input.userId)?.accessRev ?? 0,
     aal: input.aal,
+    // Assume-breach containment: per-session id + security-epoch stamps. The
+    // stamp read tolerates missing state (standalone mints), reading as 0s —
+    // which the central gate treats as "born before the first bump".
+    sid: input.sid ?? newSessionId(),
+    se: currentEpochStamp(input.userId, activeAgencyId),
     iat: now,
     exp: now + COOKIE_MAX_AGE,
   };
@@ -189,6 +198,11 @@ export async function resolveFreshSessionUser(session: SessionPayload): Promise<
   // R021 rotation: password change, role/scope change and explicit rotation
   // all bump the record's rev past the cookie's.
   if (!isSessionFresh(session, user)) return null;
+  // Assume-breach containment: the central security gate — suspension,
+  // global/tenant/user security epochs and per-session revocation — binds on
+  // EVERY authenticated request and EVERY session flavour (including showcase
+  // and sandbox, which return early below), not just at login.
+  if (!enforceSessionSecurity(session).ok) return null;
   // The public tour visitor is an anonymous fixture identity; existence +
   // rotation is the whole contract (the proxy keeps the session read-only).
   if (session.publicShowcase) return user;

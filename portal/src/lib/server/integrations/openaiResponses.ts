@@ -4,8 +4,57 @@ import {
   type RemoteOperationEvent,
 } from "@/lib/server/remoteOperation";
 import { assertLiveProviderAccess } from "@/lib/server/sandbox/providerPolicy";
+import { isAiDisabled } from "@/lib/server/auth/securityControl";
+import { recordSecurityEvent } from "@/lib/server/security/securityEvents";
 
 export const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
+
+/**
+ * The AI kill switch is ON (assume-breach containment, Phase 3). Thrown before
+ * any provider I/O; the caller's user-facing mapping applies.
+ */
+export class AiDisabledError extends RemoteOperationDefinitiveError {
+  constructor(reason: string) {
+    super(`AI generation is disabled by the security control plane (${reason}).`);
+    this.name = "AiDisabledError";
+  }
+}
+
+/** This tenant (or the whole app) has exhausted its AI call budget for the window. */
+export class AiQuotaExceededError extends RemoteOperationDefinitiveError {
+  constructor(scope: string) {
+    super(`AI call quota exhausted for ${scope}. The window resets within the hour.`);
+    this.name = "AiQuotaExceededError";
+  }
+}
+
+// Per-tenant sliding-hour quota. In-memory is honest for the single-instance
+// Railway deployment; a multi-instance rollout needs a shared counter (tracked
+// as a Phase-4 item alongside the distributed rate limiter).
+const QUOTA_WINDOW_MS = 60 * 60 * 1000;
+const callLog = new Map<string, number[]>();
+
+function quotaLimit(): number {
+  const parsed = Number.parseInt(process.env.PORTAL_AI_CALLS_PER_HOUR ?? "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 500;
+}
+
+function consumeQuota(scope: string): boolean {
+  const now = Date.now();
+  const entries = (callLog.get(scope) ?? []).filter(at => now - at < QUOTA_WINDOW_MS);
+  if (entries.length >= quotaLimit()) {
+    callLog.set(scope, entries);
+    return false;
+  }
+  entries.push(now);
+  callLog.set(scope, entries);
+  return true;
+}
+
+/** Test seam: clear the in-memory quota window. */
+export function resetAiQuotaForTest(): void {
+  callLog.clear();
+}
 
 /**
  * A provider response reached us but OpenAI refused it. Keeping the HTTP
@@ -26,6 +75,8 @@ export class OpenAiResponseError extends RemoteOperationDefinitiveError {
 export async function requestOpenAiResponse(input: {
   apiKey: string;
   payload: Record<string, unknown>;
+  /** Tenant scope for the per-tenant quota; untenanted callers share one bucket. */
+  tenantId?: string;
   fetchImpl?: typeof fetch;
   signal?: AbortSignal;
   timeoutMs?: number;
@@ -34,6 +85,21 @@ export async function requestOpenAiResponse(input: {
   // This shared adapter is the final outbound fence. Route/UI checks are not
   // sufficient because assistants and editor workers can call it directly.
   assertLiveProviderAccess("OpenAI response generation");
+  // AI KILL SWITCH + per-tenant quota (Phase 3) — enforced at the ONE adapter
+  // every AI generation passes through, before any provider I/O. Prompt
+  // contents are never logged or evented.
+  const disabled = isAiDisabled();
+  if (disabled) throw new AiDisabledError(disabled.reason);
+  const quotaScope = input.tenantId ?? "untenanted";
+  if (!consumeQuota(quotaScope)) {
+    recordSecurityEvent({
+      kind: "ai.quota-exceeded",
+      severity: "warning",
+      tenantId: input.tenantId,
+      detail: { scope: quotaScope, limitPerHour: quotaLimit() },
+    });
+    throw new AiQuotaExceededError(quotaScope);
+  }
   const fetchImpl = input.fetchImpl ?? fetch;
   return withRemoteOperationDeadline({
     operation: "OpenAI response generation",

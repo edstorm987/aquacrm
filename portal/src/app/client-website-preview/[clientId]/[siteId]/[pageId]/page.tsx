@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { storedMarkupOrNull } from "@/built-ins/modules/website-editor/src/lib/customCodeSafeMode";
 import { PortalPageRenderer } from "@/built-ins/modules/website-editor/src/components/storefront/PortalPageRenderer";
 import { getPage } from "@/built-ins/modules/website-editor/src/server/pages";
 import { getDefaultTheme, getTheme } from "@/built-ins/modules/website-editor/src/server/themes";
@@ -29,9 +30,17 @@ export default async function ClientWebsitePreview({ params }: PreviewProps) {
     ? await getTheme(storage, session.agencyId, clientId, siteId, page.themeId)
     : await getDefaultTheme(storage, session.agencyId, clientId, siteId);
 
+  // Assume-breach containment (Phase 0-C): in production this authenticated,
+  // same-origin render must NOT stamp operator-pasted head/foot markup (an
+  // active-content injection with the operator's cookies). storedMarkupOrNull
+  // returns null in production safe mode; the editor's own sandboxed preview
+  // still shows the markup. Origin isolation + a parser sanitiser will lift
+  // this — see customCodeSafeMode.ts.
+  const safeHead = storedMarkupOrNull(page.customHead);
+  const safeFoot = storedMarkupOrNull(page.customFoot);
   return (
     <main className="min-h-screen bg-white text-slate-950" data-client-website-preview>
-      {page.customHead ? <div className="contents" dangerouslySetInnerHTML={{ __html: page.customHead }} /> : null}
+      {safeHead ? <div className="contents" dangerouslySetInnerHTML={{ __html: safeHead }} /> : null}
       <PortalPageRenderer
         page={page}
         theme={theme}
@@ -39,7 +48,7 @@ export default async function ClientWebsitePreview({ params }: PreviewProps) {
         agencyId={session.agencyId}
         clientId={clientId}
       />
-      {page.customFoot ? <div className="contents" dangerouslySetInnerHTML={{ __html: page.customFoot }} /> : null}
+      {safeFoot ? <div className="contents" dangerouslySetInnerHTML={{ __html: safeFoot }} /> : null}
     </main>
   );
 }

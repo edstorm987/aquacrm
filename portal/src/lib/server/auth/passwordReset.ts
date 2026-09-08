@@ -17,6 +17,7 @@
 // effect when actually called.
 
 import crypto from "crypto";
+import { resolveSigningSecret } from "@/lib/server/auth/sessionToken";
 
 const TOKEN_TTL_SECONDS = 60 * 60 * 24;
 
@@ -28,7 +29,7 @@ export interface PasswordResetPayload {
 }
 
 function getSecret(): string {
-  return process.env.PORTAL_SESSION_SECRET ?? "dev-secret-do-not-use-in-prod";
+  return resolveSigningSecret();
 }
 
 export function signPasswordResetToken(input: { userId: string; email: string }): {
