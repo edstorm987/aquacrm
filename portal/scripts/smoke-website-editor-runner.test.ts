@@ -87,7 +87,10 @@ test("root and module package commands use the shared Website Editor runner", as
     rootPackage.scripts?.["smoke:website-editor"],
     "node scripts/run-website-editor-smoke.mjs",
   );
-  assert.match(rootPackage.scripts?.["smoke:all"] ?? "", /node --import tsx --test/);
+  // smoke:all now delegates discovery to the deterministic Node enumerator
+  // (which itself execs `node --import tsx --test <files>`), then chains the
+  // Website Editor gate. It must still invoke both.
+  assert.match(rootPackage.scripts?.["smoke:all"] ?? "", /run-canonical-suite\.mjs/);
   assert.match(rootPackage.scripts?.["smoke:all"] ?? "", /smoke:website-editor/);
   assert.equal(
     modulePackage.scripts?.test,

@@ -25,7 +25,7 @@ import { spawnSync } from "node:child_process";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PORTAL = join(HERE, "..");
 
-const EXCLUDED_MODULES = new Set(["website-editor"]);
+export const EXCLUDED_MODULES = new Set(["website-editor"]);
 
 function testFilesIn(dir) {
   if (!existsSync(dir)) return [];
@@ -35,32 +35,49 @@ function testFilesIn(dir) {
     .sort();
 }
 
-// Group 1 — the top-level script suites.
-const scriptsDir = join(PORTAL, "scripts");
-const scriptTests = testFilesIn(scriptsDir);
+/**
+ * Pure discovery — enumerate the exact canonical file set in Node so the same
+ * logic the runner uses is also assertable by the coverage meta-test, without
+ * spawning 600+ tests. `problems` is non-empty iff a fail-closed group is empty.
+ */
+export function discoverCanonicalTests(portalRoot = PORTAL) {
+  const scriptsDir = join(portalRoot, "scripts");
+  const scriptTests = testFilesIn(scriptsDir);
 
-// Group 2 — every built-in module's __smoke__ suite EXCEPT the excluded ones.
-const modulesRoot = join(PORTAL, "src", "built-ins", "modules");
-const moduleTests = [];
-const includedModules = [];
-if (existsSync(modulesRoot)) {
-  for (const mod of readdirSync(modulesRoot).sort()) {
-    if (EXCLUDED_MODULES.has(mod)) continue;
-    const smokeDir = join(modulesRoot, mod, "src", "__smoke__");
-    if (!existsSync(smokeDir) || !statSync(smokeDir).isDirectory()) continue;
-    const found = testFilesIn(smokeDir);
-    if (found.length > 0) {
-      moduleTests.push(...found);
-      includedModules.push(`${mod}(${found.length})`);
+  const modulesRoot = join(portalRoot, "src", "built-ins", "modules");
+  const moduleTests = [];
+  const includedModules = [];
+  if (existsSync(modulesRoot)) {
+    for (const mod of readdirSync(modulesRoot).sort()) {
+      if (EXCLUDED_MODULES.has(mod)) continue;
+      const smokeDir = join(modulesRoot, mod, "src", "__smoke__");
+      if (!existsSync(smokeDir) || !statSync(smokeDir).isDirectory()) continue;
+      const found = testFilesIn(smokeDir);
+      if (found.length > 0) {
+        moduleTests.push(...found);
+        includedModules.push(`${mod}(${found.length})`);
+      }
     }
   }
+
+  const problems = [];
+  if (scriptTests.length === 0) problems.push("no scripts/*.test.ts files were discovered");
+  if (moduleTests.length === 0) problems.push("no non-website-editor module __smoke__ tests were discovered");
+  return { scriptsDir, modulesRoot, scriptTests, moduleTests, includedModules, problems };
 }
+
+// When imported (by the coverage meta-test), stop here — do not run the suite.
+if (process.argv[1] && fileURLToPath(import.meta.url) !== process.argv[1]) {
+  // eslint-disable-next-line no-var
+} else {
+  runCanonicalSuite();
+}
+
+function runCanonicalSuite() {
+const { scriptsDir, modulesRoot, scriptTests, moduleTests, includedModules, problems } = discoverCanonicalTests();
 
 // Fail-closed discovery: a zero count in either group means the layout moved or
 // a glob broke — that must be a red run, never a silent "0 tests, all passed".
-const problems = [];
-if (scriptTests.length === 0) problems.push("no scripts/*.test.ts files were discovered");
-if (moduleTests.length === 0) problems.push("no non-website-editor module __smoke__ tests were discovered");
 if (problems.length > 0) {
   console.error(`[canonical-suite] test discovery FAILED: ${problems.join("; ")}`);
   console.error(`[canonical-suite] scripts dir: ${scriptsDir}`);
@@ -95,3 +112,4 @@ if (child.error) {
   process.exit(1);
 }
 process.exit(child.status ?? 1);
+}
