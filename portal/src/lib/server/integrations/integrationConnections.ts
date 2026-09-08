@@ -10,6 +10,7 @@ import {
 } from "@/lib/integrations/catalog";
 import type { PublicIntegrationConnection } from "@/lib/integrations/types";
 import { mayUseEnvironmentCredentials } from "@/lib/server/auth/founderAgency";
+import { brokeredFetch, OutboundBlockedError } from "@/lib/server/net/outboundBroker";
 import { logActivity } from "@/server/activity";
 import { getState, mutate } from "@/server/storage";
 import type { IntegrationConnection } from "@/server/types";
@@ -310,7 +311,9 @@ export async function testIntegrationConnection(
   agencyId: string,
   connectionId: string,
   actor: { userId: string; email?: string },
-  fetchImpl: typeof fetch = fetch,
+  // Undefined in production → the request helper uses the audited egress
+  // broker. Tests inject a stub fetch to drive provider responses offline.
+  fetchImpl?: typeof fetch,
 ): Promise<PublicIntegrationConnection> {
   assertLiveProviderAccess("Integration connection testing");
   const connection = getIntegrationConnection(agencyId, connectionId);
@@ -457,18 +460,70 @@ function environmentValues(provider: IntegrationProvider): Record<string, string
 async function testProvider(
   provider: IntegrationProvider,
   values: Record<string, string>,
-  fetchImpl: typeof fetch,
+  fetchImpl: typeof fetch | undefined,
   signal: AbortSignal,
 ): Promise<string> {
   const request = async (url: string, authorization: string, headers: Record<string, string> = {}) => {
-    const response = await fetchImpl(url, {
-      headers: { authorization, ...headers },
-      cache: "no-store",
-      signal,
-    });
-    const payload = await response.json().catch(() => null) as { message?: string; error?: { message?: string } } | null;
-    if (!response.ok) throw new Error(payload?.error?.message || payload?.message || `Provider returned ${response.status}.`);
+    // Through the audited egress broker (assume-breach containment). These
+    // provider endpoints are hardcoded, but routing through the broker is
+    // defence-in-depth: it refuses any that a future config-derived URL could
+    // point at a private/metadata address, and drops the bearer credential
+    // across an origin-changing redirect. A test harness may inject fetchImpl.
+    if (fetchImpl) {
+      const legacy = await fetchImpl(url, { headers: { authorization, ...headers }, cache: "no-store", signal });
+      const payload = await legacy.json().catch(() => null) as { message?: string; error?: { message?: string } } | null;
+      if (!legacy.ok) throw new Error(payload?.error?.message || payload?.message || `Provider returned ${legacy.status}.`);
+      return payload;
+    }
+    let response;
+    try {
+      response = await brokeredFetch({
+        url,
+        headers: { authorization, ...headers },
+        timeoutMs: TEST_TIMEOUT_MS,
+        purpose: "integration.test-connection",
+      });
+    } catch (error) {
+      if (error instanceof OutboundBlockedError) throw new Error(`Provider endpoint refused: ${error.reason}.`);
+      throw error;
+    }
+    const payload = JSON.parse(response.bodyText || "null") as { message?: string; error?: { message?: string } } | null;
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(payload?.error?.message || payload?.message || `Provider returned ${response.status}.`);
+    }
     return payload;
+  };
+
+  // A Response-shaped wrapper for the two providers that inspect status codes
+  // directly (meta oauth, supabase probe). Uses the injected fetch in tests,
+  // the audited broker otherwise — so the user-supplied Supabase projectUrl
+  // can never reach a private/loopback/metadata address (the VERIFIED SSRF).
+  const brokeredResponse = async (
+    url: string | URL,
+    init: { headers?: Record<string, string>; purpose: string },
+  ): Promise<{ status: number; ok: boolean; json: () => Promise<unknown> }> => {
+    if (fetchImpl) {
+      const legacy = await fetchImpl(url, { headers: init.headers, cache: "no-store", signal });
+      return { status: legacy.status, ok: legacy.ok, json: () => legacy.json().catch(() => null) };
+    }
+    let response;
+    try {
+      response = await brokeredFetch({
+        url: url.toString(),
+        headers: init.headers,
+        timeoutMs: TEST_TIMEOUT_MS,
+        purpose: init.purpose,
+      });
+    } catch (error) {
+      if (error instanceof OutboundBlockedError) throw new Error(`Endpoint refused: ${error.reason}.`);
+      throw error;
+    }
+    const status = response.status;
+    return {
+      status,
+      ok: status >= 200 && status < 300,
+      json: async () => { try { return JSON.parse(response.bodyText || "null"); } catch { return null; } },
+    };
   };
 
   if (provider === "resend") {
@@ -500,7 +555,7 @@ async function testProvider(
     url.searchParams.set("client_id", values.appId ?? "");
     url.searchParams.set("client_secret", values.appSecret ?? "");
     url.searchParams.set("grant_type", "client_credentials");
-    const response = await fetchImpl(url, { cache: "no-store", signal });
+    const response = await brokeredResponse(url, { purpose: "integration.meta-oauth" });
     const payload = await response.json().catch(() => null) as { access_token?: string; error?: { message?: string } } | null;
     if (!response.ok || !payload?.access_token) {
       throw new Error(payload?.error?.message || `Meta rejected the app credentials (${response.status}).`);
@@ -558,10 +613,9 @@ async function testProvider(
     if (!base || !table || !anonKey) {
       throw new Error("Add the project URL, the anon key and the submissions table before testing.");
     }
-    const probe = await fetchImpl(`${base}/rest/v1/${encodeURIComponent(table)}?select=*&limit=1`, {
+    const probe = await brokeredResponse(`${base}/rest/v1/${encodeURIComponent(table)}?select=*&limit=1`, {
       headers: { apikey: anonKey, authorization: `Bearer ${anonKey}` },
-      cache: "no-store",
-      signal,
+      purpose: "integration.supabase-probe",
     });
     if (probe.status === 404) {
       throw new Error(`Supabase could not find a table called "${table}". Check the name, and that it is exposed through the API.`);

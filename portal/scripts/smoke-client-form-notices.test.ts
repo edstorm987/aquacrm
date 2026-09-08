@@ -167,8 +167,13 @@ test("the reader never writes what it reads", () => {
   // No logging of what came back, either — an error string carrying the row
   // ends up in a log file, which is a copy by another name.
   assert.doesNotMatch(reader, /console\.(log|info|warn|error)/, "the reader must not log the response");
-  assert.match(reader, /cache: "no-store"/, "the fetch must not be cached");
-  assert.match(reader, /AbortController/, "a call into somebody else's database must be bounded");
+  // The outbound call now goes through the audited egress broker (assume-breach
+  // containment): the broker itself is no-store, time-bounded, response-capped,
+  // rebinding-safe and strips credentials across an origin change — so this
+  // reader must route through it rather than call fetch() directly.
+  assert.match(reader, /brokeredFetch\(/, "the reader must go through the audited egress broker");
+  assert.doesNotMatch(reader, /\bawait fetch\(/, "the reader must not call fetch() directly (bypasses the SSRF broker)");
+  assert.match(reader, /timeoutMs:/, "a call into somebody else's database must be bounded");
 });
 
 test("the reader filters on the column the webhook actually matched", () => {

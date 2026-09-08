@@ -9,6 +9,7 @@ import { listUsersForAgency } from "./users";
 import { sendTransactionalEmail } from "@/lib/server/email/transactionalEmail";
 import { listWebsiteEnquiries } from "@/lib/server/websiteEnquiries";
 import { privateObjectLifecycleLockKey } from "@/lib/server/privateObjectLifecycle";
+import { brokeredFetch, OutboundBlockedError } from "@/lib/server/net/outboundBroker";
 import { withPortalStateTransaction } from "./productWorkspaceCoordinator";
 import type {
   AgencyTaskPriority,
@@ -746,15 +747,28 @@ async function executeAction(workflow: AutomationWorkflow, run: AutomationRun, n
       appendRunLog(run.id, { nodeId: node.id, level: "success", message: `Would send ${method} webhook to ${url.host}.` });
       return;
     }
-    const response = await fetch(url, {
-      method,
-      headers,
-      body: method === "GET" ? undefined : body || undefined,
-      redirect: "follow",
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (!response.ok) {
-      const detail = (await response.text().catch(() => "")).slice(0, 300);
+    // Through the audited egress broker (assume-breach containment): rejects
+    // private/loopback/metadata destinations and DNS rebinding, and never
+    // forwards a header across an origin-changing redirect.
+    let response;
+    try {
+      response = await brokeredFetch({
+        url: url.toString(),
+        method,
+        headers,
+        body: method === "GET" ? undefined : body || undefined,
+        timeoutMs: 15_000,
+        tenantId: workflow.agencyId,
+        purpose: "automation.webhook",
+      });
+    } catch (error) {
+      if (error instanceof OutboundBlockedError) {
+        throw new Error(`Webhook destination refused: ${error.reason}. Use a public https endpoint.`);
+      }
+      throw error;
+    }
+    if (response.status < 200 || response.status >= 300) {
+      const detail = response.bodyText.slice(0, 300);
       throw new Error(`Webhook returned ${response.status}${detail ? `: ${detail}` : "."}`);
     }
     appendRunLog(run.id, { nodeId: node.id, level: "success", message: `${method} webhook delivered to ${url.host} (${response.status}).` });

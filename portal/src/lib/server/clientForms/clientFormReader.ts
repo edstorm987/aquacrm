@@ -20,6 +20,7 @@ import "server-only";
 // the row would defeat it just as surely as a cache, and error strings end up in
 // logs.
 
+import { brokeredFetch, OutboundBlockedError } from "@/lib/server/net/outboundBroker";
 import { findClientSupabaseConnection } from "./clientSupabaseConnection";
 import { mapClientFormSubmission, type MappedClientFormSubmission } from "@/lib/enquiries/clientFormMapping";
 import { getState } from "@/server/storage";
@@ -89,26 +90,32 @@ export async function readClientFormSubmission(notice: ClientFormNotice): Promis
   url.searchParams.set("select", "*");
   url.searchParams.set("limit", "1");
 
-  const abort = new AbortController();
-  const timer = setTimeout(() => abort.abort(), TIMEOUT_MS);
   try {
-    const response = await fetch(url, {
+    // Through the audited egress broker (assume-breach containment): the
+    // client-authorised project URL is stored data and could be re-pointed at
+    // a private/loopback/metadata address to exfiltrate the stored anon key.
+    // The broker rejects unsafe destinations, pins the vetted address against
+    // DNS rebinding, and never forwards the apikey/Authorization headers across
+    // an origin-changing redirect.
+    const response = await brokeredFetch({
+      url: url.toString(),
       headers: {
         apikey: connection.anonKey,
         Authorization: `Bearer ${connection.anonKey}`,
         Accept: "application/json",
       },
-      signal: abort.signal,
-      cache: "no-store",
+      timeoutMs: TIMEOUT_MS,
+      tenantId: connection.agencyId,
+      purpose: "client-form.read",
     });
 
     // 401/403 means their row-level-security policy no longer lets this key
     // read the table — which is the client withdrawing access, and is reported
     // as refused rather than dressed up as an outage.
     if (response.status === 401 || response.status === 403) return { status: "unavailable", reason: "refused" };
-    if (!response.ok) return { status: "unavailable", reason: "error" };
+    if (response.status < 200 || response.status >= 300) return { status: "unavailable", reason: "error" };
 
-    const rows = await response.json().catch(() => null) as unknown;
+    const rows = JSON.parse(response.bodyText || "null") as unknown;
     if (!Array.isArray(rows) || rows.length === 0) return { status: "missing" };
     const row = rows[0];
     if (!row || typeof row !== "object") return { status: "missing" };
@@ -121,13 +128,11 @@ export async function readClientFormSubmission(notice: ClientFormNotice): Promis
       mapped: mapClientFormSubmission(toFields(row as Record<string, unknown>), connection.columns),
     };
   } catch (error) {
-    // No body, no message, no row — see the header. `AbortError` is the only
-    // distinction worth drawing, because a timeout is worth retrying and a
-    // malformed response is not.
-    const timedOut = error instanceof Error && error.name === "AbortError";
+    if (error instanceof OutboundBlockedError) return { status: "unavailable", reason: "refused" };
+    // No body, no message, no row — see the header. A broker timeout is worth
+    // retrying; a malformed response is not.
+    const timedOut = error instanceof OutboundBlockedError ? false : error instanceof Error && /timed out/.test(error.message);
     return { status: "unavailable", reason: timedOut ? "timeout" : "error" };
-  } finally {
-    clearTimeout(timer);
   }
 }
 
