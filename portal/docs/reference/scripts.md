@@ -3658,6 +3658,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-focus-lockdown-test-ts-6bfae1db5f"></a>
+
+### `scripts/smoke-focus-lockdown.test.ts`
+
+**What it is:** already entitled to, and owner / Executive are untouched.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (5):** [`src/lib/access/focusHome.ts`](lib.md#file-src-lib-access-focushome-ts-da6ef52919) · [`src/lib/chrome/departmentLens.ts`](lib.md#file-src-lib-chrome-departmentlens-ts-6c583d18f2) · [`src/lib/chrome/focusLockdown.ts`](lib.md#file-src-lib-chrome-focuslockdown-ts-1cf4c376ba) · [`src/lib/chrome/focusReveal.ts`](lib.md#file-src-lib-chrome-focusreveal-ts-e4a01b4bb8) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-form-capture-test-ts-1e6481390f"></a>
 
 ### `scripts/smoke-form-capture.test.ts`

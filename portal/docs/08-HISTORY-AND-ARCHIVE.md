@@ -2,7 +2,7 @@
 
 > The append-only change record, dated handoffs and superseded historical summaries.
 >
-> Consolidated 2026-09-07 from **18** source documents / **137,391 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-07 from **18** source documents / **137,755 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -23,7 +23,7 @@
 - [`docs/context/archive/website-editor-and-migration.md`](#source-docs-context-archive-website-editor-and-migration-md) — 1,159 words · `235e8af731b6`
 - [`docs/context/archive/WHERE-WE-ARE-2026-08-18.md`](#source-docs-context-archive-where-we-are-2026-08-18-md) — 2,192 words · `4056e9a347cb`
 - [`docs/context/archive/WHERE-WE-STAND-2026-08-20.md`](#source-docs-context-archive-where-we-stand-2026-08-20-md) — 2,482 words · `26bf4442580e`
-- [`docs/development/updates.md`](#source-docs-development-updates-md) — 107,235 words · `c1c9a2ed6ed9`
+- [`docs/development/updates.md`](#source-docs-development-updates-md) — 107,599 words · `af22626acf25`
 
 ---
 
@@ -3318,7 +3318,7 @@ Being straight with you about the edges.
 
 ## Source document — `docs/development/updates.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="c1c9a2ed6ed965db11d8a522ef9954bad5652e3ae111a6dc8da958a7a3b4d5ec" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="af22626acf250ffc25e25b4aeb6f4e30a39263999feec639cd7713d1fa17316d" -->
 # Updates log
 
 ← Back to [development.md](../development.md) (the law)
@@ -3354,6 +3354,40 @@ map stays trustworthy.
 > If you ship something, log it.
 
 ---
+
+## 2026-09-07 — Role focus modes: a hat is now a full LOCKDOWN, not just a narrowing
+
+- Ed: *"the modes solely focus on it — no Command Centre or anything it normally
+  would have… focus into that role only, not have access to all operations, the
+  entire journey etc. focus down fully in the switchers."* The lens narrowed the
+  sidebar but still left the macro shell (Command Centre home, the Operations hub
+  — the door to every function and the whole journey — and Tools), so a hat could
+  still step back out to everything. Now a hat is a real lockdown.
+- **Sidebar under a hat** = only the role's own surfaces **+ My Radar + the Inbox**
+  (Ed's chosen keep-list) + Settings. New pure `src/lib/chrome/focusLockdown.ts`
+  runs at the one choke point (`withPersonalChrome`, after the lens + reveal): it
+  strips `home` / `operations-home` / `tools`, and re-adds My Radar + Inbox **only
+  if the person is already entitled to them** (taken from the pre-lens panels), so
+  it stays subtractive — a forged cookie still can't widen anything. Owner and
+  **Executive** (the broad oversight seat, lands on its Command Centre deck) pass
+  through untouched.
+- **`/portal/agency` under a hat** now renders a small **focused stub**
+  (`_FocusedStub.tsx`) — "Focused on <role>", with the one door into the role's
+  workspace and the reminder that Working as → Owner brings everything back —
+  instead of the macro Command Centre. It's a render (no redirect → no flash) and
+  returns before any heavy radar/intelligence work. Executive and an explicit
+  `?station=` are exempt.
+- Choosing a hat still lands you in the role's full workspace via the switcher
+  (unchanged). Reversible via `PORTAL_ROLE_FOCUS_HOME=off`.
+- Verified: typecheck clean; full `smoke:all` green (Node 6770 pass / 0 fail /
+  3 skip — the lone red was the documented load-sensitive lease-fencing flake,
+  which passes in isolation — + Website Editor 49/49); production build ✓;
+  **browser 9/9** on an isolated lane (sidebar strips Operations hub + Tools,
+  keeps My Radar + Inbox; `/portal/agency` shows the stub; owner restored; clean
+  console). New `scripts/smoke-focus-lockdown.test.ts`; `smoke-department-focus`
+  / `smoke-department-switcher` / `smoke-focus-home` order pins updated for the
+  lockdown step. Docs: symbol reference + consolidation regenerated; this entry;
+  `docs/workspace/portal-ui.md`.
 
 ## 2026-09-07 — Role focus modes: a hat now embeds the department's FULL workspace
 

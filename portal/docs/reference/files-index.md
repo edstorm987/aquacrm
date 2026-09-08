@@ -2,7 +2,7 @@
 
 ← Back to [the reference index](00-index.md) · [the map](../WORKSPACE-FILE-TREE.md) · [development.md](../development.md)
 
-Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2711 source files; 0 per-source stubs.**
+Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2714 source files; 0 per-source stubs.**
 
 ## Engines — `src/engines/` (89)
 
@@ -171,7 +171,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
 - [`src/server/zimanteTradingCompanies.ts`](server.md#file-src-server-zimantetradingcompanies-ts-ef9a41c5a6)
 
-## Shared logic — `src/lib/` (371)
+## Shared logic — `src/lib/` (372)
 
 - [`src/lib/a11y/contrastValidator.ts`](lib.md#file-src-lib-a11y-contrastvalidator-ts-7c6889cfca) — components. We default to 4.5 for the strictest check.
 - [`src/lib/a11y/isEmbedded.ts`](lib.md#file-src-lib-a11y-isembedded-ts-e91cac9938)
@@ -204,6 +204,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/chrome/devIconPreference.ts`](lib.md#file-src-lib-chrome-deviconpreference-ts-361b143329) — Cookie name. Read on the server by `devIconPreference()`.
 - [`src/lib/chrome/devModeLoadIn.ts`](lib.md#file-src-lib-chrome-devmodeloadin-ts-dcaae38ef2) — same-tab reload, which a signed-cookie swap forces.
 - [`src/lib/chrome/devTeamLinkPrefetch.ts`](lib.md#file-src-lib-chrome-devteamlinkprefetch-ts-cbcd40fdec)
+- [`src/lib/chrome/focusLockdown.ts`](lib.md#file-src-lib-chrome-focuslockdown-ts-1cf4c376ba) — Only the five operational focus-home departments lock down.
 - [`src/lib/chrome/focusReveal.ts`](lib.md#file-src-lib-chrome-focusreveal-ts-e4a01b4bb8) — switches profile gets exactly today's sidebar, unrebuilt.
 - [`src/lib/chrome/performanceMode.ts`](lib.md#file-src-lib-chrome-performancemode-ts-bdcd1c163c) — Cookie name. Read on the server by `performanceModePreference()`.
 - [`src/lib/chrome/pluginHealth.ts`](lib.md#file-src-lib-chrome-pluginhealth-ts-d71c78b8c0) — cannot drift apart the way the Dev Console's worker count once did.
@@ -1446,7 +1447,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/built-ins/runtime/foundation-adapters/publicFunnelFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-publicfunnelfoundation-ts-18280e9710)
 - [`src/built-ins/runtime/foundation-adapters/publicMediaAdapter.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-publicmediaadapter-ts-4b47d9ab84)
 
-## App routes & UI — `src/app/` (662)
+## App routes & UI — `src/app/` (663)
 
 - [`src/app/(seeds)/aquaOasisDemoContent.ts`](app.md#file-src-app-seeds-aquaoasisdemocontent-ts-f2e90ac84c) — agency record (so a prod tenant flip doesn't spawn fake data).
 - [`src/app/(website)/business-os/page.tsx`](app.md#file-src-app-website-business-os-page-tsx-0cbb0528df)
@@ -1775,6 +1776,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/portal/agency/_DynamicRadarConsole.tsx`](app.md#file-src-app-portal-agency-dynamicradarconsole-tsx-b6d1c7a05a)
 - [`src/app/portal/agency/_ExecutiveCommandWorkspace.tsx`](app.md#file-src-app-portal-agency-executivecommandworkspace-tsx-bac840fa46)
 - [`src/app/portal/agency/_FindingGroupBar.tsx`](app.md#file-src-app-portal-agency-findinggroupbar-tsx-edd191eb45)
+- [`src/app/portal/agency/_FocusedStub.tsx`](app.md#file-src-app-portal-agency-focusedstub-tsx-0ff6d900e4) — off in the top bar brings everything back. No macro dashboard, no heavy graph.
 - [`src/app/portal/agency/_FounderDashboardKpis.tsx`](app.md#file-src-app-portal-agency-founderdashboardkpis-tsx-0068dbe993)
 - [`src/app/portal/agency/_InfraHealthPanel.tsx`](app.md#file-src-app-portal-agency-infrahealthpanel-tsx-6e3790f895)
 - [`src/app/portal/agency/_NewClientButton.tsx`](app.md#file-src-app-portal-agency-newclientbutton-tsx-933174699b)
@@ -2111,7 +2113,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/showcase/exit/route.ts`](app.md#file-src-app-showcase-exit-route-ts-2297ba275f)
 - [`src/app/showcase/route.ts`](app.md#file-src-app-showcase-route-ts-4c24dd82df)
 
-## Scripts — `scripts/` (616)
+## Scripts — `scripts/` (617)
 
 - [`scripts/attention-protection.test.ts`](scripts.md#file-scripts-attention-protection-test-ts-d64d01714c)
 - [`scripts/audit-actions.ts`](scripts.md#file-scripts-audit-actions-ts-862ea31175) — What state Actions is actually in — measured, not remembered. For every alert the checks currently …
@@ -2415,6 +2417,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-finance-settings-convergence.test.ts`](scripts.md#file-scripts-smoke-finance-settings-convergence-test-ts-e75f6d1e3f)
 - [`scripts/smoke-finance-stripe.test.ts`](scripts.md#file-scripts-smoke-finance-stripe-test-ts-fb2e5939d5) — fake client. Record + surface only; the app never holds funds.
 - [`scripts/smoke-focus-home.test.ts`](scripts.md#file-scripts-smoke-focus-home-test-ts-248f6a2b0c) — (redirect only, no ?station override, reversible from the environment).
+- [`scripts/smoke-focus-lockdown.test.ts`](scripts.md#file-scripts-smoke-focus-lockdown-test-ts-6bfae1db5f) — already entitled to, and owner / Executive are untouched.
 - [`scripts/smoke-form-capture.test.ts`](scripts.md#file-scripts-smoke-form-capture-test-ts-1e6481390f)
 - [`scripts/smoke-founder-seed.test.ts`](scripts.md#file-scripts-smoke-founder-seed-test-ts-6db25a3d0b) — runner wire-up + the deploy-runbook entry.
 - [`scripts/smoke-freelancer-real-journey.test.ts`](scripts.md#file-scripts-smoke-freelancer-real-journey-test-ts-279cd39873)

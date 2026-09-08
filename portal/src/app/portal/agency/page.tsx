@@ -41,6 +41,9 @@ import type { BattleTablePayload } from "./_BattleTableWorkspace";
 import { devTeamAccessible } from "@/lib/server/dev/devTeamAccess";
 import { focusLandingStation, resolveServerCommandStation } from "./commandStationRouting";
 import { getActiveDepartmentId } from "@/lib/server/chrome/activeDepartment";
+import { focusHomeDepartment, focusHomeHref, isFocusHomeEnabled } from "@/lib/access/focusHome";
+import { departmentProfile } from "@/lib/access/departmentProfiles";
+import { FocusedStub } from "./_FocusedStub";
 import { PortalViewportLoading } from "@/components/ui/PortalViewportLoading";
 import {
   assistantBusinessContextForActor,
@@ -136,17 +139,21 @@ export default async function AgencyHome({ searchParams }: { searchParams?: Prom
   let requestedServerStation = resolveServerCommandStation(resolvedSearchParams?.station, devTeamVisible);
   if (!requestedServerStation && focusLanding) requestedServerStation = focusLanding;
 
-  // Landing follows the hat, part two. Ed's choice was to EMBED THE FULL
-  // WORKSPACE for each non-Executive hat, so choosing a hat takes you straight
-  // into that department's real workspace (Sales → the leads board, Delivery →
-  // Fulfilment, and so on). That navigation is driven by the "Working as"
-  // switcher, not a redirect here: this layout streams its shell before the page
-  // renders, so a `redirect()` at /portal/agency would fire after the first byte
-  // and degrade to a flashing client-side redirect. The switcher hard-navigates
-  // to the workspace instead — clean, and reversible from the environment via the
-  // same flag. Executive keeps its Command Centre station (resolved above); a
-  // direct visit to /portal/agency under any hat still renders the Command Centre
-  // (narrowed to the hat), so nobody is ever trapped. See `focusHome.ts`.
+  // A department hat is a lockdown, not a peek. Choosing a hat lands you in that
+  // department's own workspace (via the "Working as" switcher); a DIRECT visit to
+  // the Command Centre while a focus-home hat is on shows a small "focused" stub
+  // with the door back into the work — never the macro Command Centre. This is a
+  // render, not a redirect (the streamed layout would make a redirect flash), and
+  // it returns before any of the heavy radar/intelligence work below. Executive
+  // is exempt — it IS the oversight seat and lands on the Command Centre deck —
+  // as is an explicit ?station=. Reversible from the environment via the flag.
+  if (!resolvedSearchParams?.station && isFocusHomeEnabled()) {
+    const focusDept = focusHomeDepartment(activeDepartmentId);
+    const focusWorkspace = focusHomeHref(activeDepartmentId);
+    if (focusDept && focusWorkspace) {
+      return <FocusedStub label={departmentProfile(focusDept)?.label ?? focusDept} workspaceHref={focusWorkspace} />;
+    }
+  }
   // Performance mode (server-read cookie): keep the two heaviest *repeated*
   // costs off the landing critical path. The operational-alerts sweep (a live
   // Supabase fetch) is skipped, and the dev-team board disk scan that feeds the
