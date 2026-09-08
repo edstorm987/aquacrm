@@ -148,10 +148,14 @@ test(".env.example documents the 3 GOOGLE_OAUTH_* vars + setup steps", () => {
 });
 
 // ── 11. README keeps deployment boundaries explicit ───────────────────────
-test("README documents the AquaCRM Vercel app", () => {
+// The app migrated Vercel → Railway (CLAUDE.md; README "Production deployment").
+// The README now names Railway as the current substrate with `portal` as the
+// repository root, and keeps Vercel documented as still-supported history.
+test("README documents the deployment boundary (Railway substrate, portal root)", () => {
   const md = readFileSync(join(ROOT, "README.md"), "utf8");
-  assert.match(md, /Root Directory.*`portal`/s);
-  assert.match(md, /Vercel/);
+  assert.match(md, /repository root `portal`/);
+  assert.match(md, /Railway/);
+  assert.match(md, /Vercel/); // still documented as supported/history, not the authority
   assert.match(md, /website is `\/`, sign-in is `\/login`/i);
 });
 

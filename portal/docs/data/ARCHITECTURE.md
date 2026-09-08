@@ -1,6 +1,7 @@
 # Data architecture — current state and target
 
-*Written 2026-08-30 against the working tree. This document describes what
+*Written 2026-08-30 against the working tree; deployment facts reconciled
+2026-09-08. This document describes what
 exists, then the target planes, then the seams that get from one to the other
 without a destructive rewrite. The inventory of individual stores is in
 [SOURCE-INVENTORY.md](SOURCE-INVENTORY.md); the phased path is in
@@ -14,7 +15,8 @@ without a destructive rewrite. The inventory of individual stores is in
   for the largest collections. Sandbox **realms** are separate rows/files —
   a genuine data boundary selected per request from the signed session cookie.
 - **A handful of real tables** beside it: profiles, brand_enquiries,
-  consent events, the five inbox tables (schema written, unapplied live),
+  consent events, the five inbox tables (recorded as applied live on
+  2026-09-03; not independently re-probed in the 2026-09-08 review),
   nonces, lease/claim tables, storage buckets.
 - **Tenant isolation is application-code JS filtering.** Every record carries
   `agencyId` as a JSON field; `server/tenants.ts` enforces the

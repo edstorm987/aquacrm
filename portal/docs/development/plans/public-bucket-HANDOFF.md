@@ -1,6 +1,6 @@
 # Handoff — Public bucket (`aquacrm-public`)
 
-> 🗄 **Dated worker debrief — the PLAN is the authority on status.** For where `public-bucket` stands, read [public-bucket.md](public-bucket.md) and its Status line; for where the project stands, [checklist.md](../checklist.md); for what changed, the one log [updates.md](../updates.md). This file is the story — what was built, what broke, what is left — and is kept for that, not as a second status page.
+> 🗄 **Dated worker debrief — historical, not a current queue.** For the plan's dated state, read [public-bucket.md](public-bucket.md); for the current project, read [PRODUCTION-READINESS.md](../PRODUCTION-READINESS.md) and [TODO.md](../TODO.md); for what changed, use [updates.md](../updates.md). This file preserves the build story only.
 >
 > *It stays in `plans/` rather than moving to [archive/](archive/README.md) for two reasons: `smoke-dev-tasks-parse.test.ts` pins it by name in the set of plans that parse to zero phases, and `archive/README.md` says not to archive a handoff another plan still points at as its brief.*
 

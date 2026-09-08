@@ -4,6 +4,11 @@
 written here and skipped; everything else proceeds. Answer inline or in chat —
 each item says exactly what it unblocks.
 
+> **Reconciled 2026-09-08.** This is the detailed decision history, not the
+> current launch verdict or task list. Use [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md)
+> and [TODO.md](TODO.md). Unless a question is explicitly marked resolved, re-run
+> any read-only preflight before assuming its dated counts are still current.
+
 ---
 
 ## Q1 — Do end-customers get PASSWORD sign-in, or is magic-link their only door?
@@ -24,8 +29,11 @@ fewer credentials to support, and the flow already exists.
 
 `.env.local` uses `onboarding@resend.dev` — Resend's sandbox sender, which only
 delivers to *you*. Until a real domain is verified in Resend (DNS records) and
-`RESEND_API_KEY` + a real from-address are in Vercel, **no customer ever
+`RESEND_API_KEY` + a real from-address are in Railway, **no customer ever
 receives an email in production**, whatever I build.
+
+The 2026-09-08 live deep probe confirms this remains open: required email is
+`needs-setup` and the deployment reports `readyForProduction:false`.
 
 **Unblocks:** password reset, enquiry notifications, all transactional mail.
 
@@ -69,13 +77,13 @@ real numbers.
 
 ## Q7 — Supabase cutover residue (from the live preflight)
 
-1 portal user would be **locked out at cutover** and 2 auth users have no
-role/agency. These need reconciling in the Supabase dashboard before cutover.
-Run `node scripts/supabase-cutover-preflight.mjs` to see the current list.
+The last recorded preflight found 1 portal user who would be locked out and 2
+auth users with no role/agency. Those are dated counts, not a current claim.
+Re-run `node scripts/supabase-cutover-preflight.mjs` read-only before acting.
 
-## Q8 — Apply the written-but-unapplied database migrations (ACTION)
+## Q8 — Database migration application (RESOLVED 2026-09-03; acceptance remains)
 
-The immediate coordinated-storage path has **four ordered database
+The immediate coordinated-storage path had **four ordered database
 preconditions**, as defined by `docs/data/MIGRATION-PLAN.md`:
 
 1. `20260809090000_atomic_datastore_patches_and_history.sql`;
@@ -87,10 +95,11 @@ The wider relational extraction still separately requires the enquiry agency
 column, Master Inbox tables and a version-controlled `rls_auto_enable()`
 definition; those are not extra members of this four-migration ordering.
 
-**Unblocks:** live coordinated-storage/concurrency acceptance and later migration
-phases. Apply through the controlled production migration process, then verify
-schema status, RLS and the remote concurrency cases; checked-in SQL alone is not
-deployment evidence.
+The repository records these and the wider pending set as applied to live on
+2026-09-03 after rehearsal and backup confirmation; linked migration status, row
+counts and RLS were checked afterward. **What remains:** re-verify current drift
+before a new rollout and execute the remote concurrency/acceptance cases. Applied
+SQL is not equivalent to complete live behavioural acceptance.
 
 ## Q9 — Which response SLA is canonical?
 
@@ -132,9 +141,10 @@ schemas, so nobody builds against the wrong model.
 
 ---
 
-# Batch 2 — raised by the 2026-08-30 to-do campaign
+# Historical Batch 2 — raised by the 2026-08-30 to-do campaign
 
-All 131 documented to-dos were verified against source. **Sixteen** of them
+The counts below describe the 2026-08-30 campaign and are retained historically;
+they are not current backlog totals. At that checkpoint all 131 documented to-dos were verified against source. **Sixteen** of them
 cannot be finished without you — eleven blocked outright on a decision or an
 account you own, five carrying a risk I should not take on your behalf. Three
 more questions below (Q15's purge rule, Q16, Q17) came out of the campaign's

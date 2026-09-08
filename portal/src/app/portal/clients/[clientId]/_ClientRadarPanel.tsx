@@ -19,6 +19,7 @@ import {
 import type { BusinessRadarCheck, ClientRadarSnapshot, RadarCheckStatus } from "@/engines/data/radar/businessRadar";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 import { initialClientRadarReadState, reduceClientRadarRead } from "@/lib/client/clientRadarRead";
+import { stableUkDateString } from "@/lib/shared/formatDateTime";
 
 type Filter = "attention" | "all" | "blind" | "learning";
 
@@ -184,5 +185,5 @@ function readable(value: string): string {
 }
 
 function formatTime(value: number): string {
-  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(value);
+  return stableUkDateString(new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(value));
 }

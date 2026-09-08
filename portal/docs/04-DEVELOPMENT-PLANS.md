@@ -2,14 +2,14 @@
 
 > Every active, completed and archived phased implementation plan and handoff.
 >
-> Consolidated 2026-09-07 from **63** source documents / **130,653 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-08 from **63** source documents / **130,679 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
 - [`docs/development/plans/advisor-omega-upgrade.md`](#source-docs-development-plans-advisor-omega-upgrade-md) — 434 words · `8acb96eb6497`
 - [`docs/development/plans/aqua-engine-and-dev-team-plugin.md`](#source-docs-development-plans-aqua-engine-and-dev-team-plugin-md) — 587 words · `e75595be128a`
 - [`docs/development/plans/aqua-explorer-guided-help.md`](#source-docs-development-plans-aqua-explorer-guided-help-md) — 698 words · `594c1a8edcab`
-- [`docs/development/plans/aqua-tag-handoff.md`](#source-docs-development-plans-aqua-tag-handoff-md) — 2,708 words · `f13dd11ee6f3`
+- [`docs/development/plans/aqua-tag-handoff.md`](#source-docs-development-plans-aqua-tag-handoff-md) — 2,684 words · `04cd70001140`
 - [`docs/development/plans/aqua-tag-system.md`](#source-docs-development-plans-aqua-tag-system-md) — 2,097 words · `ea0e5f1f6019`
 - [`docs/development/plans/archive/dev-console-topbar.md`](#source-docs-development-plans-archive-dev-console-topbar-md) — 1,157 words · `a2bb65e235b7`
 - [`docs/development/plans/archive/README.md`](#source-docs-development-plans-archive-readme-md) — 219 words · `74ead064f650`
@@ -20,7 +20,7 @@
 - [`docs/development/plans/configurable-access-and-workspace-parity.md`](#source-docs-development-plans-configurable-access-and-workspace-parity-md) — 2,677 words · `76336c59e325`
 - [`docs/development/plans/connect-flow-real-codes.md`](#source-docs-development-plans-connect-flow-real-codes-md) — 889 words · `8f245e78dd8e`
 - [`docs/development/plans/database-separation.md`](#source-docs-development-plans-database-separation-md) — 2,312 words · `dacec6a22461`
-- [`docs/development/plans/dev-docs-handoff.md`](#source-docs-development-plans-dev-docs-handoff-md) — 1,619 words · `18658db39cef`
+- [`docs/development/plans/dev-docs-handoff.md`](#source-docs-development-plans-dev-docs-handoff-md) — 1,595 words · `d06955871243`
 - [`docs/development/plans/dev-docs.md`](#source-docs-development-plans-dev-docs-md) — 875 words · `c638ae635a10`
 - [`docs/development/plans/dev-editor-checklist.md`](#source-docs-development-plans-dev-editor-checklist-md) — 678 words · `5dc0638a8c7d`
 - [`docs/development/plans/dev-editor-engine.md`](#source-docs-development-plans-dev-editor-engine-md) — 1,220 words · `795fdad70637`
@@ -32,18 +32,18 @@
 - [`docs/development/plans/dev-team-librarian-and-assistants.md`](#source-docs-development-plans-dev-team-librarian-and-assistants-md) — 1,104 words · `153ec94b50d7`
 - [`docs/development/plans/dev-team-portal.md`](#source-docs-development-plans-dev-team-portal-md) — 4,666 words · `e19a5f53d1d0`
 - [`docs/development/plans/dev-team-ui-polish.md`](#source-docs-development-plans-dev-team-ui-polish-md) — 712 words · `1b6fbba4578b`
-- [`docs/development/plans/enquiry-detail-card-handoff.md`](#source-docs-development-plans-enquiry-detail-card-handoff-md) — 1,100 words · `2588dbdb72f2`
+- [`docs/development/plans/enquiry-detail-card-handoff.md`](#source-docs-development-plans-enquiry-detail-card-handoff-md) — 1,076 words · `5f68f307f033`
 - [`docs/development/plans/enquiry-detail-card.md`](#source-docs-development-plans-enquiry-detail-card-md) — 898 words · `65c8484af1e5`
-- [`docs/development/plans/finance-command-surface.md`](#source-docs-development-plans-finance-command-surface-md) — 1,197 words · `4aa768e2e1a5`
+- [`docs/development/plans/finance-command-surface.md`](#source-docs-development-plans-finance-command-surface-md) — 1,204 words · `d96f421a37d1`
 - [`docs/development/plans/fractal-radar-architecture.md`](#source-docs-development-plans-fractal-radar-architecture-md) — 4,875 words · `903f539b3d13`
-- [`docs/development/plans/freelancer-workspace-HANDOFF.md`](#source-docs-development-plans-freelancer-workspace-handoff-md) — 2,314 words · `36b7f6bd660c`
+- [`docs/development/plans/freelancer-workspace-HANDOFF.md`](#source-docs-development-plans-freelancer-workspace-handoff-md) — 2,290 words · `c083bea59734`
 - [`docs/development/plans/freelancer-workspace.md`](#source-docs-development-plans-freelancer-workspace-md) — 1,466 words · `5606024cd4c2`
 - [`docs/development/plans/fulfilment-template-system.md`](#source-docs-development-plans-fulfilment-template-system-md) — 2,642 words · `e0eb52399017`
 - [`docs/development/plans/inbox-actions-unification.md`](#source-docs-development-plans-inbox-actions-unification-md) — 698 words · `893c95da60d0`
 - [`docs/development/plans/information-architecture-v2.md`](#source-docs-development-plans-information-architecture-v2-md) — 893 words · `d2d34f2ce729`
 - [`docs/development/plans/internal-chat-attention.md`](#source-docs-development-plans-internal-chat-attention-md) — 434 words · `5f94a11ee09b`
 - [`docs/development/plans/kpi-intelligence-overhaul.md`](#source-docs-development-plans-kpi-intelligence-overhaul-md) — 1,995 words · `166a3cc9b521`
-- [`docs/development/plans/launch-order-and-blockers.md`](#source-docs-development-plans-launch-order-and-blockers-md) — 21,117 words · `e78a3cdc480d`
+- [`docs/development/plans/launch-order-and-blockers.md`](#source-docs-development-plans-launch-order-and-blockers-md) — 21,167 words · `8cbd36e3f495`
 - [`docs/development/plans/marketing-workspace-overhaul.md`](#source-docs-development-plans-marketing-workspace-overhaul-md) — 1,849 words · `c42bb1c185ed`
 - [`docs/development/plans/meta-inbox-connect.md`](#source-docs-development-plans-meta-inbox-connect-md) — 1,197 words · `48c3b40b0764`
 - [`docs/development/plans/mfa-login.md`](#source-docs-development-plans-mfa-login-md) — 1,513 words · `b48b0cc1945d`
@@ -51,15 +51,15 @@
 - [`docs/development/plans/operations-command-surface.md`](#source-docs-development-plans-operations-command-surface-md) — 823 words · `89d4c7af83fa`
 - [`docs/development/plans/plugin-data-erasure.md`](#source-docs-development-plans-plugin-data-erasure-md) — 3,211 words · `890e117cab2c`
 - [`docs/development/plans/product-roadmap-2026-09.md`](#source-docs-development-plans-product-roadmap-2026-09-md) — 902 words · `10a7d1b55065`
-- [`docs/development/plans/production-readiness-execution-plan.md`](#source-docs-development-plans-production-readiness-execution-plan-md) — 743 words · `f4105ff5d43b`
-- [`docs/development/plans/production-readiness-roadmap-2026-09-03.md`](#source-docs-development-plans-production-readiness-roadmap-2026-09-03-md) — 2,818 words · `90131ef9aa88`
+- [`docs/development/plans/production-readiness-execution-plan.md`](#source-docs-development-plans-production-readiness-execution-plan-md) — 787 words · `e179a53f5c9c`
+- [`docs/development/plans/production-readiness-roadmap-2026-09-03.md`](#source-docs-development-plans-production-readiness-roadmap-2026-09-03-md) — 2,890 words · `fa1e8f003b8d`
 - [`docs/development/plans/promote-trading-company.md`](#source-docs-development-plans-promote-trading-company-md) — 4,457 words · `2f9dd8a1af32`
-- [`docs/development/plans/public-bucket-HANDOFF.md`](#source-docs-development-plans-public-bucket-handoff-md) — 1,244 words · `2b7dca7e3698`
+- [`docs/development/plans/public-bucket-HANDOFF.md`](#source-docs-development-plans-public-bucket-handoff-md) — 1,220 words · `773db28850a7`
 - [`docs/development/plans/public-bucket.md`](#source-docs-development-plans-public-bucket-md) — 764 words · `c13e9ce00332`
 - [`docs/development/plans/radar-upgrade.md`](#source-docs-development-plans-radar-upgrade-md) — 2,802 words · `76e0c777345b`
-- [`docs/development/plans/rls-enable.md`](#source-docs-development-plans-rls-enable-md) — 1,645 words · `3c04e50fde41`
+- [`docs/development/plans/rls-enable.md`](#source-docs-development-plans-rls-enable-md) — 1,606 words · `803185e8c9cc`
 - [`docs/development/plans/runtime-verification.md`](#source-docs-development-plans-runtime-verification-md) — 1,390 words · `53ab85892882`
-- [`docs/development/plans/security-hardening.md`](#source-docs-development-plans-security-hardening-md) — 1,001 words · `0d7aed04ef8c`
+- [`docs/development/plans/security-hardening.md`](#source-docs-development-plans-security-hardening-md) — 1,013 words · `072c9fb6aac7`
 - [`docs/development/plans/settings-consolidation.md`](#source-docs-development-plans-settings-consolidation-md) — 561 words · `eb976f93f4af`
 - [`docs/development/plans/sop-engine.md`](#source-docs-development-plans-sop-engine-md) — 607 words · `6db77e50137b`
 - [`docs/development/plans/staff-team-system.md`](#source-docs-development-plans-staff-team-system-md) — 2,305 words · `f580c2c43c6e`
@@ -304,10 +304,10 @@ somebody's seat forbids is a tour of a locked building.
 
 ## Source document — `docs/development/plans/aqua-tag-handoff.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/aqua-tag-handoff.md" sha256="f13dd11ee6f3051651f5c8814512cf002d773bdb1c45ae898cebbfe8e5f5d2d2" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/aqua-tag-handoff.md" sha256="04cd70001140fe77629da430d4a81d8a07c62d8f4bb49145808391797a889437" -->
 # Aqua Tag Backbone — Handoff & Current-State Record
 
-> 🗄 **Dated worker debrief — the PLAN is the authority on status.** For where `aqua-tag-system` stands, read [aqua-tag-system.md](aqua-tag-system.md) and its Status line; for where the project stands, [checklist.md](../checklist.md); for what changed, the one log [updates.md](../updates.md). This file is the story — what was built, what broke, what is left — and is kept for that, not as a second status page.
+> 🗄 **Dated worker debrief — historical, not a current queue.** For the plan's dated state, read [aqua-tag-system.md](aqua-tag-system.md); for the current project, read [PRODUCTION-READINESS.md](../PRODUCTION-READINESS.md) and [TODO.md](../TODO.md); for what changed, use [updates.md](../updates.md). This file preserves the build story only.
 >
 > *It stays in `plans/` rather than moving to [archive/](archive/README.md) for two reasons: `smoke-dev-tasks-parse.test.ts` pins it by name in the set of plans that parse to zero phases, and `archive/README.md` says not to archive a handoff another plan still points at as its brief.*
 
@@ -2627,10 +2627,10 @@ so the answer does not depend on every route remembering to ask.
 
 ## Source document — `docs/development/plans/dev-docs-handoff.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/dev-docs-handoff.md" sha256="18658db39cef574cdc9a98f653a11d3df582737cc5e1756c6398da5a59a561be" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/dev-docs-handoff.md" sha256="d06955871243e94830f55afa085230af2edc8759a996889885e7b645090ae205" -->
 # Dev Docs — worker handoff (for the orchestrator)
 
-> 🗄 **Dated worker debrief — the PLAN is the authority on status.** For where `dev-docs` stands, read [dev-docs.md](dev-docs.md) and its Status line; for where the project stands, [checklist.md](../checklist.md); for what changed, the one log [updates.md](../updates.md). This file is the story — what was built, what broke, what is left — and is kept for that, not as a second status page.
+> 🗄 **Dated worker debrief — historical, not a current queue.** For the plan's dated state, read [dev-docs.md](dev-docs.md); for the current project, read [PRODUCTION-READINESS.md](../PRODUCTION-READINESS.md) and [TODO.md](../TODO.md); for what changed, use [updates.md](../updates.md). This file preserves the build story only.
 >
 > *It stays in `plans/` rather than moving to [archive/](archive/README.md) for two reasons: `smoke-dev-tasks-parse.test.ts` pins it by name in the set of plans that parse to zero phases, and `archive/README.md` says not to archive a handoff another plan still points at as its brief.*
 
@@ -5106,10 +5106,10 @@ gets its OWN, same family, forge/shipyard register:
 
 ## Source document — `docs/development/plans/enquiry-detail-card-handoff.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/enquiry-detail-card-handoff.md" sha256="2588dbdb72f2093a3d5d4066dcb49bdb8c50f1b986fd0ec516cf81bcc0cb5bde" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/enquiry-detail-card-handoff.md" sha256="5f68f307f03336f039afc9d3cedc942589560f27c65bbb356102440698c7437e" -->
 # Handoff — Enquiry detail card (plan COMPLETE, P1–P5)
 
-> 🗄 **Dated worker debrief — the PLAN is the authority on status.** For where `enquiry-detail-card` stands, read [enquiry-detail-card.md](enquiry-detail-card.md) and its Status line; for where the project stands, [checklist.md](../checklist.md); for what changed, the one log [updates.md](../updates.md). This file is the story — what was built, what broke, what is left — and is kept for that, not as a second status page.
+> 🗄 **Dated worker debrief — historical, not a current queue.** For the plan's dated state, read [enquiry-detail-card.md](enquiry-detail-card.md); for the current project, read [PRODUCTION-READINESS.md](../PRODUCTION-READINESS.md) and [TODO.md](../TODO.md); for what changed, use [updates.md](../updates.md). This file preserves the build story only.
 >
 > *It stays in `plans/` rather than moving to [archive/](archive/README.md) for two reasons: `smoke-dev-tasks-parse.test.ts` pins it by name in the set of plans that parse to zero phases, and `archive/README.md` says not to archive a handoff another plan still points at as its brief.*
 
@@ -5304,7 +5304,7 @@ plan in flight._
 
 ## Source document — `docs/development/plans/finance-command-surface.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/finance-command-surface.md" sha256="4aa768e2e1a538e23e248c6ab2f17b5867f4b1b5ca384feb557ddffe0b078483" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/finance-command-surface.md" sha256="d96f421a37d1471b119e8d06d92336dfc389a890e4d64eb1c7e07b76c9723e4d" -->
 # Plan — Finance: multi-channel money visibility + one-button close ⭐
 
 ← [todo.md](../TODO.md) · [development.md](../../development.md) · **[HANDOFF »](../../context/archive/finance-command-surface-handoff.md)** (build record — problems, tests, decisions, what's left)
@@ -5318,8 +5318,10 @@ plan in flight._
 > recoverable plan assignment #116, exactly-once recurring posting #117, canonical
 > selected-currency reporting #118 and durable refund accounting #119 were resolved on
 > 2026-08-26 with cross-process transactions, mounted/Checkout balance guards, byte-identical
-> schema refusal and fault/race/reload proof; the current Finance gate passes 271/271. The current authority is
-> [checklist.md](../checklist.md).
+> schema refusal and fault/race/reload proof; that dated Finance gate passed
+> 271/271. Current release authority is
+> [PRODUCTION-READINESS.md](../PRODUCTION-READINESS.md), with remaining work in
+> [TODO.md](../TODO.md).
 
 **Historical delivery status: ✅ P1–P5 + the You-Deserve-It wire shipped (2026-08-19)** — coherence,
 channel model + money-in view, Stripe (TEST-mode, unit-tested), one-button close (client + lead),
@@ -5711,10 +5713,10 @@ levers, nothing that boxes you in.
 
 ## Source document — `docs/development/plans/freelancer-workspace-HANDOFF.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/freelancer-workspace-HANDOFF.md" sha256="36b7f6bd660c57affc11bb094a0fd320b443ce5f8b48654538db9a19534a8cc7" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/freelancer-workspace-HANDOFF.md" sha256="c083bea59734126432af252b43f4bfc172539ceeec58f29ad0fb67a5af013d6f" -->
 # Freelancer Workspace + Management — Handoff & Current-State Record
 
-> 🗄 **Dated worker debrief — the PLAN is the authority on status.** For where `freelancer-workspace` stands, read [freelancer-workspace.md](freelancer-workspace.md) and its Status line; for where the project stands, [checklist.md](../checklist.md); for what changed, the one log [updates.md](../updates.md). This file is the story — what was built, what broke, what is left — and is kept for that, not as a second status page.
+> 🗄 **Dated worker debrief — historical, not a current queue.** For the plan's dated state, read [freelancer-workspace.md](freelancer-workspace.md); for the current project, read [PRODUCTION-READINESS.md](../PRODUCTION-READINESS.md) and [TODO.md](../TODO.md); for what changed, use [updates.md](../updates.md). This file preserves the build story only.
 >
 > *It stays in `plans/` rather than moving to [archive/](archive/README.md) for two reasons: `smoke-dev-tasks-parse.test.ts` pins it by name in the set of plans that parse to zero phases, and `archive/README.md` says not to archive a handoff another plan still points at as its brief.*
 
@@ -6915,8 +6917,14 @@ plan in flight._
 
 ## Source document — `docs/development/plans/launch-order-and-blockers.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/launch-order-and-blockers.md" sha256="e78a3cdc480d7232689811801b515669cee53e8d8982d7a6dcad47fe92f568d0" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/launch-order-and-blockers.md" sha256="8cbd36e3f49593d8ada271b043046790c56b7bcf61c1a33441d2719ccf32cc43" -->
 # Launch: the order, and what is stopping us
+
+> **HISTORICAL LAUNCH PLAN (written 27–28 August 2026).** Its Vercel steps,
+> readiness counts, test totals and “everything buildable” statements describe
+> that dated environment and are not current instructions. AquaCRM now runs on
+> Railway. Use [PRODUCTION-READINESS.md](../PRODUCTION-READINESS.md) for the
+> 8 September evidence and [TODO.md](../TODO.md) for the current queue.
 
 **Written 2026-08-27** for Ed's ask: *"i need everything working complete
 production ready TODAY… tick verify all of the phases, then full browser
@@ -10514,8 +10522,13 @@ Every phase above ships with: a focused smoke, an entry in `updates.md`, a row i
 
 ## Source document — `docs/development/plans/production-readiness-execution-plan.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/production-readiness-execution-plan.md" sha256="f4105ff5d43bde8f46a7d9897d3d9711de125ee71d0eb141fd8280750f4bd13e" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/production-readiness-execution-plan.md" sha256="e179a53f5c9cf44712c6317e64d501f7e0742f517871fe9951ec678b274dae3f" -->
 # Production-readiness execution plan (audit-derived, 2026-09-05)
+
+> **HISTORICAL EXECUTION PLAN.** It records the work queue as triaged on
+> 5 September; several rows subsequently shipped or changed. Do not execute it
+> as the current queue. Use [PRODUCTION-READINESS.md](../PRODUCTION-READINESS.md)
+> for current evidence and [TODO.md](../TODO.md) for the one current task list.
 
 > Synthesized from the 6-dimension production-readiness audit (dead-code, jargon,
 > responsive/a11y, unconnected-features, config-onboarding, TODO-triage), deduplicated
@@ -10575,10 +10588,16 @@ Radar-Phase-2: #183, #136 (AT-announcement not automatable → done-pending-manu
 
 ## Source document — `docs/development/plans/production-readiness-roadmap-2026-09-03.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/production-readiness-roadmap-2026-09-03.md" sha256="90131ef9aa88901302c1a7efe995f41ea3f99f2a599223eea77c3359853960a0" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/production-readiness-roadmap-2026-09-03.md" sha256="fa1e8f003b8d18c9d203a1d8b2c3225661f0da780a48f26d055d16408e7f7563" -->
 # Production-readiness roadmap — 3 September 2026
 
-**Status:** living register, written at the release baseline of the commit that adds this document (parent 06abeb9 on `main`) on `main`.
+> **HISTORICAL RELEASE SNAPSHOT.** This file records the 3 September baseline
+> and must not be used as the current launch verdict. The current assessment is
+> [PRODUCTION-READINESS.md](../PRODUCTION-READINESS.md); remaining work is owned
+> only by [TODO.md](../TODO.md). Later deployment, test, browser and provider
+> evidence deliberately does not rewrite the dated rows below.
+
+**Status:** frozen historical register, written at the release baseline of the commit that adds this document (parent 06abeb9 on `main`) on `main`.
 Every row is labelled **VERIFIED**, **PARTIAL**, **BLOCKED**, **NOT TESTED** or
 **POST-RELEASE**, and every VERIFIED/PARTIAL row names the exact evidence. Code or
 documentation that merely *exists* is never counted as acceptance here; a row
@@ -10670,7 +10689,7 @@ playwright-core 1.62.1, private file-backend state seeded by the lane (`scratchp
 | Stripe live account walkthrough; Memberships/Affiliates/Installments/Ecommerce live acceptance (#33, #42, #45, #69, #122, #123) | **BLOCKED (Ed credentials)** | Local lifecycle and webhook dedupe proven by focused suites; no live key in any lane. |
 | Resend sending domain (Q2), Twilio (Q3), Meta developer app | **BLOCKED (Ed)** | Sandbox sender only delivers to Ed; documented in `ED-QUESTIONS.md`. |
 | Newsletter visitor facade (#28/#29/#184/#185) | **VERIFIED (local)** | Release gate W1–W3: preview mount inert, 201 receipt, exact replay 200, drifted reuse 409, wrong consent 400, honeypot 200 "accepted", missing Origin 403, operator read session/tenant gated. No email is sent by design. |
-| Aqua Tag database-native ingestion (#87) | **PARTIAL** | Source-verified with the unapplied migration above; live claim table NOT TESTED. |
+| Aqua Tag database-native ingestion (#87) | **PARTIAL** | The migration was applied and its table/functions were present in the later 2026-09-03 alignment operation. A real live multi-instance delivery/concurrency exercise was still not run, so application is not acceptance. |
 | Post-deploy smoke (`npm run smoke:post-deploy`) | **BLOCKED** | Needs a deployment URL. |
 
 ## 7. Performance, accessibility and observability
@@ -10976,10 +10995,10 @@ deliver what promotion already delivers properly. Not worth it — promote inste
 
 ## Source document — `docs/development/plans/public-bucket-HANDOFF.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/public-bucket-HANDOFF.md" sha256="2b7dca7e36987a1f0d67a4051cbf1777bef490cc137759e7b5ef936988c74bdb" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/public-bucket-HANDOFF.md" sha256="773db28850a7a39736efd2762619dcea12a09bafa6c43859fd56df509c8d665e" -->
 # Handoff — Public bucket (`aquacrm-public`)
 
-> 🗄 **Dated worker debrief — the PLAN is the authority on status.** For where `public-bucket` stands, read [public-bucket.md](public-bucket.md) and its Status line; for where the project stands, [checklist.md](../checklist.md); for what changed, the one log [updates.md](../updates.md). This file is the story — what was built, what broke, what is left — and is kept for that, not as a second status page.
+> 🗄 **Dated worker debrief — historical, not a current queue.** For the plan's dated state, read [public-bucket.md](public-bucket.md); for the current project, read [PRODUCTION-READINESS.md](../PRODUCTION-READINESS.md) and [TODO.md](../TODO.md); for what changed, use [updates.md](../updates.md). This file preserves the build story only.
 >
 > *It stays in `plans/` rather than moving to [archive/](archive/README.md) for two reasons: `smoke-dev-tasks-parse.test.ts` pins it by name in the set of plans that parse to zero phases, and `archive/README.md` says not to archive a handoff another plan still points at as its brief.*
 
@@ -11364,19 +11383,23 @@ plan in flight._
 
 ## Source document — `docs/development/plans/rls-enable.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/rls-enable.md" sha256="3c04e50fde41f3c7e238d51a56388de3c84b404e99c0d4b404a68902dea56301" -->
-# Plan — Database Row-Level Security  🟠 mostly done, three real gaps left
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/rls-enable.md" sha256="803185e8c9ccc9a63facaf4dc8f70ef27a8fbf2207262149bc6dbb569391e04e" -->
+# Plan — Database Row-Level Security  🟠 mostly done; service-role reduction remains
 
 ← [todo.md](../TODO.md) · [development.md](../../development.md)
 
-**Status: BUILDING — phases 1, 2 and 5 done; phase 3 written and waiting on Ed's `db push`; phase 4 first reduction landed 2026-08-20 (23→13 call sites, pinned). App-level `brand_enquiries` tenant isolation landed 2026-08-20 as defence-in-depth (see below). The headline premise of this plan was wrong and has been corrected.**
+**Status: BUILDING — phases 1, 2, 3 and 5 are done; phase 4 remains. The
+2026-09-03 alignment record says the Inbox and `brand_enquiries` migrations
+were applied live and verified, while the captured `rls_auto_enable` definition
+remained one no-op migration to record. The 2026-09-08 review did not
+independently re-probe Supabase.**
 
 This plan was written around "RLS is not in the repo". It is. The policies live
 in **[`../../../../supabase/migrations/`](../../../../supabase/README.md)** — a
 standard Supabase CLI project sitting beside `portal/`, linked to project ref
 `dghzbsxbdatskserctgt`, the same ref `NEXT_PUBLIC_SUPABASE_URL` points at.
-Fourteen migrations define every table, every policy, the role grants, the
-storage-bucket ACLs and the RPC functions.
+The repository now contains 28 ordered migrations defining the schema,
+policies, grants, bucket ACLs and database functions.
 
 The reason nobody found them is worth recording, because it will happen again:
 **`portal/` is the deploy unit, so it reads like the whole repo.** It is not.
@@ -11407,34 +11430,32 @@ entire portal uses the anon key: `profiles`, in `api/auth/login`. So RLS today
 protects the anon surface and nothing else. **It is defence-in-depth. It is not
 tenant isolation, and it must not be sold as such.**
 
-## The three gaps that remain
+## The gaps that remain
 
-1. **`rls_auto_enable()` is dashboard-only drift.** It is in the live project's
-   RPC list and in no migration. It will not survive a rebuild, and nobody has
-   reviewed what it does. Export it (`select prosrc from pg_proc where proname =
-   'rls_auto_enable'`) and commit it to `../../../../supabase/migrations/`.
-   *Needs Ed — dashboard/SQL-editor access.*
+1. **Record the already-live RLS event trigger migration.** The former
+   dashboard-only `rls_auto_enable()` definition and trigger are now captured
+   in `20260903130000_ensure_rls_event_trigger.sql`. At the 2026-09-03
+   checkpoint it was the sole pending migration and was a no-op on live; it
+   still needs a current drift check before the next approved push.
 
-2. **The inbox migration has never been applied.** All five `inbox_*` tables and
-   `claim_inbox_webhook_events` return `404` to *both* keys.
-   `20260811113000_master_inbox_messaging.sql` sits on disk unapplied. Because
-   `useSupabase()` returns true whenever `NODE_ENV === 'production'`, this is a
-   live production failure waiting on the first inbox request — not a hygiene
-   issue. *Needs Ed — `supabase db push`.*
+2. **Reduce service-role reliance and re-prove the live boundary.** Admin
+   clients bypass RLS, so their tenant filters remain application controls.
+   Phase 4 is the substantive open engineering phase. A current live policy,
+   grant and two-tenant acceptance run remains separate from the dated
+   2026-09-03 application evidence.
 
-3. **`brand_enquiries` `agency_id` — SQL written 2026-08-20, not yet applied.**
-   `20260820150000_brand_enquiries_agency_scope.sql` adds the column (text —
-   agency ids are the app's slugs), backfills from `metadata->>'agencyId'` with
-   `'milesymedia'` (the founder agency) as the default of last resort, keeps it
-   filled with a trigger, adds `profiles.agency_id` +
-   `current_profile_agency_id()`, and replaces the flat internal-users policy
-   with a null-tolerant agency-matched one (a ratchet: unscoped profiles keep
-   today's behaviour; stamping a profile scopes that user down). Both insert
-   paths now stamp `agency_id` AND `metadata.agencyId`, with a `PGRST204`
-   retry-without-column so capture survives the window before the migration is
-   applied. **Ed applies it: `supabase db push` from `aquaCRM/supabase/`, then
-   run `rls-verify.sql` in the SQL editor.** Nothing here has touched the live
-   database.
+3. **Decide the unused first-cut tables.** `clients`, `client_portals`,
+   `client_portal_members` and `audit_events` exist but are queried by no portal
+   code. Classify them as retained schema or retirement candidates.
+
+### Applied migration record
+
+`20260820150000_brand_enquiries_agency_scope.sql` adds the real tenant column,
+backfill, trigger, profile scope and agency-aware policy. The 2026-09-03 live
+application record verified the column/trigger and a 52/52-row backfill. The
+master Inbox migration was applied in the same operation and its tables and
+functions were present. Compatibility fallbacks remain in code for older or
+partially migrated environments.
 
    **App-level isolation now closes this at the code layer too (2026-08-20),** so
    the table is not exposed cross-tenant during the pre-migration window (when RLS
@@ -11454,17 +11475,17 @@ at all. Superseded first-cut model, or unfinished? Decide and record it.
 
 ## Phases
 
-> **Ticks backfilled 2026-08-31.** Phases 1, 2 and 5 were only ever marked done
+> **Ticks reconciled 2026-09-08.** Phases 1, 2 and 5 were only ever marked done
 > in the Status line and in strikethrough prose, which the board's phase parser
 > does not read — so a plan the Status line calls "mostly done" rendered `0/5`.
-> They now carry ✅ leads and it reads **3/5**. Phases 3 and 4 are deliberately
-> left unmarked: 3 is Ed's decision, and 4 landed only its *first* reduction
+> They carry ✅ leads, and phase 3 is now also marked complete from the verified
+> 2026-09-03 application record. Phase 4 landed only its *first* reduction
 > (23 → 13 service-role call sites), so it is genuinely still open. Verified
 > 2026-08-31 that phase 5's two halves exist —
 > [`supabase/rls-verify.sql`](../../../../supabase/rls-verify.sql) and
 > `portal/scripts/smoke-rls-policy-coverage.test.ts` — and that phase 4's pin,
 > `portal/scripts/smoke-service-role-usage.test.ts`, exists too. **Not
-> archivable** while 3 and 4 are open.
+> archivable** while phase 4 and the current live re-verification remain open.
 
 1. ✅ **Audit isolation per table.** Done — see
    [`database.md`](../../workspace/database.md) §2 and the table in
@@ -11472,9 +11493,9 @@ at all. Superseded first-cut model, or unfinished? Decide and record it.
 2. ✅ **Author RLS as in-repo SQL migrations.** Already done, before this plan
    was written. The work that was actually missing was making it *findable* and
    *checkable* from `portal/`, which is now done.
-3. **`brand_enquiries` decision** — add `agency_id` (backfill from
-   `metadata->>'agencyId'`) so it can be RLS-scoped, or accept it stays global +
-   app-filtered. **Open. Needs Ed.**
+3. ✅ **Add and apply `brand_enquiries.agency_id`.** Applied and verified in the
+   2026-09-03 alignment operation; a current live re-probe remains part of the
+   release gate, not unfinished migration authorship.
 4. **Reduce service-role reliance where feasible** — **first reduction landed
    2026-08-20.** Measured by grep for `createSupabaseAdminClient(` in `src/`,
    excluding its definition file (`src/lib/supabase/admin.ts`): **before 23
@@ -11537,7 +11558,8 @@ at all. Superseded first-cut model, or unfinished? Decide and record it.
 ## Done when (revised)
 
 Gaps 1 and 2 closed (nothing live that is not written down, nothing written that
-is not applied), a decision recorded on gap 3, and `rls-verify.sql` returning no
+is recorded as applied), a decision recorded on the remaining service-role
+boundary, and `rls-verify.sql` returning no
 `FAIL` rows against the live project. Phase 4 is a separate, larger piece of
 work and should not block closing this plan — but the posture note above must
 travel with any claim about database-level isolation.
@@ -11733,7 +11755,7 @@ plan in flight._
 
 ## Source document — `docs/development/plans/security-hardening.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/security-hardening.md" sha256="0d7aed04ef8ce6ddde39d02901bacd95abf484a32cad697a2f8e12fd67af230a" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/security-hardening.md" sha256="072c9fb6aac7d683bfb38a3acbfc5bf52a07ca105c7fe946f3ac51d0bb0bdcf2" -->
 # Plan — Security hardening + a security operations surface
 
 ← [todo.md](../TODO.md) · [operations-command-surface.md](operations-command-surface.md) · [development.md](../../development.md)
@@ -11752,7 +11774,7 @@ incident response. The primitives exist and are switched on; what is missing is 
   validated in its fixture realm; fenced demo sessions skip only live
   membership. Regression: `scripts/smoke-session-revocation.test.ts` (16/16).
 - **Two gaps this plan was written around have CLOSED — do not brief them as open:**
-  - ✅ **RLS *is* in the repo, and it is on.** The claim "not in the repo" was an artefact of auditing `portal/` alone: the policies live in `../../../../supabase/migrations/` (16 migrations), beside `portal/`, not inside it. The live project was verified with the anon key on 2026-08-20; pending migrations still need production application. See [rls-enable](rls-enable.md) for the corrected picture. **The honest posture still stands, though:** admin/service-role call sites bypass RLS, so it is defence-in-depth on those paths — **not** tenant isolation, and it must not be sold as such.
+  - ✅ **RLS *is* in the repo, and it is on.** The claim "not in the repo" was an artefact of auditing `portal/` alone: the policies live in `../../../../supabase/migrations/`, beside `portal/`, not inside it. The live project was verified with the anon key on 2026-08-20, and the later migration set was applied and verified on 2026-09-03; the 2026-09-08 review did not independently re-probe it. See [rls-enable](rls-enable.md) for the corrected picture. **The honest posture still stands, though:** admin/service-role call sites bypass RLS, so it is defence-in-depth on those paths — **not** universal database-enforced tenant isolation, and it must not be sold as such.
   - ✅ **All four MFA phases are built.** Password login performs the real challenge/verify and assurance raise, sessions carry the proven `aal`, magic-link/OAuth doors fail closed for enrolled accounts, and ten single-use recovery codes are supported. The narrower signup/enrolment/backup-method decisions are recorded in [mfa-login](mfa-login.md); they are not unfinished phases 3–4.
 - **The gaps that are still real:**
   - ~~**P0 session revocation**~~ — **closed 2026-08-27** (issue #22 RESOLVED);
@@ -11760,7 +11782,9 @@ incident response. The primitives exist and are switched on; what is missing is 
     `smoke-session-revocation`.
   - **No security surface** — nothing shows posture, failed logins, lockouts, active sessions, or attacks.
   - No access review, session/device management, secret-rotation tracking, or security-event audit/alerting.
-  - `brand_enquiries` has no `agency_id`, so RLS cannot scope it by tenant however the policies are written ([rls-enable](rls-enable.md) gap 3, Ed's decision).
+  - `brand_enquiries.agency_id` and its policy were recorded applied on
+    2026-09-03; current live policy/grant and two-tenant acceptance still need
+    release-gate evidence ([rls-enable](rls-enable.md)).
 
 ## The security operations surface (the new home)
 A dedicated view (under [Operations/System](operations-command-surface.md)):

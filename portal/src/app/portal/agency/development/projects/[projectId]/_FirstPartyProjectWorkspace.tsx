@@ -336,7 +336,7 @@ export function FirstPartyProjectWorkspace({
               <BridgeBadge state={bridgeState} />
             </div>
 
-            <div className="h-[670px] overflow-auto p-4 sm:p-7">
+            <div className="h-[670px] overflow-auto p-4 sm:p-7" tabIndex={0} role="group" aria-label="Live preview — scroll to see more">
               <div className="mx-auto" style={{ width: scaledViewport.width, minWidth: scaledViewport.width, height: scaledViewport.height }}>
                 <div className="relative overflow-hidden bg-white shadow-[0_18px_55px_rgba(0,0,0,0.18)]" style={{ width: viewport.width, height: viewport.height, transform: `scale(${deviceState.zoom})`, transformOrigin: "top left" }}>
                   <iframe

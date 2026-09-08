@@ -7,7 +7,7 @@ export function PublicShowcaseControl() {
         <i className="h-1.5 w-1.5 rounded-full bg-emerald-600" aria-hidden="true" />
         Interactive demo
       </span>
-      <span className="hidden text-emerald-800/65 lg:inline">Fictional data · Read-only</span>
+      <span className="hidden text-emerald-900/80 lg:inline">Fictional data · Read-only</span>
       <Link className="mm-public-showcase-exit font-semibold underline decoration-emerald-800/30 underline-offset-2 hover:decoration-emerald-800" href="/showcase/exit">
         Exit
       </Link>

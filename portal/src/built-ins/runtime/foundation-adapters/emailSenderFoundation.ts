@@ -22,7 +22,17 @@ import "server-only";
 // placeholder transport. SendGrid and Resend remain visibly labelled as
 // unavailable in Settings until their own drivers ship.
 
-import nodemailer from "nodemailer";
+// Nodemailer is loaded lazily, at send time, NOT as a static import (#190).
+// A static `import nodemailer` pulls Nodemailer's Node-only base64/mime stack —
+// with its bare `require('stream')` — into every graph that transitively
+// reaches this module. This module is side-effect-registered by `_registry.ts`,
+// which the radar probe scheduler drags into the `instrumentation.ts` bundle;
+// on the instrumentation/Edge compile Nodemailer's bare Node builtins do not
+// resolve and `next dev --webpack` (the documented verification lane) fails to
+// compile. The transport is only needed when an SMTP message is actually sent,
+// so it is imported inside `nodeSmtpTransport`, exactly as `transactionalEmail.ts`
+// and `integrationConnections.ts` already do. `import type` is erased at build
+// and creates no runtime edge.
 import type SMTPTransport from "nodemailer/lib/smtp-transport";
 import {
   defaultDriverRegistry,
@@ -65,7 +75,8 @@ export const nodeSmtpTransport: SmtpTransport = async options => {
     greetingTimeout: timeoutMs,
     socketTimeout: timeoutMs,
   };
-  const transport = nodemailer.createTransport(transportOptions);
+  const { createTransport } = await import("nodemailer");
+  const transport = createTransport(transportOptions);
 
   try {
     const result = await transport.sendMail({

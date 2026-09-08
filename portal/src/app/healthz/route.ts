@@ -11,18 +11,26 @@
 // could probe storage in a later round if Ed needs it.
 
 import { NextResponse } from "next/server";
+import {
+  deployedCommitSha,
+  deploymentEnvironmentLabel,
+  deploymentPlatform,
+} from "@/lib/server/deployment";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export function GET(): NextResponse {
-  const env = (typeof process !== "undefined" ? process.env : {}) as Record<string, string | undefined>;
+  const env = (typeof process !== "undefined" ? process.env : {}) as NodeJS.ProcessEnv;
   return NextResponse.json(
     {
       ok: true,
       service: "aqua-portal",
-      env: env["VERCEL_ENV"] ?? env["NODE_ENV"] ?? "unknown",
-      sha: env["VERCEL_GIT_COMMIT_SHA"] ?? env["GITHUB_SHA"] ?? null,
+      // Resolved across Vercel/Railway/generic markers so a monitor can detect a
+      // rollback on any substrate — no longer `null` on Railway (#187).
+      env: deploymentEnvironmentLabel(env),
+      platform: deploymentPlatform(env),
+      sha: deployedCommitSha(env),
       ts: Date.now(),
     },
     {

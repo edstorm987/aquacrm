@@ -2,45 +2,50 @@
 
 # AquaCRM Claude Handoff
 
-## 🚨 CURRENT CONTINUATION BRIEF — refreshed 2 September 2026
+## 🚨 CURRENT CONTINUATION BRIEF — refreshed 8 September 2026
 
 **Read this section before dispatching a worker or editing anything.** It is the
 current operational handoff and supersedes the stale status sentences at the
 bottom of this file. It does not supersede source code or
-`docs/development/TODO.md`: source is the final authority and **`TODO.md` is the one
-current task list** (`checklist.md` and `todo-retired.md` were retired into it on 2026-08-31).
+`docs/development/PRODUCTION-READINESS.md` or `docs/development/TODO.md`: source
+is the final authority, **`PRODUCTION-READINESS.md` is the current launch
+assessment**, and **`TODO.md` is the one current task list** (`checklist.md` and
+`todo-retired.md` are history).
 
-> ### 🔴 LATEST — 4 September 2026: deployment moved Vercel → Railway; storage incident
+> ### 🔴 LATEST — 8 September 2026: strong local build, live release still blocked
 > **AquaCRM is no longer on Vercel serverless. It runs on an always-on Railway
 > persistent server in EU-West, at `www.aqua-crm.com`** (GitHub-deployed from
 > `edstorm987/aquacrm@main`, service `aquacrm`, root dir `portal`,
 > `PORTAL_SINGLE_INSTANCE=true`). Any doc below that says "Vercel", "serverless",
 > or "15s function timeout" is describing the OLD substrate — treat it as history.
 >
-> A performance outage was diagnosed and largely fixed the same day. Root causes:
-> one 2.9 MB `app_datastores` row that Postgres rewrites in full on every write;
-> five page renders that `await`ed the durable write; a `person.updated` outbox
-> flood that was 40% of the blob; and a US↔EU app/DB split. Fixes shipped: EU
-> region move, `flushPendingWritesForRender()` (`42f83c44`), the person.updated
-> `substantive` gate (`4d1b8415`), and the login-redirect/base-URL fixes
-> (`59ec0037`). **The durable fix — splitting the one row into per-domain
-> clusters via the existing sidecar machinery (never applied to live data) — plus
-> the full architecture, incident analysis, blob composition, peel order and the
-> non-negotiable rehearse-first migration procedure, is documented in
-> `docs/development/plans/storage-architecture-and-2026-09-04-incident.md`. Read
-> it before touching `storage.ts`, the sidecars, or any state migration.** Still
-> open: apex `aqua-crm.com` DNS (public login links `NXDOMAIN`), clearing the
-> 2,809 stale outbox events, and the cluster migrations themselves.
+> Current clean-main evidence: focused readiness/security/data **144/144**;
+> canonical Node **6,772 pass / 0 fail / 2 live-database skips** across 1,143
+> suites; Website Editor **49/49**; TypeScript and production Webpack build green
+> with **247/247** entries. The safe browser matrix is **1,314/1,326** because one
+> serious five-label Command Centre contrast defect repeats at six widths.
+> `npm run dev` works on the isolated Turbopack lane; `npm run dev:verify` is red
+> on a Node `stream` import through Nodemailer/Radar scheduling.
+>
+> Live `www` serves, but `/healthz/full` says `readyForProduction:false` because
+> required email is not configured, still returns HTTP 200 on Railway, and exposes
+> `sha:null`; apex TLS validation fails. Backup activation/live restore, CI,
+> monitoring and real provider acceptance remain open. Read
+> `docs/development/PRODUCTION-READINESS.md` before making a launch claim.
+>
+> Historical storage incident context remains important: the 4 September outage
+> involved the large aggregate datastore row, render-blocking writes, outbox flood
+> and region split. The architecture and rehearse-first migration procedure is in
+> `docs/development/plans/storage-architecture-and-2026-09-04-incident.md`.
 
 ### First five minutes: preserve the working state
 
-- Work in `aquaCRM/portal`. At this documentation refresh the checkout was
-  **`main` at `ffd9110`** with **272 status entries**, but active work makes both
-  facts a moving snapshot. **Run `git branch --show-current`, `git rev-parse
+- Work in `aquaCRM/portal`. At the 8 September documentation refresh the checkout
+  was clean **`main` at `a808bb3f`**, matching GitHub `main`, but source state is
+  always a moving snapshot. **Run `git branch --show-current`, `git rev-parse
   --short HEAD` and `git status --short` first, always** — commands supersede this
   paragraph.
-- The tree carries extensive concurrent work across source, tests and docs. Use
-  narrowly scoped patches and diffs. Do not reset, rebase, checkout,
+- Use narrowly scoped patches and diffs. Do not reset, rebase, checkout,
   clean, blanket-regenerate, stash, commit, push, deploy, or rewrite history
   unless Ed explicitly asks.
 - Preserve the intentional deletion of the retired
@@ -54,9 +59,10 @@ current task list** (`checklist.md` and `todo-retired.md` were retired into it o
   delete ignored `.next*` outputs without resolving the exact owner and target.
 - Do not brief from `docs/context/state.md`,
   `docs/context/commander-handoff.md`, or anything in `docs/context/archive/`.
-  Those records are history and contain stale persistence, Showcase, erasure,
-  and implementation claims. Start from `docs/development.md`, then
-  `docs/development/TODO.md`, and verify every claim in current source.
+  Those records are mostly history and contain stale persistence, Showcase,
+  erasure, and implementation claims. Start from `docs/development.md`, then
+  `docs/development/PRODUCTION-READINESS.md` and `docs/development/TODO.md`, and
+  verify every claim in current source.
 
 ### Finished work — do not reopen or rebuild it
 
@@ -87,7 +93,7 @@ current task list** (`checklist.md` and `todo-retired.md` were retired into it o
   documents. Regenerate them; do not re-create thousands
   of retired one-file Markdown stubs.
 
-### Exact continuation order
+### Historical implementation sequence — not the current queue
 
 *This sequence originated on 2026-08-27 and was reconciled on 2026-09-02. Items
 1, 3, 4 and 5 are complete; 2 and 6 retain explicit residuals. Verify in source

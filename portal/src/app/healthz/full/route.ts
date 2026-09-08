@@ -22,6 +22,12 @@ import { NextResponse } from "next/server";
 import { ensureHydrated, getState } from "@/server/storage";
 import { inspectProductionReadiness } from "@/lib/server/productionReadiness";
 import { databaseStorageHealth, primaryDbProbeStatus } from "@/lib/server/databaseStorageHealth";
+import {
+  deployedCommitSha,
+  deploymentEnvironmentLabel,
+  deploymentPlatform,
+  resolveFullHealthOk,
+} from "@/lib/server/deployment";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -47,8 +53,11 @@ export async function GET(): Promise<NextResponse> {
   }
   const probe = await probeDb();
   const readiness = inspectProductionReadiness(env);
-  const isLiveProduction = env.VERCEL_ENV === "production";
-  const ok = probe.ok && (!isLiveProduction || readiness.ready);
+  // Enforce readiness on the ACTUAL production substrate (Railway included), not
+  // only Vercel (#187). Outside production the body still reports the truth, but
+  // the status stays green so local/dev/preview lanes are not tripped by a
+  // deliberately-unset provider.
+  const { ok, enforcingReadiness } = resolveFullHealthOk({ env, probeOk: probe.ok, ready: readiness.ready });
   const uptimeSec = Math.floor((Date.now() - BOOT_AT) / 1000);
   const body = {
     ok,
@@ -57,8 +66,10 @@ export async function GET(): Promise<NextResponse> {
     plugins: pluginCount,
     uptime: uptimeSec,
     service: "aqua-portal",
-    env: env.VERCEL_ENV ?? env.NODE_ENV ?? "unknown",
-    sha: env.VERCEL_GIT_COMMIT_SHA ?? env.GITHUB_SHA ?? null,
+    env: deploymentEnvironmentLabel(env),
+    platform: deploymentPlatform(env),
+    sha: deployedCommitSha(env),
+    enforcingReadiness,
     readyForProduction: readiness.ready,
     readiness: readiness.items.map(item => ({
       id: item.id,

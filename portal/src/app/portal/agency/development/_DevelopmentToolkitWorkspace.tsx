@@ -379,7 +379,7 @@ export function DevelopmentToolkitWorkspace({
   if (mode === "workflow") {
     return (
       <div className="space-y-7">
-        <Header eyebrow="Build flow" title="Your development conveyor belt." detail="Choose a delivery system, move stage by stage, and keep the exact tools, references, components and SOPs needed at each point." actions={<>{activeWorkflow ? <select value={activeWorkflow.id} onChange={event => { setSelectedWorkflowId(event.target.value); const next = workflows.find(item => item.id === event.target.value); setSelectedStageId(next?.stages[0]?.id ?? ""); }} className={control}>{workflows.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select> : null}{canManage ? <button onClick={() => setWorkflowDraft(activeWorkflow ?? "new")} className={secondary}><Pencil size={15} />Edit flow</button> : null}{canManage ? <button onClick={() => setWorkflowDraft("new")} className={primary}><Plus size={15} />New flow</button> : null}</>} />
+        <Header eyebrow="Build flow" title="Your development conveyor belt." detail="Choose a delivery system, move stage by stage, and keep the exact tools, references, components and SOPs needed at each point." actions={<>{activeWorkflow ? <select aria-label="Delivery system" value={activeWorkflow.id} onChange={event => { setSelectedWorkflowId(event.target.value); const next = workflows.find(item => item.id === event.target.value); setSelectedStageId(next?.stages[0]?.id ?? ""); }} className={control}>{workflows.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select> : null}{canManage ? <button onClick={() => setWorkflowDraft(activeWorkflow ?? "new")} className={secondary}><Pencil size={15} />Edit flow</button> : null}{canManage ? <button onClick={() => setWorkflowDraft("new")} className={primary}><Plus size={15} />New flow</button> : null}</>} />
         {activeWorkflow ? <>
           <div className="overflow-x-auto border-y border-black/10 py-5">
             <div className="flex min-w-max items-stretch">
@@ -418,8 +418,8 @@ export function DevelopmentToolkitWorkspace({
 
       <div className="grid gap-3 border-y border-black/10 py-4 lg:grid-cols-[minmax(240px,1fr)_190px_190px]">
         <label className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-black/35" /><input value={query} onChange={event => setQuery(event.target.value)} className={`${control} pl-9`} placeholder={mode === "vault" ? "Search knowledge, courses and logins" : "Search tools, templates, links and components"} /></label>
-        <select value={kind} onChange={event => setKind(event.target.value as DevelopmentResourceKind | "all")} className={control}><option value="all">All types</option>{availableKinds.filter(item => modeKinds.includes(item.id)).map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select>
-        <select value={category} onChange={event => setCategory(event.target.value)} className={control}><option value="all">All categories</option>{categories.map(item => <option key={item}>{item}</option>)}</select>
+        <select aria-label="Filter by type" value={kind} onChange={event => setKind(event.target.value as DevelopmentResourceKind | "all")} className={control}><option value="all">All types</option>{availableKinds.filter(item => modeKinds.includes(item.id)).map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select>
+        <select aria-label="Filter by category" value={category} onChange={event => setCategory(event.target.value)} className={control}><option value="all">All categories</option>{categories.map(item => <option key={item}>{item}</option>)}</select>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-07T22:34:57.691Z",
+  "generatedAt": "2026-09-08T16:29:01.002Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -16,7 +16,7 @@
     {
       "path": "docs/02-CURRENT-STATE-AND-WORK.md",
       "title": "Current state and work",
-      "description": "The current checklist, status, roadmap, goals, decisions and working queue."
+      "description": "The current readiness assessment, one task list, status history, roadmap, goals, decisions and working queue."
     },
     {
       "path": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
@@ -36,7 +36,7 @@
     {
       "path": "docs/06-DEV-TEAM-OPERATIONS.md",
       "title": "Dev Team operations",
-      "description": "Commander/worker briefs, orchestration, live state and operational handoffs."
+      "description": "Commander/worker briefs, orchestration guidance, compatibility state and operational handoffs; individual sources identify whether they are current or historical."
     },
     {
       "path": "docs/07-INTEGRATIONS-COMPLIANCE-AND-BRANDS.md",
@@ -79,25 +79,25 @@
       "path": "CLAUDE.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-claude-md",
-      "sha256": "04172bca1a16cab36f3a9b7ddc10cb7167b14c8cc359e4dddc1c924aaea04ec3",
-      "words": 4849,
-      "bytes": 35922
+      "sha256": "09ebad693d34a96d2f06c058b3672f7189d46859f69ef658cb1094db3809333f",
+      "words": 4864,
+      "bytes": 36174
     },
     {
       "path": "docs/architecture-noobie.md",
       "volume": "docs/01-PRODUCT-AND-ARCHITECTURE.md",
       "anchor": "source-docs-architecture-noobie-md",
-      "sha256": "089741ec7a410b5864537cb4f96a0253143dca6e0e8f02f5fa85ab27feabd47d",
-      "words": 1702,
-      "bytes": 10667
+      "sha256": "89c8d74ac701f9019ad04a3284190fe091a20516c638df462e144af71e238549",
+      "words": 1712,
+      "bytes": 10800
     },
     {
       "path": "docs/compliance/erasure-dpo-pack.md",
       "volume": "docs/07-INTEGRATIONS-COMPLIANCE-AND-BRANDS.md",
       "anchor": "source-docs-compliance-erasure-dpo-pack-md",
-      "sha256": "8ab2e564540ba931d1f23261f725ea470b5fadef51c1ba96244058d883be3111",
-      "words": 2786,
-      "bytes": 17490
+      "sha256": "8b4dc2a9016f8dc218f12db0a2ace6cba8a68263c18daf9c45894a8bc48fe1be",
+      "words": 2835,
+      "bytes": 17915
     },
     {
       "path": "docs/context/archive/connect-flow-real-codes-handoff.md",
@@ -175,9 +175,9 @@
       "path": "docs/context/archive/README.md",
       "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
       "anchor": "source-docs-context-archive-readme-md",
-      "sha256": "775a593938399a8221b4d1cd74b9d68d4600bd3141a2783ca6078aad210b1419",
-      "words": 484,
-      "bytes": 3984
+      "sha256": "a62286ed9fa0b1463e6a756d9f4db9e8d42ea846a2e63abe2d86374669d55ba5",
+      "words": 505,
+      "bytes": 4200
     },
     {
       "path": "docs/context/archive/session-changelog-2026-08.md",
@@ -239,65 +239,65 @@
       "path": "docs/context/auditor-brief.md",
       "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
       "anchor": "source-docs-context-auditor-brief-md",
-      "sha256": "360272738775b7050d292e9d0a9db74655454b75be88e221688e7a3d396613ca",
+      "sha256": "b00fc7df2874f00c171c739c84af0e599b914a39c5436769118432772f9b5565",
       "words": 1437,
-      "bytes": 9444
+      "bytes": 9445
     },
     {
       "path": "docs/context/commander-handoff.md",
       "volume": "docs/06-DEV-TEAM-OPERATIONS.md",
       "anchor": "source-docs-context-commander-handoff-md",
-      "sha256": "0925e11d043b59c1e5bc5a82751fc5834bc9aca528949292226d728507dc9c9d",
-      "words": 989,
-      "bytes": 6559
+      "sha256": "9946ecf4528f0e22b98840b334c0ef5fc50f7f9eecb9cbf1ed4bba875e492f1e",
+      "words": 1028,
+      "bytes": 6918
     },
     {
       "path": "docs/context/next-wave-briefs.md",
       "volume": "docs/06-DEV-TEAM-OPERATIONS.md",
       "anchor": "source-docs-context-next-wave-briefs-md",
-      "sha256": "693f2947a2e09ecbff76c9016f773a336bd7697bb09f7f40f49f86ed432450e5",
-      "words": 2481,
-      "bytes": 18038
+      "sha256": "2b836aab17d9affc0749a47501f5757a23e702e98bb1d40b8204f3d831f04bf3",
+      "words": 2513,
+      "bytes": 18289
     },
     {
       "path": "docs/context/orchestration-model.md",
       "volume": "docs/06-DEV-TEAM-OPERATIONS.md",
       "anchor": "source-docs-context-orchestration-model-md",
-      "sha256": "b619466bed624146be8ae3069eebe74e382eeffc31bd57842372041962ed6dea",
-      "words": 963,
-      "bytes": 6704
+      "sha256": "10a0791cafc5bbeb8c9cd57fc8c2b78d3d697a6e4717702b2cfd319c900e8e18",
+      "words": 979,
+      "bytes": 6843
     },
     {
       "path": "docs/context/README.md",
       "volume": "docs/06-DEV-TEAM-OPERATIONS.md",
       "anchor": "source-docs-context-readme-md",
-      "sha256": "9a90ee612b83b8f91c5d5b832c0911337f3247a28435cb5ddaafcf5b65dd0761",
-      "words": 755,
-      "bytes": 5067
+      "sha256": "80bd216311d3356809e5e992731663a7667cf9b78986adf89fe6bc67f2c92215",
+      "words": 733,
+      "bytes": 5125
     },
     {
       "path": "docs/context/state.md",
       "volume": "docs/06-DEV-TEAM-OPERATIONS.md",
       "anchor": "source-docs-context-state-md",
-      "sha256": "6fd3a70b2a71740cdf3eb1818918c718e623d9afaedc4d8345ff449b6588b971",
-      "words": 8701,
-      "bytes": 71117
+      "sha256": "d5b53fac2f6d59708d89af17c3a6528ee2ea9835e8af1e15adfec358ba0cfbc9",
+      "words": 8511,
+      "bytes": 69736
     },
     {
       "path": "docs/context/worker-brief.md",
       "volume": "docs/06-DEV-TEAM-OPERATIONS.md",
       "anchor": "source-docs-context-worker-brief-md",
-      "sha256": "995e16442d23ea03f323b68e7e50a2f3c2946e0126064d8db37394fed9efced0",
-      "words": 1190,
-      "bytes": 7929
+      "sha256": "5dd224bf767089a9c03fcb75e5267a33f593fed20d73f6a6ff0e4994dcc69fad",
+      "words": 1226,
+      "bytes": 8239
     },
     {
       "path": "docs/CURRENT-IMPLEMENTATION.md",
       "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
       "anchor": "source-docs-current-implementation-md",
-      "sha256": "34e0d00821178137385022c10e0a27eb7359dd617b81cfe8a32e1af92e02e684",
-      "words": 4673,
-      "bytes": 35159
+      "sha256": "d110c036ab5aa5eb014e3997f8f8ff8eb84e01eb29b98514d74789cdad7174ff",
+      "words": 4627,
+      "bytes": 34968
     },
     {
       "path": "docs/data/adr/ADR-001-semantic-registry-in-code.md",
@@ -335,9 +335,9 @@
       "path": "docs/data/ARCHITECTURE.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-data-architecture-md",
-      "sha256": "b670851546a2a7c80258e34bafc8cd94211cb91da291d715c62626cf7457a5f7",
-      "words": 1158,
-      "bytes": 8974
+      "sha256": "c0e9e10178bda0b55bf4fde472431ee34735865ec4022d2bed11ecd2d5c16081",
+      "words": 1171,
+      "bytes": 9078
     },
     {
       "path": "docs/data/DATA-DICTIONARY.md",
@@ -359,9 +359,9 @@
       "path": "docs/data/MIGRATION-PLAN.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-data-migration-plan-md",
-      "sha256": "867a7712f43a167a001a24349adbdc2c6b9bec1de3ac492d4b3a04174922c9ef",
-      "words": 2014,
-      "bytes": 15561
+      "sha256": "63ae56160277baf10cb5adf09e82fdcdc2e9573b7d5c69d20735e8ae5561cdf2",
+      "words": 2061,
+      "bytes": 15844
     },
     {
       "path": "docs/data/SEMANTIC-LAYER.md",
@@ -383,9 +383,9 @@
       "path": "docs/DEVELOPMENT-HANDOFF.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-handoff-md",
-      "sha256": "9199166a1f30132bbc3c5bf13f7ee9434e04f5e4726ad3b7499bc801418fe9b5",
-      "words": 1552,
-      "bytes": 11722
+      "sha256": "38e159caa2a5fdcf5ef75ee291e7bf1f1f8f53e417a6307a7fa136f7990c218c",
+      "words": 1621,
+      "bytes": 12344
     },
     {
       "path": "docs/development-workspace-cleanup.md",
@@ -399,9 +399,9 @@
       "path": "docs/development.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-md",
-      "sha256": "35cab09fe2b9c3d539bcb899d22c131a07d4eb4fb0f621880543df3ef445a669",
-      "words": 3352,
-      "bytes": 25640
+      "sha256": "c5aae51179a7437bf0cf3cef67dac81f5dcd65b4f4c0a840932bb19fa3a8dd64",
+      "words": 3625,
+      "bytes": 27970
     },
     {
       "path": "docs/development/AUDIT-2026-08-30.md",
@@ -415,33 +415,33 @@
       "path": "docs/development/audits.md",
       "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
       "anchor": "source-docs-development-audits-md",
-      "sha256": "a2883afd9cc42eddc43c8c563d7d47aa72e5cf613cd33950363c6f08846864b4",
-      "words": 36747,
-      "bytes": 269187
+      "sha256": "56326c89aea1e7749d47a7115b173d27c8b1f98bfc7b999af8f879fd4a96a77a",
+      "words": 36769,
+      "bytes": 269380
     },
     {
       "path": "docs/development/BLOCKERS-FOR-ED.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-blockers-for-ed-md",
-      "sha256": "08f1a4e78b6dfb70ba0cfd9f997154221a2da4cd66bd897149a24bbe5b6d8979",
-      "words": 1213,
-      "bytes": 8913
+      "sha256": "826f402229309526fb3c24076def94f098897eeef752984f0586e80e40b27f91",
+      "words": 1480,
+      "bytes": 11100
     },
     {
       "path": "docs/development/CAMPAIGN-LEDGER.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-campaign-ledger-md",
-      "sha256": "8906eb267d7bbcff98cf1bcc583fd49a53cc3c4935fc2e9122732abf20116044",
-      "words": 11346,
-      "bytes": 78487
+      "sha256": "b3678421ef01da0953bf16f1c7495d90647b5ff4bcca03f1e01a630d08668745",
+      "words": 11397,
+      "bytes": 78840
     },
     {
       "path": "docs/development/checklist.md",
-      "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
+      "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
       "anchor": "source-docs-development-checklist-md",
-      "sha256": "85a61c1343853a8b2631b126595f189fcc71f2d783130b2e79fd354ac22a7e32",
+      "sha256": "02a4ba76a58f107f938a81709f9e5d1d3e1dea377ba3876cf8c4df6f6c55e4c5",
       "words": 21042,
-      "bytes": 165575
+      "bytes": 165573
     },
     {
       "path": "docs/development/CLOUD-RESUME.md",
@@ -455,9 +455,9 @@
       "path": "docs/development/ED-QUESTIONS.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-ed-questions-md",
-      "sha256": "379784a1246170ccd77969d495d85d49b8b81046c6ecfeac6c48c855f26a2c5a",
-      "words": 2095,
-      "bytes": 14245
+      "sha256": "4a98fb4ade579fa30ccb08489486cd1c2b7894113b49a26058edb55870ee010e",
+      "words": 2202,
+      "bytes": 15011
     },
     {
       "path": "docs/development/findings/2026-08-22-agency-staff-can-read-salaries.md",
@@ -495,17 +495,17 @@
       "path": "docs/development/goals.md",
       "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
       "anchor": "source-docs-development-goals-md",
-      "sha256": "28009372c4abf0a10fbd46b86e16c0138a8467edbd0c0cc55f4c643433d8f8da",
-      "words": 506,
-      "bytes": 3689
+      "sha256": "62f18b4399512606edf934dcb6d1a62485e8032538c5989e819be5b2aa5c720e",
+      "words": 532,
+      "bytes": 3895
     },
     {
       "path": "docs/development/issues.md",
       "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
       "anchor": "source-docs-development-issues-md",
-      "sha256": "63f478c40b5e1dfebd11bc6d15e25b97d4af79369760a022a2d6c347d2f26c1a",
-      "words": 44151,
-      "bytes": 342298
+      "sha256": "243d886860110801005979b44d209673af938b1df1ca4827785d573a537cc1ce",
+      "words": 45527,
+      "bytes": 354059
     },
     {
       "path": "docs/development/LOOP-PROGRESS.md",
@@ -559,9 +559,9 @@
       "path": "docs/development/plans/aqua-tag-handoff.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-aqua-tag-handoff-md",
-      "sha256": "f13dd11ee6f3051651f5c8814512cf002d773bdb1c45ae898cebbfe8e5f5d2d2",
-      "words": 2708,
-      "bytes": 20772
+      "sha256": "04cd70001140fe77629da430d4a81d8a07c62d8f4bb49145808391797a889437",
+      "words": 2684,
+      "bytes": 20699
     },
     {
       "path": "docs/development/plans/aqua-tag-system.md",
@@ -647,9 +647,9 @@
       "path": "docs/development/plans/dev-docs-handoff.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-dev-docs-handoff-md",
-      "sha256": "18658db39cef574cdc9a98f653a11d3df582737cc5e1756c6398da5a59a561be",
-      "words": 1619,
-      "bytes": 11578
+      "sha256": "d06955871243e94830f55afa085230af2edc8759a996889885e7b645090ae205",
+      "words": 1595,
+      "bytes": 11512
     },
     {
       "path": "docs/development/plans/dev-docs.md",
@@ -743,9 +743,9 @@
       "path": "docs/development/plans/enquiry-detail-card-handoff.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-enquiry-detail-card-handoff-md",
-      "sha256": "2588dbdb72f2093a3d5d4066dcb49bdb8c50f1b986fd0ec516cf81bcc0cb5bde",
-      "words": 1100,
-      "bytes": 8528
+      "sha256": "5f68f307f03336f039afc9d3cedc942589560f27c65bbb356102440698c7437e",
+      "words": 1076,
+      "bytes": 8451
     },
     {
       "path": "docs/development/plans/enquiry-detail-card.md",
@@ -759,9 +759,9 @@
       "path": "docs/development/plans/finance-command-surface.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-finance-command-surface-md",
-      "sha256": "4aa768e2e1a538e23e248c6ab2f17b5867f4b1b5ca384feb557ddffe0b078483",
-      "words": 1197,
-      "bytes": 9797
+      "sha256": "d96f421a37d1471b119e8d06d92336dfc389a890e4d64eb1c7e07b76c9723e4d",
+      "words": 1204,
+      "bytes": 9872
     },
     {
       "path": "docs/development/plans/fractal-radar-architecture.md",
@@ -775,9 +775,9 @@
       "path": "docs/development/plans/freelancer-workspace-HANDOFF.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-freelancer-workspace-handoff-md",
-      "sha256": "36b7f6bd660c57affc11bb094a0fd320b443ce5f8b48654538db9a19534a8cc7",
-      "words": 2314,
-      "bytes": 18051
+      "sha256": "c083bea59734126432af252b43f4bfc172539ceeec58f29ad0fb67a5af013d6f",
+      "words": 2290,
+      "bytes": 17973
     },
     {
       "path": "docs/development/plans/freelancer-workspace.md",
@@ -831,9 +831,9 @@
       "path": "docs/development/plans/launch-order-and-blockers.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-launch-order-and-blockers-md",
-      "sha256": "e78a3cdc480d7232689811801b515669cee53e8d8982d7a6dcad47fe92f568d0",
-      "words": 21117,
-      "bytes": 133121
+      "sha256": "8cbd36e3f49593d8ada271b043046790c56b7bcf61c1a33441d2719ccf32cc43",
+      "words": 21167,
+      "bytes": 133511
     },
     {
       "path": "docs/development/plans/marketing-workspace-overhaul.md",
@@ -895,17 +895,17 @@
       "path": "docs/development/plans/production-readiness-execution-plan.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-production-readiness-execution-plan-md",
-      "sha256": "f4105ff5d43bde8f46a7d9897d3d9711de125ee71d0eb141fd8280750f4bd13e",
-      "words": 743,
-      "bytes": 6767
+      "sha256": "e179a53f5c9cf44712c6317e64d501f7e0742f517871fe9951ec678b274dae3f",
+      "words": 787,
+      "bytes": 7082
     },
     {
       "path": "docs/development/plans/production-readiness-roadmap-2026-09-03.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-production-readiness-roadmap-2026-09-03-md",
-      "sha256": "90131ef9aa88901302c1a7efe995f41ea3f99f2a599223eea77c3359853960a0",
-      "words": 2818,
-      "bytes": 19555
+      "sha256": "fa1e8f003b8d18c9d203a1d8b2c3225661f0da780a48f26d055d16408e7f7563",
+      "words": 2890,
+      "bytes": 20084
     },
     {
       "path": "docs/development/plans/promote-trading-company.md",
@@ -919,9 +919,9 @@
       "path": "docs/development/plans/public-bucket-HANDOFF.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-public-bucket-handoff-md",
-      "sha256": "2b7dca7e36987a1f0d67a4051cbf1777bef490cc137759e7b5ef936988c74bdb",
-      "words": 1244,
-      "bytes": 9459
+      "sha256": "773db28850a7a39736efd2762619dcea12a09bafa6c43859fd56df509c8d665e",
+      "words": 1220,
+      "bytes": 9388
     },
     {
       "path": "docs/development/plans/public-bucket.md",
@@ -943,9 +943,9 @@
       "path": "docs/development/plans/rls-enable.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-rls-enable-md",
-      "sha256": "3c04e50fde41f3c7e238d51a56388de3c84b404e99c0d4b404a68902dea56301",
-      "words": 1645,
-      "bytes": 13038
+      "sha256": "803185e8c9ccc9a63facaf4dc8f70ef27a8fbf2207262149bc6dbb569391e04e",
+      "words": 1606,
+      "bytes": 12806
     },
     {
       "path": "docs/development/plans/runtime-verification.md",
@@ -959,9 +959,9 @@
       "path": "docs/development/plans/security-hardening.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-security-hardening-md",
-      "sha256": "0d7aed04ef8ce6ddde39d02901bacd95abf484a32cad697a2f8e12fd67af230a",
-      "words": 1001,
-      "bytes": 7892
+      "sha256": "072c9fb6aac7d683bfb38a3acbfc5bf52a07ca105c7fe946f3ac51d0bb0bdcf2",
+      "words": 1013,
+      "bytes": 8023
     },
     {
       "path": "docs/development/plans/settings-consolidation.md",
@@ -1028,40 +1028,48 @@
       "bytes": 9009
     },
     {
+      "path": "docs/development/PRODUCTION-READINESS.md",
+      "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
+      "anchor": "source-docs-development-production-readiness-md",
+      "sha256": "62300ac9ba15d6b65b3c2c804a771aebfaf6dd3625bd8c5efcdf56c9a6e92d68",
+      "words": 2052,
+      "bytes": 14967
+    },
+    {
       "path": "docs/development/roadmap.md",
       "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
       "anchor": "source-docs-development-roadmap-md",
-      "sha256": "6fdc8793284926cd9898c89822167ead2f57adea6dee183c5c5e0b2cdd89dda8",
-      "words": 21627,
-      "bytes": 221493
+      "sha256": "f3ef33649d6f5b6404a5c1a8216e93313090263e719b34d02228028b13ee2e90",
+      "words": 21704,
+      "bytes": 222112
     },
     {
       "path": "docs/development/status.md",
       "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
       "anchor": "source-docs-development-status-md",
-      "sha256": "dca05b723d2b2dc9adf1278367559d638885c6b98c372db668ce5310445e9ed0",
-      "words": 21671,
-      "bytes": 170266
+      "sha256": "10c744ce76c81343595183206c0ca909e9257b1c319a0247fb89be172371414d",
+      "words": 22045,
+      "bytes": 173170
     },
     {
       "path": "docs/development/STRUCTURE.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-development-structure-md",
-      "sha256": "0d6eb54e217ca5b865d0f72979affcad52dd71909db0f1ef351952e3b16c1d1b",
-      "words": 926,
-      "bytes": 7207
+      "sha256": "5e022745dfd7eb5297233fcb90f3964afe014484f064f546e7bc4d1256bb8e3e",
+      "words": 932,
+      "bytes": 7331
     },
     {
       "path": "docs/development/tests.md",
       "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
       "anchor": "source-docs-development-tests-md",
-      "sha256": "af0d93ebcff35c71fa843a993a235d4e7d66e4b4e0b4a7307b3bec767173b5de",
-      "words": 15482,
-      "bytes": 121681
+      "sha256": "7433e5b2f7bd9c85681d7b035f4317f9d1fb90f9883147f46958dc23243846e1",
+      "words": 15698,
+      "bytes": 123272
     },
     {
       "path": "docs/development/todo-retired.md",
-      "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
+      "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
       "anchor": "source-docs-development-todo-retired-md",
       "sha256": "4bde57e97f03f6a571dabe6931f33a2c8e651291a8f8e49fd0a0d099890b64e8",
       "words": 15920,
@@ -1069,35 +1077,43 @@
     },
     {
       "path": "docs/development/TODO.md",
-      "volume": "docs/00-START-HERE.md",
+      "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
       "anchor": "source-docs-development-todo-md",
-      "sha256": "81959916256502a871a7e26a24bee0aba1decacba59e74fe82f3665b1b6df9e6",
-      "words": 3484,
-      "bytes": 26454
+      "sha256": "4bd0016d6944698e087a331a9662195d5c2d9063385d5df884230d0759c3541b",
+      "words": 3983,
+      "bytes": 30472
+    },
+    {
+      "path": "docs/development/UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-development-ui-ux-responsive-acceptance-2026-09-08-md",
+      "sha256": "07a30fd01536e6c68d98154c324acc2c7df4a308db6d7e8c5dc5c57ad4051765",
+      "words": 4829,
+      "bytes": 35475
     },
     {
       "path": "docs/development/ultra-review-2026-08-24.md",
       "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
       "anchor": "source-docs-development-ultra-review-2026-08-24-md",
-      "sha256": "6725e738af21210dcf9cff8b60060ddbf1a1a7810b63b889fa7f32ef262ddaf5",
-      "words": 15503,
-      "bytes": 119428
+      "sha256": "549d7565f9789d1674827dae47c0910261594cc6d8c8d187f72155b75e556cdf",
+      "words": 15523,
+      "bytes": 119603
     },
     {
       "path": "docs/development/updates.md",
       "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
       "anchor": "source-docs-development-updates-md",
-      "sha256": "af22626acf250ffc25e25b4aeb6f4e30a39263999feec639cd7713d1fa17316d",
-      "words": 107599,
-      "bytes": 804622
+      "sha256": "acf6b6e3f605a151d3e7af895b5a9d3d2866da1f99057ee7f305a862410d2de2",
+      "words": 110748,
+      "bytes": 830378
     },
     {
       "path": "docs/development/visual-browser-audit-2026-08-23.md",
       "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
       "anchor": "source-docs-development-visual-browser-audit-2026-08-23-md",
-      "sha256": "3ee9b61d74e317c98f16ed33f6d9c3ba51001f5785c81128d58f6a33550cd341",
-      "words": 3582,
-      "bytes": 27092
+      "sha256": "f7864aed237fa4ef6d5566d334b244ca964a1680c6dcc2fcfd8a3b765c8abf30",
+      "words": 3583,
+      "bytes": 27097
     },
     {
       "path": "docs/external-assistant-api.md",
@@ -1119,25 +1135,25 @@
       "path": "docs/portal-tiers-and-fractal-fulfilment.md",
       "volume": "docs/07-INTEGRATIONS-COMPLIANCE-AND-BRANDS.md",
       "anchor": "source-docs-portal-tiers-and-fractal-fulfilment-md",
-      "sha256": "f285f1ac2a3c486dc74347db9402290b9a4ff22405f18436a56815c0bc5fc230",
-      "words": 1263,
-      "bytes": 8391
+      "sha256": "af8659f6076ab1613a2269f880bcc0ddcb29cc14d2aa381589330c12a7468545",
+      "words": 1286,
+      "bytes": 8591
     },
     {
       "path": "docs/PRODUCT-ARCHITECTURE.md",
       "volume": "docs/01-PRODUCT-AND-ARCHITECTURE.md",
       "anchor": "source-docs-product-architecture-md",
-      "sha256": "f824661dcad45e5db4ea490bffaf24e7d5b3c1ca4fa9721bc4d6028770052fbc",
-      "words": 4366,
-      "bytes": 31970
+      "sha256": "3974d8851d86a4a0ab55ea45e3c1b15bdd967cc6f9095530f80745499a8bd7ce",
+      "words": 4379,
+      "bytes": 32116
     },
     {
       "path": "docs/WORKSPACE-FILE-TREE.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-file-tree-md",
-      "sha256": "642c698fbd42414f6b6092f98c148ab2ff2fd0a7948502b9e4ccf4b4362b02a7",
-      "words": 1385,
-      "bytes": 10811
+      "sha256": "6cd666857abaf954182453083eb059eeed02b1d17de9e2171bf312fc64149514",
+      "words": 1376,
+      "bytes": 10819
     },
     {
       "path": "docs/workspace/advisor.md",
@@ -1183,17 +1199,17 @@
       "path": "docs/workspace/database.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-database-md",
-      "sha256": "4ed0007a7dd957cf271f0407fd3742833262b08ae774979a8425a640ccd566e0",
-      "words": 2273,
-      "bytes": 18240
+      "sha256": "396394473cec1654b5b5fdd1a2900334246d6b94bcca2903e73c39a3c32f72fe",
+      "words": 2263,
+      "bytes": 18538
     },
     {
       "path": "docs/workspace/env-and-sellability.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-env-and-sellability-md",
-      "sha256": "7079bb1c857082fd6b167d57028cc0f57b5bced95e1573206561b5b99e3e0553",
-      "words": 3655,
-      "bytes": 28518
+      "sha256": "dda5fb28db1246cbff734f9d6e6512f6e0703f0f5e2ea6b417a5e846551f06ca",
+      "words": 3662,
+      "bytes": 28607
     },
     {
       "path": "docs/workspace/feature-index.md",
@@ -1247,9 +1263,9 @@
       "path": "docs/workspace/scripts-config-docs.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-scripts-config-docs-md",
-      "sha256": "6c64dba30a6b031fdab5a24d1b105ab34547388d2219c529fa85734fa4368908",
-      "words": 705,
-      "bytes": 6050
+      "sha256": "8c78f5e3e7c86916cd2931a83baacd6af0b0c9279ac7423c6121df8e597b3ba5",
+      "words": 717,
+      "bytes": 6137
     },
     {
       "path": "docs/workspace/shared-logic.md",
@@ -1287,9 +1303,9 @@
       "path": "README.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-readme-md",
-      "sha256": "78865db662380f9d9710ee4f46c1d65a05dc77dfa3abff0f57d86c8c677b434f",
-      "words": 437,
-      "bytes": 3651
+      "sha256": "424a777a808d548e04faa83be5033f87a01b6c93fb7e04b18c6a6fb9aaf926b3",
+      "words": 563,
+      "bytes": 4623
     },
     {
       "path": "src/archive/multi-agency/README.md",

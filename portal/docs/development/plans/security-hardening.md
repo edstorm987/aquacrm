@@ -16,7 +16,7 @@ incident response. The primitives exist and are switched on; what is missing is 
   validated in its fixture realm; fenced demo sessions skip only live
   membership. Regression: `scripts/smoke-session-revocation.test.ts` (16/16).
 - **Two gaps this plan was written around have CLOSED — do not brief them as open:**
-  - ✅ **RLS *is* in the repo, and it is on.** The claim "not in the repo" was an artefact of auditing `portal/` alone: the policies live in `../../../../supabase/migrations/` (16 migrations), beside `portal/`, not inside it. The live project was verified with the anon key on 2026-08-20; pending migrations still need production application. See [rls-enable](rls-enable.md) for the corrected picture. **The honest posture still stands, though:** admin/service-role call sites bypass RLS, so it is defence-in-depth on those paths — **not** tenant isolation, and it must not be sold as such.
+  - ✅ **RLS *is* in the repo, and it is on.** The claim "not in the repo" was an artefact of auditing `portal/` alone: the policies live in `../../../../supabase/migrations/`, beside `portal/`, not inside it. The live project was verified with the anon key on 2026-08-20, and the later migration set was applied and verified on 2026-09-03; the 2026-09-08 review did not independently re-probe it. See [rls-enable](rls-enable.md) for the corrected picture. **The honest posture still stands, though:** admin/service-role call sites bypass RLS, so it is defence-in-depth on those paths — **not** universal database-enforced tenant isolation, and it must not be sold as such.
   - ✅ **All four MFA phases are built.** Password login performs the real challenge/verify and assurance raise, sessions carry the proven `aal`, magic-link/OAuth doors fail closed for enrolled accounts, and ten single-use recovery codes are supported. The narrower signup/enrolment/backup-method decisions are recorded in [mfa-login](mfa-login.md); they are not unfinished phases 3–4.
 - **The gaps that are still real:**
   - ~~**P0 session revocation**~~ — **closed 2026-08-27** (issue #22 RESOLVED);
@@ -24,7 +24,9 @@ incident response. The primitives exist and are switched on; what is missing is 
     `smoke-session-revocation`.
   - **No security surface** — nothing shows posture, failed logins, lockouts, active sessions, or attacks.
   - No access review, session/device management, secret-rotation tracking, or security-event audit/alerting.
-  - `brand_enquiries` has no `agency_id`, so RLS cannot scope it by tenant however the policies are written ([rls-enable](rls-enable.md) gap 3, Ed's decision).
+  - `brand_enquiries.agency_id` and its policy were recorded applied on
+    2026-09-03; current live policy/grant and two-tenant acceptance still need
+    release-gate evidence ([rls-enable](rls-enable.md)).
 
 ## The security operations surface (the new home)
 A dedicated view (under [Operations/System](operations-command-surface.md)):

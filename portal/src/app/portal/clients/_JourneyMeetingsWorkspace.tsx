@@ -26,7 +26,7 @@ import {
   X,
 } from "lucide-react";
 
-import { formatUkDateTime, localDateTimeInputValue, timestampFromValue } from "@/lib/shared/formatDateTime";
+import { formatUkDateTime, localDateTimeInputValue, stableUkDateString, timestampFromValue } from "@/lib/shared/formatDateTime";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 
 export type JourneyMeetingKind = "lead" | "contact";
@@ -365,7 +365,7 @@ function MeetingMetric({ label, value, icon, tone }: { label: string; value: str
 
 function MeetingDateBlock({ stamp }: { stamp: number }) {
   const date = new Date(stamp);
-  return <span className="border-r border-black/10 pr-3 text-center"><span className="block text-[10px] font-semibold uppercase text-brand">{date.toLocaleDateString("en-GB", { month: "short", timeZone: "Europe/London" })}</span><strong className="mt-0.5 block text-xl leading-none text-black/76">{date.toLocaleDateString("en-GB", { day: "2-digit", timeZone: "Europe/London" })}</strong><span className="mt-1 block text-[10px] text-black/40">{date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" })}</span></span>;
+  return <span className="border-r border-black/10 pr-3 text-center"><span className="block text-[10px] font-semibold uppercase text-brand">{stableUkDateString(date.toLocaleDateString("en-GB", { month: "short", timeZone: "Europe/London" }))}</span><strong className="mt-0.5 block text-xl leading-none text-black/76">{date.toLocaleDateString("en-GB", { day: "2-digit", timeZone: "Europe/London" })}</strong><span className="mt-1 block text-[10px] text-black/40">{date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" })}</span></span>;
 }
 
 function MeetingStatusBadge({ status }: { status: JourneyMeetingStatus }) {

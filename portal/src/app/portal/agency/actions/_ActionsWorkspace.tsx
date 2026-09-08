@@ -20,7 +20,7 @@ import { TaskChecklist } from "@/components/attention/TaskChecklist";
 import { TaskTemplateModal } from "@/components/attention/TaskTemplates";
 
 import { TodayView } from "./_TodayView";
-import { dateInputValue, formatUkDate } from "@/lib/shared/formatDateTime";
+import { dateInputValue, formatUkDate, stableUkDateString } from "@/lib/shared/formatDateTime";
 import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
 import { alertDoneOperationId, alertOccurrenceKey, isAttentionCompletionResult, isTaskDeleteResult, isTaskMutationResult, taskCompleteOperationId, taskDeleteOperationId } from "@/lib/client/actionsMutationTruth";
 import type { AgencyTask, AgencyTaskOrigin, AgencyTaskPriority, AgencyTaskRecurrence, AgencyTaskStatus, CommandCalendarConnection, CommandCalendarEntry, CommandCalendarEntryType, CommandCalendarExternalEvent, CommandCalendarSource, CompletedAction, ExternalAssistantActionProposal, PortalFormFieldDefinition, SopDocument } from "@/server/types";
@@ -1012,7 +1012,7 @@ function CalendarView({ month, tasks, actions, entries, integration, team, clien
   const quarterStart = Math.floor(month.getMonth() / 3) * 3;
   const quarterMonths = [0, 1, 2].map(offset => new Date(month.getFullYear(), quarterStart + offset, 1));
   const periodLabel = quarterMode
-    ? `Q${Math.floor(month.getMonth() / 3) + 1} ${month.getFullYear()} · ${quarterMonths[0].toLocaleDateString("en-GB", { month: "short" })}–${quarterMonths[2].toLocaleDateString("en-GB", { month: "short" })}`
+    ? `Q${Math.floor(month.getMonth() / 3) + 1} ${month.getFullYear()} · ${stableUkDateString(quarterMonths[0].toLocaleDateString("en-GB", { month: "short" }))}–${stableUkDateString(quarterMonths[2].toLocaleDateString("en-GB", { month: "short" }))}`
     : month.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
   const dueReminders = [
     ...tasks.filter(task => task.status !== "done" && task.reminderAt).map(task => ({ id: task.id, title: task.title, reminderAt: task.reminderAt! })),

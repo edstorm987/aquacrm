@@ -1,15 +1,19 @@
-# Plan — Database Row-Level Security  🟠 mostly done, three real gaps left
+# Plan — Database Row-Level Security  🟠 mostly done; service-role reduction remains
 
 ← [todo.md](../TODO.md) · [development.md](../../development.md)
 
-**Status: BUILDING — phases 1, 2 and 5 done; phase 3 written and waiting on Ed's `db push`; phase 4 first reduction landed 2026-08-20 (23→13 call sites, pinned). App-level `brand_enquiries` tenant isolation landed 2026-08-20 as defence-in-depth (see below). The headline premise of this plan was wrong and has been corrected.**
+**Status: BUILDING — phases 1, 2, 3 and 5 are done; phase 4 remains. The
+2026-09-03 alignment record says the Inbox and `brand_enquiries` migrations
+were applied live and verified, while the captured `rls_auto_enable` definition
+remained one no-op migration to record. The 2026-09-08 review did not
+independently re-probe Supabase.**
 
 This plan was written around "RLS is not in the repo". It is. The policies live
 in **[`../../../../supabase/migrations/`](../../../../supabase/README.md)** — a
 standard Supabase CLI project sitting beside `portal/`, linked to project ref
 `dghzbsxbdatskserctgt`, the same ref `NEXT_PUBLIC_SUPABASE_URL` points at.
-Fourteen migrations define every table, every policy, the role grants, the
-storage-bucket ACLs and the RPC functions.
+The repository now contains 28 ordered migrations defining the schema,
+policies, grants, bucket ACLs and database functions.
 
 The reason nobody found them is worth recording, because it will happen again:
 **`portal/` is the deploy unit, so it reads like the whole repo.** It is not.
@@ -40,34 +44,32 @@ entire portal uses the anon key: `profiles`, in `api/auth/login`. So RLS today
 protects the anon surface and nothing else. **It is defence-in-depth. It is not
 tenant isolation, and it must not be sold as such.**
 
-## The three gaps that remain
+## The gaps that remain
 
-1. **`rls_auto_enable()` is dashboard-only drift.** It is in the live project's
-   RPC list and in no migration. It will not survive a rebuild, and nobody has
-   reviewed what it does. Export it (`select prosrc from pg_proc where proname =
-   'rls_auto_enable'`) and commit it to `../../../../supabase/migrations/`.
-   *Needs Ed — dashboard/SQL-editor access.*
+1. **Record the already-live RLS event trigger migration.** The former
+   dashboard-only `rls_auto_enable()` definition and trigger are now captured
+   in `20260903130000_ensure_rls_event_trigger.sql`. At the 2026-09-03
+   checkpoint it was the sole pending migration and was a no-op on live; it
+   still needs a current drift check before the next approved push.
 
-2. **The inbox migration has never been applied.** All five `inbox_*` tables and
-   `claim_inbox_webhook_events` return `404` to *both* keys.
-   `20260811113000_master_inbox_messaging.sql` sits on disk unapplied. Because
-   `useSupabase()` returns true whenever `NODE_ENV === 'production'`, this is a
-   live production failure waiting on the first inbox request — not a hygiene
-   issue. *Needs Ed — `supabase db push`.*
+2. **Reduce service-role reliance and re-prove the live boundary.** Admin
+   clients bypass RLS, so their tenant filters remain application controls.
+   Phase 4 is the substantive open engineering phase. A current live policy,
+   grant and two-tenant acceptance run remains separate from the dated
+   2026-09-03 application evidence.
 
-3. **`brand_enquiries` `agency_id` — SQL written 2026-08-20, not yet applied.**
-   `20260820150000_brand_enquiries_agency_scope.sql` adds the column (text —
-   agency ids are the app's slugs), backfills from `metadata->>'agencyId'` with
-   `'milesymedia'` (the founder agency) as the default of last resort, keeps it
-   filled with a trigger, adds `profiles.agency_id` +
-   `current_profile_agency_id()`, and replaces the flat internal-users policy
-   with a null-tolerant agency-matched one (a ratchet: unscoped profiles keep
-   today's behaviour; stamping a profile scopes that user down). Both insert
-   paths now stamp `agency_id` AND `metadata.agencyId`, with a `PGRST204`
-   retry-without-column so capture survives the window before the migration is
-   applied. **Ed applies it: `supabase db push` from `aquaCRM/supabase/`, then
-   run `rls-verify.sql` in the SQL editor.** Nothing here has touched the live
-   database.
+3. **Decide the unused first-cut tables.** `clients`, `client_portals`,
+   `client_portal_members` and `audit_events` exist but are queried by no portal
+   code. Classify them as retained schema or retirement candidates.
+
+### Applied migration record
+
+`20260820150000_brand_enquiries_agency_scope.sql` adds the real tenant column,
+backfill, trigger, profile scope and agency-aware policy. The 2026-09-03 live
+application record verified the column/trigger and a 52/52-row backfill. The
+master Inbox migration was applied in the same operation and its tables and
+functions were present. Compatibility fallbacks remain in code for older or
+partially migrated environments.
 
    **App-level isolation now closes this at the code layer too (2026-08-20),** so
    the table is not exposed cross-tenant during the pre-migration window (when RLS
@@ -87,17 +89,17 @@ at all. Superseded first-cut model, or unfinished? Decide and record it.
 
 ## Phases
 
-> **Ticks backfilled 2026-08-31.** Phases 1, 2 and 5 were only ever marked done
+> **Ticks reconciled 2026-09-08.** Phases 1, 2 and 5 were only ever marked done
 > in the Status line and in strikethrough prose, which the board's phase parser
 > does not read — so a plan the Status line calls "mostly done" rendered `0/5`.
-> They now carry ✅ leads and it reads **3/5**. Phases 3 and 4 are deliberately
-> left unmarked: 3 is Ed's decision, and 4 landed only its *first* reduction
+> They carry ✅ leads, and phase 3 is now also marked complete from the verified
+> 2026-09-03 application record. Phase 4 landed only its *first* reduction
 > (23 → 13 service-role call sites), so it is genuinely still open. Verified
 > 2026-08-31 that phase 5's two halves exist —
 > [`supabase/rls-verify.sql`](../../../../supabase/rls-verify.sql) and
 > `portal/scripts/smoke-rls-policy-coverage.test.ts` — and that phase 4's pin,
 > `portal/scripts/smoke-service-role-usage.test.ts`, exists too. **Not
-> archivable** while 3 and 4 are open.
+> archivable** while phase 4 and the current live re-verification remain open.
 
 1. ✅ **Audit isolation per table.** Done — see
    [`database.md`](../../workspace/database.md) §2 and the table in
@@ -105,9 +107,9 @@ at all. Superseded first-cut model, or unfinished? Decide and record it.
 2. ✅ **Author RLS as in-repo SQL migrations.** Already done, before this plan
    was written. The work that was actually missing was making it *findable* and
    *checkable* from `portal/`, which is now done.
-3. **`brand_enquiries` decision** — add `agency_id` (backfill from
-   `metadata->>'agencyId'`) so it can be RLS-scoped, or accept it stays global +
-   app-filtered. **Open. Needs Ed.**
+3. ✅ **Add and apply `brand_enquiries.agency_id`.** Applied and verified in the
+   2026-09-03 alignment operation; a current live re-probe remains part of the
+   release gate, not unfinished migration authorship.
 4. **Reduce service-role reliance where feasible** — **first reduction landed
    2026-08-20.** Measured by grep for `createSupabaseAdminClient(` in `src/`,
    excluding its definition file (`src/lib/supabase/admin.ts`): **before 23
@@ -170,7 +172,8 @@ at all. Superseded first-cut model, or unfinished? Decide and record it.
 ## Done when (revised)
 
 Gaps 1 and 2 closed (nothing live that is not written down, nothing written that
-is not applied), a decision recorded on gap 3, and `rls-verify.sql` returning no
+is recorded as applied), a decision recorded on the remaining service-role
+boundary, and `rls-verify.sql` returning no
 `FAIL` rows against the live project. Phase 4 is a separate, larger piece of
 work and should not block closing this plan — but the posture note above must
 travel with any claim about database-level isolation.

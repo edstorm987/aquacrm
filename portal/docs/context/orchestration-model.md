@@ -2,6 +2,10 @@
 
 ← [context/](README.md)
 
+> **Historical operating model.** It explains the previous multi-chat process;
+> it does not identify active workers. Reconfirm ownership and use the current
+> readiness assessment/TODO before applying it.
+
 How AquaCRM development runs across multiple Claude chats without depending on any
 one chat's memory.
 
@@ -53,7 +57,7 @@ This is the real risk — we've already seen two chats editing the repo at once.
 4. **`updates.md` is append-only-ish** — add a new dated entry at the top; don't rewrite others' entries (workers run concurrently and both write it). Use a stable anchor.
 5. **The dev server / `.next`** — ✅ **SOLVED (2026-08-19; note corrected 2026-08-20).** `npm run sandbox:fork -- <name> <port>` gives each worker its own **state file** (`PORTAL_DATA_FILE`), **build dir** (`NEXT_DIST_DIR`) and **port**, so concurrent runtime verification cannot clobber anyone. Bare `npm run dev:verify` is NOT safe for this — it writes the shared `.data/portal-state.json`; the shared sandbox now requires an explicit `PORTAL_ALLOW_SHARED_STATE=1` opt-in (`src/server/storage.ts:248`). Commander runs :3032; workers take 3041+.
 6. **Tests** — run the full suite (`PORTAL_BACKEND=memory … scripts/*.test.ts`) before "done"; it's safe to run concurrently (memory backend).
-7. ⛔ **NEVER TOUCH GIT** — every worker, every time. Not commit, not push, not `checkout`, not `restore`. A push triggers Vercel → **production**; and because the whole tree is uncommitted, `git checkout <file>` silently deletes another worker's unshipped work (this has happened). Rollback = a scratchpad copy, not git. *(Strengthened 2026-08-20 from the old "not without Ed" wording — Ed's standing decision is "never".)*
+7. ⛔ **NEVER TOUCH GIT WITHOUT ED'S INSTRUCTION** — every worker, every time. Not commit, push, `checkout` or `restore`. A push to the deployment branch may trigger Railway production; `git checkout <file>` can silently delete another worker's unshipped work. Rollback = a scoped scratch copy, not destructive Git. *(Deployment wording corrected 2026-09-08.)*
 8. **The auditor is read-only on source.** It never edits source or tests — it writes only [audits.md](../development/audits.md) — so it can verify a worker's files while that worker is still live, with zero collision risk. It uses its own **forked sandbox** (`npm run sandbox:fork -- auditor <port>`), never the shared one. It reports findings; the **builder** does any rework (never the auditor — that would break rule 1).
 
 ## What a "plan" is (the unit of work)

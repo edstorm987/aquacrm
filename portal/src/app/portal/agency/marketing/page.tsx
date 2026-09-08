@@ -729,7 +729,7 @@ function MarketingAtAGlance({
   return (
     <section aria-labelledby="marketing-at-a-glance" className="space-y-3">
       <h2 id="marketing-at-a-glance" className="sr-only">Marketing at a glance</h2>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {/* Campaign counts and spend are campaign CONTENT. The plugin page
             that owns them is owner/manager-only, so a staff Pulse must not
             restate them here — that was the surface disagreement. */}
@@ -739,7 +739,7 @@ function MarketingAtAGlance({
         <OverviewMetric label="Conversions" value={String(overview.converted + overview.conversions)} detail={`${overview.converted} lead wins · ${overview.conversions} asset conversions`} icon={<Target size={16} />} />
         <OverviewMetric label="Tracked channels" value={String(overview.trackedAssets)} detail={`${overview.activeAssets} active assets`} icon={<Gauge size={16} />} />
         {canSeeCampaigns ? <OverviewMetric label="Spend tracked" value={formatMoney(overview.spendCents)} detail={`${sourceRows.length} lead source${sourceRows.length === 1 ? "" : "s"}`} icon={<BarChart3 size={16} />} /> : null}
-      </div>
+      </dl>
       <dl className="flex flex-wrap gap-2 text-xs">
         <GlanceChip label="Email sender" value={emailSenderReady ? "Ready" : "Needs setup"} />
         <GlanceChip label="Active automations" value={`${automationStats.active}/${automationStats.total}`} />
@@ -1052,13 +1052,13 @@ function SpineMetric({ label, value, detail }: { label: string; value: string; d
     <div className="bg-white px-4 py-3">
       <dt className="text-xs font-medium text-black/45">{label}</dt>
       <dd className="mt-1 text-xl font-semibold tabular-nums text-black/85">{value}</dd>
-      <p className="mt-1 text-xs text-black/42">{detail}</p>
+      <dd className="mt-1 text-xs text-black/42">{detail}</dd>
     </div>
   );
 }
 
 function OverviewMetric({ label, value, detail, icon }: { label: string; value: string; detail: string; icon: React.ReactNode }) {
-  return <div className="rounded-md border border-black/10 bg-white p-4"><div className="flex items-start justify-between gap-3"><dt className="text-xs font-medium text-black/45">{label}</dt><span className="text-brand">{icon}</span></div><dd className="mt-2 text-2xl font-semibold text-black/85">{value}</dd><p className="mt-1 text-xs text-black/42">{detail}</p></div>;
+  return <div className="rounded-md border border-black/10 bg-white p-4"><dt className="flex items-start justify-between gap-3 text-xs font-medium text-black/45"><span>{label}</span><span className="text-brand" aria-hidden="true">{icon}</span></dt><dd className="mt-2 text-2xl font-semibold text-black/85">{value}</dd><dd className="mt-1 text-xs text-black/42">{detail}</dd></div>;
 }
 
 function MarketingTab({ href, active, icon: Icon, children }: { href: string; active: boolean; icon: typeof Activity; children: React.ReactNode }) {

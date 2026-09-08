@@ -11,8 +11,10 @@
 > recoverable plan assignment #116, exactly-once recurring posting #117, canonical
 > selected-currency reporting #118 and durable refund accounting #119 were resolved on
 > 2026-08-26 with cross-process transactions, mounted/Checkout balance guards, byte-identical
-> schema refusal and fault/race/reload proof; the current Finance gate passes 271/271. The current authority is
-> [checklist.md](../checklist.md).
+> schema refusal and fault/race/reload proof; that dated Finance gate passed
+> 271/271. Current release authority is
+> [PRODUCTION-READINESS.md](../PRODUCTION-READINESS.md), with remaining work in
+> [TODO.md](../TODO.md).
 
 **Historical delivery status: ✅ P1–P5 + the You-Deserve-It wire shipped (2026-08-19)** — coherence,
 channel model + money-in view, Stripe (TEST-mode, unit-tested), one-button close (client + lead),

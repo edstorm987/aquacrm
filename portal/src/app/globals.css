@@ -208,7 +208,7 @@
 }
 
 .mm-client-context-stat > div {
-  color: rgb(19 55 71 / 0.52);
+  color: #46606b;
   font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -231,7 +231,7 @@
 
 .mm-client-context-stat small {
   margin-top: 0.2rem;
-  color: rgb(24 56 70 / 0.48);
+  color: #586e78;
   font-size: 0.75rem;
 }
 
@@ -1931,8 +1931,20 @@ svg[class*="-card"] {
   margin: 0.25rem 0;
 }
 
-/* Buttons — anything containing `-button`. */
-[class*="-button"] {
+/* Buttons — a LEGACY plugin default for anything whose class contains `-button`.
+   It paints a light-surface button (white background, near-black text). The
+   modern `mm-*` command-centre design system authors its buttons entirely in
+   Tailwind (or its own explicit `.mm-*-button` rules below), on dark surfaces —
+   so this default is WRONG for them. Because it is a class-substring selector at
+   the same specificity as a Tailwind utility but LATER in source order, it beat
+   `text-white/62` on `mm-command-more-button` and forced `color: rgba(0,0,0,.85)`,
+   which composites to ~#040404 on the dark panel — a 1.18:1 contrast failure on
+   Key numbers / Projections / Advisor / Actions / Calendar (#189). The other
+   `mm-*-button` families already carry explicit override blocks to defeat this;
+   `:not([class*="mm-"])` is the shared, root fix so the legacy default simply
+   never applies to the `mm-` design system. Non-`mm-` legacy buttons are
+   unaffected. */
+[class*="-button"]:not([class*="mm-"]) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1949,20 +1961,20 @@ svg[class*="-card"] {
   min-height: 36px;
   transition: background 120ms ease;
 }
-[class*="-button"]:hover {
+[class*="-button"]:not([class*="mm-"]):hover {
   background: rgba(0, 0, 0, 0.04);
 }
-[class*="-button-primary"] {
+[class*="-button-primary"]:not([class*="mm-"]) {
   background: var(--brand-primary);
   color: #fff;
   border-color: transparent;
 }
-[class*="-button-primary"]:hover {
+[class*="-button-primary"]:not([class*="mm-"]):hover {
   opacity: 0.92;
   background: var(--brand-primary);
 }
-[class*="-button"]:disabled,
-[class*="-button"][disabled] {
+[class*="-button"]:not([class*="mm-"]):disabled,
+[class*="-button"]:not([class*="mm-"])[disabled] {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -2851,7 +2863,11 @@ aside[aria-label="Primary navigation"][data-workspace="growth"]    [data-workspa
   font-size: 11px;
   letter-spacing: 0;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.42);
+  /* Was rgba(255,255,255,0.42) → 4.07:1 on the dark auth panel (rgb 7,24,24):
+     a serious axe color-contrast failure at desktop/wide widths (#189 sweep).
+     0.55 lifts this 11px secondary label to ≈6:1 (WCAG-AA needs 4.5:1) while it
+     stays visibly a dim footer against the brighter primary auth copy. */
+  color: rgba(255, 255, 255, 0.55);
 }
 .mm-auth-card {
   width: 100%;
@@ -4505,10 +4521,10 @@ html[data-color-mode="dark"] .mm-portal-root .ops-crate-link::before { backgroun
 }
 .mm-sidebar-link[data-nav-tone="teal"] { --nav-tone: #0b7c76; }
 .mm-sidebar-link[data-nav-tone="indigo"] { --nav-tone: #5856b9; }
-.mm-sidebar-link[data-nav-tone="amber"] { --nav-tone: #b86b08; }
+.mm-sidebar-link[data-nav-tone="amber"] { --nav-tone: #855006; }
 .mm-sidebar-link[data-nav-tone="sky"] { --nav-tone: #1679a8; }
 .mm-sidebar-link[data-nav-tone="violet"] { --nav-tone: #7a56a5; }
-.mm-sidebar-link[data-nav-tone="cyan"] { --nav-tone: #0a7f8b; }
+.mm-sidebar-link[data-nav-tone="cyan"] { --nav-tone: #076a73; }
 .mm-sidebar-link[data-nav-tone="rose"] { --nav-tone: #bd4968; }
 .mm-sidebar-link[data-nav-tone="orange"] { --nav-tone: #bd641e; }
 .mm-sidebar-link[data-nav-tone="lime"] { --nav-tone: #577d2b; }
@@ -5075,6 +5091,25 @@ html[data-color-mode="dark"] .mm-sidebar-footer .mm-sidebar-link:hover {
 html[data-color-mode="dark"] .mm-sidebar-heading,
 html[data-color-mode="dark"] .mm-sidebar-tenant {
   color: rgb(245 244 239 / 0.78);
+}
+
+/* The customer portal is brand-painted per client, so `--brand-primary` can be ANY
+   colour — including a light/bright one (pale yellow, lime) that fails WCAG AA on the
+   light portal surface for functional text-brand (back-links, section eyebrows).
+   Brand FILLS via .bg-brand are untouched; only functional TEXT is normalised.
+   Two layers, both computed to clear 4.5:1 for the FULL brand-hue range against the
+   strictest customer surface (cream #f2f0eb):
+     1. Fallback (all browsers): mix 36% brand + 64% ink → worst case 4.73:1 across a
+        dense hue/sat/lightness grid. (A former 50/50 mix failed light/yellow brands
+        at 3.5:1 — see the Wave-8 brand-contrast grid.)
+     2. Modern browsers (relative colour syntax): clamp OKLCH lightness to ≤0.40 while
+        KEEPING hue + chroma, so only over-light brands are darkened and dark brands
+        keep their identity → worst case 4.78:1. Overrides the fallback where supported.
+   Dark mode uses a fixed legible accent below (a brand-derived high-L clamp only
+   reaches ~4.3:1 for some hues, so the fixed #72d0ca — 9.5:1 — is safer there). */
+.mm-portal-root .text-brand:not(.bg-brand) {
+  color: color-mix(in srgb, var(--brand-primary) 36%, var(--brand-ink) 64%);
+  color: oklch(from var(--brand-primary) min(l, 0.40) c h);
 }
 
 html[data-color-mode="dark"] .mm-portal-root .text-brand:not(.bg-brand) {

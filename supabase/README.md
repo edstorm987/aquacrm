@@ -1,5 +1,14 @@
 # Supabase — schema, RLS policies and how to verify them
 
+> **Reconciled 2026-09-08:** the absence/drift observations below are retained
+> as dated 2026-08-20 evidence. The verified 2026-09-03 alignment subsequently
+> applied 14 migrations (27/27 recorded), including Master Inbox and
+> `brand_enquiries.agency_id`, with 51 INFO / 0 FAIL / 0 WARN from
+> `rls-verify.sql`. The former dashboard-only RLS function/trigger is captured
+> in the 28th migration, which was one no-op-on-live version still to record.
+> The 2026-09-08 review did not independently reconnect to Supabase. See
+> [`portal/docs/development/plans/supabase-alignment-2026-09-03.md`](../portal/docs/development/plans/supabase-alignment-2026-09-03.md).
+
 This directory is the **only** place the AquaCRM database schema and its
 row-level-security policies are written down. It is a standard Supabase CLI
 project (`config.toml`, `migrations/`), linked to project ref
@@ -44,13 +53,15 @@ Nearly every policy is one of two shapes: *internal users manage everything*
 | `clients`, `client_portals`, `client_portal_members`, `audit_events` | no | no | Internal-manages + portal-member read. **No application code queries these** — see drift below. |
 | `app_datastores`, `website_consent_events` | no | no | Internal-manages policy; in practice reached only by service-role. |
 | `app_datastore_history` | no | no | Hardest-locked table: `revoke all from anon, authenticated`, `grant select to service_role`. Denies with `42501`, not an empty result. |
-| `inbox_*` (5 tables) | no | no | `revoke all from public, anon, authenticated`; service-role only. **Not applied to the live project** — see drift below. |
+| `inbox_*` (5 tables) | no | no | `revoke all from public, anon, authenticated`; service-role only. Recorded applied live on 2026-09-03; not re-probed on 2026-09-08. |
 | `storage.objects` | public buckets only | no | Private buckets are internal-users or own-folder (`storage.foldername(name)[1] = auth.uid()`). |
 
-## Live posture — verified read-only 2026-08-20
+## Historical live posture — verified read-only 2026-08-20
 
 Probed with the public anon key and compared against service-role, over
-PostgREST. No writes were performed.
+PostgREST. No writes were performed. This table is the pre-alignment baseline;
+the 2026-09-03 application record above supersedes its Inbox/agency-column
+absence findings.
 
 | Table | anon | service-role | Reading |
 |---|---|---|---|
@@ -68,29 +79,27 @@ denial *styles* differ exactly where the SQL says they should, which is decent
 evidence that the migrations — not dashboard clicks — are the live source of
 truth.
 
-## Known drift — fix before this is treated as reproducible
+## Reconciled drift and remaining work
 
-1. **`rls_auto_enable()` exists live but is in no migration.** It appears in the
-   PostgREST function list for this project and nothing in this directory
-   creates it. It was made in the dashboard and will not survive a rebuild.
-   Export its definition (`select prosrc from pg_proc where proname =
-   'rls_auto_enable'`) and commit it here.
-2. **`20260811113000_master_inbox_messaging.sql` has never been applied.** All
-   five `inbox_*` tables and the `claim_inbox_webhook_events` function are
-   absent from the live project. The portal selects the Supabase inbox backend
-   whenever `NODE_ENV === 'production'`, so this is a live production failure
-   waiting on the first inbox request, not just a migration-hygiene issue.
+1. **Record the already-live RLS helper/trigger migration.** The definition is
+   now in `20260903130000_ensure_rls_event_trigger.sql`; the 2026-09-03 record
+   says it was the sole pending version and is a no-op on live. Recheck current
+   drift before any approved push.
+2. **Master Inbox and agency scoping are no longer missing migrations.** The
+   verified 2026-09-03 operation applied them and found the expected tables,
+   functions, trigger and 52/52 enquiry backfill. A current re-probe and
+   provider-backed acceptance remain separate release evidence.
 3. **`clients` / `client_portals` / `client_portal_members` / `audit_events` are
    orphans.** They exist, they are policed, and no portal code queries them.
    Either the portal grew past them or they are unfinished. Decide and record it.
-4. **RLS is defence-in-depth here, not the primary control.** Counted in
+4. **RLS is defence-in-depth on service-role paths, not the primary control.** Counted in
    `portal/src` on 2026-08-20: **26** `createSupabaseAdminClient()` call sites
    and **14** files referencing `SUPABASE_SERVICE_ROLE_KEY` — all of which
    bypass RLS. Exactly **one** table read in the entire app uses the anon key
-   (`profiles`, in the login route). And `brand_enquiries` has no `agency_id`
-   column, so it cannot be scoped by tenant in the database at all — routing
-   lives inside `metadata.agencyId`, across **31** query sites in 14 files. Do
-   not describe this posture as tenant isolation enforced by the database.
+   (`profiles`, in the login route). `brand_enquiries.agency_id` was applied on
+   2026-09-03 and scoped-client paths can rely on its RLS policy, but service-role
+   paths still bypass it. Do not describe the whole posture as tenant isolation
+   enforced by the database.
 
 ## Verifying
 

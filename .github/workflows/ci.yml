@@ -1,0 +1,160 @@
+name: aquacrm-ci
+
+# The required pull-request / main verification pipeline (#188).
+#
+# Before this existed the only checked-in workflow was `db-backup.yml`; a clean
+# developer machine was the release coordinator. This makes the release gate
+# reproducible and machine-enforced. Every step runs against EXPLICIT isolated
+# in-repo storage (memory for tests, an isolated file backend for the build and
+# browser lane) — CI has no `.env.local` and is additionally pinned here, so no
+# job can reach or mutate a live Supabase/Postgres backend or any provider.
+#
+# ── Mandatory checks (branch protection on `main` should require these) ────────
+#   verify   — clean install · typecheck · canonical suite · production build ·
+#              production dependency audit.
+#   browser  — bounded axe/responsive accessibility gate on a provider-free lane.
+# A release/deploy MUST depend on both jobs being green, not on an undocumented
+# local sequence.
+#
+# ── Deliberately NOT in CI (separate, credentialed lanes) ──────────────────────
+#   * The two optional live-Postgres test lanes stay SKIPPED here — visible as
+#     NOT TESTED in the suite output, never counted as green (they need a real
+#     `DATABASE_URL`).
+#   * Live-provider acceptance (real Stripe settlement/webhooks, Meta, production
+#     email, apex TLS) and the full production-exact 13×17 browser matrix with a
+#     seeded session are owner-run lanes with real accounts — never in this
+#     secretless workflow. See docs/development/tests.md § CI.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+# Least privilege: read the code, nothing else.
+permissions:
+  contents: read
+
+# One in-flight run per ref; a new push cancels the previous run.
+concurrency:
+  group: aquacrm-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "20"
+  # Belt-and-braces isolation. CI never checks out `.env.local`, but pinning the
+  # backend here means no step can implicitly promote to a live backend even if a
+  # secret were ever added to the environment.
+  PORTAL_BACKEND: memory
+
+jobs:
+  verify:
+    name: Typecheck · Canonical suite · Build · Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: portal
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: portal/package-lock.json
+
+      - name: Clean install from lockfile
+        run: npm ci
+
+      - name: TypeScript
+        run: npm run typecheck
+
+      - name: Canonical test suite (isolated memory storage; Website Editor included)
+        # `smoke:all` forces PORTAL_BACKEND=memory in its own command and runs the
+        # separate Website Editor gate via `&& npm run smoke:website-editor`. The two
+        # live-Postgres lanes remain SKIPPED (NOT TESTED), printed in the output.
+        run: npm run smoke:all
+
+      - name: Production build (isolated file storage)
+        env:
+          PORTAL_BACKEND: file
+          PORTAL_DATA_FILE: .data/ci-build-state.json
+          NEXT_DIST_DIR: .next-ci
+        run: npm run build
+
+      - name: Production dependency audit (moderate and above)
+        run: npm audit --omit=dev --audit-level=moderate
+
+      - name: Upload build diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verify-failure-${{ github.run_id }}
+          path: |
+            portal/.next-ci/build-manifest.json
+            portal/.next-ci/*.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+  browser:
+    name: Bounded browser / accessibility gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: verify
+    defaults:
+      run:
+        working-directory: portal
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: portal/package-lock.json
+
+      - name: Clean install from lockfile
+        run: npm ci
+
+      - name: Install Chromium for Playwright
+        run: npm run browser:install
+
+      - name: Start isolated dev server (file backend, dev-mode auth, no providers)
+        # `dev:sandbox` is provider-free: file backend, its own build dir and port
+        # 3032, and PORTAL_DEV_MODE=true so the matrix signs in through `/dev`
+        # (a real writable session minted with NO credentials). Nothing here can
+        # reach Supabase or any external provider.
+        env:
+          PORTAL_DATA_FILE: .data/ci-browser-state.json
+        run: |
+          nohup npm run dev:sandbox > /tmp/dev-sandbox.log 2>&1 &
+          for i in $(seq 1 150); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3032/healthz 2>/dev/null || echo 000)
+            if [ "$code" = "200" ]; then echo "dev server ready after ${i}s"; exit 0; fi
+            sleep 2
+          done
+          echo "dev server did not become ready"; tail -40 /tmp/dev-sandbox.log; exit 1
+
+      - name: Bounded axe / responsive matrix (stable pages, provider-free)
+        # Bounded on purpose: the stable public + agency surfaces across three
+        # representative viewports. `axeVerdict(null)` and a MISSING check both
+        # FAIL the run (the runner's honesty contract), so a browser-less or
+        # half-scanned run is red, never a short green.
+        env:
+          AQUA_BASE: http://localhost:3032
+          AQUA_PAGES: /portal/agency,/login,/
+          AQUA_VIEWPORTS: mobile-portrait,tablet-portrait,desktop
+        run: npm run browser:matrix
+
+      - name: Upload browser matrix records on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-matrix-${{ github.run_id }}
+          path: |
+            portal/.artefacts/browser-matrix/records.json
+            /tmp/dev-sandbox.log
+          if-no-files-found: ignore
+          retention-days: 14

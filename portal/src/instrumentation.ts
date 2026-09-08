@@ -36,14 +36,20 @@ import {
 // `/api/portal/chrome/layout` and both telephony endpoints 404ing across every
 // viewport for exactly this reason). It is loaded below, on Node only.
 
-/** Path shapes that carry a tenant id we can attach without guessing. */
+/** Path shape that carries a tenant id we can attach without guessing. */
 const CLIENT_SCOPE = /^\/(?:api\/)?portal\/clients\/([^/?#]+)/;
-const AGENCY_SCOPE = /^\/(?:api\/)?portal\/(agency|dev-team|dev-workspace|team|freelancer|customer|account)(?:\/|$)/;
 
 /**
  * Derive the observability breadcrumb for a failed server request. Pure and
  * exported so the contract (route, method, tenancy) is testable without a
  * live server.
+ *
+ * PRIVACY: this carries ONLY the canonical route PATTERN, the method and the
+ * client route parameter (a tenancy id). It deliberately does NOT carry the raw
+ * request path — which holds ids and query values — and never falls back to it
+ * when Next supplies no pattern. The observability sanitiser
+ * (`buildSafeErrorContext`) validates every field again before it can reach a
+ * log or Sentry.
  */
 export function describeRequestError(
   request: { path: string; method: string },
@@ -51,20 +57,11 @@ export function describeRequestError(
 ): ObservabilityBreadcrumb & { extra: Record<string, unknown> } {
   const path = request.path ?? "";
   const clientId = CLIENT_SCOPE.exec(path)?.[1];
-  const agencyScope = AGENCY_SCOPE.exec(path)?.[1];
 
   const extra: Record<string, unknown> = {
-    // `routePath` is the canonical pattern (e.g. /portal/clients/[clientId]);
-    // `path` is what the visitor actually requested. Keep both — grouping
-    // needs the pattern, reproduction needs the request.
-    route: context.routePath ?? path,
-    path,
+    route: context.routePath, // pattern only; undefined (dropped) if Next has none
     method: request.method,
-    routeType: context.routeType,
-    routerKind: context.routerKind,
   };
-  if (context.renderSource) extra.renderSource = context.renderSource;
-  if (agencyScope) extra.portalScope = agencyScope;
 
   return clientId ? { clientId, extra } : { extra };
 }
@@ -98,27 +95,42 @@ export async function register(): Promise<void> {
     return;
   }
 
-  const { inspectObservabilityCapability } = await import("@/lib/server/observabilityCapability");
-  const capability = inspectObservabilityCapability();
-  if (capability.dsnConfigured && !capability.capturing && process.env.NODE_ENV !== "test") {
-    // eslint-disable-next-line no-console
-    console.warn(`[observability] ${capability.summary} ${capability.action}`);
-  }
-  recordBreadcrumb("server.start", {
-    environment: process.env.SENTRY_ENVIRONMENT ?? process.env.NODE_ENV ?? "development",
-    sentry: capability.capturing ? "reporting" : "logs-only",
-  });
+  // Everything below is Node-only and must be DEAD-CODE-ELIMINATED from the Edge
+  // instrumentation bundle (#190). An early `return` on Edge is a *runtime* guard
+  // only: webpack still compiles the code that follows it for the Edge layer, and
+  // the radar probe scheduler statically reaches the plugin registry →
+  // `emailSenderFoundation` → Nodemailer, whose bare `require('stream')` cannot
+  // resolve for Edge — so `next dev --webpack` (the verification lane) failed to
+  // compile. Wrapping the Node-only work in `process.env.NEXT_RUNTIME !== "edge"`
+  // fixes it three ways at once, because Next inlines `NEXT_RUNTIME` per bundle:
+  //   • Edge bundle:  `"edge" !== "edge"` → `if (false)` → webpack drops the whole
+  //     block AND its dynamic imports, so the Node-only graph never compiles for Edge.
+  //   • Node bundle:  `"nodejs" !== "edge"` → runs, exactly as before.
+  //   • Plain Node (tests/scripts, NEXT_RUNTIME undefined): `undefined !== "edge"`
+  //     → runs. A `=== "nodejs"` guard would wrongly SKIP these, silencing the
+  //     observability probe the smoke suite exercises (see the note above).
+  if (process.env.NEXT_RUNTIME !== "edge") {
+    const { inspectObservabilityCapability } = await import("@/lib/server/observabilityCapability");
+    const capability = inspectObservabilityCapability();
+    if (capability.dsnConfigured && !capability.capturing && process.env.NODE_ENV !== "test") {
+      // eslint-disable-next-line no-console
+      console.warn(`[observability] ${capability.summary} ${capability.action}`);
+    }
+    recordBreadcrumb("server.start", {
+      environment: process.env.SENTRY_ENVIRONMENT ?? process.env.NODE_ENV ?? "development",
+      sentry: capability.capturing ? "reporting" : "logs-only",
+    });
 
-  // Radar probe self-scheduler (issues #170). A no-op unless this is the single
-  // persistent instance AND `RADAR_PROBE_INTERVAL_MINUTES` is set — so it stays
-  // off in every serverless/build/test process. Dynamically imported so its
-  // radar graph never enters the Edge bundle. Its own errors must never break the
-  // server boot, so it is isolated in its own try/catch.
-  try {
-    const { startProbeSchedulerIfEnabled } = await import("@/engines/data/server/radar/probeSchedule");
-    startProbeSchedulerIfEnabled();
-  } catch (error) {
-    recordBreadcrumb("server.start", { radarProbeScheduler: `failed:${error instanceof Error ? error.message : String(error)}` });
+    // Radar probe self-scheduler (issues #170). A no-op unless this is the single
+    // persistent instance AND `RADAR_PROBE_INTERVAL_MINUTES` is set — so it stays
+    // off in every serverless/build/test process. Its own errors must never break
+    // the server boot, so it is isolated in its own try/catch.
+    try {
+      const { startProbeSchedulerIfEnabled } = await import("@/engines/data/server/radar/probeSchedule");
+      startProbeSchedulerIfEnabled();
+    } catch (error) {
+      recordBreadcrumb("server.start", { radarProbeScheduler: `failed:${error instanceof Error ? error.message : String(error)}` });
+    }
   }
 }
 

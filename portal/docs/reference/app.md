@@ -5085,7 +5085,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `dynamic = "force-dynamic"`
 - `revalidate = 0`
 
-**Depends on (3):** [`src/lib/server/databaseStorageHealth.ts`](lib.md#file-src-lib-server-databasestoragehealth-ts-dd5148388d) · [`src/lib/server/productionReadiness.ts`](lib.md#file-src-lib-server-productionreadiness-ts-4763c179fe) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (4):** [`src/lib/server/databaseStorageHealth.ts`](lib.md#file-src-lib-server-databasestoragehealth-ts-dd5148388d) · [`src/lib/server/deployment.ts`](lib.md#file-src-lib-server-deployment-ts-bdadc9047d) · [`src/lib/server/productionReadiness.ts`](lib.md#file-src-lib-server-productionreadiness-ts-4763c179fe) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -5104,7 +5104,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `dynamic = "force-dynamic"`
 - `revalidate = 0`
 
-**Depends on:** _No internal imports._
+**Depends on (1):** [`src/lib/server/deployment.ts`](lib.md#file-src-lib-server-deployment-ts-bdadc9047d)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 

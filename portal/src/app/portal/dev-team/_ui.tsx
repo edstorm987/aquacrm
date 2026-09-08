@@ -75,7 +75,7 @@ export function PageHeader({
 }) {
   const a = accentFor(accent);
   return (
-    <header className="flex items-start justify-between gap-4">
+    <header className="flex flex-wrap items-start justify-between gap-4">
       <div className="flex items-start gap-3">
         {icon ? (
           <span
@@ -91,7 +91,7 @@ export function PageHeader({
           {subtitle ? <p className="mt-0.5 text-sm text-[color:var(--dt-muted)]">{subtitle}</p> : null}
         </div>
       </div>
-      {meta ? <div className="shrink-0 pt-1 text-right text-sm text-[color:var(--dt-faint)]">{meta}</div> : null}
+      {meta ? <div className="min-w-0 pt-1 text-right text-sm text-[color:var(--dt-faint)]">{meta}</div> : null}
     </header>
   );
 }

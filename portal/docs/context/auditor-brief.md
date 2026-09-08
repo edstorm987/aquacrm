@@ -61,7 +61,7 @@ HARD RULES:
 - Report findings; do NOT fix them. The builder reworks. You only write audits.md.
 - NEVER TOUCH GIT. Not commit, not push, not checkout, not restore. The tree is entirely
   uncommitted, so a `git checkout <file>` deletes a live worker's unshipped work; a push
-  triggers Vercel -> production. There is no git step in your job.
+  may trigger Railway production. There is no git step in your job.
 
 Confirm you've read the law + the checklist, then run your first sweep.
 ```

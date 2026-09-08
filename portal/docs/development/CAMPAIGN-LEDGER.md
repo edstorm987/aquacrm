@@ -1,5 +1,11 @@
 # Campaign ledger — every documented to-do, verified against source
 
+> **Historical triage snapshot — 2026-08-30.** This ledger preserves the output
+> of that campaign review; it is not an active queue and its “current source”
+> wording is current only to that date. Use
+> [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md) for the current release
+> assessment and [TODO.md](TODO.md) for the one current task list.
+
 *Generated 2026-08-30 from a 131-agent triage: one independent read-only investigator
 per open item across `todo.md`, `checklist.md`, the LOOP-PROGRESS queue and the named
 open issues, each required to cite file:line. **Source code was the authority; the lists

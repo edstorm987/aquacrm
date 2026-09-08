@@ -2,8 +2,10 @@
 
 ← Back to [development.md](../development.md) (the law) · Auditor how-to: [auditor-brief.md](../context/auditor-brief.md)
 
-> ## 🚨 CURRENT CHECKPOINT — P0/P1 source + runtime review 2026-08-24
-> The authoritative current position is [checklist.md](checklist.md). The last
+> ## HISTORICAL CHECKPOINT — P0/P1 source + runtime review 2026-08-24
+> This block is retained as dated audit history. The authoritative current
+> assessment is [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md) and the one
+> task list is [TODO.md](TODO.md). At this historical checkpoint, the last
 > documented whole-suite run remains **3,621 pass / 0 fail / 1 skip on
 > 2026-08-23**; it was not rerun by this documentation pass. The 2026-08-24
 > review now has a **P0:** a stale owner cookie created a working external-AI API
@@ -42,7 +44,7 @@
 > a record of what was true when it was written, not a status board.** Several
 > verdicts below correctly report reds and 🔴s that have since been fixed; the
 > banner is the only line here that claims to be current. For current state read
-> [checklist.md](checklist.md); for whether a specific thing is done, read the
+> [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md) and [TODO.md](TODO.md); for whether a specific thing is done, read the
 > **source**, then that item's plan `**Status:**` line.
 >
 > _Superseded by the above (kept for the record):_ tick 53 reported

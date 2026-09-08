@@ -45,7 +45,7 @@ function BlockerStrip({ blockers }: { blockers: DevDocBlocker[] }) {
       className="rounded-lg border border-amber-300/60 bg-amber-50/70 p-4"
     >
       <h2 className="text-sm font-semibold text-amber-900">
-        Launch blockers <span className="font-normal text-amber-700/70">· live from state.md</span>
+        Launch blockers <span className="font-normal text-amber-800/85">· live from state.md</span>
       </h2>
       {open.length > 0 ? (
         <ul className="mt-2 space-y-1.5">
@@ -54,7 +54,7 @@ function BlockerStrip({ blockers }: { blockers: DevDocBlocker[] }) {
               <span aria-hidden>🔴</span>
               <span>
                 <span className="font-medium">{b.label}</span>
-                {b.detail && <span className="text-amber-800/70"> — {b.detail}</span>}
+                {b.detail && <span className="text-amber-800/90"> — {b.detail}</span>}
               </span>
             </li>
           ))}

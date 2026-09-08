@@ -1,6 +1,12 @@
 # Roadmap
 
-← [state.md](../context/state.md) · [todo.md](TODO.md) · **The outer view — what is coming, and when.**
+← [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md) · [TODO.md](TODO.md) · **The strategic outer view.**
+
+> **Planning boundary, corrected 2026-09-08:** the outcomes below retain the
+> horizon/progress last written through the Dev Console and include historical
+> narrative. They are product planning, not current release evidence. Current
+> launch truth lives in `PRODUCTION-READINESS.md`; actionable work lives only in
+> `TODO.md`. Re-check source before moving a horizon or claiming an outcome done.
 
 _Written and edited from the Dev Console (`/portal/dev-team/roadmap`). Each item is an
 OUTCOME; the plans under it are how it gets built, and their phases are the tasks. Progress
@@ -240,8 +246,10 @@ still-open provider-backed live-persona/shared-credential acceptance.
 **Files:** docs/development/checklist.md, docs/development/issues.md, docs/development/status.md, src/app/api/portal/dev/projects/route.ts, src/lib/server/auth/auth.ts, src/app/api/portal/settings/external-ai/route.ts, src/proxy.ts, src/server/clientErasure.ts, src/app/api/portal/clients/[clientId]/erase/route.ts, src/server/storage.ts, src/server/storagePostgres.ts, src/server/storageSupabase.ts, src/engines/editor/server/editorAiReply.ts, src/engines/editor/server/editorAiReplyClaim.ts, src/engines/editor/DevEditor.tsx, src/engines/editor/unsavedEditorWork.ts
 **Why:** The product is broadly built. The production build, file persistence, showcase boundary/fixture, erasure failure contract and audited editor/data slices are repaired. Central session freshness and role revocation are resolved under issue #22; an old privileged cookie no longer survives downgrade across the shared session boundary.
 
-The transactional owned-sidecar path is source/mocked verified
-but its migrations are not applied to live PostgreSQL.
+The transactional owned-sidecar path is source/mocked verified, and its
+migrations were recorded applied to live PostgreSQL on 2026-09-03. The
+2026-09-08 review did not rerun the live concurrency exercise, so provider-backed
+acceptance remains open.
 
 Finish the remaining work in this order: apply and live-prove the Editor AI and
 owned-sidecar database contracts; complete the dirty-state editor browser matrix;
@@ -255,8 +263,9 @@ and SOP retirement dependency-safe; then profile/remove hidden read work. The na
 client-route bypasses and fabricated website default are closed, but the broader
 reference class remains. Fresh-process
 probes persisted the expanded missing-reference matrix and deletion orphans while
-focused Finance and built-in suites stayed **5/5** and **82/82**. Current evidence is
-in [checklist.md](checklist.md) and [issues.md](issues.md).
+focused Finance and built-in suites stayed **5/5** and **82/82**. Current launch
+evidence is in [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md), remaining work
+is in [TODO.md](TODO.md), and detail remains in [issues.md](issues.md).
 
 Erasure's failure mode is now behaviorally closed in isolation: three forced
 live-delete failures preserve the client and produce retryable HTTP 502 plus

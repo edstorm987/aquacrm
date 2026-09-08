@@ -40,6 +40,7 @@ import {
   normaliseDataRealmId,
   runInDataRealm,
 } from "@/server/dataRealm";
+import { shouldRefuseEphemeralProductionStorage } from "@/lib/server/deployment";
 export {
   LIVE_DATA_REALM_ID,
   getActiveDataRealmId,
@@ -936,13 +937,16 @@ export async function ensureHydrated(options?: {
       const pendingBeforeReconciliation = reconciliationAtStart
         ? structuredClone(runtime.pendingPatchOperations)
         : null;
-      const isDeployedProduction =
-        process.env.NODE_ENV === "production" &&
-        Boolean(process.env.VERCEL_ENV) &&
-        process.env.NEXT_PHASE !== "phase-production-build";
-      if (isDeployedProduction && (backend.kind === "file" || backend.kind === "memory")) {
+      // Refuse to serve customer data off an ephemeral file/memory backend in a
+      // genuine production deployment — substrate-aware (Railway included), not
+      // Vercel-only, so the safety net actually fires where the app runs (#187).
+      // The predicate is `shouldRefuseEphemeralProductionStorage`, built on the
+      // PURE platform classifier: a health/readiness override can NEVER switch
+      // this guard off — it fails closed. The build phase is exempt (it hydrates
+      // once with no durable backend configured and never serves a request).
+      if (shouldRefuseEphemeralProductionStorage(backend.kind)) {
         throw new Error(
-          `[portal] Refusing to start with ${backend.kind} storage on Vercel. Configure Supabase storage or Postgres before serving customer data.`,
+          `[portal] Refusing to start with ${backend.kind} storage in production. Configure Supabase storage or Postgres before serving customer data.`,
         );
       }
       try {

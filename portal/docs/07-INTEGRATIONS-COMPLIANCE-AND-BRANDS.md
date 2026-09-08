@@ -2,15 +2,15 @@
 
 > External APIs, inbox and portal concepts, compliance packs and brand records.
 >
-> Consolidated 2026-09-07 from **6** source documents / **7,067 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-08 from **6** source documents / **7,139 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
 - [`assistant-integrations/milesymedia-api/SKILL.md`](#source-assistant-integrations-milesymedia-api-skill-md) — 289 words · `482c82e344fb`
-- [`docs/compliance/erasure-dpo-pack.md`](#source-docs-compliance-erasure-dpo-pack-md) — 2,786 words · `8ab2e564540b`
+- [`docs/compliance/erasure-dpo-pack.md`](#source-docs-compliance-erasure-dpo-pack-md) — 2,835 words · `8b4dc2a9016f`
 - [`docs/external-assistant-api.md`](#source-docs-external-assistant-api-md) — 1,675 words · `2a4a76c6d69d`
 - [`docs/meta-master-inbox.md`](#source-docs-meta-master-inbox-md) — 718 words · `1de766d50ed8`
-- [`docs/portal-tiers-and-fractal-fulfilment.md`](#source-docs-portal-tiers-and-fractal-fulfilment-md) — 1,263 words · `f285f1ac2a3c`
+- [`docs/portal-tiers-and-fractal-fulfilment.md`](#source-docs-portal-tiers-and-fractal-fulfilment-md) — 1,286 words · `af8659f6076a`
 - [`docs/zimante-brand-architecture.md`](#source-docs-zimante-brand-architecture-md) — 336 words · `703478a503df`
 
 ---
@@ -77,7 +77,7 @@ ${AQUACRM_API_BASE_URL}/openapi.json
 
 ## Source document — `docs/compliance/erasure-dpo-pack.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/compliance/erasure-dpo-pack.md" sha256="8ab2e564540ba931d1f23261f725ea470b5fadef51c1ba96244058d883be3111" -->
+<!-- AQUACRM_SOURCE_START path="docs/compliance/erasure-dpo-pack.md" sha256="8b4dc2a9016f8dc218f12db0a2ace6cba8a68263c18daf9c45894a8bc48fe1be" -->
 # Right-to-erasure — review pack for a DPO / solicitor
 
 ← [development.md](../development.md) · [erasure plan](../development/plans/plugin-data-erasure.md) · [compliance & legal plan](../development/plans/compliance-legal.md)
@@ -110,9 +110,13 @@ you to rule on.
 > This mirrors the project's own standing rule: *never assume or claim compliance;
 > verify from real evidence.*
 
-**Current status, which matters for your risk assessment:** the product is
-**pre-launch with no real clients**. All data in the system today is the founder's
-own test data. Nothing here has yet been applied to a real data subject.
+**Status boundary, which matters for your risk assessment:** when this pack was
+prepared on 2026-08-20, the engineering record described the product as
+pre-launch and the data as founder test data. That population claim was not
+re-verified in the 2026-09-08 technical review and must not be treated as a
+current data-subject inventory. Obtain a current controller/DPO inventory before
+using this pack operationally. Current technical readiness is recorded in
+[PRODUCTION-READINESS.md](../development/PRODUCTION-READINESS.md).
 
 ---
 
@@ -327,7 +331,7 @@ a statement that each is contracted or live.
 | Processor | Used for | Notes |
 |---|---|---|
 | **Supabase** | Primary hosted database (enquiries, inbox, consent events) | Holds the personal data in §3c |
-| **Vercel** | Hosting, and blob storage for uploaded media | Published media is content-addressed; see the note on unpublishing below |
+| **Railway / optional Vercel Blob** | Railway is the currently observed app host; Vercel Blob may store uploaded media when configured | Published media is content-addressed; see the note on unpublishing below. Confirm the live storage provider before an erasure. |
 | **Stripe** | Payments | TEST mode only at time of writing |
 | **Postmark / SMTP** | Outbound email | Message content leaves the system on send |
 | **OpenAI** | Assistant features | Requires a key to be configured; not enabled by default |
@@ -759,7 +763,7 @@ account, and the composer respects the provider response window.
 
 ## Source document — `docs/portal-tiers-and-fractal-fulfilment.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/portal-tiers-and-fractal-fulfilment.md" sha256="f285f1ac2a3c486dc74347db9402290b9a4ff22405f18436a56815c0bc5fc230" -->
+<!-- AQUACRM_SOURCE_START path="docs/portal-tiers-and-fractal-fulfilment.md" sha256="af8659f6076ab1613a2269f880bcc0ddcb29cc14d2aa381589330c12a7468545" -->
 # Portal tiers and fractal fulfilment
 
 Ed's model, written down 18 August 2026 so it can be argued with rather than
@@ -769,8 +773,10 @@ carried around in one head.
 > universal Editor now saves/creates repository files on a draft branch, opens a
 > pull request and can merge it; that path was exercised against a real client
 > repository on 2026-08-22. Client-tier modelling and mounting the whole Editor
-> in a client portal remain open. Current status lives in
-> [development/checklist.md](development/checklist.md).
+> in a client portal remain open. Current product and launch status lives in
+> [development/PRODUCTION-READINESS.md](development/PRODUCTION-READINESS.md),
+> with remaining work in [development/TODO.md](development/TODO.md). The body
+> below is the 2026-08-24 product-model snapshot, not a current release verdict.
 
 ## The idea
 

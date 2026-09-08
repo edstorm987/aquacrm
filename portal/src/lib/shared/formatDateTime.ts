@@ -6,6 +6,22 @@ const UK_DATE_TIME = new Intl.DateTimeFormat("en-GB", {
   timeZone: BUSINESS_TIME_ZONE,
 });
 
+/**
+ * Collapse the two en-GB `Intl.DateTimeFormat` outputs that differ BY JS ENGINE,
+ * so a server (Node/V8) render and a client (WebKit/Safari) render are identical
+ * and React does not throw a hydration mismatch + re-render the subtree:
+ *   1. September short month — V8 "Sept" vs WebKit "Sep" → normalise to "Sep".
+ *      "September" (long form) is untouched: `\bSept\b` needs a boundary the long
+ *      name (Sept+ember) does not provide.
+ *   2. Date/time connector — V8 "25 Aug 2026, 16:16" vs WebKit "25 Aug 2026 at
+ *      16:16" → normalise " at " to ", ". In en-GB date/time output " at " only
+ *      ever appears as this connector, so the replace is safe.
+ * Both normalise toward the V8/Node form, because Node is the SSR authority.
+ */
+export function stableUkDateString(formatted: string): string {
+  return formatted.replace(/\bSept\b/g, "Sep").replace(/ at /g, ", ");
+}
+
 const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
 const CALENDAR_FORMATTERS = new Map<string, Intl.DateTimeFormat>();
 
@@ -28,7 +44,7 @@ export function timestampFromValue(value: unknown): number | undefined {
 
 export function formatUkDateTime(value: unknown, fallback = "Date needs review"): string {
   const date = dateFromValue(value);
-  return date ? UK_DATE_TIME.format(date) : fallback;
+  return date ? stableUkDateString(UK_DATE_TIME.format(date)) : fallback;
 }
 
 export function formatUkDate(
@@ -37,10 +53,10 @@ export function formatUkDate(
   fallback = "Date needs review",
 ): string {
   const date = dateFromValue(value);
-  return date ? new Intl.DateTimeFormat("en-GB", {
+  return date ? stableUkDateString(new Intl.DateTimeFormat("en-GB", {
     ...options,
     timeZone: options.timeZone ?? BUSINESS_TIME_ZONE,
-  }).format(date) : fallback;
+  }).format(date)) : fallback;
 }
 
 export function isoDateTimeValue(value: unknown): string | undefined {

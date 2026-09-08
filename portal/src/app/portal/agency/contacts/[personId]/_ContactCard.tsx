@@ -22,6 +22,7 @@ import {
   WEBSITE_ENQUIRY_CLASSIFICATION_LABELS,
   type WebsiteEnquiryClassification,
 } from "@/lib/enquiries/enquiryClassification";
+import { stableUkDateString } from "@/lib/shared/formatDateTime";
 import type { PersonInteraction } from "@/lib/inbox/personInteractions";
 import type { Person, PersonState } from "@/server/types";
 
@@ -468,7 +469,7 @@ export function ContactCard({
                       {" → "}
                       {WEBSITE_ENQUIRY_CLASSIFICATION_LABELS[event.to as WebsiteEnquiryClassification]}
                       {" · "}
-                      {new Date(event.at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                      {stableUkDateString(new Date(event.at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }))}
                     </li>
                   ))}
                 </ul>

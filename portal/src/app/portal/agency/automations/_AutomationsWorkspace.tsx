@@ -526,7 +526,7 @@ export function AutomationsWorkspace({
     <div className={`min-h-full bg-[#f5f6f4] text-slate-950 ${embedded ? "rounded-md border border-black/10 px-3 py-4 sm:px-5" : "px-4 py-5 sm:px-6 lg:px-8"}`} data-automation-workspace data-embedded={embedded || undefined}>
       <header className="mx-auto flex max-w-[1680px] flex-col gap-4 border-b border-black/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div className="mb-1 flex items-center gap-2 text-xs font-bold uppercase text-[#087f8c]"><Workflow size={15} /> Internal marketing control</div>
+          <div className="mb-1 flex items-center gap-2 text-xs font-bold uppercase text-[#077682]"><Workflow size={15} /> Internal marketing control</div>
           {embedded ? <h2 className="text-2xl font-semibold">Marketing automations</h2> : <h1 className="text-2xl font-semibold">Automations</h1>}
           <p className="mt-1 max-w-2xl text-sm text-slate-600">Build dependable CRM routines, inspect every run, and keep external AI workspaces recorded in one place.</p>
         </div>
@@ -659,7 +659,7 @@ function TabButton({ active, onClick, icon, label, count }: { active: boolean; o
 }
 
 function Metric({ label, value, tone }: { label: string; value: number; tone: string }) {
-  return <div className="bg-[#f5f6f4] px-4 py-3"><p className="text-[11px] font-bold uppercase text-slate-500">{label}</p><p className={`mt-1 text-2xl font-semibold ${tone}`}>{value}</p></div>;
+  return <div className="bg-[#f5f6f4] px-4 py-3"><p className="text-[11px] font-bold uppercase text-slate-600">{label}</p><p className={`mt-1 text-2xl font-semibold ${tone}`}>{value}</p></div>;
 }
 
 function TemplateMenu({ create, createBlank }: { create: (kind: "enquiry" | "client-request" | "client" | "stage" | "daily") => void; createBlank: () => void }) {

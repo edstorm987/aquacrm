@@ -21,9 +21,11 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
 > source verification. Those entries supersede the earlier deferral note.
 
 ## 🔴 Security / compliance (from verified source reads)
-1. **Database RLS — live and version-controlled; engineering residue remains.** **CORRECTED 2026-08-23:** RLS is ON in the live project (verified 2026-08-20 across 14 tables with the public anon key), and its policies exist in 16 migrations under `aquaCRM/supabase/migrations/`. Pending migrations still need production application. The real gaps are narrower: `brand_enquiries` has no `agency_id`, and admin/service-role paths bypass RLS, so their current count and app-code tenant scoping must be audited before claiming database-enforced isolation. See [rls-enable](plans/rls-enable.md) and [database.md](../workspace/database.md).
+1. **Database RLS — live and version-controlled; engineering residue remains.** **RECONCILED 2026-09-08:** RLS was live-verified on 2026-08-20, and the expanded migration set including `brand_enquiries.agency_id` and Master Inbox was applied and verified on 2026-09-03. The repository now contains 28 ordered migrations; `20260903130000_ensure_rls_event_trigger` was the one no-op-on-live version still to record. Admin/service-role paths still bypass RLS, so their tenant filters and a current two-tenant live exercise remain necessary before claiming universal database-enforced isolation. The 2026-09-08 review did not independently reconnect to Supabase. See [rls-enable](plans/rls-enable.md), [database.md](../workspace/database.md) and [current readiness](PRODUCTION-READINESS.md).
 
-    *2026-09-03:* live anon posture re-probed read-only (0 rows on every private table, `401` on `app_datastore_history`, the three public tables public by design); the live schema is eleven migrations behind the repo, so the agency-scoped `brand_enquiries` policy is not live yet. Grants were found to be inherited from cloud defaults rather than written: `20260903120000_explicit_service_role_grants.sql` states them. Storage object policies and `rls_auto_enable()` need SQL access to verify.
+    *2026-09-03, before application:* live anon posture was re-probed read-only (0 rows on every private table, `401` on `app_datastore_history`, the three public tables public by design); the live schema was eleven migrations behind the repo. Grants were inherited from cloud defaults rather than written, so `20260903120000_explicit_service_role_grants.sql` stated them.
+
+    *2026-09-03, after application:* the approved `supabase db push` recorded 27/27 migrations, backfilled `brand_enquiries.agency_id` 52/52, preserved row counts and returned 51 INFO / 0 FAIL / 0 WARN from `rls-verify.sql`. The live `rls_auto_enable` definition and trigger were captured into the 28th migration, which remained a no-op-on-live version to record later.
 2. **🟡 DECIDED + DRAFT WIRED 2026-09-05, pending DPO sign-off — Aqua Tag form-content capture now DISCLOSES.** Telemetry is double-gated on cookie consent; the field-value POST to `/api/public/form-capture` is not (and the server route has no consent check), so a visitor who declined cookies still had their submitted enquiry fields captured with nothing on the form saying so. **Ed's decision (BLOCKERS-FOR-ED §#2): legitimate-interest with transparency, NOT a hard gate.** Implemented as a data-use notice on Aqua's own rendered contact form — both the React block (`components/blocks/CrmContactFormBlock.tsx`, `DEFAULT_CONSENT_NOTICE`) and its static-export twin (`server/staticExport.ts`, `renderContactFormHtml`) — as a configurable `consentNotice` prop (default = Ed's approved draft) with an optional `privacyPolicyUrl` link, pinned in `r033-static-export` (default text, override, link, HTML-escape). **Still open:** DPO must sign off the final wording (drop-in via the prop, no code change) — DPO sign-off is a listed Ed-blocker. The server route is deliberately left un-gated (transparency over gating); the tag reading a CLIENT's own forms is a processor matter for the client's own policy, not something Aqua notices on their markup. (See [aqua-tag.md](../workspace/aqua-tag.md) finding A.)
 3. **Consent flags are self-reported** — the telemetry server trusts the `consent*` booleans the tag sends; no server-side source of truth ties them to the stored preference.
 22. **✅ RESOLVED 2026-08-27 — central session revocation is enforced on every
@@ -2797,9 +2799,11 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     database-native submission claim and crash-safe idempotent consumers, then race separate
     instances and faults at every side-effect boundary before calling it exactly-once.
 
-    *2026-09-03 acceptance:* commit 0578ddb added the database-native claim boundary (`enquirySubmissionClaims.ts`, `enquirySubmissionDelivery.ts`) and migration `20260902093000_aqua_tag_submission_delivery.sql`. Source-verified; the migration is unapplied to live PostgreSQL, so cross-process claim acceptance there is NOT TESTED.
+    *2026-09-03 acceptance:* commit 0578ddb added the database-native claim boundary (`enquirySubmissionClaims.ts`, `enquirySubmissionDelivery.ts`) and migration `20260902093000_aqua_tag_submission_delivery.sql`. Source-verified; at that point the migration was not yet applied to live PostgreSQL, so cross-process claim acceptance there was not tested.
 
-    *2026-09-03 isolated PostgreSQL proof:* `20260902093000` applied in order and re-ran cleanly on a local Supabase stack, and `smoke-aqua-tag-ingestion-live-postgres` now runs against a full schema (its fixture named `brand_slug: null`, which the real NOT NULL/foreign-key column refuses; the app always supplies a slug). Live application remains BLOCKED on credentials, backup confirmation and approval — see `plans/supabase-alignment-2026-09-03.md`.
+    *2026-09-03 isolated PostgreSQL proof:* `20260902093000` applied in order and re-ran cleanly on a local Supabase stack, and `smoke-aqua-tag-ingestion-live-postgres` now runs against a full schema (its fixture named `brand_slug: null`, which the real NOT NULL/foreign-key column refuses; the app always supplies a slug).
+
+    *2026-09-03 later live application:* the alignment operation subsequently applied this migration and verified its table/functions were present. A current live multi-instance delivery/concurrency exercise remains open; migration presence alone is not that acceptance proof.
 
 88. **PARTIALLY RESOLVED 2026-09-01 — Dev Team cross-process accepted writes and
     document/ledger process-death recovery now survive; one direct-writer race remains.**
@@ -4202,6 +4206,149 @@ published website, where the visitor has none. Worth knowing before anybody
 public, `me/subscribe` absolutely is not.
 
 *2026-09-03 acceptance:* the public `visitor/newsletter` route is the seventeenth classified public route and its refusals (400/403/409, honeypot) are browser-proven; anonymous operator reads are refused.
+
+187. **✅ LIVE READINESS MASKING FIXED LOCALLY — 2026-09-08 (uncommitted, undeployed).**
+     Substrate-aware production/SHA/env detection now lives in
+     `src/lib/server/deployment.ts` (`isProductionDeployment`, `deployedCommitSha`,
+     `deploymentEnvironmentLabel`, `resolveFullHealthOk`).
+     **Safety-coupling correction (same-day review):** `isProductionDeployment` is
+     now PURE platform classification with NO health-override input, so a
+     `PORTAL_HEALTHZ_ENFORCE_READINESS=false` flag can never declassify production or
+     switch off the production storage guard (`shouldRefuseEphemeralProductionStorage`,
+     used by `storage.ts`). Health enforcement lives in a separate
+     `shouldEnforceHealthReadiness` (the `true`-only opt-in). Fails closed. `/healthz/full` folds readiness into its status via
+     `resolveFullHealthOk` (Railway/Vercel/generic, no longer Vercel-only), both
+     health routes expose a real SHA via `deployedCommitSha`, and the `storage.ts`
+     file/memory-in-production safety net was rewired off the same check. Pinned by
+     `scripts/smoke-healthz-readiness.test.ts` (24 cases) and **runtime-verified
+     against a Railway-equivalent server**: `/healthz/full` → **HTTP 503** when a
+     required item is unready (`enforcingReadiness:true`, `readyForProduction:false`);
+     `/healthz` → `platform:railway`, `env:production`, a real `sha`; local/dev
+     stays 200 (not enforced). Only the actual Railway deploy of the fix remains (Ed).
+     *Original finding (2026-09-08):* A read-only
+     request to the deployed `https://www.aqua-crm.com/healthz/full` returned HTTP
+     200 and `ok:true` while the same body said `readyForProduction:false` because
+     required email was `needs-setup`. `src/app/healthz/full/route.ts` folds
+     readiness into `ok` only when `VERCEL_ENV === "production"`; the current
+     substrate is Railway, where the response reports production through
+     `NODE_ENV` and the Vercel-specific condition is false. The response also
+     carries `sha:null`, so it cannot identify the deployed source revision.
+     **Required outcome:** determine production from the actual deployment contract,
+     return 503 whenever a required readiness item is not ready, retain `/healthz`
+     as liveness, expose a real build/deploy SHA, and prove both ready and unready
+     states against a Railway-equivalent server. Billing/monitoring remain separate
+     release gates even if the health model labels them optional.
+
+188. **🟠 CI RELEASE PIPELINE AUTHORED LOCALLY — NOT YET CLOSED (2026-09-08).**
+     A workflow now exists in the working tree but is **UNCOMMITTED and has never
+     run on GitHub**, so it is not "remotely proven" or enforced. **Not closed
+     until:** (1) committed + pushed, (2) a first successful run on GitHub, (3)
+     required as a branch-protection check on `main`.
+     `.github/workflows/ci.yml` adds two required jobs: **verify** (clean `npm ci`,
+     `typecheck`, canonical `smoke:all` incl. Website Editor, isolated-file-backend
+     production build, `npm audit --omit=dev --audit-level=moderate`) and **browser**
+     (bounded axe/responsive gate on a provider-free `dev:sandbox` lane). It uses
+     least-privilege `contents:read`, per-ref concurrency cancellation, npm caching,
+     failure-artefact upload, and **no secrets**; the two live-Postgres lanes stay
+     SKIPPED (visible NOT TESTED) and live-provider/full-production-matrix acceptance
+     is deliberately kept out of CI (documented in the workflow + tests.md § CI).
+     Remaining owner step: enable branch protection on `main` requiring both jobs.
+     *Original finding (2026-09-08):* The only file under
+     `.github/workflows/` is `db-backup.yml`. The repository has strong local
+     commands but no checked-in pull-request/main gate that clean-installs, runs
+     TypeScript, the canonical Node and Website Editor suites, the production build,
+     dependency audit and a bounded browser acceptance cohort. A clean developer
+     machine is therefore the release coordinator. **Required outcome:** add a
+     reproducible required workflow, preserve the two explicit live-database skips
+     as visible NOT TESTED lanes, retain artefacts/logs, and make deployment depend
+     on the required checks rather than on an undocumented local sequence.
+
+189. **✅ COMMAND CENTRE CONTRAST REGRESSION FIXED — RESOLVED 2026-09-08.** Root
+     cause was NOT the `CommandMoreButton` Tailwind classes: the legacy global
+     `[class*="-button"]` default in `globals.css` (a plugin-era light-button style)
+     matched the modern Tailwind `mm-command-more-button` and forced
+     `color: rgba(0,0,0,.85)` — which composites to ≈ #040404 on the dark panel
+     (1.18:1). Fix scopes that legacy default off the `mm-*` design system
+     (`[class*="-button"]:not([class*="mm-"])`, all five variants), so the component's
+     own dark styling applies. The full-matrix sweep surfaced a **second, distinct**
+     serious color-contrast finding on `/login` at desktop/wide/639: the
+     `.mm-auth-brand-foot` footer at `rgba(255,255,255,0.42)` = 4.07:1 on the dark
+     auth panel — raised to `0.55` (≈6:1). **Verified by computed contrast in-browser**
+     (CommandMoreButton label now `text-white/62` → rgb(159,164,167) on rgb(3,16,24)
+     = **7.6:1**) and by an **authoritative axe-core color-contrast scan** of
+     `/login` and `/portal/agency` at 1280 and 1920: **0 violations on all four**.
+     (Note: the turbopack dev lane must be run with a CLEARED `.next-dev-turbo-*`
+     cache — a stale cache served pre-fix CSS and reproduced the failure until the
+     cache was deleted.) Full 13×17 matrix re-run recorded below/in status.md.
+     *Original finding (2026-09-08):* The safe local
+     `browser:matrix` run completed 1,314/1,326 checks. All twelve failures are the
+     same serious axe `color-contrast` cluster on `/portal/agency` and `/login`
+     after the authenticated login route redirected to the agency page, repeated at
+     desktop, wide and four Tailwind boundary widths. A focused axe inspection
+     identified the five labels Key numbers, Projections, Advisor, Actions and
+     Calendar at approximately `#040404` on `#1a1b18` (1.18:1; 4.5:1 required).
+     The shared source is `CommandMoreButton` in
+     `src/app/portal/agency/_DashboardCommandCenter.tsx`. **Required outcome:** fix
+     the shared inactive-label style, rerun the entire 13-page × 17-viewport matrix,
+     and require zero serious/critical findings. Retained local evidence:
+     `.artefacts/browser-matrix/records.json`.
+
+190. **✅ WEBPACK VERIFICATION LANE RESTORED — RESOLVED 2026-09-08.** Root cause:
+     `middleware.ts` gives the app an Edge runtime, so Next compiles
+     `instrumentation.ts` for Edge; the radar probe scheduler statically reaches the
+     plugin registry → `emailSenderFoundation` → Nodemailer's bare `require('stream')`,
+     which cannot resolve for the Edge layer. A dynamic `import()` did NOT help
+     (webpack still compiles the chunk for that layer). Fixed by gating the Node-only
+     work in `instrumentation.ts` behind a statically-evaluable
+     `process.env.NEXT_RUNTIME !== "edge"` block, so webpack dead-code-eliminates the
+     graph from the Edge bundle while Node and plain-Node (tests) still run it; plus a
+     lazy `await import("nodemailer")` in `emailSenderFoundation.ts` matching the two
+     existing call sites. **Runtime-verified:** `npm run dev:verify` compiles the
+     instrumentation bundle and serves `/healthz` (200), `/` (200), `/login` (200)
+     and, via the `/dev` session, `/portal/agency` (200). `npm run dev` (Turbopack)
+     stays green.
+     *Original finding (2026-09-08):* `npm run dev:verify` fails during compilation with
+     `Module not found: Can't resolve 'stream'`. The import trace runs through
+     Nodemailer's base64/mime stack, `emailSenderFoundation.ts`, the built-in
+     runtime registry, plugin health, Radar sweeps and the instrumentation probe
+     scheduler. The normal isolated Turbopack `npm run dev` path serves `/dev` and
+     `/portal/agency`; this is a verification/reproducibility defect, not evidence
+     that the normal UI is unavailable. **Required outcome:** restore the declared
+     Webpack verification path without pulling Node-only mail dependencies into an
+     incompatible bundle, then rerun the browser matrix on that declared target.
+
+191. **🟡 UI/UX ACCEPTANCE — Wave-1 P1s FIXED (Wave 2, 2026-09-08); coverage gaps remain.**
+     **Update (Wave 2):** every open P1 below is now FIXED + re-scanned to 0 serious/critical
+     on the audited owner surfaces: (a) colour-contrast — 9 surfaces, 41 real nodes (a
+     workflow proposed + adversarially-verified minimal AA fixes, applied by the caller,
+     then re-scanned 0); (b) `aria-required-attr` — portals/editor resize handles got
+     `aria-valuenow`; (c) marketing `<dl>` — dt/dd were orphaned in a `<div>` grid, made it
+     a `<dl>`; (d) dev-team overflow — shared `_ui.tsx` header `shrink-0` meta → `min-w-0` +
+     `flex-wrap`, verified 0 overflow at 320/375/768. **Still open = COVERAGE, not known
+     defects:** dynamic-route fixtures, customer/staff/freelancer roles, the full
+     18-viewport + 200% zoom sweep, the end-to-end journeys, modal focus-trap/return, and a
+     production-build visual pass (wave 3). The pilot UI gate is not FULLY passed until that
+     coverage closes. All fixes UNCOMMITTED. *Original Wave-1 finding:* The dedicated
+     UI/UX·responsive·accessibility pass (full detail:
+     [UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08.md](UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08.md))
+     inventoried all 124 routes and ran a new harness (`scripts/ui-acceptance.mjs`)
+     over 92 static routes × 5 viewports. It FIXED + axe-verified: `select-name`
+     (dev toolkit/vault), the 404-footer contrast, two chart `aria-prohibited-attr`
+     (`role="img"`), and the you-deserve-it `<dl>` nesting. **Still OPEN (P1):**
+     (a) serious `color-contrast` — ~60 nodes across ~14 surfaces (radar, automations,
+     company, products, portals, dev-docs, account/preferences, several dev-team,
+     team; public /careers and /portfolio/ocean-boulevard); (b) `aria-required-attr`
+     on the 3 focusable `role="separator"` resize handles in portals/editor (need
+     `aria-valuenow`); (c) the same `<dl>` nesting on marketing (page.tsx ~L956 and
+     `_CustomerProfilesWorkspace`); (d) horizontal `#main-content` overflow at ≤768px
+     on `/portal/dev-team/{roadmap,api,findings,tasks,working}` (roadmap ships 675px
+     of content into a 320–768px column). **Required outcome:** clear every serious
+     axe finding and the overflow, then complete the deferred coverage — dynamic-route
+     fixtures, customer/staff/freelancer role journeys, the full 18-viewport + 200%
+     zoom set, the required end-to-end journeys, modal focus-trap/return, and a
+     representative pass against an isolated production build. The **pilot UI gate is
+     NOT passed** until these close. *(By design, not a bug: `/terms`, `/for-agencies`,
+     `/demo-privacy` 404 via `notFound()` when the website-demo flag is off.)*
 
 ## ⚪ Known / by-design (don't mistake for bugs)
 

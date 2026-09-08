@@ -2,7 +2,7 @@
 
 ← Back to [the reference index](00-index.md) · [the map](../WORKSPACE-FILE-TREE.md) · [development.md](../development.md)
 
-Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2714 source files; 0 per-source stubs.**
+Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2716 source files; 0 per-source stubs.**
 
 ## Engines — `src/engines/` (89)
 
@@ -171,7 +171,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
 - [`src/server/zimanteTradingCompanies.ts`](server.md#file-src-server-zimantetradingcompanies-ts-ef9a41c5a6)
 
-## Shared logic — `src/lib/` (372)
+## Shared logic — `src/lib/` (373)
 
 - [`src/lib/a11y/contrastValidator.ts`](lib.md#file-src-lib-a11y-contrastvalidator-ts-7c6889cfca) — components. We default to 4.5 for the strictest check.
 - [`src/lib/a11y/isEmbedded.ts`](lib.md#file-src-lib-a11y-isembedded-ts-e91cac9938)
@@ -403,6 +403,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/server/compliancePostureSource.ts`](lib.md#file-src-lib-server-complianceposturesource-ts-5dd4c4aa77)
 - [`src/lib/server/connectionConfirmation.ts`](lib.md#file-src-lib-server-connectionconfirmation-ts-d9ab616d97)
 - [`src/lib/server/databaseStorageHealth.ts`](lib.md#file-src-lib-server-databasestoragehealth-ts-dd5148388d)
+- [`src/lib/server/deployment.ts`](lib.md#file-src-lib-server-deployment-ts-bdadc9047d) — pure over its `env` argument, so it is trivially testable with a synthetic env.
 - [`src/lib/server/dev/devConsoleStatus.ts`](lib.md#file-src-lib-server-dev-devconsolestatus-ts-f02de5665f)
 - [`src/lib/server/dev/devDocEdits.ts`](lib.md#file-src-lib-server-dev-devdocedits-ts-f9b7bbe202)
 - [`src/lib/server/dev/devDocs.ts`](lib.md#file-src-lib-server-dev-devdocs-ts-e94670e7f5)
@@ -2113,7 +2114,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/showcase/exit/route.ts`](app.md#file-src-app-showcase-exit-route-ts-2297ba275f)
 - [`src/app/showcase/route.ts`](app.md#file-src-app-showcase-route-ts-4c24dd82df)
 
-## Scripts — `scripts/` (617)
+## Scripts — `scripts/` (618)
 
 - [`scripts/attention-protection.test.ts`](scripts.md#file-scripts-attention-protection-test-ts-d64d01714c)
 - [`scripts/audit-actions.ts`](scripts.md#file-scripts-audit-actions-ts-862ea31175) — What state Actions is actually in — measured, not remembered. For every alert the checks currently …
@@ -2433,6 +2434,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-hc-leads-pipeline-integration.test.ts`](scripts.md#file-scripts-smoke-hc-leads-pipeline-integration-test-ts-5bc3cb6bb5) — a client workspace and starter portal.
 - [`scripts/smoke-health-check-funnel-journey.test.ts`](scripts.md#file-scripts-smoke-health-check-funnel-journey-test-ts-9db3f7413a) — touches the developer's local portal data file.
 - [`scripts/smoke-health-check-sharing.test.ts`](scripts.md#file-scripts-smoke-health-check-sharing-test-ts-257139591c)
+- [`scripts/smoke-healthz-readiness.test.ts`](scripts.md#file-scripts-smoke-healthz-readiness-test-ts-ee576f6034) — - local/dev/preview stay green while still reporting the truth in the body.
 - [`scripts/smoke-hr-policy-convergence.test.ts`](scripts.md#file-scripts-smoke-hr-policy-convergence-test-ts-1c36af8d4b) — deliberately not.
 - [`scripts/smoke-icon-usability.test.ts`](scripts.md#file-scripts-smoke-icon-usability-test-ts-154bdaf30b)
 - [`scripts/smoke-identity-resolution.test.ts`](scripts.md#file-scripts-smoke-identity-resolution-test-ts-d476122980)

@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from "react";
 
+import { stableUkDateString } from "@/lib/shared/formatDateTime";
+
 import {
   BASE_CAPABILITIES,
   dateTimeLocalValue,
@@ -676,7 +678,7 @@ function daysFromNow(days: number): string {
 
 function formatTimestamp(timestamp?: number): string {
   if (!timestamp) return "Date unavailable";
-  return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/London" }).format(timestamp);
+  return stableUkDateString(new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/London" }).format(timestamp));
 }
 
 function stripLabel(scope: NamedAccessScope) {

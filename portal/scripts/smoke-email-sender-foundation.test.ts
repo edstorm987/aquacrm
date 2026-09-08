@@ -82,9 +82,15 @@ describe("email-sender foundation registration — source markers", () => {
     assert.match(src, /pluginInstalls:\s*pluginInstallStorePort/);
   });
 
-  it("production foundation injects the real Node SMTP transport", () => {
+  it("production foundation injects the real Node SMTP transport (lazily)", () => {
     const src = readFileSync(ADAPTER, "utf-8");
-    assert.match(src, /nodemailer\.createTransport/);
+    // Nodemailer is loaded at send time, NOT as a static top-level import (#190):
+    // a static `import nodemailer` dragged Nodemailer's bare `require('stream')`
+    // into the Edge instrumentation bundle and broke `next dev --webpack`. The
+    // transport is still the real Node SMTP path, just imported inside the sender.
+    assert.match(src, /const \{ createTransport \} = await import\("nodemailer"\)/);
+    assert.match(src, /createTransport\(transportOptions\)/);
+    assert.doesNotMatch(src, /^import nodemailer from ["']nodemailer["']/m);
     assert.match(src, /defaultDriverRegistry\(fetch, nodeSmtpTransport\)/);
     assert.match(src, /drivers:\s*productionEmailDrivers/);
     assert.doesNotMatch(src, /Drivers are intentionally NOT injected/);

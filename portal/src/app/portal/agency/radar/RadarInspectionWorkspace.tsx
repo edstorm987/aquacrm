@@ -883,7 +883,7 @@ function EvidenceBars({ points }: { points: RadarEvidenceSeriesSummary["recentPo
   const minimum = Math.min(...values);
   const maximum = Math.max(...values);
   const range = maximum - minimum || 1;
-  return <div className="flex h-36 items-end gap-1 border-b border-black/10 px-1 pt-4" aria-label="Recent evidence values">{points.map((point, index) => <span key={`${point.at}:${index}`} className={`min-w-1 flex-1 rounded-t-sm ${point.status === "critical" ? "bg-red-600" : point.status === "warning" ? "bg-amber-500" : point.status === "watch" ? "bg-sky-500" : "bg-emerald-600"}`} style={{ height: `${Math.max(8, (point.value - minimum) / range * 92 + 8)}%` }} title={`${formatDate(point.at)} · ${formatNumber(point.value)} · ${point.status}`} />)}</div>;
+  return <div role="img" className="flex h-36 items-end gap-1 border-b border-black/10 px-1 pt-4" aria-label="Recent evidence values">{points.map((point, index) => <span key={`${point.at}:${index}`} className={`min-w-1 flex-1 rounded-t-sm ${point.status === "critical" ? "bg-red-600" : point.status === "warning" ? "bg-amber-500" : point.status === "watch" ? "bg-sky-500" : "bg-emerald-600"}`} style={{ height: `${Math.max(8, (point.value - minimum) / range * 92 + 8)}%` }} title={`${formatDate(point.at)} · ${formatNumber(point.value)} · ${point.status}`} />)}</div>;
 }
 
 function PointTable({ points }: { points: RadarEvidenceSeriesInspection["points"] }) {

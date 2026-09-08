@@ -1,11 +1,12 @@
 # AquaCRM Product Architecture
 
-Last reviewed: 26 August 2026 (implementation boundary reconciled)
+Last reviewed: 8 September 2026 (status pointers reconciled; architecture body remains an implementation-boundary inventory)
 
 > This file describes intended and implemented product boundaries. It is not a
-> runtime-status document. Use [development/checklist.md](development/checklist.md)
-> for current completion/reliability and [development/status.md](development/status.md)
-> for verification depth. The access implementation and remaining adoption gate are
+> runtime-status document. Use [development/PRODUCTION-READINESS.md](development/PRODUCTION-READINESS.md)
+> for the current launch assessment, [development/TODO.md](development/TODO.md)
+> for remaining work and [development/status.md](development/status.md) for
+> verification history. The access implementation and remaining adoption gate are
 > tracked in
 > [configurable-access-and-workspace-parity.md](development/plans/configurable-access-and-workspace-parity.md).
 

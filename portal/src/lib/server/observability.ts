@@ -131,19 +131,146 @@ export function isExpectedFrameworkControlFlow(error: unknown): boolean {
     && (error as { digest?: unknown }).digest === "DYNAMIC_SERVER_USAGE";
 }
 
-export function captureError(err: unknown, breadcrumb?: ObservabilityBreadcrumb): void {
-  // Always console.error so dev + Vercel Function logs see the trace
-  // even when Sentry isn't configured. Sentry capture is additive.
-  if (process.env.NODE_ENV !== "test") {
-    console.error("[observability]", err);
+/**
+ * A correlation id for one captured error. Prefers the framework `digest` — the
+ * value the client-facing error boundary (`app/error.tsx`) already shows a user —
+ * so a user's "error id" ties straight to the server log and the Sentry event.
+ * Falls back to a random id (Web Crypto, available on both Node and Edge — never a
+ * static `node:crypto` import, which would break the Edge instrumentation bundle).
+ */
+export function correlationIdFor(err: unknown): string {
+  const digest = typeof err === "object" && err !== null && "digest" in err
+    ? String((err as { digest?: unknown }).digest ?? "").trim()
+    : "";
+  if (digest) return digest;
+  try {
+    const id = globalThis.crypto?.randomUUID?.();
+    if (id) return id;
+  } catch { /* fall through to a timestamped id */ }
+  return `err_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/**
+ * The allowlist of fields observability may emit as structured metadata — for the
+ * production console line AND for the Sentry event context (tags/extras).
+ *
+ * Everything NOT on this list is deliberately excluded because it can carry
+ * customer data, tokens or credentials: the raw error MESSAGE and STACK, the
+ * actual request PATH, QUERY strings, request/response BODIES, headers, cookies,
+ * and any free-form caller `extra`. This is the single sanitisation/redaction
+ * boundary; nothing else is assumed safe. (The exception's own message/stack is
+ * still sent to Sentry via `captureException` — Sentry is the designated,
+ * access-controlled home for it, where the operator configures PII scrubbing.)
+ */
+export interface SafeErrorContext {
+  errorId?: string;
+  /** Error class/classification only — validated to a simple identifier. */
+  name?: string;
+  /** Canonical route PATTERN only — never the actual path or query string. */
+  route?: string;
+  method?: string;
+  agencyId?: string;
+  clientId?: string;
+  pluginId?: string;
+  /** Internal pseudonymous user id — Sentry user context only, not the console. */
+  userId?: string;
+}
+
+// Shape validators. A value that does not match is DROPPED, so a caller cannot
+// smuggle an email, bearer token, card number or query string through a field.
+const SAFE_IDENTIFIER = /^[A-Za-z0-9_.:$-]{1,80}$/;
+const SAFE_ROUTE = /^\/[A-Za-z0-9/_.:$()[\]-]{0,200}$/;
+const SAFE_METHOD = /^[A-Z]{3,7}$/;
+
+function safeName(err: unknown): string {
+  const name = err instanceof Error ? err.name : typeof err;
+  return typeof name === "string" && SAFE_IDENTIFIER.test(name) ? name : "Error";
+}
+function safeId(value: unknown): string | undefined {
+  return typeof value === "string" && SAFE_IDENTIFIER.test(value) ? value : undefined;
+}
+function safeMethod(value: unknown): string | undefined {
+  return typeof value === "string" && SAFE_METHOD.test(value) ? value : undefined;
+}
+function safeRoute(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  // Strip any query/fragment BEFORE validating — query values are the highest-risk
+  // leak (emails, tokens) — then keep only a bounded, path-shaped remainder.
+  const pathOnly = value.split("?")[0].split("#")[0];
+  return SAFE_ROUTE.test(pathOnly) ? pathOnly : undefined;
+}
+
+/**
+ * Reduce a captured error + breadcrumb to ONLY the allowlisted, shape-validated
+ * fields of `SafeErrorContext`. Pure and exported so the redaction boundary is
+ * directly testable. This is the ONLY thing permitted to become structured log
+ * output or Sentry context.
+ */
+export function buildSafeErrorContext(
+  err: unknown,
+  breadcrumb: ObservabilityBreadcrumb | undefined,
+  errorId?: string,
+): SafeErrorContext {
+  const extra = breadcrumb?.extra ?? {};
+  return {
+    errorId,
+    name: safeName(err),
+    route: safeRoute(extra.route),
+    method: safeMethod(extra.method),
+    agencyId: safeId(breadcrumb?.agencyId),
+    clientId: safeId(breadcrumb?.clientId),
+    pluginId: safeId(breadcrumb?.pluginId),
+    userId: safeId(breadcrumb?.userId),
+  };
+}
+
+/** The production console payload: the safe context (minus user id) plus a level. */
+function safeLogPayload(safe: SafeErrorContext): Record<string, unknown> {
+  return {
+    level: "error",
+    errorId: safe.errorId,
+    name: safe.name,
+    route: safe.route,
+    method: safe.method,
+    agencyId: safe.agencyId,
+    clientId: safe.clientId,
+    pluginId: safe.pluginId,
+  };
+}
+
+/**
+ * Capture an exception with a per-tenant breadcrumb. Returns the correlation id
+ * (also attached to the Sentry event and printed in the log) so a caller can
+ * surface it to the user or thread it onward. Synchronous; the Sentry call is
+ * best-effort on the next microtask.
+ *
+ * Logging is environment-gated:
+ *   - PRODUCTION → the allowlisted `safeLogPayload` ONLY. The raw error object,
+ *     its message/stack, the request path, query values and any free-form extra
+ *     are never printed to the deployment log.
+ *   - LOCAL/DEV (not test) → the full error + stack, for debugging, plus the same
+ *     safe payload. Never runs in production.
+ *   - test → nothing.
+ */
+export function captureError(err: unknown, breadcrumb?: ObservabilityBreadcrumb): string {
+  const errorId = correlationIdFor(err);
+  const safe = buildSafeErrorContext(err, breadcrumb, errorId);
+  const nodeEnv = process.env.NODE_ENV;
+  if (nodeEnv === "production") {
+    console.error("[observability]", JSON.stringify(safeLogPayload(safe)));
+  } else if (nodeEnv !== "test") {
+    console.error("[observability]", err, JSON.stringify(safeLogPayload(safe)));
   }
   void loadSentry().then((s) => {
     if (!s) return;
     s.withScope?.((scope) => {
-      applyBreadcrumb(scope, breadcrumb);
+      // Only the allowlisted context reaches the Sentry scope — never the raw
+      // path or free extras. The exception itself carries its message/stack.
+      applySafeScope(scope, safe);
       scope.captureException?.(err);
     });
   });
+  return errorId;
 }
 
 /**
@@ -187,8 +314,12 @@ export function withApiObservability(
       return response;
     } catch (err) {
       captureError(err, {
-        ...breadcrumb,
-        extra: { ...(breadcrumb?.extra ?? {}), route: options.route, method: req.method },
+        agencyId: breadcrumb?.agencyId,
+        clientId: breadcrumb?.clientId,
+        pluginId: breadcrumb?.pluginId,
+        userId: breadcrumb?.userId,
+        // Only the route label + method — never the resolver's raw `extra`.
+        extra: { route: options.route, method: req.method },
       });
       throw err;
     } finally {
@@ -212,13 +343,16 @@ export function withApiObservability(
  * threading a breadcrumb arg through.
  */
 export function setSessionScope(breadcrumb: ObservabilityBreadcrumb): void {
+  // Sanitise before anything reaches Sentry — only validated tenancy ids, never
+  // the raw breadcrumb or its `extra`.
+  const safe = buildSafeErrorContext(undefined, breadcrumb);
   void loadSentry().then((s) => {
     if (!s) return;
-    s.withScope?.((scope) => applyBreadcrumb(scope, breadcrumb));
-    if (breadcrumb.userId) s.setUser?.({ id: breadcrumb.userId });
-    if (breadcrumb.agencyId) s.setTag?.("agencyId", breadcrumb.agencyId);
-    if (breadcrumb.clientId) s.setTag?.("clientId", breadcrumb.clientId);
-    if (breadcrumb.pluginId) s.setTag?.("pluginId", breadcrumb.pluginId);
+    s.withScope?.((scope) => applySafeScope(scope, safe));
+    if (safe.userId) s.setUser?.({ id: safe.userId });
+    if (safe.agencyId) s.setTag?.("agencyId", safe.agencyId);
+    if (safe.clientId) s.setTag?.("clientId", safe.clientId);
+    if (safe.pluginId) s.setTag?.("pluginId", safe.pluginId);
   });
 }
 
@@ -237,13 +371,23 @@ function safeResolve(
   }
 }
 
-function applyBreadcrumb(scope: SentryShape, breadcrumb?: ObservabilityBreadcrumb): void {
-  if (!breadcrumb) return;
-  if (breadcrumb.userId) scope.setUser?.({ id: breadcrumb.userId });
-  if (breadcrumb.agencyId) scope.setTag?.("agencyId", breadcrumb.agencyId);
-  if (breadcrumb.clientId) scope.setTag?.("clientId", breadcrumb.clientId);
-  if (breadcrumb.pluginId) scope.setTag?.("pluginId", breadcrumb.pluginId);
-  if (breadcrumb.extra) scope.setExtras?.(breadcrumb.extra);
+/**
+ * Apply ONLY the allowlisted, shape-validated context to a Sentry scope. It never
+ * calls `setExtras(breadcrumb.extra)` with a raw caller object — the previous
+ * behaviour, which leaked the request path and any free-form extra into every
+ * event. The exception's message/stack still arrives via `captureException`.
+ */
+function applySafeScope(scope: SentryShape, safe: SafeErrorContext): void {
+  if (safe.userId) scope.setUser?.({ id: safe.userId });
+  if (safe.agencyId) scope.setTag?.("agencyId", safe.agencyId);
+  if (safe.clientId) scope.setTag?.("clientId", safe.clientId);
+  if (safe.pluginId) scope.setTag?.("pluginId", safe.pluginId);
+  scope.setExtras?.({
+    errorId: safe.errorId,
+    errorName: safe.name,
+    route: safe.route,
+    method: safe.method,
+  });
 }
 
 /**

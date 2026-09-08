@@ -2,7 +2,9 @@
 
 **This is the master catalogue and build map for AquaCRM. Use it to find the
 owning document, and update that document after every change.** The current
-answer to “where do we stand?” is [development/TODO.md](development/TODO.md);
+release verdict is
+[development/PRODUCTION-READINESS.md](development/PRODUCTION-READINESS.md), and
+the one remaining-work list is [development/TODO.md](development/TODO.md);
 source remains authoritative when prose and implementation disagree.
 Whether you're an AI or a human, on day one or day one thousand: start here and
 you have the whole project. Nothing is lost because everything is written down
@@ -35,7 +37,7 @@ the whole library — you walk down to exactly what you need.
 > exactly **20 canonical Markdown volumes**: nine authored subject volumes at
 > `docs/00-START-HERE.md` through `docs/08-HISTORY-AND-ARCHIVE.md`, plus the
 > eleven generated documents under `docs/reference/`. The nine authored volumes
-> contain **all 126 non-reference Markdown sources / 435,282 words**, verbatim,
+> contain **all 161 non-reference Markdown sources / 615,464 words**, verbatim,
 > with original path and SHA-256 provenance. Runtime-backed plan, finding,
 > roadmap, checklist and update fragments remain at their compatibility paths
 > for now so consolidation cannot break Dev Team behaviour; they are hidden
@@ -49,6 +51,7 @@ development.md  ← the catalogue (you are here) — the law, tying it all toget
 ├── BOOKS (the top-level docs)
 │   ├── goals.md ......... why we're building this and what "done" is
 │   ├── roadmap.md ....... the roadmap — what's next, in order
+│   ├── PRODUCTION-READINESS.md ... ★ CURRENT EVIDENCE — launch verdict and gates
 │   ├── TODO.md ......... ★ THE ONE TASK LIST — "where do we stand", the only one
 │   ├── checklist.md ..... RETIRED 2026-08-31 → merged into TODO.md (kept for history)
 │   ├── todo-retired.md .. RETIRED 2026-08-31 → merged into TODO.md (kept for history)
@@ -88,7 +91,8 @@ you find a second file answering one of them, it is stale and belongs on the
 | Question | The one file | Not anywhere else |
 |---|---|---|
 | **What changed, and when?** | **[updates.md](development/updates.md)** | It is the log. Append a dated entry after every meaningful change; **never edit an existing entry** — that is the point of a changelog, and the file says so in its own banner. It is also parsed by the Dev Console, so a second log would be invisible as well as redundant. |
-| **Where do we stand?** | **[TODO.md](development/TODO.md)** | Five files have answered this over time. `TODO.md` is the only one now — `checklist.md` and `todo-retired.md` were merged into it on 2026-08-31 after they drifted into disagreeing about which issues were done. `scripts/smoke-one-task-list.test.ts` fails if a second list appears. |
+| **Is the current build ready to launch?** | **[PRODUCTION-READINESS.md](development/PRODUCTION-READINESS.md)** | A dated, evidence-backed gate ledger and verdict; it never owns tasks. |
+| **What work remains?** | **[TODO.md](development/TODO.md)** | `TODO.md` is the only task list — `checklist.md` and `todo-retired.md` were merged into it on 2026-08-31 after they drifted. `scripts/smoke-one-task-list.test.ts` fails if a second list appears. |
 | **What systems exist?** | **[CURRENT-IMPLEMENTATION.md](CURRENT-IMPLEMENTATION.md)** | An inventory, not a status report. Status lives in TODO.md. |
 | **How do I run it locally?** | **[DEVELOPMENT-HANDOFF.md](DEVELOPMENT-HANDOFF.md)** | Despite the name it is the environment runbook, **not** a session handoff. Session handoffs are dated and archived. |
 
@@ -103,10 +107,11 @@ Everything dated — old summaries, session records, worker debriefs — lives o
 |---|---|
 | **[goals.md](development/goals.md)** | Why AquaCRM exists, who Ed is, the operating model, current strategic goals, and the principles that shape how we build. Read first to understand *what* we're doing. |
 | **[roadmap.md](development/roadmap.md)** | **The roadmap — the outer view.** Every outcome that is coming, its horizon (Now / Next / Later / Someday / Shipped), its target date, and the plans that deliver it. Progress is COMPUTED from those plans' phases, never typed. Written and edited from the Dev Console (`/portal/dev-team/roadmap`); this supersedes phases.md. |
+| **[PRODUCTION-READINESS.md](development/PRODUCTION-READINESS.md)** | **The current release verdict.** Dated local, browser, Git, dependency and live-health evidence; ratings, boundaries, blockers and realistic distance. It does not duplicate the task list. |
 | **[TODO.md](development/TODO.md)** | **The one task list.** Blocked-on-Ed first, then P0/P1/P2, each row pointing at its `issues.md` entry for the detail. If you read one thing before working, read this. |
 | **[architecture-noobie.md](architecture-noobie.md)** | The whole system explained in **plain English**, no jargon. Start here if you're new (human or agent) and the catalogue below is too dense. |
 | **[development/plans/fulfilment-template-system.md](development/plans/fulfilment-template-system.md)** | **The template system** — portal/product templates edited once and seeded into every client instance, owned by Fulfilment (Ed's direction, 2026-08-27). Most of the spine already exists; the new idea is a cross-tenant *origin* template. |
-| **[development/plans/production-readiness-roadmap-2026-09-03.md](development/plans/production-readiness-roadmap-2026-09-03.md)** | **The release baseline register** — nine areas, every row VERIFIED / PARTIAL / BLOCKED / NOT TESTED / POST-RELEASE with its exact evidence. Read before claiming readiness. |
+| **[development/plans/production-readiness-roadmap-2026-09-03.md](development/plans/production-readiness-roadmap-2026-09-03.md)** | **Historical 3 September release baseline.** Retained for its exact dated evidence; superseded as the current verdict by `PRODUCTION-READINESS.md`. |
 | **[development/plans/product-roadmap-2026-09.md](development/plans/product-roadmap-2026-09.md)** | **The post-baseline product roadmap** — personal vs business Command Centre and Radar, semantic KPI definitions, data interfaces, configurable topbars, per-workspace/per-role navigation, overrides and permission requests. Not started until the baseline is preserved. |
 | **[development/plans/dev-editor-finish.md](development/plans/dev-editor-finish.md)** | **Current Dev Editor plan.** The 22 Aug session handoff is preserved on the [history shelf](context/archive/dev-editor-handoff-2026-08-22.md), but it is no longer a current brief. |
 | **[context/archive/](context/archive/README.md)** | 🗄 **The history shelf.** Dated records — superseded summaries, session handoffs, worker debriefs — kept because they are the only place some facts survive, and **never current**. `phases.md` (the old roadmap) lives here now. Nothing on this shelf should brief a worker. |
@@ -197,7 +202,37 @@ documentation, because updating the docs *is* part of finishing the work.
 
 ---
 
-## Status snapshot (current P0/P1 refresh 2026-08-24)
+## Status snapshot — verified 8 September 2026
+
+- **Verdict:** advanced beta; product/application quality **8.1/10** and
+  production readiness **6.2/10**. Suitable for a supervised pilot after the
+  current red gates; not approved for a broad paid launch.
+- **Git:** clean `main` at `a808bb3ff41808c7cc78d5c95530d47b213ffde1`,
+  matching local `origin/main` and GitHub `main`.
+- **Automated gates:** focused readiness/security/data 144/144; canonical Node
+  suite 6,772 pass / 0 fail / 2 optional live-database skips across 1,143 suites;
+  Website Editor 49/49; TypeScript green; production Webpack build green with
+  247/247 entries; production dependency audit 0 vulnerabilities.
+- **Browser:** safe local matrix 1,314/1,326. The twelve failures are one repeated
+  serious contrast defect on five Command Centre labels. Normal Turbopack local
+  development works; the declared Webpack `dev:verify` lane currently fails on
+  the Nodemailer/Radar import graph.
+- **Live:** `www.aqua-crm.com` serves and database/security/uploads report ready,
+  but required email is missing, the detailed probe reports
+  `readyForProduction:false` while returning HTTP 200, the deployed SHA is null,
+  and apex TLS validation fails.
+- **Operations:** self-managed backup tooling exists, but activation, off-site
+  delivery, downloaded live-artifact restore, alert exercise and recovery timing
+  remain unproven; PITR is off. No normal CI release workflow exists.
+- **Authoritative detail:** [PRODUCTION-READINESS.md](development/PRODUCTION-READINESS.md)
+  is the current assessment and [TODO.md](development/TODO.md) is the current
+  queue.
+
+### Historical status snapshot — 24 August 2026
+
+The bullets below are retained as the dated record that was previously presented
+as current. They are superseded by the checkpoint above and must not brief a new
+release decision.
 - **Pre-launch, solo founder, clients waiting for onboarding.** Do not assume all
   records are disposable: file-backed state and configured live Supabase tables
   are separate concerns.

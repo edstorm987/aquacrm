@@ -7,11 +7,13 @@
 > name; they were archived 2026-08-21 to the
 > [history shelf](context/archive/README.md).
 >
-> **Refreshed 2026-08-24 for current runtime facts.** Commands below are checked
-> against `package.json`. A later same-day review reopened session revocation,
-> showcase and erasure safety; use the checklist as the current gate.
+> **Refreshed 2026-09-08 for current runtime and deployment facts.** Commands
+> below are checked against `package.json`. Use
+> [development/PRODUCTION-READINESS.md](development/PRODUCTION-READINESS.md) for
+> the launch assessment and [development/TODO.md](development/TODO.md) for the
+> one current task list.
 
-Last updated: 24 August 2026
+Last updated: 8 September 2026
 
 ## Repository And Runtime
 
@@ -21,7 +23,8 @@ Last updated: 24 August 2026
   `/Users/eds/Desktop/Projects/Web Development/Personal EcoSystem/aquaCRM/portal`
 - Framework: Next.js App Router with React and TypeScript
 - Local port: `3032`
-- Vercel Root Directory: `portal`
+- Current production substrate: Railway; service root directory `portal`
+- Legacy/optional Vercel Root Directory: `portal`
 - Default branch: `main`
 
 Install and run:
@@ -251,10 +254,12 @@ weaken it only to make a failure disappear.
 - Do not commit `.env.local`, tokens, credentials, generated build output, or
   personal data.
 
-## Vercel And Production
+## Railway And Production
 
-Vercel must build from the repository's `portal` root directory. Required
-environment variables and safety notes are listed in `.env.example`.
+Railway currently deploys the repository from the `portal` root directory.
+Required environment variables and safety notes are listed in `.env.example`.
+Older Vercel instructions are historical unless a deliberate platform move is
+approved.
 
 Before calling a deployment healthy, verify:
 
@@ -265,10 +270,16 @@ Before calling a deployment healthy, verify:
 - login is the real authenticated flow, not Showcase Mode;
 - production is not using file or memory persistence.
 
-Showcase Mode is intended to be read-only fictional data, but that contract is
-not currently complete: mutating `GET`/OAuth callbacks bypass the proxy's
-non-GET block and every visit resets one shared fixture. Do not expose it as a
-security boundary or client authentication path until issues #21/#23 are closed.
+The 8 September 2026 read-only check found `www` serving but
+`readyForProduction:false` because required email was missing, `sha:null`, and an
+invalid apex-domain certificate. The deep route also gates HTTP status on
+`VERCEL_ENV`, so it can return 200 for an unready Railway deployment. These are
+open release findings, not successful readiness evidence.
+
+Showcase Mode is intended to be read-only fictional data. Its earlier shared-
+fixture and mutating-route defects are retained in the issue history; current
+source/test evidence records those specific items as repaired. It is still not a
+substitute for a real authenticated production-persona acceptance run.
 
 ## Integration Documents
 

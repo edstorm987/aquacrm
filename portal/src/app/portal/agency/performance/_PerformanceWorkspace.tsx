@@ -315,7 +315,7 @@ export function GrowthPerformance({ analytics }: { analytics: PerformanceAnalyti
       </div> : null}
 
       <div className="mt-5 border-b border-black/10 pb-5">
-        <div className="flex h-36 items-end gap-1" aria-label={`Daily views over ${analytics.days} days`}>
+        <div role="img" className="flex h-36 items-end gap-1" aria-label={`Daily views over ${analytics.days} days`}>
           {analytics.series.map(item => (
             <div key={item.date} className="group relative flex h-full min-w-0 flex-1 items-end">
               <div className="w-full rounded-t-sm bg-brand/55 transition hover:bg-brand" style={{ height: `${Math.max(item.views ? 8 : 2, (item.views / maxSeries) * 100)}%` }} />

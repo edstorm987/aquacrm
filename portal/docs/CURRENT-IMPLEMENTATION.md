@@ -1,24 +1,22 @@
 # AquaCRM Current Implementation
 
 > **What this file is: the inventory of what systems EXIST.** It is not the
-> "where do we stand" doc — that is **[development/checklist.md](development/checklist.md)**, and it
-> is the only one. Two other files used to compete for that job; both were
-> archived 2026-08-21 to the [history shelf](context/archive/README.md). Read this
-> to find out whether a capability is built; read the checklist to find out
-> whether it is finished, and [status.md](development/status.md) to find out whether it
-> actually works.
+> “where do we stand” doc. Read
+> **[development/PRODUCTION-READINESS.md](development/PRODUCTION-READINESS.md)**
+> for the current assessment, [development/TODO.md](development/TODO.md) for the
+> one task list, and [status.md](development/status.md) for verification history.
+> `checklist.md` and `todo-retired.md` are retained history, never current inputs.
 >
-> **Verification limit (2026-08-24):** this inventory says a system or surface
+> **Verification limit (reconfirmed 2026-09-08):** this inventory says a system or surface
 > exists; it does not upgrade source-shape coverage into runtime acceptance.
-> Current launch-safety gaps include P0 session revocation; P1 showcase and
-> erasure truth; incomplete Editor AI distributed coordination; file persistence,
-> editor transition/prefill, staff policy, data-truth and browser-acceptance work.
-> See the checklist before calling an implemented system production-ready.
+> Current launch gaps include live email, apex TLS/custom-domain and Stripe
+> acceptance, truthful Railway readiness status, recovery activation/restore,
+> CI, monitoring, the remaining distributed data/outbox work and browser/provider
+> acceptance. Do not call an implemented system production-ready from this file.
 
-Last updated: 27 August 2026 (configurable access, repository preview and measured speed pass)
-Baseline commit: `1d46479` on branch `work/2026-08-20-parallel-session` (pushed to
-origin; NOT merged to `main` — merging is what deploys production).
-The previous baseline `b46d8ae` is 67 commits behind and no longer describes the tree.
+Last status-pointer review: 8 September 2026.
+Evidence baseline for the current assessment: `a808bb3f` on clean `main`, matching
+GitHub `main`. Feature sections below retain the dated evidence attached to them.
 
 ## Current Release Summary
 

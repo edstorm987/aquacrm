@@ -1,9 +1,13 @@
 # Ultra review — 2026-08-24 non-security acceptance checkpoint
 
+> **HISTORICAL REVIEW.** Retained for its dated non-security evidence. It is not
+> the current verdict or task list; use
+> [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md) and [TODO.md](TODO.md).
+
 This is the evidence ledger for the current comprehensive review. It deliberately
 excludes authentication, session, MFA and other security findings. It does not
-replace [checklist.md](checklist.md), which remains the one current answer to
-“where do we stand”. Findings graduate into [issues.md](issues.md) and work into
+replace the current readiness assessment or task list. Findings graduate into
+[issues.md](issues.md) and work into
 [todo.md](TODO.md); this file records what was actually inspected and what was not.
 
 > **Current override — 2026-08-25:** this dated ledger remains accurate history,
@@ -20,7 +24,8 @@ replace [checklist.md](checklist.md), which remains the one current answer to
 > two-process run remains pending because this environment has no `DATABASE_URL`.
 > Current proof is **3,433 pass / 0 fail / 2 skipped across 3,435 selected
 > non-security tests**, plus a green production build and live Account/Editor/erasure-
-> gate checks. Use [checklist.md](checklist.md) for current status.
+> gate checks. Use [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md) for current
+> status.
 >
 > **2026-08-26 Ecommerce correction:** issues #70, #71 and #73–#77 are now code- and
 > behaviour-resolved; #69 and #72 have their non-security core complete. The strict

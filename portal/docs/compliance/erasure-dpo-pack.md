@@ -30,9 +30,13 @@ you to rule on.
 > This mirrors the project's own standing rule: *never assume or claim compliance;
 > verify from real evidence.*
 
-**Current status, which matters for your risk assessment:** the product is
-**pre-launch with no real clients**. All data in the system today is the founder's
-own test data. Nothing here has yet been applied to a real data subject.
+**Status boundary, which matters for your risk assessment:** when this pack was
+prepared on 2026-08-20, the engineering record described the product as
+pre-launch and the data as founder test data. That population claim was not
+re-verified in the 2026-09-08 technical review and must not be treated as a
+current data-subject inventory. Obtain a current controller/DPO inventory before
+using this pack operationally. Current technical readiness is recorded in
+[PRODUCTION-READINESS.md](../development/PRODUCTION-READINESS.md).
 
 ---
 
@@ -247,7 +251,7 @@ a statement that each is contracted or live.
 | Processor | Used for | Notes |
 |---|---|---|
 | **Supabase** | Primary hosted database (enquiries, inbox, consent events) | Holds the personal data in §3c |
-| **Vercel** | Hosting, and blob storage for uploaded media | Published media is content-addressed; see the note on unpublishing below |
+| **Railway / optional Vercel Blob** | Railway is the currently observed app host; Vercel Blob may store uploaded media when configured | Published media is content-addressed; see the note on unpublishing below. Confirm the live storage provider before an erasure. |
 | **Stripe** | Payments | TEST mode only at time of writing |
 | **Postmark / SMTP** | Outbound email | Message content leaves the system on send |
 | **OpenAI** | Assistant features | Requires a key to be configured; not enabled by default |

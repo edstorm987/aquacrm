@@ -12,6 +12,8 @@ source, campaign, requested services, and consent record.
   macro and micro model.
 - `docs/CURRENT-IMPLEMENTATION.md` records implemented systems, integration
   truth boundaries, and recent upgrades.
+- `docs/development/PRODUCTION-READINESS.md` is the current evidence-backed
+  launch assessment; `docs/development/TODO.md` is the one current task list.
 - `docs/DEVELOPMENT-HANDOFF.md` covers repository workflow, persistence,
   testing, permissions, Git safety, and deployment.
 
@@ -19,17 +21,24 @@ source, campaign, requested services, and consent record.
 
 ```bash
 npm install --legacy-peer-deps
-npm run dev
+npm run dev:sandbox
 ```
 
 Open `http://localhost:3032`. The website is `/`, sign-in is `/login`, and all
 authenticated workspaces live below `/portal`.
 
-## Vercel
+`npm run dev` does not force a local backend. When Supabase credentials are in
+`.env.local` and `PORTAL_BACKEND` is unset, it can read and write the production
+datastore. Use the sandbox command for normal local work; use the plain command
+only when production-backed operation is explicit and authorised.
 
-Import the `edstorm987/aquacrm` repository and set Vercel **Root Directory** to
-`portal`. Keep the framework preset on Next.js and do not set a custom output
-directory.
+## Production deployment
+
+The current production substrate is Railway, serving `www.aqua-crm.com` from
+`edstorm987/aquacrm@main` with repository root `portal`. Vercel configuration
+remains supported by the repository but is not the current deployment authority.
+Do not follow older Vercel-only launch plans without reconciling them against
+Railway and the current readiness assessment.
 
 The production launch gate requires:
 
@@ -67,7 +76,7 @@ manually, with references and emailed receipts retained in the audit trail.
 The complete variable names and safety notes live in `.env.example`. Local
 secrets belong in `.env.local`; never commit them.
 
-After configuring Vercel, confirm:
+After configuring the production deployment, confirm:
 
 - `/healthz` returns `200` for liveness.
 - `/healthz/full` returns `200` and `"readyForProduction": true`.
@@ -75,3 +84,7 @@ After configuring Vercel, confirm:
 
 The deep probe deliberately stays unready until required email, storage,
 database, HTTPS, and session-security settings are present in production.
+On 8 September 2026 the live deep probe still reported
+`readyForProduction:false` because required email was not configured, and the
+apex domain failed TLS validation. See the current readiness assessment rather
+than treating the presence of a live homepage as launch approval.

@@ -3,7 +3,12 @@
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
 
 Verified from source query code, from the SQL migrations one directory up, and
-from a read-only probe of the live project on 2026-08-20.
+from a read-only probe of the live project on 2026-08-20. Reconciled on
+2026-09-08 against the repository's verified 2026-09-03 live-application
+record. The 2026-09-08 readiness review did not independently reconnect to
+Supabase, so live row counts below remain dated evidence rather than a current
+probe. See [the alignment record](../development/plans/supabase-alignment-2026-09-03.md)
+and [current readiness](../development/PRODUCTION-READINESS.md).
 
 > ## ✅ CORRECTED 2026-08-20 — the DDL and the RLS policies DO exist
 > An earlier version of this chapter said no table DDL, RLS policy, role grant
@@ -14,8 +19,8 @@ from a read-only probe of the live project on 2026-08-20.
 > They live in **[`../../../supabase/migrations/`](../../../supabase/README.md)**
 > — a normal Supabase CLI project sitting beside `portal/`, linked to project
 > ref `dghzbsxbdatskserctgt`, the same ref `NEXT_PUBLIC_SUPABASE_URL` points at.
-> Fourteen migrations define every table below, every policy, the role grants,
-> the storage-bucket ACLs, and the two RPC functions. `20260811113000_master_
+> The repository now contains 28 ordered migrations defining the schema,
+> policies, grants, bucket ACLs and database functions. `20260811113000_master_
 > inbox_messaging.sql` is on disk and 173 lines long.
 >
 > The mistake is understandable and worth naming, because it will recur: the
@@ -28,9 +33,10 @@ from a read-only probe of the live project on 2026-08-20.
 >
 > Columns below were originally inferred from query code; they have now been
 > **cross-checked against the migrations and the live PostgREST schema** and
-> corrected where they differed. What remains genuinely unwritten is listed
-> under "Known drift" in the Supabase README — most importantly the
-> `rls_auto_enable()` function, which exists live and in no migration.
+> corrected where they differed. The former dashboard-only
+> `rls_auto_enable()` drift is now captured in
+> `20260903130000_ensure_rls_event_trigger.sql`; as recorded on 2026-09-03,
+> that no-op-on-live migration was the one remaining version to record.
 
 ## 1. Two separate persistence concerns (don't conflate)
 
@@ -39,7 +45,7 @@ Selected by `PORTAL_BACKEND` (`server/storage.ts`):
 
 | `PORTAL_BACKEND` | Store | Where |
 |---|---|---|
-| `file` / unset | `.data/portal-state.json` | local file |
+| `file` | `.data/portal-state.json` | local file |
 | `memory` | in-process | ephemeral |
 | `kv` | **stub — throws "not yet wired"** | — |
 | `postgres` | `portal_kv` table, row key `__portal_state__` | `storagePostgres.ts` |
@@ -77,9 +83,10 @@ Website enquiry capture. `id`, `brand_slug`, `name`, `email?`, `phone?`,
 `contact_method?`, `services?` (text[]), `message?`, `source_url?`, `campaign?`,
 `consent?` (bool), `created_at` (timestamptz), `metadata` (jsonb), and — since
 `20260820150000_brand_enquiries_agency_scope.sql` — **`agency_id` (text)**, the
-real tenant column. ⚠ **That migration is written but NOT yet applied** (Ed runs
-`supabase db push` by hand); until then the live table still has no such column,
-and the insert paths detect the missing column (`PGRST204`) and retry without it
+real tenant column. The 2026-09-03 live application record says this migration
+was applied, the column and trigger were present, and all 52 existing rows were
+backfilled to `milesymedia`; the 2026-09-08 review did not re-probe that state.
+The insert paths retain their missing-column compatibility fallback
 (`src/lib/supabase/enquiryAgencyColumn.ts`). Routing metadata (`agencyId`,
 `routedClientId`, `clientId`, `masterTag`/`captureOnly`) stays in `metadata` —
 the migration backfills the column from `metadata->>'agencyId'` (default
@@ -137,15 +144,11 @@ layer").
 `INSERT … ON CONFLICT DO NOTHING RETURNING`.
 
 ### `inbox_*` tables (service-role) — Master Inbox / Meta messaging
-> 🔴 **These five tables DO NOT EXIST in the live project.** Verified
-> 2026-08-20: PostgREST returns `404 PGRST205` for all five to *both* the anon
-> key and the service-role key, and `claim_inbox_webhook_events` is absent from
-> the project's RPC list. The migration that creates them,
-> `../../../supabase/migrations/20260811113000_master_inbox_messaging.sql`, is
-> on disk but **has never been applied**. Since `useSupabase()` returns true
-> whenever `NODE_ENV === 'production'`, the first inbox request in production
-> hits tables that are not there. Run `supabase db push` before relying on
-> anything below.
+> **Live-evidence timeline:** these tables returned `404 PGRST205` in the
+> 2026-08-20 probe. The verified 2026-09-03 alignment record says the master
+> inbox migration was subsequently applied and the new tables/functions were
+> present. That later record supersedes the August absence finding, although
+> the 2026-09-08 review did not independently re-probe Supabase.
 
 Gated by `useSupabase()` (`INBOX_STORAGE_BACKEND==='supabase'` **or**
 `NODE_ENV==='production'`; else local JSON `.data/inbox-messaging.json`). Own
@@ -154,7 +157,7 @@ service-role client. Columns from the `*Row` mappers:
 - **`inbox_contact_identities`** — `id`, `agency_id`, `connection_id`, `external_user_id`, `display_name`, `lead_id?`/`contact_id?`/`client_id?`, timestamps.
 - **`inbox_conversations`** — `id`, `agency_id`, `connection_id`, `identity_id`, `external_conversation_id`, `status`, `assigned_to?`, `tags`, `unread_count`, timing fields, `metadata`, timestamps.
 - **`inbox_messages`** — `id`, `agency_id`, `connection_id`, `conversation_id`, `external_message_id?`, `direction`, `message_type`, `body_text?`, `attachments` (jsonb), `status`, `metadata`, `sent_at`, timestamps.
-- **`inbox_webhook_events`** — `id`, `provider`, `event_key`, `payload` (jsonb), `status`, `attempts`, `available_at`, `processed_at?`. Claimed via RPC **`claim_inbox_webhook_events`** — defined in the (unapplied) inbox migration; `security definer`, execute granted to `service_role` only. Pruned by hard delete past retention.
+- **`inbox_webhook_events`** — `id`, `provider`, `event_key`, `payload` (jsonb), `status`, `attempts`, `available_at`, `processed_at?`. Claimed via RPC **`claim_inbox_webhook_events`** — defined in the inbox migration recorded as applied on 2026-09-03; `security definer`, execute granted to `service_role` only. Pruned by hard delete past retention.
 
 All inbox reads filter `.eq("agency_id",…)` **in application code**. The written
 SQL gives all five tables `enable row level security` plus
@@ -212,7 +215,13 @@ appear nowhere in the repo).
 ### Security posture (verified 2026-08-20)
 - **Service-role usage is now measured and pinned.** Excluding the definition file (`lib/supabase/admin.ts`), `src/` had **23** `createSupabaseAdminClient()` call sites in **18** files on the morning of 2026-08-20; the phase-4 reduction that afternoon moved the ten website-inbox route sites onto the user's scoped client, leaving **13 sites in 8 files** — pinned, with per-site justifications, in `scripts/smoke-service-role-usage.test.ts` (the count can only change knowingly). Counting admin.ts's own three internal `auth.admin` helpers too, the older "27 sites / 19 files" figure becomes 17/9. The anon-key surface is now `profiles` (login) **plus `brand_enquiries` via the scoped client in the website-inbox routes**. Everything still on the service role enforces tenancy **in application code only** (`.eq("agency_id",…)`, metadata routing, `withTenantScope`). **RLS is defence-in-depth plus the inbox-route paths, not blanket database-enforced tenant isolation** — do not oversell it.
 - **RLS IS in the repo** — in `../../../supabase/migrations/`, not in `portal/`. Enabled on every table the app touches, with policies built on two `security definer` helpers with pinned `search_path` (`current_profile_role()`, `is_internal_user()`). Live-verified: anon reads 0 rows from `brand_enquiries`/`profiles`/`app_datastores`/`website_consent_events`, and is denied outright on `app_datastore_history`. Only `brands`/`shoots`/`shoot_photos` are anon-readable, deliberately — they hold public website content and no PII. `scripts/schema.sql` deferring RLS applies **only** to `portal_kv`, a different database.
-- **Two `SECURITY DEFINER` RPCs are defined in the migrations**, both with pinned `search_path` and `execute` revoked from `anon`/`authenticated`: `apply_app_datastore_patch` (live) and `claim_inbox_webhook_events` (not applied). A **third**, `rls_auto_enable`, exists in the live project and **is in no migration** — dashboard-only drift that will not survive a rebuild. Export and commit it.
+- **Security-definer database functions are version-controlled with pinned
+  `search_path` and restricted execution where required.** The 2026-09-03
+  application record verified the current `apply_app_datastore_patch`, Inbox
+  claim functions and Aqua Tag delivery functions live. The former
+  dashboard-only `rls_auto_enable` function is captured by
+  `20260903130000_ensure_rls_event_trigger.sql`; recording that already-live
+  definition was the one pending no-op migration at that checkpoint.
 - **Verify with:** `../../../supabase/rls-verify.sql` (read-only, live posture) and `scripts/smoke-rls-policy-coverage.test.ts` (repo posture vs. code, runs in the smoke suite).
 - Verifiable app-layer defenses: rate-limiting + login lockout, consent-gating + PII redaction before telemetry insert, fail-closed env self-check (`env.ts`), encrypted-at-rest Meta tokens (`encrypted_access_token`), hard-delete erasure.
 
@@ -225,10 +234,9 @@ Others: `PORTAL_BACKEND`, `PORTAL_STATE_KEY`, `DATABASE_URL` (+ `PORTAL_PG_*`
 pool tuning), `INBOX_STORAGE_BACKEND`, `INBOX_WEBHOOK_RETENTION_DAYS`, Vercel
 Blob fallback (`BLOB_*`), Upstash (`PORTAL_KV_*`, the stub backend).
 
-> ⚠ **Notable gap:** the three primary Supabase credentials are prod-required
-> and enforced by the boot self-check, **yet are absent from `.env.example`** —
-> a dev copying the example gets a build that fails the boot check. Only the two
-> bucket-name vars are documented there.
+> The three primary Supabase credentials are prod-required and enforced by the
+> boot self-check. `.env.example` now documents all three as blank/commented
+> placeholders; a real environment must still supply valid values.
 
 _The enquiry tables here are the live side of the [Aqua Tag](aqua-tag.md)
 ingestion; the blob backend holds everything else described across the

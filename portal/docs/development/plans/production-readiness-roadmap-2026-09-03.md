@@ -1,6 +1,12 @@
 # Production-readiness roadmap — 3 September 2026
 
-**Status:** living register, written at the release baseline of the commit that adds this document (parent 06abeb9 on `main`) on `main`.
+> **HISTORICAL RELEASE SNAPSHOT.** This file records the 3 September baseline
+> and must not be used as the current launch verdict. The current assessment is
+> [PRODUCTION-READINESS.md](../PRODUCTION-READINESS.md); remaining work is owned
+> only by [TODO.md](../TODO.md). Later deployment, test, browser and provider
+> evidence deliberately does not rewrite the dated rows below.
+
+**Status:** frozen historical register, written at the release baseline of the commit that adds this document (parent 06abeb9 on `main`) on `main`.
 Every row is labelled **VERIFIED**, **PARTIAL**, **BLOCKED**, **NOT TESTED** or
 **POST-RELEASE**, and every VERIFIED/PARTIAL row names the exact evidence. Code or
 documentation that merely *exists* is never counted as acceptance here; a row
@@ -92,7 +98,7 @@ playwright-core 1.62.1, private file-backend state seeded by the lane (`scratchp
 | Stripe live account walkthrough; Memberships/Affiliates/Installments/Ecommerce live acceptance (#33, #42, #45, #69, #122, #123) | **BLOCKED (Ed credentials)** | Local lifecycle and webhook dedupe proven by focused suites; no live key in any lane. |
 | Resend sending domain (Q2), Twilio (Q3), Meta developer app | **BLOCKED (Ed)** | Sandbox sender only delivers to Ed; documented in `ED-QUESTIONS.md`. |
 | Newsletter visitor facade (#28/#29/#184/#185) | **VERIFIED (local)** | Release gate W1–W3: preview mount inert, 201 receipt, exact replay 200, drifted reuse 409, wrong consent 400, honeypot 200 "accepted", missing Origin 403, operator read session/tenant gated. No email is sent by design. |
-| Aqua Tag database-native ingestion (#87) | **PARTIAL** | Source-verified with the unapplied migration above; live claim table NOT TESTED. |
+| Aqua Tag database-native ingestion (#87) | **PARTIAL** | The migration was applied and its table/functions were present in the later 2026-09-03 alignment operation. A real live multi-instance delivery/concurrency exercise was still not run, so application is not acceptance. |
 | Post-deploy smoke (`npm run smoke:post-deploy`) | **BLOCKED** | Needs a deployment URL. |
 
 ## 7. Performance, accessibility and observability

@@ -17,7 +17,7 @@ source.
 
 | If you want… | Read |
 |---|---|
-| **Where we stand right now** | **[checklist.md](../../development/checklist.md)** — the one answer. |
+| **Where we stand right now** | **[PRODUCTION-READINESS.md](../../development/PRODUCTION-READINESS.md)** for the release assessment; **[TODO.md](../../development/TODO.md)** for remaining work. |
 | **What changed, and when** | **[updates.md](../../development/updates.md)** — the one log, newest first, append-only. |
 | What systems exist | [CURRENT-IMPLEMENTATION.md](../../CURRENT-IMPLEMENTATION.md) |
 | What is coming | [roadmap.md](../../development/roadmap.md) |
@@ -28,8 +28,10 @@ source.
 
 ## What is on the shelf
 
-**Superseded "where we stand" files** — there used to be three of these competing
-with `checklist.md`. Now there are none.
+**Superseded “where we stand” files** — several documents held that role over
+time. `checklist.md` later joined this history shelf when its open work was
+merged into `TODO.md`; current readiness is now deliberately separate from the
+task list.
 - [WHERE-WE-ARE-2026-08-18.md](WHERE-WE-ARE-2026-08-18.md) — the 18 Aug full read-through.
 - [WHERE-WE-STAND-2026-08-20.md](WHERE-WE-STAND-2026-08-20.md) — the 20 Aug session record.
 

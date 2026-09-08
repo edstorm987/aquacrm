@@ -29,9 +29,11 @@ behind their existing modules.
 
 1. Create tables (real columns incl. `agency_id`; users keep scrypt hashes;
    grants/requests keyed as today) with `inbox_*`-style deny-by-default
-   grants + policies. Apply `20260820150000` (enquiry agency column) and the
-   inbox migration first — they are written, unapplied, and blocking
-   (needs Ed: `supabase db push`, see ED-QUESTIONS).
+   grants + policies. The repository records `20260820150000` (enquiry agency
+   column), the inbox migration and the 2026-09-02 coordination migrations as
+   applied to the live project on 2026-09-03. Re-check the linked migration list
+   before a new cutover; this plan does not treat a dated application record as
+   permanent drift proof.
 2. Dual-presence, not dual-write: module writes go to the blob as today AND
    enqueue an outbox record (Phase 3's mechanism, or a synchronous copy in
    the same `mutate` while the outbox lands); a backfill job copies
@@ -146,13 +148,14 @@ order before enabling the database-backed coordinated path:
    semantics.
 
 The TypeScript, mocked provider/failure-injection and SQL source-contract tests
-are green. All three 2026-09-02 migrations are source/mocked verified only; no
-evidence that any was applied and exercised against live PostgreSQL was
-available in this checkout. Idempotent replay, malformed envelopes, concurrent
-successors, same-value ABA, late/unknown outcomes and new/absent/authoritative-
-empty row cases are therefore local evidence, not production-database
-acceptance. Verify migration status and rerun those concurrency cases against
-the deployed database before declaring this gate complete.
+are green. The 2026-09-03 Supabase alignment record says the three 2026-09-02
+migrations were applied to live in order, with the linked list, row counts and
+RLS audit checked afterward. That is dated application evidence; it is not the
+same as rerunning every idempotent replay, malformed-envelope, concurrent-
+successor, same-value ABA, late/unknown-outcome and authoritative-empty case
+against the deployed database. The 2026-09-08 review did not reconnect to
+Supabase. Re-check migration status and rerun the remote concurrency cases before
+declaring this gate complete.
 
 This does **not** make `emitDurable()` atomic with a domain change: it opens its
 own `mutate()` after that change. Each correctness-critical call site must move
@@ -218,8 +221,9 @@ namespace) extract next with the same care; money before convenience.
 
 ## Phase 6 — communications & audit durability
 
-Inbox is already table-backed (apply the migration live — blocked on Ed);
-this phase adds activity-log overflow to durable storage before the 50k cap
+Inbox is already table-backed. The repository records its migration as applied
+to live on 2026-09-03; verify current drift before relying on that dated result.
+This phase adds activity-log overflow to durable storage before the 50k cap
 evicts, and record-level provenance back-references (`connectionId`) on
 integration-written records.
 

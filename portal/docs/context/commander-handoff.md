@@ -2,6 +2,11 @@
 
 ← [context/](README.md)
 
+> **HISTORICAL MULTI-CHAT TEMPLATE.** Its old state/checklist/worker assumptions
+> are not current. Before reuse, orient from
+> `docs/development/PRODUCTION-READINESS.md`, `docs/development/TODO.md` and live
+> Git status; do not infer active ownership from `context/state.md`.
+
 Paste this into a fresh Claude chat to spin a **commander** (orchestrator) with
 full context — so orchestration survives without the previous chat's window.
 
@@ -22,7 +27,8 @@ ORIENT (read in this order):
    someone believed that day — NOT fact. THE SOURCE IS THE TRUTH: when a doc and the code
    disagree, read the code, then fix the doc. Three already-fixed "launch blockers" were briefed
    as open on 2026-08-20 and one would have sent a worker back into a hardened auth route.
-2b. docs/development/checklist.md — the canonical current summary of where the project stands.
+2b. docs/development/PRODUCTION-READINESS.md — current release verdict.
+2c. docs/development/TODO.md — the one current task list.
    Update it when verified source changes the current answer. docs/architecture-noobie.md explains
    the system plainly.
 3. docs/context/orchestration-model.md — the model + the rules that stop workers
@@ -86,7 +92,7 @@ next, and what decisions you need from him.
   launch-blocker badges, so a wrong line there is visible on screen. When you mark something done,
   strike it out here *and* in [next-wave-briefs.md](next-wave-briefs.md) with the `file:line` that
   proves it — a stale brief is what sends a worker to re-break fixed code.
-- **Never touch git** — not commit, not push, not `checkout`. A push triggers Vercel → production,
+- **Never touch git without Ed's instruction** — not commit, push or `checkout`. A push to the deployment branch may trigger Railway production,
   and the tree is entirely uncommitted so `checkout` deletes other workers' work.
 - **Don't hoard building** — the commander's value is coordination + keeping the written state true, so any chat can pick up.
 

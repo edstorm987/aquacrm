@@ -4,7 +4,7 @@
 > exercised, but its “public showcase is read-only” conclusion was too broad.
 > The proxy exempts `GET`; Google Calendar/Meta OAuth callbacks and other hidden
 > GET-side mutations can write. The fixture is also shared/reset per visit. See
-> current issues #21/#23; the dated observations below remain browser evidence,
+> dated issue history #21/#23 and current [TODO.md](TODO.md); the observations below remain browser evidence,
 > not a security acceptance result.
 
 ## Remediation re-audit — 2026-08-23 02:41 BST
@@ -32,7 +32,7 @@ workers were changing the checkout. Those failures include stale source-shape
 assertions. One initially appeared to flag six non-plugin API routes, but the
 routes already use the shared session-derived `routeTenantScope` guard; the audit
 matcher was updated to recognise that safe form and now passes. The remaining
-broader blockers are recorded in the authoritative [checklist](checklist.md), so
+broader blockers are recorded in [TODO.md](TODO.md), so
 this finding-level pass must not be read as a release pass.
 
 ## Original verdict (pre-remediation)

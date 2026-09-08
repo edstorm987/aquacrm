@@ -1,18 +1,18 @@
 # Dev Team operations
 
-> Commander/worker briefs, orchestration, live state and operational handoffs.
+> Commander/worker briefs, orchestration guidance, compatibility state and operational handoffs; individual sources identify whether they are current or historical.
 >
-> Consolidated 2026-09-07 from **7** source documents / **18,737 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-08 from **7** source documents / **18,648 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
 - [`aqua dev.md`](#source-aqua-dev-md) — 3,658 words · `2f70ff272bdc`
-- [`docs/context/commander-handoff.md`](#source-docs-context-commander-handoff-md) — 989 words · `0925e11d043b`
-- [`docs/context/next-wave-briefs.md`](#source-docs-context-next-wave-briefs-md) — 2,481 words · `693f2947a2e0`
-- [`docs/context/orchestration-model.md`](#source-docs-context-orchestration-model-md) — 963 words · `b619466bed62`
-- [`docs/context/README.md`](#source-docs-context-readme-md) — 755 words · `9a90ee612b83`
-- [`docs/context/state.md`](#source-docs-context-state-md) — 8,701 words · `6fd3a70b2a71`
-- [`docs/context/worker-brief.md`](#source-docs-context-worker-brief-md) — 1,190 words · `995e16442d23`
+- [`docs/context/commander-handoff.md`](#source-docs-context-commander-handoff-md) — 1,028 words · `9946ecf4528f`
+- [`docs/context/next-wave-briefs.md`](#source-docs-context-next-wave-briefs-md) — 2,513 words · `2b836aab17d9`
+- [`docs/context/orchestration-model.md`](#source-docs-context-orchestration-model-md) — 979 words · `10a0791cafc5`
+- [`docs/context/README.md`](#source-docs-context-readme-md) — 733 words · `80bd216311d3`
+- [`docs/context/state.md`](#source-docs-context-state-md) — 8,511 words · `d5b53fac2f6d`
+- [`docs/context/worker-brief.md`](#source-docs-context-worker-brief-md) — 1,226 words · `5dd224bf7670`
 
 ---
 
@@ -455,10 +455,15 @@ Chapters: `docs/workspace/shared-logic.md` (the two protocols, the handshake),
 
 ## Source document — `docs/context/commander-handoff.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/context/commander-handoff.md" sha256="0925e11d043b59c1e5bc5a82751fc5834bc9aca528949292226d728507dc9c9d" -->
+<!-- AQUACRM_SOURCE_START path="docs/context/commander-handoff.md" sha256="9946ecf4528f0e22b98840b334c0ef5fc50f7f9eecb9cbf1ed4bba875e492f1e" -->
 # Commander handoff — re-spin the orchestrator
 
 ← [context/](README.md)
+
+> **HISTORICAL MULTI-CHAT TEMPLATE.** Its old state/checklist/worker assumptions
+> are not current. Before reuse, orient from
+> `docs/development/PRODUCTION-READINESS.md`, `docs/development/TODO.md` and live
+> Git status; do not infer active ownership from `context/state.md`.
 
 Paste this into a fresh Claude chat to spin a **commander** (orchestrator) with
 full context — so orchestration survives without the previous chat's window.
@@ -480,7 +485,8 @@ ORIENT (read in this order):
    someone believed that day — NOT fact. THE SOURCE IS THE TRUTH: when a doc and the code
    disagree, read the code, then fix the doc. Three already-fixed "launch blockers" were briefed
    as open on 2026-08-20 and one would have sent a worker back into a hardened auth route.
-2b. docs/development/checklist.md — the canonical current summary of where the project stands.
+2b. docs/development/PRODUCTION-READINESS.md — current release verdict.
+2c. docs/development/TODO.md — the one current task list.
    Update it when verified source changes the current answer. docs/architecture-noobie.md explains
    the system plainly.
 3. docs/context/orchestration-model.md — the model + the rules that stop workers
@@ -544,7 +550,7 @@ next, and what decisions you need from him.
   launch-blocker badges, so a wrong line there is visible on screen. When you mark something done,
   strike it out here *and* in [next-wave-briefs.md](next-wave-briefs.md) with the `file:line` that
   proves it — a stale brief is what sends a worker to re-break fixed code.
-- **Never touch git** — not commit, not push, not `checkout`. A push triggers Vercel → production,
+- **Never touch git without Ed's instruction** — not commit, push or `checkout`. A push to the deployment branch may trigger Railway production,
   and the tree is entirely uncommitted so `checkout` deletes other workers' work.
 - **Don't hoard building** — the commander's value is coordination + keeping the written state true, so any chat can pick up.
 
@@ -560,10 +566,14 @@ the law to know the work, and maintains the context to run the work.
 
 ## Source document — `docs/context/next-wave-briefs.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/context/next-wave-briefs.md" sha256="693f2947a2e09ecbff76c9016f773a336bd7697bb09f7f40f49f86ed432450e5" -->
+<!-- AQUACRM_SOURCE_START path="docs/context/next-wave-briefs.md" sha256="2b836aab17d9affc0749a47501f5757a23e702e98bb1d40b8204f3d831f04bf3" -->
 # Next wave — ready-to-spin briefs + launch checklist
 
 ← [state.md](state.md) · Written 2026-08-19 · **P0/P1 queue corrected against source/runtime evidence 2026-08-24.**
+
+> **HISTORICAL BRIEF LIBRARY — DO NOT DISPATCH AS THE CURRENT QUEUE.** Use
+> `docs/development/PRODUCTION-READINESS.md` and `docs/development/TODO.md`, then
+> re-verify source and ownership before adapting any brief below.
 
 > 🛑 **READ THIS BEFORE YOU PASTE ANYTHING FROM THIS FILE.**
 > This file holds paste-ready worker briefs. **A stale brief is worse than a stale doc** — it sends a
@@ -680,7 +690,7 @@ still works unchanged; a duplicate email still 409s the same way it does today.
 HARD RULES: full suite before done (PORTAL_BACKEND=memory NODE_OPTIONS='--conditions react-server'
 npx tsx --test scripts/*.test.ts — the full `scripts/*.test.ts` glob, NOT smoke:all) · own sandbox
 (npm run sandbox:fork -- <name> <port>) · npm run worker:checkin · NEVER TOUCH GIT (the tree is
-all-uncommitted — a push triggers Vercel → production, and `git checkout <file>` deletes other
+all-uncommitted — a push to the deployment branch may trigger Railway production, and `git checkout <file>` deletes other
 workers' unshipped work; back up to the scratchpad and restore with cp).
 ```
 
@@ -765,10 +775,14 @@ journeys and external setup owned by
 
 ## Source document — `docs/context/orchestration-model.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/context/orchestration-model.md" sha256="b619466bed624146be8ae3069eebe74e382eeffc31bd57842372041962ed6dea" -->
+<!-- AQUACRM_SOURCE_START path="docs/context/orchestration-model.md" sha256="10a0791cafc5bbeb8c9cd57fc8c2b78d3d697a6e4717702b2cfd319c900e8e18" -->
 # Orchestration model
 
 ← [context/](README.md)
+
+> **Historical operating model.** It explains the previous multi-chat process;
+> it does not identify active workers. Reconfirm ownership and use the current
+> readiness assessment/TODO before applying it.
 
 How AquaCRM development runs across multiple Claude chats without depending on any
 one chat's memory.
@@ -821,7 +835,7 @@ This is the real risk — we've already seen two chats editing the repo at once.
 4. **`updates.md` is append-only-ish** — add a new dated entry at the top; don't rewrite others' entries (workers run concurrently and both write it). Use a stable anchor.
 5. **The dev server / `.next`** — ✅ **SOLVED (2026-08-19; note corrected 2026-08-20).** `npm run sandbox:fork -- <name> <port>` gives each worker its own **state file** (`PORTAL_DATA_FILE`), **build dir** (`NEXT_DIST_DIR`) and **port**, so concurrent runtime verification cannot clobber anyone. Bare `npm run dev:verify` is NOT safe for this — it writes the shared `.data/portal-state.json`; the shared sandbox now requires an explicit `PORTAL_ALLOW_SHARED_STATE=1` opt-in (`src/server/storage.ts:248`). Commander runs :3032; workers take 3041+.
 6. **Tests** — run the full suite (`PORTAL_BACKEND=memory … scripts/*.test.ts`) before "done"; it's safe to run concurrently (memory backend).
-7. ⛔ **NEVER TOUCH GIT** — every worker, every time. Not commit, not push, not `checkout`, not `restore`. A push triggers Vercel → **production**; and because the whole tree is uncommitted, `git checkout <file>` silently deletes another worker's unshipped work (this has happened). Rollback = a scratchpad copy, not git. *(Strengthened 2026-08-20 from the old "not without Ed" wording — Ed's standing decision is "never".)*
+7. ⛔ **NEVER TOUCH GIT WITHOUT ED'S INSTRUCTION** — every worker, every time. Not commit, push, `checkout` or `restore`. A push to the deployment branch may trigger Railway production; `git checkout <file>` can silently delete another worker's unshipped work. Rollback = a scoped scratch copy, not destructive Git. *(Deployment wording corrected 2026-09-08.)*
 8. **The auditor is read-only on source.** It never edits source or tests — it writes only [audits.md](../development/audits.md) — so it can verify a worker's files while that worker is still live, with zero collision risk. It uses its own **forked sandbox** (`npm run sandbox:fork -- auditor <port>`), never the shared one. It reports findings; the **builder** does any rework (never the auditor — that would break rule 1).
 
 ## What a "plan" is (the unit of work)
@@ -848,7 +862,7 @@ it (doesn't guess).
 
 ## Source document — `docs/context/README.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/context/README.md" sha256="9a90ee612b83b8f91c5d5b832c0911337f3247a28435cb5ddaafcf5b65dd0761" -->
+<!-- AQUACRM_SOURCE_START path="docs/context/README.md" sha256="80bd216311d3356809e5e992731663a7667cf9b78986adf89fe6bc67f2c92215" -->
 # context/ — the orchestration book
 
 **This book exists so we stop relying on the chat context window.** It holds the
@@ -857,9 +871,10 @@ chats: one **commander** (orchestrator) + several **worker** chats. Everything a
 orchestrator or a worker needs to pick up cold lives here or is linked from here.
 
 > **Two books, two jobs:**
-> - **[checklist.md](../development/checklist.md)** = where the product stands now — the one current answer.
+> - **[PRODUCTION-READINESS.md](../development/PRODUCTION-READINESS.md)** = the current launch assessment.
+> - **[TODO.md](../development/TODO.md)** = the one current task list.
 > - **[development.md](../development.md)** = the build map (plans, todos and code map), not a competing status summary.
-> - **context/** (this) = *how we run it* (the orchestration: who's doing what, how to spin a worker, the live state). The meta.
+> - **context/** (this) = the historical orchestration model and compatibility state used by parts of the Dev Console. It is not current product truth.
 >
 > A worker reads `development.md` + its assigned plan. The commander reads this
 > book + `development.md`. Nothing important lives only in a chat window.
@@ -876,21 +891,24 @@ back, and update the docs. State lives in files, so any chat can be re-spun.**
    independent auditor that verifies shipped work before it is trusted as done
    (writes verdicts to [audits.md](../development/audits.md)). The recurring loop
    is stopped; audits are currently started on request.
-4. **[state.md](state.md)** — the **live orchestration log**: what's in flight and who owns it. It is not the product-status authority; that is the checklist. Its `## Blockers` section is **parsed by the app** and drives the Dev Console's launch-blocker badges, so an error there shows up on screen.
+4. **[state.md](state.md)** — a mostly historical orchestration log. No current
+   worker ownership should be inferred from its old tables. Its `## Blockers`
+   section remains a compatibility input parsed by the Dev Console and is kept
+   aligned with the current readiness assessment.
 4b. **[next-wave-briefs.md](next-wave-briefs.md)** — paste-ready worker briefs + Ed's launch checklist. ⚠ **Strike a brief out the moment its fix lands**, with the `file:line` that proves it; a stale brief sends a worker to re-break working code.
 4c. **[archive/](archive/README.md)** — 🗄 **the history shelf**: finished worker debriefs, superseded "where we stand" summaries, dated session records. Kept for the record, **never current** — nothing here should brief a worker. It has its own index saying what each file was superseded by.
 5. **[commander-handoff.md](commander-handoff.md)** — how to re-spin **me** (the commander) with full context, so orchestration survives a fresh chat.
 
 ## How to use it (the loop)
 - **Ed** → spins a commander (me) with [commander-handoff.md](commander-handoff.md); spins workers when I hand you a [worker-brief](worker-brief.md).
-- **Commander (me)** → reads [state.md](state.md) + [development.md](../development.md) → assigns the next plan(s) → writes you a worker brief → updates [state.md](state.md) → tracks progress → keeps everything in sync.
+- **Commander (me)** → reads [PRODUCTION-READINESS.md](../development/PRODUCTION-READINESS.md), [TODO.md](../development/TODO.md) and [development.md](../development.md) before using any historical orchestration material.
 - **Worker** → reads its brief + `development.md` + its plan → builds it (staged) → runs tests → updates the docs ([updates.md](../development/updates.md), its chapter, ticks the todo) → reports back.
 - **Auditor** (on request) → reads `updates.md` − [audits.md](../development/audits.md) → independently verifies an unaudited claim (re-runs the suite, runs the app, checks contracts) → logs a verdict to [audits.md](../development/audits.md). PASS → I mark it done; REWORK → back to the builder.
 
 ## The golden rules (so the multi-chat setup doesn't melt down)
-1. **One plan owns its files.** Assign non-overlapping areas to avoid two workers editing the same files. [state.md](state.md) is the source of truth for work ownership; [checklist.md](../development/checklist.md) is the source of truth for current product status.
+1. **One plan owns its files.** Assign non-overlapping areas to avoid two workers editing the same files. Confirm live ownership directly; `state.md` is not current unless explicitly refreshed. `TODO.md` owns tasks and `PRODUCTION-READINESS.md` owns the launch verdict.
 2. **State is written, not remembered.** Every assignment, completion, and blocker goes in [state.md](state.md) — never only in a chat.
-3. **The development.md discipline still holds** — run the full suite, update the docs after every change, and **never touch git at all** (a push triggers Vercel → production; the tree is uncommitted so `git checkout` deletes other workers' work). (See [development.md](../development.md).)
+3. **The development.md discipline still holds** — run the full suite, update the docs after every change, and do not commit, push or deploy without Ed's explicit instruction. Production currently deploys through Railway, not Vercel. (See [development.md](../development.md).)
 3b. **The SOURCE is the truth.** A doc records what someone believed the day they wrote it. When a doc and the code disagree, read the code, then fix the doc — never the other way round.
 4. **The commander doesn't have to build.** My default job is orchestration; I build only when Ed asks or a task is too small to spin a worker for.
 5. **Verify before "done".** A builder's green suite is a claim, not proof. The independent [auditor](auditor-brief.md) confirms it (or sends it back) — and it's read-only on source, so it never collides with a live worker.
@@ -902,31 +920,19 @@ back, and update the docs. State lives in files, so any chat can be re-spun.**
 
 ## Source document — `docs/context/state.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/context/state.md" sha256="6fd3a70b2a71740cdf3eb1818918c718e623d9afaedc4d8345ff449b6588b971" -->
-# Live orchestration state
+<!-- AQUACRM_SOURCE_START path="docs/context/state.md" sha256="d5b53fac2f6d59708d89af17c3a6528ee2ea9835e8af1e15adfec358ba0cfbc9" -->
+# Legacy orchestration state and Dev Console blocker compatibility
 
-← [context/](README.md) · **Keep this current — it's the shared brain.**
+← [context/](README.md) · [current readiness](../development/PRODUCTION-READINESS.md) · [current tasks](../development/TODO.md)
 
-_Snapshot: **2026-08-26**. Phase: **P0/P1 reliability, finishing and live acceptance.** The last
-documented whole-suite run is **3,621 pass / 0 fail / 1 live-Postgres skip** with typecheck clean. MFA, the
-published-site signup transport and the Stripe package/settings path are built. External account
-setup, pending database migrations, runtime reliability and browser acceptance remain; [checklist.md](../development/checklist.md)
-owns that current list._
+> **Classification corrected 2026-09-08:** the orchestration tables and narrative
+> in this file are historical snapshots from August. They do not describe active
+> workers, the current Git tree or the current release. Do not brief from them.
+> The sole live compatibility surface here is `## Blockers`, because
+> `parseBlockers()` reads it for the Dev Console. Current release evidence lives
+> in `PRODUCTION-READINESS.md`; current work lives in `TODO.md`.
 
-> **2026-08-24 scope correction:** a later same-day read-only review reopened
-> security/compliance. The current table includes the new P0/P1 findings and
-> supersedes the earlier non-security-only deferral.
-
-> ⚠ **HOW TO READ THIS FILE (2026-08-23 docs pass).** Everything under
-> *"Verified ground truth"* below was re-checked against the SOURCE through 2026-08-23 and is safe to
-> act on. Everything under *"🗄 Historical"* is a dated record of what people believed on the day
-> they wrote it — **do not brief a worker from it without re-checking the code.** Three phantom
-> "launch blockers" were briefed as open here after they were already fixed; that is what this
-> warning is for. The most reliable current summary is
-> [checklist.md](../development/checklist.md); plain-English system tour:
-> [architecture-noobie.md](../architecture-noobie.md).
-
-## Current ground truth — source/runtime-reviewed 2026-08-24, implementation corrections through 2026-08-26
+## 🗄 Historical ground truth — source/runtime-reviewed 2026-08-24, implementation corrections through 2026-08-26
 
 | Claim | Verdict | Evidence |
 |---|---|---|
@@ -1059,7 +1065,7 @@ owns that current list._
 (topbar Dev Console, P1 — plan: [dev-console-topbar.md](../development/plans/archive/dev-console-topbar.md)).
 
 ### Decisions Ed made this session (do not re-litigate)
-- **NEVER touch git.** A push triggers Vercel → production deploy. No commits either. Rollback is
+- **HISTORICAL OPERATING RULE:** do not touch Git without Ed's instruction. A push to the deployment branch may trigger Railway production. Rollback is
   a scratchpad snapshot, not git.
 - **Person erasure = ANONYMISE IF ORPHANED** — always unlink the erased client; strip PII only if
   no other `clientIds` entry and no standalone role (supplier/partnership/marketer). Full rule in
@@ -1215,10 +1221,12 @@ Priority + parallelism noted. **Independent** = safe to run alongside others.
      drives the launch-blocker badges in the Dev Console. A bullet counts as RESOLVED if it is
      struck through, carries a ✅, or its LABEL (the text before the em-dash) says
      cleared/resolved/done. Keep it accurate — a wrong line here is visible on screen. -->
-- ~~**The 3 "🔴 launch blockers"**~~ ✅ **CLEARED — all three fixed, source-verified 2026-08-20.** Freelancer-preview privilege escalation (`api/auth/preview-as-freelancer/route.ts:49,97-101`) · finance create-surface idempotency (`agency-finance/src/lib/idempotency.ts`) · erasure email-in-log (`leads-pipeline/src/server/contacts.ts:227,252,279`). They were briefed as open for a day after they landed — do not re-open them without reading the code first.
-- ~~**Runtime verification / browser**~~ ✅ **CLEARED** — a dev server is up on `:3032` (verified listening 2026-08-20), and every worker can fork a **fully isolated** sandbox (`npm run sandbox:fork -- <name> <port>`) with its own state file, build dir and port. Nobody has to queue behind a shared server any more.
-- ~~**RLS**~~ ✅ **CLEARED (the Ed half)** — RLS is ON in the live project, verified 2026-08-20 across 14 tables with the PUBLIC anon key: `brand_enquiries` (35 rows exist, anon sees 0), `profiles`, `app_datastores`, `website_consent_events`, `app_datastore_history` all deny anon; the five `inbox_*` tables are not REST-exposed; `brands`/`shoots`/`shoot_photos` are deliberately public website content. **What remains is ENGINEERING, not an Ed task** — tracked on [rls-enable.md](../development/plans/rls-enable.md): the policies are version-controlled in 16 migrations; pending migrations still need production application. `brand_enquiries` has no `agency_id`, and service-role bypasses need a fresh count before acting.
-- ✅ **First git commit — CLEARED 2026-08-21.** The work is committed and pushed to `work/2026-08-20-parallel-session` on github.com/edstorm987/aquacrm. What remains is Ed's call to MERGE that branch to `main`, which is what triggers Vercel → production. Not a blocker on the work; a decision about when to deploy.
+- **Production email and readiness** — the 2026-09-08 live deep probe reports required email `needs-setup` and `readyForProduction:false`.
+- **Apex domain and Ecommerce P0** — `www` serves, but `aqua-crm.com` fails TLS hostname validation; custom-domain and real Stripe settlement/webhook/delivery acceptance remain.
+- **Truthful health and deployment provenance** — Railway receives HTTP 200 from `/healthz/full` even when readiness is false because the route checks `VERCEL_ENV`; the deployed SHA is null.
+- **Recovery** — activate encrypted backups, prove durable off-Supabase delivery, restore a downloaded live artefact, record RPO/RTO and exercise the missed-backup alert; PITR is off.
+- **Local/live separation and credential rotation** — set `PORTAL_BACKEND=file` plus a dedicated local state path and rotate the database password/access token recorded as exposed in the 2026-09-03 transcript.
+- **Release engineering and live acceptance** — add required CI, prove a production monitoring sink, fix the Command Centre contrast and Webpack verification regressions, and finish provider-backed onboarding/payment/email/upload persona journeys.
 
 ## ✅ RESOLVED 2026-08-20 — was "awaiting commander routing" (marketing worker's cross-lane fix)
 - ✅ **[issues.md #15](../development/issues.md) — the `?? 0` traffic collapse is FIXED.** Source-verified 2026-08-20: `commandIntelligence.ts:127,131` now compute `trafficMeasured` / `formsMeasured` alongside the values and pass them through (`:146-147`); `commercialIntelligence.ts:34-36,46-47,269` carries them in `lineage`; `_CommercialIntelligenceWorkspace.tsx:114-118` renders **"Not monitored"** instead of an unqualified "Pageviews 0 · Aqua Tag", and the KPI cards display `—` when unmeasured (`commandIntelligence.ts:163,170`). **Nothing to route.** The original request follows for the record:
@@ -1243,10 +1251,15 @@ up with zero chat history.
 
 ## Source document — `docs/context/worker-brief.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/context/worker-brief.md" sha256="995e16442d23ea03f323b68e7e50a2f3c2946e0126064d8db37394fed9efced0" -->
+<!-- AQUACRM_SOURCE_START path="docs/context/worker-brief.md" sha256="5dd224bf767089a9c03fcb75e5267a33f593fed20d73f6a6ff0e4994dcc69fad" -->
 # Worker brief — spin a development worker
 
 ← [context/](README.md)
+
+> **HISTORICAL TEMPLATE.** Confirm an assignment and current file ownership
+> directly before reuse. Current release truth is in
+> `docs/development/PRODUCTION-READINESS.md`; tasks are in
+> `docs/development/TODO.md`. The old `state.md` tables do not establish live ownership.
 
 The commander fills this in per assignment; Ed pastes it into a fresh Claude chat
 to spin a worker on one plan. `<PLAN>` = the plan file (e.g.
@@ -1264,7 +1277,8 @@ ORIENT (read in this order):
 4. docs/context/state.md — confirm your assignment + the files you own (don't touch files another
    worker owns). Trust its "Verified ground truth" table; treat its "🗄 HISTORICAL" sections as
    dated belief, not fact — re-read the source before acting on any 🔴 you find there.
-5. docs/development/checklist.md — the most reliable current summary of where the project stands.
+5. docs/development/PRODUCTION-READINESS.md — current release verdict.
+6. docs/development/TODO.md — the one current task list.
 
 YOUR JOB: execute <PLAN>'s phases in order, simple-first. Don't re-design the plan;
 if it needs a decision Ed hasn't made (the plan flags them), surface it — don't guess.

@@ -37,7 +37,7 @@ export default function NotFound() {
               className="block rounded-md border border-black/10 bg-white p-4 text-left shadow-sm transition hover:bg-black/[0.02]"
             >
               <span className="block text-sm font-semibold text-black/85">{s.label}</span>
-              <span className="mt-1 block text-xs text-black/50">{s.hint}</span>
+              <span className="mt-1 block text-xs text-black/60">{s.hint}</span>
             </Link>
           </li>
         ))}

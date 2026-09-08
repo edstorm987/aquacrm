@@ -9,7 +9,7 @@ import {
   clientOperationStateLabel,
   type ClientOperationsBrief,
 } from "@/lib/clients/clientOperations";
-import { dateInputValue } from "@/lib/shared/formatDateTime";
+import { dateInputValue, stableUkDateString } from "@/lib/shared/formatDateTime";
 
 export interface ClientOperationOwnerOption {
   id: string;
@@ -35,7 +35,7 @@ export function ClientOperationsControl({ clientId, initial, owners, canManage }
   const [reviewOutcome, setReviewOutcome] = useState("");
   const [reviewNextAt, setReviewNextAt] = useState(() => dateInputValue(initial.nextReviewAt && initial.nextReviewAt > Date.now() ? initial.nextReviewAt : Date.now() + 14 * 86_400_000));
   const reviewLabel = brief.nextReviewAt
-    ? new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(brief.nextReviewAt)
+    ? stableUkDateString(new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(brief.nextReviewAt))
     : "Not scheduled";
 
   async function save() {
@@ -163,7 +163,7 @@ export function ClientOperationsControl({ clientId, initial, owners, canManage }
           <Summary icon={ShieldAlert} label="Risk & handover" value={brief.riskSummary || "No risk recorded"} detail={brief.handoverNote || "No handover note retained"} />
         </div>
       )}
-      {!editing && !reviewing && brief.reviews[0] ? <div className="flex flex-wrap items-center justify-between gap-2 border-t border-black/[0.06] bg-white px-5 py-2.5 text-xs text-black/45"><span>Last reviewed {new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(brief.reviews[0].reviewedAt)} by {brief.reviews[0].reviewedBy}</span><span className="max-w-xl truncate">{brief.reviews[0].outcome}</span></div> : null}
+      {!editing && !reviewing && brief.reviews[0] ? <div className="flex flex-wrap items-center justify-between gap-2 border-t border-black/[0.06] bg-white px-5 py-2.5 text-xs text-black/45"><span>Last reviewed {stableUkDateString(new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(brief.reviews[0].reviewedAt))} by {brief.reviews[0].reviewedBy}</span><span className="max-w-xl truncate">{brief.reviews[0].outcome}</span></div> : null}
       {!editing && !reviewing && message ? <p className="border-t border-black/[0.06] px-5 py-2 text-xs text-emerald-700">{message}</p> : null}
     </section>
   );

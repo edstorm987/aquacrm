@@ -162,7 +162,7 @@ export function ClientOperatingPlan({ clientId, accountSteps, products, canManag
   return (
     <div>
       <div className="flex gap-1 overflow-x-auto border-b border-black/[0.08] bg-black/[0.018] px-3 py-2" aria-label="Client operating plan scope">
-        {scopes.map(item => <button key={item.id} type="button" onClick={() => setScope(item.id)} aria-pressed={scope === item.id} className={`min-h-11 shrink-0 border-b-2 px-3 text-left text-xs font-semibold transition ${scope === item.id ? "border-[#315b85] bg-white text-[#12385d]" : "border-transparent text-black/45 hover:bg-white/70 hover:text-black/70"}`}><span className="block">{item.label}</span><span className="mt-0.5 block text-[9px] font-medium uppercase opacity-60">{item.stageLabel}</span></button>)}
+        {scopes.map(item => <button key={item.id} type="button" onClick={() => setScope(item.id)} aria-pressed={scope === item.id} className={`min-h-11 shrink-0 border-b-2 px-3 text-left text-xs font-semibold transition ${scope === item.id ? "border-[#315b85] bg-white text-[#12385d]" : "border-transparent text-black/60 hover:bg-white/70 hover:text-black/80"}`}><span className="block">{item.label}</span><span className={`mt-0.5 block text-[9px] font-medium uppercase ${scope === item.id ? "text-[#445e7c]" : "text-black/55"}`}>{item.stageLabel}</span></button>)}
       </div>
 
       {activeProduct ? <ProductPlan key={activeProduct.id} clientId={clientId} product={activeProduct} process={processByProduct[activeProduct.id] ?? { completedStepIds: [] }} canManage={canManage} savingKey={savingKey} message={message} onSetCompletion={setStepCompletion} onSetStage={setServiceStage} /> : <AccountPlan steps={accountSteps} />}

@@ -21,6 +21,7 @@ import {
   type PersonalRadarActionSummary,
   type PersonalRadarReading,
 } from "@/lib/intelligence/personalRadar";
+import { stableUkDateString } from "@/lib/shared/formatDateTime";
 
 export interface PersonalRadarPanelProps {
   reading: PersonalRadarReading;
@@ -259,7 +260,7 @@ function Rhythm({ label, value }: { label: string; value: string }) {
 }
 
 function shortDate(timestamp: number): string {
-  return new Date(timestamp).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  return stableUkDateString(new Date(timestamp).toLocaleDateString(undefined, { day: "numeric", month: "short" }));
 }
 
 function clockTime(timestamp: number): string {

@@ -71,7 +71,7 @@ export function ApplicationForm() {
         <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-md border border-black/10 bg-white text-[#153a32]"><Upload size={18} /></span>
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold text-[#151813]">Attach CV</span>
-          <span className="mt-1 block text-xs text-black/50">PDF, DOC or DOCX · maximum 8 MB</span>
+          <span className="mt-1 block text-xs text-black/60">PDF, DOC or DOCX · maximum 8 MB</span>
         </span>
         <input className="w-full min-w-0 max-w-full text-xs sm:max-w-[13rem]" name="cv" type="file" required accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
       </label>

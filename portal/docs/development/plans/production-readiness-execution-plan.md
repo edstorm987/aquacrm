@@ -1,5 +1,10 @@
 # Production-readiness execution plan (audit-derived, 2026-09-05)
 
+> **HISTORICAL EXECUTION PLAN.** It records the work queue as triaged on
+> 5 September; several rows subsequently shipped or changed. Do not execute it
+> as the current queue. Use [PRODUCTION-READINESS.md](../PRODUCTION-READINESS.md)
+> for current evidence and [TODO.md](../TODO.md) for the one current task list.
+
 > Synthesized from the 6-dimension production-readiness audit (dead-code, jargon,
 > responsive/a11y, unconnected-features, config-onboarding, TODO-triage), deduplicated
 > and safety-ranked: **highest value × lowest risk × not-blocked-on-Ed first**. Paths

@@ -1,27 +1,15 @@
-# Live orchestration state
+# Legacy orchestration state and Dev Console blocker compatibility
 
-← [context/](README.md) · **Keep this current — it's the shared brain.**
+← [context/](README.md) · [current readiness](../development/PRODUCTION-READINESS.md) · [current tasks](../development/TODO.md)
 
-_Snapshot: **2026-08-26**. Phase: **P0/P1 reliability, finishing and live acceptance.** The last
-documented whole-suite run is **3,621 pass / 0 fail / 1 live-Postgres skip** with typecheck clean. MFA, the
-published-site signup transport and the Stripe package/settings path are built. External account
-setup, pending database migrations, runtime reliability and browser acceptance remain; [checklist.md](../development/checklist.md)
-owns that current list._
+> **Classification corrected 2026-09-08:** the orchestration tables and narrative
+> in this file are historical snapshots from August. They do not describe active
+> workers, the current Git tree or the current release. Do not brief from them.
+> The sole live compatibility surface here is `## Blockers`, because
+> `parseBlockers()` reads it for the Dev Console. Current release evidence lives
+> in `PRODUCTION-READINESS.md`; current work lives in `TODO.md`.
 
-> **2026-08-24 scope correction:** a later same-day read-only review reopened
-> security/compliance. The current table includes the new P0/P1 findings and
-> supersedes the earlier non-security-only deferral.
-
-> ⚠ **HOW TO READ THIS FILE (2026-08-23 docs pass).** Everything under
-> *"Verified ground truth"* below was re-checked against the SOURCE through 2026-08-23 and is safe to
-> act on. Everything under *"🗄 Historical"* is a dated record of what people believed on the day
-> they wrote it — **do not brief a worker from it without re-checking the code.** Three phantom
-> "launch blockers" were briefed as open here after they were already fixed; that is what this
-> warning is for. The most reliable current summary is
-> [checklist.md](../development/checklist.md); plain-English system tour:
-> [architecture-noobie.md](../architecture-noobie.md).
-
-## Current ground truth — source/runtime-reviewed 2026-08-24, implementation corrections through 2026-08-26
+## 🗄 Historical ground truth — source/runtime-reviewed 2026-08-24, implementation corrections through 2026-08-26
 
 | Claim | Verdict | Evidence |
 |---|---|---|
@@ -154,7 +142,7 @@ owns that current list._
 (topbar Dev Console, P1 — plan: [dev-console-topbar.md](../development/plans/archive/dev-console-topbar.md)).
 
 ### Decisions Ed made this session (do not re-litigate)
-- **NEVER touch git.** A push triggers Vercel → production deploy. No commits either. Rollback is
+- **HISTORICAL OPERATING RULE:** do not touch Git without Ed's instruction. A push to the deployment branch may trigger Railway production. Rollback is
   a scratchpad snapshot, not git.
 - **Person erasure = ANONYMISE IF ORPHANED** — always unlink the erased client; strip PII only if
   no other `clientIds` entry and no standalone role (supplier/partnership/marketer). Full rule in
@@ -310,10 +298,12 @@ Priority + parallelism noted. **Independent** = safe to run alongside others.
      drives the launch-blocker badges in the Dev Console. A bullet counts as RESOLVED if it is
      struck through, carries a ✅, or its LABEL (the text before the em-dash) says
      cleared/resolved/done. Keep it accurate — a wrong line here is visible on screen. -->
-- ~~**The 3 "🔴 launch blockers"**~~ ✅ **CLEARED — all three fixed, source-verified 2026-08-20.** Freelancer-preview privilege escalation (`api/auth/preview-as-freelancer/route.ts:49,97-101`) · finance create-surface idempotency (`agency-finance/src/lib/idempotency.ts`) · erasure email-in-log (`leads-pipeline/src/server/contacts.ts:227,252,279`). They were briefed as open for a day after they landed — do not re-open them without reading the code first.
-- ~~**Runtime verification / browser**~~ ✅ **CLEARED** — a dev server is up on `:3032` (verified listening 2026-08-20), and every worker can fork a **fully isolated** sandbox (`npm run sandbox:fork -- <name> <port>`) with its own state file, build dir and port. Nobody has to queue behind a shared server any more.
-- ~~**RLS**~~ ✅ **CLEARED (the Ed half)** — RLS is ON in the live project, verified 2026-08-20 across 14 tables with the PUBLIC anon key: `brand_enquiries` (35 rows exist, anon sees 0), `profiles`, `app_datastores`, `website_consent_events`, `app_datastore_history` all deny anon; the five `inbox_*` tables are not REST-exposed; `brands`/`shoots`/`shoot_photos` are deliberately public website content. **What remains is ENGINEERING, not an Ed task** — tracked on [rls-enable.md](../development/plans/rls-enable.md): the policies are version-controlled in 16 migrations; pending migrations still need production application. `brand_enquiries` has no `agency_id`, and service-role bypasses need a fresh count before acting.
-- ✅ **First git commit — CLEARED 2026-08-21.** The work is committed and pushed to `work/2026-08-20-parallel-session` on github.com/edstorm987/aquacrm. What remains is Ed's call to MERGE that branch to `main`, which is what triggers Vercel → production. Not a blocker on the work; a decision about when to deploy.
+- **Production email and readiness** — the 2026-09-08 live deep probe reports required email `needs-setup` and `readyForProduction:false`.
+- **Apex domain and Ecommerce P0** — `www` serves, but `aqua-crm.com` fails TLS hostname validation; custom-domain and real Stripe settlement/webhook/delivery acceptance remain.
+- **Truthful health and deployment provenance** — Railway receives HTTP 200 from `/healthz/full` even when readiness is false because the route checks `VERCEL_ENV`; the deployed SHA is null.
+- **Recovery** — activate encrypted backups, prove durable off-Supabase delivery, restore a downloaded live artefact, record RPO/RTO and exercise the missed-backup alert; PITR is off.
+- **Local/live separation and credential rotation** — set `PORTAL_BACKEND=file` plus a dedicated local state path and rotate the database password/access token recorded as exposed in the 2026-09-03 transcript.
+- **Release engineering and live acceptance** — add required CI, prove a production monitoring sink, fix the Command Centre contrast and Webpack verification regressions, and finish provider-backed onboarding/payment/email/upload persona journeys.
 
 ## ✅ RESOLVED 2026-08-20 — was "awaiting commander routing" (marketing worker's cross-lane fix)
 - ✅ **[issues.md #15](../development/issues.md) — the `?? 0` traffic collapse is FIXED.** Source-verified 2026-08-20: `commandIntelligence.ts:127,131` now compute `trafficMeasured` / `formsMeasured` alongside the values and pass them through (`:146-147`); `commercialIntelligence.ts:34-36,46-47,269` carries them in `lineage`; `_CommercialIntelligenceWorkspace.tsx:114-118` renders **"Not monitored"** instead of an unqualified "Pageviews 0 · Aqua Tag", and the KPI cards display `—` when unmeasured (`commandIntelligence.ts:163,170`). **Nothing to route.** The original request follows for the record:

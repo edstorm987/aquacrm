@@ -1,5 +1,18 @@
 # TODO — the one list
 
+> **Current evidence checkpoint: 8 September 2026.** Read
+> [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md) before interpreting this
+> backlog. Committed `main` is clean at `a808bb3f`, but the **working tree carries
+> uncommitted local work** (the doc reconciliation + a 2026-09-08 engineering
+> pass). With that work: typecheck 0, isolated production build 247/247, and
+> **6,800/6,802 canonical Node tests** green (0 fail, 2 skip — was 6,772/6,774 at
+> `a808bb3f`); the full browser matrix is **1,326/1,326, 0 serious/critical** (the
+> earlier repeated contrast defect is fixed locally, #189). **Still open / not
+> live:** the fixes are uncommitted and undeployed; the deployed app still reports
+> `readyForProduction:false`, the apex domain fails TLS, CI is authored but never
+> run on GitHub, and operational/provider gates remain open. A green source suite —
+> and an uncommitted local fix — is not a production approval.
+
 **This is the only task list.** `checklist.md` and `todo-retired.md` are retired; they held the
 same work in two wordings, **130 of ~145 issue ids appeared in both**, and **7 issues were
 marked done in one file while still open in the other** — so neither could be trusted on
@@ -17,7 +30,7 @@ remains the backing store. This file is the index over it.
 
 ---
 
-## 🔒 Blocked on you — 14
+## 🔒 Owner-controlled gates — 14 records (8 open, 3 partial, 3 resolved)
 
 Nothing here moves without an account, a credential or a decision from you. Taken from
 the retired files' own Ed-only sections, minus one they had mis-filed (`#1`, RLS, whose
@@ -27,13 +40,12 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [ ] Walk the onboarding chain  <sub>from checklist.md, no issue number</sub>
 - [ ] Stripe live-account walkthrough  <sub>from checklist.md, no issue number</sub>
 - [ ] Meta Developer app  <sub>from checklist.md, no issue number</sub>
-- [ ] Deployment env verification  <sub>from checklist.md, no issue number</sub>
+- [~] Deployment environment verification — read-only live checks on 2026-09-08 prove Railway serves `www`, database/security/uploads report ready, but required email is `needs-setup`, `readyForProduction:false`, deployment `sha:null`, and apex TLS fails; finish configuration and acceptance → [current readiness](PRODUCTION-READINESS.md)
 - [x] Apply the pending Supabase migrations before production rollout — DONE 2026-09-03: all 14 applied live via `supabase db push`, backup confirmed, backfill 52/52 and every row count verified read-only, live `rls-verify.sql` 51 INFO / 0 FAIL → [supabase-alignment-2026-09-03](plans/supabase-alignment-2026-09-03.md) §9  <sub>from checklist.md, no issue number</sub>
-- [ ] Enable Supabase PITR and rehearse one restore on a branch/scratch database — daily physical backups exist (8, newest 2026-09-03) but PITR is OFF and no restore was rehearsed; recovery is not fully verified → [supabase-alignment-2026-09-03](plans/supabase-alignment-2026-09-03.md) §4  <sub>added 2026-09-03</sub>
+- [ ] Activate and prove recovery — the self-managed encrypted backup/runbook exists and was locally rehearsed, but scheduled activation, durable off-Supabase delivery, one downloaded live-artifact restore, timing and missed-backup alert proof remain; PITR is OFF and should be reconsidered → [current readiness](PRODUCTION-READINESS.md) · [backup evidence](plans/production-readiness-roadmap-2026-09-03.md#5-database-migrations-rls-backup-and-recovery)
 - [ ] Push `20260903130000_ensure_rls_event_trigger` (a no-op on live; records the already-present rls_auto_enable to reach 0 pending) and decide on tightening the inherited over-broad table grants (optional REVOKE)  <sub>added 2026-09-03</sub>
 - [ ] Rotate the Supabase database password and the `sbp_` access token (both were pasted into a session transcript on 2026-09-03)  <sub>added 2026-09-03</sub>
 - [ ] Set `PORTAL_BACKEND=file` in `.env.local` for local work — without it the portal promotes itself to the Supabase backend and local servers write the production `app_datastores` row (daily writes visible through 2026-09-02)  <sub>added 2026-09-03</sub>
-- [ ] Enable Supabase point-in-time recovery and rehearse one restore before production rollout — no backup/recovery runbook exists in the repository (readiness roadmap §5)  <sub>added 2026-09-03</sub>
 - [ ] DPO sign-off  <sub>from checklist.md, no issue number</sub>
 - [~] Aqua Tag form-capture consent → [#2](issues.md) — DECIDED (transparency, not gate) + DRAFT notice wired into the Aqua contact form (React + static export) + pinned, 2026-09-05; pending DPO sign-off on final wording (drop-in via `consentNotice` prop)
 - [x] Choose the permanent last-grant revocation policy → [#174](issues.md) — DECIDED (narrows) + FIXED + pinned, 2026-09-05
@@ -42,9 +54,9 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 
 ## P0 — before any production use — 1
 
-- [~] Ecommerce public authority, allowlisted product/receipt DTOs and local end-to-end are verified; finish custom-domain + live Stripe/provider acceptance → [#69](issues.md)
+- [~] Ecommerce public authority, allowlisted product/receipt DTOs and local end-to-end are verified; finish custom-domain + live Stripe/provider acceptance. Current evidence: `www` serves but apex TLS validation fails, and live Stripe settlement/delivery is not proven → [#69](issues.md)
 
-## P1 — before broader launch — 55
+## P1 — before broader launch — 59
 
 > **What "clearing" these actually needs (triage 2026-09-05).** Almost every `[~]` here reads
 > "code/behaviour done; <X> acceptance remains" — the *code* is written and unit/smoke-covered; what
@@ -59,6 +71,12 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 > Neither class is a half-built feature — they are verification lanes. The onboarding chain, for one,
 > was re-verified green this run (`smoke-client-lifecycle-creation` + `smoke-client-project-provisioning`
 > 24/24 on the file backend); only its live Stripe/Meta walkthrough is Ed-blocked.
+
+- [~] Make the deep production health probe truthful on Railway and expose deployment provenance — **FIXED + INDEPENDENTLY VERIFIED LOCALLY 2026-09-08; UNCOMMITTED + UNDEPLOYED:** substrate-aware `deployment.ts` (production classification now separate from the health-enforcement flag, so a false override can never disable the production storage guard); `/healthz/full` enforces readiness (Railway/generic, not Vercel-only), both routes expose a real SHA; runtime-verified 200 local / **503** unready on a Railway-equivalent server. Not closed until deployed to Railway → [#187](issues.md)
+- [~] Add a required pull-request/release CI pipeline — **AUTHORED LOCALLY 2026-09-08; UNCOMMITTED, NEVER RUN ON GITHUB:** `.github/workflows/ci.yml` (valid YAML; verify + bounded browser gate; secretless; live lanes excluded). **Not closed** until committed/pushed, first green GitHub run, and required in `main` branch protection (Ed) → [#188](issues.md)
+- [~] Fix and re-run the serious Command Centre contrast regression — **FIXED + AXE-VERIFIED LOCALLY 2026-09-08; UNCOMMITTED + UNDEPLOYED:** legacy `[class*="-button"]` scoped off the `mm-*` design system (CommandMoreButton 1.18→7.6:1) + a second finding, the login `.mm-auth-brand-foot` (4.07→≈6:1); full 13×17 matrix 1,326/1,326 + axe-core scan of `/login`+`/portal/agency` at 1280/1920 = 0 violations. Not closed until deployed → [#189](issues.md)
+- [~] Restore `npm run dev:verify` — **FIXED + RUNTIME-VERIFIED LOCALLY 2026-09-08; UNCOMMITTED:** `NEXT_RUNTIME !== "edge"` DCE guard in `instrumentation.ts` keeps the Node-only radar/email graph out of the Edge bundle (+ lazy nodemailer); compiles and serves public + authenticated routes → [#190](issues.md)
+- [~] UI/UX·responsive·accessibility acceptance — **WAVES 1–2 DONE 2026-09-08 (uncommitted); open P1s CLOSED; pilot UI gate not FULLY passed (coverage).** Wave 1 built the 124-route inventory + reusable harness (`scripts/ui-acceptance.mjs`) and fixed `select-name`/404-contrast/chart-`aria-prohibited-attr`/a `<dl>` defect. **Wave 2 closed every remaining P1 + re-scanned 0:** colour-contrast (9 surfaces, 41 nodes — workflow-proposed + adversarially-verified AA fixes), `aria-required-attr` (portals/editor), marketing `<dl>`, and dev-team overflow at ≤768px. **Still open = COVERAGE (wave 3):** dynamic-route fixtures, customer/staff/freelancer roles, the full 18-viewport + 200% zoom set, end-to-end journeys, modal focus-trap/return, and a production-build visual pass → [#191](issues.md), [UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08](UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08.md)
 
 - [~] Editor AI database coordination is implemented; live DB proof remains → [#18](issues.md)
 - [~] Editor dirty-state browser acceptance is proven on a Dev Mode lane (28fc767; re-run 2026-09-03 191 passed / 2 failed / 13 explained N/A rows / 47 observations on the full matrix; the two failures were one timing-sensitive held-reply step that passed on an uncontended rerun of the AI scenario (14/14) and one dev-mode hydration-mismatch console warning raised only inside the AI scenario, recorded as an open residual); the recorded SEO-prompt and phone-drawer residuals stay → [#19](issues.md)
@@ -93,7 +111,7 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Mounted Marketing records are isolated and stale-safe in one process and, on the file backend, across real processes (create/edit/stale-delete/reload proven with separate Node processes); a live database-native version constraint remains → [#82](issues.md)
 - [~] Agency Marketing lead identity, re-keying, erasure and contact history are cross-process/crash-atomic on the file backend; finish native Supabase/Postgres uniqueness and live-provider acceptance → [#83](issues.md)
 - [~] Aqua Tags stop-routing is non-destructive and mounted click acceptance is proven on a dev lane (0578ddb; re-run 2026-09-03 220/220 checks (0 failed) at 390×844 and 1280×800); live database ingestion remains → [#85](issues.md)
-- [~] Aqua Tag form ingestion is durable and order-independent in source with a database-native claim boundary (0578ddb); apply `20260902093000_aqua_tag_submission_delivery.sql` live and exercise it there → [#87](issues.md)
+- [~] Aqua Tag form ingestion is durable and order-independent in source with a database-native claim boundary (0578ddb); the repository records the migration as applied in the 2026-09-03 live alignment, but a current live delivery/concurrency exercise remains → [#87](issues.md)
 - [~] Dev Team document bytes and attribution now recover together after process death; constrain the final non-cooperating direct-writer check/rename window → [#88](issues.md)
 - [~] Client schedules and Finance Plans are converged; mounted browser acceptance remains → [#121](issues.md)
 - [~] Membership subscription and plan-price changes retain durable operation history, fence provider work through authoritative state adoption and preserve every provider generation; finish the full mounted lifecycle and live Stripe acceptance → [#122](issues.md)
@@ -102,7 +120,7 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Affiliate currency/refund accounting is code- and behaviour-complete; mounted/live acceptance remains → [#125](issues.md)
 - [~] Membership/Affiliate runtime validation is code- and behaviour-complete; mounted acceptance remains → [#126](issues.md)
 - [~] Aqua Advisor turns are code/domain-behaviour durable; mounted provider acceptance remains → [#130](issues.md)
-- [~] Server error capture/readiness is mounted and the repaired cross-runtime graph is browser-clean and production-build green (245/245); install and live-prove the production client sink → [#132](issues.md)
+- [~] Server error capture/readiness is mounted and the 2026-09-08 production build is green (247/247); install and live-prove the production client sink. The separate current Webpack `dev:verify` import-graph failure is tracked in #190 → [#132](issues.md)
 - [x] Every declared modal uses the shared focus/restore contract — **browser-accepted 2026-09-05 in the dev sandbox**: the New-client modal opened with `role="dialog"` + `aria-modal="true"`, **trapped focus inside**, and returned focus to its trigger; form modals deliberately keep themselves open on Escape (anti-data-loss), which is correct. → [#135](issues.md)
 - [~] Named internal actions and published fields are guarded; mounted accessibility-tree acceptance remains → [#139](issues.md)
 - [~] Make date-only business values local-calendar safe → [#140](issues.md)
@@ -116,7 +134,7 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [~] Sixteen exact public routes are now classified, including allowlisted Ecommerce and Website Editor visitor facades; continue one operation at a time → [#185](issues.md)
 - [~] Isolated server/browser lane is restored; finish the remaining critical-flow acceptance  <sub>from todo-retired.md, no issue number</sub>
 
-## P2 — quality and correctness — 18
+## P2 — quality and correctness — 19
 
 - [~] Reference validation remains a broad open class; the audited client-route slice is fixed → [#20](issues.md)
 - [~] Canonical staff workspace capability policy, reusable-role authoring and Staff Technical Hidden/View/Use/Manage plus same-cookie downgrade enforcement are source/isolated-browser proven; finish provider-backed live-persona/shared-credential acceptance → [#25](issues.md)

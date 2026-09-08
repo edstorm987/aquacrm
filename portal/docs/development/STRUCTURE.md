@@ -1,8 +1,9 @@
 # AquaCRM — Structure (the agreed taxonomy) + Roadmap
 
 The source of truth for the folder taxonomy and architecture vocabulary. For the
-current delivery position and what's left, use [checklist.md](checklist.md); for
-sequencing, use [roadmap.md](roadmap.md). Companion to the "AquaCRM Structure &
+current launch assessment use [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md),
+for remaining work use [TODO.md](TODO.md), and for sequencing use
+[roadmap.md](roadmap.md). Companion to the "AquaCRM Structure &
 Roadmap" artifact. Ed's call 2026-08-20: end the naming sprawl.
 
 ## The one sentence
@@ -59,9 +60,10 @@ some leaf routes that admit staff (issue #25).
 - **The `src/engines/` move**: DONE ✓ — editor + sop + data all physically in `src/engines/`, imports rewritten, tsc + full suite green, adversarial-verified. "Plugin" already retired → "module".
 - **Finish the engines** (Ed's "very least"): editor acceptance+reliability+client mount+tiers · SOP training-merge+views+assignment · Data fold-in performance/intelligence + evolving baselines. ← now the active track.
 - **The surfaces**: Executive (extract-and-add, CC unchanged) — NEXT · Operations container (Governance in; lane exists) · staff portal regroup DONE (canonical role/element gates preserved; full shared-hub parity is not claimed).
-- **Launch-critical external/acceptance work:** merge/deploy decision · deployment
-  environment verification · pending migrations · one real onboarding walk ·
-  live Stripe/Meta/DPO steps. The first commit and push are already complete.
+- **Launch-critical external/acceptance work:** truthful Railway readiness and
+  deployment provenance · apex TLS · recovery activation/restore proof · one
+  real onboarding walk · live email/Stripe/Meta/DPO steps · current Supabase
+  drift/RLS recheck. See [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md).
 
 ## Order
 1. ~~Executive surface~~ → 2. ~~`src/engines/` move~~ DONE ✓ → **3. finish each engine (active)** → 4. Executive + Operations container → 5. launch-hardening (Ed's track, parallel).

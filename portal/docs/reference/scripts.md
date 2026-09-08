@@ -3850,6 +3850,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-healthz-readiness-test-ts-ee576f6034"></a>
+
+### `scripts/smoke-healthz-readiness.test.ts`
+
+**What it is:** - local/dev/preview stay green while still reporting the truth in the body.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/lib/server/deployment.ts`](lib.md#file-src-lib-server-deployment-ts-bdadc9047d)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-hr-policy-convergence-test-ts-1c36af8d4b"></a>
 
 ### `scripts/smoke-hr-policy-convergence.test.ts`

@@ -128,7 +128,7 @@ export function OceanBoulevardDemo() {
                 <span className="h-2.5 w-2.5 rounded-full bg-[#E07167]" />
                 <span className="h-2.5 w-2.5 rounded-full bg-[#E5B552]" />
                 <span className="h-2.5 w-2.5 rounded-full bg-[#6DB88C]" />
-                <span className="mx-auto rounded bg-[#F1F0EC] px-8 py-1 text-[10px] text-[#6A706A]">
+                <span className="mx-auto rounded bg-[#F1F0EC] px-8 py-1 text-[10px] text-[#656B65]">
                   oceanboulevard.co.uk
                 </span>
               </div>

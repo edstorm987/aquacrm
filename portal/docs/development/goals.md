@@ -11,15 +11,17 @@ end-customers) their own portal. Not a collection of CRM pages: one operating
 surface for the whole business.
 
 ## Who / where it stands
-- **Solo founder, pre-launch, with clients waiting for onboarding.** Do not assume
+- **Solo founder, advanced beta, with a Railway deployment but not yet approved
+  for broad paid production.** Do not assume
   every record is disposable test data: local file state and the configured
   Supabase project are separate, and development paths can still reach live
   tables. Use an isolated sandbox and clearly labelled fixtures.
 - Next.js 16 App Router, React 19, TypeScript strict, at `aquaCRM/portal/`.
-- **The first commit and push are complete** on
-  `work/2026-08-20-parallel-session`; it is not merged to `main`. The working
-  tree continues to carry active uncommitted work, so never discard files to
-  “clean up” another worker's changes.
+- **Current evidence baseline (2026-09-08):** the committed `main` is clean at
+  `a808bb3f`, matching GitHub `main`, but the **working tree is not clean** — it
+  carries uncommitted local work (a doc reconciliation + a 2026-09-08 engineering
+  pass). Re-check Git before acting; never discard another worker's uncommitted
+  files.
 
 ## The operating model (the non-negotiable shape)
 - **Agency workspace** = the macro/portfolio view (Ed's whole business).
@@ -44,7 +46,8 @@ revocation, then P1 erasure false-success/retry/audit and showcase mutation/
 isolation. After those, close storage/recovery, the Editor AI distributed
 contract, editor transition/prefill and staff-policy drift, data truth and
 read-path performance; then complete the named browser journeys.
-[checklist.md](checklist.md) owns the live order.
+[TODO.md](TODO.md) owns the live order and
+[PRODUCTION-READINESS.md](PRODUCTION-READINESS.md) owns the current launch verdict.
 
 ## Principles that shape how we build
 - **Guess, then human-confirm** — matching/classification suggests; a human accepts. Never auto-commit suggested work.

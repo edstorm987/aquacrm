@@ -3955,6 +3955,10 @@ function PreviewFrame({ label, loading, url, frameKey, device, onDeviceResize, i
               role="separator"
               aria-orientation="vertical"
               aria-label="Drag to set the width"
+              aria-valuenow={viewport.width}
+              aria-valuemin={320}
+              aria-valuemax={3840}
+              aria-valuetext={`${viewport.width} pixels wide`}
               tabIndex={0}
               {...grip("x")}
               className="absolute inset-y-0 -right-2.5 w-1.5 cursor-ew-resize rounded-full bg-white/10 transition hover:bg-cyan-300/40 focus:bg-cyan-300/50 focus:outline-none"
@@ -3964,6 +3968,10 @@ function PreviewFrame({ label, loading, url, frameKey, device, onDeviceResize, i
               role="separator"
               aria-orientation="horizontal"
               aria-label="Drag to set the height"
+              aria-valuenow={viewport.height}
+              aria-valuemin={320}
+              aria-valuemax={3840}
+              aria-valuetext={`${viewport.height} pixels tall`}
               tabIndex={0}
               {...grip("y")}
               className="absolute inset-x-0 -bottom-2.5 h-1.5 cursor-ns-resize rounded-full bg-white/10 transition hover:bg-cyan-300/40 focus:bg-cyan-300/50 focus:outline-none"
@@ -3972,6 +3980,10 @@ function PreviewFrame({ label, loading, url, frameKey, device, onDeviceResize, i
             <div
               role="separator"
               aria-label="Drag to set the size"
+              aria-valuenow={viewport.width}
+              aria-valuemin={320}
+              aria-valuemax={3840}
+              aria-valuetext={`${viewport.width} × ${viewport.height} pixels`}
               tabIndex={0}
               {...grip("both")}
               className="absolute -bottom-2.5 -right-2.5 size-3 cursor-nwse-resize rounded-[3px] bg-white/20 transition hover:bg-cyan-300/60 focus:bg-cyan-300/70 focus:outline-none"

@@ -7,19 +7,20 @@
 | File | Controls |
 | --- | --- |
 | `package.json` | App manifest + all npm scripts. Next 16.3, React 19.2, Supabase, pg, nodemailer, Tailwind v4, tsx. |
-| `package-lock.json` **+** `pnpm-lock.yaml` | **Two lockfiles.** npm is canonical (`.npmrc` + Vercel use npm); the pnpm one is stale/secondary — keep npm's authoritative. |
+| `package-lock.json` **+** `pnpm-lock.yaml` | **Two lockfiles.** npm is canonical for the portal's documented commands; the pnpm file is secondary — keep npm's lock authoritative unless that policy is deliberately changed. |
 | `next.config.ts` | Security headers (HSTS/CSP), `rewrites()` for the marketing site → `public/aquacrm-site/`, **strict build gate** (full ESLint + TS, no ignore flags). |
 | `middleware.ts` | Matches `/portal/:path*` but is a **pass-through no-op** — auth is enforced in the server layer, NOT here. Don't add auth logic here expecting it to run first. |
 | `tsconfig.json` | `strict`, `@/*`→`src/*`, `@aqua/plugin-*`→`built-ins/modules/*`. **Excludes `scripts`, `__smoke__`, `_attic`.** |
 | `tailwind.config.ts` | `brand` tokens bound to CSS vars (per-tenant branding). |
 | `.npmrc` | `install-links=true` — copies vendored plugins into `node_modules`. **Re-run `npm install` after editing plugin source** or your change won't be picked up. |
 | `.env.example` | Every env var, split into per-deployment (infra) vs per-client (portal editor). `.env.local` = local secrets, gitignored. |
-| `vercel.json` | `npm install --legacy-peer-deps`; two crons: `/api/cron/inbox` daily 06:00 and `/api/cron/radar-probes` every 10 minutes. |
+| `vercel.json` | Provider-specific Vercel install/cron configuration retained in the repo. The app observed live on 2026-09-08 is hosted by Railway, so these schedules are not evidence that equivalent Railway jobs are active. |
 | `AGENTS.md` / `CLAUDE.md` | AI-session rules + non-negotiable contracts. **Read these first.** |
 
-**Key npm scripts:** `dev` (:3032), `dev:sandbox` (file backend),
+**Key npm scripts:** `dev` (:3032; backend can implicitly promote from env), `dev:sandbox` (explicit file backend),
 `dev:sandbox:real` (milesymedia data — Ed's working sandbox), `build`,
-`typecheck`, `smoke:all` (narrow glob), plus ~60 `smoke:<name>` shortcuts.
+`typecheck`, `smoke:all` (all `scripts/*.test.ts` plus built-in module suites),
+and the named `smoke:<name>` shortcuts.
 
 > **Full suite (canonical — run before calling any behaviour change done):**
 > ```bash
@@ -27,18 +28,16 @@
 > ```
 > `PORTAL_BACKEND=memory` keeps stateful tests off Ed's live sandbox.
 
-## `scripts/` (344 top-level files, 308 of them `*.test.ts`)
+## `scripts/` (655 top-level files, 598 of them `*.test.ts`)
 
 **Test convention:** `node:test` files run through `tsx` (no Jest/Vitest),
 mostly **static-source contract tests** (`readFileSync` a module + assert on its
 content). `scripts/` is excluded from tsconfig — they only run under tsx.
 
-> ⚠ **Seven files omit the `smoke-` prefix**, so `smoke:all`'s narrow glob
-> misses them (the `*.test.ts` full-suite glob catches them): `company-health`,
-> `client-aqua-health`, `client-marketing-service`, `client-workspace-navigation`,
-> `hiring-capacity`, `attention-protection`, `inbox-attention-thread`.
+> Historical gotcha resolved: `smoke:all` now uses `scripts/*.test.ts`, so tests
+> without a `smoke-` prefix are included.
 
-**308 `*.test.ts`, grouped by domain** (re-counted 2026-08-24) — there's a smoke test for almost
+**598 `*.test.ts`, grouped by domain** (re-counted 2026-09-08) — there's a smoke test for almost
 everything, so **check for an existing one before changing behaviour** (a
 contract test may pin the behaviour you're about to change):
 radar/monitoring · inbox/attention/actions · products/portals/client-workspaces ·
@@ -71,8 +70,8 @@ The prose docs (this file map is the structural companion to them). **Re-counted
 - Feature docs: `portal-tiers-and-fractal-fulfilment`, `meta-master-inbox`, `external-assistant-api`, `development-workspace-cleanup`, `zimante-brand-architecture`.
 - 🗄 `context/archive/` — the history shelf. Dated, superseded, never current.
 
-**Where the one-question-one-file rule bites:** "where do we stand" is
-[`development/checklist.md`](../development/checklist.md) and nothing else;
-"what changed" is [`development/updates.md`](../development/updates.md) and
-nothing else. Three files used to answer the first and two of them are now
-archived — do not re-create them.
+**Where the one-question-one-file rule bites:** current release evidence is
+[`development/PRODUCTION-READINESS.md`](../development/PRODUCTION-READINESS.md),
+remaining work is [`development/TODO.md`](../development/TODO.md), and “what
+changed” is [`development/updates.md`](../development/updates.md).
+`checklist.md` and `todo-retired.md` are history; do not add to them.

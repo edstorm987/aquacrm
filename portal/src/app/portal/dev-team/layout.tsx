@@ -196,7 +196,7 @@ export default async function DevTeamLayout({ children }: { children: ReactNode 
              globals.css puts all of it at 12px, so AA's 4.5:1 applies. The old
              #7c6a52 measured 4.13:1 on --dt-bg; #74624b clears every dev
              surface (4.65 bg / 5.16 surface / 5.62 raised). */
-          --dev-ink: #3a2c1e; --dev-ink-muted: #6a5942; --dev-faint: #74624b;
+          --dev-ink: #3a2c1e; --dev-ink-muted: #6a5942; --dev-faint: #6d5b45;
           --dev-line: #d9c7a5; --dev-hairline: #e6d8bd; --dev-hover: rgba(58,44,30,0.06);
           /* The five tone foregrounds are each ~4% deeper than they were. They
              sit on their own -soft chip in Pill (and inline in Inspector /
@@ -210,7 +210,7 @@ export default async function DevTeamLayout({ children }: { children: ReactNode 
           --dev-success: #2b7444; --dev-success-hover: #245f38; --dev-success-soft: #dcebdd; --dev-success-line: #b7d4bb;
           --dev-danger: #ad3d29; --dev-danger-soft: #f2ddd6; --dev-danger-line: #e0b6a9;
           --dev-warning: #94580f; --dev-warning-soft: #f1e6c9; --dev-warning-line: #ddc794;
-          --dev-info: #2f6f8f; --dev-info-soft: #d9e6ec; --dev-info-line: #b3ccd6;
+          --dev-info: #2c6987; --dev-info-soft: #d9e6ec; --dev-info-line: #b3ccd6;
           --dev-violet: #6d4aa8; --dev-purple: #8a3f86; --dev-indigo: #3f51a8;
           --dev-cyan: #0e7490; --dev-slate: #4a5c6a; --dev-glow: rgba(31,122,110,0.30);
           /* The INVERTED WELL — a deliberately dark panel (the master-tag

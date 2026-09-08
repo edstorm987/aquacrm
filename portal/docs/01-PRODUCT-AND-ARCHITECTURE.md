@@ -2,12 +2,12 @@
 
 > Product shape, portal model, brand architecture and plain-English system explanations.
 >
-> Consolidated 2026-09-07 from **2** source documents / **6,068 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-08 from **2** source documents / **6,091 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
-- [`docs/architecture-noobie.md`](#source-docs-architecture-noobie-md) — 1,702 words · `089741ec7a41`
-- [`docs/PRODUCT-ARCHITECTURE.md`](#source-docs-product-architecture-md) — 4,366 words · `f824661dcad4`
+- [`docs/architecture-noobie.md`](#source-docs-architecture-noobie-md) — 1,712 words · `89c8d74ac701`
+- [`docs/PRODUCT-ARCHITECTURE.md`](#source-docs-product-architecture-md) — 4,379 words · `3974d8851d86`
 
 ---
 
@@ -15,13 +15,14 @@
 
 ## Source document — `docs/architecture-noobie.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/architecture-noobie.md" sha256="089741ec7a410b5864537cb4f96a0253143dca6e0e8f02f5fa85ab27feabd47d" -->
+<!-- AQUACRM_SOURCE_START path="docs/architecture-noobie.md" sha256="89c8d74ac701f9019ad04a3284190fe091a20516c638df462e144af71e238549" -->
 # AquaCRM, explained plainly
 
 ← [development.md](development.md) is the law. This is the map you read first.
 
-Written 2026-08-20. No jargon, no assumed knowledge. If a sentence here needs a
-glossary, it is a bad sentence — tell me and I will rewrite it.
+Written 2026-08-20; current-status pointers reconciled 2026-09-08. No jargon,
+no assumed knowledge. If a sentence here needs a glossary, it is a bad sentence
+— tell me and I will rewrite it.
 
 ---
 
@@ -154,7 +155,8 @@ The element registry and its first three phases are shipped under
 and portal families still need to be widened onto the shared definitions before
 an assistant can compose every real surface from one complete catalogue. See the
 current “Engine widening + assistant proposals” item in
-[checklist.md](development/checklist.md).
+[TODO.md](development/TODO.md). Release evidence is separate in
+[PRODUCTION-READINESS.md](development/PRODUCTION-READINESS.md).
 
 ---
 
@@ -258,15 +260,16 @@ many companies, everything tagged with whose it is.
 
 ## Source document — `docs/PRODUCT-ARCHITECTURE.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/PRODUCT-ARCHITECTURE.md" sha256="f824661dcad45e5db4ea490bffaf24e7d5b3c1ca4fa9721bc4d6028770052fbc" -->
+<!-- AQUACRM_SOURCE_START path="docs/PRODUCT-ARCHITECTURE.md" sha256="3974d8851d86a4a0ab55ea45e3c1b15bdd967cc6f9095530f80745499a8bd7ce" -->
 # AquaCRM Product Architecture
 
-Last reviewed: 26 August 2026 (implementation boundary reconciled)
+Last reviewed: 8 September 2026 (status pointers reconciled; architecture body remains an implementation-boundary inventory)
 
 > This file describes intended and implemented product boundaries. It is not a
-> runtime-status document. Use [development/checklist.md](development/checklist.md)
-> for current completion/reliability and [development/status.md](development/status.md)
-> for verification depth. The access implementation and remaining adoption gate are
+> runtime-status document. Use [development/PRODUCTION-READINESS.md](development/PRODUCTION-READINESS.md)
+> for the current launch assessment, [development/TODO.md](development/TODO.md)
+> for remaining work and [development/status.md](development/status.md) for
+> verification history. The access implementation and remaining adoption gate are
 > tracked in
 > [configurable-access-and-workspace-parity.md](development/plans/configurable-access-and-workspace-parity.md).
 

@@ -24,21 +24,21 @@ export default function OceanBoulevardPage() {
         <div className="mx-auto max-w-[1344px]">
           <Link
             href="/portfolio"
-            className="inline-flex items-center gap-2 text-sm font-semibold text-white/72 transition hover:text-white"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-white/98 transition hover:text-white"
           >
             <ArrowLeft aria-hidden="true" className="h-4 w-4" />
             Portfolio
           </Link>
           <div className="mt-14 grid gap-10 lg:grid-cols-[1.25fr_0.75fr] lg:items-end">
             <div>
-              <p className="text-sm font-semibold text-[#D5F2F4]">
+              <p className="text-sm font-semibold text-[#F4FEFF]">
                 Ocean Boulevard · South Shields
               </p>
               <h1 className="mt-4 text-5xl font-semibold leading-[0.94] sm:text-6xl lg:text-7xl">
                 A venue experience built on both sides of the counter.
               </h1>
             </div>
-            <p className="text-lg leading-8 text-white/78">
+            <p className="text-lg leading-8 text-white/98">
               A public website, point of sale, staff workspace and operational
               toolkit designed as connected parts of one business.
             </p>

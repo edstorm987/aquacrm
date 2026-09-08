@@ -28,6 +28,9 @@ import {
   isSentrySdkInstalled,
 } from "../src/lib/server/observabilityCapability";
 import {
+  buildSafeErrorContext,
+  captureError,
+  correlationIdFor,
   isExpectedFrameworkControlFlow,
   resolveSentryDsn,
 } from "../src/lib/server/observability";
@@ -132,7 +135,11 @@ describe("Observability — /healthz/full route (R030, source-marker)", () => {
     assert.ok(src.includes('"connected"'));
     assert.ok(src.includes('"down"'));
     assert.ok(src.includes('"untested"'));
-    assert.ok(src.includes("const ok = probe.ok && (!isLiveProduction || readiness.ready)"));
+    // Substrate-aware readiness fold (#187): the ok/503 decision now delegates to
+    // resolveFullHealthOk (Railway/Vercel/generic production detection), whose
+    // ready/unready × platform matrix is behaviourally pinned in
+    // scripts/smoke-healthz-readiness.test.ts. The route still returns 200/503.
+    assert.ok(src.includes("resolveFullHealthOk"));
     assert.ok(src.includes("status: ok ? 200 : 503"));
   });
 
@@ -151,7 +158,175 @@ describe("Observability — /healthz/full route (R030, source-marker)", () => {
     const src = readFileSync(HEALTHZ_FULL, "utf8");
     assert.ok(src.includes("pluginInstalls"));
     assert.ok(src.includes("BOOT_AT"));
-    assert.ok(src.includes("VERCEL_GIT_COMMIT_SHA"));
+    // SHA/env now resolve across Vercel/Railway/generic markers via the shared
+    // deployment helper (#187), not a Vercel-only literal that read `null` on
+    // Railway. Coverage of the SHA source order is in smoke-healthz-readiness.
+    assert.ok(src.includes("deployedCommitSha"));
+    assert.ok(src.includes("deploymentEnvironmentLabel"));
+  });
+});
+
+describe("Observability — structured, correlated, PII-safe error logging", () => {
+  it("correlationIdFor prefers the framework digest (the id a user sees)", () => {
+    const err = Object.assign(new Error("boom"), { digest: "3141592653" });
+    assert.equal(correlationIdFor(err), "3141592653");
+  });
+
+  it("correlationIdFor generates a stable-shaped id when there is no digest", () => {
+    const a = correlationIdFor(new Error("no digest"));
+    const b = correlationIdFor(new Error("no digest"));
+    assert.equal(typeof a, "string");
+    assert.ok(a.length >= 8);
+    assert.notEqual(a, b); // each capture gets its own id
+  });
+
+  // Sentinels a caller (or an error message) might carry. NONE may appear in the
+  // safe context or the safe log/event metadata.
+  const SENTINELS = [
+    "victim@example.com",
+    "hunter2",                       // a password
+    "Bearer sk_live_ABC123SECRET",   // a bearer token / provider secret
+    "?email=victim@example.com&token=abc", // a query string
+    "card 4242424242424242 declined",      // a provider error message w/ a PAN
+  ];
+
+  it("buildSafeErrorContext allowlists to IDs/name/route/method — never message, path, query or extras", () => {
+    const context = buildSafeErrorContext(
+      // The error MESSAGE carries a token — it must not survive.
+      new Error("Stripe error: Bearer sk_live_ABC123SECRET for victim@example.com"),
+      {
+        agencyId: "milesymedia",
+        clientId: "acme-ltd",
+        pluginId: "agency-finance",
+        userId: "usr_42",
+        // Free-form extra: only route (pattern) + method are read; path, query,
+        // body and anything else are dropped.
+        extra: {
+          route: "/api/portal/clients/[clientId]/invoices",
+          method: "POST",
+          path: "/api/portal/clients/acme-ltd/invoices?email=victim@example.com&token=abc",
+          body: { card: "4242424242424242", password: "hunter2" },
+        },
+      },
+      "corr-123",
+    );
+    assert.deepEqual(context, {
+      errorId: "corr-123",
+      name: "Error",
+      route: "/api/portal/clients/[clientId]/invoices",
+      method: "POST",
+      agencyId: "milesymedia",
+      clientId: "acme-ltd",
+      pluginId: "agency-finance",
+      userId: "usr_42",
+    });
+    // No message field at all, and no sentinel anywhere in the serialised context.
+    assert.equal("message" in context, false);
+    const serialised = JSON.stringify(context);
+    for (const s of SENTINELS) assert.equal(serialised.includes(s.replace(/^\?/, "")) || serialised.includes(s), false, `leaked: ${s}`);
+    assert.equal(serialised.includes("4242424242424242"), false);
+    assert.equal(serialised.includes("hunter2"), false);
+    assert.equal(serialised.includes("sk_live"), false);
+  });
+
+  it("buildSafeErrorContext DROPS values that fail shape validation (a raw path/query smuggled as route or a tenancy id)", () => {
+    const context = buildSafeErrorContext(
+      new Error("boom"),
+      {
+        agencyId: "?email=victim@example.com",        // not an identifier → dropped
+        clientId: "acme ltd with spaces & <script>",  // not an identifier → dropped
+        userId: "Bearer sk_live_ABC",                  // not an identifier → dropped
+        extra: {
+          route: "/api/portal/x?token=sk_live_ABC123",  // query stripped
+          method: "GET; DROP TABLE",                     // not a method → dropped
+        },
+      },
+      "corr-1",
+    );
+    assert.equal(context.route, "/api/portal/x"); // query stripped, path kept
+    assert.equal(context.method, undefined);
+    assert.equal(context.agencyId, undefined);
+    assert.equal(context.clientId, undefined);
+    assert.equal(context.userId, undefined);
+    assert.equal(JSON.stringify(context).includes("sk_live"), false);
+    assert.equal(JSON.stringify(context).includes("victim@example.com"), false);
+  });
+
+  it("captureError in PRODUCTION logs ONLY the allowlisted payload — no raw error, message, path or sentinels", () => {
+    const previousEnv = process.env.NODE_ENV;
+    const previousDsn = process.env.SENTRY_DSN;
+    const errors: unknown[][] = [];
+    const originalError = console.error;
+    console.error = (...args: unknown[]) => { errors.push(args); };
+    let id = "";
+    try {
+      delete process.env.SENTRY_DSN;
+      process.env.NODE_ENV = "production";
+      const err = Object.assign(
+        new Error("charge failed: card 4242424242424242, Bearer sk_live_ABC123 for victim@example.com"),
+        { digest: "prod-1", stack: "Error: token sk_live_ABC123\n    at hunter2()" },
+      );
+      id = captureError(err, {
+        agencyId: "milesymedia",
+        clientId: "acme-ltd",
+        extra: { route: "/api/portal/clients/[clientId]/invoices", method: "POST", path: "/x?email=victim@example.com" },
+      });
+    } finally {
+      console.error = originalError;
+      if (previousEnv === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = previousEnv;
+      if (previousDsn === undefined) delete process.env.SENTRY_DSN; else process.env.SENTRY_DSN = previousDsn;
+    }
+    assert.equal(id, "prod-1");
+    const line = errors.find(args => args[0] === "[observability]");
+    assert.ok(line, "must log with the [observability] prefix");
+    // PRODUCTION: exactly two args — the prefix and the JSON payload. NO raw error.
+    assert.equal(line?.length, 2, "production must not print the raw error object as arg[1]");
+    assert.equal(line?.[1] instanceof Error, false);
+    const structured = JSON.parse(line?.[1] as string);
+    // Exactly the allowlisted keys (undefined values are dropped by JSON).
+    assert.deepEqual(Object.keys(structured).sort(), ["agencyId", "clientId", "errorId", "level", "method", "name", "route"]);
+    assert.equal(structured.errorId, "prod-1");
+    assert.equal(structured.name, "Error");
+    assert.equal(structured.route, "/api/portal/clients/[clientId]/invoices");
+    assert.equal(structured.method, "POST");
+    assert.equal(structured.agencyId, "milesymedia");
+    assert.equal(structured.clientId, "acme-ltd");
+    // The whole logged line, serialised, contains none of the sentinels.
+    const wholeLine = JSON.stringify(line);
+    assert.equal(wholeLine.includes("4242424242424242"), false);
+    assert.equal(wholeLine.includes("sk_live"), false);
+    assert.equal(wholeLine.includes("victim@example.com"), false);
+    assert.equal(wholeLine.includes("hunter2"), false);
+    assert.equal(wholeLine.includes("charge failed"), false); // the message never appears
+    assert.equal("message" in structured, false);
+  });
+
+  it("captureError in DEV (environment-gated) prints the full error for debugging, but the SAFE payload still leaks nothing", () => {
+    const previousEnv = process.env.NODE_ENV;
+    const errors: unknown[][] = [];
+    const originalError = console.error;
+    console.error = (...args: unknown[]) => { errors.push(args); };
+    let id = "";
+    try {
+      process.env.NODE_ENV = "development";
+      const err = Object.assign(new Error("provider timeout for victim@example.com"), { digest: "abc123" });
+      id = captureError(err, { agencyId: "milesymedia", extra: { route: "/api/portal/x", method: "GET" } });
+    } finally {
+      console.error = originalError;
+      if (previousEnv === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = previousEnv;
+    }
+    assert.equal(id, "abc123");
+    const line = errors.find(args => args[0] === "[observability]");
+    assert.ok(line);
+    // DEV keeps the raw error as arg[1] for the developer at the console.
+    assert.equal((line?.[1] as Error).message, "provider timeout for victim@example.com");
+    // …but the structured arg[2] is the SAME allowlisted payload — no message, no email.
+    const structured = JSON.parse(line?.[2] as string);
+    assert.equal(structured.errorId, "abc123");
+    assert.equal(structured.route, "/api/portal/x");
+    assert.equal(structured.agencyId, "milesymedia");
+    assert.equal("message" in structured, false);
+    assert.equal(JSON.stringify(structured).includes("victim@example.com"), false);
   });
 });
 
@@ -295,27 +470,29 @@ describe("Observability — app/global-error.tsx is the root boundary (#141)", (
 // ─── #132: the server boundary is genuinely mounted ────────────────────
 
 describe("Observability — src/instrumentation.ts is the mounted server boundary (#132)", () => {
-  it("derives route, method and client tenancy from a failed request", () => {
+  it("derives the route PATTERN, method and client tenancy — and NEVER the raw path/query", () => {
     const crumb = describeRequestError(
-      { path: "/api/portal/clients/acme-ltd/invoices?draft=1", method: "POST" },
+      { path: "/api/portal/clients/acme-ltd/invoices?draft=1&email=victim@example.com", method: "POST" },
       { routePath: "/api/portal/clients/[clientId]/invoices", routeType: "route", routerKind: "App Router" },
     );
-    assert.equal(crumb.clientId, "acme-ltd");
+    assert.equal(crumb.clientId, "acme-ltd");            // a route param (tenancy)
     assert.equal(crumb.extra.route, "/api/portal/clients/[clientId]/invoices");
-    assert.equal(crumb.extra.path, "/api/portal/clients/acme-ltd/invoices?draft=1");
     assert.equal(crumb.extra.method, "POST");
-    assert.equal(crumb.extra.routeType, "route");
+    // The raw path (with its ids and query values) must NOT be carried.
+    assert.equal("path" in crumb.extra, false);
+    assert.equal(JSON.stringify(crumb.extra).includes("draft=1"), false);
+    assert.equal(JSON.stringify(crumb.extra).includes("victim@example.com"), false);
   });
 
-  it("does not invent a tenant it cannot read, and keeps the portal scope", () => {
+  it("does not invent a tenant it cannot read, and does not fall back to the raw path when Next gives no pattern", () => {
     const crumb = describeRequestError(
-      { path: "/portal/agency/settings", method: "GET" },
-      { routePath: "/portal/agency/settings", routeType: "render", renderSource: "server-rendering" },
+      { path: "/portal/agency/settings?token=abc", method: "GET" },
+      { routeType: "render", renderSource: "server-rendering" }, // no routePath
     );
     assert.equal(crumb.clientId, undefined);
     assert.equal(crumb.agencyId, undefined);
-    assert.equal(crumb.extra.portalScope, "agency");
-    assert.equal(crumb.extra.renderSource, "server-rendering");
+    assert.equal(crumb.extra.route, undefined); // NOT the raw path
+    assert.equal(JSON.stringify(crumb.extra).includes("token=abc"), false);
   });
 
   it("reports a caught server error through captureError (not a bare rethrow)", async () => {

@@ -20,7 +20,7 @@ import { useCallback, useReducer, useRef, useState } from "react";
 import type { ControlStatus } from "@/lib/compliance/compliancePosture";
 import { checkedReadReducer, confirmedCheckedRead } from "@/lib/client/checkedReadState";
 import { checkedJsonMutation, mutationErrorMessage } from "@/lib/client/checkedMutation";
-import { formatUkDate } from "@/lib/shared/formatDateTime";
+import { formatUkDate, stableUkDateString } from "@/lib/shared/formatDateTime";
 import type {
   AgencyWideSection,
   BreachRow,
@@ -642,9 +642,9 @@ function SubjectRequestSection({ snapshot, isOwner, onChanged }: { snapshot: Gov
                 <tr key={row.id} className={row.overdue ? "bg-red-50/60" : undefined}>
                   <td className="px-4 py-2.5 text-black/75">{row.subjectLabel}</td>
                   <td className="px-4 py-2.5 capitalize text-black/60">{row.kind}</td>
-                  <td className="px-4 py-2.5 tabular-nums text-black/55">{new Date(row.receivedAt).toLocaleDateString("en-GB", DATE_OPTS)}</td>
+                  <td className="px-4 py-2.5 tabular-nums text-black/55">{stableUkDateString(new Date(row.receivedAt).toLocaleDateString("en-GB", DATE_OPTS))}</td>
                   <td className="px-4 py-2.5 tabular-nums text-black/55">
-                    {new Date(row.dueAt).toLocaleDateString("en-GB", DATE_OPTS)}
+                    {stableUkDateString(new Date(row.dueAt).toLocaleDateString("en-GB", DATE_OPTS))}
                     {row.extended ? <span className="ml-1.5 text-[10px] uppercase text-black/40">extended</span> : null}
                   </td>
                   <td className="px-4 py-2.5">

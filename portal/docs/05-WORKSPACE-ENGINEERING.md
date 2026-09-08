@@ -2,26 +2,26 @@
 
 > Source maps, subsystem dossiers, components, routes, state and built-in module notes.
 >
-> Consolidated 2026-09-07 from **23** source documents / **57,754 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-08 from **23** source documents / **57,760 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
-- [`docs/development/STRUCTURE.md`](#source-docs-development-structure-md) — 926 words · `0d6eb54e217c`
-- [`docs/WORKSPACE-FILE-TREE.md`](#source-docs-workspace-file-tree-md) — 1,385 words · `642c698fbd42`
+- [`docs/development/STRUCTURE.md`](#source-docs-development-structure-md) — 932 words · `5e022745dfd7`
+- [`docs/WORKSPACE-FILE-TREE.md`](#source-docs-workspace-file-tree-md) — 1,376 words · `6cd666857aba`
 - [`docs/workspace/advisor.md`](#source-docs-workspace-advisor-md) — 1,445 words · `d5b9b4fc79dc`
 - [`docs/workspace/api-and-routes.md`](#source-docs-workspace-api-and-routes-md) — 946 words · `8bbf0d2e9c9f`
 - [`docs/workspace/api-reference.md`](#source-docs-workspace-api-reference-md) — 8,531 words · `7b4eb3ae396a`
 - [`docs/workspace/aqua-tag.md`](#source-docs-workspace-aqua-tag-md) — 3,463 words · `d662b63850cb`
 - [`docs/workspace/components.md`](#source-docs-workspace-components-md) — 1,142 words · `5ef3bf2f75be`
-- [`docs/workspace/database.md`](#source-docs-workspace-database-md) — 2,273 words · `4ed0007a7dd9`
-- [`docs/workspace/env-and-sellability.md`](#source-docs-workspace-env-and-sellability-md) — 3,655 words · `7079bb1c8570`
+- [`docs/workspace/database.md`](#source-docs-workspace-database-md) — 2,263 words · `396394473cec`
+- [`docs/workspace/env-and-sellability.md`](#source-docs-workspace-env-and-sellability-md) — 3,662 words · `dda5fb28db12`
 - [`docs/workspace/feature-index.md`](#source-docs-workspace-feature-index-md) — 5,346 words · `3091196d10e6`
 - [`docs/workspace/hazards-and-duplication.md`](#source-docs-workspace-hazards-and-duplication-md) — 7,937 words · `16f6a1abda87`
 - [`docs/workspace/kpi-intelligence.md`](#source-docs-workspace-kpi-intelligence-md) — 2,283 words · `d641f1291cbc`
 - [`docs/workspace/plugins.md`](#source-docs-workspace-plugins-md) — 2,193 words · `85bf55b735d1`
 - [`docs/workspace/portal-ui.md`](#source-docs-workspace-portal-ui-md) — 4,405 words · `5a18d11726d8`
 - [`docs/workspace/radar.md`](#source-docs-workspace-radar-md) — 3,419 words · `094abc931f83`
-- [`docs/workspace/scripts-config-docs.md`](#source-docs-workspace-scripts-config-docs-md) — 705 words · `6c64dba30a6b`
+- [`docs/workspace/scripts-config-docs.md`](#source-docs-workspace-scripts-config-docs-md) — 717 words · `8c78f5e3e7c8`
 - [`docs/workspace/shared-logic.md`](#source-docs-workspace-shared-logic-md) — 3,911 words · `34a172e29b5e`
 - [`docs/workspace/state-layer.md`](#source-docs-workspace-state-layer-md) — 1,047 words · `b891d38adf8e`
 - [`src/archive/multi-agency/README.md`](#source-src-archive-multi-agency-readme-md) — 43 words · `8655235589a0`
@@ -36,12 +36,13 @@
 
 ## Source document — `docs/development/STRUCTURE.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/STRUCTURE.md" sha256="0d6eb54e217ca5b865d0f72979affcad52dd71909db0f1ef351952e3b16c1d1b" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/STRUCTURE.md" sha256="5e022745dfd7eb5297233fcb90f3964afe014484f064f546e7bc4d1256bb8e3e" -->
 # AquaCRM — Structure (the agreed taxonomy) + Roadmap
 
 The source of truth for the folder taxonomy and architecture vocabulary. For the
-current delivery position and what's left, use [checklist.md](checklist.md); for
-sequencing, use [roadmap.md](roadmap.md). Companion to the "AquaCRM Structure &
+current launch assessment use [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md),
+for remaining work use [TODO.md](TODO.md), and for sequencing use
+[roadmap.md](roadmap.md). Companion to the "AquaCRM Structure &
 Roadmap" artifact. Ed's call 2026-08-20: end the naming sprawl.
 
 ## The one sentence
@@ -98,9 +99,10 @@ some leaf routes that admit staff (issue #25).
 - **The `src/engines/` move**: DONE ✓ — editor + sop + data all physically in `src/engines/`, imports rewritten, tsc + full suite green, adversarial-verified. "Plugin" already retired → "module".
 - **Finish the engines** (Ed's "very least"): editor acceptance+reliability+client mount+tiers · SOP training-merge+views+assignment · Data fold-in performance/intelligence + evolving baselines. ← now the active track.
 - **The surfaces**: Executive (extract-and-add, CC unchanged) — NEXT · Operations container (Governance in; lane exists) · staff portal regroup DONE (canonical role/element gates preserved; full shared-hub parity is not claimed).
-- **Launch-critical external/acceptance work:** merge/deploy decision · deployment
-  environment verification · pending migrations · one real onboarding walk ·
-  live Stripe/Meta/DPO steps. The first commit and push are already complete.
+- **Launch-critical external/acceptance work:** truthful Railway readiness and
+  deployment provenance · apex TLS · recovery activation/restore proof · one
+  real onboarding walk · live email/Stripe/Meta/DPO steps · current Supabase
+  drift/RLS recheck. See [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md).
 
 ## Order
 1. ~~Executive surface~~ → 2. ~~`src/engines/` move~~ DONE ✓ → **3. finish each engine (active)** → 4. Executive + Operations container → 5. launch-hardening (Ed's track, parallel).
@@ -142,7 +144,7 @@ Rules:
 
 ## Source document — `docs/WORKSPACE-FILE-TREE.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/WORKSPACE-FILE-TREE.md" sha256="642c698fbd42414f6b6092f98c148ab2ff2fd0a7948502b9e4ccf4b4362b02a7" -->
+<!-- AQUACRM_SOURCE_START path="docs/WORKSPACE-FILE-TREE.md" sha256="6cd666857abaf954182453083eb059eeed02b1d17de9e2171bf312fc64149514" -->
 # Workspace file tree — the contents page
 
 This is the **index** to a full map of the AquaCRM portal: what every part does,
@@ -150,15 +152,16 @@ so edits land in the right place and nothing gets built twice. The detail lives
 in per-area **chapters** in [`docs/workspace/`](workspace/) — this page is the
 table of contents and the shared rules.
 
-**1,939** `.ts`/`.tsx` files in `src`, **487** `scripts/*.test.ts`.
+**2,097** `.ts`/`.tsx` files in `src`, **598** `scripts/*.test.ts`.
 Big, but every concern has one owning place — the chapters tell you where.
-Counts re-taken 2026-08-29 (they read 1,733 / 308 from 2026-08-24 — the page
-says to re-take them rather than trust them, and that was correct); re-take them
+Counts re-taken 2026-09-08 (they read 1,939 / 487 on 2026-08-29); re-take them
 again rather than trusting these:
 `find src -type f \( -name '*.ts' -o -name '*.tsx' \) | wc -l`.
 
-> This map was reconciled for non-security structure only. Current delivery and
-> reliability live in [development/checklist.md](development/checklist.md).
+> This map describes structure, not release readiness. Current delivery and
+> reliability live in
+> [development/PRODUCTION-READINESS.md](development/PRODUCTION-READINESS.md),
+> with remaining work in [development/TODO.md](development/TODO.md).
 
 ---
 
@@ -1505,13 +1508,18 @@ does not use these; if anything the arrow runs the other way
 
 ## Source document — `docs/workspace/database.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/database.md" sha256="4ed0007a7dd957cf271f0407fd3742833262b08ae774979a8425a640ccd566e0" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/database.md" sha256="396394473cec1654b5b5fdd1a2900334246d6b94bcca2903e73c39a3c32f72fe" -->
 # Chapter — Database (Supabase / Postgres) dossier
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
 
 Verified from source query code, from the SQL migrations one directory up, and
-from a read-only probe of the live project on 2026-08-20.
+from a read-only probe of the live project on 2026-08-20. Reconciled on
+2026-09-08 against the repository's verified 2026-09-03 live-application
+record. The 2026-09-08 readiness review did not independently reconnect to
+Supabase, so live row counts below remain dated evidence rather than a current
+probe. See [the alignment record](../development/plans/supabase-alignment-2026-09-03.md)
+and [current readiness](../development/PRODUCTION-READINESS.md).
 
 > ## ✅ CORRECTED 2026-08-20 — the DDL and the RLS policies DO exist
 > An earlier version of this chapter said no table DDL, RLS policy, role grant
@@ -1522,8 +1530,8 @@ from a read-only probe of the live project on 2026-08-20.
 > They live in **[`../../../supabase/migrations/`](../../../supabase/README.md)**
 > — a normal Supabase CLI project sitting beside `portal/`, linked to project
 > ref `dghzbsxbdatskserctgt`, the same ref `NEXT_PUBLIC_SUPABASE_URL` points at.
-> Fourteen migrations define every table below, every policy, the role grants,
-> the storage-bucket ACLs, and the two RPC functions. `20260811113000_master_
+> The repository now contains 28 ordered migrations defining the schema,
+> policies, grants, bucket ACLs and database functions. `20260811113000_master_
 > inbox_messaging.sql` is on disk and 173 lines long.
 >
 > The mistake is understandable and worth naming, because it will recur: the
@@ -1536,9 +1544,10 @@ from a read-only probe of the live project on 2026-08-20.
 >
 > Columns below were originally inferred from query code; they have now been
 > **cross-checked against the migrations and the live PostgREST schema** and
-> corrected where they differed. What remains genuinely unwritten is listed
-> under "Known drift" in the Supabase README — most importantly the
-> `rls_auto_enable()` function, which exists live and in no migration.
+> corrected where they differed. The former dashboard-only
+> `rls_auto_enable()` drift is now captured in
+> `20260903130000_ensure_rls_event_trigger.sql`; as recorded on 2026-09-03,
+> that no-op-on-live migration was the one remaining version to record.
 
 ## 1. Two separate persistence concerns (don't conflate)
 
@@ -1547,7 +1556,7 @@ Selected by `PORTAL_BACKEND` (`server/storage.ts`):
 
 | `PORTAL_BACKEND` | Store | Where |
 |---|---|---|
-| `file` / unset | `.data/portal-state.json` | local file |
+| `file` | `.data/portal-state.json` | local file |
 | `memory` | in-process | ephemeral |
 | `kv` | **stub — throws "not yet wired"** | — |
 | `postgres` | `portal_kv` table, row key `__portal_state__` | `storagePostgres.ts` |
@@ -1585,9 +1594,10 @@ Website enquiry capture. `id`, `brand_slug`, `name`, `email?`, `phone?`,
 `contact_method?`, `services?` (text[]), `message?`, `source_url?`, `campaign?`,
 `consent?` (bool), `created_at` (timestamptz), `metadata` (jsonb), and — since
 `20260820150000_brand_enquiries_agency_scope.sql` — **`agency_id` (text)**, the
-real tenant column. ⚠ **That migration is written but NOT yet applied** (Ed runs
-`supabase db push` by hand); until then the live table still has no such column,
-and the insert paths detect the missing column (`PGRST204`) and retry without it
+real tenant column. The 2026-09-03 live application record says this migration
+was applied, the column and trigger were present, and all 52 existing rows were
+backfilled to `milesymedia`; the 2026-09-08 review did not re-probe that state.
+The insert paths retain their missing-column compatibility fallback
 (`src/lib/supabase/enquiryAgencyColumn.ts`). Routing metadata (`agencyId`,
 `routedClientId`, `clientId`, `masterTag`/`captureOnly`) stays in `metadata` —
 the migration backfills the column from `metadata->>'agencyId'` (default
@@ -1645,15 +1655,11 @@ layer").
 `INSERT … ON CONFLICT DO NOTHING RETURNING`.
 
 ### `inbox_*` tables (service-role) — Master Inbox / Meta messaging
-> 🔴 **These five tables DO NOT EXIST in the live project.** Verified
-> 2026-08-20: PostgREST returns `404 PGRST205` for all five to *both* the anon
-> key and the service-role key, and `claim_inbox_webhook_events` is absent from
-> the project's RPC list. The migration that creates them,
-> `../../../supabase/migrations/20260811113000_master_inbox_messaging.sql`, is
-> on disk but **has never been applied**. Since `useSupabase()` returns true
-> whenever `NODE_ENV === 'production'`, the first inbox request in production
-> hits tables that are not there. Run `supabase db push` before relying on
-> anything below.
+> **Live-evidence timeline:** these tables returned `404 PGRST205` in the
+> 2026-08-20 probe. The verified 2026-09-03 alignment record says the master
+> inbox migration was subsequently applied and the new tables/functions were
+> present. That later record supersedes the August absence finding, although
+> the 2026-09-08 review did not independently re-probe Supabase.
 
 Gated by `useSupabase()` (`INBOX_STORAGE_BACKEND==='supabase'` **or**
 `NODE_ENV==='production'`; else local JSON `.data/inbox-messaging.json`). Own
@@ -1662,7 +1668,7 @@ service-role client. Columns from the `*Row` mappers:
 - **`inbox_contact_identities`** — `id`, `agency_id`, `connection_id`, `external_user_id`, `display_name`, `lead_id?`/`contact_id?`/`client_id?`, timestamps.
 - **`inbox_conversations`** — `id`, `agency_id`, `connection_id`, `identity_id`, `external_conversation_id`, `status`, `assigned_to?`, `tags`, `unread_count`, timing fields, `metadata`, timestamps.
 - **`inbox_messages`** — `id`, `agency_id`, `connection_id`, `conversation_id`, `external_message_id?`, `direction`, `message_type`, `body_text?`, `attachments` (jsonb), `status`, `metadata`, `sent_at`, timestamps.
-- **`inbox_webhook_events`** — `id`, `provider`, `event_key`, `payload` (jsonb), `status`, `attempts`, `available_at`, `processed_at?`. Claimed via RPC **`claim_inbox_webhook_events`** — defined in the (unapplied) inbox migration; `security definer`, execute granted to `service_role` only. Pruned by hard delete past retention.
+- **`inbox_webhook_events`** — `id`, `provider`, `event_key`, `payload` (jsonb), `status`, `attempts`, `available_at`, `processed_at?`. Claimed via RPC **`claim_inbox_webhook_events`** — defined in the inbox migration recorded as applied on 2026-09-03; `security definer`, execute granted to `service_role` only. Pruned by hard delete past retention.
 
 All inbox reads filter `.eq("agency_id",…)` **in application code**. The written
 SQL gives all five tables `enable row level security` plus
@@ -1720,7 +1726,13 @@ appear nowhere in the repo).
 ### Security posture (verified 2026-08-20)
 - **Service-role usage is now measured and pinned.** Excluding the definition file (`lib/supabase/admin.ts`), `src/` had **23** `createSupabaseAdminClient()` call sites in **18** files on the morning of 2026-08-20; the phase-4 reduction that afternoon moved the ten website-inbox route sites onto the user's scoped client, leaving **13 sites in 8 files** — pinned, with per-site justifications, in `scripts/smoke-service-role-usage.test.ts` (the count can only change knowingly). Counting admin.ts's own three internal `auth.admin` helpers too, the older "27 sites / 19 files" figure becomes 17/9. The anon-key surface is now `profiles` (login) **plus `brand_enquiries` via the scoped client in the website-inbox routes**. Everything still on the service role enforces tenancy **in application code only** (`.eq("agency_id",…)`, metadata routing, `withTenantScope`). **RLS is defence-in-depth plus the inbox-route paths, not blanket database-enforced tenant isolation** — do not oversell it.
 - **RLS IS in the repo** — in `../../../supabase/migrations/`, not in `portal/`. Enabled on every table the app touches, with policies built on two `security definer` helpers with pinned `search_path` (`current_profile_role()`, `is_internal_user()`). Live-verified: anon reads 0 rows from `brand_enquiries`/`profiles`/`app_datastores`/`website_consent_events`, and is denied outright on `app_datastore_history`. Only `brands`/`shoots`/`shoot_photos` are anon-readable, deliberately — they hold public website content and no PII. `scripts/schema.sql` deferring RLS applies **only** to `portal_kv`, a different database.
-- **Two `SECURITY DEFINER` RPCs are defined in the migrations**, both with pinned `search_path` and `execute` revoked from `anon`/`authenticated`: `apply_app_datastore_patch` (live) and `claim_inbox_webhook_events` (not applied). A **third**, `rls_auto_enable`, exists in the live project and **is in no migration** — dashboard-only drift that will not survive a rebuild. Export and commit it.
+- **Security-definer database functions are version-controlled with pinned
+  `search_path` and restricted execution where required.** The 2026-09-03
+  application record verified the current `apply_app_datastore_patch`, Inbox
+  claim functions and Aqua Tag delivery functions live. The former
+  dashboard-only `rls_auto_enable` function is captured by
+  `20260903130000_ensure_rls_event_trigger.sql`; recording that already-live
+  definition was the one pending no-op migration at that checkpoint.
 - **Verify with:** `../../../supabase/rls-verify.sql` (read-only, live posture) and `scripts/smoke-rls-policy-coverage.test.ts` (repo posture vs. code, runs in the smoke suite).
 - Verifiable app-layer defenses: rate-limiting + login lockout, consent-gating + PII redaction before telemetry insert, fail-closed env self-check (`env.ts`), encrypted-at-rest Meta tokens (`encrypted_access_token`), hard-delete erasure.
 
@@ -1733,10 +1745,9 @@ Others: `PORTAL_BACKEND`, `PORTAL_STATE_KEY`, `DATABASE_URL` (+ `PORTAL_PG_*`
 pool tuning), `INBOX_STORAGE_BACKEND`, `INBOX_WEBHOOK_RETENTION_DAYS`, Vercel
 Blob fallback (`BLOB_*`), Upstash (`PORTAL_KV_*`, the stub backend).
 
-> ⚠ **Notable gap:** the three primary Supabase credentials are prod-required
-> and enforced by the boot self-check, **yet are absent from `.env.example`** —
-> a dev copying the example gets a build that fails the boot check. Only the two
-> bucket-name vars are documented there.
+> The three primary Supabase credentials are prod-required and enforced by the
+> boot self-check. `.env.example` now documents all three as blank/commented
+> placeholders; a real environment must still supply valid values.
 
 _The enquiry tables here are the live side of the [Aqua Tag](aqua-tag.md)
 ingestion; the blob backend holds everything else described across the
@@ -1749,7 +1760,7 @@ ingestion; the blob backend holds everything else described across the
 
 ## Source document — `docs/workspace/env-and-sellability.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/env-and-sellability.md" sha256="7079bb1c857082fd6b167d57028cc0f57b5bced95e1573206561b5b99e3e0553" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/env-and-sellability.md" sha256="dda5fb28db1246cbff734f9d6e6512f6e0703f0f5e2ea6b417a5e846551f06ca" -->
 # Chapter — Env-only settings & the cost of selling AquaCRM
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md) · Sibling: [feature-index](feature-index.md) · [hazards-and-duplication](hazards-and-duplication.md)
@@ -1758,7 +1769,8 @@ ingestion; the blob backend holds everything else described across the
 > this chapter changed behaviour. In-app encrypted configuration paths have moved
 > since this checkpoint (including Finance and Meta), so re-run the env-only scan
 > before using the table to scope sellability. The open re-audit remains on
-> [checklist.md](../development/checklist.md).
+> [TODO.md](../development/TODO.md); current launch evidence is in
+> [PRODUCTION-READINESS.md](../development/PRODUCTION-READINESS.md).
 
 ## The principle this chapter serves
 
@@ -4071,7 +4083,7 @@ recommendations._
 
 ## Source document — `docs/workspace/scripts-config-docs.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/scripts-config-docs.md" sha256="6c64dba30a6b031fdab5a24d1b105ab34547388d2219c529fa85734fa4368908" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/scripts-config-docs.md" sha256="8c78f5e3e7c86916cd2931a83baacd6af0b0c9279ac7423c6121df8e597b3ba5" -->
 # Chapter — Scripts, config & docs (`scripts/`, repo root, `docs/`)
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
@@ -4081,19 +4093,20 @@ recommendations._
 | File | Controls |
 | --- | --- |
 | `package.json` | App manifest + all npm scripts. Next 16.3, React 19.2, Supabase, pg, nodemailer, Tailwind v4, tsx. |
-| `package-lock.json` **+** `pnpm-lock.yaml` | **Two lockfiles.** npm is canonical (`.npmrc` + Vercel use npm); the pnpm one is stale/secondary — keep npm's authoritative. |
+| `package-lock.json` **+** `pnpm-lock.yaml` | **Two lockfiles.** npm is canonical for the portal's documented commands; the pnpm file is secondary — keep npm's lock authoritative unless that policy is deliberately changed. |
 | `next.config.ts` | Security headers (HSTS/CSP), `rewrites()` for the marketing site → `public/aquacrm-site/`, **strict build gate** (full ESLint + TS, no ignore flags). |
 | `middleware.ts` | Matches `/portal/:path*` but is a **pass-through no-op** — auth is enforced in the server layer, NOT here. Don't add auth logic here expecting it to run first. |
 | `tsconfig.json` | `strict`, `@/*`→`src/*`, `@aqua/plugin-*`→`built-ins/modules/*`. **Excludes `scripts`, `__smoke__`, `_attic`.** |
 | `tailwind.config.ts` | `brand` tokens bound to CSS vars (per-tenant branding). |
 | `.npmrc` | `install-links=true` — copies vendored plugins into `node_modules`. **Re-run `npm install` after editing plugin source** or your change won't be picked up. |
 | `.env.example` | Every env var, split into per-deployment (infra) vs per-client (portal editor). `.env.local` = local secrets, gitignored. |
-| `vercel.json` | `npm install --legacy-peer-deps`; two crons: `/api/cron/inbox` daily 06:00 and `/api/cron/radar-probes` every 10 minutes. |
+| `vercel.json` | Provider-specific Vercel install/cron configuration retained in the repo. The app observed live on 2026-09-08 is hosted by Railway, so these schedules are not evidence that equivalent Railway jobs are active. |
 | `AGENTS.md` / `CLAUDE.md` | AI-session rules + non-negotiable contracts. **Read these first.** |
 
-**Key npm scripts:** `dev` (:3032), `dev:sandbox` (file backend),
+**Key npm scripts:** `dev` (:3032; backend can implicitly promote from env), `dev:sandbox` (explicit file backend),
 `dev:sandbox:real` (milesymedia data — Ed's working sandbox), `build`,
-`typecheck`, `smoke:all` (narrow glob), plus ~60 `smoke:<name>` shortcuts.
+`typecheck`, `smoke:all` (all `scripts/*.test.ts` plus built-in module suites),
+and the named `smoke:<name>` shortcuts.
 
 > **Full suite (canonical — run before calling any behaviour change done):**
 > ```bash
@@ -4101,18 +4114,16 @@ recommendations._
 > ```
 > `PORTAL_BACKEND=memory` keeps stateful tests off Ed's live sandbox.
 
-## `scripts/` (344 top-level files, 308 of them `*.test.ts`)
+## `scripts/` (655 top-level files, 598 of them `*.test.ts`)
 
 **Test convention:** `node:test` files run through `tsx` (no Jest/Vitest),
 mostly **static-source contract tests** (`readFileSync` a module + assert on its
 content). `scripts/` is excluded from tsconfig — they only run under tsx.
 
-> ⚠ **Seven files omit the `smoke-` prefix**, so `smoke:all`'s narrow glob
-> misses them (the `*.test.ts` full-suite glob catches them): `company-health`,
-> `client-aqua-health`, `client-marketing-service`, `client-workspace-navigation`,
-> `hiring-capacity`, `attention-protection`, `inbox-attention-thread`.
+> Historical gotcha resolved: `smoke:all` now uses `scripts/*.test.ts`, so tests
+> without a `smoke-` prefix are included.
 
-**308 `*.test.ts`, grouped by domain** (re-counted 2026-08-24) — there's a smoke test for almost
+**598 `*.test.ts`, grouped by domain** (re-counted 2026-09-08) — there's a smoke test for almost
 everything, so **check for an existing one before changing behaviour** (a
 contract test may pin the behaviour you're about to change):
 radar/monitoring · inbox/attention/actions · products/portals/client-workspaces ·
@@ -4145,11 +4156,11 @@ The prose docs (this file map is the structural companion to them). **Re-counted
 - Feature docs: `portal-tiers-and-fractal-fulfilment`, `meta-master-inbox`, `external-assistant-api`, `development-workspace-cleanup`, `zimante-brand-architecture`.
 - 🗄 `context/archive/` — the history shelf. Dated, superseded, never current.
 
-**Where the one-question-one-file rule bites:** "where do we stand" is
-[`development/checklist.md`](../development/checklist.md) and nothing else;
-"what changed" is [`development/updates.md`](../development/updates.md) and
-nothing else. Three files used to answer the first and two of them are now
-archived — do not re-create them.
+**Where the one-question-one-file rule bites:** current release evidence is
+[`development/PRODUCTION-READINESS.md`](../development/PRODUCTION-READINESS.md),
+remaining work is [`development/TODO.md`](../development/TODO.md), and “what
+changed” is [`development/updates.md`](../development/updates.md).
+`checklist.md` and `todo-retired.md` are history; do not add to them.
 <!-- AQUACRM_SOURCE_END path="docs/workspace/scripts-config-docs.md" -->
 
 ---

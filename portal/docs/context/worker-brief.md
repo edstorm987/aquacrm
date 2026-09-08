@@ -2,6 +2,11 @@
 
 ← [context/](README.md)
 
+> **HISTORICAL TEMPLATE.** Confirm an assignment and current file ownership
+> directly before reuse. Current release truth is in
+> `docs/development/PRODUCTION-READINESS.md`; tasks are in
+> `docs/development/TODO.md`. The old `state.md` tables do not establish live ownership.
+
 The commander fills this in per assignment; Ed pastes it into a fresh Claude chat
 to spin a worker on one plan. `<PLAN>` = the plan file (e.g.
 `docs/development/plans/enquiry-detail-card.md`).
@@ -18,7 +23,8 @@ ORIENT (read in this order):
 4. docs/context/state.md — confirm your assignment + the files you own (don't touch files another
    worker owns). Trust its "Verified ground truth" table; treat its "🗄 HISTORICAL" sections as
    dated belief, not fact — re-read the source before acting on any 🔴 you find there.
-5. docs/development/checklist.md — the most reliable current summary of where the project stands.
+5. docs/development/PRODUCTION-READINESS.md — current release verdict.
+6. docs/development/TODO.md — the one current task list.
 
 YOUR JOB: execute <PLAN>'s phases in order, simple-first. Don't re-design the plan;
 if it needs a decision Ed hasn't made (the plan flags them), surface it — don't guess.

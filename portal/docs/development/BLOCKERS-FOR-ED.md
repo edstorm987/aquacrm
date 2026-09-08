@@ -1,21 +1,52 @@
 # Blockers for Ed — things I can't do without your keys/accounts/decisions
 
-Running list from the autonomous run started 2026-09-05. I **note these and move on**,
-building and testing everything *around* the missing piece so it's plug-and-play the
-moment you hand it over. Nothing here is stalled work elsewhere.
+Owner-controlled list, reconciled 2026-09-08 against the current
+[production-readiness assessment](PRODUCTION-READINESS.md). Engineering-owned
+work remains only in [TODO.md](TODO.md); this page names credentials, platform
+settings and decisions that cannot be truthfully completed from the repository.
+
+## 🚀 Deploy the 2026-09-08 readiness fixes (newest — your action)
+
+A local engineering pass fixed four red gates in source/tests/CI (#187 health
+truth, #189 contrast ×2, #190 `dev:verify`, #188 CI) plus structured observability
+logging. **These are locally verified but NOT yet deployed.** To ship them:
+
+1. **Review + merge** the branch these land on (they are NOT committed for you — see
+   the recommended commit boundaries in the session handoff), then let Railway
+   auto-deploy `main`.
+2. **Verify after deploy** (read-only):
+   - `curl -s https://www.aqua-crm.com/healthz` → `sha` is now the deployed commit
+     (not `null`), `platform:"railway"`, `env:"production"`.
+   - `curl -s -o /dev/null -w '%{http_code}' https://www.aqua-crm.com/healthz/full`
+     → **503** while required email is still `needs-setup` (this is now correct —
+     an unready production release must not answer 200). It returns **200** only
+     once every required readiness item is ready.
+3. **Rollback** if needed: Railway → the `aquacrm` service → Deployments → redeploy
+   the previous good deployment; or `git revert` the merge commit and push. The
+   fixes are self-contained (health routes, `globals.css`, `instrumentation.ts`,
+   `deployment.ts`, `observability.ts`, `storage.ts`) with no schema/migration/env
+   dependency, so a revert is clean.
+4. **Enable branch protection** on `main` to require the new CI jobs
+   (`verify`, `browser`) before merge — see `.github/workflows/ci.yml`.
+
+Note: `/healthz/full` returning 503 is the *goal* of #187 — do not "fix" it by
+weakening the check. It turns green by making the required items (email, secure
+access) actually ready.
 
 ## 🔑 Secrets / credentials (I build + test around; you wire)
 
-- **Supabase secrets for local + the config surfaces.** You said you'll give them later.
-  Until then local dev stays on `PORTAL_BACKEND=file` and I do NOT wire the live
-  client/service configuration to real Supabase — I build the surfaces and test them on
-  the file backend. (TODO: "Set `PORTAL_BACKEND=file` in `.env.local`"; rotate the DB
-  password + `sbp_` token that were pasted in a transcript on 2026-09-03.)
+- **Supabase local/live separation and credential rotation.** `.env.local`
+  currently leaves `PORTAL_BACKEND` and `PORTAL_DATA_FILE` unset, so a plain
+  local run can promote itself to configured Supabase. Set an explicit file
+  backend/path before local mutation work and rotate the DB
+  password + `sbp_` token that were pasted in a transcript on 2026-09-03.
 - **Stripe live account** — every "finish live Stripe acceptance" P1 item (#33 #42 #45 #69
   #122 #123 memberships/affiliates/ecommerce). Code + file-backend behaviour is done on
   most; live-provider acceptance needs your account.
 - **Meta / Instagram developer app** — social inbox connect (#11), Meta messaging.
-- **Email / SMTP provider** — Email Sender live acceptance (#43).
+- **Email / SMTP provider** — the 2026-09-08 Railway deep probe reports required
+  email `needs-setup` and the release `readyForProduction:false`; configure and
+  prove Email Sender/enquiry/security delivery (#43).
 - **Other provider keys** — voice/call recorder (#145), any live-provider ledger/webhook
   acceptance across the P1 list.
 
@@ -65,9 +96,13 @@ provider. Meta/Twilio/Google are per-feature and can follow.
 - **Apex `aqua-crm.com` cert** — only `www` is registered on the Railway plan; the apex
   serves an invalid cert. Add the apex domain in Railway (needs the plan slot) or drop the
   apex DNS.
-- **Supabase PITR + restore rehearsal** — daily physical backups exist but PITR is OFF and
-  no restore was rehearsed (TODO). Recovery isn't fully verified.
-- **Deployment env verification** (TODO, Ed-only).
+- **Recovery activation** — PITR is OFF. The repository now has a self-managed
+  encrypted backup runbook and workflow, but it is not production-proven until
+  `BACKUP_ENABLED`, keys/secrets, durable off-Supabase delivery, a downloaded
+  live-artifact restore, timing and missed-backup alert proof are complete.
+- **Deployment environment verification** — `www` serves and database/security/
+  uploads report ready, but email is missing, the detailed probe incorrectly
+  returns HTTP 200 while unready, the deployment SHA is null and apex TLS fails.
 
 ## 🧭 Decisions I need from you (won't guess)
 

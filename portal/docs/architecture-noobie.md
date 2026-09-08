@@ -2,8 +2,9 @@
 
 ← [development.md](development.md) is the law. This is the map you read first.
 
-Written 2026-08-20. No jargon, no assumed knowledge. If a sentence here needs a
-glossary, it is a bad sentence — tell me and I will rewrite it.
+Written 2026-08-20; current-status pointers reconciled 2026-09-08. No jargon,
+no assumed knowledge. If a sentence here needs a glossary, it is a bad sentence
+— tell me and I will rewrite it.
 
 ---
 
@@ -136,7 +137,8 @@ The element registry and its first three phases are shipped under
 and portal families still need to be widened onto the shared definitions before
 an assistant can compose every real surface from one complete catalogue. See the
 current “Engine widening + assistant proposals” item in
-[checklist.md](development/checklist.md).
+[TODO.md](development/TODO.md). Release evidence is separate in
+[PRODUCTION-READINESS.md](development/PRODUCTION-READINESS.md).
 
 ---
 

@@ -7,8 +7,10 @@ carried around in one head.
 > universal Editor now saves/creates repository files on a draft branch, opens a
 > pull request and can merge it; that path was exercised against a real client
 > repository on 2026-08-22. Client-tier modelling and mounting the whole Editor
-> in a client portal remain open. Current status lives in
-> [development/checklist.md](development/checklist.md).
+> in a client portal remain open. Current product and launch status lives in
+> [development/PRODUCTION-READINESS.md](development/PRODUCTION-READINESS.md),
+> with remaining work in [development/TODO.md](development/TODO.md). The body
+> below is the 2026-08-24 product-model snapshot, not a current release verdict.
 
 ## The idea
 

@@ -71,7 +71,7 @@ export default async function DevWorkspacePage() {
           <section className="mt-8 rounded-xl border border-dashed border-black/15 bg-white/60 p-7 text-center sm:p-10">
             <FolderGit2 className="mx-auto text-black/20" size={28} />
             <h3 className="mt-4 text-lg font-semibold">No projects have been shared with you.</h3>
-            <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-black/50">An owner can assign one from Settings → Roles and access. If you received an exact project link, open it to submit a permission request without gaining access first.</p>
+            <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-black/60">An owner can assign one from Settings → Roles and access. If you received an exact project link, open it to submit a permission request without gaining access first.</p>
           </section>
         )}
       </div>

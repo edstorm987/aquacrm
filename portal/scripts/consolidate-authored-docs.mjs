@@ -20,7 +20,7 @@ export const AUTHORED_VOLUMES = [
   {
     path: "docs/02-CURRENT-STATE-AND-WORK.md",
     title: "Current state and work",
-    description: "The current checklist, status, roadmap, goals, decisions and working queue.",
+    description: "The current readiness assessment, one task list, status history, roadmap, goals, decisions and working queue.",
   },
   {
     path: "docs/03-ISSUES-AUDITS-AND-TESTS.md",
@@ -40,7 +40,7 @@ export const AUTHORED_VOLUMES = [
   {
     path: "docs/06-DEV-TEAM-OPERATIONS.md",
     title: "Dev Team operations",
-    description: "Commander/worker briefs, orchestration, live state and operational handoffs.",
+    description: "Commander/worker briefs, orchestration guidance, compatibility state and operational handoffs; individual sources identify whether they are current or historical.",
   },
   {
     path: "docs/07-INTEGRATIONS-COMPLIANCE-AND-BRANDS.md",
@@ -89,7 +89,12 @@ async function walk(directory, out = []) {
 
 function volumeFor(path) {
   if (path.startsWith("docs/reference/")) return null;
-  if (path === "docs/development/updates.md" || path.startsWith("docs/context/archive/")) {
+  if (
+    path === "docs/development/updates.md"
+    || path === "docs/development/checklist.md"
+    || path === "docs/development/todo-retired.md"
+    || path.startsWith("docs/context/archive/")
+  ) {
     return "docs/08-HISTORY-AND-ARCHIVE.md";
   }
   if (path.startsWith("docs/development/plans/") || /(?:^|\/)DELIVERY-PLAN\.md$/i.test(path)) {
@@ -105,10 +110,10 @@ function volumeFor(path) {
     return "docs/03-ISSUES-AUDITS-AND-TESTS.md";
   }
   if (
-    path === "docs/development/checklist.md"
+    path === "docs/development/PRODUCTION-READINESS.md"
+    || path === "docs/development/TODO.md"
     || path === "docs/development/status.md"
     || path === "docs/development/roadmap.md"
-    || path === "docs/development/todo-retired.md"
     || path === "docs/development/goals.md"
     || path === "docs/development/notes.md"
     || path === "docs/CURRENT-IMPLEMENTATION.md"

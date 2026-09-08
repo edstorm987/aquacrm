@@ -24,11 +24,35 @@ The first process covers every script test and every non-Website-Editor module
 suite. The separate Website Editor runner deliberately uses client-capable React
 conditions. `PORTAL_BACKEND=memory` keeps stateful tests off the live sandbox.
 
-> The final canonical `npm run smoke:all` Node phase executed **6,474 tests across
-> 1,096 suites: 6,472 passed / 0 failed / 2 skipped in 84,567.504209ms**; the
-> subsequent Website Editor gate passed **49/49 files in 9.3s**. The browser/build
-> evidence below is local or isolated-production evidence, not deployed-provider,
-> cold-machine or broad mounted-human acceptance.
+> **Committed baseline — 8 September 2026, clean `main` at `a808bb3f`.** The
+> canonical `npm run smoke:all` Node phase executed **6,774 tests across 1,143
+> suites: 6,772 passed / 0 failed / 2 skipped**; Website Editor **49/49**;
+> TypeScript + production build passed (247/247). The safe browser matrix was
+> **1,314/1,326** (one serious contrast cluster repeated twelve times).
+>
+> **Current working tree — 8 September 2026 (UNCOMMITTED engineering pass on top of
+> `a808bb3f`).** With the local changes: `npm run smoke:all` Node phase **6,802
+> tests: 6,800 passed / 0 failed / 2 skipped**, Website Editor **49/49**, typecheck
+> 0, isolated production build **247/247** (no Supabase-hydration warnings), audit
+> 0. The full 13×17 browser matrix is **1,326/1,326, 0 serious/critical** (the
+> contrast cluster is fixed, #189). The two skips remain optional live-database
+> lanes: **NOT TESTED**, not green. These results are UNCOMMITTED and UNDEPLOYED.
+> See [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md) for the current gate ledger.
+
+## 2026-09-08 UI/UX acceptance harness (Wave 1)
+
+`scripts/ui-acceptance.mjs` + `scripts/ui-acceptance-inventory.mjs` extend
+`browser:matrix` beyond its 13 routes to the FULL 124-route inventory, with
+per-region overflow (document + `#main-content`), off-horizontal-edge and
+axis-aware clip geometry checks, axe, and settled screenshots, written to an
+ignored `.artefacts/ui-acceptance-<ts>/`. Run against an isolated file-backed
+sandbox (`AQUA_BASE=http://localhost:<port>`); sign-in is `/dev`. Filters:
+`AQUA_UI_ROUTES` (substring), `AQUA_UI_VIEWPORTS`, `AQUA_UI_SHOTS`. **Honesty
+caveats baked into the report, not the tool:** the Next.js dev-mode indicator
+("N"), HMR "execution context destroyed" and slow-compile timeouts are dev
+artifacts, not app defects; a clean run needs a settled loader (12s wait) so axe
+scans real content, not the transient loading curtain. Wave-1 results and the open
+P1s: [UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08.md](UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08.md).
 
 ## 2026-09-03 Supabase migrations applied to live (VERIFIED)
 
@@ -404,7 +428,10 @@ from source, not run.**
   people, command-centre, assistant, website/editor, fulfilment, platform).
 
 ## ⚠ Gotchas
-- **7 files omit the `smoke-` prefix**, so `npm run smoke:all`'s narrow glob misses them (the `*.test.ts` full-suite glob catches them): `company-health`, `client-aqua-health`, `client-marketing-service`, `client-workspace-navigation`, `hiring-capacity`, `attention-protection`, `inbox-attention-thread`. **Always run the full `scripts/*.test.ts` glob**, not `smoke:all`.
+- **Corrected 2026-09-08:** older wording said `npm run smoke:all` missed seven
+  files without a `smoke-` prefix. That is no longer true: the package script now
+  expands `scripts/*.test.ts`, so those files are included. Use the canonical
+  command rather than reconstructing an older glob by hand.
 - `audit-*.ts` files (e.g. `audit-alert-families.ts`, `audit-judgement-evidence.ts`) are **read-only diagnostics** — run manually (`npx tsx scripts/audit-*.ts`), print tables, are not pass/fail tests.
 - **`verify-marketing-runtime.ts` is an in-process runtime harness**, not a suite test: `PORTAL_BACKEND=memory NODE_OPTIONS='--conditions react-server' npx tsx scripts/verify-marketing-runtime.ts` (29 documented checks). It builds a fresh agency + a **real** Radar and command-intelligence snapshot, so it proves the marketing spine *runs*, not just that it is shaped right — it caught a fabricated-zero bug the synthetic-fixture tests structurally could not. It stays out of the suite because it calls `ensureHydrated({ fresh: true })` and the suite runs files **concurrently in one process**, where a state wipe pollutes other files. **This is a good pattern to copy** when a module's real path is only exercised at render time.
 - HTTP/e2e `.mjs` harnesses (`smoke.mjs`, `post-deploy-smoke.mjs`, `smoke-perf.mjs`, `smoke-postgres.mjs`) need a live server.

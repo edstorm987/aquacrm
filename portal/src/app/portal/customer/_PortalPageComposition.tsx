@@ -10,6 +10,7 @@ import {
 import type { ReactNode } from "react";
 
 import { READ_UNAVAILABLE_LABEL } from "@/lib/readAvailability";
+import { stableUkDateString } from "@/lib/shared/formatDateTime";
 import { customerPortalReadPhase } from "@/lib/portal/customerPortalReadState";
 import { formatPortalCopy } from "@/lib/portal/clientPortalDesign";
 import { portalBlockMatchesProducts, portalCustomPage, portalPageBlocks } from "@/lib/portal/clientPortalBuilder";
@@ -299,6 +300,6 @@ function invoiceTotals(
 }
 
 function formatDate(timestamp: number): string {
-  try { return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" }).format(timestamp); }
+  try { return stableUkDateString(new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" }).format(timestamp)); }
   catch { return "Recent"; }
 }

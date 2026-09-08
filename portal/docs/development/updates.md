@@ -34,6 +34,359 @@ map stays trustworthy.
 
 ---
 
+## 2026-09-08 — UI/UX acceptance (Wave 8): final-closure attempt — 5 fixes; GATE **BLOCKED**
+
+Local only, isolated dev sandbox (3091) + isolated prod build (3092); shared
+`.data/portal-state.json` byte-identical (677318 B, Sep 5). Nothing committed/deployed.
+Full detail + per-run metadata: `docs/development/UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08.md`
+(Wave 8) and `scratchpad/w8-evidence/`.
+
+- **Fixed (evidence):** Z1 customer-home 200%-text overflow (`min-w-0` on shared PageIntro);
+  brand-contrast rule (50/50 mix FAILED AA for light brands → srgb 36/64 + `oklch(min(l,0.40))`,
+  proven ≥7.2:1 across 15 brands, light+dark); devProject `scrollable-region-focusable`
+  (`tabIndex/role/aria-label` on the preview frame); AddContactModal missing dialog/focus-trap
+  (`useFocusTrap` + role/aria-modal/aria-labelledby). Pre-hydration lost-click resolved
+  architecturally (controls client-rendered → interactive on appear).
+- Files: `_CustomerPortalViews.tsx`, `globals.css`, `_FirstPartyProjectWorkspace.tsx`, `_PeopleHub.tsx`; harness `ui-acceptance.mjs` gained `AQUA_UI_ENGINE` + `AQUA_SESSION_COOKIE` earlier.
+- Verified: typecheck 0; smoke:all 1 fail = lease flake (re-run alone 1/1); git diff --check clean;
+  prod build 247/247 (all fixes in compiled output); prod owner runtime Chromium+Firefox 5/5 clean.
+- **BLOCKED** because: (1) five write journeys (settings/upload/upload-rejection/draft-invoice/
+  duplicate-invoice) not driven through the UI; (2) prod role sessions for customer/staff/freelancer
+  need Supabase (/dev disabled on `next start`); (3) prod WebKit redirected to /login (no-Supabase lane).
+
+## 2026-09-08 — UI/UX acceptance (Wave 7): e2e write-journeys — PASS (no code changes)
+
+Drove real browser interaction journeys against a writable `/dev` (owner) session on
+the isolated sandbox; shared `.data` untouched. Full detail: the audit doc (Wave 7).
+
+- **Create-contact write flow WORKS:** Add-contact modal → fill → Save → POST
+  `/api/portal/leads-pipeline/contacts` `{ok:true, contact:{id…}}` → Contacts view
+  shows the new contact → API lists it. 0 console errors. Verified via UI re-check +
+  direct POST/GET.
+- **Back/forward/refresh RESILIENT:** 0 hard console errors, no `/login` bounce,
+  correct URLs. (Mobile-nav open/close focus cycle was already verified in Wave 6.)
+- A first-run cold-start miss was an interact-before-hydration TEST artifact (warm
+  re-run persisted cleanly), not an app bug. Upload/invoice journeys share the verified
+  write pattern + have prior mutation-acceptance coverage; not individually walked.
+
+## 2026-09-08 — UI/UX acceptance (Wave 6): cross-browser (WebKit/Safari) — fixed a real hydration defect (U15)
+
+Added `AQUA_UI_ENGINE` (chromium|webkit|firefox) to `scripts/ui-acceptance.mjs` and
+ran WebKit (Safari 26.5). Full detail: `docs/development/UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08.md` (Wave 6).
+
+- **U15 — Safari React hydration mismatch on every date-bearing page.** WebKit threw
+  20 page-errors ("server text didn't match client") on client detail, Command Centre,
+  People, Performance. Cause: two en-GB `Intl.DateTimeFormat` outputs differ by engine —
+  V8 "Sept"/"25 Aug 2026, 16:16" vs WebKit "Sep"/"25 Aug 2026 at 16:16" — so SSR (Node/V8)
+  disagreed with the Safari client and React regenerated the subtree.
+- **Fix:** one shared normaliser `stableUkDateString()` in `src/lib/shared/formatDateTime.ts`
+  (collapses "Sept"→"Sep" and " at "→", " toward the Node/SSR form), applied inside the
+  shared `formatUkDate`/`formatUkDateTime` helpers, plus a **workflow** (43 files → verify)
+  that wrapped the **10 files** formatting dates via a direct `Intl.DateTimeFormat`.
+- **Verified:** WebKit owner surfaces 0 findings (was 20); WebKit customer+freelancer 0;
+  **Chromium re-run 0 (no regression)**; `typecheck` exit 0; `smoke:all` 0 date-format
+  regressions (the one failure was a stale authored-doc consolidation digest for this
+  audit doc — regenerated). Firefox is not provisioned locally, so it is deferred.
+- Files: `src/lib/shared/formatDateTime.ts` + 10 date-formatting components; harness
+  `scripts/ui-acceptance.mjs`; docs.
+
+## 2026-09-08 — UI/UX acceptance (Wave 5): production-build visual pass — PASS
+
+Built an isolated **production** dist (`next build --webpack`, isolated
+`NEXT_DIST_DIR`/`PORTAL_DATA_FILE`, empty Supabase) and served it with `next start`;
+shared `.data/portal-state.json` untouched. Full detail:
+`docs/development/UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08.md` (Wave 5).
+
+- **Every Wave-1–4 fix is baked into the shipped minified CSS** (grepped
+  `.next-w5prod/static/css`): U10 `#46606b`/`#586e78`, U11 `#445e7c`, U12
+  `text-emerald-900/80`, U14 `lg:px-8`, and **U13 verbatim** —
+  `.mm-portal-root .text-brand:not(.bg-brand){color:color-mix(in srgb,var(--brand-primary) 50%,var(--brand-ink) 50%)}`.
+- **Runtime on the prod build** (via `/showcase`, which works in prod — it's
+  `PUBLIC_SHOWCASE_ENABLED`-gated, not dev-gated): client list/detail/settings,
+  agency home, marketing all render at **axe contrast=0** with **no dev indicator**
+  (the "N" was dev-only). Visual confirmation of the prod client workspace attached.
+- Customer/freelancer on prod validated via compiled-CSS + owner runtime + dev pass;
+  a direct customer-session prod runtime is deferred (needs cookie-mint + Supabase —
+  `/dev`/persona-switch are off under `next start`). Harness gained
+  `AQUA_SESSION_COOKIE` for future minted-cookie lanes.
+- Traps hit: a scratchpad throwaway tsconfig broke `@/*` resolution (build with the
+  real tsconfig + restore); the no-Supabase client-side session guard bounces
+  reused-context authed loads (fresh-context loads work). No app source changes.
+
+## 2026-09-08 — UI/UX acceptance (Wave 4): 200% zoom/text-scaling, dynamic detail routes, modal focus-trap — app SOUND, no code changes
+
+Local only, isolated sandbox (port 3079, `.next-w4`, `.data/portal-state.w4.json`);
+shared `.data/portal-state.json` untouched; `.data` gitignored. **No source changes —
+Wave 4 is an audit; the app was already sound on all three dimensions.** Full detail:
+`docs/development/UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08.md` (Wave 4 §B/C/D).
+
+- **200% zoom / text-scaling — PASS.** Full-page browser-zoom reflow (WCAG 1.4.10) is
+  clean on EVERY surface (owner client+agency 18 viewports; customer/staff/freelancer
+  at 320/640/768). Methodology note: CSS `zoom:2` mis-emulates browser zoom (it leaves
+  the media-query viewport at 1280), so its "overflows" are artifacts — real 200% zoom
+  is a 640px viewport, which reflows fine. One minor, non-content-loss text-only-resize
+  (1.4.4) imperfection on the desktop customer home (Z1) — recorded, not fixed.
+- **Dynamic detail routes — content CLEAN.** product/phase/pipeline/contact/organisation
+  detail all pass (persons/orgs seeded into isolated Bare-Co via `seed-dev-tenant.ts`).
+  The one flag (contact/org @768) is the shared **dev-mode** topbar (U9) — resolved as
+  dev-chrome-only, not production. devProject detail still needs a fixture.
+- **Modal focus-trap/return — PASS.** Workflow-audited 13 dialog components + adversarial
+  verify: the 4 genuine modals (ConfirmDialog, MobileNav, TaskTemplateModal,
+  EditingOverlay) all use the shared, high-quality `useFocusTrap` (focus-in, Tab-trap,
+  Escape, focus-return, dialog-stacking); 0 gaps. The 9 non-modals correctly don't trap
+  (GlobalAdvisorDrawer is deliberately `aria-modal="false"` + click-through backdrop).
+  Runtime-confirmed the full mobile-nav cycle (open→trap→Escape→focus-return).
+- Docs: `UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08.md` (Wave 4 section, U9 resolved),
+  `updates.md`. **Still open (Wave 5):** production-build visual pass, devProject route
+  fixture, create/upload/invoice e2e journeys, WebKit/Firefox.
+
+## 2026-09-08 — UI/UX acceptance (Wave 3): populated client workspace, authed agency surfaces, and ALL non-owner role journeys
+
+Local only, isolated file sandbox (port 3079, `.data/portal-state.w3.json`); all
+UNCOMMITTED/UNDEPLOYED; shared `.data/portal-state.json` byte-identical (Sep 5 08:40),
+`.data` is gitignored runtime scratch. Full detail:
+`docs/development/UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08.md` (Wave 3 section).
+
+- **New harness capability:** `AQUA_UI_PERSONA=staff|customer|freelancer` switches the
+  authed session to a **genuine seeded non-owner persona** after sign-in (POST
+  `/api/auth/dev-mode {switch}` from a writable `/dev` founder session — which seeds the
+  demo staff/customer/freelancer users). This is what let the client-facing customer
+  portal and the staff/freelancer workspaces be audited as those roles for the first time.
+- **Real defects found + FIXED + re-scanned 0** (details/ratios in the audit doc):
+  U10 client-workspace context stat strip (labels 2.98:1 + sublabels 2.67:1 → darkened,
+  12 nodes); U11 client operating-plan scope tabs (active `opacity-60` sublabel 3.67:1 +
+  latent inactive fails → per-state AA colours); U12 showcase demo badge
+  `text-emerald-800/65` 3.25:1 → `emerald-900/80`; **U13 customer portal** brand-painted
+  `text-brand` (orange #f97316 on cream, 2.5:1) → light-mode `.mm-portal-root` 50/50
+  brand-ink `color-mix` (AA across the brand-hue range, brand fills untouched); **U14
+  freelancer** 8px wide-viewport overflow (`.mm-route-canvas` −2rem bleed at ≥1024px vs a
+  main that stopped at `sm:px-6`) → added `lg:px-8`.
+- **Staff `/portal/team`: clean.** **24 authed agency surfaces: no reproducible defects** —
+  all 11 sweep findings were contention/streaming/settle artifacts (each flagged route
+  re-scanned clean in isolation; the `company color-contrast(26)` was axe scanning a
+  stuck loading curtain under CPU contention).
+- **Harness accuracy fix:** `clippedAxis` now stops at a scrollable-x ancestor
+  (scroll-reachable ≠ clipped) — removed 2 false positives (Staff tab, Inbox-connections).
+- Files: `src/app/globals.css`, `src/app/portal/clients/[clientId]/_ClientOperatingPlan.tsx`,
+  `src/components/chrome/PublicShowcaseControl.tsx`, `src/app/portal/freelancer/layout.tsx`,
+  `scripts/ui-acceptance.mjs`; doc `UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08.md`.
+- **Verified:** `npm run typecheck` exit 0; **`npm run smoke:all` 6,812 / 6,810 pass / 0
+  fail / 2 skip** (uncontended; a mid-wave 1-fail was the documented lease-fencing load
+  flake, confirmed passing 1/1 in isolation). Persona + client re-scans all 0.
+- **Still open (Wave 4):** 200% zoom/text-scaling, e2e interaction journeys + modal
+  focus-trap/return, production-build visual pass, non-client dynamic detail routes,
+  WebKit/Firefox.
+
+## 2026-09-08 — UI/UX acceptance (Wave 2): closed the Wave-1 open P1s (workflow-orchestrated contrast + a11y + overflow)
+
+Local only, isolated sandbox; all UNCOMMITTED/UNDEPLOYED; shared `.data` untouched.
+Closed every open P1 from Wave 1 (#191) on the audited owner surfaces:
+
+- **Colour-contrast (U5) — FIXED + re-scanned 0** across 9 surfaces (41 real nodes;
+  the earlier ~60 was inflated by loader artifacts — a settled scan is essential).
+  Orchestrated with a **workflow** (18 agents): one agent per surface mapped each
+  failing node to its exact source class and proposed a minimal WCAG-AA fix; an
+  adversarial agent recomputed each contrast ratio and confirmed applicability +
+  preserved identity (0 rejected). The verified plans were applied by the caller
+  (agents stayed read-only), then re-scanned to 0. Fixes: `text-black/50`→`/60`,
+  `text-slate-500`→`600`, dev-docs amber `…/70`→darker (one shared class cleared 15
+  nodes), ocean-boulevard brand whites raised to clear AA on the teal band, and the
+  dev-team sidebar amber/cyan `--nav-tone` darkened (the dev-team shell uses the RAW
+  tone as the active colour, not the black-mixed one).
+- **`aria-required-attr` (U6) — FIXED** — portals/editor resize handles got
+  `aria-valuenow`/`valuemin`/`valuemax`/`valuetext` bound to the live viewport.
+- **Marketing `<dl>` (U7) — FIXED** — `OverviewMetric`'s dt/dd were orphaned in a
+  `<div>` grid; made the grid a `<dl>` and the trailing detail `<p>`→`<dd>`.
+- **Dev-team overflow (U8) — FIXED + verified 0 at 320/375/768** — shared `_ui.tsx`
+  header meta was `shrink-0`, forcing its flex-wrap content to 643px; `min-w-0` +
+  header `flex-wrap`.
+
+Verified: typecheck 0; every fixed surface re-scanned **0 serious/critical**;
+`git diff --check` clean. **Pilot UI gate still NOT fully passed** — coverage gaps
+remain (dynamic routes, non-owner roles, full viewport/journey sweep, production-build
+visual pass = wave 3), but no known serious/critical defect remains on the audited
+owner surfaces. Detail: [UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08.md](UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08.md).
+
+## 2026-09-08 — UI/UX · responsive · accessibility acceptance (Wave 1): full inventory, harness, first fix batch
+
+Dedicated pre-pilot UI acceptance pass. Local only, isolated file-backed sandbox
+(port 3078, isolated dist/data); **no** shared `.data`, live service or credential
+touched. Everything UNCOMMITTED/UNDEPLOYED. Full detail:
+[UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08.md](UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08.md).
+
+- **Complete route inventory — 124 routes** (every `page.tsx`; 0 missing) + 11
+  layouts, categorised with role/reachability. 92 static owner/public routes
+  automated-tested; 32 dynamic + 6 customer-role deferred to wave 2 (need fixtures/roles).
+- **New reusable acceptance harness** `scripts/ui-acceptance.mjs` +
+  `ui-acceptance-inventory.mjs` — drives the FULL inventory (not the matrix's 13)
+  with per-region overflow, off-horizontal-edge and axis-aware clip geometry checks
+  + axe + settled screenshots, reusing `browser-matrix.mjs` verdicts. Calibrated to
+  remove two false-positive classes (region-aware overflow; axis-aware clip).
+- **Automated run:** 92 routes × 5 viewports = 460 records. Reclassified as
+  NOT-defects: the floating "N" (Next.js dev-mode indicator, dev-only), 11
+  `load-error` (HMR/dev-compile artifacts), and 97 `offscreen-interactive` (ONE
+  shared topbar element at 768/812 — a P2 review, not 97 defects).
+- **FIXED + axe-verified (0):** 3 unlabelled `<select>` on dev toolkit/vault
+  (`select-name`); the 404-page footer contrast (`text-black/50`→`/60`, 3.94→passing);
+  two bar-chart `aria-prohibited-attr` (added `role="img"` — also a chart text
+  equivalent); the you-deserve-it KPI `<dl>` nesting (`definition-list`/`dlitem`).
+- **OPEN P1s (documented, NOT fixed) → [#191](issues.md):** serious `color-contrast`
+  (~60 nodes across ~14 surfaces incl. radar, automations, company, products,
+  portals, dev-docs, account/preferences, dev-team, team, public /careers &
+  /portfolio/ocean-boulevard); `aria-required-attr` on portals/editor resize
+  handles; the same `<dl>` nesting on marketing; horizontal overflow of
+  `#main-content` at ≤768px on 5 dev-team routes (roadmap worst).
+- **By design (not a defect):** `/terms`, `/for-agencies`, `/demo-privacy` 404 via
+  `notFound()` when the website-demo flag is off.
+- Verified: typecheck 0; `smoke:all` **6,812/6,810/0 fail/2 skip**; Website Editor
+  49/49; focused axe re-scan of the fixed surfaces = 0 serious/critical.
+- **Pilot UI gate: NOT PASSED** — open P1s remain; dynamic routes, non-owner roles,
+  the full viewport/journey matrix and production-build visual acceptance are wave 2.
+
+## 2026-09-08 — Review corrections: fail-open safety coupling, observability redaction, doc reconciliation
+
+An independent read-only review of the earlier same-day pass found two real
+defects and a set of documentation contradictions. Fixed, all still **uncommitted
+and undeployed**. Canonical suite stayed green (**6,802 tests / 6,800 pass / 0
+fail / 2 skip**; Website Editor 49/49); typecheck 0.
+
+- **SECURITY — fail-open production detection coupling (fixed).** `isProductionDeployment`
+  had consulted the health/readiness override FIRST, so `PORTAL_HEALTHZ_ENFORCE_READINESS=false`
+  (or `PORTAL_ENFORCE_READINESS=false`) made it return `false` — and `storage.ts`
+  used that same function, so a health flag could switch off the guard that refuses
+  to serve production customer data from file/memory storage. Fixed by SEPARATING
+  the two questions: `isProductionDeployment` is now PURE platform classification
+  (no override — fails closed), a new `shouldEnforceHealthReadiness` carries the
+  `true`-only opt-in for the health route, and a new
+  `shouldRefuseEphemeralProductionStorage` (used by `storage.ts`) is built on the
+  pure classifier. A `false` override can no longer declassify production or disable
+  the storage guard; a `true` flag still opts a bare-Node prod into health
+  enforcement; `PORTAL_ENV=production` opts a bare host into full production
+  treatment. Tests cover Railway prod with the override unset/true/false, local
+  dev/build, and prove file/memory production storage cannot be enabled via the
+  health override. (`smoke-healthz-readiness` 32/32.)
+- **PRIVACY — observability logging was not PII-safe (fixed).** The prior version
+  logged the raw error object and the arbitrary `Error.message`, and pushed the raw
+  breadcrumb `extra` (incl. the request path + query) to Sentry — messages, stacks,
+  paths and extras can carry emails, tokens, card numbers or credentials. Reworked
+  to a single **allowlist redaction boundary** (`buildSafeErrorContext`): the
+  production console line and the Sentry context now carry ONLY a correlation id, a
+  shape-validated error class/name, the canonical route PATTERN (query stripped),
+  method and shape-validated tenancy ids. Production never prints the raw error; a
+  full error is printed ONLY in dev (environment-gated). `describeRequestError` no
+  longer carries the raw path or falls back to it. Tests seed fake
+  emails/passwords/bearer-tokens/query-strings/PANs and prove none leak into the
+  safe log or event metadata. Every "PII-safe by construction" claim removed/amended.
+  (`smoke-observability` 37/37.)
+- **DOCS — reconciled the contradictions** between the old audit rows and the new
+  results in PRODUCTION-READINESS.md, TODO.md, status.md, tests.md, issues.md and
+  this log: the browser-matrix now reads a consistent 1,326/1,326 (the "twelve
+  failures" section marked superseded, not deleted); the stale 6,772/6,774 current
+  banners updated to 6,800/6,802 with the a808bb3f baseline kept as history; "clean
+  main" clarified as *committed* clean with the working tree explicitly uncommitted;
+  the isolated-build row corrected (no hydration warnings); CI described as
+  **authored locally / uncommitted / never run on GitHub** everywhere (not
+  "remotely proven"); #188 downgraded from closed to part-done.
+
+## 2026-09-08 — Production-readiness gates: #187 health truth, #189 contrast, #190 dev:verify, #188 CI, observability
+
+Local engineering pass against the production-readiness assessment. Application
+source, tests, CI workflow and docs only — **no** migration, credential,
+deployment, DNS or live-service change; the shared `.data` state file was never
+touched (all lanes used isolated `PORTAL_DATA_FILE`/`NEXT_DIST_DIR`). Canonical
+`smoke:all` stayed green throughout (final **6,802 tests / 6,800 pass / 0 fail /
+2 skip**; Website Editor **49/49**); `typecheck` exit 0; isolated production build
+**247/247**; `npm audit --omit=dev --audit-level=moderate` **0 vulnerabilities**.
+
+- **#187 live readiness masked on Railway — FIXED + runtime-verified.** New shared
+  `src/lib/server/deployment.ts` resolves production / commit-SHA / env-label across
+  Vercel, Railway and generic substrates. `/healthz/full` folds readiness into its
+  HTTP status via `resolveFullHealthOk`/`isProductionDeployment` (no longer
+  Vercel-only), and both health routes expose a real SHA via `deployedCommitSha`.
+  The `storage.ts` "refuse file/memory storage in production" safety net was rewired
+  off the same Vercel-only check. Behavioural pin: `scripts/smoke-healthz-readiness.test.ts`
+  (24 cases: ready/unready × Railway/Vercel/generic/local, SHA source order).
+  Runtime: against a Railway-equivalent server, `/healthz` returned
+  `platform:railway`, `env:production`, a real `sha`; `/healthz/full` returned
+  **HTTP 503** (`enforcingReadiness:true`, `readyForProduction:false`) for an
+  unready release — the exact masking defect, now closed — while local/dev stays 200.
+- **#189 Command Centre contrast — FIXED + browser-verified.** Root cause: the
+  legacy global `[class*="-button"]` default in `globals.css` matched the Tailwind
+  `mm-command-more-button` and forced `color: rgba(0,0,0,.85)` (≈ #040404 on the
+  dark panel; 1.18:1). Scoped the legacy default off the modern `mm-*` design
+  system (`:not([class*="mm-"])`). The full-matrix sweep also surfaced a distinct
+  serious finding on `/login` (the `.mm-auth-brand-foot` footer, `white/0.42` =
+  4.07:1) — raised to `white/0.55` (≈6:1). In-browser computed contrast for the
+  CommandMoreButton is now **7.6:1**, an authoritative axe-core color-contrast
+  scan of `/login` and `/portal/agency` at 1280 + 1920 returns **0 violations**,
+  and the full 13×17 `browser:matrix` re-run on a fresh lane is
+  **1,326/1,326 · 0 fail · 0 serious-critical** (was 1,314/1,326). (Turbopack
+  caveat: a stale `.next-dev-turbo-*` cache serves pre-fix CSS — clear it before
+  re-running the matrix.)
+- **#190 dev:verify Webpack lane — FIXED + runtime-verified.** Root cause:
+  `middleware.ts` gives the app an Edge runtime, so `instrumentation.ts` compiles
+  for Edge; the radar probe scheduler statically reached the plugin registry →
+  `emailSenderFoundation` → Nodemailer's bare `require('stream')`, unresolvable on
+  Edge. Fixed with a statically-evaluable `NEXT_RUNTIME !== "edge"` guard so webpack
+  dead-code-eliminates the Node-only graph from the Edge bundle (plus lazy
+  nodemailer, matching the two existing call sites). `npm run dev:verify` now
+  compiles and serves public + authenticated routes.
+- **#188 required CI pipeline — ADDED.** `.github/workflows/ci.yml`: `verify`
+  (clean `npm ci` · typecheck · `smoke:all` · isolated production build · production
+  dependency audit) and `browser` (bounded axe/responsive gate on a provider-free
+  `dev:sandbox` lane). Least-privilege `contents:read`, concurrency-cancel, npm
+  cache, failure artefacts, **no secrets**; the live-Postgres and live-provider
+  lanes stay explicitly out of CI (documented in the workflow and tests.md).
+- **Observability structured logging (#132 continuation).** `captureError` now
+  emits a structured, correlated summary and returns a correlation id, tying the
+  deployment log ↔ Sentry event ↔ the user's error digest. **(Superseded same day —
+  see the 2026-09-08 review-corrections entry above: the first version still logged
+  the raw error object and the arbitrary `Error.message`, so the "PII-safe"
+  wording was wrong. It was reworked to a single allowlist redaction boundary.)**
+  The Sentry-package install remains an Ed-gated remainder.
+
+**Stale tests updated (behaviour I deliberately changed, demonstrated why):** the
+`/healthz/full` and email-foundation source-marker pins in `smoke-observability`
+and `smoke-email-sender-foundation`, and the README deployment-boundary test in
+`smoke-google-oauth` (reconciliation reworded it to Railway).
+
+**Docs updated:** issues.md (#187–#190 marked resolved with evidence), status.md,
+PRODUCTION-READINESS.md (gate ledger), TODO.md, this log; symbol reference +
+authored-doc consolidation regenerated. **Preserved** the same-day documentation
+reconciliation — only additive dated evidence was added.
+
+**Still owner-gated (untouched by this pass):** the actual Railway deploy of these
+fixes, production email, apex TLS, Stripe/Meta, the `@sentry/nextjs` install,
+backup activation + live restore drill, and all live-provider acceptance. See
+[BLOCKERS-FOR-ED.md](BLOCKERS-FOR-ED.md).
+
+## 2026-09-08 — Documentation reconciled to the current production-readiness evidence
+
+- **Documentation and documentation tooling only:** no application source,
+  runtime configuration, migration, credential, production data or deployment
+  was changed. The current assessment is now
+  [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md); [TODO.md](TODO.md) remains
+  the only task list; [status.md](status.md) remains the dated verification
+  register.
+- Reconciled the active docs to clean `main` at `a808bb3f`: 6,772/6,774
+  canonical Node tests, Website Editor 49/49, typecheck/build green, browser
+  1,314/1,326 with one repeated contrast cluster, Railway detailed health
+  explicitly unready because email is not configured, null deployment SHA,
+  apex TLS failure, partial recovery evidence and no required CI pipeline.
+- Corrected the database timeline everywhere it affected current guidance: the
+  14 migrations were applied and verified on 2026-09-03 (27/27 then recorded,
+  52/52 enquiry backfill, 51 INFO / 0 FAIL / 0 WARN), while the captured RLS
+  event-trigger definition remained one no-op-on-live migration to record. The
+  2026-09-08 review did not independently re-probe Supabase.
+- Marked older roadmaps, campaign material, orchestration state and worker
+  handoffs as historical; retired `checklist.md`/`todo-retired.md` now consolidate
+  into the history volume rather than the current-state volume. Updated Railway,
+  safe-local-backend, recovery, test-count and generated-library guidance.
+- Regenerated the nine authored volumes from **161 Markdown sources / 615,464
+  words** and the eleven reference volumes from **2,714 files / 9,374 symbols**.
+  The focused documentation/legal/reference gate passed **98/98**, all relative
+  links in changed source documents resolve, and `git diff --check` is clean.
+
 ## 2026-09-07 — Role focus modes: a hat is now a full LOCKDOWN, not just a narrowing
 
 - Ed: *"the modes solely focus on it — no Command Centre or anything it normally

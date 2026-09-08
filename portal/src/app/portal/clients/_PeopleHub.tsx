@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 import { AttentionDot } from "@/components/chrome/NotificationAttentionProvider";
 import { Building2, ClipboardPenLine, Columns3, Fingerprint, HeartPulse, List, Mail, Megaphone, Phone, Plus, Route, Save, Search, Settings, UserRound, UserSearch, UsersRound, X, type LucideIcon } from "lucide-react";
 
@@ -707,10 +708,18 @@ function Empty({ text }: { text: string }) {
 function AddContactModal({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // Modal keyboard contract: focus enters the form, Tab stays inside it, Escape backs
+  // out (except mid-save), focus returns to the Add contact button.
+  const dialogRef = useRef<HTMLFormElement>(null);
+  useFocusTrap(dialogRef, true, { onEscape: busy ? undefined : onClose });
   return (
     <div className="fixed inset-0 z-[80] grid items-end bg-black/40 sm:items-center sm:p-6">
       <button type="button" aria-label="Close contact form" className="absolute inset-0" onClick={onClose} />
       <form
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="add-contact-title"
         className="relative mx-auto max-h-[100dvh] w-full max-w-xl overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl sm:max-h-[92dvh] sm:rounded-lg sm:p-6"
         onSubmit={async event => {
           event.preventDefault();
@@ -744,7 +753,7 @@ function AddContactModal({ onClose }: { onClose: () => void }) {
           }
         }}
       >
-        <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wide text-black/40">New relationship</p><h2 className="mt-1 text-xl font-semibold">Add contact</h2></div><button type="button" onClick={onClose} aria-label="Close" className="grid size-9 place-items-center rounded-md border border-black/10"><X size={16} /></button></div>
+        <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-wide text-black/40">New relationship</p><h2 id="add-contact-title" className="mt-1 text-xl font-semibold">Add contact</h2></div><button type="button" onClick={onClose} aria-label="Close" className="grid size-9 place-items-center rounded-md border border-black/10"><X size={16} /></button></div>
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <Input label="Name" name="name" placeholder="Jane Smith" />
           <Input label="Email" name="email" type="email" placeholder="jane@company.com" required />

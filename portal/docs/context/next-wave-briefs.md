@@ -2,6 +2,10 @@
 
 ← [state.md](state.md) · Written 2026-08-19 · **P0/P1 queue corrected against source/runtime evidence 2026-08-24.**
 
+> **HISTORICAL BRIEF LIBRARY — DO NOT DISPATCH AS THE CURRENT QUEUE.** Use
+> `docs/development/PRODUCTION-READINESS.md` and `docs/development/TODO.md`, then
+> re-verify source and ownership before adapting any brief below.
+
 > 🛑 **READ THIS BEFORE YOU PASTE ANYTHING FROM THIS FILE.**
 > This file holds paste-ready worker briefs. **A stale brief is worse than a stale doc** — it sends a
 > real worker to "fix" code that is already fixed and hardened. That happened: on 2026-08-20 the
@@ -117,7 +121,7 @@ still works unchanged; a duplicate email still 409s the same way it does today.
 HARD RULES: full suite before done (PORTAL_BACKEND=memory NODE_OPTIONS='--conditions react-server'
 npx tsx --test scripts/*.test.ts — the full `scripts/*.test.ts` glob, NOT smoke:all) · own sandbox
 (npm run sandbox:fork -- <name> <port>) · npm run worker:checkin · NEVER TOUCH GIT (the tree is
-all-uncommitted — a push triggers Vercel → production, and `git checkout <file>` deletes other
+all-uncommitted — a push to the deployment branch may trigger Railway production, and `git checkout <file>` deletes other
 workers' unshipped work; back up to the scratchpad and restore with cp).
 ```
 

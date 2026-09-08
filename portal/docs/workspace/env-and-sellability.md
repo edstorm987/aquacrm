@@ -6,7 +6,8 @@
 > this chapter changed behaviour. In-app encrypted configuration paths have moved
 > since this checkpoint (including Finance and Meta), so re-run the env-only scan
 > before using the table to scope sellability. The open re-audit remains on
-> [checklist.md](../development/checklist.md).
+> [TODO.md](../development/TODO.md); current launch evidence is in
+> [PRODUCTION-READINESS.md](../development/PRODUCTION-READINESS.md).
 
 ## The principle this chapter serves
 

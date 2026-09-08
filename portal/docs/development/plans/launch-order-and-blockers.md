@@ -1,5 +1,11 @@
 # Launch: the order, and what is stopping us
 
+> **HISTORICAL LAUNCH PLAN (written 27–28 August 2026).** Its Vercel steps,
+> readiness counts, test totals and “everything buildable” statements describe
+> that dated environment and are not current instructions. AquaCRM now runs on
+> Railway. Use [PRODUCTION-READINESS.md](../PRODUCTION-READINESS.md) for the
+> 8 September evidence and [TODO.md](../TODO.md) for the current queue.
+
 **Written 2026-08-27** for Ed's ask: *"i need everything working complete
 production ready TODAY… tick verify all of the phases, then full browser
 walkthroughs, then production ready and verified secure… anything you need or is

@@ -2,19 +2,49 @@
 
 ← Back to [development.md](../development.md) (the law)
 
-> **Current checkpoint: [TODO.md](TODO.md).** This register explains
-> verification depth and keeps dated feature evidence; it is not a second
-> "where we stand" summary. The final canonical `npm run smoke:all` Node phase
-> executed **6,474 tests across 1,096 suites: 6,472 passed / 0 failed / 2 skipped
-> in 84,567.504209ms**; its subsequent Website Editor runner passed **49/49 files
-> in 9.3s**. Chromium **151.0.7922.34** accounted for all **1,326** broad
-> production-target checks as **1,177 passed / 0 failed / 149 evidenced
-> observations / 0 missing**. The final primary local production webpack build
-> `bcNH7NEvlzmp6z1VXtmch` compiled in **79s**, completed TypeScript in **41s**
-> and generated **245/245** static pages in **416ms**.
-> Historical August deployment evidence below describes the release that was
-> actually deployed then; a later local build or GitHub push is not by itself a
-> new Vercel deployment.
+> **Checkpoint: 8 September 2026 (UI/UX acceptance Waves 1–2, additive).** A dedicated
+> pass inventoried all **124 routes**, built a reusable harness
+> (`scripts/ui-acceptance.mjs`), and — across two waves — fixed + re-scanned to **0
+> serious/critical** every confirmed a11y defect on the audited owner surfaces:
+> `select-name`, 404-footer + 41 real colour-contrast nodes (9 surfaces,
+> workflow-proposed + adversarially-verified AA fixes), chart `aria-prohibited-attr`,
+> `aria-required-attr` (portals/editor), the marketing/you-deserve-it `<dl>` defects,
+> and dev-team `#main-content` overflow at ≤768px (verified 0 at 320/375/768) (#191).
+> `smoke:all` **6,812/6,810/0/2**; typecheck 0. **The pilot UI gate is NOT FULLY
+> passed** — coverage gaps remain (dynamic routes, non-owner roles, full
+> viewport/journey sweep, production-build visual pass = wave 3), but no known
+> serious/critical defect remains on what was audited. Detail:
+> [UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08.md](UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08.md).
+>
+> **Checkpoint: 8 September 2026 (engineering pass, additive).** Four red release
+> gates were closed in source/tests/CI — see [updates.md](updates.md) and
+> [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md) § "Local engineering pass".
+> **#187** health truth (Railway-aware readiness + real SHA; runtime-verified 200
+> local / 503 unready on a Railway-equivalent server); **#189** contrast
+> (CommandMoreButton 1.18→7.6:1 and the login footer 4.07→≈6:1; axe-core = 0
+> violations on the affected pages/viewports); **#190** `dev:verify` compiles and
+> serves; **#188** required CI workflow added; plus structured/correlated
+> observability logging. Canonical suite **6,800/6,802 pass / 0 fail / 2 skip**,
+> typecheck 0, isolated build **247/247**, audit **0**. These are **locally
+> verified, not yet deployed** — evidence label: local-browser / isolated-build /
+> focused-test, never deployed-live.
+>
+> **Committed baseline — `a808bb3f` (8 September 2026). SUPERSEDED for current
+> state by the engineering-pass checkpoint immediately above.**
+> [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md) is the current evidence-backed
+> assessment and [TODO.md](TODO.md) is the one task list. This register preserves
+> older feature evidence; it is not a competing “where we stand” summary. On the
+> committed clean `main` at `a808bb3ff41808c7cc78d5c95530d47b213ffde1` (before the
+> uncommitted engineering pass above), the canonical Node phase executed
+> **6,774 tests across 1,143 suites: 6,772 passed / 0 failed / 2 skipped** and the
+> Website Editor runner passed **49/49 files**. TypeScript and the production
+> Webpack build passed; the build generated **247/247** entries. The safe local
+> browser matrix recorded **1,314 passed / 12 failed / 0 missing** across 1,326
+> checks; those failures were one repeated serious Command Centre contrast cluster
+> — **since fixed locally (#189); the matrix now passes 1,326/1,326** (see above).
+> Live `www` serves, but `/healthz/full` reports `readyForProduction:false`
+> because required email is not configured; apex TLS validation fails. Older
+> counts below remain dated history, not the current release baseline.
 >
 > **2026-09-03 Supabase migrations APPLIED to live:** with Ed's DB password + access token, all 14
 > pending migrations were applied to the live project via `supabase db push` after confirming a
@@ -23,7 +53,8 @@
 > 0 FAIL. The deployment blocker (build could not hydrate against live) is CLOSED. Backups exist but
 > PITR is OFF and no restore was rehearsed. `plans/supabase-alignment-2026-09-03.md` §9.
 >
-> **2026-09-03 Supabase alignment:** the one Supabase project (`dghzbsxbdatskserctgt`) is
+> **HISTORICAL 2026-09-03 pre-application snapshot — superseded by the applied
+> result immediately above.** At discovery, the one Supabase project (`dghzbsxbdatskserctgt`) was
 > production and is **eleven migrations behind the repository** (plus one grants migration added
 > today); the current build cannot hydrate against it. Read-only drift tool
 > `scripts/supabase-schema-status.mjs`; isolated rehearsal on a local stack proved ordered
@@ -83,10 +114,13 @@
 > 403. Fulfilment checked mutations at 390px and 1280px passed injected failure,
 > alert, no-reload, rollback-or-retain and retry acceptance.
 >
-> **Owned-sidecar database boundary:** the transactional receipt-deduplicated patch
-> and one-statement snapshot design is source/mocked verified. Its migrations have
-> **not** been applied to live PostgreSQL; remote database concurrency remains an
-> explicit deployment gate.
+> **Owned-sidecar database boundary (historical wording corrected 2026-09-08):**
+> the transactional receipt-deduplicated patch and one-statement snapshot design
+> is source/mocked verified. The repository records the relevant migrations as
+> applied to live on 2026-09-03, but this 2026-09-08 documentation review did not
+> independently reconnect to Supabase or repeat remote concurrency cases. Treat
+> migration application as dated evidence and remote concurrency acceptance as
+> still partial.
 >
 > **2026-08-24 scope correction:** the first documentation pass was
 > non-security-only. A later read-only review added a live-proven P0 session-
@@ -120,9 +154,9 @@ the same thing.
   representative 1280/768/375 layouts. Treat those routes as **render/navigation verified only**;
   saves, providers, alternate personas, failure injection and persistence are unconfirmed unless a
   row carries exact evidence.
-- The final canonical `npm run smoke:all` Node phase executed **6,474 tests across
-  1,096 suites: 6,472 passed / 0 failed / 2 skipped in 84,567.504209ms**; its
-  subsequent Website Editor runner passed **49/49 files in 9.3s**. This closes the
+- The 2026-09-08 canonical `npm run smoke:all` Node phase executed **6,774 tests across
+  1,143 suites: 6,772 passed / 0 failed / 2 skipped**; its subsequent Website
+  Editor runner passed **49/49 files**. This closes the
   repository source gate, not deployed-provider, live-PostgreSQL, cold-machine or
   broad human-usability acceptance.
 - A 2026-08-24 focused non-security rerun passed **98/98** across Editor AI,
@@ -186,7 +220,12 @@ matched the device viewport without overflow. Both curtain halves completed thei
 transforms, the handover node unmounted cleanly and the browser console stayed free of warnings and
 errors.
 
-## Current reliability and launch-safety checkpoint
+## Historical reliability and launch-safety checkpoints
+
+> The entries below retain the evidence and wording of their August checkpoints.
+> They are useful feature history but do not describe the current Railway
+> deployment, test totals or release verdict. Use the 8 September checkpoint at
+> the top of this file and [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md).
 
 **Unified Environment checkpoint (2026-08-26):** Settings now exposes one
 Sandbox Mode with Empty, Demo and Production snapshot datasets, writable/read-only

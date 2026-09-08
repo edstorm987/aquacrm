@@ -185,7 +185,7 @@ function PageIntro({
 }) {
   return (
     <header className="mb-8 flex flex-col justify-between gap-5 border-b border-black/10 pb-7 md:flex-row md:items-end">
-      <div className="max-w-3xl">
+      <div className="min-w-0 max-w-3xl">
         <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-[var(--portal-accent)]">{eyebrow}</p>
         <h1 className="mt-3 font-serif text-4xl leading-[1.05] text-[#1b1a18] sm:text-5xl">{title}</h1>
         <p className="mt-4 max-w-2xl text-sm leading-6 text-black/52">{body}</p>
