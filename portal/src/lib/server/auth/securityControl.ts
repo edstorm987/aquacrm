@@ -342,24 +342,49 @@ export type SessionGateResult =
 export function enforceSessionSecurity(session: SessionPayload): SessionGateResult {
   const control = readSecurityControl();
 
-  if (control.suspendedUsers[session.userId]) return { ok: false, reason: "suspended" };
+  // LIVE ANCHOR (Phase 2). A sandbox session's own userId/agencyId are the
+  // PERSONA it is impersonating, not the real operator. Suspension, lockdown
+  // and epoch decisions must bind the LIVE identity restored on exit
+  // (sandbox.returnUserId / returnAgencyId), so a user suspended — or a tenant
+  // locked — WHILE they are in sandbox loses access on the next request, and
+  // exiting/switching persona cannot mint a session around the block. We check
+  // BOTH identities: neither the persona nor the live anchor may be a bypass.
+  const liveUserId = session.sandbox?.returnUserId ?? session.userId;
+  const liveAgencyId = session.sandbox?.returnAgencyId ?? session.activeAgencyId ?? session.agencyId;
+  // Boolean incident switches (suspension, lockdown) carry no epoch stamp, so
+  // they are safe to evaluate against BOTH the persona and the live anchor with
+  // no false-positive risk. Epoch checks are NOT: `se` was stamped for the
+  // SESSION's own identity at issue, so comparing it to the live anchor's epoch
+  // would spuriously block a fresh sandbox session. Epochs therefore stay
+  // stamp-matched to the session's own identity; the live user's SUSPENSION is
+  // the primary incident control and it binds through sandbox here.
+  const suspectUserIds = new Set([session.userId, liveUserId]);
+  const lockScopes = new Set([session.activeAgencyId ?? session.agencyId, liveAgencyId].filter(Boolean) as string[]);
+
+  for (const uid of suspectUserIds) {
+    if (control.suspendedUsers[uid]) return { ok: false, reason: "suspended" };
+  }
 
   const stamped = session.se ?? { g: 0, t: 0, u: 0 };
   if (stamped.g < control.globalEpoch) return { ok: false, reason: "global-epoch" };
-  const tenantScope = session.activeAgencyId ?? session.agencyId;
+
   // Tenant lockdown: every session scoped to a locked tenant fails here until
   // the lockdown is LIFTED — reversible, unlike the epoch bump below. The
   // tenant's OWNERS are exempt: they hold the keys (they must be able to
   // investigate and lift the lock they set from the threat centre — otherwise
   // "lock my workspace" would lock the locksmith out with no UI path back).
   // A compromised OWNER account is contained with suspension or a user-epoch
-  // bump, which this exemption deliberately does not shield.
-  if (tenantScope && control.tenantLockdowns?.[tenantScope] && session.role !== "agency-owner") {
-    return { ok: false, reason: "tenant-lockdown" };
+  // bump, which this exemption deliberately does not shield. The owner exemption
+  // never applies to a SANDBOX session (its role is the persona's, and a real
+  // owner in sandbox is not "holding the keys" as that persona).
+  const ownerExempt = session.role === "agency-owner" && !session.sandbox;
+  for (const scope of lockScopes) {
+    if (control.tenantLockdowns?.[scope] && !ownerExempt) return { ok: false, reason: "tenant-lockdown" };
   }
-  if (tenantScope && stamped.t < (control.tenantEpochs[tenantScope] ?? 0)) {
-    return { ok: false, reason: "tenant-epoch" };
-  }
+
+  // Epoch checks — stamp-matched to the session's OWN identity only.
+  const ownScope = session.activeAgencyId ?? session.agencyId;
+  if (ownScope && stamped.t < (control.tenantEpochs[ownScope] ?? 0)) return { ok: false, reason: "tenant-epoch" };
   if (stamped.u < (control.userEpochs[session.userId] ?? 0)) return { ok: false, reason: "user-epoch" };
 
   if (session.sid) {

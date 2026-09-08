@@ -181,3 +181,34 @@ test("tenant lockdown exempts the tenant's owners — the locksmith keeps the ke
   unsuspendUser("owner-1", "ic");
   liftTenantLockdown("agency-keys", "ic");
 });
+
+// ─── Sandbox live-anchor (Phase 2) ──────────────────────────────────────────
+
+function sandboxSession(live: { user: string; agency: string }, persona: { user: string; agency: string }): SessionPayload {
+  return session({
+    userId: persona.user,
+    agencyId: persona.agency,
+    activeAgencyId: persona.agency,
+    role: "agency-owner",
+    sandbox: { access: "writable", returnUserId: live.user, returnAgencyId: live.agency, enteredAt: Date.now() },
+  } as Partial<SessionPayload>);
+}
+
+test("a live user suspended WHILE in sandbox loses access on the next request", () => {
+  const s = sandboxSession({ user: "live-op", agency: "live-agency" }, { user: "persona-demo", agency: "demo-agency" });
+  // Fresh: persona not suspended, live not suspended → ok.
+  assert.equal(enforceSessionSecurity(s).ok, true);
+  // Suspend the LIVE operator (not the persona). The sandbox session must fail.
+  suspendUser("live-op", "ic", "compromise found mid-session");
+  assert.deepEqual(enforceSessionSecurity(s), { ok: false, reason: "suspended" });
+  unsuspendUser("live-op", "ic");
+});
+
+test("a locked LIVE tenant blocks a sandbox session anchored to it (persona role is not an escape)", () => {
+  const s = sandboxSession({ user: "live-op", agency: "live-agency" }, { user: "persona-demo", agency: "demo-agency" });
+  lockdownTenant("live-agency", "ic", "tenant compromise");
+  // The owner exemption must NOT apply to a sandbox session.
+  assert.deepEqual(enforceSessionSecurity(s), { ok: false, reason: "tenant-lockdown" });
+  liftTenantLockdown("live-agency", "ic");
+  assert.equal(enforceSessionSecurity(s).ok, true);
+});
