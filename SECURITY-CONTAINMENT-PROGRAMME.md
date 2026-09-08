@@ -9,10 +9,19 @@ the first Phase-4 tranche, and the Phase-6 threat centre are COMPLETE — each
 with its honest PARTIAL list inline. Phase 5 runbooks are written against the
 REAL shipped controls (`docs/security/incident-runbooks.md`). All six phases
 have landed as enforced, tested controls; what remains is owner-gated (live
-migration, restore drill, AV/MFA/WAF providers). Branch pushed to origin;
-NEVER merged. This document
-is the honest ledger — every item carries VERIFIED / PARTIAL / BLOCKED /
-NOT TESTED / OWNER ACTION.
+migration, restore drill, AV/MFA/WAF providers).
+
+> **STATUS UPDATE (2026-09-09).** This branch was **MERGED to `main` as
+> `08670b62` and is deployed live on Railway** (superseding the earlier "never
+> merged" note above). A follow-up production-gate repair pass then hardened it
+> further on branch `security/production-gate-repair-20260908` — see the
+> canonical, current ledger in **`SECURITY-GATE-REPAIR-REPORT.md`**, which is
+> the single source of truth for findings, dispositions, the live SHA, the
+> (red) readiness verdict, and OWNER ACTIONS. Where this older document and the
+> gate-repair report disagree, the gate-repair report wins.
+
+This document is the historical Phase-0…6 ledger — every item carries VERIFIED /
+PARTIAL / BLOCKED / NOT TESTED / OWNER ACTION.
 
 > This is a security *architecture* programme, not a dashboard. Everything in
 > Phase 0 is an enforceable, tested control. Nothing here says "production

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-08T19:09:05.795Z",
+  "generatedAt": "2026-09-08T23:33:15.466Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -983,9 +983,9 @@
       "path": "docs/development/plans/rls-enable.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-rls-enable-md",
-      "sha256": "803185e8c9ccc9a63facaf4dc8f70ef27a8fbf2207262149bc6dbb569391e04e",
-      "words": 1606,
-      "bytes": 12806
+      "sha256": "f4bb5c6b76c8c6d066d06fc97b0433fb0ed3fd543ff1f8f9c2866f00cf3e77b8",
+      "words": 1762,
+      "bytes": 14061
     },
     {
       "path": "docs/development/plans/runtime-verification.md",

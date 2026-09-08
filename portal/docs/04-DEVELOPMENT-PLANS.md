@@ -2,7 +2,7 @@
 
 > Every active, completed and archived phased implementation plan and handoff.
 >
-> Consolidated 2026-09-08 from **63** source documents / **130,679 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-08 from **63** source documents / **130,835 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -57,7 +57,7 @@
 - [`docs/development/plans/public-bucket-HANDOFF.md`](#source-docs-development-plans-public-bucket-handoff-md) — 1,220 words · `773db28850a7`
 - [`docs/development/plans/public-bucket.md`](#source-docs-development-plans-public-bucket-md) — 764 words · `c13e9ce00332`
 - [`docs/development/plans/radar-upgrade.md`](#source-docs-development-plans-radar-upgrade-md) — 2,802 words · `76e0c777345b`
-- [`docs/development/plans/rls-enable.md`](#source-docs-development-plans-rls-enable-md) — 1,606 words · `803185e8c9cc`
+- [`docs/development/plans/rls-enable.md`](#source-docs-development-plans-rls-enable-md) — 1,762 words · `f4bb5c6b76c8`
 - [`docs/development/plans/runtime-verification.md`](#source-docs-development-plans-runtime-verification-md) — 1,390 words · `53ab85892882`
 - [`docs/development/plans/security-hardening.md`](#source-docs-development-plans-security-hardening-md) — 1,013 words · `072c9fb6aac7`
 - [`docs/development/plans/settings-consolidation.md`](#source-docs-development-plans-settings-consolidation-md) — 561 words · `eb976f93f4af`
@@ -11383,7 +11383,7 @@ plan in flight._
 
 ## Source document — `docs/development/plans/rls-enable.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/rls-enable.md" sha256="803185e8c9ccc9a63facaf4dc8f70ef27a8fbf2207262149bc6dbb569391e04e" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/rls-enable.md" sha256="f4bb5c6b76c8c6d066d06fc97b0433fb0ed3fd543ff1f8f9c2866f00cf3e77b8" -->
 # Plan — Database Row-Level Security  🟠 mostly done; service-role reduction remains
 
 ← [todo.md](../TODO.md) · [development.md](../../development.md)
@@ -11531,10 +11531,22 @@ at all. Superseded first-cut model, or unfinished? Decide and record it.
    through these routes — they get a 401 unless real Supabase cookies are also
    present (Ed's own dev-mode keeps his cookies, so his flows still work).
 
-   **What stays on the service role, and why (13 sites, 8 files):**
+   **What stays on the service role, and why (14 sites, 9 files):**
+
+   > **2026-09-08 (assume-breach Phase 1).** `brand_enquiries` became fully
+   > server-mediated: the containment migration
+   > (`20260908210000` + corrective `20260908220000`) revokes authenticated
+   > SELECT/UPDATE/DELETE, so the internal enquiry routes can no longer use the
+   > scoped RLS client. They were converted to `createEnquiryDataClient()` — one
+   > centralized service-role factory — with tenant ownership enforced in server
+   > code (`loadOwnedEnquiry` / `loadActorWebsiteEnquiry`), never by RLS. Net: +1
+   > *centralized* service-role site (the factory below), −11 scoped-client call
+   > sites in the routes. This is a deliberate, documented increase in the
+   > service-role count in exchange for closing the null-fail-open RLS policy.
 
    | Site | Why it must keep the service role |
    |---|---|
+   | `src/lib/supabase/enquiryDataClient.ts` (1) | The single server-mediated `brand_enquiries` data client. authenticated has no SELECT/UPDATE/DELETE after the containment migration; the 11 internal enquiry routes read/mutate through this factory, and tenant ownership is enforced in server code (`loadOwnedEnquiry`/`loadActorWebsiteEnquiry`) against the caller's session `agencyId`. Centralizing here (vs each route calling the admin client) keeps the ownership contract in one place. |
    | `src/app/api/public/brand-enquiry/route.ts` (1) | Public endpoint, no session. Anon may only INSERT consented rows; this route also SELECTs for dedupe and UPDATEs metadata — an anon SELECT power here would let anyone probe enquiries by email. |
    | `src/app/api/public/form-capture/route.ts` (1) | Public endpoint, no session; inserts `consent:false` hold rows the anon insert policy correctly refuses, and attaches captures to existing rows. |
    | `src/app/api/telemetry/collect/route.ts` (1) | Public endpoint, no session; `website_consent_events` deliberately has no anon policy — consent rows are written server-side after validation/redaction. |
