@@ -42,7 +42,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: "20"
+  # Current Node LTS, matching local. (Also removes any dependence on a specific
+  # Node's --test glob behaviour: discovery is done by scripts/run-canonical-suite.mjs
+  # in Node, not by the shell or the runner's glob support.)
+  NODE_VERSION: "22"
   # Belt-and-braces isolation. CI never checks out `.env.local`, but pinning the
   # backend here means no step can implicitly promote to a live backend even if a
   # secret were ever added to the environment.
@@ -72,9 +75,12 @@ jobs:
         run: npm run typecheck
 
       - name: Canonical test suite (isolated memory storage; Website Editor included)
-        # `smoke:all` forces PORTAL_BACKEND=memory in its own command and runs the
-        # separate Website Editor gate via `&& npm run smoke:website-editor`. The two
-        # live-Postgres lanes remain SKIPPED (NOT TESTED), printed in the output.
+        # `smoke:all` runs scripts/run-canonical-suite.mjs — a deterministic,
+        # shell-independent enumerator that FAILS the run if zero expected test
+        # files are discovered (no silent short-green) — then the separate
+        # Website Editor gate via `&& npm run smoke:website-editor`. The two
+        # live-Postgres lanes remain SKIPPED (NOT TESTED), printed in the output;
+        # runtime RLS is proven by the separate `containment` job below, not here.
         run: npm run smoke:all
 
       - name: Production build (isolated file storage)
@@ -97,6 +103,42 @@ jobs:
             portal/.next-ci/*.log
           if-no-files-found: ignore
           retention-days: 14
+
+  containment:
+    name: Runtime DB/storage containment (real Supabase, Docker)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Runtime RLS/grants/storage isolation cannot be proven by static tests. This
+    # job boots a REAL local Supabase stack (Postgres + PostgREST + Storage) in
+    # Docker, applies the full migration chain (including the assume-breach
+    # containment migration and its self-verification DO block), and runs the
+    # two-tenant negative/positive suite with real password-grant JWTs. It is a
+    # required release gate — branch protection on `main` should require it
+    # alongside `verify` and `browser`. It reads no DATABASE_URL and cannot reach
+    # any remote project (LOCAL ONLY, enforced by the runner script).
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: portal/package-lock.json
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local Supabase stack (Docker)
+        run: supabase start
+
+      - name: Containment isolation suite (two tenants, real JWTs, PostgREST + Storage)
+        run: bash supabase/tests/run-containment-tests.sh
+
+      - name: Stop local Supabase stack
+        if: always()
+        run: supabase stop --no-backup || true
 
   browser:
     name: Bounded browser / accessibility gate
