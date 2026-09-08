@@ -18,7 +18,10 @@
 // Supabase datastore read. Local file-backed runs report `db: "untested"`
 // rather than fabricating a green light (chapter #68 honesty).
 
-import { NextResponse } from "next/server";
+import crypto from "node:crypto";
+import { NextResponse, type NextRequest } from "next/server";
+import { getSessionFromRequest } from "@/lib/server/auth/auth";
+import { AGENCY_ROLES } from "@/server/types";
 import { ensureHydrated, getState } from "@/server/storage";
 import { inspectProductionReadiness } from "@/lib/server/productionReadiness";
 import { databaseStorageHealth, primaryDbProbeStatus } from "@/lib/server/databaseStorageHealth";
@@ -34,6 +37,34 @@ export const revalidate = 0;
 
 const BOOT_AT = Date.now();
 
+/**
+ * Phase 4 (assume-breach containment): in production the DETAILED body —
+ * commit sha, platform, plugin count, and above all the readiness item list
+ * (which controls are unconfigured) — is reconnaissance, and this route is
+ * unauthenticated. Unauthenticated production callers now get `{ ok, ts }`
+ * with the same status code, which is all a deploy gate or uptime monitor
+ * consumes. Details require either an internal agency session or the
+ * `PORTAL_HEALTH_TOKEN` bearer (for the operator's monitor).
+ */
+async function mayViewDetails(request: NextRequest, env: NodeJS.ProcessEnv): Promise<boolean> {
+  if (env.NODE_ENV !== "production") return true;
+  const token = env.PORTAL_HEALTH_TOKEN?.trim();
+  if (token) {
+    const presented = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim() ?? "";
+    const presentedBuffer = Buffer.from(presented);
+    const tokenBuffer = Buffer.from(token);
+    if (presentedBuffer.length === tokenBuffer.length && crypto.timingSafeEqual(presentedBuffer, tokenBuffer)) {
+      return true;
+    }
+  }
+  try {
+    const session = await getSessionFromRequest(request);
+    return Boolean(session && (AGENCY_ROLES as readonly string[]).includes(session.role));
+  } catch {
+    return false;
+  }
+}
+
 // Deep DB probe is the promoted, shared `databaseStorageHealth()` (radar upgrade
 // Stage 4) — the same probe Radar's Infra sweep uses. `primaryDbProbeStatus`
 // projects it back to this route's original `{ ok, db, error }` shape.
@@ -41,7 +72,7 @@ async function probeDb(): Promise<{ ok: boolean; db: "connected" | "down" | "unt
   return primaryDbProbeStatus(await databaseStorageHealth());
 }
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(request: NextRequest): Promise<NextResponse> {
   const env = process.env;
   // Hydrate so plugin count is honest; cheap on warm path.
   let pluginCount: number | null = null;
@@ -78,7 +109,10 @@ export async function GET(): Promise<NextResponse> {
     })),
     ts: Date.now(),
   };
-  return NextResponse.json(body, {
+  // The status code (the deploy-gate/monitor signal) is identical either way;
+  // only the recon-grade detail is withheld from anonymous production callers.
+  const detailed = await mayViewDetails(request, env);
+  return NextResponse.json(detailed ? body : { ok, ts: body.ts }, {
     status: ok ? 200 : 503,
     headers: { "cache-control": "no-store, max-age=0" },
   });

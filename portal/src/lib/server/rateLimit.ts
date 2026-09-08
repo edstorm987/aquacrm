@@ -144,8 +144,18 @@ export async function sweepExpired(): Promise<SweepStats> {
 export function clientIpFromHeaders(headers: Headers): string {
   const xff = headers.get("x-forwarded-for");
   if (xff) {
-    const first = xff.split(",")[0]?.trim();
-    if (first) return first;
+    // Phase 4 (assume-breach containment): the FIRST entry is CLIENT-SUPPLIED
+    // — anyone can send `X-Forwarded-For: 1.2.3.4` and the edge proxy APPENDS
+    // the real address after it, so trusting the first entry let an attacker
+    // choose their own rate-limit bucket (evasion) and poison login-attempt
+    // attribution. The only trustworthy entry is the one the TRUSTED proxy
+    // appended: the LAST, or N from the end when more than one trusted hop
+    // fronts the app (PORTAL_TRUSTED_PROXY_HOPS, default 1).
+    const entries = xff.split(",").map(entry => entry.trim()).filter(Boolean);
+    const hopsRaw = Number.parseInt(process.env.PORTAL_TRUSTED_PROXY_HOPS ?? "", 10);
+    const hops = Number.isFinite(hopsRaw) && hopsRaw >= 1 && hopsRaw <= 10 ? hopsRaw : 1;
+    const trusted = entries[entries.length - hops] ?? entries[entries.length - 1];
+    if (trusted) return trusted;
   }
   const real = headers.get("x-real-ip");
   if (real) return real.trim();
