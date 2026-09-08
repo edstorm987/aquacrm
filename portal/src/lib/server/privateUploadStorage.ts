@@ -7,6 +7,7 @@ import { del, put } from "@vercel/blob";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { sliceStream, type ByteRange } from "@/lib/server/privateMediaResponse";
 import { assertLiveProviderAccess } from "@/lib/server/sandbox/providerPolicy";
+import { assessUploadContent, ContentTrustError, type ContentTrustAssessment } from "@/lib/server/security/contentTrust";
 import { isSandboxDataRealm } from "@/server/dataRealm";
 
 export type PrivateUploadStorageProvider = "supabase" | "vercel-blob" | "local";
@@ -28,11 +29,19 @@ export interface StorePrivateUploadInput {
   contentType: string;
   localDirectory: string;
   localKey: string;
+  /** Lineage for the content-trust judgement's event trail (Phase 2). */
+  trust?: { tenantId?: string; actor?: string; purpose?: string };
 }
 
 export interface StoredPrivateUpload {
   storageProvider: PrivateUploadStorageProvider;
   storageKey: string;
+  /**
+   * The content-trust judgement every stored upload passed (Phase 2): sha256
+   * digest (artifact identity) + verdict. Optional so `planPrivateUpload`
+   * (which predicts a key before any bytes exist) keeps its shape.
+   */
+  contentTrust?: Pick<ContentTrustAssessment, "verdict" | "digest" | "sniffedType">;
 }
 
 /**
@@ -75,6 +84,20 @@ export function durablePrivateUploadsRequired(env: NodeJS.ProcessEnv = process.e
 
 export async function storePrivateUpload(input: StorePrivateUploadInput): Promise<StoredPrivateUpload> {
   assertLiveProviderAccess("Private file storage");
+  // CONTENT TRUST GATEWAY (Phase 2): every route stores through this function,
+  // so every stored upload is judged by its BYTES here — before any provider
+  // I/O. A blocked verdict throws and nothing is written anywhere. See
+  // security/contentTrust.ts for the policy; the thrown error carries the
+  // digest-level assessment (never the contents).
+  const assessment = await assessUploadContent({
+    file: input.file,
+    declaredType: input.contentType,
+    purpose: input.trust?.purpose ?? input.localDirectory,
+    tenantId: input.trust?.tenantId,
+    actor: input.trust?.actor,
+  });
+  if (assessment.verdict === "blocked") throw new ContentTrustError(assessment);
+  const contentTrust = { verdict: assessment.verdict, digest: assessment.digest, sniffedType: assessment.sniffedType };
   if (supabasePrivateUploadsConfigured()) {
     const bucket = process.env.NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET?.trim()
       || DEFAULT_SUPABASE_UPLOAD_BUCKET;
@@ -85,7 +108,7 @@ export async function storePrivateUpload(input: StorePrivateUploadInput): Promis
       upsert: false,
     });
     if (error) throw new Error(`Could not store private upload: ${error.message}`);
-    return { storageProvider: "supabase", storageKey: input.pathname };
+    return { storageProvider: "supabase", storageKey: input.pathname, contentTrust };
   }
 
   if (privateUploadsConfigured()) {
@@ -94,7 +117,7 @@ export async function storePrivateUpload(input: StorePrivateUploadInput): Promis
       addRandomSuffix: false,
       contentType: input.contentType,
     });
-    return { storageProvider: "vercel-blob", storageKey: blob.url };
+    return { storageProvider: "vercel-blob", storageKey: blob.url, contentTrust };
   }
 
   if (durablePrivateUploadsRequired()) throw new PrivateUploadStorageError();
@@ -102,7 +125,7 @@ export async function storePrivateUpload(input: StorePrivateUploadInput): Promis
   const absolutePath = join(process.cwd(), ".data", input.localDirectory, input.localKey);
   await mkdir(dirname(absolutePath), { recursive: true });
   await writeFile(absolutePath, Buffer.from(await input.file.arrayBuffer()));
-  return { storageProvider: "local", storageKey: input.localKey };
+  return { storageProvider: "local", storageKey: input.localKey, contentTrust };
 }
 
 export async function readSupabasePrivateUpload(storageKey: string): Promise<Blob | null> {
