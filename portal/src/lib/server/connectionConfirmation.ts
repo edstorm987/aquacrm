@@ -1,6 +1,7 @@
 import "server-only";
 
 import crypto from "node:crypto";
+import { resolveSigningSecret } from "@/lib/server/auth/sessionToken";
 
 /**
  * Confirming that the person connecting is who they say they are.
@@ -100,7 +101,7 @@ export type ConfirmationOutcome =
   | { status: "unavailable"; message: string };
 
 function getSecret(): string {
-  return process.env.PORTAL_SESSION_SECRET ?? "dev-secret-do-not-use-in-prod";
+  return resolveSigningSecret();
 }
 
 /** Spaces and dashes are how people type codes out of an email. */

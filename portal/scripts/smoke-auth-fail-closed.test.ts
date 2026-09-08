@@ -144,6 +144,23 @@ test("instrumentation.register() actually invokes the startup check", () => {
   assert.ok(checkAt >= 0 && checkAt < observabilityAt, "the env check must run before anything else warms");
 });
 
+test("no token family inlines the dev-fallback secret any more (sweep)", () => {
+  // Eleven call sites (CSRF, magic links, password reset, email verification,
+  // OAuth state ×4, connection confirmations, inbox media) used to inline
+  // `process.env.PORTAL_SESSION_SECRET ?? "dev-secret-do-not-use-in-prod"`,
+  // which meant a secretless production signed FORGEABLE tokens in every one
+  // of those families. They must all resolve through the fail-closed
+  // resolveSigningSecret() (or their own production throw, like
+  // metaMessaging.stateSecret). This sweep fails if the inline pattern comes
+  // back anywhere outside sessionToken.ts itself.
+  const { execSync } = require("node:child_process") as typeof import("node:child_process");
+  const hits = execSync(
+    `grep -rln 'PORTAL_SESSION_SECRET.*dev-secret-do-not-use-in-prod' "${join(ROOT, "src")}" || true`,
+    { encoding: "utf8" },
+  ).trim().split("\n").filter(Boolean).filter(file => !file.endsWith("sessionToken.ts"));
+  assert.deepEqual(hits, [], `inline dev-fallback secret reintroduced in: ${hits.join(", ")}`);
+});
+
 // ─── 3. Proxy: production is always strict ─────────────────────────────────
 
 test("portal security is unconditionally strict in production", () => {

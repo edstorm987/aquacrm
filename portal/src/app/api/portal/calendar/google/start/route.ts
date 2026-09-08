@@ -6,6 +6,7 @@ import { ensureHydrated } from "@/server/storage";
 import { AGENCY_ROLES } from "@/server/types";
 import { requirePersonalCalendarAccess } from "@/lib/server/intelligence/personalRadarAccess";
 import { AccessControlError, accessErrorResponse } from "@/server/accessControl";
+import { resolveSigningSecret } from "@/lib/server/auth/sessionToken";
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest) {
     const actor = await requirePersonalCalendarAccess(session, "use");
     const config = readGoogleCalendarConfig(`${request.nextUrl.origin}/api/portal/calendar/google/callback`);
     if (!config) return NextResponse.json({ ok: false, error: "Google Calendar OAuth is not configured." }, { status: 503 });
-    const secret = process.env.PORTAL_SESSION_SECRET ?? "dev-secret-do-not-use-in-prod";
+    const secret = resolveSigningSecret();
     const url = buildGoogleCalendarAuthorizeUrl(config, {
       agencyId: actor.resourceAgencyId,
       userId: session.userId,

@@ -12,6 +12,7 @@
 
 import crypto from "crypto";
 import type { NextRequest } from "next/server";
+import { resolveSigningSecret } from "@/lib/server/auth/sessionToken";
 
 const TTL_SECONDS = 60 * 60;
 export const CSRF_COOKIE_NAME = "lk_csrf_v1";
@@ -23,7 +24,7 @@ interface CsrfPayload {
 }
 
 function getSecret(): string {
-  return process.env.PORTAL_SESSION_SECRET ?? "dev-secret-do-not-use-in-prod";
+  return resolveSigningSecret();
 }
 
 export function signCsrfToken(): { token: string; payload: CsrfPayload } {

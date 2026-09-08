@@ -20,6 +20,7 @@ import { logActivity } from "@/server/activity";
 import { resolvePostLoginPath } from "@/lib/server/auth/postLoginRedirect";
 import { checkSideDoorMfa } from "@/lib/server/auth/mfa";
 import crypto from "crypto";
+import { resolveSigningSecret } from "@/lib/server/auth/sessionToken";
 
 function err(req: NextRequest, code: string, status = 400) {
   const url = new URL("/login", req.nextUrl.origin);
@@ -40,7 +41,7 @@ export async function GET(req: NextRequest) {
   if (oauthErr) return err(req, oauthErr);
   if (!code || !state) return err(req, "missing_params");
 
-  const secret = process.env.PORTAL_SESSION_SECRET ?? "dev-secret-do-not-use-in-prod";
+  const secret = resolveSigningSecret();
   const stateCheck = verifyOAuthState(state, secret);
   if (!stateCheck.ok) return err(req, stateCheck.error);
 

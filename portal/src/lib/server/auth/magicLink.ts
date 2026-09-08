@@ -28,7 +28,7 @@ export interface MagicLinkPayload {
 }
 
 function getSecret(): string {
-  return process.env.PORTAL_SESSION_SECRET ?? "dev-secret-do-not-use-in-prod";
+  return resolveSigningSecret();
 }
 
 export function signMagicToken(input: Omit<MagicLinkPayload, "exp" | "nonce">): {
@@ -83,6 +83,7 @@ export function verifyMagicToken(
 // store layer closes the gap.
 
 import { getNonceStore } from "@/lib/server/auth/nonceStore";
+import { resolveSigningSecret } from "@/lib/server/auth/sessionToken";
 
 // Legacy callers expected `isUsed(nonce)` to return whether the nonce
 // was already consumed without itself consuming. The verify route now

@@ -44,6 +44,19 @@ function getSessionSecret(): string {
   return DEV_FALLBACK_SECRET;
 }
 
+/**
+ * The ONE fail-closed signing-secret resolver for every HMAC token family in
+ * the portal (sessions, CSRF, magic links, password reset, email verification,
+ * OAuth state, connection confirmations, inbox media tokens). Eleven call
+ * sites used to inline `process.env.PORTAL_SESSION_SECRET ?? "dev-secret…"`,
+ * so fixing the session path alone would have left every sibling token
+ * forgeable in a secretless production. They all resolve here now: production
+ * throws without a real secret; dev/test keep the fallback.
+ */
+export function resolveSigningSecret(): string {
+  return getSessionSecret();
+}
+
 /** Sign a complete session payload without importing tenant storage. */
 export function signSessionPayload(payload: SessionPayload): string {
   const json = JSON.stringify(payload);
