@@ -5,10 +5,12 @@
 **Worktree:** `/private/tmp/aquacrm-security` (the developer's checkout was never touched)
 **Status:** Phase 0 (immediate exposure) COMPLETE. Phase 1 (control plane +
 lockdown switches), Phase 2 (content trust gateway), Phase 3 (AI containment)
-and the first Phase-4 tranche are COMPLETE as enforced seeds — each with its
-honest PARTIAL list inline. Phase 5 runbooks are written against the REAL
-shipped controls (`docs/security/incident-runbooks.md`). Phase 6 (threat
-centre UI) NOT started. Branch pushed to origin; NEVER merged. This document
+the first Phase-4 tranche, and the Phase-6 threat centre are COMPLETE — each
+with its honest PARTIAL list inline. Phase 5 runbooks are written against the
+REAL shipped controls (`docs/security/incident-runbooks.md`). All six phases
+have landed as enforced, tested controls; what remains is owner-gated (live
+migration, restore drill, AV/MFA/WAF providers). Branch pushed to origin;
+NEVER merged. This document
 is the honest ledger — every item carries VERIFIED / PARTIAL / BLOCKED /
 NOT TESTED / OWNER ACTION.
 
@@ -258,8 +260,9 @@ is contained with suspension/user-epoch instead).
 | Gate | Result |
 |---|---|
 | Typecheck (`npm run typecheck`) | **0 errors** |
-| Full canonical suite (`smoke:all`) | **6,919 / 6,923 pass, 3 skipped, 1 fail** — the fail is `smoke-product-workspace-lease-fencing` (a KNOWN timing-sensitive pin that flips under parallel-suite CPU contention, documented pre-programme); it passes **3/3 in isolation** on this branch and touches nothing this programme changed |
-| Production build (webpack, the real bundler) | **GREEN — compiled successfully in 73s** with every phase's changes in |
+| Full canonical suite (`smoke:all`) | **6,934 / 6,939 pass, 3 skipped** after all six phases; the only red across runs is `smoke-product-workspace-lease-fencing`, a KNOWN timing-sensitive pin that flips under parallel-suite CPU contention (documented pre-programme) and passes **3/3 in isolation** on this branch |
+| Production build (webpack, the real bundler) | **GREEN** with all six phases in (rebuilt clean at each phase; ~73–76s) |
+| LIVE threat-centre click-path (isolated prod build + seeded state + real Supabase login) | **PASS** — fail-closed boot, anon `/healthz/full` status-only, and the full action loop through all four gates end-to-end over HTTP (see Phase 6) |
 | Local DB containment suite (37 tests, real JWTs vs PostgREST+Storage) | **37/37** (unchanged since 0-A — later phases did not touch the migration) |
 | `rls-verify.sql` containment invariants on migrated local DB | **all-INFO** |
 | Migration never run remotely | **verified** — no project linkage in the worktree, `DATABASE_URL` unset, `db push` never invoked |
