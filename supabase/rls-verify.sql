@@ -242,3 +242,80 @@ findings as (
 select severity, check_name, subject, detail
 from findings
 order by sort_key, subject;
+
+-- ============================================================================
+-- CONTAINMENT INVARIANTS (assume-breach migration 20260908210000)
+--
+-- A second, standalone result set. After the containment migration is pushed,
+-- every row here must be INFO. A FAIL row means a broad browser-role path has
+-- come back — through the dashboard, a later migration or default privileges —
+-- and cross-tenant exposure is live again.
+-- ============================================================================
+with sealed_tables(table_name) as (
+  values ('public.app_datastores'), ('public.audit_events'),
+         ('public.website_consent_events'), ('public.app_datastore_history')
+),
+read_only_tables(table_name) as (
+  values ('public.profiles'), ('public.brands'), ('public.shoots'),
+         ('public.shoot_photos'), ('public.clients'), ('public.client_portals'),
+         ('public.client_portal_members')
+),
+banned_policies(policy_name) as (
+  values ('Internal users manage app datastores'), ('Internal users manage profiles'),
+         ('Internal users manage brands'), ('Internal users manage clients'),
+         ('Internal users manage portals'), ('Internal users manage portal members'),
+         ('Internal users read audit events'), ('Internal users create audit events'),
+         ('Internal users manage brand enquiries'),
+         ('Internal users manage their agency''s brand enquiries'),
+         ('Internal users manage website consent events'), ('Internal users manage shoots'),
+         ('Internal users manage shoot photos'), ('Internal users manage ecosystem storage'),
+         ('Portal users manage their own upload folder')
+)
+select * from (
+  select 'FAIL' as severity, 'containment-sealed-table-leak' as check_name,
+         s.table_name || ' → ' || r.role || ':' || p.priv as subject,
+         'A browser role holds a privilege on a sealed (service-role-only) table.' as detail
+  from sealed_tables s
+  cross join (values ('anon'), ('authenticated')) r(role)
+  cross join (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE')) p(priv)
+  where has_table_privilege(r.role, s.table_name, p.priv)
+  union all
+  select 'FAIL', 'containment-readonly-table-write',
+         t.table_name || ' → ' || r.role || ':' || p.priv,
+         'A browser role holds a WRITE privilege on a read-only surface.'
+  from read_only_tables t
+  cross join (values ('anon'), ('authenticated')) r(role)
+  cross join (values ('INSERT'), ('UPDATE'), ('DELETE')) p(priv)
+  where has_table_privilege(r.role, t.table_name, p.priv)
+  union all
+  select 'FAIL', 'containment-enquiry-triage-leak',
+         'public.brand_enquiries → ' || r.role || ':' || p.priv,
+         'brand_enquiries must be INSERT-only for browser roles (triage is service-role).'
+  from (values ('anon'), ('authenticated')) r(role)
+  cross join (values ('SELECT'), ('UPDATE'), ('DELETE')) p(priv)
+  where has_table_privilege(r.role, 'public.brand_enquiries', p.priv)
+  union all
+  select 'FAIL', 'containment-banned-policy-returned',
+         pol.schemaname || '.' || pol.tablename || ' → ' || pol.policyname,
+         'A broad pre-containment policy has been recreated.'
+  from pg_policies pol
+  join banned_policies b on b.policy_name = pol.policyname
+  union all
+  select 'FAIL', 'containment-public-form-broken',
+         'public.brand_enquiries → anon:INSERT',
+         'The public contact form lost its INSERT path.'
+  where not has_table_privilege('anon', 'public.brand_enquiries', 'INSERT')
+  union all
+  select 'INFO', 'containment-verified',
+         'assume-breach containment invariants',
+         'All containment invariants hold (sealed tables, read-only surfaces, insert-only enquiries, no banned policies).'
+  where not exists (
+    select 1 from sealed_tables s
+    cross join (values ('anon'), ('authenticated')) r(role)
+    cross join (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE')) p(priv)
+    where has_table_privilege(r.role, s.table_name, p.priv)
+  ) and not exists (
+    select 1 from pg_policies pol join banned_policies b on b.policy_name = pol.policyname
+  )
+) checks
+order by case severity when 'FAIL' then 0 else 1 end, check_name, subject;
