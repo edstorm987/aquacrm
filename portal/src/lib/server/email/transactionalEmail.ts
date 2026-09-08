@@ -1,6 +1,6 @@
 import { mayUseEnvironmentCredentials } from "@/lib/server/auth/founderAgency";
 import { sendResendEmail } from "@/lib/server/email/resendEmail";
-import { OutboundBlockedError, vetOutboundHost } from "@/lib/server/net/outboundBroker";
+import { OutboundBlockedError, pinnedSocketTarget } from "@/lib/server/net/outboundBroker";
 import { assertLiveProviderAccess } from "@/lib/server/sandbox/providerPolicy";
 import { resolveScopedIntegrationConnectionValues, resolveIntegrationValues } from "@/lib/server/integrations/integrationConnections";
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
@@ -124,14 +124,19 @@ export async function sendTransactionalEmail(
       // private/loopback/metadata address is refused (and evented) rather than
       // handed the SMTP credentials. Dev loopback (MailHog) stays allowed
       // outside production.
-      await vetOutboundHost(smtp.host, { purpose: "email.smtp", tenantId: input.agencyId });
+      // Vet AND PIN: connect to the exact vetted IP, validate TLS against the
+      // hostname (SNI). This closes the DNS-rebinding TOCTOU — nodemailer would
+      // otherwise re-resolve the hostname and could land on a private/metadata
+      // address between the check and the connection.
+      const pinned = await pinnedSocketTarget(smtp.host, { purpose: "email.smtp", tenantId: input.agencyId });
       const { createTransport } = await import("nodemailer");
       const port = Number(smtp.port);
       const transport = createTransport({
-        host: smtp.host,
+        host: pinned.address,
         port: Number.isFinite(port) ? port : 587,
         secure: port === 465,
         auth: { user: smtp.username, pass: smtp.password },
+        tls: { servername: pinned.servername },
       });
       const fromName = input.fromName?.trim() || smtp.fromName || workspace.legalName || "AquaOasis-Web";
       await transport.sendMail({

@@ -67,7 +67,12 @@ export async function askMilesymediaAssistant(input: {
   skill: AdvisorSkill;
 }): Promise<string> {
   const managed = resolveIntegrationValues(input.agencyId, "openai");
-  const apiKey = managed.apiKey || process.env.OPENAI_API_KEY?.trim();
+  // Per-tenant credential only. resolveIntegrationValues() already returns the
+  // environment key EXCLUSIVELY for the founder's own agency (via
+  // mayUseEnvironmentCredentials); a raw `|| process.env.OPENAI_API_KEY` here
+  // BYPASSED that gate and silently ran every keyless tenant on the founder's
+  // key and account (Phase 6 finding). Rely on the gated resolver alone.
+  const apiKey = managed.apiKey;
   if (!apiKey) throw new Error("assistant_not_configured");
 
   const memoryText = input.memories.length
@@ -156,7 +161,12 @@ export async function suggestAdvisorActions(input: {
     .filter(action => !existing.has(normalize(action.title)))
     .slice(0, 5);
   const managed = resolveIntegrationValues(input.agencyId, "openai");
-  const apiKey = managed.apiKey || process.env.OPENAI_API_KEY?.trim();
+  // Per-tenant credential only. resolveIntegrationValues() already returns the
+  // environment key EXCLUSIVELY for the founder's own agency (via
+  // mayUseEnvironmentCredentials); a raw `|| process.env.OPENAI_API_KEY` here
+  // BYPASSED that gate and silently ran every keyless tenant on the founder's
+  // key and account (Phase 6 finding). Rely on the gated resolver alone.
+  const apiKey = managed.apiKey;
   if (!apiKey) return guaranteedRadarActions;
   const instructions = [
     "You are Aqua Advisor, an internal operating advisor for AquaOasis-Web.",

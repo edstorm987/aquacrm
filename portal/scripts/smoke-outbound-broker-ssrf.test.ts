@@ -134,8 +134,20 @@ test("shopify and SMTP call sites are pinned to the audited egress path", () => 
   assert.ok(!/await fetch\(endpoint/.test(shopify), "the raw fetch to the shop domain must not return");
 
   const email = readFileSync(join(REPO_ROOT, "src/lib/server/email/transactionalEmail.ts"), "utf8");
-  const vetIndex = email.indexOf("vetOutboundHost(smtp.host");
+  // pinnedSocketTarget vets AND pins the vetted IP (closing the DNS-rebinding
+  // TOCTOU) — stronger than the bare vetOutboundHost it wraps. It must run
+  // before the transport, and the transport must connect to the pinned address
+  // with the hostname as TLS servername.
+  const vetIndex = email.indexOf("pinnedSocketTarget(smtp.host");
   const transportIndex = email.indexOf("createTransport");
-  assert.ok(vetIndex > -1, "the SMTP host must be vetted");
+  assert.ok(vetIndex > -1, "the SMTP host must be vetted+pinned via pinnedSocketTarget");
   assert.ok(transportIndex > -1 && vetIndex < transportIndex, "vetting must happen BEFORE the transport is created");
+  assert.match(email, /host:\s*pinned\.address/, "the transport must connect to the pinned IP");
+  assert.match(email, /servername:\s*pinned\.servername/, "TLS must validate against the hostname");
+
+  // The SMTP TEST-CONNECTION path (integrationConnections.testProvider) is the
+  // other tenant-host raw socket — it must vet+pin too, not just the send path.
+  const integrations = readFileSync(join(REPO_ROOT, "src/lib/server/integrations/integrationConnections.ts"), "utf8");
+  const smtpBlock = integrations.slice(integrations.indexOf('provider === "smtp"'));
+  assert.match(smtpBlock.slice(0, 600), /pinnedSocketTarget\(values\.host/, "SMTP test-connection must vet+pin the tenant host");
 });

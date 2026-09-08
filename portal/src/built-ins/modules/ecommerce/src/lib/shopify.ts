@@ -30,7 +30,18 @@ export async function shopifyFetch<T>(
     throw new Error("shopifyFetch: domain and storefrontAccessToken required.");
   }
   assertLiveProviderAccess("Shopify Storefront");
-  const endpoint = `https://${config.domain}/api/2024-01/graphql.json`;
+  // Validate the destination is a LEGITIMATE Shopify storefront host before the
+  // token is ever attached (Phase 6). `config.domain` is per-install tenant
+  // data; without this a re-pointed domain (evil.example, an internal host, one
+  // with an embedded path/port/credentials) would receive the storefront token.
+  // The Storefront API is always served from the shop's `*.myshopify.com` host,
+  // so require exactly that shape — the broker's SSRF check is defence in depth
+  // on top of this, not a substitute for host validation.
+  const shopHost = config.domain.trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(shopHost)) {
+    throw new Error("shopifyFetch: domain must be a <shop>.myshopify.com storefront host.");
+  }
+  const endpoint = `https://${shopHost}/api/2024-01/graphql.json`;
   const { result, body } = await withRemoteOperationDeadline({
     operation: "Shopify Storefront request",
     budget: options.outcome === "read" || (!options.outcome && !isGraphqlMutation(args.query))
@@ -60,6 +71,12 @@ export async function shopifyFetch<T>(
       timeoutMs: options.timeoutMs ?? 15_000,
       tenantId: config.agencyId,
       purpose: "shopify.storefront",
+      // A storefront GraphQL POST never legitimately redirects. Disable
+      // redirect-following entirely so the token can never be carried to a
+      // redirect target (belt-and-braces on top of the broker's cross-origin
+      // credential stripping — the token header is now also in the broker's
+      // credential set).
+      followRedirects: false,
     });
     const body = JSON.parse(response.bodyText || "{}") as { errors?: { message: string }[] } & T;
     return { result: { status: response.status }, body };

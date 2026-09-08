@@ -10,7 +10,7 @@ import {
 } from "@/lib/integrations/catalog";
 import type { PublicIntegrationConnection } from "@/lib/integrations/types";
 import { mayUseEnvironmentCredentials } from "@/lib/server/auth/founderAgency";
-import { brokeredFetch, OutboundBlockedError } from "@/lib/server/net/outboundBroker";
+import { brokeredFetch, OutboundBlockedError, pinnedSocketTarget } from "@/lib/server/net/outboundBroker";
 import { logActivity } from "@/server/activity";
 import { getState, mutate } from "@/server/storage";
 import type { IntegrationConnection } from "@/server/types";
@@ -327,7 +327,7 @@ export async function testIntegrationConnection(
       budget: "providerRead",
       outcome: "read",
       timeoutMs: TEST_TIMEOUT_MS,
-    }, signal => testProvider(connection.provider, values, fetchImpl, signal));
+    }, signal => testProvider(connection.provider, values, fetchImpl, signal, agencyId));
     passed = true;
   } catch (error) {
     // Every decrypted secret this test just used, so the scrubber can remove
@@ -462,6 +462,7 @@ async function testProvider(
   values: Record<string, string>,
   fetchImpl: typeof fetch | undefined,
   signal: AbortSignal,
+  tenantId: string,
 ): Promise<string> {
   const request = async (url: string, authorization: string, headers: Record<string, string> = {}) => {
     // Through the audited egress broker (assume-breach containment). These
@@ -531,14 +532,21 @@ async function testProvider(
     return "Resend accepted the key and sender settings are saved.";
   }
   if (provider === "smtp") {
+    // SSRF (Phase 6): the SMTP host is TENANT-CONFIGURED, and "test connection"
+    // opens a raw socket to it. Vet AND PIN the destination — connect to the
+    // vetted IP, validate TLS against the hostname — so a host pointing at a
+    // private/loopback/metadata address is refused, and a DNS rebind between
+    // the check and the connect cannot land on one.
+    const pinned = await pinnedSocketTarget(values.host, { purpose: "integration.smtp.test", tenantId });
     const { createTransport } = await import("nodemailer");
     const port = Number(values.port);
     const transport = createTransport({
-      host: values.host,
+      host: pinned.address,
       port: Number.isFinite(port) ? port : 587,
       secure: port === 465,
       auth: { user: values.username, pass: values.password },
       connectionTimeout: TEST_TIMEOUT_MS,
+      tls: { servername: pinned.servername },
     });
     await transport.verify();
     return "SMTP accepted the credentials and sender settings are saved.";
