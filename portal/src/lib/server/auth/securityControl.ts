@@ -31,6 +31,7 @@ import "server-only";
 
 import crypto from "crypto";
 import { getState, mutate } from "@/server/storage";
+import { recordSecurityEvent } from "@/lib/server/security/securityEvents";
 import type { SecurityControlState, SecuritySessionRecord, SessionPayload, Role } from "@/server/types";
 
 const EMPTY: SecurityControlState = {
@@ -51,12 +52,16 @@ export function readSecurityControl(): SecurityControlState {
 }
 
 function withControl(fn: (control: SecurityControlState) => void): void {
+  // securityControlPlane: the control plane's writes stay allowed while the
+  // global read-only kill switch holds — the switch must be liftable, and
+  // suspension/revocation must keep working DURING an incident. This flag is
+  // the only sanctioned use; application code never sets it.
   mutate(state => {
     if (!state.securityControl) {
       state.securityControl = { globalEpoch: 0, tenantEpochs: {}, userEpochs: {}, suspendedUsers: {}, sessions: {} };
     }
     fn(state.securityControl);
-  });
+  }, { securityControlPlane: true });
 }
 
 // ─── Epoch stamps ───────────────────────────────────────────────────────────
@@ -119,6 +124,58 @@ export function unsuspendUser(userId: string, actor: string): void {
 
 export function isUserSuspended(userId: string): boolean {
   return Boolean(readSecurityControl().suspendedUsers[userId]);
+}
+
+// ─── Lockdown switches (Phase 1) ────────────────────────────────────────────
+//
+// Two REVERSIBLE containment controls, deliberately different in mechanism:
+//   - GLOBAL READ-ONLY freezes writes at the `mutate()` choke point (reads keep
+//     serving; the control plane's own writes stay allowed so the switch can be
+//     lifted and sessions revoked while it holds).
+//   - TENANT LOCKDOWN fails every session of one tenant at the central session
+//     gate — and unlike an epoch bump, lifting it restores existing sessions
+//     rather than forcing the whole tenant to log in again.
+// Server-side actions only (no route exposure yet); the Phase-6 threat centre
+// puts them behind AAL2 + dual confirmation before any UI reaches them.
+
+export function setGlobalReadOnly(actor: string, reason: string): void {
+  withControl(control => {
+    control.globalReadOnly = { reason, at: Date.now(), actor };
+  });
+  recordSecurityEvent({ kind: "lockdown.global-read-only.set", severity: "critical", actor, detail: { reason } });
+  logSecurityAction("global-read-only-set", { actor, reason });
+}
+
+export function clearGlobalReadOnly(actor: string): void {
+  withControl(control => {
+    delete control.globalReadOnly;
+  });
+  recordSecurityEvent({ kind: "lockdown.global-read-only.cleared", severity: "warning", actor, detail: {} });
+  logSecurityAction("global-read-only-cleared", { actor });
+}
+
+export function isGlobalReadOnly(): boolean {
+  return Boolean(readSecurityControl().globalReadOnly);
+}
+
+export function lockdownTenant(agencyId: string, actor: string, reason: string): void {
+  withControl(control => {
+    control.tenantLockdowns = { ...(control.tenantLockdowns ?? {}), [agencyId]: { reason, at: Date.now(), actor } };
+  });
+  recordSecurityEvent({ kind: "lockdown.tenant.set", severity: "critical", actor, tenantId: agencyId, detail: { reason } });
+  logSecurityAction("tenant-lockdown-set", { actor, reason, agencyId });
+}
+
+export function liftTenantLockdown(agencyId: string, actor: string): void {
+  withControl(control => {
+    if (control.tenantLockdowns) delete control.tenantLockdowns[agencyId];
+  });
+  recordSecurityEvent({ kind: "lockdown.tenant.lifted", severity: "warning", actor, tenantId: agencyId, detail: {} });
+  logSecurityAction("tenant-lockdown-lifted", { actor, agencyId });
+}
+
+export function isTenantLockedDown(agencyId: string): boolean {
+  return Boolean(readSecurityControl().tenantLockdowns?.[agencyId]);
 }
 
 // ─── Session registry ───────────────────────────────────────────────────────
@@ -210,7 +267,7 @@ export function touchSessionSeen(sid: string | undefined): void {
 
 export type SessionGateResult =
   | { ok: true }
-  | { ok: false; reason: "suspended" | "global-epoch" | "tenant-epoch" | "user-epoch" | "session-revoked" };
+  | { ok: false; reason: "suspended" | "tenant-lockdown" | "global-epoch" | "tenant-epoch" | "user-epoch" | "session-revoked" };
 
 /**
  * Called by `resolveFreshSessionUser` on every authenticated request. Pure
@@ -224,6 +281,11 @@ export function enforceSessionSecurity(session: SessionPayload): SessionGateResu
   const stamped = session.se ?? { g: 0, t: 0, u: 0 };
   if (stamped.g < control.globalEpoch) return { ok: false, reason: "global-epoch" };
   const tenantScope = session.activeAgencyId ?? session.agencyId;
+  // Tenant lockdown: every session scoped to a locked tenant fails here until
+  // the lockdown is LIFTED — reversible, unlike the epoch bump below.
+  if (tenantScope && control.tenantLockdowns?.[tenantScope]) {
+    return { ok: false, reason: "tenant-lockdown" };
+  }
   if (tenantScope && stamped.t < (control.tenantEpochs[tenantScope] ?? 0)) {
     return { ok: false, reason: "tenant-epoch" };
   }
