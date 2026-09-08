@@ -154,39 +154,63 @@ function decodePayload(token: string | undefined): ProxySession | null {
   }
 }
 
-// ─── CSRF origin gate (assume-breach containment, Phase 4) ──────────────────
+// ─── CSRF gate: exact-origin + Fetch Metadata (assume-breach, Phase 4) ──────
 //
-// Cookie-authenticated browser APIs (`/api/portal/*`, `/api/auth/*`) refuse a
-// MUTATING request whose Origin header names ANOTHER site. Browsers attach
-// Origin to every cross-origin fetch/POST, so a forged cross-site request
-// identifies itself; a missing Origin (curl, server-to-server, native apps)
-// passes — those callers carry no ambient cookie, and SameSite=lax remains the
-// cookie-level backstop. Token/public/webhook surfaces (`/api/v1`,
-// `/api/public`, `/api/tenants`, `/api/webhooks`, …) are deliberately NOT
-// gated: they are cross-origin by design and authenticate per-request.
-// Exported pure for tests.
-const CSRF_GUARDED_API_ROOTS = ["/api/portal/", "/api/auth/"] as const;
+// COOKIE-AUTHENTICATED browser APIs refuse a cross-site MUTATION. The guarded
+// set is every root whose routes authenticate with the `lk_session_v1` cookie:
+//   • /api/portal/*  • /api/auth/*  • /api/tenants/*
+// The Phase-4 merge exempted /api/tenants believing it token-authenticated; it
+// is NOT — ~35 mutating /api/tenants routes gate with requireRole(ForClient)
+// on the session cookie, so a cross-site POST to them was a live CSRF hole.
+//
+// EXEMPT (verified NOT cookie-authenticated — cross-origin by design, each
+// authenticates per-request): /api/v1/* (bearer token), /api/public/* (public
+// intake incl. brand-enquiry, form-capture, careers), /api/webhooks/* (provider
+// callbacks with their own signature), /api/telemetry/* (public collect). These
+// are exempt because they are NOT under a guarded root — do not add them.
+//
+// TWO independent signals, either of which refuses:
+//   1. Origin host must equal the request host EXACTLY. Exact-host (not eTLD+1)
+//      also refuses a malicious SAME-SITE sibling subdomain
+//      (evil.aqua-crm.com ≠ www.aqua-crm.com).
+//   2. Fetch Metadata: `Sec-Fetch-Site: cross-site | same-site` is refused
+//      outright — this is the browser's own first-party assertion and catches a
+//      sibling subdomain even if an Origin were somehow absent.
+// A request with NO Origin AND no cross/same-site Fetch-Metadata signal passes:
+// non-browser callers (curl, server-to-server, native apps) carry no ambient
+// cookie, and SameSite=Lax is the cookie-level backstop we do NOT rely on alone.
+// `Origin: null` (sandboxed iframe, opaque origin) is refused on a guarded
+// mutation. Exported pure for tests.
+const CSRF_GUARDED_API_ROOTS = ["/api/portal/", "/api/auth/", "/api/tenants/"] as const;
 
 export function isCrossOriginBrowserMutation(input: {
   method: string;
   path: string;
   origin: string | null;
   host: string | null;
+  secFetchSite?: string | null;
 }): boolean {
   if (["GET", "HEAD", "OPTIONS"].includes(input.method)) return false;
   if (!CSRF_GUARDED_API_ROOTS.some(root => input.path.startsWith(root))) return false;
-  // `Origin: null` (sandboxed iframes, some redirect chains) is an unowned
-  // origin — refuse it on a guarded mutation. An ABSENT header passes.
-  if (input.origin === null) return false;
-  if (input.origin === "null") return true;
-  let originHost: string;
-  try {
-    originHost = new URL(input.origin).host.toLowerCase();
-  } catch {
-    return true; // malformed Origin on a guarded mutation → refuse
+
+  // Signal 2 — Fetch Metadata. Modern browsers always send it; a genuine
+  // cross-site or same-site (sibling subdomain) request is refused outright.
+  const sfs = (input.secFetchSite ?? "").toLowerCase();
+  if (sfs === "cross-site" || sfs === "same-site") return true;
+
+  // Signal 1 — exact-origin.
+  if (input.origin === "null") return true; // opaque origin (sandboxed iframe)
+  if (input.origin !== null) {
+    let originHost: string;
+    try {
+      originHost = new URL(input.origin).host.toLowerCase();
+    } catch {
+      return true; // malformed Origin on a guarded mutation → refuse
+    }
+    if (originHost !== (input.host ?? "").toLowerCase()) return true;
   }
-  const requestHost = (input.host ?? "").toLowerCase();
-  return originHost !== requestHost;
+  // Origin absent AND Fetch-Metadata is same-origin/none/absent → allow.
+  return false;
 }
 
 export function proxy(req: NextRequest) {
@@ -198,6 +222,7 @@ export function proxy(req: NextRequest) {
       path,
       origin: req.headers.get("origin"),
       host: req.headers.get("host"),
+      secFetchSite: req.headers.get("sec-fetch-site"),
     })
   ) {
     return NextResponse.json(
