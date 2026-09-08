@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { createEnquiryDataClient } from "@/lib/supabase/enquiryDataClient";
 
 import { NextResponse } from "next/server";
 
@@ -6,7 +7,6 @@ import { authErrorResponse } from "@/lib/server/auth/auth";
 import { loadActorWebsiteEnquiry } from "@/lib/server/access/websiteEnquiryAccess";
 import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 import { sendTransactionalEmail } from "@/lib/server/email/transactionalEmail";
-import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
 import { isTradingBrandSlug, tradingBrandDefinition } from "@/lib/brands/tradingBrands";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated } from "@/server/storage";
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "Submission ID and a reply are required." }, { status: 400 });
     }
 
-    const supabase = await createScopedSupabaseClient();
+    const supabase = await createEnquiryDataClient();
     const data = await loadActorWebsiteEnquiry<EnquiryRow>(actor, supabase, {
       id: enquiryId,
       required: "use",

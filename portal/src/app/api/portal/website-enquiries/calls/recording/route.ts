@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { createEnquiryDataClient } from "@/lib/supabase/enquiryDataClient";
 
 import { NextResponse } from "next/server";
 
@@ -6,7 +7,6 @@ import { authErrorResponse } from "@/lib/server/auth/auth";
 import { loadActorWebsiteEnquiry } from "@/lib/server/access/websiteEnquiryAccess";
 import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 import { attachStoredPrivateUpload, PrivateUploadStorageError, storePrivateUpload } from "@/lib/server/privateUploadStorage";
-import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated } from "@/server/storage";
 
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     if (!file.size || file.size > MAX_RECORDING_BYTES) return NextResponse.json({ ok: false, error: "Call recordings must be smaller than 100 MB." }, { status: 413 });
     if (!AUDIO_TYPES.has(file.type)) return NextResponse.json({ ok: false, error: "This audio recording format is not supported." }, { status: 415 });
 
-    const supabase = await createScopedSupabaseClient();
+    const supabase = await createEnquiryDataClient();
     const data = await loadActorWebsiteEnquiry<{ id: string; name: string; metadata: Record<string, unknown> | null }>(
       actor, supabase, { id: enquiryId, required: "use", columns: ["name"] });
     if (!data) return NextResponse.json({ ok: false, error: "Website submission not found." }, { status: 404 });

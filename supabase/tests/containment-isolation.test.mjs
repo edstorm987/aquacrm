@@ -225,7 +225,13 @@ test("profiles: ownerA cannot edit anyone (writes are server-mediated)", async (
   expectHardDenied(res.status, await res.json().catch(() => null), "owner profile write");
 });
 
-// ─── brand_enquiries: insert-only public capture; no browser triage ────────
+// ─── brand_enquiries: FULLY SERVER-MEDIATED (corrective 20260908220000) ─────
+// After the corrective migration browser roles have NO direct table access at
+// all — not even INSERT. Public capture is server-mediated: the site forms and
+// the Aqua tag POST to /api/public/brand-enquiry, which INSERTs via the service
+// role behind rate limits. Internal triage is likewise service-role, with tenant
+// ownership enforced in server code (loadOwnedEnquiry) — proven at the app layer
+// by scripts/smoke-enquiry-tenant-isolation.test.ts. Here we prove the DB posture.
 
 for (const who of ["ownerA", "staffB", "staffD"]) {
   test(`brand_enquiries: ${who} cannot read any tenant's enquiries`, async () => {
@@ -235,23 +241,52 @@ for (const who of ["ownerA", "staffB", "staffD"]) {
     assert.ok(!JSON.stringify(body ?? "").includes("secret-enquiry"), "no enquiry leak");
   });
 }
-test("brand_enquiries: anon consented INSERT still works (contact form)", async () => {
+for (const who of ["ownerA", "staffB", "staffD"]) {
+  test(`brand_enquiries: ${who} cannot UPDATE or DELETE any enquiry`, async () => {
+    const upd = await asUser(tokens[who], "/rest/v1/brand_enquiries?agency_id=eq.agency-one", {
+      method: "PATCH", body: JSON.stringify({ message: "tampered" }),
+    });
+    expectHardDenied(upd.status, await upd.json().catch(() => null), `enquiry UPDATE as ${who}`);
+    const del = await asUser(tokens[who], "/rest/v1/brand_enquiries?agency_id=eq.agency-one", { method: "DELETE" });
+    expectHardDenied(del.status, await del.json().catch(() => null), `enquiry DELETE as ${who}`);
+  });
+}
+test("brand_enquiries: anon INSERT is now DENIED (capture is server-mediated)", async () => {
+  // The base migration kept a consented anon INSERT; the corrective migration
+  // removes it because every real capture path already inserts via the service
+  // role. A direct anonymous PostgREST INSERT must be refused.
   const res = await asAnon("/rest/v1/brand_enquiries", {
     method: "POST",
     body: JSON.stringify({ brand_slug: "aquacrm", name: "Visitor", email: "v@example.test", consent: true }),
   });
-  assert.equal(res.status, 201, `consented insert: ${res.status} ${await res.text()}`);
+  assert.ok(res.status >= 400, `anon direct insert must be refused, got ${res.status} ${await res.text()}`);
 });
-test("brand_enquiries: anon INSERT without consent is refused", async () => {
-  const res = await asAnon("/rest/v1/brand_enquiries", {
+test("brand_enquiries: authenticated INSERT is denied too", async () => {
+  const res = await asUser(tokens.ownerA, "/rest/v1/brand_enquiries", {
     method: "POST",
-    body: JSON.stringify({ brand_slug: "aquacrm", name: "Visitor", email: "v@example.test", consent: false }),
+    body: JSON.stringify({ brand_slug: "aquacrm", name: "Staff", email: "s@example.test", consent: true }),
   });
-  assert.ok(res.status >= 400, `unconsented insert must fail, got ${res.status}`);
+  assert.ok(res.status >= 400, `authenticated direct insert must be refused, got ${res.status}`);
 });
 test("brand_enquiries: anon cannot read submissions back", async () => {
   const res = await asAnon("/rest/v1/brand_enquiries?select=*");
   expectHardDenied(res.status, await res.json().catch(() => null), "anon enquiry read");
+});
+test("brand_enquiries: the SERVER-MEDIATED (service-role) path still does full CRUD", async () => {
+  // This is the path the internal routes use via createEnquiryDataClient. It
+  // must keep working after the full chain, or enquiry management breaks.
+  const created = await svc("/rest/v1/brand_enquiries", {
+    method: "POST", headers: { Prefer: "return=representation" },
+    body: JSON.stringify({ brand_slug: "aquacrm", name: "SR", email: "sr@example.test", consent: true, message: "sr-roundtrip", agency_id: "agency-one" }),
+  });
+  assert.equal(created.status, 201, `service-role insert: ${created.status} ${await created.clone().text()}`);
+  const [row] = await created.json();
+  const read = await svc(`/rest/v1/brand_enquiries?id=eq.${row.id}&select=message`);
+  assert.equal((await read.json())[0]?.message, "sr-roundtrip", "service-role read");
+  const upd = await svc(`/rest/v1/brand_enquiries?id=eq.${row.id}`, { method: "PATCH", body: JSON.stringify({ message: "sr-updated" }) });
+  assert.ok(upd.status < 300, `service-role update: ${upd.status}`);
+  const del = await svc(`/rest/v1/brand_enquiries?id=eq.${row.id}`, { method: "DELETE" });
+  assert.ok(del.status < 300, `service-role delete: ${del.status}`);
 });
 
 // ─── audit + consent logs: service role only ───────────────────────────────

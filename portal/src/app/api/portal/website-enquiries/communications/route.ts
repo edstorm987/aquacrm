@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { createEnquiryDataClient } from "@/lib/supabase/enquiryDataClient";
 
 import { NextResponse } from "next/server";
 
@@ -23,7 +24,6 @@ import {
   releaseStagedPrivateUploadOwnershipClaim,
   type StagedPrivateUploadBinding,
 } from "@/lib/server/privateObjectLifecycle";
-import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
 import { isTradingBrandSlug, tradingBrandDefinition } from "@/lib/brands/tradingBrands";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
@@ -97,7 +97,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "Enquiry, channel, send-as account and a message or attachment are required." }, { status: 400 });
     }
     const channel = channelInput as MessageChannel;
-    const supabase = await createScopedSupabaseClient();
+    const supabase = await createEnquiryDataClient();
     const data = await loadActorWebsiteEnquiry<EnquiryRow>(actor, supabase, {
       id: enquiryId,
       required: "use",

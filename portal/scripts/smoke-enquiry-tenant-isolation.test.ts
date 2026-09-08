@@ -191,11 +191,16 @@ describe("website-enquiries/erase refuses a cross-tenant delete", () => {
       },
     } as never;
 
-    // 2) The scoped Supabase client → the in-memory table.
-    const scopedId = require.resolve("../src/lib/supabase/scoped");
-    require.cache[scopedId] = {
-      id: scopedId, filename: scopedId, loaded: true, paths: [], children: [],
-      exports: { createScopedSupabaseClient: async () => makeScopedFake() },
+    // 2) The enquiry data client → the in-memory table. brand_enquiries is now
+    //    server-mediated (Phase 1): the erase route reads/deletes through
+    //    createEnquiryDataClient() (service-role admin), with tenant ownership
+    //    enforced in server code by loadOwnedEnquiry — NOT by RLS. Stub that
+    //    factory so the route runs against a controllable table; the test still
+    //    proves the app-level ownership guard refuses the cross-tenant delete.
+    const enquiryClientId = require.resolve("../src/lib/supabase/enquiryDataClient");
+    require.cache[enquiryClientId] = {
+      id: enquiryClientId, filename: enquiryClientId, loaded: true, paths: [], children: [],
+      exports: { createEnquiryDataClient: () => makeScopedFake() },
     } as never;
 
     // Loaded AFTER the stubs (require, not import — this file transpiles to CJS

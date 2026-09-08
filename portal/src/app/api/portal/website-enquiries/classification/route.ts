@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createEnquiryDataClient } from "@/lib/supabase/enquiryDataClient";
 import { containerFor } from "@aqua/plugin-leads-pipeline/server";
 
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
@@ -13,7 +14,6 @@ import { loadActorWebsiteEnquiry } from "@/lib/server/access/websiteEnquiryAcces
 import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { pipelinePort } from "@/lib/server/leadsPipelinePorts";
-import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
 import { getInstall } from "@/server/pluginInstalls";
 import { classifyPerson, upsertPerson } from "@/server/persons";
 import { deleteCard, getPipelineBySlug, listCards } from "@/server/pipelines";
@@ -48,7 +48,7 @@ export async function PATCH(request: Request) {
     }
     const classification = body.classification;
 
-    const supabase = await createScopedSupabaseClient();
+    const supabase = await createEnquiryDataClient();
     const data = await loadActorWebsiteEnquiry<EnquiryRow>(actor, supabase, {
       id: enquiryId,
       required: "use",

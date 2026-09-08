@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
+import { createEnquiryDataClient } from "@/lib/supabase/enquiryDataClient";
 
 import { authErrorResponse } from "@/lib/server/auth/auth";
-import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
 import { loadOwnedEnquiry } from "@/lib/supabase/ownedEnquiry";
 import type { WebsiteEnquiryStatus } from "@/lib/server/websiteEnquiries";
 import { ensureHydrated } from "@/server/storage";
@@ -30,7 +30,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: false, error: "Submission ID and a valid status are required." }, { status: 400 });
     }
 
-    const supabase = await createScopedSupabaseClient();
+    const supabase = await createEnquiryDataClient();
     const data = await loadOwnedEnquiry<EnquiryRow>(supabase, { id: enquiryId, agencyId: actor.resourceAgencyId });
     if (!data) return NextResponse.json({ ok: false, error: "Submission not found." }, { status: 404 });
 

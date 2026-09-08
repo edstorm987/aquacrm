@@ -145,10 +145,22 @@ at all. Superseded first-cut model, or unfinished? Decide and record it.
    through these routes — they get a 401 unless real Supabase cookies are also
    present (Ed's own dev-mode keeps his cookies, so his flows still work).
 
-   **What stays on the service role, and why (13 sites, 8 files):**
+   **What stays on the service role, and why (14 sites, 9 files):**
+
+   > **2026-09-08 (assume-breach Phase 1).** `brand_enquiries` became fully
+   > server-mediated: the containment migration
+   > (`20260908210000` + corrective `20260908220000`) revokes authenticated
+   > SELECT/UPDATE/DELETE, so the internal enquiry routes can no longer use the
+   > scoped RLS client. They were converted to `createEnquiryDataClient()` — one
+   > centralized service-role factory — with tenant ownership enforced in server
+   > code (`loadOwnedEnquiry` / `loadActorWebsiteEnquiry`), never by RLS. Net: +1
+   > *centralized* service-role site (the factory below), −11 scoped-client call
+   > sites in the routes. This is a deliberate, documented increase in the
+   > service-role count in exchange for closing the null-fail-open RLS policy.
 
    | Site | Why it must keep the service role |
    |---|---|
+   | `src/lib/supabase/enquiryDataClient.ts` (1) | The single server-mediated `brand_enquiries` data client. authenticated has no SELECT/UPDATE/DELETE after the containment migration; the 11 internal enquiry routes read/mutate through this factory, and tenant ownership is enforced in server code (`loadOwnedEnquiry`/`loadActorWebsiteEnquiry`) against the caller's session `agencyId`. Centralizing here (vs each route calling the admin client) keeps the ownership contract in one place. |
    | `src/app/api/public/brand-enquiry/route.ts` (1) | Public endpoint, no session. Anon may only INSERT consented rows; this route also SELECTs for dedupe and UPDATEs metadata — an anon SELECT power here would let anyone probe enquiries by email. |
    | `src/app/api/public/form-capture/route.ts` (1) | Public endpoint, no session; inserts `consent:false` hold rows the anon insert policy correctly refuses, and attaches captures to existing rows. |
    | `src/app/api/telemetry/collect/route.ts` (1) | Public endpoint, no session; `website_consent_events` deliberately has no anon policy — consent rows are written server-side after validation/redaction. |

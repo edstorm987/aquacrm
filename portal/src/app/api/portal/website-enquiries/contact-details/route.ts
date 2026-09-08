@@ -1,9 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { createEnquiryDataClient } from "@/lib/supabase/enquiryDataClient";
 
 import { authErrorResponse } from "@/lib/server/auth/auth";
 import { loadActorWebsiteEnquiry } from "@/lib/server/access/websiteEnquiryAccess";
 import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
-import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getEnquiryContactDetails, saveEnquiryContactDetails } from "@/server/enquiryContactDetails";
 
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     const { actor } = await requireCurrentWorkspaceElementAccess("staff", "workspace.inbox", "view");
     const enquiryId = request.nextUrl.searchParams.get("enquiryId")?.trim() ?? "";
     const enquiry = enquiryId
-      ? await loadActorWebsiteEnquiry(actor, await createScopedSupabaseClient(), { id: enquiryId, required: "view" })
+      ? await loadActorWebsiteEnquiry(actor, await createEnquiryDataClient(), { id: enquiryId, required: "view" })
       : null;
     if (!enquiry) return NextResponse.json({ ok: false, error: "Website submission not found." }, { status: 404 });
     return NextResponse.json({ ok: true, details: getEnquiryContactDetails(actor.resourceAgencyId, enquiry.id) });
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       }
     }
     try {
-      const enquiry = await loadActorWebsiteEnquiry(actor, await createScopedSupabaseClient(), {
+      const enquiry = await loadActorWebsiteEnquiry(actor, await createEnquiryDataClient(), {
         id: enquiryId,
         required: "use",
       });

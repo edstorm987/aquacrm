@@ -1,4 +1,5 @@
 import "server-only";
+import { createEnquiryDataClient } from "@/lib/supabase/enquiryDataClient";
 
 import {
   assertClientWorkspaceElementAccess,
@@ -11,7 +12,6 @@ import {
 } from "@/lib/server/access/workspaceElementAccess";
 import { getInboxConversation } from "@/lib/server/inbox/inboxStore";
 import type { InboxMediaTargetKind } from "@/lib/server/inbox/inboxMedia";
-import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
 import type { CurrentAccessActor } from "@/server/accessControl";
 import { getClientForAgency } from "@/server/tenants";
 
@@ -31,7 +31,7 @@ export async function inboxMediaTargetExistsForActor(
   if (kind === "website") {
     return Boolean(await loadActorWebsiteEnquiry(
       actor,
-      await createScopedSupabaseClient(),
+      await createEnquiryDataClient(),
       { id: targetId, required },
     ));
   }

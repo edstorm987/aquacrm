@@ -201,6 +201,10 @@ const SERVICE_MARKERS = [
   "SUPABASE_SERVICE_ROLE_KEY",
   "SUPABASE_SECRET_KEY",
   "resolveSupabaseSecretKey",
+  // Phase 1: the server-mediated brand_enquiries data client. It wraps
+  // createSupabaseAdminClient, so a route using it is on the service-role path
+  // (RLS does not gate it — tenant ownership is enforced in server code).
+  "createEnquiryDataClient",
 ];
 const ANON_MARKERS = ["createRouteSupabaseClient", "createServerSupabaseClient", "createScopedSupabaseClient"];
 

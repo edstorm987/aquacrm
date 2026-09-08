@@ -47,6 +47,14 @@ const MARKER = "createSupabaseAdminClient(";
  * reason, in the plan's phase-4 "what stays and why" table.
  */
 const EXPECTED_SITES: Record<string, number> = {
+  // Phase 1 (assume-breach) made brand_enquiries SERVER-MEDIATED: the merged
+  // containment migration revokes authenticated SELECT/UPDATE/DELETE, so the
+  // internal enquiry routes can no longer use the scoped RLS client. They now
+  // read/mutate through this ONE centralized service-role factory, with tenant
+  // ownership enforced in server code (loadOwnedEnquiry / loadActorWebsiteEnquiry)
+  // — never by RLS. Centralizing the service role in one documented file (rather
+  // than 11 routes each reaching for the admin client) is the whole point.
+  "src/lib/supabase/enquiryDataClient.ts": 1,
   // GDPR erasure must scrub every row and storage object regardless of what
   // RLS would show the caller; smoke-client-erasure.test.ts pins this wiring.
   "src/app/api/portal/clients/[clientId]/erase/route.ts": 1,
@@ -102,7 +110,7 @@ describe("service-role usage stays measured and documented", () => {
   const foundTotal = Object.values(found).reduce((sum, n) => sum + n, 0);
   const expectedTotal = Object.values(EXPECTED_SITES).reduce((sum, n) => sum + n, 0);
 
-  it("matches the pinned call-site count (13 sites in 8 files as of 2026-08-20)", () => {
+  it("matches the pinned call-site count (14 sites in 9 files; +1 centralized enquiry client, 2026-09-08)", () => {
     assert.deepEqual(
       found,
       EXPECTED_SITES,
