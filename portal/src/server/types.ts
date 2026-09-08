@@ -4877,6 +4877,20 @@ export interface SecurityControlState {
   suspendedUsers: Record<string, { reason: string; at: number; actor: string }>;
   /** sid → registry record. Individual device/session revocation. */
   sessions: Record<string, SecuritySessionRecord>;
+  /**
+   * KILL SWITCH: while set, `mutate()` refuses every write except the security
+   * control plane's own (so the switch can be lifted and sessions revoked while
+   * it holds). Reads keep serving. Reversible containment for an active
+   * data-corruption or mass-write incident.
+   */
+  globalReadOnly?: { reason: string; at: number; actor: string };
+  /**
+   * agencyId → lockdown. Every session scoped to a locked tenant fails the
+   * central gate until the lockdown is lifted — REVERSIBLE (unlike an epoch
+   * bump, lifting restores existing sessions instead of forcing re-login).
+   * Containment for a single compromised tenant.
+   */
+  tenantLockdowns?: Record<string, { reason: string; at: number; actor: string }>;
 }
 
 export interface PortalState {

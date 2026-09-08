@@ -181,6 +181,13 @@ export const PROMOTION_DISPOSITION = {
       "Client-tier users of a moving client move with it (their `agencyId` follows their client). Agency-tier staff do NOT: `ServerUser.companyIds` is a display label, and turning it into a retroactive tenancy grant is exactly the widening the switcher forbids — staff are PROPOSED, never auto-granted.",
     needsConfirmation: true,
   },
+  securityControl: {
+    disposition: "leave",
+    ownership: "app-wide",
+    keying: "singleton",
+    reason:
+      "Assume-breach security control plane — ONE object for the whole app holding the global epoch, per-tenant/per-user epochs, suspensions and the session registry. Security posture never follows a promoted company: the new tenant starts at epoch zero with an empty registry, and copying revocation or suspension state across tenants would leak security telemetry and desynchronise the epochs the central session gate enforces.",
+  },
   accessRoleTemplates: {
     disposition: "leave",
     ownership: "agency-scoped",
@@ -883,12 +890,6 @@ export const PROMOTION_DISPOSITION = {
     keying: "own-id",
     reason: "Durable domain events are the origin tenant's history of what happened under it. A promoted company's tenant starts its own event stream; rewriting past events' agencyId would falsify lineage.",
   },
-  securityControl: {
-    disposition: "leave",
-    ownership: "none",
-    keying: "own-id",
-    reason: "Assume-breach security control plane (epochs, suspensions, session registry). Security posture never follows a promoted company: the new tenant starts at epoch zero with an empty registry — copying revocation/suspension state across tenants would leak security telemetry and desynchronise the epochs the central session gate enforces.",
-  },
 } satisfies PromotionDispositionMap;
 
 // ─── THE GUARD ────────────────────────────────────────────────────────────
@@ -935,7 +936,7 @@ type _NoStaleCollections = AssertNever<StaleCollections>;
 // tenant key and live outside the live data realm entirely.
 // 98 → 99 on 2026-09-03: `personalMetricDays`, the bounded actor-owned
 // semantic projection behind personal recurring targets.
-export const PROMOTION_COLLECTION_COUNT = 99;
+export const PROMOTION_COLLECTION_COUNT = 100;
 
 /** Every classified collection name, in `PortalState` order. */
 export const PROMOTION_COLLECTIONS = Object.keys(PROMOTION_DISPOSITION) as Array<

@@ -124,7 +124,12 @@ test("real freelancer journey provisions once, invites, shares work, messages, u
   assert.equal(Object.values(getState().users).filter(user => user.email === freelancer.email).length, 1);
 
   const savedNodeEnvironment = process.env.NODE_ENV;
+  const savedSessionSecret = process.env.PORTAL_SESSION_SECRET;
   process.env.NODE_ENV = "production";
+  // Phase 0-B: token signing FAILS CLOSED in production — no secret, no boot.
+  // A realistic production simulation therefore carries a real secret; the
+  // fail-closed guard itself has its own suite (smoke-auth-fail-closed).
+  process.env.PORTAL_SESSION_SECRET = "freelancer-journey-production-simulation-secret";
   try {
     const deliveryFallback = await inviteFreelancer(agency.id, owner.id, {
       name: "Fran Creator",
@@ -143,6 +148,8 @@ test("real freelancer journey provisions once, invites, shares work, messages, u
   } finally {
     if (savedNodeEnvironment === undefined) delete process.env.NODE_ENV;
     else process.env.NODE_ENV = savedNodeEnvironment;
+    if (savedSessionSecret === undefined) delete process.env.PORTAL_SESSION_SECRET;
+    else process.env.PORTAL_SESSION_SECRET = savedSessionSecret;
   }
 
   const job = savePeopleFreelancerJob({
