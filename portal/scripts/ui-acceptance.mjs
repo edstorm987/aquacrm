@@ -27,6 +27,8 @@ import { existsSync, readdirSync, mkdirSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { join } from "node:path";
+import { argv } from "node:process";
+import { fileURLToPath } from "node:url";
 import { overflowVerdictFrom, axeVerdict, findProvisionedChromium, BROWSER_INSTALL_HINT } from "./browser-matrix.mjs";
 import { ROUTES, ROUTE_TOTALS } from "./ui-acceptance-inventory.mjs";
 
@@ -180,6 +182,36 @@ function gitMeta() {
   } catch { return { baselineSha: null, branch: null, dirtyFingerprint: null, changedPathCount: 0 }; }
 }
 
+// PURE finding classifier (no DOM/IO) — single source of truth for what counts as
+// a finding, so the self-tests can prove each protection fires. `m` is one measured
+// row. Every protection here must map to a finding; P0/P1 findings block the gate.
+export function classifyRecord(m) {
+  const f = [];
+  const at = extra => ({ path: m.path, vp: m.vp, ...extra });
+  if (m.err) f.push(at({ sev: "P1", kind: "load-error", detail: m.err }));
+  else if (m.needsAuth && m.redirectedToLogin) f.push(at({ sev: "P1", kind: "auth-redirect", detail: `protected route redirected to login (final ${m.finalUrl})` }));
+  else if (m.needsAuth && m.status !== 200) f.push(at({ sev: "P1", kind: "non-200", detail: `HTTP ${m.status}` }));
+  if (m.geometryMissing) f.push(at({ sev: "P1", kind: "incomplete-scan", detail: "geometry probe did not run" }));
+  if (m.axeMissing) f.push(at({ sev: "P1", kind: "incomplete-scan", detail: `axe did not run${m.axeErr ? ": " + m.axeErr : ""}` }));
+  if (m.shotErr) f.push(at({ sev: "P1", kind: "screenshot-failed", detail: m.shotErr }));
+  if (m.overflowFail) f.push(at({ sev: "P1", kind: "overflow", detail: m.overflowDetail }));
+  if (m.offscreen > 0) f.push(at({ sev: "P1", kind: "offscreen-interactive", detail: (m.offscreenText || []).slice(0, 5).join(" | ") }));
+  if (m.clipped > 0) f.push(at({ sev: "P2-review", kind: "clipped-focusable-x", detail: (m.clippedText || []).slice(0, 5).join(" | ") }));
+  if (m.axeBlocking > 0) f.push(at({ sev: "P1", kind: "axe-serious", detail: (m.axeBlockingIds || []).join(", ") }));
+  if (m.consoleErrors > 0) f.push(at({ sev: "P1", kind: "console-error", detail: (m.consoleErrorDetail || []).join(" | ") }));
+  if (m.netFail > 0) f.push(at({ sev: "P1", kind: "network-failure", detail: (m.netFailDetail || []).join(" | ") }));
+  if (m.loaderStuck) f.push(at({ sev: "P2", kind: "loader-stuck", detail: "loading curtain still present after settle" }));
+  if (m.pageErrors > 0) f.push(at({ sev: "P1", kind: "page-error", detail: (m.pageErrorDetail || []).slice(0, 2).join(" | ") }));
+  return f;
+}
+
+export const BLOCKING = BLOCKING_SEVERITIES;
+export function gateFromFindings(findings) {
+  const blocking = findings.filter(f => BLOCKING_SEVERITIES.has(f.sev));
+  return { gate: blocking.length === 0 ? "pass" : "blocked", blockingCount: blocking.length, exitCode: blocking.length === 0 ? 0 : 1 };
+}
+export function isValidEngine(engine) { return VALID_ENGINES.has(engine); }
+
 async function main() {
   const require2 = createRequire(import.meta.url);
   const chromiumPath = findProvisionedChromium(process.cwd(), { exists: existsSync, list: readdirSync });
@@ -271,27 +303,43 @@ async function main() {
     for (const vp of VIEWPORT_SET) {
       page._consoleErrors = []; page._pageErrors = []; page._netFail = [];
       await page.setViewportSize({ width: vp.w, height: vp.h });
-      let status = 0, geo = null, axe = null, err = null;
+      let status = 0, geo = null, axe = null, err = null, shotErr = null, axeErr = null, shotTaken = false;
       const url = `${BASE}${route.path}`;
       try {
         const r = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
         status = r?.status() ?? 0;
         await settle(page);
+        // Optional text-only scaling (WCAG 1.4.4). Applied AFTER settle so it
+        // reflows the real content; recorded so a run's scale is unambiguous.
+        if (TEXT_SCALE && TEXT_SCALE !== "none") {
+          await page.evaluate(pct => { document.documentElement.style.fontSize = pct + "%"; }, TEXT_SCALE).catch(() => {});
+          await page.waitForTimeout(300);
+        }
         geo = await page.evaluate(GEOMETRY_PROBE);
         if (SHOT_VPS.has(vp.id)) {
           const safe = route.path.replace(/[^a-z0-9]+/gi, "_").replace(/^_|_$/g, "") || "root";
-          await page.screenshot({ path: join(outDir, "shots", `${safe}__${vp.id}.png`), fullPage: true }).catch(() => {});
+          // A REQUESTED screenshot that fails is a finding — never silently swallow it.
+          try { await page.screenshot({ path: join(outDir, "shots", `${safe}__${vp.id}.png`), fullPage: true }); shotTaken = true; }
+          catch (e) { shotErr = e.message; }
         }
-        try { await page.addScriptTag({ content: axeSource }); axe = await page.evaluate(async () => (await window.axe.run(document, { resultTypes: ["violations"] })).violations.map(v => ({ id: v.id, impact: v.impact, n: v.nodes.length }))); } catch { axe = null; }
+        try { await page.addScriptTag({ content: axeSource }); axe = await page.evaluate(async () => (await window.axe.run(document, { resultTypes: ["violations"] })).violations.map(v => ({ id: v.id, impact: v.impact, n: v.nodes.length }))); }
+        catch (e) { axe = null; axeErr = e.message; }
       } catch (e) { err = e.message; }
 
       // Verdicts
-      const redirectedToLogin = route.needsAuth && /\/login(\?|$)/.test(geo?.url || "");
+      const finalUrl = geo?.url || page.url();
+      const redirectedToLogin = route.needsAuth && /\/login(\?|$)/.test(finalUrl);
       const overflow = geo ? overflowVerdictFrom(geo.overflowRegions) : { status: "fail", detail: "no geometry" };
       const axeBlocking = (axe || []).filter(v => v.impact === "serious" || v.impact === "critical");
+      // An incomplete scan (geometry OR axe did not run) is a finding — the page
+      // must never pass because we failed to measure it.
+      const geometryMissing = !err && !geo;
+      const axeMissing = !err && axe === null;
       const rec = {
         path: route.path, cat: route.category, vp: vp.id, w: vp.w, h: vp.h,
-        status, err,
+        scaleMode: TEXT_SCALE && TEXT_SCALE !== "none" ? `text-${TEXT_SCALE}%` : "1x",
+        engine: ENGINE, engineVersion: browser.version(), role: ROLE, buildMode: BUILD_MODE,
+        status, err, finalUrl,
         redirectedToLogin,
         overflow: overflow.status,
         offscreen: geo?.offscreen?.length || 0,
@@ -299,40 +347,78 @@ async function main() {
         loaderStuck: !!geo?.loader,
         axeBlocking: axeBlocking.length,
         axeBlockingIds: axeBlocking.map(v => `${v.id}(${v.n})`),
+        axeScanned: axe !== null,
+        screenshotRequested: SHOT_VPS.has(vp.id), screenshotTaken: shotTaken, screenshotError: shotErr,
         consoleErrors: (page._consoleErrors || []).length,
         pageErrors: (page._pageErrors || []).length,
         netFail: (page._netFail || []).length,
+        netFailDetail: (page._netFail || []).slice(0, 4),
+        consoleErrorDetail: (page._consoleErrors || []).slice(0, 4),
         offscreenDetail: geo?.offscreen || [],
         clippedDetail: geo?.clipped || [],
       };
       records.push(rec);
-      // Collect findings
-      if (err) findings.push({ sev: "P1", kind: "load-error", path: route.path, vp: vp.id, detail: err });
-      else if (route.needsAuth && redirectedToLogin) findings.push({ sev: "P1", kind: "auth-redirect", path: route.path, vp: vp.id, detail: "protected route showed login" });
-      else if (route.needsAuth && status !== 200) findings.push({ sev: "P2", kind: "non-200", path: route.path, vp: vp.id, detail: `HTTP ${status}` });
-      if (overflow.status === "fail" && geo) findings.push({ sev: "P1", kind: "overflow", path: route.path, vp: vp.id, detail: overflow.detail });
-      if (rec.offscreen > 0) findings.push({ sev: "P1", kind: "offscreen-interactive", path: route.path, vp: vp.id, detail: geo.offscreen.map(o => o.t).slice(0, 5).join(" | ") });
-      if (rec.clipped > 0) findings.push({ sev: "P2-review", kind: "clipped-focusable-x", path: route.path, vp: vp.id, detail: geo.clipped.map(o => o.t).slice(0, 5).join(" | ") });
-      if (axeBlocking.length > 0) findings.push({ sev: "P1", kind: "axe-serious", path: route.path, vp: vp.id, detail: axeBlocking.map(v => `${v.id}(${v.n})`).join(", ") });
-      if (rec.loaderStuck) findings.push({ sev: "P2", kind: "loader-stuck", path: route.path, vp: vp.id, detail: "loading curtain still present after settle" });
-      if (rec.pageErrors > 0) findings.push({ sev: "P1", kind: "page-error", path: route.path, vp: vp.id, detail: (page._pageErrors || []).slice(0, 2).join(" | ") });
-      process.stdout.write(`${overflow.status === "fail" || rec.offscreen || rec.clipped || axeBlocking.length || err || rec.pageErrors ? "✗" : "·"}`);
+      // Single source of truth (also unit-tested): classifyRecord.
+      const rowFindings = classifyRecord({
+        path: route.path, vp: vp.id, needsAuth: route.needsAuth,
+        err, redirectedToLogin, status, finalUrl,
+        geometryMissing, axeMissing, axeErr, shotErr,
+        overflowFail: overflow.status === "fail" && !!geo, overflowDetail: overflow.detail,
+        offscreen: rec.offscreen, offscreenText: (geo?.offscreen || []).map(o => o.t),
+        clipped: rec.clipped, clippedText: (geo?.clipped || []).map(o => o.t),
+        axeBlocking: axeBlocking.length, axeBlockingIds: rec.axeBlockingIds,
+        consoleErrors: rec.consoleErrors, consoleErrorDetail: rec.consoleErrorDetail,
+        netFail: rec.netFail, netFailDetail: rec.netFailDetail,
+        loaderStuck: rec.loaderStuck,
+        pageErrors: rec.pageErrors, pageErrorDetail: (page._pageErrors || []),
+      });
+      findings.push(...rowFindings);
+      const blocked = rowFindings.some(f => BLOCKING_SEVERITIES.has(f.sev));
+      process.stdout.write(blocked ? "✗" : (rec.clipped || rec.loaderStuck ? "?" : "·"));
     }
     process.stdout.write(` ${route.path}\n`);
   }
+  const engineVersion = browser.version();
   await browser.close();
 
-  await writeFile(join(outDir, "records.json"), JSON.stringify(records, null, 2));
-  await writeFile(join(outDir, "findings.json"), JSON.stringify(findings, null, 2));
-
-  // Summary
   const bySev = findings.reduce((m, f) => { m[f.sev] = (m[f.sev] || 0) + 1; return m; }, {});
   const byKind = findings.reduce((m, f) => { m[f.kind] = (m[f.kind] || 0) + 1; return m; }, {});
+  const blockingFindings = findings.filter(f => BLOCKING_SEVERITIES.has(f.sev));
+  const finishedUtc = new Date().toISOString().replace(/\.\d+Z$/, "Z");
+  const git = gitMeta();
+  // Run manifest: every metadata field the gate needs to be reproducible + audited.
+  const manifest = {
+    tool: "ui-acceptance.mjs",
+    startedUtc, finishedUtc,
+    engine: ENGINE, engineVersion,
+    buildMode: BUILD_MODE, role: ROLE, base: BASE, signin: SIGNIN, statePath: STATE_PATH,
+    scaleMode: TEXT_SCALE && TEXT_SCALE !== "none" ? `text-${TEXT_SCALE}%` : "1x",
+    baselineSha: git.baselineSha, branch: git.branch, dirtyFingerprint: git.dirtyFingerprint, changedPathCount: git.changedPathCount,
+    command: COMMAND, env: RUN_ENV,
+    routes: ROUTE_SET.map(r => r.path), viewports: VIEWPORT_SET.map(v => v.id),
+    recordCount: records.length,
+    findingsBySeverity: bySev, findingsByKind: byKind,
+    blockingCount: blockingFindings.length,
+    gate: blockingFindings.length === 0 ? "pass" : "blocked",
+    outDir,
+  };
+  await writeFile(join(outDir, "records.json"), JSON.stringify(records, null, 2));
+  await writeFile(join(outDir, "findings.json"), JSON.stringify(findings, null, 2));
+  await writeFile(join(outDir, "run-manifest.json"), JSON.stringify(manifest, null, 2));
+
   console.log(`\n=== SUMMARY ===`);
+  console.log(`engine=${ENGINE} ${engineVersion} · build=${BUILD_MODE} · role=${ROLE} · scale=${manifest.scaleMode} · baseline=${(git.baselineSha || "?").slice(0, 8)} dirty=${git.dirtyFingerprint}`);
   console.log(`routes tested: ${ROUTE_SET.length} / inventory ${ROUTE_TOTALS.total} · viewports: ${VIEWPORT_SET.length} · records: ${records.length}`);
   console.log(`findings by severity: ${JSON.stringify(bySev)}`);
   console.log(`findings by kind: ${JSON.stringify(byKind)}`);
   console.log(`evidence: ${outDir}`);
-  process.exit(0);
+  console.log(`GATE: ${manifest.gate.toUpperCase()} (${blockingFindings.length} blocking P0/P1 findings)`);
+  // A blocking finding MUST fail the process — a green gate cannot exit 0 with P0/P1s.
+  process.exit(blockingFindings.length === 0 ? 0 : 1);
 }
-main().catch(e => { console.error(e); process.exit(1); });
+// Only drive a live run when executed directly — importing the module (for the
+// harness self-tests) must NOT launch a browser or call process.exit.
+const invokedDirectly = argv[1] && fileURLToPath(import.meta.url) === argv[1];
+if (invokedDirectly) {
+  main().catch(e => { console.error(e); process.exit(1); });
+}

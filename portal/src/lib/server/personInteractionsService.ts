@@ -69,7 +69,7 @@ export async function personInteractions(
     if (enquiry.consentCapturedAt) {
       fields.push({
         label: "Consent captured",
-        value: new Date(enquiry.consentCapturedAt).toLocaleString("en-GB"),
+        value: new Date(enquiry.consentCapturedAt).toLocaleString("en-GB", { timeZone: "Europe/London" }),
         important: true,
       });
     }
@@ -125,7 +125,7 @@ export async function personInteractions(
     const fields: InteractionField[] = [];
     if (entry.location) fields.push({ label: "Where", value: entry.location });
     if (entry.outcome) fields.push({ label: "Outcome", value: entry.outcome, important: true });
-    fields.push({ label: "Recorded", value: new Date(entry.createdAt).toLocaleString("en-GB") });
+    fields.push({ label: "Recorded", value: new Date(entry.createdAt).toLocaleString("en-GB", { timeZone: "Europe/London" }) });
 
     interactions.push({
       id: entry.id,

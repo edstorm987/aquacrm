@@ -142,7 +142,7 @@ export function TodayView({
               <li key={entry.id} className="flex items-center gap-2.5 text-xs">
                 <CalendarDays size={14} className="shrink-0 text-black/35" aria-hidden />
                 <span className="tabular-nums text-black/55">
-                  {new Date(entry.startsAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                  {new Date(entry.startsAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" })}
                 </span>
                 <span className="min-w-0 truncate text-black/78">{entry.title}</span>
               </li>

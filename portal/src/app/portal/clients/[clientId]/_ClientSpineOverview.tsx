@@ -238,7 +238,7 @@ export function ClientSpineOverview({ clientId, relatedWorkspaces, relationship,
     id: "account-review-overdue",
     tone: "critical",
     title: "Account review is overdue",
-    detail: `The retained review date passed on ${stableUkDateString(new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(operationsBrief.nextReviewAt))}. Review the account and set the next checkpoint.`,
+    detail: `The retained review date passed on ${stableUkDateString(new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Europe/London" }).format(operationsBrief.nextReviewAt))}. Review the account and set the next checkpoint.`,
     action: "Review account",
     href: `${clientWorkspaceHref(clientId, "overview")}?tab=overview#operational-brief`,
   });
@@ -616,7 +616,7 @@ function formatPaymentPositions(
 }
 
 function formatDate(value: number): string {
-  return stableUkDateString(new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(value));
+  return stableUkDateString(new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Europe/London" }).format(value));
 }
 
 function OperationRow({ item, index, clientId, canManageOperations, accepted }: {
@@ -686,7 +686,7 @@ function MovementRow({ item }: { item: Props["recentMovement"][number] }) {
 }
 
 function formatMovementTime(value: number): string {
-  return stableUkDateString(new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(value));
+  return stableUkDateString(new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" }).format(value));
 }
 
 function Lens({ icon: Icon, eyebrow, title, value, detail, summary, tone, href }: {

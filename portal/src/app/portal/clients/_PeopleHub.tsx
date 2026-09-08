@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
+import { useHydrated } from "@/lib/a11y/useHydrated";
 import { AttentionDot } from "@/components/chrome/NotificationAttentionProvider";
 import { Building2, ClipboardPenLine, Columns3, Fingerprint, HeartPulse, List, Mail, Megaphone, Phone, Plus, Route, Save, Search, Settings, UserRound, UserSearch, UsersRound, X, type LucideIcon } from "lucide-react";
 
@@ -112,6 +113,10 @@ export function PeopleHub({
   canManage: boolean;
   clientCustomFields: PortalFormFieldDefinition[];
 }) {
+  // Accessible hydration-ready boundary (UI Wave 9): the header CTAs are
+  // SSR-painted but their handlers attach only when this large component
+  // hydrates — gate them visibly instead of leaving a live-looking dead button.
+  const hydrated = useHydrated();
   const [contactRows, setContactRows] = useState(contacts);
   const [view, setView] = useState<View>(initialView);
   const [query, setQuery] = useState("");
@@ -190,7 +195,7 @@ export function PeopleHub({
         </div>
         {canManage ? (
           <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
-            <button type="button" onClick={() => setAddingContact(true)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium text-black/75 hover:bg-black/[0.03]">
+            <button type="button" disabled={!hydrated} aria-busy={!hydrated || undefined} onClick={() => setAddingContact(true)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/15 bg-white px-3 text-sm font-medium text-black/75 hover:bg-black/[0.03] disabled:opacity-50">
               <Plus size={16} /> Add contact
             </button>
             <NewClientButton products={products} brands={brands} defaults={clientDefaults} customFields={clientCustomFields} />

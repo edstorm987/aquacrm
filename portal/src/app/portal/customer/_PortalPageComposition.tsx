@@ -300,6 +300,6 @@ function invoiceTotals(
 }
 
 function formatDate(timestamp: number): string {
-  try { return stableUkDateString(new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" }).format(timestamp)); }
+  try { return stableUkDateString(new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "Europe/London" }).format(timestamp)); }
   catch { return "Recent"; }
 }

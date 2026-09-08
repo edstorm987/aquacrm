@@ -54,6 +54,21 @@ artifacts, not app defects; a clean run needs a settled loader (12s wait) so axe
 scans real content, not the transient loading curtain. Wave-1 results and the open
 P1s: [UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08.md](UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08.md).
 
+**UI Wave 9 (2026-09-08) added three script tests** (all under the `smoke:all`
+`scripts/*.test.ts` glob). `scripts/smoke-hydration-boundary.test.ts` pins the
+accessible hydration-ready boundary that fixed the production-confirmed pre-hydration
+lost click: a child-process `renderToString` proves a `useHydrated()`-gated control
+SSRs as `disabled` + `aria-busy="true"`, and wiring pins stop the gate being removed
+from the "New client"/"Add contact" CTAs. The other two: `scripts/smoke-ui-acceptance-harness.test.ts` unit-tests
+the harness's pure `classifyRecord`/`gateFromFindings`/`isValidEngine` — 20 tests,
+each mutation-proven to fail if its protection is deleted, plus a subprocess check
+that an unknown engine exits 2. `scripts/smoke-date-timezone-determinism.test.ts`
+proves date output is TZ- and locale-independent (UTC/NY/Kolkata + de_DE child
+processes), DST-correct, and normalises the two en-GB engine divergences. The
+harness itself (`scripts/ui-acceptance.mjs`) was rebuilt so a broken protection or
+an unknown `AQUA_UI_ENGINE` can no longer report a false pass. Full Wave-9 record:
+[UI-WAVE9-EVIDENCE.md](UI-WAVE9-EVIDENCE.md).
+
 ## 2026-09-03 Supabase migrations applied to live (VERIFIED)
 
 - All 14 pending migrations applied to the live project via `supabase db push` (dry-run confirmed first, same-day physical backup confirmed via the Management API). Read-only verification after: `migration list --linked` 27/27 / 0 pending; `brand_enquiries.agency_id` 52/52 `milesymedia`, every table row count preserved, 10/10 new tables + 8/8 key functions present, `apply_app_datastore_patch` 3-arg; live `rls-verify.sql` **51 INFO / 0 FAIL / 0 WARN**; drift tool 0 missing. New `20260903130000_ensure_rls_event_trigger` verified idempotent + functionally correct on a local reset.

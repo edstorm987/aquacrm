@@ -446,7 +446,7 @@ export function MarketingSourceRoster({ sources }: { sources: MarketingSourceCon
               </div>
               <p className="mt-1 text-xs text-black/45">
                 {source.state === "reading"
-                  ? `Feeds ${source.feeds}${source.lastSyncAt ? ` · last synced ${new Date(source.lastSyncAt).toLocaleDateString("en-GB")}` : ""}`
+                  ? `Feeds ${source.feeds}${source.lastSyncAt ? ` · last synced ${new Date(source.lastSyncAt).toLocaleDateString("en-GB", { timeZone: "Europe/London" })}` : ""}`
                   : source.state === "connected-outbound"
                     ? source.readsBack
                       ? "On your sites, but its sync has never run — nothing has come back yet"

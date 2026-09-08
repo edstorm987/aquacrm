@@ -1151,7 +1151,7 @@ export function DashboardCommandCenter({
   async function logDone() {
     const entry = doneEntry.trim();
     if (!entry) return;
-    const stamp = isToday ? new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" }).format(new Date()) : weekdayLong(selectedDate);
+    const stamp = isToday ? new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" }).format(new Date()) : weekdayLong(selectedDate);
     const doneNotes = [plan.doneNotes.trim(), `- ${stamp} ${entry}`].filter(Boolean).join("\n");
     const nextPlan = { ...plan, doneNotes };
     setPlan(nextPlan);

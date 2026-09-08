@@ -265,7 +265,7 @@ function formatLedgerMoney(cents: number, currency: string): string {
 
 function formatLedgerDate(value: number): string {
   if (!Number.isFinite(value) || value <= 0) return "Date not recorded";
-  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(value);
+  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Europe/London" }).format(value);
 }
 
 export function clientContractLedgerEvent(clientId: string, contract: LedgerContract): ClientRecordLedgerEventInput {

@@ -761,7 +761,7 @@ function enquiryView(enquiry: WebsiteEnquiry): "forms" | "chatbot" | "support" {
 }
 
 function calendarAlertDetail(type: string, startsAt: number, endsAt?: number): string {
-  const format = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" });
+  const format = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/London" });
   const timing = endsAt ? `${format.format(startsAt)} to ${format.format(endsAt)}` : format.format(startsAt);
   return `${type.replaceAll("-", " ")} scheduled for ${timing}.`;
 }

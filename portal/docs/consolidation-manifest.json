@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-08T16:29:01.002Z",
+  "generatedAt": "2026-09-08T19:09:05.795Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -51,6 +51,46 @@
   ],
   "generatedReferenceDirectory": "docs/reference",
   "sources": [
+    {
+      "path": ".artefacts/ui-wave9/03-write-journeys.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-artefacts-ui-wave9-03-write-journeys-md",
+      "sha256": "8030166105658cd37ece46f94f0e7c93f3330499bb477e668f92f963af460ad0",
+      "words": 359,
+      "bytes": 2438
+    },
+    {
+      "path": ".artefacts/ui-wave9/04-prehydration-FINDING.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-artefacts-ui-wave9-04-prehydration-finding-md",
+      "sha256": "c5d1c376bc5129ac54400639b0a052d7f537edb5112a03eace844cf1f8a985b0",
+      "words": 1161,
+      "bytes": 8434
+    },
+    {
+      "path": ".artefacts/ui-wave9/07-prod-roles-BLOCKED.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-artefacts-ui-wave9-07-prod-roles-blocked-md",
+      "sha256": "05266377c83ffc5b8c83cfe78eda4dea2bc692eff7bfcc8fb7b1563b3db3822f",
+      "words": 267,
+      "bytes": 1880
+    },
+    {
+      "path": ".artefacts/ui-wave9/10-item7-prod-role-matrix.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-artefacts-ui-wave9-10-item7-prod-role-matrix-md",
+      "sha256": "632eb9e894d0acb82879f8cf8ce59fa0cfcd4d160f85a0e20a326a999a21f14e",
+      "words": 347,
+      "bytes": 2321
+    },
+    {
+      "path": ".artefacts/ui-wave9/FINDING-workspace-curtain.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-artefacts-ui-wave9-finding-workspace-curtain-md",
+      "sha256": "ec097f764684e5e2bc6f8b206c1832f6dbabf5654648e62cf6048c55d7f5261a",
+      "words": 291,
+      "bytes": 2016
+    },
     {
       "path": "AGENTS.md",
       "volume": "docs/00-START-HERE.md",
@@ -503,9 +543,9 @@
       "path": "docs/development/issues.md",
       "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
       "anchor": "source-docs-development-issues-md",
-      "sha256": "243d886860110801005979b44d209673af938b1df1ca4827785d573a537cc1ce",
-      "words": 45527,
-      "bytes": 354059
+      "sha256": "2a49944dd8ab47b38ed962500b1501128d75fa87eac224e55d94f850592c44d8",
+      "words": 45808,
+      "bytes": 356248
     },
     {
       "path": "docs/development/LOOP-PROGRESS.md",
@@ -1031,9 +1071,9 @@
       "path": "docs/development/PRODUCTION-READINESS.md",
       "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
       "anchor": "source-docs-development-production-readiness-md",
-      "sha256": "62300ac9ba15d6b65b3c2c804a771aebfaf6dd3625bd8c5efcdf56c9a6e92d68",
-      "words": 2052,
-      "bytes": 14967
+      "sha256": "69689073325f254a4639a7af63e847988e74c1cfbbac89dd5e34d0fcfedcb536",
+      "words": 2257,
+      "bytes": 16386
     },
     {
       "path": "docs/development/roadmap.md",
@@ -1063,9 +1103,9 @@
       "path": "docs/development/tests.md",
       "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
       "anchor": "source-docs-development-tests-md",
-      "sha256": "7433e5b2f7bd9c85681d7b035f4317f9d1fb90f9883147f46958dc23243846e1",
-      "words": 15698,
-      "bytes": 123272
+      "sha256": "c3e9afa772e2d2933b8489e33f1cd5b221919c17a4b1cd7398a873162f2f183c",
+      "words": 15828,
+      "bytes": 124419
     },
     {
       "path": "docs/development/todo-retired.md",
@@ -1079,17 +1119,25 @@
       "path": "docs/development/TODO.md",
       "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
       "anchor": "source-docs-development-todo-md",
-      "sha256": "4bd0016d6944698e087a331a9662195d5c2d9063385d5df884230d0759c3541b",
-      "words": 3983,
-      "bytes": 30472
+      "sha256": "1803d5dd4755e2a6b66204c831044c9b47f0cee23c471be6b894378c376e525e",
+      "words": 4181,
+      "bytes": 31977
     },
     {
       "path": "docs/development/UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-ui-ux-responsive-acceptance-2026-09-08-md",
-      "sha256": "07a30fd01536e6c68d98154c324acc2c7df4a308db6d7e8c5dc5c57ad4051765",
-      "words": 4829,
-      "bytes": 35475
+      "sha256": "1cd9641f3c4beec37a555838506c513867a7ba3444558d7c2c04682a06cab634",
+      "words": 6197,
+      "bytes": 45478
+    },
+    {
+      "path": "docs/development/UI-WAVE9-EVIDENCE.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-development-ui-wave9-evidence-md",
+      "sha256": "c173104288cf5957e0ca4daeb1e36d63456a0bcd8e4dee2232351ff268bdd21f",
+      "words": 1642,
+      "bytes": 12565
     },
     {
       "path": "docs/development/ultra-review-2026-08-24.md",
@@ -1103,9 +1151,9 @@
       "path": "docs/development/updates.md",
       "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
       "anchor": "source-docs-development-updates-md",
-      "sha256": "acf6b6e3f605a151d3e7af895b5a9d3d2866da1f99057ee7f305a862410d2de2",
-      "words": 110748,
-      "bytes": 830378
+      "sha256": "d0a3f82ccd58a9beb9b5709dcdb3f075bb2ce9d2b227e47b9b7b6f7ffd523aed",
+      "words": 111191,
+      "bytes": 833709
     },
     {
       "path": "docs/development/visual-browser-audit-2026-08-23.md",

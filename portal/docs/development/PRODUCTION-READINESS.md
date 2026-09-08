@@ -10,6 +10,23 @@ owns detailed findings, and [status.md](status.md) retains the verification
 history. Older readiness plans are historical once this file records a newer
 verification.
 
+> **UI Wave 9 (2026-09-08, uncommitted on `integration/ui-final-20260908`).** UI gate:
+> **PASS — all ten items closed.** Closed with direct evidence: a harness that
+> can no longer report a false pass, all 8 write journeys driven through the UI, a real
+> date-determinism bug class fixed (a `/^\d+$/` regex typo + ~30 missing
+> `Europe/London`/`UTC` pins — including **GDPR breach-deadline timestamps**, which are
+> launch-relevant, and finance month labels that showed the wrong month in any zone behind
+> UTC), and a green uncontended suite (final: 6842 tests, 6840/0/2 + WE 49/49). The two initially-blocked
+> items were validated on a clean isolated PRODUCTION build (Supabase left unconfigured →
+> the app's file backend; no live data touched): all four roles render on the prod build
+> ×Chromium/WebKit/Firefox (11/12 cells clean), and a pre-hydration lost-click on the
+> "New client" SSR control was CONFIRMED + quantified (~251 ms @ 1× silent-loss window),
+> then — with Ed's approval — FIXED via an accessible `useHydrated()` boundary and proven
+> on a rebuilt prod dist (132 ms visible pending state @ 1×; the first click once enabled
+> always lands). See
+> [UI-WAVE9-EVIDENCE.md](UI-WAVE9-EVIDENCE.md). Not committed/deployed; shared data and the
+> live Supabase project untouched; no live Supabase data written.
+
 ## Headline rating
 
 | View | Rating | Meaning |
@@ -67,7 +84,7 @@ unchanged.*
 | Production build | **PASS — 247/247 (isolated, clean)** | The 2026-09-08 engineering-pass build ran with an explicitly isolated file backend + isolated data file/dist and emitted **no** Supabase-hydration warnings (74s compile, exit 0). *(An earlier NON-isolated build had emitted failed Supabase coherent-state/sidecar hydration warnings; that is a property of a non-isolated build, not of the code.)* |
 | Production dependency audit | **PASS** | `npm audit --omit=dev --audit-level=moderate`: 0 vulnerabilities. The full dependency tree has one low-severity development `esbuild` advisory affecting its Windows development server. |
 | Safe local browser matrix | **PASS — 1,326/1,326; 0 fail; 0 serious-critical** (#189 fixed) | Full 13-page × 17-viewport re-run on a FRESHLY-built turbopack lane (a stale `.next-dev-turbo-*` cache had served pre-fix CSS). Both serious color-contrast clusters fixed (Command Centre `mm-command-more-button`; login `.mm-auth-brand-foot`); authoritative axe-core scan of `/login`+`/portal/agency` at 1280/1920 also = 0 violations. Was 1,314/1,326. |
-| Deep UI/UX·responsive·a11y acceptance (Waves 1–2, #191) | **PARTIAL — open P1s CLOSED; gate not FULLY passed (coverage)** | The 13×17 matrix (1,326/1,326) is NOT full UI acceptance. A dedicated pass inventoried all 124 routes + a new harness (92 static routes × 5 viewports). Wave 2 FIXED + re-scanned to **0 serious/critical** every confirmed defect on the audited owner surfaces (41 colour-contrast nodes via a workflow, `aria-required-attr`, the marketing `<dl>`, dev-team overflow at ≤768px). Still open = COVERAGE, not known defects: dynamic routes, non-owner roles, the full 18-viewport/journey sweep, and a production-build visual pass (wave 3). See [UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08](UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08.md). |
+| Deep UI/UX·responsive·a11y acceptance (Waves 1–9, #191) | **PASS (Wave 9, uncommitted)** | Waves 1–8 closed every confirmed defect; Wave 9 closed the coverage: harness hardened against false passes (mutation-proven self-tests), all 8 write journeys driven through the rendered UI + persisted, date determinism fixed (+regression tests), all four roles rendered on a clean isolated PRODUCTION build ×Chromium/WebKit/Firefox (11/12 cells clean, 12th a benign WebKit RSC-prefetch), and the production-confirmed pre-hydration lost-click FIXED via the accessible `useHydrated()` boundary (proven on a rebuilt prod dist; pinned by `smoke-hydration-boundary`). Final suite 6842/6840/0/2 + WE 49/49. See [UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08](UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08.md) + [UI-WAVE9-EVIDENCE](UI-WAVE9-EVIDENCE.md). |
 | Normal local development path | **PASS** | Turbopack served the isolated file-backed `/dev` and portal path successfully. |
 | Documented Webpack verification path | **FIXED LOCALLY (#190) — PASS** | `npm run dev:verify` compiles and serves `/healthz`, `/`, `/login` and (via `/dev`) `/portal/agency`. Root cause was the Node-only radar/email graph entering the Edge instrumentation bundle; fixed with a `NEXT_RUNTIME !== "edge"` DCE guard + lazy nodemailer. |
 | Required CI release pipeline (#188) | **AUTHORED LOCALLY — UNCOMMITTED, CI-UNPROVEN** | `.github/workflows/ci.yml` exists in the working tree (valid YAML; `verify` + bounded `browser` axe gate; secretless; live lanes excluded). It is **untracked, has never run on GitHub, and is not a required branch-protection check.** Not "remotely proven" or "enforced". Owner steps: commit/push → first green GitHub run → require both checks in branch protection. |

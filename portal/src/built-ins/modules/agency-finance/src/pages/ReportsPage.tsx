@@ -120,7 +120,7 @@ export default async function ReportsPage(props: PluginPageProps) {
             <tbody>
               {snapshot.monthly.map(month => (
                 <tr key={`${month.year}-${month.month}`} className="border-b border-black/[0.07]">
-                  <td className="py-3">{new Date(Date.UTC(month.year, month.month - 1)).toLocaleDateString("en-GB", { month: "long", year: "numeric" })}</td>
+                  <td className="py-3">{new Date(Date.UTC(month.year, month.month - 1)).toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" })}</td>
                   <td className="py-3 text-right font-mono">{money(month.grossCashRevenueCents, currency)}</td>
                   <td className="py-3 text-right font-mono text-red-700">{money(month.refundCents, currency)}</td>
                   <td className="py-3 text-right font-mono">{money(month.cashRevenueCents, currency)}</td>

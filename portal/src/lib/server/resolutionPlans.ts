@@ -430,7 +430,7 @@ function taskEvidence(agencyId: string, alertId: string, now: number): Resolutio
       fields: [
         { label: "Status", value: task.status },
         { label: "Priority", value: task.priority ?? "normal" },
-        { label: "Due", value: task.dueAt ? new Date(task.dueAt).toLocaleDateString("en-GB") : "—", emphasis: Boolean(overdueBy) },
+        { label: "Due", value: task.dueAt ? new Date(task.dueAt).toLocaleDateString("en-GB", { timeZone: "Europe/London" }) : "—", emphasis: Boolean(overdueBy) },
         { label: "Owner", value: task.assigneeUserId ? getUserById(task.assigneeUserId)?.name ?? "Assigned" : "Unassigned", emphasis: !task.assigneeUserId },
         { label: "Notes", value: task.notes?.slice(0, 240) || "—" },
       ],
@@ -462,7 +462,7 @@ function paymentEvidence(agencyId: string, alertId: string, now: number): Resolu
       meta: lateBy,
       fields: [
         { label: "Amount", value: `£${(milestone.amountCents / 100).toFixed(2)}`, emphasis: true },
-        { label: "Due", value: new Date(milestone.dueAt).toLocaleDateString("en-GB"), emphasis: Boolean(lateBy) },
+        { label: "Due", value: new Date(milestone.dueAt).toLocaleDateString("en-GB", { timeZone: "Europe/London" }), emphasis: Boolean(lateBy) },
         { label: "Status", value: milestone.status },
         { label: "Invoice", value: milestone.invoiceNumber ?? "Not invoiced" },
       ],
@@ -492,7 +492,7 @@ function contractEvidence(agencyId: string, alertId: string, now: number): Resol
       meta: waiting,
       fields: [
         { label: "Status", value: contract.status, emphasis: contract.status === "draft" },
-        { label: "Sent", value: contract.issuedAt ? new Date(contract.issuedAt).toLocaleDateString("en-GB") : "—" },
+        { label: "Sent", value: contract.issuedAt ? new Date(contract.issuedAt).toLocaleDateString("en-GB", { timeZone: "Europe/London" }) : "—" },
         { label: "Decision", value: contract.acceptedAt ? "Accepted" : contract.declinedAt ? "Declined" : "None yet", emphasis: !contract.acceptedAt && !contract.declinedAt },
         { label: "Version", value: String(contract.version ?? 1) },
       ],
@@ -548,7 +548,7 @@ export async function radarEvidenceFor(
       { label: "Previously", value: formatNumber(check.previousValue) },
       { label: "Samples", value: String(check.historySamples ?? check.sampleSize ?? points.length) },
       { label: "Better when", value: check.expectedDirection ?? "—" },
-      { label: "Measured", value: new Date(check.measuredAt).toLocaleString("en-GB") },
+      { label: "Measured", value: new Date(check.measuredAt).toLocaleString("en-GB", { timeZone: "Europe/London" }) },
     ];
 
     // Say plainly when the history is too thin to conclude anything from.
@@ -648,7 +648,7 @@ async function genericEvidenceFor(
     fields.push({
       label: "Dealt with before",
       value: `${previously.length} time${previously.length === 1 ? "" : "s"}, most recently ${
-        new Date(previously[0].completedAt).toLocaleString("en-GB")
+        new Date(previously[0].completedAt).toLocaleString("en-GB", { timeZone: "Europe/London" })
       }`,
       emphasis: true,
     });

@@ -423,7 +423,7 @@ function EnquiriesView({ notices, providerName, readOnly = false }: { notices: C
                     {notice.seen ? null : <span className="sr-only"> (unread)</span>}
                   </span>
                   <span className="block text-[11px] text-black/45">
-                    {new Date(notice.receivedAt).toLocaleString("en-GB")}
+                    {formatUkDateTime(notice.receivedAt)}
                   </span>
                 </span>
               </span>
@@ -472,7 +472,7 @@ function EnquiryDetailView({
   submission: ClientFormSubmission;
   providerName: string;
 }) {
-  const received = new Date(notice.receivedAt).toLocaleString("en-GB");
+  const received = formatUkDateTime(notice.receivedAt);
   const core = submission.status === "ok" ? submission.mapped.core : undefined;
   const extra = submission.status === "ok" ? submission.mapped.additional : [];
 

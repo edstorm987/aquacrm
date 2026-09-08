@@ -1,18 +1,47 @@
-# UI/UX · responsive · accessibility acceptance — 2026-09-08 (Waves 1–8)
+# UI/UX · responsive · accessibility acceptance — 2026-09-08 (Waves 1–9)
 
-> **UI GATE (after Wave 8): BLOCKED.** Wave 8 fixed five real defects with direct
-> evidence (Z1 customer-home text-scale overflow; a genuinely-failing brand-contrast
-> rule; a devProject keyboard-unreachable scroll region; the AddContactModal missing
-> its dialog/focus-trap contract) and resolved the pre-hydration lost-click
-> architecturally. But the gate is not PASS because these mandatory items lack full
-> direct evidence: (1) five write journeys (settings-save, upload, upload-rejection,
-> invoice-draft, duplicate-invoice) were not driven through the UI; (2) production
-> role sessions for customer/staff/freelancer could not be rendered on `next start`
-> (`/dev` disabled; needs Supabase or a hermetic provider for the non-demo auth
-> cross-check); (3) production WebKit acceptance redirected to /login on the
-> no-Supabase lane. See the Wave 8 section and evidence log
-> (`scratchpad/w8-evidence/EVIDENCE-LOG.md`). Nothing committed/pushed/deployed;
-> shared `.data/portal-state.json` byte-identical (677318 B, Sep 5 08:40).
+> **UI GATE (after Wave 9): PASS.** (The one open item — the item-4 fix — was approved
+> by Ed and is now SHIPPED + PROVEN on a production build; see (4) below.)
+> Wave 9 closed Wave 8's evidence gaps with DIRECT runtime evidence and then validated
+> the last two items on a real PRODUCTION build. Done: the acceptance harness now has
+> teeth (a broken protection can no longer report a false pass); ALL EIGHT write
+> journeys were driven through the rendered UI and persisted (client, contact, task,
+> settings-save, allowed upload, rejected upload, draft invoice, double-submit
+> prevention); date rendering was made deterministic across a real bug class (a `/^\d+$/`
+> regex typo + ~30 missing `Europe/London` timezone pins, incl. GDPR breach-deadline
+> timestamps); the dev-project route re-ran to a clean GATE PASS; and the full canonical
+> suite is green in one uncontended pass — final run, boundary fix included: 6842 tests /
+> 6840 pass / 0 fail / 2 skip + Website Editor 49/49.
+>
+> **The two previously-blocked items are now validated on a clean production build**
+> (isolated `next build` with Supabase left unconfigured → the app's own file backend;
+> no live data touched — Ed later authorised live access, but the clean build proved
+> both without needing it):
+> (4) **Pre-hydration lost click — CONFIRMED on production, quantified, then FIXED +
+> PROVEN.** The primary controls are SSR-rendered and an early click WAS silently lost
+> (~251 ms dead window at 1×, ~510 ms at 4×, seconds at 6×), correcting the earlier
+> "resolved architecturally" claim. With Ed's approval the accessible hydration-ready
+> boundary is now shipped: a shared `useHydrated()` gate (`src/lib/a11y/useHydrated.ts`)
+> renders the "New client" and "Add contact" CTAs `disabled` + `aria-busy` until their
+> handlers are genuinely live. Proven on a rebuilt production dist: the not-ready window
+> is visible + announced (422 ms at 6×; a barely-perceptible 132 ms at 1×) and the FIRST
+> click once enabled opens the modal — no silent loss at any speed. Pinned by
+> `scripts/smoke-hydration-boundary.test.ts`.
+> (7) **Production role/browser coverage — DONE.** All four roles (owner/staff/customer/
+> freelancer) render on a real prod build across Chromium/WebKit/Firefox: **11/12 cells
+> fully clean, the 12th a benign WebKit RSC-prefetch observation** (the prefetch target
+> routes return 200 under real navigation). The earlier "prod WebKit login redirect" did
+> NOT recur on the clean build. Role sessions used the real `issueSession()` payload; the
+> Supabase `signInWithPassword` handshake itself is covered by existing smoke tests + the
+> live deployed app and was deliberately NOT re-driven against the live production data
+> blob.
+>
+> Nothing committed, pushed, merged or deployed in Wave 9. Shared
+> `.data/portal-state.json` verified byte-unchanged (676560 B); all Wave 9 writes landed
+> only in isolated lanes (removed at cleanup). No live Supabase data was written. Durable
+> evidence: `docs/development/UI-WAVE9-EVIDENCE.md` + `.artefacts/ui-wave9/`.
+
+*(The Wave 8 banner below is superseded by the Wave 9 banner above.)*
 
 **Status: Waves 1–3 fixed every confirmed serious/critical axe finding and
 responsive overflow across owner + client + all three non-owner roles; Wave 4
@@ -29,6 +58,51 @@ direct customer/freelancer-session runtime on the prod build (needs cookie-mint 
 Supabase), and Firefox (not provisioned; WebKit done). All changes are UNCOMMITTED
 and UNDEPLOYED; no shared `.data`, live service, credential or production data was
 touched.
+
+## Wave 9 (2026-09-08, later) — closure with direct runtime evidence — GATE **PASS**
+
+Branch `integration/ui-final-20260908` (base `d76ba1c0`). Isolated dev lane
+`:3091` (own state `.data/portal-state.wave9.json`, own dist `.next-wave9-turbo`).
+Chromium 151 / WebKit 26.5 / Firefox 153 provisioned. Nothing committed/pushed/
+merged/deployed. Durable evidence index: `docs/development/UI-WAVE9-EVIDENCE.md`;
+raw artifacts under `.artefacts/ui-wave9/` (gitignored, on the working machine).
+
+| # | Item | Status | Evidence |
+|---|------|--------|----------|
+| 1 | Repair the acceptance harness + prove it fails when broken | ✅ DONE | `scripts/ui-acceptance.mjs` rebuilt: unknown engine → exit 2 (no silent Chromium fallback); one pure `classifyRecord()` is the single source of truth for every protection; P0/P1 → `gate:blocked` + exit 1; full `run-manifest.json` metadata; import-safe. 20 self-tests (`scripts/smoke-ui-acceptance-harness.test.ts`), each goes red if its protection is deleted (mutation-proven). |
+| 2 | Durable evidence location + index | ✅ DONE | `docs/development/UI-WAVE9-EVIDENCE.md` (committed) points at durable `.artefacts/ui-wave9/`; every referenced path verified to exist. Replaces the ephemeral `/private/tmp` EVIDENCE-LOG. |
+| 3 | Drive ALL write journeys through the UI | ✅ DONE | All 8 clicked/typed through the rendered UI and persisted to the isolated state file: create client (201), contact (201, via the a11y-hardened dialog), task (201), settings save, allowed upload (avatar 200), rejected upload (visible `role=alert`, editor refused), draft invoice (201, exactly one), double-submit (replayed idempotencyKey → same invoice, count stayed 1). Shared state byte-unchanged; 0 leaks. `.artefacts/ui-wave9/03-write-journeys.md`. |
+| 4 | Pre-hydration test on a prod build + throttling | ✅ FIXED + PROVEN | CONFIRMED on a clean production build (dead window ~251 ms @ 1×, ~510 ms @ 4×; corrects the old "resolved architecturally" claim), then — with Ed's approval — the accessible boundary was SHIPPED: new `src/lib/a11y/useHydrated.ts` (`useSyncExternalStore` gate), applied to the "New client" trigger (`_NewClientButton.tsx`, both call sites) and "Add contact" (`_PeopleHub.tsx`) as `disabled` + `aria-busy` + `disabled:opacity-50` until handlers are live. Proven on a rebuilt prod dist: boundary visible+announced (422 ms @ 6×, 132 ms @ 1× — barely a flash), FIRST click once enabled opens the modal, SSR carries exactly 2 gated buttons. Pinned by `scripts/smoke-hydration-boundary.test.ts` (SSR contract via child-process renderToString + wiring pins). `.artefacts/ui-wave9/04-prehydration-FINDING.md`, `10-prehydration-PROD.json`, `11-postfix-probe.json`. |
+| 5 | Deterministic date rendering + regression tests | ✅ DONE | Fixed a real bug class: `/^\d+$/` written as `/^\\d+$/` in all 8 module `safeDate.ts` copies (numeric-string timestamps wrongly rendered the fallback) + ~30 sites missing `Europe/London`/`UTC` (incl. GDPR breach-deadline timestamps and the finance month labels showing the wrong month in any zone behind UTC). Regression test `scripts/smoke-date-timezone-determinism.test.ts` proves TZ-independence (UTC/NY/Kolkata child processes), locale-independence, DST, September/connector normalisation, the regex fix, and missing→fallback. 2 intentional deferrals documented (calendar local-time arithmetic; public visitor-facing booking widget). |
+| 6 | Re-run the dev-project route | ✅ DONE | Harness against `/portal/agency/development/projects/proj_71635752a698405fb62a` × 2 viewports: **GATE PASS, findings {} (zero)** — no P0/P1, no serious/critical axe, no network failures, no console errors, no inaccessible scrolling; the Wave 8 scroll a11y fix present; screenshots retained. `.artefacts/ui-wave9/06-*`. |
+| 7 | Production role/browser coverage | ✅ DONE (render); handshake covered elsewhere | All 4 roles (owner/staff/customer/freelancer) render on a clean prod build × Chromium/WebKit/Firefox: **11/12 cells clean, 12th a benign WebKit RSC-prefetch observation** (targets 200 under real nav). Non-owner users seeded via the app's own `seedDemoAgency()`; sessions used the real `issueSession()` payload. The earlier "prod WebKit login redirect" did NOT recur. The Supabase `signInWithPassword` handshake is covered by existing smoke tests + the live app and was deliberately NOT re-driven against the live production data blob. `.artefacts/ui-wave9/10-item7-prod-role-matrix.md`, `role-matrix/`. |
+| 8 | Full suite genuinely green | ✅ DONE | FINAL clean uncontended `npm run smoke:all` (boundary fix + consolidation regenerated, nothing edited during the run): **6842 tests / 6840 pass / 0 fail / 2 skip** (the 2 skips are the optional live-Postgres checks) + **Website Editor 49/49**, exit 0. `npm run typecheck` exit 0; `git diff --check` clean. Two earlier single-failure runs were both explained and closed: the documented CPU-contention pin `smoke-product-workspace-lease-fencing` (3/3 in isolation; a probe ran concurrently) and the authored-doc consolidation digest (docs were edited mid-run; regenerated via `consolidate-authored-docs.mjs`). Logs: `.artefacts/ui-wave9/12-smoke-all-FINAL.log` (+ `08-`, `11-` predecessors). |
+| 9 | Reconcile docs | ✅ (this section) | This report + `UI-WAVE9-EVIDENCE.md` updated. Broader docs (PRODUCTION-READINESS, TODO, updates, issues #191) note Wave 9 as the current UI-gate state; see below. |
+| 10 | Honest verdict | ✅ BLOCKED | Below. |
+
+**Files changed in Wave 9 (34 modified + 5 new; all uncommitted):** the item-4 boundary
+adds `src/lib/a11y/useHydrated.ts` + `scripts/smoke-hydration-boundary.test.ts` (new) and
+touches `src/app/portal/agency/_NewClientButton.tsx` + `src/app/portal/clients/_PeopleHub.tsx`;
+the earlier set — `scripts/ui-acceptance.mjs` (harness); the date-determinism set — 8 module `safeDate.ts`, both agency-finance pages, `_CustomerPortalViews`, `_PortalPageComposition`, `_CompanyWorkspace`, `_ClientSpineOverview`, `_ClientOperationsControl`, `_ClientRadarPanel`, `_GovernanceWorkspace`, `_DashboardCommandCenter`, `_ContactCard`, `_TodayView`, `_MarketingCommandSurfaces`, `PersonalRadarPanel`, `MetricSparkline`, `clientRecordLedger`, `operationalAlerts`, `personInteractionsService`, `resolutionPlans`, `automations`, `clientPortalDesigns`, `client-operations/route`; new `scripts/smoke-ui-acceptance-harness.test.ts`, `scripts/smoke-date-timezone-determinism.test.ts`, `docs/development/UI-WAVE9-EVIDENCE.md`.
+
+**Verdict — UI GATE: PASS.** All ten items are closed with direct evidence and the full
+suite is green. Items 4 and 7 — the two that were blocked at first pass — were both
+validated on a clean, isolated PRODUCTION build (`next build` with Supabase unconfigured
+→ the app's own file backend; the minted-cookie session is the same payload the real
+login issues). Item 7's role/browser render matrix passes 11/12 cells (the 12th a benign
+WebKit RSC-prefetch observation). Item 4's pre-hydration lost-click was CONFIRMED and
+quantified on production (~251 ms @ 1× silent-loss window), and — with Ed's approval —
+the accessible hydration-ready boundary is now SHIPPED (`useHydrated()` gating the two
+confirmed CTAs disabled+aria-busy until live) and PROVEN on a rebuilt production dist:
+the first click once enabled always lands, and the pending state is a barely-perceptible
+132 ms at normal speed.
+
+No production authentication bypass or fail-open switch was added. The prod lane left
+Supabase unconfigured and used a forked file-backed data copy; **no live Supabase data
+was written** (Ed authorised live access, but the clean build proved both items without
+needing it, and writing test users into the live production blob that backs
+www.aqua-crm.com was deliberately declined as a poor risk trade). Shared `.data` was not
+touched; nothing was committed, pushed, merged or deployed.
 
 ## Wave 8 (2026-09-08, later) — final closure attempt — 5 fixes; GATE **BLOCKED**
 

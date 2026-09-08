@@ -2,7 +2,7 @@
 
 > Verified findings, independent reviews, browser audits and the testing record.
 >
-> Consolidated 2026-09-08 from **11** source documents / **122,361 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-08 from **11** source documents / **122,772 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -13,8 +13,8 @@
 - [`docs/development/findings/2026-08-22-app-audit-salvage.md`](#source-docs-development-findings-2026-08-22-app-audit-salvage-md) — 1,294 words · `16f6f10e5bc4`
 - [`docs/development/findings/2026-08-22-stripe-can-never-be-configured.md`](#source-docs-development-findings-2026-08-22-stripe-can-never-be-configured-md) — 466 words · `e91f13c8620f`
 - [`docs/development/findings/2026-08-22-surfaces-that-state-a-falsehood.md`](#source-docs-development-findings-2026-08-22-surfaces-that-state-a-falsehood-md) — 892 words · `dfeb4a6302c1`
-- [`docs/development/issues.md`](#source-docs-development-issues-md) — 45,527 words · `243d88686011`
-- [`docs/development/tests.md`](#source-docs-development-tests-md) — 15,698 words · `7433e5b2f7bd`
+- [`docs/development/issues.md`](#source-docs-development-issues-md) — 45,808 words · `2a49944dd8ab`
+- [`docs/development/tests.md`](#source-docs-development-tests-md) — 15,828 words · `c3e9afa772e2`
 - [`docs/development/ultra-review-2026-08-24.md`](#source-docs-development-ultra-review-2026-08-24-md) — 15,523 words · `549d7565f978`
 - [`docs/development/visual-browser-audit-2026-08-23.md`](#source-docs-development-visual-browser-audit-2026-08-23-md) — 3,583 words · `f7864aed237f`
 
@@ -2003,7 +2003,7 @@ _Captured from the Dev Team portal. Findings are the input side: review them, tu
 
 ## Source document — `docs/development/issues.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/issues.md" sha256="243d886860110801005979b44d209673af938b1df1ca4827785d573a537cc1ce" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/issues.md" sha256="2a49944dd8ab47b38ed962500b1501128d75fa87eac224e55d94f850592c44d8" -->
 # Issues & risks
 
 ← Back to [development.md](../development.md) (the law)
@@ -6323,7 +6323,30 @@ public, `me/subscribe` absolutely is not.
      Webpack verification path without pulling Node-only mail dependencies into an
      incompatible bundle, then rerun the browser matrix on that declared target.
 
-191. **🟡 UI/UX ACCEPTANCE — Wave-1 P1s FIXED (Wave 2, 2026-09-08); coverage gaps remain.**
+191. **🟢 UI/UX ACCEPTANCE — Wave 9: GATE PASS. All ten items closed; the item-4 hydration boundary was approved by Ed, shipped and proven on a production build (uncommitted).**
+     **Update (Wave 9, 2026-09-08, branch `integration/ui-final-20260908`):** the acceptance
+     harness was hardened so a broken protection can no longer report a false pass (unknown
+     engine → exit 2; single-source `classifyRecord`; P0/P1 → non-zero exit; 20 mutation-proven
+     self-tests). ALL EIGHT write journeys were driven through the rendered UI and persisted
+     (client/contact/task/settings/allowed-upload/rejected-upload/draft-invoice/double-submit).
+     Date rendering was made deterministic (a `/^\d+$/` regex typo in 8 module `safeDate.ts`
+     copies + ~30 missing `Europe/London`/`UTC` pins, incl. GDPR breach deadlines) with a
+     TZ/locale/DST regression test. The dev-project route re-ran to GATE PASS (0 findings).
+     Full canonical suite green uncontended (final: 6842 tests, 6840/0/2 + Website Editor 49/49). **UI GATE: PASS,
+     with ONE recommended product decision.** Items 4 and 7 were validated on a clean isolated
+     PRODUCTION build (`next build` with Supabase unconfigured → the app's file backend; no live
+     data touched): (4) the pre-hydration lost-click was CONFIRMED on production and quantified — a
+     ~251 ms @ 1× silent-loss window — then, with Ed's approval, FIXED via the accessible
+     `useHydrated()` boundary (new `src/lib/a11y/useHydrated.ts`; "New client" + "Add contact" CTAs
+     render disabled+aria-busy until their handlers are live) and PROVEN on a rebuilt prod dist
+     (132 ms visible pending @ 1×; first click once enabled always lands; pinned by
+     `scripts/smoke-hydration-boundary.test.ts`); (7) all four roles render on the prod build
+     ×Chromium/WebKit/Firefox, 11/12 cells
+     clean (12th a benign WebKit RSC-prefetch), and the earlier "prod WebKit login redirect" did
+     not recur. The Supabase login handshake is covered by existing smoke tests + the live app and
+     was not re-driven against the live prod data blob. Evidence:
+     `docs/development/UI-WAVE9-EVIDENCE.md`, `.artefacts/ui-wave9/`. Nothing committed/pushed/
+     deployed; no live Supabase data written. — *Earlier waves below.*
      **Update (Wave 2):** every open P1 below is now FIXED + re-scanned to 0 serious/critical
      on the audited owner surfaces: (a) colour-contrast — 9 surfaces, 41 real nodes (a
      workflow proposed + adversarially-verified minimal AA fixes, applied by the caller,
@@ -6401,7 +6424,7 @@ Keep the item's number, other docs link to it._
 
 ## Source document — `docs/development/tests.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/tests.md" sha256="7433e5b2f7bd9c85681d7b035f4317f9d1fb90f9883147f46958dc23243846e1" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/tests.md" sha256="c3e9afa772e2d2933b8489e33f1cd5b221919c17a4b1cd7398a873162f2f183c" -->
 # Tests
 
 ← Back to [development.md](../development.md) (the law)
@@ -6457,6 +6480,21 @@ caveats baked into the report, not the tool:** the Next.js dev-mode indicator
 artifacts, not app defects; a clean run needs a settled loader (12s wait) so axe
 scans real content, not the transient loading curtain. Wave-1 results and the open
 P1s: [UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08.md](UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08.md).
+
+**UI Wave 9 (2026-09-08) added three script tests** (all under the `smoke:all`
+`scripts/*.test.ts` glob). `scripts/smoke-hydration-boundary.test.ts` pins the
+accessible hydration-ready boundary that fixed the production-confirmed pre-hydration
+lost click: a child-process `renderToString` proves a `useHydrated()`-gated control
+SSRs as `disabled` + `aria-busy="true"`, and wiring pins stop the gate being removed
+from the "New client"/"Add contact" CTAs. The other two: `scripts/smoke-ui-acceptance-harness.test.ts` unit-tests
+the harness's pure `classifyRecord`/`gateFromFindings`/`isValidEngine` — 20 tests,
+each mutation-proven to fail if its protection is deleted, plus a subprocess check
+that an unknown engine exits 2. `scripts/smoke-date-timezone-determinism.test.ts`
+proves date output is TZ- and locale-independent (UTC/NY/Kolkata + de_DE child
+processes), DST-correct, and normalises the two en-GB engine divergences. The
+harness itself (`scripts/ui-acceptance.mjs`) was rebuilt so a broken protection or
+an unknown `AQUA_UI_ENGINE` can no longer report a false pass. Full Wave-9 record:
+[UI-WAVE9-EVIDENCE.md](UI-WAVE9-EVIDENCE.md).
 
 ## 2026-09-03 Supabase migrations applied to live (VERIFIED)
 

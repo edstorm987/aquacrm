@@ -350,7 +350,7 @@ export function publishPortalDesign(input: {
   if (!existing) return null;
   const now = Date.now();
   const document = clonePortalDesign(existing.draft);
-  const version = makeVersion(document, input.actorUserId, "publish", input.label || `Published ${new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(now)}`, now);
+  const version = makeVersion(document, input.actorUserId, "publish", input.label || `Published ${new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/London" }).format(now)}`, now);
   const updated = {
     ...existing,
     published: document,

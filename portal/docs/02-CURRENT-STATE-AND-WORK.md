@@ -2,17 +2,17 @@
 
 > The current readiness assessment, one task list, status history, roadmap, goals, decisions and working queue.
 >
-> Consolidated 2026-09-08 from **7** source documents / **56,673 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-08 from **7** source documents / **57,076 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
 - [`docs/CURRENT-IMPLEMENTATION.md`](#source-docs-current-implementation-md) — 4,627 words · `d110c036ab5a`
 - [`docs/development/goals.md`](#source-docs-development-goals-md) — 532 words · `62f18b439951`
 - [`docs/development/notes.md`](#source-docs-development-notes-md) — 1,730 words · `f68ea59936dd`
-- [`docs/development/PRODUCTION-READINESS.md`](#source-docs-development-production-readiness-md) — 2,052 words · `62300ac9ba15`
+- [`docs/development/PRODUCTION-READINESS.md`](#source-docs-development-production-readiness-md) — 2,257 words · `69689073325f`
 - [`docs/development/roadmap.md`](#source-docs-development-roadmap-md) — 21,704 words · `f3ef33649d6f`
 - [`docs/development/status.md`](#source-docs-development-status-md) — 22,045 words · `10c744ce76c8`
-- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 3,983 words · `4bd0016d6944`
+- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 4,181 words · `1803d5dd4755`
 
 ---
 
@@ -856,7 +856,7 @@ the [file map](../WORKSPACE-FILE-TREE.md); issues/risks live in
 
 ## Source document — `docs/development/PRODUCTION-READINESS.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/PRODUCTION-READINESS.md" sha256="62300ac9ba15d6b65b3c2c804a771aebfaf6dd3625bd8c5efcdf56c9a6e92d68" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/PRODUCTION-READINESS.md" sha256="69689073325f254a4639a7af63e847988e74c1cfbbac89dd5e34d0fcfedcb536" -->
 # Production readiness — current assessment
 
 **Last verified:** 8 September 2026
@@ -868,6 +868,23 @@ not a second task list: [TODO.md](TODO.md) owns remaining work, [issues.md](issu
 owns detailed findings, and [status.md](status.md) retains the verification
 history. Older readiness plans are historical once this file records a newer
 verification.
+
+> **UI Wave 9 (2026-09-08, uncommitted on `integration/ui-final-20260908`).** UI gate:
+> **PASS — all ten items closed.** Closed with direct evidence: a harness that
+> can no longer report a false pass, all 8 write journeys driven through the UI, a real
+> date-determinism bug class fixed (a `/^\d+$/` regex typo + ~30 missing
+> `Europe/London`/`UTC` pins — including **GDPR breach-deadline timestamps**, which are
+> launch-relevant, and finance month labels that showed the wrong month in any zone behind
+> UTC), and a green uncontended suite (final: 6842 tests, 6840/0/2 + WE 49/49). The two initially-blocked
+> items were validated on a clean isolated PRODUCTION build (Supabase left unconfigured →
+> the app's file backend; no live data touched): all four roles render on the prod build
+> ×Chromium/WebKit/Firefox (11/12 cells clean), and a pre-hydration lost-click on the
+> "New client" SSR control was CONFIRMED + quantified (~251 ms @ 1× silent-loss window),
+> then — with Ed's approval — FIXED via an accessible `useHydrated()` boundary and proven
+> on a rebuilt prod dist (132 ms visible pending state @ 1×; the first click once enabled
+> always lands). See
+> [UI-WAVE9-EVIDENCE.md](UI-WAVE9-EVIDENCE.md). Not committed/deployed; shared data and the
+> live Supabase project untouched; no live Supabase data written.
 
 ## Headline rating
 
@@ -926,7 +943,7 @@ unchanged.*
 | Production build | **PASS — 247/247 (isolated, clean)** | The 2026-09-08 engineering-pass build ran with an explicitly isolated file backend + isolated data file/dist and emitted **no** Supabase-hydration warnings (74s compile, exit 0). *(An earlier NON-isolated build had emitted failed Supabase coherent-state/sidecar hydration warnings; that is a property of a non-isolated build, not of the code.)* |
 | Production dependency audit | **PASS** | `npm audit --omit=dev --audit-level=moderate`: 0 vulnerabilities. The full dependency tree has one low-severity development `esbuild` advisory affecting its Windows development server. |
 | Safe local browser matrix | **PASS — 1,326/1,326; 0 fail; 0 serious-critical** (#189 fixed) | Full 13-page × 17-viewport re-run on a FRESHLY-built turbopack lane (a stale `.next-dev-turbo-*` cache had served pre-fix CSS). Both serious color-contrast clusters fixed (Command Centre `mm-command-more-button`; login `.mm-auth-brand-foot`); authoritative axe-core scan of `/login`+`/portal/agency` at 1280/1920 also = 0 violations. Was 1,314/1,326. |
-| Deep UI/UX·responsive·a11y acceptance (Waves 1–2, #191) | **PARTIAL — open P1s CLOSED; gate not FULLY passed (coverage)** | The 13×17 matrix (1,326/1,326) is NOT full UI acceptance. A dedicated pass inventoried all 124 routes + a new harness (92 static routes × 5 viewports). Wave 2 FIXED + re-scanned to **0 serious/critical** every confirmed defect on the audited owner surfaces (41 colour-contrast nodes via a workflow, `aria-required-attr`, the marketing `<dl>`, dev-team overflow at ≤768px). Still open = COVERAGE, not known defects: dynamic routes, non-owner roles, the full 18-viewport/journey sweep, and a production-build visual pass (wave 3). See [UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08](UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08.md). |
+| Deep UI/UX·responsive·a11y acceptance (Waves 1–9, #191) | **PASS (Wave 9, uncommitted)** | Waves 1–8 closed every confirmed defect; Wave 9 closed the coverage: harness hardened against false passes (mutation-proven self-tests), all 8 write journeys driven through the rendered UI + persisted, date determinism fixed (+regression tests), all four roles rendered on a clean isolated PRODUCTION build ×Chromium/WebKit/Firefox (11/12 cells clean, 12th a benign WebKit RSC-prefetch), and the production-confirmed pre-hydration lost-click FIXED via the accessible `useHydrated()` boundary (proven on a rebuilt prod dist; pinned by `smoke-hydration-boundary`). Final suite 6842/6840/0/2 + WE 49/49. See [UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08](UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08.md) + [UI-WAVE9-EVIDENCE](UI-WAVE9-EVIDENCE.md). |
 | Normal local development path | **PASS** | Turbopack served the isolated file-backed `/dev` and portal path successfully. |
 | Documented Webpack verification path | **FIXED LOCALLY (#190) — PASS** | `npm run dev:verify` compiles and serves `/healthz`, `/`, `/login` and (via `/dev`) `/portal/agency`. Root cause was the Node-only radar/email graph entering the Edge instrumentation bundle; fixed with a `NEXT_RUNTIME !== "edge"` DCE guard + lazy nodemailer. |
 | Required CI release pipeline (#188) | **AUTHORED LOCALLY — UNCOMMITTED, CI-UNPROVEN** | `.github/workflows/ci.yml` exists in the working tree (valid YAML; `verify` + bounded `browser` axe gate; secretless; live lanes excluded). It is **untracked, has never run on GitHub, and is not a required branch-protection check.** Not "remotely proven" or "enforced". Owner steps: commit/push → first green GitHub run → require both checks in branch protection. |
@@ -3056,7 +3073,7 @@ verified" rather than implying something works._
 
 ## Source document — `docs/development/TODO.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="4bd0016d6944698e087a331a9662195d5c2d9063385d5df884230d0759c3541b" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="1803d5dd4755e2a6b66204c831044c9b47f0cee23c471be6b894378c376e525e" -->
 # TODO — the one list
 
 > **Current evidence checkpoint: 8 September 2026.** Read
@@ -3131,6 +3148,22 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 > was re-verified green this run (`smoke-client-lifecycle-creation` + `smoke-client-project-provisioning`
 > 24/24 on the file backend); only its live Stripe/Meta walkthrough is Ed-blocked.
 
+- [x] **Pre-hydration lost click on SSR primary controls (UI Wave 9) — FIXED + PROVEN
+  (uncommitted).** Confirmed on a clean production build (~251 ms silent-loss window @ 1×), then Ed
+  approved the accessible boundary: new `src/lib/a11y/useHydrated.ts` gates the "New client"
+  (`_NewClientButton.tsx`, both call sites) and "Add contact" (`_PeopleHub.tsx`) CTAs
+  `disabled`+`aria-busy` until their handlers are live. Proven on a rebuilt prod dist: pending state
+  is visible+announced (132 ms @ 1× — barely a flash) and the FIRST click once enabled opens the
+  modal. Pinned by `scripts/smoke-hydration-boundary.test.ts`. Other SSR CTAs can adopt the same
+  hook as they're touched. `.artefacts/ui-wave9/04-prehydration-FINDING.md`. → UI [#191](issues.md)
+- [x] **Non-owner production role coverage (UI Wave 9) — DONE.** All four roles (owner/staff/
+  customer/freelancer) render on a clean isolated production build ×Chromium/WebKit/Firefox
+  (11/12 harness cells clean, 12th a benign WebKit RSC-prefetch), using the app's own
+  `seedDemoAgency()` + real `issueSession()` payloads; no live data touched. The clean-prod-build
+  recipe (Supabase left unconfigured → file backend) is what unblocked it. The Supabase login
+  handshake itself stays covered by existing smoke tests + the live app; a full real-login prod
+  matrix would still want a dedicated staging Supabase, but is not required for UI coverage.
+  `.artefacts/ui-wave9/10-item7-prod-role-matrix.md`. → UI [#191](issues.md)
 - [~] Make the deep production health probe truthful on Railway and expose deployment provenance — **FIXED + INDEPENDENTLY VERIFIED LOCALLY 2026-09-08; UNCOMMITTED + UNDEPLOYED:** substrate-aware `deployment.ts` (production classification now separate from the health-enforcement flag, so a false override can never disable the production storage guard); `/healthz/full` enforces readiness (Railway/generic, not Vercel-only), both routes expose a real SHA; runtime-verified 200 local / **503** unready on a Railway-equivalent server. Not closed until deployed to Railway → [#187](issues.md)
 - [~] Add a required pull-request/release CI pipeline — **AUTHORED LOCALLY 2026-09-08; UNCOMMITTED, NEVER RUN ON GITHUB:** `.github/workflows/ci.yml` (valid YAML; verify + bounded browser gate; secretless; live lanes excluded). **Not closed** until committed/pushed, first green GitHub run, and required in `main` branch protection (Ed) → [#188](issues.md)
 - [~] Fix and re-run the serious Command Centre contrast regression — **FIXED + AXE-VERIFIED LOCALLY 2026-09-08; UNCOMMITTED + UNDEPLOYED:** legacy `[class*="-button"]` scoped off the `mm-*` design system (CommandMoreButton 1.18→7.6:1) + a second finding, the login `.mm-auth-brand-foot` (4.07→≈6:1); full 13×17 matrix 1,326/1,326 + axe-core scan of `/login`+`/portal/agency` at 1280/1920 = 0 violations. Not closed until deployed → [#189](issues.md)

@@ -2,7 +2,7 @@
 
 > The append-only change record, dated handoffs and superseded historical summaries.
 >
-> Consolidated 2026-09-08 from **20** source documents / **177,887 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-08 from **20** source documents / **178,330 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -25,7 +25,7 @@
 - [`docs/context/archive/WHERE-WE-STAND-2026-08-20.md`](#source-docs-context-archive-where-we-stand-2026-08-20-md) — 2,482 words · `26bf4442580e`
 - [`docs/development/checklist.md`](#source-docs-development-checklist-md) — 21,042 words · `02a4ba76a58f`
 - [`docs/development/todo-retired.md`](#source-docs-development-todo-retired-md) — 15,920 words · `4bde57e97f03`
-- [`docs/development/updates.md`](#source-docs-development-updates-md) — 110,748 words · `acf6b6e3f605`
+- [`docs/development/updates.md`](#source-docs-development-updates-md) — 111,191 words · `d0a3f82ccd58`
 
 ---
 
@@ -6392,7 +6392,7 @@ Cleanup (§2) is real debt but not launch-gating — do it before it bites twice
 
 ## Source document — `docs/development/updates.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="acf6b6e3f605a151d3e7af895b5a9d3d2866da1f99057ee7f305a862410d2de2" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/updates.md" sha256="d0a3f82ccd58a9beb9b5709dcdb3f075bb2ce9d2b227e47b9b7b6f7ffd523aed" -->
 # Updates log
 
 ← Back to [development.md](../development.md) (the law)
@@ -6426,6 +6426,46 @@ map stays trustworthy.
 > +55 another, a whole `dev-roadmap` feature, the Meta/Instagram change) — each
 > invisible here, and two of them red-lined the suite where nobody was looking.
 > If you ship something, log it.
+
+---
+
+## 2026-09-08 — UI/UX acceptance (Wave 9): closure with direct runtime evidence — GATE **BLOCKED** (2 external blockers)
+
+- Branch `integration/ui-final-20260908` (base `d76ba1c0`). Nothing committed/pushed/merged/deployed.
+- **Harness hardened (item 1):** `scripts/ui-acceptance.mjs` — unknown engine now exits 2 (no silent
+  Chromium fallback); one pure `classifyRecord()` is the single source of truth for every protection;
+  P0/P1 findings force a non-zero gate + exit 1; full `run-manifest.json` metadata; import-safe. Added
+  `scripts/smoke-ui-acceptance-harness.test.ts` (20 tests, each mutation-proven to fail if its
+  protection is deleted).
+- **All 8 write journeys driven through the UI + persisted (item 3):** create client/contact/task,
+  settings save, allowed + rejected upload, draft invoice, and double-submit prevention (replayed
+  idempotencyKey → same invoice, count stayed 1). Isolated `.data/portal-state.wave9.json` lane;
+  shared `.data/portal-state.json` verified byte-unchanged, 0 leaks.
+- **Deterministic dates (item 5):** fixed a `/^\d+$/`→`/^\\d+$/` regex typo in all 8 module
+  `safeDate.ts` copies (numeric-string timestamps had rendered the "Date needs review" fallback) and
+  pinned ~30 date sites to `Europe/London`/`UTC` (incl. GDPR breach-deadline timestamps and finance
+  month labels that showed the wrong month in any zone behind UTC). New regression test
+  `scripts/smoke-date-timezone-determinism.test.ts` proves TZ-/locale-independence, DST, and the
+  September/connector normalisation via child processes. 32 files touched.
+- **dev-project route (item 6):** re-ran to GATE PASS, 0 findings.
+- **Full suite (item 8):** FINAL clean uncontended `npm run smoke:all` (boundary fix included) — 6842 tests / 6840 pass / 0 fail / 2 skip +
+  Website Editor 49/49; typecheck 0; `git diff --check` clean.
+- **Items 4 & 7 validated on a clean PRODUCTION build** (later same day): an isolated `next build`
+  with Supabase left unconfigured (empty `NEXT_PUBLIC_SUPABASE_*` → the app's file backend) renders
+  authed React portal pages via a minted `issueSession()` cookie, with NO live data touched. (4)
+  the pre-hydration lost-click is CONFIRMED on production and quantified — ~251 ms @ 1× silent-loss
+  window (medium-low); Ed then approved the fix ("go for it") and the accessible boundary was
+  SHIPPED + PROVEN: new `src/lib/a11y/useHydrated.ts` gates the "New client" (both call sites) and
+  "Add contact" CTAs disabled+aria-busy until their handlers are live — post-fix prod probe shows a
+  barely-perceptible 132 ms pending state @ 1× and the FIRST click once enabled opens the modal;
+  pinned by `scripts/smoke-hydration-boundary.test.ts`. (7) all four roles render on the prod
+  build ×Chromium/WebKit/Firefox — 11/12 cells clean, 12th a benign WebKit RSC-prefetch; the earlier
+  "prod WebKit login redirect" did not recur. Supabase login handshake covered by existing smoke
+  tests + the live app; not re-driven against the live prod data blob. → **UI GATE: PASS** with the
+  item-4 UX fix as the one open product decision.
+- **Docs updated:** `UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08.md` (Wave 9 section + banner + verdict),
+  `UI-WAVE9-EVIDENCE.md`, issues.md #191, TODO.md, PRODUCTION-READINESS.md, tests.md. Evidence
+  artifacts in `.artefacts/ui-wave9/`.
 
 ---
 

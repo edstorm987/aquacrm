@@ -92,7 +92,7 @@ export default async function PlanningPage(props: PluginPageProps) {
               <tbody>
                 {projected.map(month => (
                   <tr key={`${month.year}-${month.month}`} className="border-b border-black/[0.07]">
-                    <td className="py-3">{new Date(Date.UTC(month.year, month.month - 1)).toLocaleDateString("en-GB", { month: "short", year: "numeric" })}</td>
+                    <td className="py-3">{new Date(Date.UTC(month.year, month.month - 1)).toLocaleDateString("en-GB", { month: "short", year: "numeric", timeZone: "UTC" })}</td>
                     <td className="py-3 text-right font-mono">{money(month.revenueCents, currency)}</td>
                     <td className="py-3 text-right font-mono text-black/55">{money(month.expenseCents, currency)}</td>
                     <td className={`py-3 text-right font-mono font-semibold ${month.netCents >= 0 ? "text-emerald-800" : "text-red-700"}`}>{money(month.netCents, currency)}</td>

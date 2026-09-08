@@ -370,7 +370,7 @@ function ReadOnlyActions({
     ...tasks.filter(task => task.status !== "done").map(task => ({
       id: `task:${task.id}`,
       title: task.title,
-      detail: task.dueAt ? `Due ${new Date(task.dueAt).toLocaleDateString("en-GB")}` : "Accepted action",
+      detail: task.dueAt ? `Due ${new Date(task.dueAt).toLocaleDateString("en-GB", { timeZone: "Europe/London" })}` : "Accepted action",
       href: task.sourceHref,
     })),
     ...generated.map(action => ({ id: `generated:${action.id}`, title: action.title, detail: action.detail, href: action.href })),

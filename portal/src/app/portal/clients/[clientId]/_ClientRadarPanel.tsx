@@ -185,5 +185,5 @@ function readable(value: string): string {
 }
 
 function formatTime(value: number): string {
-  return stableUkDateString(new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(value));
+  return stableUkDateString(new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" }).format(value));
 }

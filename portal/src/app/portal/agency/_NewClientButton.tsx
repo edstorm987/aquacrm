@@ -17,6 +17,7 @@ import {
 import { businessCalendarDate } from "@/lib/shared/formatDateTime";
 import type { PortalFormFieldDefinition } from "@/server/types";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
+import { useHydrated } from "@/lib/a11y/useHydrated";
 import {
   isFulfillmentClientCreation,
   type FulfillmentClientCreationPayload,
@@ -139,6 +140,11 @@ function composedDisplayName(state: FormState): string {
 
 export function NewClientButton({ brands = [], defaults = FALLBACK_DEFAULTS, customFields = [], className, commandDeck = false }: { products?: NewClientProductOption[]; brands?: NewClientBrandOption[]; defaults?: NewClientDefaults; customFields?: PortalFormFieldDefinition[]; className?: string; commandDeck?: boolean }) {
   const router = useRouter();
+  // Accessible hydration-ready boundary (UI Wave 9): the SSR-painted trigger
+  // stays visibly disabled + aria-busy until this component's onClick is live,
+  // instead of looking active while silently swallowing an early click
+  // (~251ms dead window measured on a production build at 1×).
+  const hydrated = useHydrated();
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<FormState>(() => defaultState(defaults));
   const [presets, setPresets] = useState<PhasePreset[]>([]);
@@ -312,8 +318,10 @@ export function NewClientButton({ brands = [], defaults = FALLBACK_DEFAULTS, cus
     <>
       <button
         type="button"
+        disabled={!hydrated}
+        aria-busy={!hydrated || undefined}
         onClick={() => { setPresetReadState("loading"); setOpen(true); }}
-        className={className ?? "inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white shadow hover:opacity-90"}
+        className={`${className ?? "inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white shadow hover:opacity-90"} disabled:opacity-50`}
       >
         {commandDeck ? <><span className="grid size-8 shrink-0 place-items-center border border-[#68f5d0]/30 bg-[#68f5d0]/[0.07] text-[#68f5d0]"><UserPlus size={15} /></span><span><span className="block text-[8px] font-semibold uppercase text-[#68f5d0]/60">Order 04 · Commission</span><span className="mt-1 block text-sm font-semibold">New client</span></span></> : <><span aria-hidden="true">＋</span>New client</>}
       </button>

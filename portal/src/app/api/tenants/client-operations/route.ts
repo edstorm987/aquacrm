@@ -98,7 +98,7 @@ export async function POST(request: Request) {
             id: `rec_${crypto.randomBytes(8).toString("hex")}`,
             kind: "update",
             title: "Account review completed",
-            body: `${outcome}\n\nNext review: ${new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(nextReviewAt)}${brief.currentObjective ? `\nCurrent objective: ${brief.currentObjective}` : ""}`,
+            body: `${outcome}\n\nNext review: ${new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Europe/London" }).format(nextReviewAt)}${brief.currentObjective ? `\nCurrent objective: ${brief.currentObjective}` : ""}`,
             occurredAt: now,
             createdAt: now,
             updatedAt: now,

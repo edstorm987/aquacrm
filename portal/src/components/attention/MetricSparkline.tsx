@@ -96,7 +96,7 @@ export function MetricSparkline({ series }: { series: EvidenceSeries }) {
               className={breach ? "text-red-600" : "text-brand"}
               fill="currentColor"
             >
-              <title>{`${new Date(point.at).toLocaleString("en-GB")} · ${point.value}${breach ? ` · ${point.status}` : ""}`}</title>
+              <title>{`${new Date(point.at).toLocaleString("en-GB", { timeZone: "Europe/London" })} · ${point.value}${breach ? ` · ${point.status}` : ""}`}</title>
             </circle>
           );
         })}

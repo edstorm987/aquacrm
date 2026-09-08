@@ -4317,7 +4317,30 @@ public, `me/subscribe` absolutely is not.
      Webpack verification path without pulling Node-only mail dependencies into an
      incompatible bundle, then rerun the browser matrix on that declared target.
 
-191. **🟡 UI/UX ACCEPTANCE — Wave-1 P1s FIXED (Wave 2, 2026-09-08); coverage gaps remain.**
+191. **🟢 UI/UX ACCEPTANCE — Wave 9: GATE PASS. All ten items closed; the item-4 hydration boundary was approved by Ed, shipped and proven on a production build (uncommitted).**
+     **Update (Wave 9, 2026-09-08, branch `integration/ui-final-20260908`):** the acceptance
+     harness was hardened so a broken protection can no longer report a false pass (unknown
+     engine → exit 2; single-source `classifyRecord`; P0/P1 → non-zero exit; 20 mutation-proven
+     self-tests). ALL EIGHT write journeys were driven through the rendered UI and persisted
+     (client/contact/task/settings/allowed-upload/rejected-upload/draft-invoice/double-submit).
+     Date rendering was made deterministic (a `/^\d+$/` regex typo in 8 module `safeDate.ts`
+     copies + ~30 missing `Europe/London`/`UTC` pins, incl. GDPR breach deadlines) with a
+     TZ/locale/DST regression test. The dev-project route re-ran to GATE PASS (0 findings).
+     Full canonical suite green uncontended (final: 6842 tests, 6840/0/2 + Website Editor 49/49). **UI GATE: PASS,
+     with ONE recommended product decision.** Items 4 and 7 were validated on a clean isolated
+     PRODUCTION build (`next build` with Supabase unconfigured → the app's file backend; no live
+     data touched): (4) the pre-hydration lost-click was CONFIRMED on production and quantified — a
+     ~251 ms @ 1× silent-loss window — then, with Ed's approval, FIXED via the accessible
+     `useHydrated()` boundary (new `src/lib/a11y/useHydrated.ts`; "New client" + "Add contact" CTAs
+     render disabled+aria-busy until their handlers are live) and PROVEN on a rebuilt prod dist
+     (132 ms visible pending @ 1×; first click once enabled always lands; pinned by
+     `scripts/smoke-hydration-boundary.test.ts`); (7) all four roles render on the prod build
+     ×Chromium/WebKit/Firefox, 11/12 cells
+     clean (12th a benign WebKit RSC-prefetch), and the earlier "prod WebKit login redirect" did
+     not recur. The Supabase login handshake is covered by existing smoke tests + the live app and
+     was not re-driven against the live prod data blob. Evidence:
+     `docs/development/UI-WAVE9-EVIDENCE.md`, `.artefacts/ui-wave9/`. Nothing committed/pushed/
+     deployed; no live Supabase data written. — *Earlier waves below.*
      **Update (Wave 2):** every open P1 below is now FIXED + re-scanned to 0 serious/critical
      on the audited owner surfaces: (a) colour-contrast — 9 surfaces, 41 real nodes (a
      workflow proposed + adversarially-verified minimal AA fixes, applied by the caller,

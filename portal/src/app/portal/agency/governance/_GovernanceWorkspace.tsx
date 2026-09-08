@@ -33,7 +33,7 @@ import type {
 
 type View = "overview" | "legal" | "erasure" | "requests" | "breaches" | "subprocessors" | "security";
 
-const DATE_OPTS: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short", year: "numeric" };
+const DATE_OPTS: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short", year: "numeric", timeZone: "Europe/London" };
 
 const VIEWS: Array<{ id: View; label: string; icon: typeof ShieldCheck }> = [
   { id: "overview", label: "Posture", icon: ShieldCheck },
@@ -1046,12 +1046,12 @@ function BreachCard({ row, isOwner, onDone }: { row: BreachRow; isOwner: boolean
       <p className="mt-2 whitespace-pre-line text-sm text-black/65">{row.description}</p>
 
       <dl className="mt-3 grid gap-x-6 gap-y-1 text-xs text-black/55 sm:grid-cols-2">
-        <div><dt className="inline font-medium text-black/70">Became aware: </dt><dd className="inline tabular-nums">{new Date(row.discoveredAt).toLocaleString("en-GB")}</dd></div>
-        <div><dt className="inline font-medium text-black/70">72-hour deadline: </dt><dd className="inline tabular-nums">{new Date(row.notifyDeadlineAt).toLocaleString("en-GB")}</dd></div>
+        <div><dt className="inline font-medium text-black/70">Became aware: </dt><dd className="inline tabular-nums">{new Date(row.discoveredAt).toLocaleString("en-GB", { timeZone: "Europe/London" })}</dd></div>
+        <div><dt className="inline font-medium text-black/70">72-hour deadline: </dt><dd className="inline tabular-nums">{new Date(row.notifyDeadlineAt).toLocaleString("en-GB", { timeZone: "Europe/London" })}</dd></div>
         {row.recordedAt - row.discoveredAt > 60_000 ? (
           <div className="sm:col-span-2">
             <dt className="inline font-medium text-black/70">Logged here: </dt>
-            <dd className="inline tabular-nums">{new Date(row.recordedAt).toLocaleString("en-GB")} — after the fact, so the clock above is already partly spent.</dd>
+            <dd className="inline tabular-nums">{new Date(row.recordedAt).toLocaleString("en-GB", { timeZone: "Europe/London" })} — after the fact, so the clock above is already partly spent.</dd>
           </div>
         ) : null}
         {row.dataCategories.length ? (
@@ -1061,7 +1061,7 @@ function BreachCard({ row, isOwner, onDone }: { row: BreachRow; isOwner: boolean
           <dt className="inline font-medium text-black/70">Authority: </dt>
           <dd className="inline">
             {row.authorityNotifiedAt
-              ? `Notified ${new Date(row.authorityNotifiedAt).toLocaleString("en-GB")}${row.authorityReference ? ` (ref ${row.authorityReference})` : ""}`
+              ? `Notified ${new Date(row.authorityNotifiedAt).toLocaleString("en-GB", { timeZone: "Europe/London" })}${row.authorityReference ? ` (ref ${row.authorityReference})` : ""}`
               : "No notification recorded."}
           </dd>
         </div>
@@ -1070,7 +1070,7 @@ function BreachCard({ row, isOwner, onDone }: { row: BreachRow; isOwner: boolean
         ) : null}
         <div className="sm:col-span-2">
           <dt className="inline font-medium text-black/70">Affected people told (Art. 34): </dt>
-          <dd className="inline">{row.subjectsNotifiedAt ? new Date(row.subjectsNotifiedAt).toLocaleString("en-GB") : "Not recorded."}</dd>
+          <dd className="inline">{row.subjectsNotifiedAt ? new Date(row.subjectsNotifiedAt).toLocaleString("en-GB", { timeZone: "Europe/London" }) : "Not recorded."}</dd>
         </div>
         {row.assessmentReason ? (
           <div className="sm:col-span-2"><dt className="inline font-medium text-black/70">Assessment: </dt><dd className="inline">{row.assessmentReason}</dd></div>

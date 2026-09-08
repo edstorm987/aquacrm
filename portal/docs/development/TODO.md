@@ -72,6 +72,22 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 > was re-verified green this run (`smoke-client-lifecycle-creation` + `smoke-client-project-provisioning`
 > 24/24 on the file backend); only its live Stripe/Meta walkthrough is Ed-blocked.
 
+- [x] **Pre-hydration lost click on SSR primary controls (UI Wave 9) — FIXED + PROVEN
+  (uncommitted).** Confirmed on a clean production build (~251 ms silent-loss window @ 1×), then Ed
+  approved the accessible boundary: new `src/lib/a11y/useHydrated.ts` gates the "New client"
+  (`_NewClientButton.tsx`, both call sites) and "Add contact" (`_PeopleHub.tsx`) CTAs
+  `disabled`+`aria-busy` until their handlers are live. Proven on a rebuilt prod dist: pending state
+  is visible+announced (132 ms @ 1× — barely a flash) and the FIRST click once enabled opens the
+  modal. Pinned by `scripts/smoke-hydration-boundary.test.ts`. Other SSR CTAs can adopt the same
+  hook as they're touched. `.artefacts/ui-wave9/04-prehydration-FINDING.md`. → UI [#191](issues.md)
+- [x] **Non-owner production role coverage (UI Wave 9) — DONE.** All four roles (owner/staff/
+  customer/freelancer) render on a clean isolated production build ×Chromium/WebKit/Firefox
+  (11/12 harness cells clean, 12th a benign WebKit RSC-prefetch), using the app's own
+  `seedDemoAgency()` + real `issueSession()` payloads; no live data touched. The clean-prod-build
+  recipe (Supabase left unconfigured → file backend) is what unblocked it. The Supabase login
+  handshake itself stays covered by existing smoke tests + the live app; a full real-login prod
+  matrix would still want a dedicated staging Supabase, but is not required for UI coverage.
+  `.artefacts/ui-wave9/10-item7-prod-role-matrix.md`. → UI [#191](issues.md)
 - [~] Make the deep production health probe truthful on Railway and expose deployment provenance — **FIXED + INDEPENDENTLY VERIFIED LOCALLY 2026-09-08; UNCOMMITTED + UNDEPLOYED:** substrate-aware `deployment.ts` (production classification now separate from the health-enforcement flag, so a false override can never disable the production storage guard); `/healthz/full` enforces readiness (Railway/generic, not Vercel-only), both routes expose a real SHA; runtime-verified 200 local / **503** unready on a Railway-equivalent server. Not closed until deployed to Railway → [#187](issues.md)
 - [~] Add a required pull-request/release CI pipeline — **AUTHORED LOCALLY 2026-09-08; UNCOMMITTED, NEVER RUN ON GITHUB:** `.github/workflows/ci.yml` (valid YAML; verify + bounded browser gate; secretless; live lanes excluded). **Not closed** until committed/pushed, first green GitHub run, and required in `main` branch protection (Ed) → [#188](issues.md)
 - [~] Fix and re-run the serious Command Centre contrast regression — **FIXED + AXE-VERIFIED LOCALLY 2026-09-08; UNCOMMITTED + UNDEPLOYED:** legacy `[class*="-button"]` scoped off the `mm-*` design system (CommandMoreButton 1.18→7.6:1) + a second finding, the login `.mm-auth-brand-foot` (4.07→≈6:1); full 13×17 matrix 1,326/1,326 + axe-core scan of `/login`+`/portal/agency` at 1280/1920 = 0 violations. Not closed until deployed → [#189](issues.md)

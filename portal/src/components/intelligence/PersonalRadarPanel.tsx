@@ -260,11 +260,11 @@ function Rhythm({ label, value }: { label: string; value: string }) {
 }
 
 function shortDate(timestamp: number): string {
-  return stableUkDateString(new Date(timestamp).toLocaleDateString(undefined, { day: "numeric", month: "short" }));
+  return stableUkDateString(new Date(timestamp).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Europe/London" }));
 }
 
 function clockTime(timestamp: number): string {
-  return new Date(timestamp).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  return new Date(timestamp).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" });
 }
 
 function modeLabel(mode: PersonalRadarReading["work"]["currentMode"]): string {

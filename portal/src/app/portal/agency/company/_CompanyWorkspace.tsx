@@ -218,7 +218,7 @@ export function CompanyWorkspace({ initial, companyName, actuals, staffCount, ca
           <section>
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-black/40">{now.toLocaleDateString("en-GB", { month: "long", year: "numeric" })}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-black/40">{now.toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "Europe/London" })}</p>
                 <h2 className="mt-1 text-xl font-semibold text-black/85">Monthly revenue target</h2>
               </div>
               {canEdit ? <TargetEditor company={company} onSave={async next => { await save(next, "Targets updated."); }} /> : null}

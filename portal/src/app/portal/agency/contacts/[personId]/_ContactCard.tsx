@@ -469,7 +469,7 @@ export function ContactCard({
                       {" → "}
                       {WEBSITE_ENQUIRY_CLASSIFICATION_LABELS[event.to as WebsiteEnquiryClassification]}
                       {" · "}
-                      {stableUkDateString(new Date(event.at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }))}
+                      {stableUkDateString(new Date(event.at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Europe/London" }))}
                     </li>
                   ))}
                 </ul>

@@ -783,7 +783,7 @@ function templateContext(workflow: AutomationWorkflow, run: AutomationRun): Reco
     "owner.email": agency?.ownerEmail || owner?.email || "",
     "owner.name": owner?.name || "Owner",
     "agency.name": agency?.name || "AquaCRM",
-    now: new Date().toLocaleString("en-GB"),
+    now: new Date().toLocaleString("en-GB", { timeZone: "Europe/London" }),
   };
   for (const [key, value] of Object.entries(run.eventData)) context[`event.${key}`] = value == null ? "" : String(value);
   return context;
