@@ -77,6 +77,11 @@ export function setContentScanner(fn: ContentScanner | null): void {
   scanner = fn;
 }
 
+/** Honest posture: is a real scanner connected? (Signature-only when not.) */
+export function hasContentScanner(): boolean {
+  return scanner !== null;
+}
+
 // ─── Signatures ─────────────────────────────────────────────────────────────
 
 const HEAD_BYTES = 512;

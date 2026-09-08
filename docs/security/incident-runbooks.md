@@ -2,11 +2,17 @@
 
 Phase 5 of the assume-breach containment programme. Every action named here is
 a REAL, TESTED control that exists on this branch — nothing aspirational. All
-control-plane functions live in `portal/src/lib/server/auth/securityControl.ts`
-and are server-side only (no route/UI exposure yet — the Phase-6 threat centre
-will front them with AAL2 + dual confirmation). Until then, the invocation path
-is an operator shell on the deployment (Railway → service → shell, or a
-one-off script executed with production env).
+control-plane functions live in `portal/src/lib/server/auth/securityControl.ts`.
+Two invocation paths exist:
+
+- **The threat centre** — `/portal/agency/security` (owner-only). Every action
+  re-verifies the owner's password, requires the typed CONTAIN phrase plus a
+  written reason, is tenant-scoped, and lands in the durable record. Platform-
+  wide switches (global freeze, global sign-out, AI kill) are refused for
+  everyone but the operator's own owner account.
+- **The operator shell** (Railway → service → shell, or a one-off script with
+  production env) — the cross-tenant path the runbooks' function calls assume,
+  and the fallback when the UI itself is unavailable mid-incident.
 
 Every action below records a SecurityEvent (`lib/server/security/securityEvents.ts`)
 and a structured `[security-control]` log line. Events are secret-free by
@@ -40,9 +46,11 @@ every request), `smoke-session-revocation`.
 ## R2 — Tenant-level breach (one agency compromised)
 
 1. **Lock the tenant**: `lockdownTenant(agencyId, "<you>", "<why>")` — every
-   session of that tenant fails the central gate immediately; other tenants
-   are untouched. REVERSIBLE: lifting restores existing sessions, so flipping
-   it on suspicion costs one tenant minutes, not a re-login storm.
+   session of that tenant except its OWNERS fails the central gate immediately
+   (owners keep the keys so they can investigate and lift; a compromised owner
+   is contained with suspension/user-epoch instead); other tenants are
+   untouched. REVERSIBLE: lifting restores existing sessions, so flipping it
+   on suspicion costs one tenant minutes, not a re-login storm.
 2. Investigate. If sessions themselves are suspect, ALSO
    `bumpTenantSecurityEpoch(agencyId, ...)` (forces re-login on lift).
 3. **Lift**: `liftTenantLockdown(agencyId, "<you>")`.

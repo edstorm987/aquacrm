@@ -131,32 +131,32 @@ export function bumpTenantSecurityEpoch(agencyId: string, actor: string, reason:
   return next;
 }
 
-export function bumpUserSecurityEpoch(userId: string, actor: string, reason: string): number {
+export function bumpUserSecurityEpoch(userId: string, actor: string, reason: string, opts?: { tenantId?: string }): number {
   let next = 0;
   withControl(control => {
     control.userEpochs[userId] = (control.userEpochs[userId] ?? 0) + 1;
     next = control.userEpochs[userId];
   });
-  recordControlAction({ kind: "epoch.user.bumped", severity: "warning", actor, detail: { reason, userId, epoch: next } });
+  recordControlAction({ kind: "epoch.user.bumped", severity: "warning", actor, tenantId: opts?.tenantId, detail: { reason, userId, epoch: next } });
   logSecurityAction("user-epoch-bump", { actor, reason, userId, epoch: next });
   return next;
 }
 
 // ─── Suspension ─────────────────────────────────────────────────────────────
 
-export function suspendUser(userId: string, actor: string, reason: string): void {
+export function suspendUser(userId: string, actor: string, reason: string, opts?: { tenantId?: string }): void {
   withControl(control => {
     control.suspendedUsers[userId] = { reason, at: Date.now(), actor };
   });
-  recordControlAction({ kind: "user.suspended", severity: "critical", actor, detail: { reason, userId } });
+  recordControlAction({ kind: "user.suspended", severity: "critical", actor, tenantId: opts?.tenantId, detail: { reason, userId } });
   logSecurityAction("user-suspended", { actor, reason, userId });
 }
 
-export function unsuspendUser(userId: string, actor: string): void {
+export function unsuspendUser(userId: string, actor: string, opts?: { tenantId?: string }): void {
   withControl(control => {
     delete control.suspendedUsers[userId];
   });
-  recordControlAction({ kind: "user.unsuspended", severity: "warning", actor, detail: { userId } });
+  recordControlAction({ kind: "user.unsuspended", severity: "warning", actor, tenantId: opts?.tenantId, detail: { userId } });
   logSecurityAction("user-unsuspended", { actor, userId });
 }
 
@@ -173,8 +173,10 @@ export function isUserSuspended(userId: string): boolean {
 //   - TENANT LOCKDOWN fails every session of one tenant at the central session
 //     gate — and unlike an epoch bump, lifting it restores existing sessions
 //     rather than forcing the whole tenant to log in again.
-// Server-side actions only (no route exposure yet); the Phase-6 threat centre
-// puts them behind AAL2 + dual confirmation before any UI reaches them.
+// Route exposure: the Phase-6 threat centre (/portal/agency/security →
+// /api/portal/security/actions) fronts these behind owner role + fresh
+// password re-verification + typed dual confirmation + tenant scoping; the
+// operator shell (runbooks) remains the cross-tenant path.
 
 export function setGlobalReadOnly(actor: string, reason: string): void {
   withControl(control => {
@@ -277,7 +279,7 @@ export function listUserSessions(userId: string): SecuritySessionRecord[] {
     .sort((a, b) => b.issuedAt - a.issuedAt);
 }
 
-export function revokeSession(sid: string, actor: string, reason: string): boolean {
+export function revokeSession(sid: string, actor: string, reason: string, opts?: { tenantId?: string }): boolean {
   let found = false;
   withControl(control => {
     const record = control.sessions[sid];
@@ -288,14 +290,14 @@ export function revokeSession(sid: string, actor: string, reason: string): boole
     found = true;
   });
   if (found) {
-    recordControlAction({ kind: "session.revoked", severity: "warning", actor, detail: { reason, sid } });
+    recordControlAction({ kind: "session.revoked", severity: "warning", actor, tenantId: opts?.tenantId, detail: { reason, sid } });
     logSecurityAction("session-revoked", { actor, reason, sid });
   }
   return found;
 }
 
 /** Revoke every recorded session for a user AND bump their epoch (covers unrecorded/legacy cookies too). */
-export function revokeAllUserSessions(userId: string, actor: string, reason: string): number {
+export function revokeAllUserSessions(userId: string, actor: string, reason: string, opts?: { tenantId?: string }): number {
   let count = 0;
   withControl(control => {
     for (const record of Object.values(control.sessions)) {
@@ -307,7 +309,7 @@ export function revokeAllUserSessions(userId: string, actor: string, reason: str
       }
     }
   });
-  bumpUserSecurityEpoch(userId, actor, reason);
+  bumpUserSecurityEpoch(userId, actor, reason, opts);
   return count;
 }
 
@@ -346,8 +348,13 @@ export function enforceSessionSecurity(session: SessionPayload): SessionGateResu
   if (stamped.g < control.globalEpoch) return { ok: false, reason: "global-epoch" };
   const tenantScope = session.activeAgencyId ?? session.agencyId;
   // Tenant lockdown: every session scoped to a locked tenant fails here until
-  // the lockdown is LIFTED — reversible, unlike the epoch bump below.
-  if (tenantScope && control.tenantLockdowns?.[tenantScope]) {
+  // the lockdown is LIFTED — reversible, unlike the epoch bump below. The
+  // tenant's OWNERS are exempt: they hold the keys (they must be able to
+  // investigate and lift the lock they set from the threat centre — otherwise
+  // "lock my workspace" would lock the locksmith out with no UI path back).
+  // A compromised OWNER account is contained with suspension or a user-epoch
+  // bump, which this exemption deliberately does not shield.
+  if (tenantScope && control.tenantLockdowns?.[tenantScope] && session.role !== "agency-owner") {
     return { ok: false, reason: "tenant-lockdown" };
   }
   if (tenantScope && stamped.t < (control.tenantEpochs[tenantScope] ?? 0)) {

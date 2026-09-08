@@ -157,3 +157,27 @@ test("control-plane actions persist durably in state, bounded (Phase 1 durabilit
   assert.equal(flip?.actor, "ic");
   assert.ok((flip?.at ?? 0) > 0);
 });
+
+test("tenant lockdown exempts the tenant's owners — the locksmith keeps the keys", () => {
+  lockdownTenant("agency-keys", "ic", "owner-exemption drill");
+  // Staff and client sessions of the locked tenant are refused…
+  assert.deepEqual(
+    enforceSessionSecurity(session({ agencyId: "agency-keys", userId: "staff-1", role: "agency-staff" } as Partial<SessionPayload>)),
+    { ok: false, reason: "tenant-lockdown" },
+  );
+  // …but an agency-owner session survives, so the lock can be investigated
+  // and LIFTED from the threat centre rather than locking the locksmith out.
+  assert.equal(
+    enforceSessionSecurity(session({ agencyId: "agency-keys", userId: "owner-1", role: "agency-owner" } as Partial<SessionPayload>)).ok,
+    true,
+  );
+  // The exemption shields the ROLE, not a compromised owner ACCOUNT:
+  // suspension still bites owners during a lockdown.
+  suspendUser("owner-1", "ic", "compromised owner drill");
+  assert.deepEqual(
+    enforceSessionSecurity(session({ agencyId: "agency-keys", userId: "owner-1", role: "agency-owner" } as Partial<SessionPayload>)),
+    { ok: false, reason: "suspended" },
+  );
+  unsuspendUser("owner-1", "ic");
+  liftTenantLockdown("agency-keys", "ic");
+});

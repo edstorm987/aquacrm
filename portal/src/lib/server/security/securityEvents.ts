@@ -40,6 +40,11 @@ export function setSecurityEventDrain(fn: Drain | null): void {
   drain = fn;
 }
 
+/** Honest posture: is an off-platform drain connected? (BLIND when not.) */
+export function hasSecurityEventDrain(): boolean {
+  return drain !== null;
+}
+
 const SECRET_KEYish = /(secret|password|token|apikey|api_key|authorization|cookie|key|credential|body|prompt|content)/i;
 
 /** Drops values that look like secrets/bulk content; keeps host/reason/id-shaped fields. */

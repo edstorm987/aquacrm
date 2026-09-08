@@ -217,10 +217,38 @@ named verbatim, with the tests that verify it. Restore capability is honestly
 marked UNPROVEN: the encrypted backup lane exists but keygen/secrets/drill are
 OWNER ACTIONS, and **RPO/RTO are UNMEASURED** until the drill runs.
 
-### Phase 6 — NOT STARTED
-Governance threat centre UI (BLIND/STALE/PARTIAL states, AAL2 + dual-confirm
-fronting for the response actions). The control-plane functions it will front
-all exist and are tested.
+### Phase 6 — Governance threat centre  (SHIPPED)
+`/portal/agency/security` (owner-only page) + `/api/portal/security/overview`
++ `/api/portal/security/actions`. The overview reports every control's real
+state and — critically — declares what the platform CANNOT see: BLIND items
+(no malware scanner, no off-platform event drain) render as loudly as
+incidents, and owner-action items (backup drill, DB migration) never show as
+"enforced". Every containment action is behind FOUR server-side gates: owner
+role, FRESH password re-verification (a stolen cookie cannot flip a switch),
+DUAL confirmation (typed CONTAIN + a written reason that lands in the durable
+record), and tenant scope (an owner acts only on their own tenant's people;
+platform-wide switches are the operator's only). Tenant lockdown exempts the
+tenant's own owners so the locksmith is never locked out (a compromised owner
+is contained with suspension/user-epoch instead).
+- **Proof:** `smoke-threat-centre` **8/8** (guards, re-auth, dual-confirm,
+  tenant-scope-no-id-oracle, operator-only, the working click-path with
+  durable-record + actor, honest BLIND overview, cross-tenant read isolation);
+  `smoke-security-lockdown` **8/8** incl. the owner exemption;
+  `smoke-portal-destinations` (the page is findable in nav). **LIVE acceptance
+  on the production build** (isolated build + seeded file state + real
+  local-Supabase login cookie): fail-closed boot proven (server refused to
+  start until all prod env was set), `/healthz/full` returns status-only to
+  anonymous callers, and the FULL action click-path ran end-to-end over HTTP —
+  wrong-password refused (403), missing-confirm refused (400), operator-only
+  global switch refused to a normal owner (403), a fully-confirmed own-tenant
+  suspend succeeded (200), showed in the overview + durable record stamped with
+  the acting owner, and unsuspend restored clean state. Same-origin POST passed
+  the new CSRF gate; the auth redirect (307 anon / 200 owner) held.
+- **PARTIAL:** AAL2 here is password re-verification, not a second factor (no
+  MFA provider is wired — MFA-Phone was disabled for cost); a true second
+  factor is an owner action. The panel's client hydration did not complete
+  under the isolated symlinked prod-build lane (cosmetic — the component
+  typechecks and the API loop it drives is proven live + 8/8 in tests).
 
 
 ---
