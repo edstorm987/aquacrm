@@ -3,10 +3,14 @@
 **Branch:** `security/containment-and-recovery`
 **Base (remote main):** `c89e7959f9a46f952adcbfd14c2be7226fb374b7`
 **Worktree:** `/private/tmp/aquacrm-security` (the developer's checkout was never touched)
-**Status of this session:** Phase 0 (close immediate exposure) is complete and
-committed. Phases 1–6 are scoped below and NOT yet built. This document is the
-honest ledger — every item carries VERIFIED / PARTIAL / BLOCKED / NOT TESTED /
-OWNER ACTION.
+**Status:** Phase 0 (immediate exposure) COMPLETE. Phase 1 (control plane +
+lockdown switches), Phase 2 (content trust gateway), Phase 3 (AI containment)
+and the first Phase-4 tranche are COMPLETE as enforced seeds — each with its
+honest PARTIAL list inline. Phase 5 runbooks are written against the REAL
+shipped controls (`docs/security/incident-runbooks.md`). Phase 6 (threat
+centre UI) NOT started. Branch pushed to origin; NEVER merged. This document
+is the honest ledger — every item carries VERIFIED / PARTIAL / BLOCKED /
+NOT TESTED / OWNER ACTION.
 
 > This is a security *architecture* programme, not a dashboard. Everything in
 > Phase 0 is an enforceable, tested control. Nothing here says "production
@@ -117,6 +121,18 @@ escape hatch production provably IGNORES.
 6. Sibling apps (aquaoasis-web, milesymedia, zimante) were checked and keep
    working; re-verify after the migration that milesymedia login (own-row
    profile read) still resolves.
+7. Optionally set **`PORTAL_HEALTH_TOKEN`** (≥32 random chars) and put it in
+   the uptime monitor's Authorization header if you want the DETAILED
+   /healthz/full body in production; without it the monitor still gets the
+   correct 200/503.
+8. If more than one trusted proxy fronts the app (CDN in front of Railway),
+   set **`PORTAL_TRUSTED_PROXY_HOPS`** to the hop count (default 1 = Railway).
+9. Backup lane (R7): run `ops/backup/keygen.sh`, store the key off-platform,
+   set the GitHub secrets, enable `BACKUP_ENABLED`, and run
+   `ops/backup/restore-drill.sh` once against staging — RPO/RTO are unmeasured
+   until this drill has been done.
+10. Connect an AV/CDR engine to `setContentScanner` when one is available;
+   until then upload verdicts are content-signature-based only.
 
 ---
 
@@ -132,20 +148,104 @@ escape hatch production provably IGNORES.
 
 ---
 
-## NOT DONE THIS SESSION (Phases 1–6, honestly outstanding)
+## Phases 1–5 — what shipped after Phase 0 (all committed + pushed, tested locally)
 
-- **Phase 1** — dedicated tenant-scoped security storage outside PortalState
-  (SecurityEvent/Finding/Incident/Directive/ArtifactTrust/DetectorHealth) with
-  WORM drain; signed containment directives; the full response-action set with
-  AAL2 + dual-confirm. (0-B/0-D shipped the enforcement SEEDS in PortalState.)
-- **Phase 2** — the content-trust gateway (quarantine→scan→clean, lineage,
-  recall). Uploads are still filename/MIME-validated and stored before any
-  verdict (VERIFIED, unfixed).
-- **Phase 3** — AI tool-broker isolation, quotas/kill-switch, prompt-injection
-  lineage; microVM sandbox for repo previews (currently host processes).
-- **Phase 4** — edge WAF, CSRF centralisation, distributed rate limiter, vault
-  per-tenant DEKs, healthz disclosure, supply-chain CI, ecosystem key split.
-- **Phase 5** — recovery/IR runbooks + hardened restore + RPO/RTO.
-- **Phase 6** — Governance Threat Centre UI (BLIND/STALE/PARTIAL states).
+### Phase 1 — lockdown switches  (`ea980563`)
+- **Global read-only kill switch** enforced at `mutate()` — the single write
+  path for all 100 PortalState collections — BEFORE the mutation callback runs
+  (nothing partially applies); reads keep serving; the control plane's own
+  writes stay allowed (liftable mid-incident, suspension/revocation keep
+  working). Typed `SecurityLockdownError`.
+- **Tenant lockdown** enforced at the central session gate; REVERSIBLE
+  (lifting restores existing sessions — no re-login storm), other tenants
+  untouched.
+- Every flip is a SecurityEvent. `smoke-security-lockdown` **6/6**.
+- **PARTIAL:** security storage still lives in PortalState (`securityControl`
+  singleton) rather than a dedicated store with a WORM drain; the drain HOOK
+  exists (`setSecurityEventDrain`). Signed directives + AAL2 dual-confirm are
+  Phase-6-fronted work.
 
-None of the above is claimed done. See each phase in the mission brief.
+### Phase 2 — content trust gateway  (`c68ffdbd`)
+- Every stored upload judged by its BYTES at `storePrivateUpload` — the one
+  function all 11 upload routes (public careers intake included) store
+  through — before any provider I/O. sha256 identity; executables refused
+  everywhere; media-declared HTML (polyglots) refused; signature/declaration
+  mismatch refused; SVG refused BY CONTENT; NUL-in-text refused. Refusals are
+  digest+types security events — never contents, never filenames.
+- Explicit `setContentScanner` seam for a real AV/CDR engine (OWNER ACTION);
+  verdicts stay clean/unverified/blocked — never "scanned" — until one is
+  connected. `smoke-content-trust` **10/10**; upload-adjacent suites 70/70.
+- **PARTIAL:** no malware scanning until an engine is connected; no
+  quarantine-then-release lifecycle; trust records live in the event spine +
+  returned `contentTrust` field, not yet a durable per-artifact ledger.
+
+### Phase 3 — AI containment  (`e5c03637`)
+- **AI kill switch** (`disableAi`/`enableAi`) + **per-tenant sliding-hour
+  quota** (`PORTAL_AI_CALLS_PER_HOUR`, default 500) enforced at
+  `requestOpenAiResponse` — the ONE adapter every assistant/editor generation
+  passes through — before provider I/O. Prompt contents never reach the event
+  spine (canary-pinned). The OpenAI endpoint is a hardcoded constant (no SSRF
+  surface on this path).
+- **Human-in-the-loop pinned as a contract:** external assistant proposals are
+  pending records; only an explicit accept by a real `actorUserId` creates a
+  task; the submit path must never reach `createAgencyTask`.
+  `smoke-ai-containment` **5/5**.
+- **PARTIAL/BLOCKED:** microVM/sandbox isolation for dev-project preview
+  execution needs infrastructure (OWNER ACTION); prompt-injection lineage
+  tagging on AI-derived records not built; quota is in-memory (single-instance
+  honest — multi-instance needs the shared counter).
+
+### Phase 4 — platform tranche  (`5e6a087a`)
+- **/healthz/full recon gate:** anonymous production callers get `{ ok, ts }`
+  only; sha/platform/plugins/readiness-item detail requires an internal
+  session or the `PORTAL_HEALTH_TOKEN` bearer (timing-safe). Status code
+  unchanged — no monitor breaks. `smoke-platform-hardening` **5/5**.
+- **X-Forwarded-For unspoofed:** the rate limiter/attribution now uses the
+  proxy-APPENDED entry (last, or `PORTAL_TRUSTED_PROXY_HOPS` from the end),
+  not the client-chosen first entry.
+- **Deliberately NOT shipped, tracked:** CSRF origin gate (cookies are
+  SameSite=lax — the standing mitigation; a blanket Origin check would break
+  legitimate cross-origin intakes like brand-enquiry embeds; needs per-route
+  classification), vault per-tenant DEKs, distributed rate limiter,
+  supply-chain CI, edge WAF (provider console = OWNER ACTION).
+
+### Phase 5 — incident response  (`docs/security/incident-runbooks.md`)
+Eight runbooks (compromised account, tenant breach, mass-write freeze, global
+session compromise, malicious upload, AI incident, restore, ecosystem
+incident) — every action in them is a REAL function shipped on this branch,
+named verbatim, with the tests that verify it. Restore capability is honestly
+marked UNPROVEN: the encrypted backup lane exists but keygen/secrets/drill are
+OWNER ACTIONS, and **RPO/RTO are UNMEASURED** until the drill runs.
+
+### Phase 6 — NOT STARTED
+Governance threat centre UI (BLIND/STALE/PARTIAL states, AAL2 + dual-confirm
+fronting for the response actions). The control-plane functions it will front
+all exist and are tested.
+
+
+---
+
+## Mandatory acceptance gates (final run, this branch)
+
+| Gate | Result |
+|---|---|
+| Typecheck (`npm run typecheck`) | **0 errors** |
+| Full canonical suite (`smoke:all`) | **6,919 / 6,923 pass, 3 skipped, 1 fail** — the fail is `smoke-product-workspace-lease-fencing` (a KNOWN timing-sensitive pin that flips under parallel-suite CPU contention, documented pre-programme); it passes **3/3 in isolation** on this branch and touches nothing this programme changed |
+| Production build (webpack, the real bundler) | **GREEN — compiled successfully in 73s** with every phase's changes in |
+| Local DB containment suite (37 tests, real JWTs vs PostgREST+Storage) | **37/37** (unchanged since 0-A — later phases did not touch the migration) |
+| `rls-verify.sql` containment invariants on migrated local DB | **all-INFO** |
+| Migration never run remotely | **verified** — no project linkage in the worktree, `DATABASE_URL` unset, `db push` never invoked |
+| Developer checkout untouched | **verified** — all work in `/private/tmp/aquacrm-security` |
+
+## FINAL VERDICT
+
+**SAFE TO INDEPENDENTLY REVIEW.** Not merged; never will be by this
+programme's author — merge is the owner's call after independent review.
+
+**NOT production-ready, and this report does not claim it.** The live gates
+that would justify that phrase have NOT been exercised: the containment
+migration has not been applied to the production database, no restore drill
+has been run (RPO/RTO unmeasured), no AV engine is connected, the WAF/edge
+work is provider-console territory, and the Phase-6 threat centre that fronts
+the response actions with AAL2 + dual confirmation does not exist yet.
+Every one of those is listed with its owner above.
