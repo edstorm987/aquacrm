@@ -4891,6 +4891,12 @@ export interface SecurityControlState {
    * Containment for a single compromised tenant.
    */
   tenantLockdowns?: Record<string, { reason: string; at: number; actor: string }>;
+  /**
+   * AI KILL SWITCH: while set, the shared OpenAI adapter (the one path every
+   * assistant/editor generation passes through) refuses before provider I/O.
+   * Containment for an active prompt-injection or cost-runaway incident.
+   */
+  aiDisabled?: { reason: string; at: number; actor: string };
 }
 
 export interface PortalState {

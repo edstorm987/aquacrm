@@ -178,6 +178,29 @@ export function isTenantLockedDown(agencyId: string): boolean {
   return Boolean(readSecurityControl().tenantLockdowns?.[agencyId]);
 }
 
+// ─── AI kill switch (Phase 3) ───────────────────────────────────────────────
+
+export function disableAi(actor: string, reason: string): void {
+  withControl(control => {
+    control.aiDisabled = { reason, at: Date.now(), actor };
+  });
+  recordSecurityEvent({ kind: "lockdown.ai.disabled", severity: "critical", actor, detail: { reason } });
+  logSecurityAction("ai-disabled", { actor, reason });
+}
+
+export function enableAi(actor: string): void {
+  withControl(control => {
+    delete control.aiDisabled;
+  });
+  recordSecurityEvent({ kind: "lockdown.ai.enabled", severity: "warning", actor, detail: {} });
+  logSecurityAction("ai-enabled", { actor });
+}
+
+/** The disable record while the AI kill switch is ON, else null. */
+export function isAiDisabled(): { reason: string; at: number; actor: string } | null {
+  return readSecurityControl().aiDisabled ?? null;
+}
+
 // ─── Session registry ───────────────────────────────────────────────────────
 
 export function newSessionId(): string {

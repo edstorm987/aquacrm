@@ -110,6 +110,7 @@ export async function askMilesymediaAssistant(input: {
 
   const payload = await requestOpenAiResponse({
     apiKey,
+    tenantId: input.agencyId,
     payload: {
       model: managed.model || assistantModel(input.agencyId),
       instructions,
@@ -182,6 +183,7 @@ export async function suggestAdvisorActions(input: {
   try {
     const payload = await requestOpenAiResponse({
       apiKey,
+      tenantId: input.agencyId,
       payload: {
         model: managed.model || assistantModel(input.agencyId),
         instructions,
