@@ -100,6 +100,20 @@ function matchesRoot(path: string, root: string): boolean {
   return path === root || path.startsWith(`${root}/`);
 }
 
+/**
+ * FAIL CLOSED (assume-breach containment, 2026-09-08). The portal gate used to
+ * be conditional on NEXT_PUBLIC_PORTAL_SECURITY alone — unset (or any value
+ * but "strict"/"true") switched the /portal cookie gate OFF, in production
+ * too. Production is now ALWAYS strict regardless of the env var (NODE_ENV is
+ * baked at build, so this is server-controlled and cannot be relaxed by
+ * configuration drift). Development keeps the opt-in behaviour. Exported pure
+ * so the boot regression suite can prove both halves.
+ */
+export function isPortalSecurityStrict(nodeEnv: string | undefined, securityEnv: string | undefined): boolean {
+  if (nodeEnv === "production") return true;
+  return securityEnv === "strict" || securityEnv === "true";
+}
+
 interface ProxySession {
   role?: string;
   agencyId?: string;
@@ -234,9 +248,7 @@ export function proxy(req: NextRequest) {
     }
   }
 
-  const env = process.env.NEXT_PUBLIC_PORTAL_SECURITY;
-  const isStrict = env === "strict" || env === "true";
-  if (!isStrict) return next();
+  if (!isPortalSecurityStrict(process.env.NODE_ENV, process.env.NEXT_PUBLIC_PORTAL_SECURITY)) return next();
 
   if (!path.startsWith("/portal")) return next();
 

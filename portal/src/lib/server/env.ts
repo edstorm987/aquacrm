@@ -53,6 +53,7 @@ const EXAMPLE_SENTINELS: Record<string, string[]> = {
 // every framework's own surface) are ignored.
 export const ENV_ALLOWLIST: readonly string[] = [
   "PORTAL_SESSION_SECRET",
+  "PORTAL_SESSION_TTL_SECONDS",
   "PORTAL_STATE_KEY",
   "PORTAL_VAULT_ENCRYPTION_KEY",
   "PORTAL_PREVIEW_SECRET",

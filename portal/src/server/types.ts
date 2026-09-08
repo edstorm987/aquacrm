@@ -703,6 +703,16 @@ export interface SessionPayload {
   // additive: cookies minted before this field existed carry nothing, and an
   // absent value must be read as "not proven" — never as aal2.
   aal?: "aal1" | "aal2";
+  // Assume-breach containment (2026-09-08): a per-session id so an individual
+  // device/session can be revoked without rotating the whole user. Additive —
+  // legacy cookies carry none and are only killable via epochs/sessionRev.
+  sid?: string;
+  // Security epochs stamped at issue: global / tenant (active agency) / user.
+  // The central session gate refuses any session whose stamped epoch is behind
+  // the current one, so bumping an epoch invalidates every earlier cookie for
+  // that scope immediately — legacy cookies read as epoch 0 and die on the
+  // first bump too.
+  se?: { g: number; t: number; u: number };
   iat: number;
   exp: number;
 }
@@ -4831,12 +4841,52 @@ export interface OutboxEvent {
   lastError?: string;
 }
 
+// ─── Security control plane (assume-breach containment, 2026-09-08) ───────
+//
+// Phase-0 seed of the containment control plane: security epochs, user
+// suspension and the durable session/device registry, enforced centrally in
+// `resolveFreshSessionUser` on EVERY authenticated request (both the RSC
+// `getSession` path and `getSessionFromRequest`). Phase 1 migrates this into
+// dedicated security storage outside PortalState; the enforcement contract
+// stays identical.
+
+export interface SecuritySessionRecord {
+  sid: string;
+  userId: string;
+  agencyId?: string;
+  role: Role;
+  issuedAt: number;
+  /** Where the mint happened: login, mfa, magic-link, dev, showcase, preview. */
+  issuedVia: string;
+  lastSeenAt?: number;
+  ip?: string;
+  userAgent?: string;
+  revokedAt?: number;
+  revokedBy?: string;
+  revokedReason?: string;
+}
+
+export interface SecurityControlState {
+  /** Bump to invalidate EVERY session everywhere (global incident response). */
+  globalEpoch: number;
+  /** agencyId → epoch. Bump to invalidate every session scoped to that tenant. */
+  tenantEpochs: Record<string, number>;
+  /** userId → epoch. Bump to invalidate every session for that user. */
+  userEpochs: Record<string, number>;
+  /** userId → suspension. A suspended user fails the central gate on every request. */
+  suspendedUsers: Record<string, { reason: string; at: number; actor: string }>;
+  /** sid → registry record. Individual device/session revocation. */
+  sessions: Record<string, SecuritySessionRecord>;
+}
+
 export interface PortalState {
   agencies: Record<string, Agency>;
   tradingCompanies: Record<string, TradingCompany>;
   clients: Record<string, Client>;
   endCustomers: Record<string, EndCustomer>;
   users: Record<string, ServerUser>;             // keyed by lower-cased email
+  /** Assume-breach containment: epochs, suspension, session registry. Optional — hydrates lazily on first security action. */
+  securityControl?: SecurityControlState;
   accessRoleTemplates: Record<string, AccessRoleTemplate>;
   accessGrants: Record<string, AccessGrant>;
   accessRequests: Record<string, AccessRequest>;

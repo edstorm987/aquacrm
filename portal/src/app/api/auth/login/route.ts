@@ -3,6 +3,7 @@ import { createRouteSupabaseClient } from "@/lib/supabase/route";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { seedFounder } from "@/lib/server/seeds/founderSeed";
 import { issueSession, sessionCookie } from "@/lib/server/auth/auth";
+import { newSessionId, recordIssuedSession } from "@/lib/server/auth/securityControl";
 import {
   clientIpFromHeaders,
   isLoginLocked,
@@ -442,6 +443,10 @@ async function handleJsonLogin(req: NextRequest) {
   );
   const activeAgencyId = brandAgency?.id ?? portalUser.agencyId;
 
+  // Assume-breach containment: mint under a known session id and record it in
+  // the durable session registry so THIS device/session can be individually
+  // revoked later (epochs cover the coarse scopes).
+  const sid = newSessionId();
   const token = issueSession({
     userId: portalUser.id,
     email: portalUser.email,
@@ -455,7 +460,16 @@ async function handleJsonLogin(req: NextRequest) {
     // Supabase's own aal2 token; `check-recovery` spent a stored single-use
     // code. Everything else got here on a password alone.
     aal: step.status === "not-required" ? "aal1" : "aal2",
+    sid,
   });
+  recordIssuedSession(
+    { sid, userId: portalUser.id, agencyId: activeAgencyId, role: portalUser.role },
+    {
+      issuedVia: step.status === "not-required" ? "login" : "login+mfa",
+      ip: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || undefined,
+      userAgent: req.headers.get("user-agent") ?? undefined,
+    },
+  );
   const cookie = sessionCookie(token);
   const redirect = resolvePostLoginPath(null, portalUser);
 

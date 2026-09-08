@@ -4,17 +4,44 @@ import crypto from "crypto";
 import type { SessionPayload } from "@/server/types";
 
 export const SESSION_COOKIE_NAME = "lk_session_v1";
-export const SESSION_COOKIE_MAX_AGE = 60 * 60 * 24 * 30;
+
+// Session lifetime. Was a hard-coded 30 days; assume-breach containment
+// (2026-09-08) shortens the default to 7 days and makes it tunable so the
+// owner can go shorter without a deploy. Clamped to [15 minutes, 30 days] so a
+// typo cannot mint decade-long or instantly-dead sessions.
+const DEFAULT_SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
+function resolveSessionTtl(): number {
+  const raw = Number(process.env.PORTAL_SESSION_TTL_SECONDS ?? "");
+  if (!Number.isFinite(raw) || raw <= 0) return DEFAULT_SESSION_TTL_SECONDS;
+  return Math.min(Math.max(Math.floor(raw), 60 * 15), 60 * 60 * 24 * 30);
+}
+export const SESSION_COOKIE_MAX_AGE = resolveSessionTtl();
+
+// FAIL CLOSED (assume-breach containment, 2026-09-08). The previous behaviour
+// signed production sessions with the public literal
+// "dev-secret-do-not-use-in-prod" when PORTAL_SESSION_SECRET was unset — a
+// console.warn and then business as usual, meaning anyone could mint a valid
+// owner cookie offline. Production now refuses to sign OR verify anything
+// without a real secret; dev/test keep the fallback so local work and the
+// smoke suite run without configuration.
+const DEV_FALLBACK_SECRET = "dev-secret-do-not-use-in-prod";
 
 function getSessionSecret(): string {
   const secret = process.env.PORTAL_SESSION_SECRET;
-  if (secret && secret.length > 0) return secret;
+  if (secret && secret.length > 0) {
+    if (process.env.NODE_ENV === "production" && secret === DEV_FALLBACK_SECRET) {
+      throw new Error(
+        "[auth] PORTAL_SESSION_SECRET is set to the public dev fallback in production. Refusing to sign or verify sessions.",
+      );
+    }
+    return secret;
+  }
   if (process.env.NODE_ENV === "production") {
-    console.warn(
-      "[auth] PORTAL_SESSION_SECRET is unset — sessions are signing with the dev fallback. Production deploys MUST set this.",
+    throw new Error(
+      "[auth] PORTAL_SESSION_SECRET is unset in production. Refusing to sign or verify sessions — set a ≥32-char secret.",
     );
   }
-  return "dev-secret-do-not-use-in-prod";
+  return DEV_FALLBACK_SECRET;
 }
 
 /** Sign a complete session payload without importing tenant storage. */

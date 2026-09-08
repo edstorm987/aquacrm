@@ -883,6 +883,12 @@ export const PROMOTION_DISPOSITION = {
     keying: "own-id",
     reason: "Durable domain events are the origin tenant's history of what happened under it. A promoted company's tenant starts its own event stream; rewriting past events' agencyId would falsify lineage.",
   },
+  securityControl: {
+    disposition: "leave",
+    ownership: "none",
+    keying: "own-id",
+    reason: "Assume-breach security control plane (epochs, suspensions, session registry). Security posture never follows a promoted company: the new tenant starts at epoch zero with an empty registry — copying revocation/suspension state across tenants would leak security telemetry and desynchronise the epochs the central session gate enforces.",
+  },
 } satisfies PromotionDispositionMap;
 
 // ─── THE GUARD ────────────────────────────────────────────────────────────
