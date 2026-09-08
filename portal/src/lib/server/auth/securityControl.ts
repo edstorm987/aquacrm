@@ -64,6 +64,39 @@ function withControl(fn: (control: SecurityControlState) => void): void {
   }, { securityControlPlane: true });
 }
 
+
+const DURABLE_EVENT_CAP = 200;
+
+/**
+ * Control-plane actions record durably: into the in-memory ring/drain (like
+ * all security telemetry) AND into securityControl.recentEvents in state, so
+ * the record survives a restart and the threat centre can show it. Only
+ * explicit actions call this — never render-time telemetry (render-time
+ * writes are forbidden; the 2026-09-04 outage).
+ */
+function recordControlAction(input: {
+  kind: string;
+  severity: "info" | "warning" | "critical";
+  actor: string;
+  tenantId?: string;
+  detail?: Record<string, unknown>;
+}): void {
+  const event = recordSecurityEvent(input);
+  withControl(control => {
+    const events = control.recentEvents ?? [];
+    events.push({
+      id: event.id,
+      at: event.at,
+      kind: event.kind,
+      severity: event.severity,
+      actor: event.actor,
+      tenantId: event.tenantId,
+      detail: event.detail,
+    });
+    control.recentEvents = events.slice(-DURABLE_EVENT_CAP);
+  });
+}
+
 // ─── Epoch stamps ───────────────────────────────────────────────────────────
 
 /** Current epochs for a session about to be issued. Tolerates missing state. */
@@ -82,6 +115,7 @@ export function bumpGlobalSecurityEpoch(actor: string, reason: string): number {
     control.globalEpoch += 1;
     next = control.globalEpoch;
   });
+  recordControlAction({ kind: "epoch.global.bumped", severity: "critical", actor, detail: { reason, epoch: next } });
   logSecurityAction("global-epoch-bump", { actor, reason, epoch: next });
   return next;
 }
@@ -92,6 +126,7 @@ export function bumpTenantSecurityEpoch(agencyId: string, actor: string, reason:
     control.tenantEpochs[agencyId] = (control.tenantEpochs[agencyId] ?? 0) + 1;
     next = control.tenantEpochs[agencyId];
   });
+  recordControlAction({ kind: "epoch.tenant.bumped", severity: "critical", actor, tenantId: agencyId, detail: { reason, epoch: next } });
   logSecurityAction("tenant-epoch-bump", { actor, reason, agencyId, epoch: next });
   return next;
 }
@@ -102,6 +137,7 @@ export function bumpUserSecurityEpoch(userId: string, actor: string, reason: str
     control.userEpochs[userId] = (control.userEpochs[userId] ?? 0) + 1;
     next = control.userEpochs[userId];
   });
+  recordControlAction({ kind: "epoch.user.bumped", severity: "warning", actor, detail: { reason, userId, epoch: next } });
   logSecurityAction("user-epoch-bump", { actor, reason, userId, epoch: next });
   return next;
 }
@@ -112,6 +148,7 @@ export function suspendUser(userId: string, actor: string, reason: string): void
   withControl(control => {
     control.suspendedUsers[userId] = { reason, at: Date.now(), actor };
   });
+  recordControlAction({ kind: "user.suspended", severity: "critical", actor, detail: { reason, userId } });
   logSecurityAction("user-suspended", { actor, reason, userId });
 }
 
@@ -119,6 +156,7 @@ export function unsuspendUser(userId: string, actor: string): void {
   withControl(control => {
     delete control.suspendedUsers[userId];
   });
+  recordControlAction({ kind: "user.unsuspended", severity: "warning", actor, detail: { userId } });
   logSecurityAction("user-unsuspended", { actor, userId });
 }
 
@@ -142,7 +180,7 @@ export function setGlobalReadOnly(actor: string, reason: string): void {
   withControl(control => {
     control.globalReadOnly = { reason, at: Date.now(), actor };
   });
-  recordSecurityEvent({ kind: "lockdown.global-read-only.set", severity: "critical", actor, detail: { reason } });
+  recordControlAction({ kind: "lockdown.global-read-only.set", severity: "critical", actor, detail: { reason } });
   logSecurityAction("global-read-only-set", { actor, reason });
 }
 
@@ -150,7 +188,7 @@ export function clearGlobalReadOnly(actor: string): void {
   withControl(control => {
     delete control.globalReadOnly;
   });
-  recordSecurityEvent({ kind: "lockdown.global-read-only.cleared", severity: "warning", actor, detail: {} });
+  recordControlAction({ kind: "lockdown.global-read-only.cleared", severity: "warning", actor, detail: {} });
   logSecurityAction("global-read-only-cleared", { actor });
 }
 
@@ -162,7 +200,7 @@ export function lockdownTenant(agencyId: string, actor: string, reason: string):
   withControl(control => {
     control.tenantLockdowns = { ...(control.tenantLockdowns ?? {}), [agencyId]: { reason, at: Date.now(), actor } };
   });
-  recordSecurityEvent({ kind: "lockdown.tenant.set", severity: "critical", actor, tenantId: agencyId, detail: { reason } });
+  recordControlAction({ kind: "lockdown.tenant.set", severity: "critical", actor, tenantId: agencyId, detail: { reason } });
   logSecurityAction("tenant-lockdown-set", { actor, reason, agencyId });
 }
 
@@ -170,7 +208,7 @@ export function liftTenantLockdown(agencyId: string, actor: string): void {
   withControl(control => {
     if (control.tenantLockdowns) delete control.tenantLockdowns[agencyId];
   });
-  recordSecurityEvent({ kind: "lockdown.tenant.lifted", severity: "warning", actor, tenantId: agencyId, detail: {} });
+  recordControlAction({ kind: "lockdown.tenant.lifted", severity: "warning", actor, tenantId: agencyId, detail: {} });
   logSecurityAction("tenant-lockdown-lifted", { actor, agencyId });
 }
 
@@ -184,7 +222,7 @@ export function disableAi(actor: string, reason: string): void {
   withControl(control => {
     control.aiDisabled = { reason, at: Date.now(), actor };
   });
-  recordSecurityEvent({ kind: "lockdown.ai.disabled", severity: "critical", actor, detail: { reason } });
+  recordControlAction({ kind: "lockdown.ai.disabled", severity: "critical", actor, detail: { reason } });
   logSecurityAction("ai-disabled", { actor, reason });
 }
 
@@ -192,7 +230,7 @@ export function enableAi(actor: string): void {
   withControl(control => {
     delete control.aiDisabled;
   });
-  recordSecurityEvent({ kind: "lockdown.ai.enabled", severity: "warning", actor, detail: {} });
+  recordControlAction({ kind: "lockdown.ai.enabled", severity: "warning", actor, detail: {} });
   logSecurityAction("ai-enabled", { actor });
 }
 
@@ -249,7 +287,10 @@ export function revokeSession(sid: string, actor: string, reason: string): boole
     record.revokedReason = reason;
     found = true;
   });
-  if (found) logSecurityAction("session-revoked", { actor, reason, sid });
+  if (found) {
+    recordControlAction({ kind: "session.revoked", severity: "warning", actor, detail: { reason, sid } });
+    logSecurityAction("session-revoked", { actor, reason, sid });
+  }
   return found;
 }
 

@@ -13,7 +13,10 @@ import http from "node:http";
 import { AddressInfo } from "node:net";
 import test from "node:test";
 
-import { brokeredFetch, OutboundBlockedError } from "../src/lib/server/net/outboundBroker";
+import { brokeredFetch, OutboundBlockedError, vetOutboundHost } from "../src/lib/server/net/outboundBroker";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import { clearSecurityEventsForTest, recentSecurityEvents } from "../src/lib/server/security/securityEvents";
 
 async function expectBlocked(url: string, reason: string, extra: Record<string, unknown> = {}) {
@@ -93,4 +96,46 @@ test("a same-origin request keeps credentials; the block set is exact", async ()
   const evt = recentSecurityEvents(3).find(e => e.kind === "outbound.blocked");
   assert.ok(evt, "event recorded");
   assert.ok(!JSON.stringify(evt).includes("super-secret-token"), "the credential must never reach the security event");
+});
+
+// ─── vetOutboundHost — the non-HTTP (SMTP) egress gate (0-D completion) ─────
+
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+test("vetOutboundHost refuses private/metadata SMTP hosts in every environment", async () => {
+  for (const host of ["169.254.169.254", "10.0.0.5", "192.168.1.10", "fd00::1"]) {
+    await assert.rejects(
+      () => vetOutboundHost(host, { purpose: "email.smtp", tenantId: "t1" }),
+      (e: unknown) => e instanceof OutboundBlockedError,
+      `${host} must be refused`,
+    );
+  }
+});
+
+test("vetOutboundHost allows dev loopback (MailHog) but refuses it in production", async () => {
+  const dev = await vetOutboundHost("127.0.0.1", {
+    purpose: "email.smtp",
+    env: { NODE_ENV: "development" } as NodeJS.ProcessEnv,
+  });
+  assert.deepEqual(dev.addresses, ["127.0.0.1"]);
+
+  await assert.rejects(
+    () => vetOutboundHost("127.0.0.1", {
+      purpose: "email.smtp",
+      env: { NODE_ENV: "production" } as NodeJS.ProcessEnv,
+    }),
+    (e: unknown) => e instanceof OutboundBlockedError && e.reason === "private-address",
+  );
+});
+
+test("shopify and SMTP call sites are pinned to the audited egress path", () => {
+  const shopify = readFileSync(join(REPO_ROOT, "src/built-ins/modules/ecommerce/src/lib/shopify.ts"), "utf8");
+  assert.match(shopify, /brokeredFetch\(/, "the tenant-configured shop domain must go through the broker");
+  assert.ok(!/await fetch\(endpoint/.test(shopify), "the raw fetch to the shop domain must not return");
+
+  const email = readFileSync(join(REPO_ROOT, "src/lib/server/email/transactionalEmail.ts"), "utf8");
+  const vetIndex = email.indexOf("vetOutboundHost(smtp.host");
+  const transportIndex = email.indexOf("createTransport");
+  assert.ok(vetIndex > -1, "the SMTP host must be vetted");
+  assert.ok(transportIndex > -1 && vetIndex < transportIndex, "vetting must happen BEFORE the transport is created");
 });

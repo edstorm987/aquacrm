@@ -4897,6 +4897,22 @@ export interface SecurityControlState {
    * Containment for an active prompt-injection or cost-runaway incident.
    */
   aiDisabled?: { reason: string; at: number; actor: string };
+  /**
+   * Durable record of CONTROL-PLANE actions (switch flips, suspensions, epoch
+   * bumps, revocations) — bounded, newest last. Only explicit actions write
+   * here (handler context, never renders); high-volume telemetry (broker
+   * blocks, content-trust refusals, AI quota) stays in the in-memory ring +
+   * off-platform drain.
+   */
+  recentEvents?: Array<{
+    id: string;
+    at: number;
+    kind: string;
+    severity: "info" | "warning" | "critical";
+    actor?: string;
+    tenantId?: string;
+    detail?: Record<string, unknown>;
+  }>;
 }
 
 export interface PortalState {

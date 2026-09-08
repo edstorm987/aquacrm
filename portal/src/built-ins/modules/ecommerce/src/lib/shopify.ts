@@ -6,10 +6,13 @@
 
 import { withRemoteOperationDeadline, type RemoteOperationOutcome } from "@/lib/server/remoteOperation";
 import { assertLiveProviderAccess } from "@/lib/server/sandbox/providerPolicy";
+import { brokeredFetch } from "@/lib/server/net/outboundBroker";
 
 export interface ShopifyConfig {
   domain: string;                // e.g. "luvandker.myshopify.com"
   storefrontAccessToken: string;
+  /** Tenant scope for the egress broker's audit trail + destination policy. */
+  agencyId?: string;
 }
 
 export interface ShopifyRequestOptions {
@@ -36,8 +39,15 @@ export async function shopifyFetch<T>(
     outcome: options.outcome ?? (isGraphqlMutation(args.query) ? "non-idempotent-write" : "read"),
     signal: options.signal,
     timeoutMs: options.timeoutMs,
-  }, async signal => {
-    const result = await fetch(endpoint, {
+  }, async () => {
+    // Through the audited egress broker (assume-breach containment, Phase 0-D
+    // completion): `config.domain` is per-install TENANT DATA — re-pointing it
+    // at a private/loopback/metadata address would exfiltrate the storefront
+    // token and reach the internal network. The broker rejects unsafe
+    // destinations, pins the vetted address against DNS rebinding, and never
+    // forwards the token across an origin-changing redirect.
+    const response = await brokeredFetch({
+      url: endpoint,
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -47,10 +57,12 @@ export async function shopifyFetch<T>(
         ...(args.query && { query: args.query }),
         ...(args.variables && { variables: args.variables }),
       }),
-      signal,
+      timeoutMs: options.timeoutMs ?? 15_000,
+      tenantId: config.agencyId,
+      purpose: "shopify.storefront",
     });
-    const body = (await result.json()) as { errors?: { message: string }[] } & T;
-    return { result, body };
+    const body = JSON.parse(response.bodyText || "{}") as { errors?: { message: string }[] } & T;
+    return { result: { status: response.status }, body };
   });
   if (body.errors && body.errors.length > 0) {
     throw new Error(body.errors[0]?.message ?? "Shopify Storefront error");

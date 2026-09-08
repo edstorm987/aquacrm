@@ -17,6 +17,7 @@ import { dirname, join } from "node:path";
 import test, { beforeEach } from "node:test";
 
 import { clientIpFromHeaders } from "../src/lib/server/rateLimit";
+import { isCrossOriginBrowserMutation } from "../src/proxy";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -68,4 +69,41 @@ test("the status code decision is independent of the disclosure gate", () => {
   const statusIndex = source.indexOf("resolveFullHealthOk");
   assert.ok(statusIndex > -1 && gateIndex > -1 && statusIndex < gateIndex, "status decision must precede the disclosure gate");
   assert.match(source, /status: ok \? 200 : 503/);
+});
+
+// ─── CSRF origin gate (Phase 4 completion) ──────────────────────────────────
+
+test("a cross-site mutation on a cookie-authed API is refused; same-origin passes", () => {
+  const guarded = { method: "POST", path: "/api/portal/tasks", host: "www.aqua-crm.com" };
+  assert.equal(isCrossOriginBrowserMutation({ ...guarded, origin: "https://evil.example" }), true);
+  assert.equal(isCrossOriginBrowserMutation({ ...guarded, origin: "https://www.aqua-crm.com" }), false);
+  // Case-insensitive host comparison.
+  assert.equal(isCrossOriginBrowserMutation({ ...guarded, origin: "https://WWW.AQUA-CRM.COM" }), false);
+});
+
+test("the gate covers auth APIs, ignores safe methods, and leaves token surfaces alone", () => {
+  assert.equal(
+    isCrossOriginBrowserMutation({ method: "POST", path: "/api/auth/password", origin: "https://evil.example", host: "www.aqua-crm.com" }),
+    true,
+  );
+  // Safe methods carry no CSRF risk.
+  assert.equal(
+    isCrossOriginBrowserMutation({ method: "GET", path: "/api/portal/tasks", origin: "https://evil.example", host: "www.aqua-crm.com" }),
+    false,
+  );
+  // Token/public/webhook surfaces are cross-origin BY DESIGN — not gated here.
+  for (const path of ["/api/v1/records", "/api/public/careers", "/api/tenants/client-files/upload", "/api/webhooks/meta"]) {
+    assert.equal(
+      isCrossOriginBrowserMutation({ method: "POST", path, origin: "https://client-site.example", host: "www.aqua-crm.com" }),
+      false,
+      `${path} must not be origin-gated`,
+    );
+  }
+});
+
+test("absent Origin passes (no ambient-cookie CSRF vector); null/malformed Origin is refused", () => {
+  const guarded = { method: "POST", path: "/api/portal/tasks", host: "www.aqua-crm.com" };
+  assert.equal(isCrossOriginBrowserMutation({ ...guarded, origin: null }), false);
+  assert.equal(isCrossOriginBrowserMutation({ ...guarded, origin: "null" }), true);
+  assert.equal(isCrossOriginBrowserMutation({ ...guarded, origin: "not a url" }), true);
 });

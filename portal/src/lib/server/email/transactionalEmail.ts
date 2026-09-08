@@ -1,5 +1,6 @@
 import { mayUseEnvironmentCredentials } from "@/lib/server/auth/founderAgency";
 import { sendResendEmail } from "@/lib/server/email/resendEmail";
+import { OutboundBlockedError, vetOutboundHost } from "@/lib/server/net/outboundBroker";
 import { assertLiveProviderAccess } from "@/lib/server/sandbox/providerPolicy";
 import { resolveScopedIntegrationConnectionValues, resolveIntegrationValues } from "@/lib/server/integrations/integrationConnections";
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
@@ -116,6 +117,14 @@ export async function sendTransactionalEmail(
 
   if (smtp.host && smtp.port && smtp.username && smtp.password && smtp.fromEmail) {
     try {
+      // Assume-breach containment (Phase 0-D completion): `smtp.host` is
+      // TENANT-CONFIGURED and nodemailer opens a raw socket the HTTP broker
+      // cannot carry — so the host is vetted with the broker's own
+      // resolve-and-classify rule before any connection. A host resolving to a
+      // private/loopback/metadata address is refused (and evented) rather than
+      // handed the SMTP credentials. Dev loopback (MailHog) stays allowed
+      // outside production.
+      await vetOutboundHost(smtp.host, { purpose: "email.smtp", tenantId: input.agencyId });
       const { createTransport } = await import("nodemailer");
       const port = Number(smtp.port);
       const transport = createTransport({
@@ -141,6 +150,9 @@ export async function sendTransactionalEmail(
       });
       return { delivered: true, via: "smtp" };
     } catch (error) {
+      if (error instanceof OutboundBlockedError) {
+        return { delivered: false, via: "smtp", reason: "SMTP host refused by the egress policy (unsafe destination)." };
+      }
       return { delivered: false, via: "smtp", reason: error instanceof Error ? error.message : "SMTP delivery failed." };
     }
   }

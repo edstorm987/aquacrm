@@ -154,8 +154,57 @@ function decodePayload(token: string | undefined): ProxySession | null {
   }
 }
 
+// ─── CSRF origin gate (assume-breach containment, Phase 4) ──────────────────
+//
+// Cookie-authenticated browser APIs (`/api/portal/*`, `/api/auth/*`) refuse a
+// MUTATING request whose Origin header names ANOTHER site. Browsers attach
+// Origin to every cross-origin fetch/POST, so a forged cross-site request
+// identifies itself; a missing Origin (curl, server-to-server, native apps)
+// passes — those callers carry no ambient cookie, and SameSite=lax remains the
+// cookie-level backstop. Token/public/webhook surfaces (`/api/v1`,
+// `/api/public`, `/api/tenants`, `/api/webhooks`, …) are deliberately NOT
+// gated: they are cross-origin by design and authenticate per-request.
+// Exported pure for tests.
+const CSRF_GUARDED_API_ROOTS = ["/api/portal/", "/api/auth/"] as const;
+
+export function isCrossOriginBrowserMutation(input: {
+  method: string;
+  path: string;
+  origin: string | null;
+  host: string | null;
+}): boolean {
+  if (["GET", "HEAD", "OPTIONS"].includes(input.method)) return false;
+  if (!CSRF_GUARDED_API_ROOTS.some(root => input.path.startsWith(root))) return false;
+  // `Origin: null` (sandboxed iframes, some redirect chains) is an unowned
+  // origin — refuse it on a guarded mutation. An ABSENT header passes.
+  if (input.origin === null) return false;
+  if (input.origin === "null") return true;
+  let originHost: string;
+  try {
+    originHost = new URL(input.origin).host.toLowerCase();
+  } catch {
+    return true; // malformed Origin on a guarded mutation → refuse
+  }
+  const requestHost = (input.host ?? "").toLowerCase();
+  return originHost !== requestHost;
+}
+
 export function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;
+  // CSRF origin gate — before anything else touches the request.
+  if (
+    isCrossOriginBrowserMutation({
+      method: req.method,
+      path,
+      origin: req.headers.get("origin"),
+      host: req.headers.get("host"),
+    })
+  ) {
+    return NextResponse.json(
+      { ok: false, error: "Cross-origin request refused." },
+      { status: 403, headers: { "cache-control": "no-store" } },
+    );
+  }
   // Forward one proxy-owned path header so the nested agency layout can apply
   // the same canonical staff page policy even when framework-private pathname
   // headers are absent. Overwrite, rather than trust, any inbound value.

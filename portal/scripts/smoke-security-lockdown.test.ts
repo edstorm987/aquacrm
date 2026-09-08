@@ -140,3 +140,20 @@ test("every switch flip lands in the security-event spine", () => {
     assert.ok(kinds.includes(expected), `missing security event ${expected} (got: ${kinds.join(", ")})`);
   }
 });
+
+test("control-plane actions persist durably in state, bounded (Phase 1 durability)", () => {
+  setGlobalReadOnly("ic", "durable drill");
+  clearGlobalReadOnly("ic");
+  const durable = getState().securityControl?.recentEvents ?? [];
+  const kinds = durable.map(event => event.kind);
+  assert.ok(kinds.includes("lockdown.global-read-only.set"), "the flip must be in DURABLE state, not just the ring");
+  assert.ok(kinds.includes("lockdown.global-read-only.cleared"));
+  assert.ok(durable.length <= 200, "the durable record must stay bounded");
+  // Durable entries carry actor + time — enough for the threat centre and an
+  // audit, with no secrets/prompts/bodies by construction (redaction upstream).
+  // The record accumulates across actions (that is the point), so assert on
+  // the NEWEST matching entry.
+  const flip = [...durable].reverse().find(event => event.kind === "lockdown.global-read-only.set");
+  assert.equal(flip?.actor, "ic");
+  assert.ok((flip?.at ?? 0) > 0);
+});

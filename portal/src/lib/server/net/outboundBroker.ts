@@ -199,6 +199,53 @@ function errText(error: unknown): string {
 }
 
 /**
+ * Host vetting for NON-HTTP egress (SMTP is the current caller — nodemailer
+ * opens a raw socket the HTTP broker cannot carry). Applies the same
+ * resolve-and-classify rule as `vet()`: every resolved address must be public,
+ * or the whole host is refused. Loopback is tolerated OUTSIDE production so a
+ * dev MailHog keeps working; production refuses it like everything else.
+ * Blocks are evented exactly like brokered requests.
+ */
+export async function vetOutboundHost(
+  host: string,
+  context: { purpose: string; tenantId?: string; env?: NodeJS.ProcessEnv },
+): Promise<{ addresses: string[] }> {
+  const env = context.env ?? process.env;
+  const cleaned = host.trim().toLowerCase().replace(/\.$/, "").replace(/^\[|\]$/g, "");
+  const refuse = (reason: OutboundDenyReason, message: string): never => {
+    recordSecurityEvent({
+      kind: "outbound.blocked",
+      severity: "warning",
+      tenantId: context.tenantId,
+      detail: { purpose: context.purpose, host: cleaned, reason },
+    });
+    throw new OutboundBlockedError(reason, message);
+  };
+  if (!cleaned || isReservedSyntheticHostname(cleaned)) {
+    return refuse("reserved-hostname", `host ${cleaned || "(none)"} is reserved`);
+  }
+  let candidates: Array<{ address: string; family: number }>;
+  if (isIP(cleaned)) {
+    candidates = [{ address: cleaned, family: isIP(cleaned) }];
+  } else {
+    try {
+      candidates = await lookup(cleaned, { all: true, verbatim: true });
+    } catch (error) {
+      return refuse("dns-failed", `could not resolve ${cleaned}: ${errText(error)}`);
+    }
+  }
+  if (candidates.length === 0) return refuse("dns-failed", `${cleaned} did not resolve`);
+  const devLoopbackAllowed = env.NODE_ENV !== "production";
+  for (const record of candidates) {
+    if (devLoopbackAllowed && (record.address === "127.0.0.1" || record.address === "::1")) continue;
+    if (isUnsafeSyntheticAddress(record.address)) {
+      return refuse("private-address", `${cleaned} resolves to a private/reserved address`);
+    }
+  }
+  return { addresses: candidates.map(record => record.address) };
+}
+
+/**
  * The one audited outbound call. Throws OutboundBlockedError (with a reason)
  * for anything unsafe; records a SecurityEvent for every block.
  */
