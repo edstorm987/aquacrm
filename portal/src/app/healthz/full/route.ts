@@ -74,12 +74,21 @@ async function probeDb(): Promise<{ ok: boolean; db: "connected" | "down" | "unt
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const env = process.env;
-  // Hydrate so plugin count is honest; cheap on warm path.
+  // APPLICATION-STATE health, not just connectivity (Phase 8). A connectivity
+  // SELECT 1 can succeed while PortalState fails to hydrate/parse — a portal
+  // that cannot read its own state is DOWN, and swallowing the hydration error
+  // (reporting only a null plugin count) let it read as healthy. A hydration/
+  // parse failure now forces `hydrationOk=false`, which forces the whole probe
+  // to 503.
   let pluginCount: number | null = null;
+  let hydrationOk = true;
+  let hydrationError: string | undefined;
   try {
     await ensureHydrated();
     pluginCount = Object.keys(getState().pluginInstalls ?? {}).length;
-  } catch {
+  } catch (error) {
+    hydrationOk = false;
+    hydrationError = error instanceof Error ? error.message : "portal state failed to hydrate";
     pluginCount = null;
   }
   const probe = await probeDb();
@@ -87,13 +96,17 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // Enforce readiness on the ACTUAL production substrate (Railway included), not
   // only Vercel (#187). Outside production the body still reports the truth, but
   // the status stays green so local/dev/preview lanes are not tripped by a
-  // deliberately-unset provider.
-  const { ok, enforcingReadiness } = resolveFullHealthOk({ env, probeOk: probe.ok, ready: readiness.ready });
+  // deliberately-unset provider. A hydration failure is fatal in EVERY
+  // environment: a `probeOk` that ignores it would be a connectivity-only lie.
+  const decision = resolveFullHealthOk({ env, probeOk: probe.ok && hydrationOk, ready: readiness.ready });
+  const ok = decision.ok && hydrationOk;
+  const { enforcingReadiness } = decision;
   const uptimeSec = Math.floor((Date.now() - BOOT_AT) / 1000);
   const body = {
     ok,
     db: probe.db,
-    error: probe.error,
+    error: probe.error ?? hydrationError,
+    state: hydrationOk ? "hydrated" : "hydration-failed",
     plugins: pluginCount,
     uptime: uptimeSec,
     service: "aqua-portal",

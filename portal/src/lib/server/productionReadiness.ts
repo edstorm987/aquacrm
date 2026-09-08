@@ -4,7 +4,7 @@ import {
 } from "./observabilityCapability";
 
 export type ReadinessStatus = "ready" | "needs-setup" | "optional";
-export type ReadinessGroup = "core" | "communication" | "money" | "development" | "intelligence";
+export type ReadinessGroup = "core" | "communication" | "money" | "development" | "intelligence" | "security-evidence";
 
 /**
  * Who a readiness row belongs to.
@@ -36,7 +36,19 @@ export interface ReadinessItem {
     | "vercel"
     | "assistant"
     | "assistant-api"
-    | "monitoring";
+    | "monitoring"
+    // Security-evidence gates (Phase 8). Required, platform-scoped, and RED by
+    // default — each turns green only on an explicit owner-set signal recorded
+    // after the real control is in place. Missing evidence never reads as green.
+    | "containment-migration"
+    | "content-scanner"
+    | "security-event-drain"
+    | "rate-limiting"
+    | "mfa"
+    | "verified-restore"
+    | "backup-freshness"
+    | "supply-chain"
+    | "edge-waf";
   label: string;
   status: ReadinessStatus;
   summary: string;
@@ -187,7 +199,73 @@ export function inspectProductionReadiness(
   const monitoring = context.observabilityCapability
     ?? inspectObservabilityCapability(env);
 
+  // ── Security-evidence gates (Phase 8) ──────────────────────────────────────
+  // Each is RED unless an explicit owner-set signal proves the control is in
+  // place. These are deliberately env-signalled (not inferred), because the
+  // real thing (a migration applied + verified, an AV engine connected, a
+  // restore drill run) happens OUTSIDE the app and cannot be sensed from code —
+  // so the honest default is "unproven", never "green".
+  const containmentMigrationVerified = env.PORTAL_CONTAINMENT_MIGRATION_VERIFIED === "true";
+  const contentScannerReady = has(env, "PORTAL_AV_SCANNER_URL");
+  const eventDrainReady = has(env, "PORTAL_SECURITY_EVENT_DRAIN_URL");
+  const distributedRateLimitReady = has(env, "PORTAL_RATE_LIMIT_STORE_URL");
+  const mfaReady = env.PORTAL_MFA_ENABLED === "true";
+  const verifiedRestoreReady = has(env, "PORTAL_LAST_VERIFIED_RESTORE_AT");
+  const backupFreshnessReady = env.BACKUP_ENABLED === "1" && has(env, "PORTAL_LAST_BACKUP_AT");
+  const supplyChainReady = env.PORTAL_DEPENDENCY_AUDIT_PASSED === "true";
+  const edgeWafReady = env.PORTAL_EDGE_WAF_ENABLED === "true";
+
+  const securityEvidence: ReadinessItem[] = [
+    ["containment-migration", "Tenant-isolation migration", containmentMigrationVerified,
+      "The assume-breach containment migration is applied and rls-verify.sql passed.",
+      "Apply supabase/migrations to the live DB after a backup, run rls-verify.sql, then set PORTAL_CONTAINMENT_MIGRATION_VERIFIED=true.",
+      ["PORTAL_CONTAINMENT_MIGRATION_VERIFIED"]],
+    ["content-scanner", "Malware / content scanning", contentScannerReady,
+      "A real AV/CDR scanner inspects every upload before it is served.",
+      "Connect an AV/CDR engine and set PORTAL_AV_SCANNER_URL. Until then high-risk uploads fail closed.",
+      ["PORTAL_AV_SCANNER_URL"]],
+    ["security-event-drain", "Off-platform security event drain", eventDrainReady,
+      "Security events are shipped to durable off-platform storage (WORM).",
+      "Configure PORTAL_SECURITY_EVENT_DRAIN_URL so events survive the process.",
+      ["PORTAL_SECURITY_EVENT_DRAIN_URL"]],
+    ["rate-limiting", "Distributed rate limiting", distributedRateLimitReady,
+      "Rate-limit state is shared across instances.",
+      "Point PORTAL_RATE_LIMIT_STORE_URL at a shared store; in-memory limits are per-process and not authoritative.",
+      ["PORTAL_RATE_LIMIT_STORE_URL"]],
+    ["mfa", "Step-up MFA / AAL2", mfaReady,
+      "High-impact actions require an authoritative AAL2 / MFA ceremony.",
+      "Enable Supabase MFA (or an equivalent authoritative factor) and set PORTAL_MFA_ENABLED=true.",
+      ["PORTAL_MFA_ENABLED"]],
+    ["verified-restore", "Verified restore", verifiedRestoreReady,
+      "A restore from backup has been drilled and verified.",
+      "Run an owner-approved restore drill, then record PORTAL_LAST_VERIFIED_RESTORE_AT.",
+      ["PORTAL_LAST_VERIFIED_RESTORE_AT"]],
+    ["backup-freshness", "Backup freshness", backupFreshnessReady,
+      "Backups run and a recent one is recorded.",
+      "Enable BACKUP_ENABLED and record PORTAL_LAST_BACKUP_AT from the backup job.",
+      ["BACKUP_ENABLED", "PORTAL_LAST_BACKUP_AT"]],
+    ["supply-chain", "Dependency / supply-chain gate", supplyChainReady,
+      "The production dependency audit passed in CI for this release.",
+      "Run the production dependency audit in CI and set PORTAL_DEPENDENCY_AUDIT_PASSED=true on the release.",
+      ["PORTAL_DEPENDENCY_AUDIT_PASSED"]],
+    ["edge-waf", "Edge / WAF posture", edgeWafReady,
+      "An edge WAF fronts the deployment.",
+      "Enable an edge/WAF layer at the provider and set PORTAL_EDGE_WAF_ENABLED=true.",
+      ["PORTAL_EDGE_WAF_ENABLED"]],
+  ].map(([id, label, ready, readySummary, action, envKeys]) => ({
+    id: id as ReadinessItem["id"],
+    label: label as string,
+    status: (ready ? "ready" : "needs-setup") as ReadinessStatus,
+    summary: ready ? (readySummary as string) : `${readySummary as string} — NOT yet evidenced.`,
+    action: ready ? "No action needed." : (action as string),
+    required: true,
+    group: "security-evidence" as ReadinessGroup,
+    scope: "platform" as const,
+    envKeys: envKeys as string[],
+  }));
+
   const items: ReadinessItem[] = [
+    ...securityEvidence,
     {
       id: "database",
       label: "Customer data",

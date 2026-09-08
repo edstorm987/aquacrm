@@ -19,9 +19,34 @@ function productionEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     ENQUIRY_NOTIFY_TO: "owner@example.com",
     ENQUIRY_EMAIL_FROM: "AquaCRM enquiries <enquiries@example.com>",
     BLOB_READ_WRITE_TOKEN: "blob-token",
+    // Security-evidence gates (Phase 8) — a genuinely production-ready
+    // environment must now PROVE each control, not merely leave it unset. These
+    // are the owner-set signals recorded after the real control is in place.
+    PORTAL_CONTAINMENT_MIGRATION_VERIFIED: "true",
+    PORTAL_AV_SCANNER_URL: "https://av.internal.example/scan",
+    PORTAL_SECURITY_EVENT_DRAIN_URL: "https://drain.internal.example/events",
+    PORTAL_RATE_LIMIT_STORE_URL: "redis://rate.internal.example:6379",
+    PORTAL_MFA_ENABLED: "true",
+    PORTAL_LAST_VERIFIED_RESTORE_AT: "2026-09-01T00:00:00Z",
+    BACKUP_ENABLED: "1",
+    PORTAL_LAST_BACKUP_AT: "2026-09-08T00:00:00Z",
+    PORTAL_DEPENDENCY_AUDIT_PASSED: "true",
+    PORTAL_EDGE_WAF_ENABLED: "true",
     ...overrides,
   };
 }
+
+const SECURITY_EVIDENCE_SIGNALS: Array<[string, string]> = [
+  ["containment-migration", "PORTAL_CONTAINMENT_MIGRATION_VERIFIED"],
+  ["content-scanner", "PORTAL_AV_SCANNER_URL"],
+  ["security-event-drain", "PORTAL_SECURITY_EVENT_DRAIN_URL"],
+  ["rate-limiting", "PORTAL_RATE_LIMIT_STORE_URL"],
+  ["mfa", "PORTAL_MFA_ENABLED"],
+  ["verified-restore", "PORTAL_LAST_VERIFIED_RESTORE_AT"],
+  ["backup-freshness", "PORTAL_LAST_BACKUP_AT"],
+  ["supply-chain", "PORTAL_DEPENDENCY_AUDIT_PASSED"],
+  ["edge-waf", "PORTAL_EDGE_WAF_ENABLED"],
+];
 
 describe("production readiness", () => {
   it("does not call an unconfigured local environment production-ready", () => {
@@ -36,6 +61,34 @@ describe("production readiness", () => {
     assert.equal(result.environment, "production");
     assert.equal(result.ready, true);
     assert.ok(result.items.filter(item => item.required).every(item => item.status === "ready"));
+  });
+
+  it("makes every security-evidence gate REQUIRED and RED by default (no green-by-default)", () => {
+    // With no evidence signal set, each required gate is needs-setup and the
+    // whole environment is not ready — missing evidence is never green.
+    for (const [id] of SECURITY_EVIDENCE_SIGNALS) {
+      const item = inspectProductionReadiness({}).items.find(entry => entry.id === id);
+      assert.ok(item, `security-evidence item ${id} must exist`);
+      assert.equal(item?.required, true, `${id} must be required`);
+      assert.equal(item?.status, "needs-setup", `${id} must be RED by default`);
+    }
+  });
+
+  it("turning off any single security-evidence signal blocks production readiness", () => {
+    for (const [id, envKey] of SECURITY_EVIDENCE_SIGNALS) {
+      const env = productionEnv();
+      delete env[envKey];
+      const result = inspectProductionReadiness(env);
+      assert.equal(result.ready, false, `dropping ${envKey} must make ready=false`);
+      assert.equal(result.items.find(entry => entry.id === id)?.status, "needs-setup", `${id} must go red`);
+    }
+  });
+
+  it("security-evidence gates are platform-scoped — a tenant never sees them", () => {
+    const tenant = inspectProductionReadiness(productionEnv(), { agencyId: "tenant-x", environmentCredentialsBelongToAgency: false });
+    for (const [id] of SECURITY_EVIDENCE_SIGNALS) {
+      assert.equal(tenant.items.find(entry => entry.id === id), undefined, `${id} must be hidden from tenants`);
+    }
   });
 
   it("rejects an insecure public portal origin", () => {
