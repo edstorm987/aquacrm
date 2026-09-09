@@ -179,14 +179,22 @@ async function vet(url: URL, policy: TenantDestinationPolicy | undefined): Promi
   return { url, address: chosen.address, family: (isIP(chosen.address) || 4) as 4 | 6 };
 }
 
-/** An undici Agent that connects ONLY to the pinned, pre-vetted IP. Closes the DNS-rebinding TOCTOU. */
-function pinnedAgent(vetted: Vetted): Agent {
+/**
+ * An undici Agent that connects ONLY to the pinned, pre-vetted IP. Closes the
+ * DNS-rebinding TOCTOU. Exported for the behavioural pin test, which proves the
+ * socket follows the pinned address and not the hostname's resolution.
+ */
+export function pinnedAgent(vetted: Vetted): Agent {
   return new Agent({
     connect: {
       // undici lets us override the resolved address; the TLS SNI/servername
       // still uses the original hostname so certificate verification (and the
-      // provider's virtual host) keep working.
-      lookup: (_hostname, _options, callback) => callback(null, vetted.address, vetted.family),
+      // provider's virtual host) keep working. undici (6.x) calls this with
+      // `{ all: true }`, so the callback MUST return the address-list form
+      // `[{ address, family }]` — the plain `(err, address, family)` form makes
+      // undici read the address as undefined and throw on every brokered
+      // connect, so the pin (and every brokered outbound call) would fail.
+      lookup: (_hostname, _options, callback) => callback(null, [{ address: vetted.address, family: vetted.family }]),
       servername: canonicalHost(vetted.url),
     },
   });

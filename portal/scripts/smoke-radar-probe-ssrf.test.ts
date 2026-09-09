@@ -11,11 +11,14 @@
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createServer, type Server } from "node:http";
+import { AddressInfo } from "node:net";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import test, { before } from "node:test";
 
 let runAgencySyntheticProbes: typeof import("../src/engines/data/server/radar/radarSyntheticProbes")["runAgencySyntheticProbes"];
+let fetchWithTimeout: typeof import("../src/engines/data/server/radar/radarSyntheticProbes")["fetchWithTimeout"];
 let mutate: typeof import("../src/server/storage")["mutate"];
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -25,7 +28,7 @@ before(async () => {
   const storage = await import("../src/server/storage");
   await storage.ensureHydrated();
   mutate = storage.mutate;
-  ({ runAgencySyntheticProbes } = await import("../src/engines/data/server/radar/radarSyntheticProbes"));
+  ({ runAgencySyntheticProbes, fetchWithTimeout } = await import("../src/engines/data/server/radar/radarSyntheticProbes"));
 });
 
 function seedTarget(url: string) {
@@ -49,12 +52,38 @@ test("a probe target that IS a private/reserved IP is refused (fail-closed, no c
   }
 });
 
-test("both the HTTP and TLS probe paths pin the vetted IP (no re-resolve at connect)", () => {
+test("the pinned fetch connects to the vetted IP, IGNORING the hostname's resolution (rebind is defeated)", async () => {
+  // Behavioural proof of the TOCTOU closure. A local server answers on
+  // 127.0.0.1:<port>. We drive the REAL fetchWithTimeout with a URL whose
+  // hostname is UNRESOLVABLE (.invalid is reserved by RFC 6761 to never
+  // resolve), but pin the address to 127.0.0.1. If the connection followed the
+  // hostname (a plain fetch(url), i.e. the pre-fix code — or a rebind moving the
+  // resolution), it would fail to resolve and throw. Because the socket is
+  // pinned, it reaches our loopback server instead. This test FAILS if the pin
+  // is reverted to fetch(url).
+  const server: Server = createServer((_req, res) => { res.writeHead(200, { "content-type": "text/plain" }); res.end("pinned-ok"); });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const port = (server.address() as AddressInfo).port;
+    // Hostname resolves to nothing; only the pin makes this reachable.
+    const response = await fetchWithTimeout(new URL(`http://vetted-target.invalid:${port}/`), "127.0.0.1", 3000);
+    assert.equal(response.status, 200, "the pinned connection must reach the loopback server");
+    assert.equal(await response.text(), "pinned-ok");
+  } finally {
+    await new Promise<void>(resolve => server.close(() => resolve()));
+  }
+});
+
+test("both the HTTP and TLS probe paths pin the vetted IP (structural backstop)", () => {
+  // Structural belt-and-braces on top of the behavioural pin test above and the
+  // behavioural refusal test at the top of this file.
   const src = readFileSync(join(ROOT, "src/engines/data/server/radar/radarSyntheticProbes.ts"), "utf8");
   // HTTP: undici Agent with connect.lookup returning the pinned address + SNI.
   assert.match(src, /import \{ Agent \} from "undici"/);
   assert.match(src, /fetchWithTimeout\(current, pinnedAddress/, "the fetch must be given the vetted address");
-  assert.match(src, /lookup:\s*\(_hostname, _options, callback\) =>\s*callback\(null, pinnedAddress/, "the agent must pin the vetted IP");
+  // undici 6 requires the address-LIST callback form; the plain (err,address,family)
+  // form silently breaks the connect (see the behavioural pin test above).
+  assert.match(src, /callback\(null, \[\{ address: pinnedAddress, family \}\]\)/, "the agent must pin the vetted IP via the undici address-list form");
   assert.match(src, /servername:\s*url\.hostname/, "TLS SNI must stay the original hostname");
   assert.match(src, /dispatcher:\s*agent/);
   // TLS: connect to the pinned IP, hostname as servername, rejectUnauthorized true.

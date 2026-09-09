@@ -222,7 +222,11 @@ function unsafeDestination(destination: string): Error {
   return error;
 }
 
-async function fetchWithTimeout(url: URL, pinnedAddress: string, timeoutMs: number): Promise<Response> {
+// Exported for the behavioural pin test (smoke-radar-probe-ssrf): it proves the
+// socket goes to `pinnedAddress` regardless of what the URL hostname resolves to
+// — i.e. a DNS rebind after the vetting cannot move the connection. Callers in
+// this module always pass the just-vetted address.
+export async function fetchWithTimeout(url: URL, pinnedAddress: string, timeoutMs: number): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   // Pin the connection to the already-vetted IP; TLS SNI/cert validation still
@@ -230,7 +234,12 @@ async function fetchWithTimeout(url: URL, pinnedAddress: string, timeoutMs: numb
   const family = isIP(pinnedAddress);
   const agent = new Agent({
     connect: {
-      lookup: (_hostname, _options, callback) => callback(null, pinnedAddress, family),
+      // undici (6.x) calls this lookup with `{ all: true }`, so the callback MUST
+      // return the address-list form `[{ address, family }]` — the plain
+      // `(err, address, family)` dns.lookup form makes undici read the address as
+      // undefined and throw "Invalid IP address" on EVERY connect. Pin to the one
+      // pre-vetted IP so a rebind after the check cannot move the socket.
+      lookup: (_hostname, _options, callback) => callback(null, [{ address: pinnedAddress, family }]),
       servername: url.hostname,
     },
   });

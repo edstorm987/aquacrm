@@ -118,7 +118,9 @@ async function assertPublicDestination(url: URL): Promise<string[]> {
   return records.map(record => record.address);
 }
 
-async function fetchNoRedirect(url: URL, pinnedAddress: string, timeoutMs: number, userAgent: string): Promise<Response> {
+// Exported for the behavioural pin test: it proves the socket goes to
+// `pinnedAddress`, not the URL hostname's resolution (rebind defeated).
+export async function fetchNoRedirect(url: URL, pinnedAddress: string, timeoutMs: number, userAgent: string): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   // CLOSE THE DNS-REBINDING TOCTOU (Phase 6). assertPublicDestination resolved
@@ -129,7 +131,11 @@ async function fetchNoRedirect(url: URL, pinnedAddress: string, timeoutMs: numbe
   const family = isIP(pinnedAddress);
   const agent = new Agent({
     connect: {
-      lookup: (_hostname, _options, callback) => callback(null, pinnedAddress, family),
+      // undici (6.x) calls lookup with `{ all: true }` → the callback MUST use
+      // the address-list form `[{ address, family }]`. The plain
+      // `(err, address, family)` form makes undici read the address as undefined
+      // and throw on every connect, so the pin would never take effect.
+      lookup: (_hostname, _options, callback) => callback(null, [{ address: pinnedAddress, family }]),
       servername: url.hostname,
     },
   });
