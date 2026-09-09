@@ -16,7 +16,7 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { AuthError, authErrorResponse, requireRole } from "@/lib/server/auth/auth";
-import { mayUseEnvironmentCredentials } from "@/lib/server/auth/founderAgency";
+import { isPlatformOperator } from "@/lib/server/auth/founderAgency";
 import {
   bumpGlobalSecurityEpoch,
   bumpTenantSecurityEpoch,
@@ -26,7 +26,7 @@ import {
   enableAi,
   liftTenantLockdown,
   lockdownTenant,
-  revokeAllUserSessions,
+  revokeUserSessionsInTenant,
   revokeSession,
   setGlobalReadOnly,
   suspendUser,
@@ -130,8 +130,18 @@ export async function POST(request: NextRequest): Promise<Response> {
     // customer tenant's owner freezing the whole platform would itself be a
     // cross-tenant denial of service.
     const GLOBAL_ACTIONS = ["bump-global-epoch", "set-global-read-only", "clear-global-read-only", "disable-ai", "enable-ai"];
-    if (GLOBAL_ACTIONS.includes(action) && !mayUseEnvironmentCredentials(agencyId)) {
-      return NextResponse.json({ ok: false, error: "operator_only", detail: "Platform-wide switches belong to the operator." }, { status: 403 });
+    // GENUINELY-GLOBAL user actions: suspension and the user-epoch bump fail the
+    // user in EVERY tenant they belong to, so (Item 2) they are platform-
+    // operator-only too. A tenant owner's tenant-scoped tool is
+    // revoke-all-user-sessions (below), which only revokes the user's sessions
+    // in the owner's own agency and never touches their other tenants.
+    const USER_GLOBAL_ACTIONS = ["suspend-user", "unsuspend-user", "bump-user-epoch"];
+    const OPERATOR_ONLY = [...GLOBAL_ACTIONS, ...USER_GLOBAL_ACTIONS];
+    // Platform-global actions require USER-specific platform-operator authority
+    // (Item 2) — NOT founder-agency membership. An ordinary owner seeded into
+    // the founder agency is refused; only a designated operator person passes.
+    if (OPERATOR_ONLY.includes(action) && !isPlatformOperator({ email: session.email })) {
+      return NextResponse.json({ ok: false, error: "operator_only", detail: "This action affects the user/platform globally and belongs to a designated platform operator. Use revoke-all-user-sessions to act within your own tenant." }, { status: 403 });
     }
     // AAL2 for the highest-impact platform switches (Phase 3). Password re-entry
     // is re-authentication, NOT a second factor — so a platform-wide freeze /
@@ -141,7 +151,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     // operator to the credential-free operator console (scripts/security-console.ts),
     // which is the recoverable path the runbooks use. `session.aal` is set only
     // by an authoritative step-up; a plain login is aal1.
-    if (GLOBAL_ACTIONS.includes(action) && session.aal !== "aal2") {
+    if (OPERATOR_ONLY.includes(action) && session.aal !== "aal2") {
       return NextResponse.json({
         ok: false,
         error: "aal2_required",
@@ -169,7 +179,11 @@ export async function POST(request: NextRequest): Promise<Response> {
       }
       case "revoke-all-user-sessions": {
         if (!userId) return NextResponse.json({ ok: false, error: "userId_required" }, { status: 400 });
-        result = { revoked: revokeAllUserSessions(userId, actor, reason, { tenantId: agencyId }) };
+        // TENANT-SCOPED (Item 2): a tenant owner revokes only this user's
+        // sessions in THEIR OWN agency — a user shared with another tenant keeps
+        // their other-tenant sessions. Global revocation (all tenants) is the
+        // platform operator's revokeAllUserSessions via the console.
+        result = { revoked: revokeUserSessionsInTenant(userId, agencyId, actor, reason) };
         break;
       }
       case "bump-user-epoch": {

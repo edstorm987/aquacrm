@@ -31,8 +31,8 @@ let overviewRoute: typeof import("../src/app/api/portal/security/overview/route"
 let actionsRoute: typeof import("../src/app/api/portal/security/actions/route");
 let issueSession: typeof import("../src/lib/server/auth/auth")["issueSession"];
 let control: typeof import("../src/lib/server/auth/securityControl");
-let ids: { ownerA: string; staffA: string; targetA: string; ownerB: string; founder: string };
-let tokens: { ownerA: string; staffA: string; ownerB: string; founder: string; founderAal2: string };
+let ids: { ownerA: string; staffA: string; targetA: string; ownerB: string; founder: string; founderStaff: string; founderOwner2: string; shared: string };
+let tokens: { ownerA: string; staffA: string; ownerB: string; founder: string; founderAal2: string; founderOwner2Aal2: string };
 
 function actionRequest(body: Record<string, unknown>, ip: string): NextRequest {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -71,7 +71,16 @@ before(async () => {
   const targetA = createUser({ email: "target-a-threat@example.com", password: PASSWORD, role: "agency-staff", agencyId: AGENCY_A });
   const ownerB = createUser({ email: "owner-b-threat@example.com", password: PASSWORD, role: "agency-owner", agencyId: AGENCY_B });
   const founder = createUser({ email: FOUNDER_EMAIL, password: PASSWORD, role: "agency-owner", agencyId: FOUNDER_AGENCY });
-  ids = { ownerA: ownerA.id, staffA: staffA.id, targetA: targetA.id, ownerB: ownerB.id, founder: founder.id };
+  const founderStaff = createUser({ email: "founder-staff-threat@example.com", password: PASSWORD, role: "agency-staff", agencyId: FOUNDER_AGENCY });
+  // An ORDINARY owner seeded INTO the founder agency — must NOT get platform
+  // authority (Item 2: operator power is user-specific, not agency membership).
+  const founderOwner2 = createUser({ email: "founder-owner2-threat@example.com", password: PASSWORD, role: "agency-owner", agencyId: FOUNDER_AGENCY });
+  // A user who belongs to BOTH agency A and agency B (shared membership).
+  const shared = createUser({ email: "shared-threat@example.com", password: PASSWORD, role: "agency-staff", agencyId: AGENCY_A });
+  ids = {
+    ownerA: ownerA.id, staffA: staffA.id, targetA: targetA.id, ownerB: ownerB.id, founder: founder.id,
+    founderStaff: founderStaff.id, founderOwner2: founderOwner2.id, shared: shared.id,
+  };
 
   const mint = (user: { id: string; email: string; role: string; agencyId?: string }, aal?: "aal2") =>
     issueSession({
@@ -86,7 +95,13 @@ before(async () => {
   tokens = {
     ownerA: mint(ownerA), staffA: mint(staffA), ownerB: mint(ownerB),
     founder: mint(founder), founderAal2: mint(founder, "aal2"),
+    founderOwner2Aal2: mint(founderOwner2, "aal2"),
   };
+
+  // Register two live sessions for the shared user — one in agency A, one in B —
+  // so the tenant-scoped-revocation test can prove A's revoke keeps B alive.
+  control.recordIssuedSession({ sid: "shared-sid-A", userId: shared.id, agencyId: AGENCY_A, role: "agency-staff" } as never, { issuedVia: "test" });
+  control.recordIssuedSession({ sid: "shared-sid-B", userId: shared.id, agencyId: AGENCY_B, role: "agency-staff" } as never, { issuedVia: "test" });
 });
 
 describe("Threat centre — guards", () => {
@@ -170,36 +185,78 @@ describe("Threat centre — tenant scope", () => {
     });
     assert.equal(control.isAiDisabled(), null);
   });
+
+  it("an ORDINARY owner inside the founder agency is NOT a platform operator (user-specific authority)", async () => {
+    // Same agency as the operator, WITH AAL2 — still refused: authority is
+    // user-specific, not founder-agency membership.
+    await withSession(tokens.founderOwner2Aal2, async () => {
+      const refused = await actionsRoute.POST(actionRequest(confirmed("set-global-read-only"), nextIp()));
+      assert.equal(refused.status, 403);
+      assert.equal(((await refused.json()) as { error: string }).error, "operator_only");
+    });
+    assert.equal(control.isGlobalReadOnly(), false);
+  });
+
+  it("a tenant owner's revoke-all is TENANT-SCOPED: a shared user keeps their other-tenant sessions", async () => {
+    // ownerA revokes the shared user (who is in A and B). Only the A session
+    // must be revoked; the B session must survive (Item 2).
+    await withSession(tokens.ownerA, async () => {
+      const res = await actionsRoute.POST(actionRequest(confirmed("revoke-all-user-sessions", { userId: ids.shared }), nextIp()));
+      assert.equal(res.status, 200, `revoke should succeed; got ${res.status}`);
+    });
+    const sessions = control.readSecurityControl().sessions;
+    assert.ok(sessions["shared-sid-A"]?.revokedAt, "the agency-A session must be revoked");
+    assert.equal(sessions["shared-sid-B"]?.revokedAt, undefined, "the agency-B session must SURVIVE");
+    // And no global user-epoch bump (which would kill every tenant's sessions).
+    assert.equal(control.readSecurityControl().userEpochs[ids.shared] ?? 0, 0, "tenant revoke must not bump the global user epoch");
+  });
 });
 
 describe("Threat centre — the click-path actually works", () => {
-  it("a fully-confirmed action flips the real control and lands in the durable record", async () => {
+  it("a fully-confirmed TENANT action flips the real control and lands in the durable record", async () => {
+    // A tenant owner's own-tenant lockdown is the tenant-scoped click-path.
     await withSession(tokens.ownerA, async () => {
-      const suspend = await actionsRoute.POST(actionRequest(confirmed("suspend-user", { userId: ids.targetA }), nextIp()));
-      assert.equal(suspend.status, 200);
-      assert.equal(((await suspend.json()) as { ok: boolean }).ok, true);
+      const lock = await actionsRoute.POST(actionRequest(confirmed("lockdown-tenant"), nextIp()));
+      assert.equal(lock.status, 200);
+      assert.equal(((await lock.json()) as { ok: boolean }).ok, true);
     });
-    assert.equal(control.isUserSuspended(ids.targetA), true);
+    assert.equal(control.isTenantLockedDown(AGENCY_A), true);
 
-    // The action is in the DURABLE record with the acting owner's identity.
     const durable = control.readSecurityControl().recentEvents ?? [];
-    const entry = [...durable].reverse().find(event => event.kind === "user.suspended");
-    assert.ok(entry, "suspension must be durably recorded");
+    const entry = [...durable].reverse().find(event => event.kind === "lockdown.tenant.set");
+    assert.ok(entry, "tenant lockdown must be durably recorded");
     assert.equal(entry?.actor, `owner:${ids.ownerA}`);
 
     await withSession(tokens.ownerA, async () => {
-      const lift = await actionsRoute.POST(actionRequest(confirmed("unsuspend-user", { userId: ids.targetA }), nextIp()));
+      const lift = await actionsRoute.POST(actionRequest(confirmed("lift-tenant-lockdown"), nextIp()));
       assert.equal(lift.status, 200);
+    });
+    assert.equal(control.isTenantLockedDown(AGENCY_A), false);
+  });
+
+  it("global user SUSPENSION is platform-operator-only (a tenant owner is refused)", async () => {
+    // Suspension fails the user in every tenant, so a tenant owner cannot do it.
+    await withSession(tokens.ownerA, async () => {
+      const refused = await actionsRoute.POST(actionRequest(confirmed("suspend-user", { userId: ids.targetA }), nextIp()));
+      assert.equal(refused.status, 403);
+      assert.equal(((await refused.json()) as { error: string }).error, "operator_only");
     });
     assert.equal(control.isUserSuspended(ids.targetA), false);
   });
 
-  it("an owner cannot suspend themselves", async () => {
-    await withSession(tokens.ownerA, async () => {
-      const refused = await actionsRoute.POST(actionRequest(confirmed("suspend-user", { userId: ids.ownerA }), nextIp()));
-      assert.equal(refused.status, 400);
-      assert.equal(((await refused.json()) as { error: string }).error, "cannot_target_self");
+  it("the platform operator (with AAL2) can suspend a user in scope, and cannot suspend themselves", async () => {
+    await withSession(tokens.founderAal2, async () => {
+      const suspend = await actionsRoute.POST(actionRequest(confirmed("suspend-user", { userId: ids.founderStaff }), nextIp()));
+      assert.equal(suspend.status, 200);
     });
+    assert.equal(control.isUserSuspended(ids.founderStaff), true);
+    await withSession(tokens.founderAal2, async () => {
+      await actionsRoute.POST(actionRequest(confirmed("unsuspend-user", { userId: ids.founderStaff }), nextIp()));
+      const self = await actionsRoute.POST(actionRequest(confirmed("suspend-user", { userId: ids.founder }), nextIp()));
+      assert.equal(self.status, 400);
+      assert.equal(((await self.json()) as { error: string }).error, "cannot_target_self");
+    });
+    assert.equal(control.isUserSuspended(ids.founderStaff), false);
   });
 });
 
@@ -228,8 +285,12 @@ describe("Threat centre — honest overview", () => {
       // Restore capability is honestly "owner action", never "enforced".
       assert.equal(body.posture.find(item => item.id === "backup")?.status, "owner");
 
-      // The suspension exercised above is visible in this owner's record.
-      assert.ok(body.durableActions.some(event => event.kind === "user.suspended"));
+      // The tenant action exercised above (lockdown + lift, revoke) is visible
+      // in this owner's own durable record.
+      assert.ok(
+        body.durableActions.some(event => event.kind === "lockdown.tenant.set" || event.kind === "session.tenant-revoked"),
+        "the owner's own tenant actions must appear in their durable record",
+      );
     });
   });
 

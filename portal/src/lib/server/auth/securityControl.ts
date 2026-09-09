@@ -418,6 +418,31 @@ export function revokeAllUserSessions(userId: string, actor: string, reason: str
   return count;
 }
 
+/**
+ * TENANT-SCOPED revocation (Item 2). Revokes only the user's sessions that
+ * belong to `agencyId` — a shared user in agencies A and B keeps their B
+ * sessions when a tenant owner of A revokes them. Does NOT bump the (global)
+ * user epoch, which would kill every tenant's sessions; it revokes the specific
+ * in-tenant session records only. Global revocation stays revokeAllUserSessions
+ * (platform-operator territory).
+ */
+export function revokeUserSessionsInTenant(userId: string, agencyId: string, actor: string, reason: string): number {
+  let count = 0;
+  withControl(control => {
+    for (const record of Object.values(control.sessions)) {
+      if (record.userId === userId && record.agencyId === agencyId && !record.revokedAt) {
+        record.revokedAt = Date.now();
+        record.revokedBy = actor;
+        record.revokedReason = reason;
+        count += 1;
+      }
+    }
+  });
+  recordControlAction({ kind: "session.tenant-revoked", severity: "warning", actor, tenantId: agencyId, detail: { reason, userId, count } });
+  logSecurityAction("user-sessions-tenant-revoked", { actor, reason, userId, agencyId, count });
+  return count;
+}
+
 // Throttled last-seen. Request-handler contexts only — NEVER from RSC renders.
 const lastSeenMemo = new Map<string, number>();
 const LAST_SEEN_INTERVAL_MS = 15 * 60 * 1000;

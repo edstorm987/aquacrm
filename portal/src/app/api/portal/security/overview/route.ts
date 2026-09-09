@@ -8,7 +8,7 @@
 
 import { NextResponse } from "next/server";
 import { AuthError, authErrorResponse, requireRole } from "@/lib/server/auth/auth";
-import { mayUseEnvironmentCredentials } from "@/lib/server/auth/founderAgency";
+import { isPlatformOperator } from "@/lib/server/auth/founderAgency";
 import { readSecurityControl } from "@/lib/server/auth/securityControl";
 import { hasContentScanner } from "@/lib/server/security/contentTrust";
 import { hasSecurityEventDrain, recentSecurityEvents } from "@/lib/server/security/securityEvents";
@@ -34,7 +34,8 @@ export async function GET(): Promise<Response> {
     // security data. Only the platform operator's owner sees across tenants —
     // suspended users elsewhere, other tenants' sessions and events are not
     // this owner's to read.
-    const operator = mayUseEnvironmentCredentials(agencyId);
+    // Operator authority is USER-specific (Item 2), not founder-agency membership.
+    const operator = isPlatformOperator({ email: session.email });
     const ownUserIds = new Set(
       Object.values(getState().users)
         .filter(user => user.agencyId === agencyId || Boolean(agencyId && user.agencyIds?.includes(agencyId)))
