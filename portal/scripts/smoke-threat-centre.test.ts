@@ -32,7 +32,7 @@ let actionsRoute: typeof import("../src/app/api/portal/security/actions/route");
 let issueSession: typeof import("../src/lib/server/auth/auth")["issueSession"];
 let control: typeof import("../src/lib/server/auth/securityControl");
 let ids: { ownerA: string; staffA: string; targetA: string; ownerB: string; founder: string };
-let tokens: { ownerA: string; staffA: string; ownerB: string; founder: string };
+let tokens: { ownerA: string; staffA: string; ownerB: string; founder: string; founderAal2: string };
 
 function actionRequest(body: Record<string, unknown>, ip: string): NextRequest {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -73,7 +73,7 @@ before(async () => {
   const founder = createUser({ email: FOUNDER_EMAIL, password: PASSWORD, role: "agency-owner", agencyId: FOUNDER_AGENCY });
   ids = { ownerA: ownerA.id, staffA: staffA.id, targetA: targetA.id, ownerB: ownerB.id, founder: founder.id };
 
-  const mint = (user: { id: string; email: string; role: string; agencyId?: string }) =>
+  const mint = (user: { id: string; email: string; role: string; agencyId?: string }, aal?: "aal2") =>
     issueSession({
       userId: user.id,
       email: user.email,
@@ -81,8 +81,12 @@ before(async () => {
       agencyId: user.agencyId,
       agencyIds: user.agencyId ? [user.agencyId] : [],
       activeAgencyId: user.agencyId,
+      aal,
     } as never);
-  tokens = { ownerA: mint(ownerA), staffA: mint(staffA), ownerB: mint(ownerB), founder: mint(founder) };
+  tokens = {
+    ownerA: mint(ownerA), staffA: mint(staffA), ownerB: mint(ownerB),
+    founder: mint(founder), founderAal2: mint(founder, "aal2"),
+  };
 });
 
 describe("Threat centre — guards", () => {
@@ -146,7 +150,18 @@ describe("Threat centre — tenant scope", () => {
     });
     assert.equal(control.isGlobalReadOnly(), false);
 
+    // Even the operator is refused a platform-wide switch WITHOUT a step-up
+    // (AAL2) session — password re-entry is not a second factor. Visibly
+    // unavailable, directed to the operator console; NOT silently downgraded.
     await withSession(tokens.founder, async () => {
+      const refused = await actionsRoute.POST(actionRequest(confirmed("disable-ai"), nextIp()));
+      assert.equal(refused.status, 403);
+      assert.equal(((await refused.json()) as { error: string }).error, "aal2_required");
+    });
+    assert.equal(control.isAiDisabled(), null);
+
+    // With a step-up (AAL2) operator session, the platform switch is allowed.
+    await withSession(tokens.founderAal2, async () => {
       const allowed = await actionsRoute.POST(actionRequest(confirmed("disable-ai"), nextIp()));
       assert.equal(allowed.status, 200);
       assert.ok(control.isAiDisabled());

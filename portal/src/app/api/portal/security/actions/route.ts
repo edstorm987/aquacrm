@@ -133,6 +133,21 @@ export async function POST(request: NextRequest): Promise<Response> {
     if (GLOBAL_ACTIONS.includes(action) && !mayUseEnvironmentCredentials(agencyId)) {
       return NextResponse.json({ ok: false, error: "operator_only", detail: "Platform-wide switches belong to the operator." }, { status: 403 });
     }
+    // AAL2 for the highest-impact platform switches (Phase 3). Password re-entry
+    // is re-authentication, NOT a second factor — so a platform-wide freeze /
+    // global sign-out / AI kill must carry a step-up (AAL2) session. Until an
+    // authoritative AAL2/MFA ceremony exists this branch is NOT silently
+    // downgraded to password-only: the UI action VISIBLY refuses and directs the
+    // operator to the credential-free operator console (scripts/security-console.ts),
+    // which is the recoverable path the runbooks use. `session.aal` is set only
+    // by an authoritative step-up; a plain login is aal1.
+    if (GLOBAL_ACTIONS.includes(action) && session.aal !== "aal2") {
+      return NextResponse.json({
+        ok: false,
+        error: "aal2_required",
+        detail: "Platform-wide switches require a step-up (AAL2) session, which is not yet available in the UI. Run this from the operator console: scripts/security-console.ts.",
+      }, { status: 403 });
+    }
 
     let result: Record<string, unknown> = {};
     switch (action as SecurityAction) {
