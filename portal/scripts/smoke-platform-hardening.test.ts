@@ -76,7 +76,7 @@ test("the status code decision is independent of the disclosure gate", () => {
 test("a cross-site mutation on every cookie-authed API root is refused; same-origin passes", () => {
   // /api/tenants/* is cookie-authenticated (requireRoleForClient) — the merge
   // wrongly exempted it; it MUST be guarded now.
-  for (const path of ["/api/portal/tasks", "/api/auth/password", "/api/tenants/client-files/upload", "/api/tenants/client-notes"]) {
+  for (const path of ["/api/portal/tasks", "/api/auth/password", "/api/tenants/client-files/upload", "/api/tenants/client-notes", "/api/internal/sweep"]) {
     const guarded = { method: "POST", path, host: "www.aqua-crm.com" };
     assert.equal(isCrossOriginBrowserMutation({ ...guarded, origin: "https://evil.example" }), true, `${path} cross-site must be refused`);
     assert.equal(isCrossOriginBrowserMutation({ ...guarded, origin: "https://www.aqua-crm.com" }), false, `${path} same-origin must pass`);

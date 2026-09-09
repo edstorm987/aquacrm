@@ -11,14 +11,32 @@ import test from "node:test";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CONSOLE = join(HERE, "security-console.ts");
 
+// Run the DOCUMENTED command verbatim — NO hidden NODE_OPTIONS. The launcher
+// must self-provide `--conditions react-server` (else `server-only` throws).
 function run(args: string[]) {
+  const env = { ...process.env, PORTAL_BACKEND: "memory" };
+  delete env.NODE_OPTIONS;
   return spawnSync(process.execPath, ["--import", "tsx", CONSOLE, ...args], {
     cwd: join(HERE, ".."),
     encoding: "utf8",
-    env: { ...process.env, PORTAL_BACKEND: "memory", NODE_OPTIONS: "--conditions react-server" },
+    env,
     timeout: 30_000,
   });
 }
+
+test("the documented command works with NO NODE_OPTIONS (launcher self-provides the condition)", () => {
+  const status = run(["status"]);
+  assert.equal(status.status, 0, `status should exit 0; stderr: ${status.stderr}`);
+  assert.doesNotMatch(status.stderr, /server-only|cannot be imported/i);
+  assert.match(status.stdout, /"globalEpoch"/);
+});
+
+test("a --commit mutation reads back and reports the persisted state", () => {
+  const frozen = run(["freeze", "--actor", "ops", "--reason", "console read-back test", "--commit"]);
+  assert.equal(frozen.status, 0, `freeze --commit should exit 0; stderr: ${frozen.stderr}`);
+  assert.match(frozen.stderr, /Global read-only ON\./);
+  assert.doesNotMatch(frozen.stderr, /FAILED/);
+});
 
 test("a mutating command without --commit is a DRY RUN and mutates nothing", () => {
   const freeze = run(["freeze", "--actor", "ops", "--reason", "drill"]);

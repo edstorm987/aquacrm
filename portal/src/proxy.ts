@@ -181,7 +181,7 @@ function decodePayload(token: string | undefined): ProxySession | null {
 // cookie, and SameSite=Lax is the cookie-level backstop we do NOT rely on alone.
 // `Origin: null` (sandboxed iframe, opaque origin) is refused on a guarded
 // mutation. Exported pure for tests.
-const CSRF_GUARDED_API_ROOTS = ["/api/portal/", "/api/auth/", "/api/tenants/"] as const;
+const CSRF_GUARDED_API_ROOTS = ["/api/portal/", "/api/auth/", "/api/tenants/", "/api/internal/"] as const;
 
 export function isCrossOriginBrowserMutation(input: {
   method: string;
