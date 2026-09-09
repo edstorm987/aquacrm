@@ -101,7 +101,10 @@ export async function storePrivateUpload(input: StorePrivateUploadInput): Promis
     tenantId: input.trust?.tenantId,
     actor: input.trust?.actor,
   });
-  if (assessment.verdict === "blocked") throw new ContentTrustError(assessment);
+  // Blocked = rejected outright. Quarantined = a real verdict is pending (e.g.
+  // production with no scanner, or a scanner outage): fail CLOSED — do not store
+  // or serve it until a scanner clears it (Item 7). Both refuse here.
+  if (assessment.verdict === "blocked" || assessment.verdict === "quarantined") throw new ContentTrustError(assessment);
   const contentTrust = { verdict: assessment.verdict, digest: assessment.digest, sniffedType: assessment.sniffedType };
   if (supabasePrivateUploadsConfigured()) {
     const bucket = process.env.NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET?.trim()

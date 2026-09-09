@@ -56,7 +56,7 @@ test("genuine media matching its declared type is clean, with a digest identity"
     [ZIP, "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
   ] as const) {
     const result = await assess(bytes, declared);
-    assert.equal(result.verdict, "clean", `${declared} should be clean`);
+    assert.equal(result.verdict, "type-verified", `${declared} should be type-verified (signature match, no scanner)`);
     assert.match(result.digest, /^[0-9a-f]{64}$/);
   }
 });
@@ -125,7 +125,7 @@ test("a connected scanner can block; an unreachable scanner does not take upload
     throw new Error("scanner down");
   });
   const survived = await assess(PNG, "image/png");
-  assert.equal(survived.verdict, "clean");
+  assert.equal(survived.verdict, "type-verified"); // non-production: falls through to the signature verdict
   assert.ok(recentSecurityEvents().some(event => event.kind === "content-trust.scanner-unavailable"));
 });
 
@@ -144,7 +144,7 @@ test("storePrivateUpload refuses a blocked file BEFORE any provider I/O", async 
   assert.ok(!existsSync(join(process.cwd(), ".data", "content-trust-test", localKey)), "a blocked upload must never touch disk");
 });
 
-test("storePrivateUpload returns the digest-level trust record for clean files", async () => {
+test("storePrivateUpload returns the digest-level trust record for type-verified files", async () => {
   const localKey = `clean-${Date.now()}.png`;
   const stored = await storePrivateUpload({
     pathname: localKey,
@@ -153,6 +153,60 @@ test("storePrivateUpload returns the digest-level trust record for clean files",
     localDirectory: "content-trust-test",
     localKey,
   });
-  assert.equal(stored.contentTrust?.verdict, "clean");
+  assert.equal(stored.contentTrust?.verdict, "type-verified");
   assert.match(stored.contentTrust?.digest ?? "", /^[0-9a-f]{64}$/);
+});
+
+// ─── Item 7: full-stream scan, verdict vocabulary, fail-closed ──────────────
+
+test("a connected scanner that clears the FULL bytes yields malware-cleared", async () => {
+  let sawBytes = 0;
+  setContentScanner(async ({ bytes }) => { sawBytes = bytes.byteLength; return { malicious: false }; });
+  const pdf = await assess(PDF, "application/pdf");
+  assert.equal(pdf.verdict, "malware-cleared", "a real scan that passes is malware-cleared, not merely type-verified");
+  assert.equal(pdf.scannerStatus, "cleared");
+  assert.equal(sawBytes, PDF.byteLength, "the scanner must receive the FULL bytes, not a 512-byte head");
+  setContentScanner(null);
+});
+
+test("a signature-valid PDF is NEVER labelled malware-clean without a scan", async () => {
+  const pdf = await assess(PDF, "application/pdf"); // no scanner
+  assert.notEqual(pdf.verdict, "malware-cleared", "no scanner → must not claim malware-clean");
+  assert.equal(pdf.verdict, "type-verified"); // non-production
+  assert.equal(pdf.scannerStatus, "not-configured");
+});
+
+test("PRODUCTION + no scanner: a high-risk type is QUARANTINED (fail closed) and refused at store", async () => {
+  const prior = process.env.NODE_ENV;
+  process.env.NODE_ENV = "production";
+  try {
+    setContentScanner(null);
+    const pdf = await assess(PDF, "application/pdf");
+    assert.equal(pdf.verdict, "quarantined", "prod + no scanner → high-risk quarantined");
+    assert.equal(pdf.quarantined, true);
+    // And storePrivateUpload refuses it (never stored/served).
+    const localKey = `q-${Date.now()}.pdf`;
+    await assert.rejects(
+      storePrivateUpload({ pathname: localKey, file: blob(PDF), contentType: "application/pdf", localDirectory: "content-trust-test", localKey }),
+      ContentTrustError,
+    );
+    assert.ok(!existsSync(join(process.cwd(), ".data", "content-trust-test", localKey)), "a quarantined upload must never touch disk");
+  } finally {
+    if (prior === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = prior;
+  }
+});
+
+test("PRODUCTION + scanner outage: fails CLOSED to quarantined (never silently clean)", async () => {
+  const prior = process.env.NODE_ENV;
+  process.env.NODE_ENV = "production";
+  setContentScanner(async () => { throw new Error("scanner unreachable"); });
+  try {
+    const pdf = await assess(PDF, "application/pdf");
+    assert.equal(pdf.verdict, "quarantined");
+    assert.equal(pdf.scannerStatus, "unavailable");
+    assert.equal(pdf.reason, "scanner-unavailable");
+  } finally {
+    setContentScanner(null);
+    if (prior === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = prior;
+  }
 });

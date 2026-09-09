@@ -2,7 +2,6 @@ import {
   inspectObservabilityCapability,
   type ObservabilityCapability,
 } from "./observabilityCapability";
-import { hasContentScanner } from "./security/contentTrust";
 
 export type ReadinessStatus = "ready" | "needs-setup" | "optional";
 export type ReadinessGroup = "core" | "communication" | "money" | "development" | "intelligence" | "security-evidence";
@@ -78,8 +77,6 @@ export interface ReadinessContext {
   billingConfiguredClientCount?: number;
   activeExternalAssistantKeyCount?: number;
   managedIntegrationProviders?: string[];
-  /** Whether a real content scanner adapter is wired (defaults to hasContentScanner()). */
-  contentScannerWired?: boolean;
   /**
    * The agency this readiness view is for. Omit for the deployment-wide view
    * (`/healthz/full`, the Dev Team dashboard, `scripts/launch-audit.ts`).
@@ -211,10 +208,8 @@ export function inspectProductionReadiness(
   const containmentMigrationVerified = env.PORTAL_CONTAINMENT_MIGRATION_VERIFIED === "true";
   // ACTUAL wired capability, not just an env string (Item 11): the scanner is
   // "ready" only when an adapter is actually registered (wired at boot from
-  // PORTAL_AV_SCANNER_URL) AND the config is present. A stray env var with no
-  // live adapter stays red. The wired state is injectable for tests; it defaults
-  // to the real registration.
-  const contentScannerReady = (context.contentScannerWired ?? hasContentScanner()) && has(env, "PORTAL_AV_SCANNER_URL");
+  // PORTAL_AV_SCANNER_URL). A stray env var with no live adapter stays red.
+  const contentScannerReady = hasContentScanner() && has(env, "PORTAL_AV_SCANNER_URL");
   const eventDrainReady = has(env, "PORTAL_SECURITY_EVENT_DRAIN_URL");
   const distributedRateLimitReady = has(env, "PORTAL_RATE_LIMIT_STORE_URL");
   const mfaReady = env.PORTAL_MFA_ENABLED === "true";

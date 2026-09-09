@@ -1,10 +1,18 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { before, after, describe, it } from "node:test";
 import { inspectProductionReadiness } from "../src/lib/server/productionReadiness";
+import { setContentScanner } from "../src/lib/server/security/contentTrust";
 import {
   inspectObservabilityCapability,
   isSentrySdkInstalled,
 } from "../src/lib/server/observabilityCapability";
+
+// A fully-configured production environment now also requires a WIRED content
+// scanner (Item 7/11) — env presence alone is not enough. Wire a stub so the
+// "fully configured → ready" cases reflect a real deployment; the red-by-default
+// cases rely on the ENV being absent, so they are unaffected.
+before(() => setContentScanner(async () => ({ malicious: false })));
+after(() => setContentScanner(null));
 
 function productionEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   return {
@@ -61,6 +69,16 @@ describe("production readiness", () => {
     assert.equal(result.environment, "production");
     assert.equal(result.ready, true);
     assert.ok(result.items.filter(item => item.required).every(item => item.status === "ready"));
+  });
+
+  it("content-scanner needs an ACTUALLY WIRED adapter, not just the env string (Item 11)", () => {
+    // Env present but no adapter registered → still red.
+    const notWired = inspectProductionReadiness(productionEnv(), { contentScannerWired: false });
+    assert.equal(notWired.items.find(i => i.id === "content-scanner")?.status, "needs-setup");
+    assert.equal(notWired.ready, false);
+    // Env present AND adapter wired → ready.
+    const wired = inspectProductionReadiness(productionEnv(), { contentScannerWired: true });
+    assert.equal(wired.items.find(i => i.id === "content-scanner")?.status, "ready");
   });
 
   it("makes every security-evidence gate REQUIRED and RED by default (no green-by-default)", () => {
