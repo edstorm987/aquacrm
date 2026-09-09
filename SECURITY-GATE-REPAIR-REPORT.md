@@ -79,6 +79,10 @@ real-client-ready.
 | 5.11 | Runbooks named TypeScript functions an operator cannot run | **FIXED** | NEW `security-console.ts` (dry-run default, actor+reason required); runbooks reference it |
 | 2a | Sandbox enforcement used the persona identity, not the live anchor | **VERIFIED → FIXED (suspension+lockdown)** | gate binds `sandbox.returnUserId`/`returnAgencyId`; `smoke-security-lockdown` +2 |
 | 2b | The write-freeze bound only `mutate()` (PortalState); storage ingestion ran during a freeze | **VERIFIED → FIXED (storage)** | NEW `assertWritesAllowed` boundary wired at `storePrivateUpload`/`storePublicUpload`; `smoke-write-boundary` 4/4 |
+| 2c | Per-user/per-tenant epoch bumps did not bind a sandbox session | **FIXED** | issueSession stamps the live anchor; gate checks the anchor; `smoke-security-lockdown` epoch-sandbox test |
+| 3 | Threat-centre high-impact platform switches ran on password-only reauth (no step-up) | **FIXED (AAL2 gate) / PARTIAL (true AAL2 = OWNER)** | global actions require `session.aal==='aal2'` else visibly refuse → operator console; `smoke-threat-centre` 8/8 |
+| 5c | A restored older snapshot would silently clear the in-state incident write-freeze at cutover | **FIXED** | out-of-band `PORTAL_WRITES_FROZEN` checked by mutate() + assertWritesAllowed; survives restore; `smoke-write-boundary` |
+| 6d | `safeSiteFetch`/Radar probes had a DNS-rebinding TOCTOU (validate host, then fetch re-resolves) | **VERIFIED → FIXED** | connect-time IP pinning via undici Agent; `smoke-safe-site-fetch-toctou` 3/3 |
 
 ---
 
