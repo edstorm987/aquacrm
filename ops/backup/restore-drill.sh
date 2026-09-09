@@ -61,37 +61,59 @@ is_local=0
 case "$host" in
   127.0.0.1|localhost|::1) is_local=1;;
 esac
+# Known live endpoints are refused outright, whatever the flags.
 case "$host" in
   *pooler.supabase.com|*.supabase.co|*.supabase.in)
     die "Target host '$host' is a LIVE Supabase endpoint. Refusing unconditionally — a restore drill must never touch it.";;
 esac
-if [ "$is_local" != 1 ]; then
-  [ "$ALLOW_NONLOCAL" = 1 ] || die "Target '$host' is not loopback. A non-local target is DEFAULT-DENIED. If this is a disposable scratch/branch DB, set \"ALTER DATABASE <db> SET aquacrm.restore_drill_disposable = 'yes'\" on it and pass --allow-nonlocal-disposable."
-  # Positive on-target marker — the database itself proves it is disposable.
-  marker="$(psql "$TARGET" -Atqc "select current_setting('aquacrm.restore_drill_disposable', true)" 2>/dev/null || true)"
-  [ "$marker" = "yes" ] || die "Target '$host' does not carry the disposable marker (aquacrm.restore_drill_disposable='yes'). Refusing: cannot prove this database is disposable. NEVER set this marker on production."
-  # And it must not identify itself as production.
-  appenv="$(psql "$TARGET" -Atqc "select current_setting('aquacrm.environment', true)" 2>/dev/null || true)"
-  [ "$appenv" = "production" ] && die "Target '$host' identifies as production (aquacrm.environment='production'). Refusing."
-  log "Non-local target '$host' proved disposable (marker present); proceeding."
+
+# LOOPBACK IS NOT AUTOMATICALLY TRUSTED (Item 10): a localhost endpoint can be
+# an SSH tunnel or a port-forward to production. EVERY target — loopback
+# included — must POSITIVELY PROVE it is disposable before any destructive
+# command, via a marker set ON the target database itself, and must NOT identify
+# as production. A non-local target additionally requires the explicit opt-in.
+if [ "$is_local" != 1 ] && [ "$ALLOW_NONLOCAL" != 1 ]; then
+  die "Target '$host' is not loopback. A non-local target is DEFAULT-DENIED — pass --allow-nonlocal-disposable AND set the disposable marker on it."
 fi
+marker="$(psql "$TARGET" -Atqc "select current_setting('aquacrm.restore_drill_disposable', true)" 2>/dev/null || true)"
+[ "$marker" = "yes" ] || die "Target '$host' does not carry the disposable marker. Refusing: cannot prove this database is disposable (loopback is NOT trusted on its own — it may tunnel to prod). On a REAL scratch DB run: ALTER DATABASE <db> SET aquacrm.restore_drill_disposable = 'yes'. NEVER set it on production."
+# Explicit denial of a production self-identification and known prod db names.
+appenv="$(psql "$TARGET" -Atqc "select current_setting('aquacrm.environment', true)" 2>/dev/null || true)"
+[ "$appenv" = "production" ] && die "Target identifies as production (aquacrm.environment='production'). Refusing."
+dbid="$(psql "$TARGET" -Atqc "select current_database()" 2>/dev/null || true)"
+case "$dbid" in
+  *prod*|*production*|*live*) die "Target database name '$dbid' looks like production. Refusing.";;
+esac
+log "Target '$host' (db='$dbid') proved disposable (marker present, not production); proceeding."
 
 [ -n "$KEY" ] || KEY="$HERE/_local/aquacrm-backup.key.pem"
 [ -s "$KEY" ] || die "Private key not found at $KEY (pass --key). Keep it OFFLINE; this drill reads it locally only."
 
 WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
 
-# --- Integrity, then decrypt ---
+# --- Integrity (MANDATORY), then decrypt ---
+# The expected digest is REQUIRED (Item 10): a restore you cannot pin to a known
+# artifact is a restore you cannot trust.
+[ -n "$EXPECT" ] || die "Pass --expect-sha <sha256> — the independently-recorded digest of the snapshot. A restore without a verified digest is refused."
 have="$(sha256 "$CMS" | awk '{print $1}')"
 log "snapshot sha256=$have"
-if [ -n "$EXPECT" ] && [ "$EXPECT" != "$have" ]; then
-  die "sha256 mismatch: expected $EXPECT got $have — do NOT trust this file."
-fi
+[ "$EXPECT" = "$have" ] || die "sha256 mismatch: expected $EXPECT got $have — do NOT trust this file."
 
 log "Decrypting"
 openssl cms -decrypt -binary -inform DER -in "$CMS" -inkey "$KEY" ${PASSIN:+-passin "$PASSIN"} -out "$WORK/bundle.tar.gz" \
   || die "Decrypt failed (wrong key or passphrase?)."
-tar -xzf "$WORK/bundle.tar.gz" -C "$WORK"
+
+# SAFE EXTRACTION (Item 10): reject path traversal, absolute paths and symlinks
+# BEFORE extracting — a malicious/backdoored archive must not write outside WORK.
+entries="$(tar -tzf "$WORK/bundle.tar.gz")" || die "Could not read the archive listing."
+if printf '%s\n' "$entries" | grep -qE '(^|/)\.\.(/|$)|^/'; then
+  die "Archive contains a path-traversal or absolute path entry — refusing to extract."
+fi
+# Reject symlink/hardlink/device entries (only regular files + dirs are allowed).
+if tar -tvzf "$WORK/bundle.tar.gz" | grep -qE '^[hlbcp]'; then
+  die "Archive contains a symlink/hardlink/special entry — refusing to extract."
+fi
+tar --no-same-owner -xzf "$WORK/bundle.tar.gz" -C "$WORK"
 for f in roles.sql schema.sql data.sql; do [ -s "$WORK/$f" ] || die "missing $f in snapshot"; done
 
 # --- Deterministic sanitise (official Supabase restore guidance). These lines
