@@ -2,14 +2,14 @@
 
 > The current readiness assessment, one task list, status history, roadmap, goals, decisions and working queue.
 >
-> Consolidated 2026-09-08 from **7** source documents / **57,076 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-09 from **7** source documents / **57,157 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
 - [`docs/CURRENT-IMPLEMENTATION.md`](#source-docs-current-implementation-md) — 4,627 words · `d110c036ab5a`
 - [`docs/development/goals.md`](#source-docs-development-goals-md) — 532 words · `62f18b439951`
 - [`docs/development/notes.md`](#source-docs-development-notes-md) — 1,730 words · `f68ea59936dd`
-- [`docs/development/PRODUCTION-READINESS.md`](#source-docs-development-production-readiness-md) — 2,257 words · `69689073325f`
+- [`docs/development/PRODUCTION-READINESS.md`](#source-docs-development-production-readiness-md) — 2,338 words · `a3b8a49330a7`
 - [`docs/development/roadmap.md`](#source-docs-development-roadmap-md) — 21,704 words · `f3ef33649d6f`
 - [`docs/development/status.md`](#source-docs-development-status-md) — 22,045 words · `10c744ce76c8`
 - [`docs/development/TODO.md`](#source-docs-development-todo-md) — 4,181 words · `1803d5dd4755`
@@ -856,7 +856,7 @@ the [file map](../WORKSPACE-FILE-TREE.md); issues/risks live in
 
 ## Source document — `docs/development/PRODUCTION-READINESS.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/PRODUCTION-READINESS.md" sha256="69689073325f254a4639a7af63e847988e74c1cfbbac89dd5e34d0fcfedcb536" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/PRODUCTION-READINESS.md" sha256="a3b8a49330a783eeaa5f97447c5c76710850351937624feee8c662a6cc57f6f6" -->
 # Production readiness — current assessment
 
 **Last verified:** 8 September 2026
@@ -868,6 +868,15 @@ not a second task list: [TODO.md](TODO.md) owns remaining work, [issues.md](issu
 owns detailed findings, and [status.md](status.md) retains the verification
 history. Older readiness plans are historical once this file records a newer
 verification.
+
+> **Security readiness lives in its own ledger.** For the production-gate
+> security repair (branch `security/production-gate-repair-20260908`, **not
+> merged**), the single dated source of truth is the repo-root
+> `SECURITY-GATE-REPAIR-REPORT.md` — findings, dispositions, the live SHA, the
+> honest gate ledger (observed / locally-verified / owner-attested / blocked),
+> and OWNER ACTIONS. That report's verdict is **NOT READY / not merge-ready**
+> while owner/live gates remain. This file assesses `main`; it does not claim
+> the security branch's state as merged.
 
 > **UI Wave 9 (2026-09-08, uncommitted on `integration/ui-final-20260908`).** UI gate:
 > **PASS — all ten items closed.** Closed with direct evidence: a harness that

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-08T23:33:15.466Z",
+  "generatedAt": "2026-09-09T13:43:35.805Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -1071,9 +1071,9 @@
       "path": "docs/development/PRODUCTION-READINESS.md",
       "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
       "anchor": "source-docs-development-production-readiness-md",
-      "sha256": "69689073325f254a4639a7af63e847988e74c1cfbbac89dd5e34d0fcfedcb536",
-      "words": 2257,
-      "bytes": 16386
+      "sha256": "a3b8a49330a783eeaa5f97447c5c76710850351937624feee8c662a6cc57f6f6",
+      "words": 2338,
+      "bytes": 16957
     },
     {
       "path": "docs/development/roadmap.md",
