@@ -6,10 +6,10 @@
 - **Report date:** 2026-09-09
 - **Branch:** `security/production-gate-repair-20260908`
 - **Base (verified live remote main):** `08670b626b839a439929b006f0f152712a864a9c`
-- **Head (this report):** `36240b7dd10748898dda50b47c63efc72e61d92d`
+- **Head (this report):** `d3bcc0793c28d8e0d55b7ea8c0aea6bec26a06c8`
 - **Worktree:** `/private/tmp/aquacrm-gate-repair` (isolated; the developer's
   primary checkout was never reset, stashed or overwritten).
-- **Commits on the branch since base:** 35.
+- **Commits on the branch since base:** 37.
 - **Not merged, not deployed** by this pass. Pushed for independent review only.
 
 > **Adversarial verification (2026-09-09).** After the 12 items were closed, an
@@ -64,20 +64,20 @@ backends.
 
 ---
 
-## Verification gates run for THIS report (HEAD 36240b7d, isolated worktree)
+## Verification gates run for THIS report (HEAD d3bcc079, isolated worktree)
 
 | Command | Result | Evidence class |
 |---|---|---|
 | `npx tsc --noEmit` (portal) | **0 errors (exit 0)** | locally-verified |
 | Focused security suites (13 files, see below) | **116 tests / 0 fail** | locally-verified |
-| `PORTAL_BACKEND=memory` canonical suite | **7001 tests / 6998 pass / 0 fail / 3 skipped (exit 0)** | locally-verified |
+| `PORTAL_BACKEND=memory` canonical suite | **7009 tests / 7006 pass / 0 fail / 3 skipped (exit 0)** | locally-verified |
 | Website-editor gate | **49/49 files passed** | locally-verified |
 | `npm run build` (portal, webpack, 6 GB cap) | **compiled, exit 0** | locally-verified |
 | `npm run build` (client-portal, webpack) | **compiled, exit 0** | locally-verified |
 | `git diff --check` (working tree + base..HEAD) | **clean** — no whitespace/conflict markers | locally-verified |
 
-(The canonical total rose from 6996 to 7001 as behavioural pin/freeze tests were
-added during the adversarial pass.)
+(The canonical total rose from 6996 to 7009 as behavioural pin/freeze/
+scanner-adapter tests were added during the adversarial pass.)
 
 The 13 focused security files:
 `smoke-radar-probe-ssrf`, `smoke-security-control-fail-closed`,
@@ -107,7 +107,7 @@ owner against a disposable DB before merge — see OWNER ACTIONS.
 | 4 | One write-side-effect boundary + inventory | **FIXED (storage) / TRACKED (breadth)** | `assertWritesAllowed` at private+public upload store **and delete** (incl. the exported `deleteSupabasePrivateUpload`, guarded during the adversarial pass so a freeze throws rather than returning a silent `false`); `smoke-write-surface-inventory` fails the build if any server module performs an object-store write/delete (Supabase storage upload/remove, Vercel Blob put/del) without the boundary, or a surface string is unclassified/stale; **all four** storage surfaces have behavioural freeze-refusal proof (`smoke-write-boundary`); remaining non-storage surfaces enumerated (P2) |
 | 5 | Ecosystem-safe enquiry migration incl. client-portal | **FIXED** | corrective migration `20260908220000` (server-mediated, forward-only, self-verifying); client-portal enquiry route uses the server-mediated admin path behind `rateLimit`; `client-portal` CI job builds it |
 | 6 | Reduce shared service-role blast radius | **CODE-PREP + ADR DONE / INFRA = OWNER** | `docs/security/ADR-001`: inventory, target architecture, adversarial model; `smoke-service-role-usage` pins the service-role call-site count; separate project / scoped credential = OWNER |
-| 7 | Malware / quarantine / content-trust | **FIXED (fail-closed) / TRACKED (durable ledger)** | full-stream scan to 25 MB; verdict enum incl. `quarantined`/`blocked`; production + scanner-outage/absent + high-risk type → **quarantined**; `contentScannerAdapter` posts bytes via SSRF-safe broker; `smoke-content-trust` proves signature-match ≠ clean and the fail-closed path |
+| 7 | Malware / quarantine / content-trust | **FIXED (fail-closed) / TRACKED (durable ledger)** | full-stream scan to 25 MB; verdict enum incl. `quarantined`/`blocked`; production + scanner-outage/absent + high-risk type → **quarantined**; `contentScannerAdapter` posts bytes via the SSRF-safe broker; `smoke-content-trust` proves signature-match ≠ clean and the fail-closed path. The real adapter now has its own behavioural suite (`smoke-content-scanner-adapter`): verdict mapping, and fail-closed on non-2xx / unparseable body / egress refusal — a gap found in the adversarial pass, where the adapter shared the broken broker pin (a "wired" scanner would have thrown on every scan) and threw a raw `SyntaxError` on a non-JSON body (now caught) |
 | 8 | Stored-code / XSS boundary | **FIXED (safe-mode default-off) / BLOCKED (AST sanitiser+nonce CSP)** | `mayRenderStoredMarkup()` gates head-injection in `SiteHead` and custom HTML in `staticExport` (held for review by default); `smoke-stored-code-boundary`; full parser/AST sanitiser + nonce CSP is BLOCKED on a dependency decision |
 | 9 | Radar SSRF DNS rebinding | **FIXED (corrected during the adversarial pass)** | connect-time IP pinning via `undici Agent` in the REAL probe path (HTTP + TLS), `safeSiteFetch`, and the outbound broker; IPv6-bracket strip in `assertPublicDestination`. **The behavioural pin test exposed that the pin was mis-wired**: undici 6 calls connect `lookup` with `{all:true}` and needs the address-LIST form `[{address,family}]`; all three sites used the plain `(err,address,family)` form, which threw on every pinned fetch (failed CLOSED — no SSRF — but broke Radar HTTP probes, `safeSiteFetch`, and brokered Shopify/webhook calls). Now fixed on all three and proven behaviourally: each drives the real pinned fetch to a loopback server via a never-resolving `.invalid` hostname pinned to 127.0.0.1 (a regression to the broken form fails the test). `smoke-radar-probe-ssrf` also proves `http://[::1]/` is refused as unsafe-url |
 | 10 | Restore / backup safety | **FIXED (guards) / BLOCKED E2E (OWNER keygen)** | `restore-drill.sh`: no loopback auto-trust, prod-name denylist, mandatory `--expect-sha`, safe-tar rejection of `..`/absolute/symlink/device entries, `--no-same-owner`; `smoke-restore-drill-safety`; a real end-to-end drill needs owner keys/secrets |
@@ -131,7 +131,17 @@ catching, no code gap). **2 flagged, both fixed:**
   functionality (Radar HTTP probes, safe site fetch, brokered Shopify/webhook
   calls). SMTP was unaffected (nodemailer connects to the pinned IP directly).
   Fixed on all three; each now has a behavioural loopback-pin test that fails if
-  the broken form returns. `0c93f8c6`.
+  the broken form returns. `0c93f8c6`. **Blast radius:** every brokered HTTP
+  consumer was affected — Shopify sync, webhook automations, aqua-tag detection,
+  website form-schema/client-form fetching, and the content scanner — all threw
+  until the fix; only SMTP was safe (nodemailer connects to the pinned IP via
+  `tls.connect`, not undici).
+- **Item 7 follow-on — the scanner adapter shared the broken broker.** Because
+  `buildEnvContentScanner` POSTs through the broker, a "wired" scanner would have
+  thrown on every scan (→ perpetual quarantine) while the readiness gate showed
+  green, and it had no test. Added a behavioural suite (verdict mapping +
+  fail-closed on non-2xx / unparseable / egress refusal) and hardened a raw
+  `SyntaxError` on a non-JSON body into the clean fail-closed error. `d3bcc079`.
 - **Item 4 — test depth, plus one latent gap closed.** Production enforcement was
   intact, but (a) the exported `deleteSupabasePrivateUpload` reached the remove
   primitive without the freeze guard (uncalled today, so not a live bypass) — now
@@ -237,7 +247,7 @@ routes, `client-portal/app/api/public/brand-enquiry/route.ts`,
 
 ---
 
-## Commits (35, oldest → newest)
+## Commits (37, oldest → newest)
 
 ```
 c5da6c46 phase-0  release harness: directory card + deterministic CI discovery
@@ -275,11 +285,13 @@ e7cae600 docs     reconcile the canonical gate-repair ledger to HEAD feb9f085
 0c93f8c6 item-9   fix the SSRF pin — undici needs the address-list lookup form
 8c073d06 item-4   guard exported private-delete + behavioural + broader inventory net
 36240b7d docs     regenerate authored-doc consolidation after the readiness edit
+aae1ec60 docs     record adversarial-verification results + SSRF pin correction
+d3bcc079 item-7   behavioural test for the real content-scanner adapter + parse hardening
 ```
 
-The last three security commits (`0c93f8c6`, `8c073d06`) landed from the
+The security commits `0c93f8c6`, `8c073d06` and `d3bcc079` landed from the
 adversarial verification pass; `36240b7d` regenerates the consolidated-doc digest
-the readiness-pointer edit invalidated.
+the readiness-pointer edit invalidated; `aae1ec60`/(this) update the ledger.
 
 ---
 
@@ -324,6 +336,6 @@ the readiness-pointer edit invalidated.
 ## Is GitHub CI green?
 Not observed on this branch yet (owner to run/enable). The CI pipeline itself
 was repaired here (Node 22, SHA-pinned actions, deterministic discovery, new
-required `containment` and `client-portal` jobs). Locally at HEAD 36240b7d:
-typecheck 0, both builds green, canonical suite 6998 pass / 0 fail, focused
+required `containment` and `client-portal` jobs). Locally at HEAD d3bcc079:
+typecheck 0, both builds green, canonical suite 7006 pass / 0 fail, focused
 security 116/0.
