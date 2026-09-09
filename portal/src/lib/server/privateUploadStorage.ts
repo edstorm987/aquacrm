@@ -8,6 +8,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { sliceStream, type ByteRange } from "@/lib/server/privateMediaResponse";
 import { assertLiveProviderAccess } from "@/lib/server/sandbox/providerPolicy";
 import { assessUploadContent, ContentTrustError, type ContentTrustAssessment } from "@/lib/server/security/contentTrust";
+import { assertWritesAllowed } from "@/lib/server/auth/securityControl";
 import { isSandboxDataRealm } from "@/server/dataRealm";
 
 export type PrivateUploadStorageProvider = "supabase" | "vercel-blob" | "local";
@@ -84,6 +85,10 @@ export function durablePrivateUploadsRequired(env: NodeJS.ProcessEnv = process.e
 
 export async function storePrivateUpload(input: StorePrivateUploadInput): Promise<StoredPrivateUpload> {
   assertLiveProviderAccess("Private file storage");
+  // Phase 2 write boundary: object storage is a write path mutate() never sees,
+  // so an incident write-freeze must refuse it here too — before content
+  // assessment or any provider I/O, so a frozen upload leaves nothing behind.
+  assertWritesAllowed("storage.private-upload", { tenantId: input.trust?.tenantId, actor: input.trust?.actor });
   // CONTENT TRUST GATEWAY (Phase 2): every route stores through this function,
   // so every stored upload is judged by its BYTES here — before any provider
   // I/O. A blocked verdict throws and nothing is written anywhere. See

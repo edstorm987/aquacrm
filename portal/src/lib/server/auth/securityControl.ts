@@ -218,6 +218,52 @@ export function isTenantLockedDown(agencyId: string): boolean {
   return Boolean(readSecurityControl().tenantLockdowns?.[agencyId]);
 }
 
+// ─── The write boundary (Phase 2) ───────────────────────────────────────────
+//
+// The global read-only kill switch binds `mutate()` — but that only covers
+// PortalState. Object storage, public uploads, site-editor filesystem/repo
+// writes, provider side-effects and background jobs open their OWN write paths
+// that mutate() never sees, so a freeze left them running. assertWritesAllowed
+// is the ONE boundary those non-PortalState surfaces call: it refuses the write
+// while the global freeze holds (or the tenant is locked down), with explicit
+// surface/tenant/actor metadata for the event trail. Reads never call it.
+//
+// It deliberately mirrors the mutate() guard rather than sharing code (mutate
+// lives in storage.ts, which securityControl imports — the dependency only runs
+// one way). Application code must NOT catch-and-continue past this.
+
+export class WritesFrozenError extends Error {
+  readonly code = "writes_frozen";
+  constructor(surface: string, reason: string) {
+    super(`[security] write to '${surface}' refused: ${reason}. Lift the freeze/lockdown via the security control plane to resume.`);
+    this.name = "WritesFrozenError";
+  }
+}
+
+export function assertWritesAllowed(surface: string, ctx: { tenantId?: string; actor?: string } = {}): void {
+  const control = readSecurityControl();
+  if (control.globalReadOnly) {
+    recordSecurityEvent({
+      kind: "lockdown.write-refused",
+      severity: "warning",
+      tenantId: ctx.tenantId,
+      actor: ctx.actor,
+      detail: { surface, scope: "global", reason: control.globalReadOnly.reason },
+    });
+    throw new WritesFrozenError(surface, `global read-only lockdown (${control.globalReadOnly.reason})`);
+  }
+  if (ctx.tenantId && control.tenantLockdowns?.[ctx.tenantId]) {
+    recordSecurityEvent({
+      kind: "lockdown.write-refused",
+      severity: "warning",
+      tenantId: ctx.tenantId,
+      actor: ctx.actor,
+      detail: { surface, scope: "tenant", reason: control.tenantLockdowns[ctx.tenantId].reason },
+    });
+    throw new WritesFrozenError(surface, `tenant ${ctx.tenantId} is locked down`);
+  }
+}
+
 // ─── AI kill switch (Phase 3) ───────────────────────────────────────────────
 
 export function disableAi(actor: string, reason: string): void {
