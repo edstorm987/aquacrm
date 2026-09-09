@@ -31,9 +31,11 @@ behavioural tests. The branch is **not merge-ready** because stop-ship gates
 remain that are **owner/infrastructure-gated and cannot be closed in code**:
 
 - the assume-breach containment chain (base `20260908210000` + corrective
-  `20260908220000`) is **not applied to the live database** (P0);
-- **no restore drill has been run against real infrastructure** — RPO/RTO
-  unmeasured (P0);
+  `20260908220000`) is **not applied to the live database** (P0) — though its
+  correctness is now locally-verified on a disposable DB (0 FAIL);
+- the restore path is now locally-verified end-to-end on a disposable DB, but
+  **no operational drill has run against the real backup/key on real
+  infrastructure** — RPO/RTO still unmeasured (P0);
 - **no AV/CDR scanner, authoritative MFA/AAL2, distributed rate limiter,
   off-platform event drain, or edge WAF** is connected (P0/P1);
 - the least-privilege blast-radius **infra split is not done** — the client
@@ -88,12 +90,15 @@ The 13 focused security files:
 `smoke-security-console`, `smoke-service-role-usage`,
 `smoke-read-path-mutations`.
 
-**Verified earlier this programme, NOT re-run this session** (to respect the
-"do not mutate the shared local Supabase stack" boundary): the Docker-backed DB
-containment suite (`supabase/tests/containment-isolation.test.mjs`, 41/41 on a
-local disposable stack with real JWTs) and `supabase/rls-verify.sql`
-(0 FAIL rows). These require a live Postgres and must be re-attested by the
-owner against a disposable DB before merge — see OWNER ACTIONS.
+**Now verified on a fresh DISPOSABLE database this session** (see
+"Disposable-DB verification" below): the full 30-migration chain (base + the
+corrective containment migration) + `rls-verify.sql` (`containment-verified`,
+0 FAIL), AND an end-to-end backup→restore drill with row-count parity and
+`rls-verify` clean on the restored DB. The shared local Supabase stack
+(`supabase_db_aquacrm`, 54322) was never touched — throwaway containers on
+55432/55433 only, destroyed afterward. The Docker-backed
+`containment-isolation.test.mjs` (41/41 with real JWTs) from earlier in the
+programme was not re-run this session.
 
 ---
 
@@ -115,6 +120,42 @@ owner against a disposable DB before merge — see OWNER ACTIONS.
 | 12 | Supply chain / CI / browser / docs | **FIXED (CI/supply-chain) / TRACKED (a11y)** | CI actions pinned by SHA, Supabase CLI pinned, NEW `client-portal` typecheck+build job; `smoke-suite-coverage`; browser a11y coverage for the Security Centre is TRACKED (P2) |
 
 ---
+
+## Disposable-DB verification (2026-09-09)
+
+Run at the owner's request to convert two P0 owner-attestations into
+locally-verified evidence. **Strict isolation:** two throwaway
+`supabase/postgres:17.6.1.156` containers on loopback ports 55432/55433, created
+and destroyed for this drill; the shared local stack (`supabase_db_aquacrm`,
+54322) and `milesymedia-postgres` (54329) were never connected to or mutated. No
+live/remote database was touched. An ephemeral throwaway keypair was generated
+for the encryption step and shredded afterward (no real secret handled).
+
+**P0 #1 — containment migration + rls-verify → PASS.** The full 30-migration
+history applied cleanly to a fresh Supabase-shaped DB, including base
+`20260908210000` and corrective `20260908220000`; the corrective migration's own
+embedded privilege self-checks did not raise. `supabase/rls-verify.sql` then
+reported `containment-verified: All containment invariants hold (sealed tables
+incl. brand_enquiries, read-only surfaces, no browser-role policy on any sealed
+table, no leaked sequences)` with **0 FAIL rows**.
+
+**P0 #2 — backup → restore drill → PASS (all gates).** Using the real dump
+tooling (`supabase db dump` for roles/schema/data) and the drill's exact
+crypto/integrity/extraction commands (`openssl cms` encrypt/decrypt, mandatory
+sha256 `--expect-sha` gate, path-traversal + symlink refusal on the archive), a
+snapshot of the source DB was restored into a *second* disposable container that
+positively proved itself disposable (the `aquacrm.restore_drill_disposable=yes`
+marker, not production, non-prod db name). Verifications, all green:
+`auth.users` rows present; `ensure_rls` event-trigger net present (re-applied
+from its migration after the scoped restore, as the drill does); **row counts
+match the dump-time manifest exactly**; and `rls-verify` on the *restored* DB is
+containment-clean (0 FAIL). Because the host has no `psql`/`pg_dump` and no
+Homebrew (and auto-installing Homebrew would be too invasive), the drill's own
+shell scripts were not invoked verbatim — every step they perform was executed
+with the same tools and logic, driving the target via `docker exec psql`. The
+scripts' safety logic is separately unit-tested (`smoke-restore-drill-safety`,
+7/7). What is still OWNER: the operational drill against the real encrypted
+backup with the real key, and RPO/RTO on production-sized data.
 
 ## Adversarial verification findings (2026-09-09)
 
@@ -302,9 +343,19 @@ the readiness-pointer edit invalidated; `aae1ec60`/(this) update the ledger.
    base `20260908210000` then corrective `20260908220000`; paste
    `rls-verify.sql`, confirm `containment-verified` with 0 FAIL; re-check
    milesymedia login. Then set `PORTAL_CONTAINMENT_MIGRATION_VERIFIED=true`.
-2. Run an owner-approved restore drill (`ops/backup/restore-drill.sh` against a
-   marked disposable DB) and set `PORTAL_LAST_VERIFIED_RESTORE_AT`; enable
-   `BACKUP_ENABLED` + `PORTAL_LAST_BACKUP_AT`. RPO/RTO UNMEASURED until then.
+   **Migration correctness is now LOCALLY-VERIFIED** (disposable-DB drill below):
+   the full 30-migration chain applies cleanly and `rls-verify` reports
+   `containment-verified` / 0 FAIL. What remains OWNER is *applying it to the
+   live DB* (must not be done from here) and re-running `rls-verify` there.
+2. Run an owner-approved restore drill and set `PORTAL_LAST_VERIFIED_RESTORE_AT`;
+   enable `BACKUP_ENABLED` + `PORTAL_LAST_BACKUP_AT`. **The restore path is now
+   LOCALLY-VERIFIED** (disposable-DB drill below): a real dump → encrypt → sha
+   integrity-gate → decrypt → safe-extract → single-transaction restore →
+   row-count parity → `rls-verify` clean all passed on throwaway containers. What
+   remains OWNER: the operational drill against the *real* encrypted backup with
+   the real key (`ops/backup/keygen.sh` + `run.sh` + `restore-drill.sh`, which
+   need host `psql`), and RPO/RTO measurement on production-sized data — still
+   UNMEASURED.
 3. Connect an AV/CDR scanner (`PORTAL_AV_SCANNER_URL` + adapter wired) — content
    uploads fail closed (quarantine) without it in production.
 
