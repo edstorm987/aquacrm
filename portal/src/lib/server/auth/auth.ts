@@ -30,7 +30,7 @@ import {
 } from "@/lib/server/auth/sessionToken";
 import { LIVE_DATA_REALM_ID, ensureHydrated, runInDataRealm } from "@/server/storage";
 import { normaliseDataRealmId } from "@/server/dataRealm";
-import { currentEpochStamp, enforceSessionSecurity, newSessionId } from "@/lib/server/auth/securityControl";
+import { currentEpochStamp, enforceSessionSecurity, newSessionId, recordIssuedSession } from "@/lib/server/auth/securityControl";
 
 const COOKIE_NAME = SESSION_COOKIE_NAME;
 const COOKIE_MAX_AGE = SESSION_COOKIE_MAX_AGE;
@@ -84,6 +84,13 @@ interface IssueSessionInput {
   // Assume-breach containment: caller-supplied session id (so the login route
   // can record the registry row under the same id). Defaults to a fresh UUID.
   sid?: string;
+  // Which flow minted this — recorded in the session registry (Item 3):
+  // "password", "oauth", "magic-link", "signup", "agency-switch", … Defaults
+  // to "session".
+  issuedVia?: string;
+  // Optional device metadata for the registry row (request-handler mints only).
+  ip?: string;
+  userAgent?: string;
 }
 
 export function issueSession(input: IssueSessionInput): string {
@@ -134,6 +141,22 @@ export function issueSession(input: IssueSessionInput): string {
     iat: now,
     exp: now + COOKIE_MAX_AGE,
   };
+  // CENTRAL SESSION REGISTRATION (Item 3). Registering here — the ONE mint
+  // choke point — means every REAL session (password, OAuth, magic link,
+  // signup, agency switch, end-customer, embed) lands in the durable registry,
+  // so it can be listed and revoked, not just password logins. Ephemeral /
+  // development sessions are deliberately excluded: a public showcase, a
+  // sandbox persona, or a dev-mode (isDemo) session is not a real credential
+  // and must not populate the operator's device list. Best-effort: a registry
+  // write must never break a login (it is a durable convenience, not the auth).
+  const ephemeral = payload.publicShowcase === true || Boolean(payload.sandbox) || payload.isDemo === true;
+  if (!ephemeral && payload.sid) {
+    try {
+      recordIssuedSession(payload, { issuedVia: input.issuedVia ?? "session", exp: payload.exp, ip: input.ip, userAgent: input.userAgent });
+    } catch {
+      // swallow — never let registration failure block issuing the session.
+    }
+  }
   return signSessionPayload(payload);
 }
 

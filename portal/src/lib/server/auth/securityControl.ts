@@ -354,7 +354,7 @@ export function newSessionId(): string {
 
 export function recordIssuedSession(
   payload: Pick<SessionPayload, "sid" | "userId" | "agencyId" | "role">,
-  meta: { issuedVia: string; ip?: string; userAgent?: string },
+  meta: { issuedVia: string; ip?: string; userAgent?: string; exp?: number },
 ): void {
   if (!payload.sid) return;
   const record: SecuritySessionRecord = {
@@ -363,14 +363,21 @@ export function recordIssuedSession(
     agencyId: payload.agencyId,
     role: payload.role as Role,
     issuedAt: Date.now(),
+    // `exp` from the token is in seconds (JWT-style); store ms.
+    expiresAt: meta.exp ? meta.exp * 1000 : undefined,
     issuedVia: meta.issuedVia,
     ip: meta.ip,
     userAgent: meta.userAgent?.slice(0, 200),
   };
   withControl(control => {
     control.sessions[record.sid] = record;
-    // Bounded registry: keep the newest 50 sessions per user so the state can
-    // never grow without limit under a login flood.
+    // Prune EXPIRED records first (bounded, and keeps the list honest), then cap
+    // the newest 50 non-expired sessions per user so the state cannot grow
+    // without limit under a login flood.
+    const now = Date.now();
+    for (const [sid, existing] of Object.entries(control.sessions)) {
+      if (existing.expiresAt && existing.expiresAt < now) delete control.sessions[sid];
+    }
     const mine = Object.values(control.sessions)
       .filter(existing => existing.userId === record.userId)
       .sort((a, b) => b.issuedAt - a.issuedAt);
@@ -379,8 +386,12 @@ export function recordIssuedSession(
 }
 
 export function listUserSessions(userId: string): SecuritySessionRecord[] {
+  const now = Date.now();
   return Object.values(readSecurityControl().sessions)
     .filter(record => record.userId === userId)
+    // Ignore expired records — an expired cookie is already dead at the gate;
+    // showing it as a live device would be misleading.
+    .filter(record => !record.expiresAt || record.expiresAt >= now)
     .sort((a, b) => b.issuedAt - a.issuedAt);
 }
 
@@ -441,6 +452,14 @@ export function revokeUserSessionsInTenant(userId: string, agencyId: string, act
   recordControlAction({ kind: "session.tenant-revoked", severity: "warning", actor, tenantId: agencyId, detail: { reason, userId, count } });
   logSecurityAction("user-sessions-tenant-revoked", { actor, reason, userId, agencyId, count });
   return count;
+}
+
+/** Test seam: force a registry record to be expired so pruning/ignore is testable. */
+export function expireSessionForTest(sid: string): void {
+  withControl(control => {
+    const record = control.sessions[sid];
+    if (record) record.expiresAt = Date.now() - 1;
+  });
 }
 
 // Throttled last-seen. Request-handler contexts only — NEVER from RSC renders.

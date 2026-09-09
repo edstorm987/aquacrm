@@ -4856,6 +4856,8 @@ export interface SecuritySessionRecord {
   agencyId?: string;
   role: Role;
   issuedAt: number;
+  /** When the cookie expires (unix ms). Expired records are pruned/ignored. */
+  expiresAt?: number;
   /** Where the mint happened: login, mfa, magic-link, dev, showcase, preview. */
   issuedVia: string;
   lastSeenAt?: number;
