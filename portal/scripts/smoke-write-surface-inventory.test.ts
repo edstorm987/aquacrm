@@ -2,15 +2,18 @@
 //
 // The global/tenant write-freeze binds mutate() (all PortalState) plus every
 // surface that calls assertWritesAllowed. This inventory FAILS when:
-//   (a) a *UploadStorage module gains a write/delete primitive without the
-//       assertWritesAllowed guard (a new unclassified storage mutator), or
+//   (a) ANY server module (not just *UploadStorage.ts) performs an object-store
+//       write/delete primitive (Supabase Storage upload/remove, or Vercel Blob
+//       put/del) without calling assertWritesAllowed and without an explicit
+//       allowlist entry — a new unguarded object-store mutator anywhere, or
 //   (b) an assertWritesAllowed surface string is used that is not in the
 //       declared registry (an unclassified surface), or
 //   (c) a registered surface is declared but no longer used anywhere (stale).
 //
-// It is deliberately behavioural about the STORAGE class (the object stores are
-// the write paths mutate() cannot see) and enumerated about the surface strings,
-// so the freeze coverage cannot silently regress.
+// This is the STATIC net. The BEHAVIOURAL proof that each of the four storage
+// surfaces actually refuses under a freeze lives in smoke-write-boundary.test.ts
+// (all four surfaces are exercised there against a real freeze). Together they
+// keep the freeze coverage from silently regressing.
 
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
@@ -19,7 +22,6 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const SERVER_LIB = join(ROOT, "src", "lib", "server");
 const read = (p: string) => readFileSync(p, "utf8");
 
 // Every write-side-effect surface class that is guarded by the freeze, with a
@@ -56,23 +58,56 @@ test("every assertWritesAllowed surface string is classified in the registry", (
   assert.deepEqual(stale, [], `these registered surfaces are no longer used — remove them: ${stale.join(", ")}`);
 });
 
-test("every object-store module that writes or deletes calls the write boundary", () => {
-  // The object stores are the write paths mutate() never sees. Any module here
-  // that performs a provider write/delete MUST gate it — this fails loudly if a
-  // new storage mutator is added without the guard.
-  const WRITE_PRIMITIVES = /\.upload\(|\bput\(|\.remove\(|\bdel\(|writeFile\(/;
-  const storageModules = walk(SERVER_LIB).filter(f => /UploadStorage\.ts$/.test(f));
-  assert.ok(storageModules.length >= 2, `expected the upload-storage modules, found ${storageModules.length}`);
-  for (const file of storageModules) {
+// Files that legitimately contain an object-store write primitive WITHOUT an
+// adjacent assertWritesAllowed, each with the reason it is bound elsewhere.
+// Adding a file here is a deliberate, reviewed decision — the point of the net
+// below is that a NEW unguarded object-store write path cannot appear silently.
+const OBJECT_STORE_WRITE_ALLOWLIST: Record<string, string> = {
+  // (currently empty — both storage modules guard their own primitives)
+};
+
+// Object-store WRITE primitives, matched narrowly so generic look-alikes do not
+// false-positive:
+//   · Supabase Storage:  `.storage.from(<bucket>).upload(` / `.remove(`
+//     (excludes DOM `classList.remove(` and any non-storage `.upload(` such as
+//      an injected `transport.upload(` batch abstraction).
+//   · Vercel Blob:       `put(` / `del(` — ONLY counted in a file that imports
+//     `@vercel/blob` (excludes unrelated `del(`/`put(` identifiers).
+const SUPABASE_STORAGE_WRITE = /\.storage\s*\.from\([^)]*\)\s*\.(?:upload|remove)\(/;
+const IMPORTS_VERCEL_BLOB = /from\s+["']@vercel\/blob["']/;
+const VERCEL_BLOB_WRITE = /\b(?:put|del)\(/;
+
+function performsObjectStoreWrite(src: string): boolean {
+  if (SUPABASE_STORAGE_WRITE.test(src)) return true;
+  if (IMPORTS_VERCEL_BLOB.test(src) && VERCEL_BLOB_WRITE.test(src)) return true;
+  return false;
+}
+
+test("every server module that performs an object-store write/delete calls the write boundary", () => {
+  // The object stores are the write paths mutate() never sees. This scans the
+  // WHOLE server tree (not just *UploadStorage.ts) so a new object-store write
+  // path added anywhere fails the build unless it either calls the boundary or
+  // is explicitly allowlisted above. Closes the "a mutator in a differently
+  // named module escapes the net" gap the earlier filename-scoped check had.
+  const offenders: string[] = [];
+  let matched = 0;
+  for (const file of walk(join(ROOT, "src"))) {
+    const rel = file.replace(ROOT + "/", "");
     const src = read(file);
-    if (WRITE_PRIMITIVES.test(src)) {
-      assert.match(
-        src,
-        /assertWritesAllowed\(/,
-        `${file.replace(ROOT + "/", "")} performs a storage write/delete but never calls assertWritesAllowed — classify and guard it`,
-      );
-    }
+    if (!performsObjectStoreWrite(src)) continue;
+    matched += 1;
+    if (rel in OBJECT_STORE_WRITE_ALLOWLIST) continue;
+    if (!/assertWritesAllowed\(/.test(src)) offenders.push(rel);
   }
+  // Sanity: the net must actually be finding the known object-store modules, so
+  // a future refactor that hides the primitives can't turn this test into a
+  // silent no-op that passes because it matched nothing.
+  assert.ok(matched >= 2, `expected to match at least the two upload-storage modules, matched ${matched}`);
+  assert.deepEqual(
+    offenders,
+    [],
+    `these server modules perform an object-store write/delete but never call assertWritesAllowed — guard them (or allowlist with a reason): ${offenders.join(", ")}`,
+  );
 });
 
 test("the registry documents at least the four storage surfaces", () => {

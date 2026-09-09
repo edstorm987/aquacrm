@@ -13,7 +13,8 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import test, { beforeEach } from "node:test";
 
-import { storePrivateUpload } from "../src/lib/server/privateUploadStorage";
+import { storePrivateUpload, deletePrivateUpload, deleteSupabasePrivateUpload } from "../src/lib/server/privateUploadStorage";
+import { storePublicUpload, deleteSupabasePublicUpload } from "../src/lib/server/publicUploadStorage";
 import {
   assertWritesAllowed,
   WritesFrozenError,
@@ -58,6 +59,50 @@ test("a frozen private upload is refused BEFORE any bytes touch disk", async () 
   // After thaw the same upload succeeds (the guard is reversible).
   const stored = await storePrivateUpload({ pathname: localKey, file: blob(PNG), contentType: "image/png", localDirectory: "write-boundary-test", localKey });
   assert.equal(stored.storageProvider, "local");
+});
+
+test("a frozen private DELETE is refused before the provider is touched (both delete paths)", async () => {
+  setGlobalReadOnly("ic", "freeze");
+  // deletePrivateUpload(): a refusing provider seam would run if the guard were
+  // skipped — assert it never gets there under a freeze.
+  let providerTouched = false;
+  await assert.rejects(
+    deletePrivateUpload(
+      { storageProvider: "local", storageKey: "held.png", localDirectory: "write-boundary-test" },
+      { local: async () => { providerTouched = true; } },
+    ),
+    WritesFrozenError,
+  );
+  assert.equal(providerTouched, false, "a frozen delete must not reach the provider");
+  // deleteSupabasePrivateUpload(): the exported mirror must also refuse (and must
+  // NOT swallow the freeze into a silent `false`).
+  await assert.rejects(deleteSupabasePrivateUpload("held.png"), WritesFrozenError);
+  clearGlobalReadOnly("ic");
+  // After thaw the same delete proceeds (local, force:true on a missing file is an
+  // idempotent success) — proving the guard is reversible, not a hard disable.
+  const after = await deletePrivateUpload({ storageProvider: "local", storageKey: "missing.png", localDirectory: "write-boundary-test" });
+  assert.equal(after.ok, true);
+});
+
+test("a frozen public upload and public delete are refused by the boundary", async () => {
+  const input = { pathname: "wb/x.png", file: blob(PNG), contentType: "image/png", localDirectory: "wb", localKey: "x.png" };
+  setGlobalReadOnly("ic", "freeze");
+  // public-upload: refused before content-type/provider branching or any I/O.
+  await assert.rejects(storePublicUpload(input, {}), WritesFrozenError);
+  // public-delete: refused before the configured/empty-key checks.
+  await assert.rejects(deleteSupabasePublicUpload("wb/x.png"), WritesFrozenError);
+  clearGlobalReadOnly("ic");
+  // After thaw the guard no longer blocks: with a production-shaped env and no
+  // Supabase configured, storePublicUpload reaches the provider layer and throws
+  // the durable-storage error (NOT a freeze error) — proving we got past the
+  // boundary — and nothing is written to disk.
+  await assert.rejects(
+    storePublicUpload(input, { NODE_ENV: "production" } as NodeJS.ProcessEnv),
+    (err: unknown) => err instanceof Error && !(err instanceof WritesFrozenError) && (err as { code?: string }).code === "durable_public_uploads_required",
+  );
+  // public-delete after thaw: Supabase unconfigured in test → returns false
+  // (reached the provider check, not blocked by the freeze).
+  assert.equal(await deleteSupabasePublicUpload("wb/x.png"), false);
 });
 
 test("PORTAL_WRITES_FROZEN blocks writes even with NO in-state freeze (survives a restore)", () => {

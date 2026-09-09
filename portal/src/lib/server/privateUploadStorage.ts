@@ -195,6 +195,14 @@ async function removeSupabasePrivateUpload(storageKey: string): Promise<void> {
 }
 
 export async function deleteSupabasePrivateUpload(storageKey: string): Promise<boolean> {
+  // Item 4 write boundary: a global write-freeze stops private-media deletes on
+  // THIS exported path too, mirroring deleteSupabasePublicUpload. Guarded BEFORE
+  // the try/catch so a freeze surfaces as WritesFrozenError to the caller rather
+  // than being swallowed into a silent `false` (which would read as "nothing to
+  // delete"). deletePrivateUpload() guards the other route to removeSupabase-
+  // PrivateUpload separately, so every path to the Supabase remove primitive is
+  // bound by the freeze.
+  assertWritesAllowed("storage.private-delete");
   if (!storageKey.trim()) return false;
   try {
     await removeSupabasePrivateUpload(storageKey);
