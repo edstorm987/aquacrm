@@ -90,7 +90,10 @@ export function normalizeSiteUrl(value: string): URL {
 }
 
 async function assertPublicDestination(url: URL): Promise<string[]> {
-  const hostname = url.hostname.toLowerCase().replace(/\.$/, "");
+  // Strip trailing dot AND IPv6 brackets so an IPv6-literal private/loopback
+  // host (`[::1]`, `[::ffff:169.254.169.254]`) is caught by the isIP branch
+  // rather than falling through to DNS.
+  const hostname = url.hostname.toLowerCase().replace(/\.$/, "").replace(/^\[|\]$/g, "");
   if (!hostname || isReservedSyntheticHostname(hostname)) {
     throw new SafeFetchError("unsafe-url", `That address (${hostname || "no host"}) can't be reached from here.`);
   }
