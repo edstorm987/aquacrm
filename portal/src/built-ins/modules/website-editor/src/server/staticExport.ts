@@ -29,6 +29,7 @@
 import type { PluginStorage } from "../lib/aquaPluginTypes";
 import type { AgencyId, ClientId, BrandKit } from "./../lib/tenancy";
 import type { Block } from "../types/block";
+import { mayRenderStoredMarkup } from "../lib/customCodeSafeMode";
 import type { EditorPage } from "../types/editorPage";
 import { resolvePublishedPage } from "../lib/pagePublication";
 import { listPages } from "./pages";
@@ -224,9 +225,14 @@ export function renderBlockToHtml(block: Block, supabase?: ExportSupabaseTarget)
     case "testimonials":
       return renderTestimonialsHtml(block, id, styleAttr, aria);
     case "html":
-      // R020 raw-HTML block — passed through verbatim so operators can
-      // embed snippets that wouldn't survive escape.
-      return String((block.props as { html?: unknown }).html ?? "");
+      // R020 raw-HTML block. Passed through verbatim so operators can embed
+      // snippets — but in production SAFE MODE (Item 8) stored markup is held
+      // out of the export too, exactly as it is held out of the live render, so
+      // an export cannot bake in stored XSS. A parser/AST sanitiser will replace
+      // safe mode with allow-listed markup (tracked; needs a vetted dependency).
+      return mayRenderStoredMarkup()
+        ? String((block.props as { html?: unknown }).html ?? "")
+        : "<!-- custom HTML held for security review -->";
     default:
       return renderUnexportableHtml(block, id, styleAttr, aria, text, childrenHtml);
   }

