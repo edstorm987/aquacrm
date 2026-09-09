@@ -77,7 +77,8 @@ real-client-ready.
 | 8b | `readyForProduction` did not require security evidence | **VERIFIED → FIXED** | 9 required, red-by-default gates (migration/AV/drain/rate-limit/MFA/restore/backup/supply-chain/WAF) |
 | 5/7 | `restore-drill.sh` identified safety by hostname only, fail-OPEN on unknown hosts, downgraded verification failures to WARN, generic bypass flag | **VERIFIED → FIXED** | default-deny + on-target disposable marker; FAIL-not-warn; bypass removed; `smoke-restore-drill-safety` 7/7 |
 | 5.11 | Runbooks named TypeScript functions an operator cannot run | **FIXED** | NEW `security-console.ts` (dry-run default, actor+reason required); runbooks reference it |
-| 2 | Sandbox enforcement used the persona identity, not the live anchor | **VERIFIED → FIXED (suspension+lockdown)** | gate binds `sandbox.returnUserId`/`returnAgencyId`; `smoke-security-lockdown` +2 |
+| 2a | Sandbox enforcement used the persona identity, not the live anchor | **VERIFIED → FIXED (suspension+lockdown)** | gate binds `sandbox.returnUserId`/`returnAgencyId`; `smoke-security-lockdown` +2 |
+| 2b | The write-freeze bound only `mutate()` (PortalState); storage ingestion ran during a freeze | **VERIFIED → FIXED (storage)** | NEW `assertWritesAllowed` boundary wired at `storePrivateUpload`/`storePublicUpload`; `smoke-write-boundary` 4/4 |
 
 ---
 
@@ -109,12 +110,13 @@ real-client-ready.
 
 ## STILL OWED IN CODE (honest, tracked — not done this pass)
 
-- **Phase 2 (breadth):** a single `assertWritesAllowed` boundary across *every*
-  mutating surface (storage upload/delete/publish, public intake, cron/background
-  jobs, provider writes, queues) — currently the freeze binds `mutate()` (all
-  PortalState) but not those other egress/write paths; per-user/per-tenant epoch
-  does not yet bind a *sandbox* session (needs live-anchor epoch stamping at
-  issue); security state should live outside sandbox realms' PortalState.
+- **Phase 2 (breadth):** `assertWritesAllowed` now exists and binds the freeze at
+  the STORAGE write choke points (private + public upload) on top of `mutate()`.
+  Still to wire it to the remaining surfaces — site-editor filesystem/repo
+  writes, cron/background jobs, external provider side-effects, queues — plus a
+  full static inventory over every mutating route/adaptor. Per-user/per-tenant
+  epoch does not yet bind a *sandbox* session (needs live-anchor epoch stamping
+  at issue); security state should live outside sandbox realms' PortalState.
 - **Phase 3:** Threat Centre reauth is password-based; true **AAL2/MFA** needs an
   authoritative Supabase MFA ceremony (OWNER). High-impact platform actions
   should stay unavailable until AAL2 exists rather than be described as MFA.
@@ -128,7 +130,7 @@ real-client-ready.
 
 ---
 
-## Commits (9)
+## Commits (11)
 
 ```
 c5da6c46 phase-0  release harness: directory card + deterministic CI discovery
@@ -140,6 +142,7 @@ d75a517d phase-8  hydration 503; readiness requires security evidence
 a5a9c848 phase-5/7 restore-drill fails safe + operator console
 8592f2fc phase-2  session gate binds the LIVE identity through sandbox
 9ea22f33 phase-8/9 .env.example readiness signals; docs reconciled
+(+ phase-9 canonical report, phase-2 write boundary — see git log)
 ```
 
 ## Is GitHub CI green?
