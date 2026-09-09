@@ -3,6 +3,36 @@ import { NextResponse } from "next/server";
 
 const localhostPattern = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
+// Per-IP sliding-window rate limiter for public intake (Item 5 bot/abuse
+// control). In-memory: honest for a single instance; a multi-instance rollout
+// needs a shared store — tracked as the distributed-throttle OWNER item. The
+// trusted client IP is the LAST X-Forwarded-For entry the edge appended (the
+// first is client-supplied and spoofable), matching the portal's rule.
+const rateWindows = new Map<string, number[]>();
+
+export function clientIpFromRequest(request: Request): string {
+  const xff = request.headers.get("x-forwarded-for");
+  if (xff) {
+    const entries = xff.split(",").map(e => e.trim()).filter(Boolean);
+    const trusted = entries[entries.length - 1];
+    if (trusted) return trusted;
+  }
+  return request.headers.get("x-real-ip")?.trim() || "anonymous";
+}
+
+/** Returns true if the caller is WITHIN the limit (allowed); false = throttled. */
+export function rateLimit(key: string, max: number, windowMs: number): boolean {
+  const now = Date.now();
+  const hits = (rateWindows.get(key) ?? []).filter(at => now - at < windowMs);
+  if (hits.length >= max) {
+    rateWindows.set(key, hits);
+    return false;
+  }
+  hits.push(now);
+  rateWindows.set(key, hits);
+  return true;
+}
+
 export function noStoreHeaders(headers = new Headers()) {
   headers.set("cache-control", "no-store, max-age=0");
   headers.set("x-content-type-options", "nosniff");

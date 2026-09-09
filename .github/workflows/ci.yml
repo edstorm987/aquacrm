@@ -60,9 +60,9 @@ jobs:
       run:
         working-directory: portal
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -95,7 +95,7 @@ jobs:
 
       - name: Upload build diagnostics on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: verify-failure-${{ github.run_id }}
           path: |
@@ -117,18 +117,18 @@ jobs:
     # alongside `verify` and `browser`. It reads no DATABASE_URL and cannot reach
     # any remote project (LOCAL ONLY, enforced by the runner script).
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: portal/package-lock.json
 
       - name: Install Supabase CLI
-        uses: supabase/setup-cli@v1
+        uses: supabase/setup-cli@6333c3ad342ec99344de1621ff61bef932a81b45 # v1.2.0
         with:
-          version: latest
+          version: 2.111.0
 
       - name: Start local Supabase stack (Docker)
         run: supabase start
@@ -140,6 +140,29 @@ jobs:
         if: always()
         run: supabase stop --no-backup || true
 
+  client-portal:
+    name: Client portal · typecheck · build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # The sibling standalone client portal ships independently and shares the
+    # ecosystem's enquiry surface (Item 5). It must typecheck and build in CI so
+    # a change here (e.g. the server-mediated enquiry migration) cannot silently
+    # break it. It has no lockfile, so `npm install` (not `npm ci`).
+    defaults:
+      run:
+        working-directory: client-portal
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Production build
+        run: npm run build
+
   browser:
     name: Bounded browser / accessibility gate
     runs-on: ubuntu-latest
@@ -149,9 +172,9 @@ jobs:
       run:
         working-directory: portal
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -192,7 +215,7 @@ jobs:
 
       - name: Upload browser matrix records on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: browser-matrix-${{ github.run_id }}
           path: |

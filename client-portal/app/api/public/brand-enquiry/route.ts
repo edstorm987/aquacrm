@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { notifyEnquiry } from "@/lib/email/enquiry-notifications";
-import { cleanString, isEmail, jsonError, jsonOk } from "@/lib/route-security";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { cleanString, clientIpFromRequest, isEmail, jsonError, jsonOk, rateLimit } from "@/lib/route-security";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const allowedBrands = new Set(["aquacrm", "aquaoasis-web", "edward-hallam", "milesymedia", "zimante-group"]);
 
@@ -10,6 +10,15 @@ export async function POST(request: Request) {
   const length = Number(request.headers.get("content-length") || "0");
   if (Number.isFinite(length) && length > 64 * 1024) {
     return jsonError("Request is too large.", 413);
+  }
+
+  // Public intake is SERVER-MEDIATED (Item 5): browser roles no longer have
+  // anon INSERT after the containment migration. Throttle per IP before doing
+  // any work (bot/abuse control). Distributed throttling across instances is
+  // tracked as an OWNER item (shared rate-limit store).
+  const ip = clientIpFromRequest(request);
+  if (!rateLimit(`brand-enquiry:${ip}`, 8, 60 * 60 * 1000)) {
+    return jsonError("Too many enquiries from here. Please try again later.", 429);
   }
 
   let body: Record<string, unknown>;
@@ -44,7 +53,7 @@ export async function POST(request: Request) {
     ? body.services.map(item => cleanString(item, 80)).filter(Boolean).slice(0, 12)
     : [];
 
-  const supabase = createSupabaseServerClient();
+  const supabase = createSupabaseAdminClient();
   const enquiry = {
     brand_slug: brand,
     name,
