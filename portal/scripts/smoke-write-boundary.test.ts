@@ -23,7 +23,7 @@ import {
   lockdownTenant,
   liftTenantLockdown,
 } from "../src/lib/server/auth/securityControl";
-import { getState } from "../src/server/storage";
+import { getState, mutate } from "../src/server/storage";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 73, 72, 68, 82]);
@@ -58,6 +58,23 @@ test("a frozen private upload is refused BEFORE any bytes touch disk", async () 
   // After thaw the same upload succeeds (the guard is reversible).
   const stored = await storePrivateUpload({ pathname: localKey, file: blob(PNG), contentType: "image/png", localDirectory: "write-boundary-test", localKey });
   assert.equal(stored.storageProvider, "local");
+});
+
+test("PORTAL_WRITES_FROZEN blocks writes even with NO in-state freeze (survives a restore)", () => {
+  // Simulate a restored older snapshot: securityControl has NO globalReadOnly,
+  // yet the out-of-band env freeze must still refuse writes during cutover.
+  assert.equal(isGlobalReadOnly(), false);
+  const prior = process.env.PORTAL_WRITES_FROZEN;
+  process.env.PORTAL_WRITES_FROZEN = "1";
+  try {
+    assert.throws(() => assertWritesAllowed("test.surface"), WritesFrozenError);
+    assert.throws(() => { mutate(state => { state.agencies["x"] = { id: "x" } as never; }); }, /write refused|read-only|frozen/i);
+  } finally {
+    if (prior === undefined) delete process.env.PORTAL_WRITES_FROZEN;
+    else process.env.PORTAL_WRITES_FROZEN = prior;
+  }
+  // Cleared: writes resume.
+  assert.doesNotThrow(() => assertWritesAllowed("test.surface"));
 });
 
 test("the storage write choke points call the boundary (static inventory)", () => {

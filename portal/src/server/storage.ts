@@ -1776,6 +1776,15 @@ export function mutate(fn: (state: PortalState) => void, options?: MutateOptions
     ? transaction.working
     : runtime.cache
   )?.securityControl?.globalReadOnly;
+  // OUT-OF-BAND FREEZE (Phase 5): the in-state freeze lives in securityControl,
+  // so RESTORING AN OLDER SNAPSHOT would silently clear it mid-cutover — exactly
+  // when writes must stay frozen. PORTAL_WRITES_FROZEN is an environment freeze
+  // that no state restore can touch; set it during a restore/cutover and clear
+  // it only once the restored state is verified. The control-plane escape does
+  // NOT lift it (it is not in the DB) — the operator unsets the env var.
+  if (process.env.PORTAL_WRITES_FROZEN === "1" && !options?.securityControlPlane) {
+    throw new SecurityLockdownError("out-of-band write freeze (PORTAL_WRITES_FROZEN=1)");
+  }
   if (lockdown && !options?.securityControlPlane) throw new SecurityLockdownError(lockdown.reason);
   if (transaction?.active && transaction.realmId === realmId) {
     fn(transaction.working);

@@ -130,6 +130,10 @@ secrets and a restore drill are OWNER ACTIONS. Until the drill has been run,
 treat restore capability as UNPROVEN and say so in any incident comms.
 
 1. `security-console.ts freeze --actor <you> --reason "restore" --commit` first — never restore under live writes.
+   Also set the OUT-OF-BAND env freeze `PORTAL_WRITES_FROZEN=1` on the app for
+   the cutover — the in-state freeze lives in the database, so restoring an
+   older snapshot would silently clear it; the env freeze survives the restore.
+   Clear it only after the restored state is verified.
 2. Restore the snapshot per `ops/backup/README` into a STAGING database.
 3. Verify: `supabase/rls-verify.sql` (containment invariants must be all-INFO),
    then the containment test suite against the restored DB.

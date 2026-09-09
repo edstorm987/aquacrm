@@ -241,6 +241,19 @@ export class WritesFrozenError extends Error {
 }
 
 export function assertWritesAllowed(surface: string, ctx: { tenantId?: string; actor?: string } = {}): void {
+  // Out-of-band freeze (Phase 5): survives a state restore that would clear the
+  // in-state freeze mid-cutover. Checked first so it cannot be undone by
+  // restoring an older snapshot.
+  if (process.env.PORTAL_WRITES_FROZEN === "1") {
+    recordSecurityEvent({
+      kind: "lockdown.write-refused",
+      severity: "warning",
+      tenantId: ctx.tenantId,
+      actor: ctx.actor,
+      detail: { surface, scope: "out-of-band", reason: "PORTAL_WRITES_FROZEN=1" },
+    });
+    throw new WritesFrozenError(surface, "out-of-band write freeze (PORTAL_WRITES_FROZEN=1)");
+  }
   const control = readSecurityControl();
   if (control.globalReadOnly) {
     recordSecurityEvent({
