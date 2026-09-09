@@ -398,12 +398,12 @@ export function enforceSessionSecurity(session: SessionPayload): SessionGateResu
   const liveUserId = session.sandbox?.returnUserId ?? session.userId;
   const liveAgencyId = session.sandbox?.returnAgencyId ?? session.activeAgencyId ?? session.agencyId;
   // Boolean incident switches (suspension, lockdown) carry no epoch stamp, so
-  // they are safe to evaluate against BOTH the persona and the live anchor with
-  // no false-positive risk. Epoch checks are NOT: `se` was stamped for the
-  // SESSION's own identity at issue, so comparing it to the live anchor's epoch
-  // would spuriously block a fresh sandbox session. Epochs therefore stay
-  // stamp-matched to the session's own identity; the live user's SUSPENSION is
-  // the primary incident control and it binds through sandbox here.
+  // they are safe to evaluate against BOTH the persona and the live anchor.
+  // Epoch checks are stamp-matched: issueSession stamps `se` against the LIVE
+  // ANCHOR (returnUserId/returnAgencyId for a sandbox session; the session's own
+  // identity otherwise), so the gate compares epochs against that same anchor —
+  // stamp and check always line up, and a per-user/per-tenant epoch bump on the
+  // real operator/tenant now invalidates their sandbox session too.
   const suspectUserIds = new Set([session.userId, liveUserId]);
   const lockScopes = new Set([session.activeAgencyId ?? session.agencyId, liveAgencyId].filter(Boolean) as string[]);
 
@@ -428,10 +428,10 @@ export function enforceSessionSecurity(session: SessionPayload): SessionGateResu
     if (control.tenantLockdowns?.[scope] && !ownerExempt) return { ok: false, reason: "tenant-lockdown" };
   }
 
-  // Epoch checks — stamp-matched to the session's OWN identity only.
-  const ownScope = session.activeAgencyId ?? session.agencyId;
-  if (ownScope && stamped.t < (control.tenantEpochs[ownScope] ?? 0)) return { ok: false, reason: "tenant-epoch" };
-  if (stamped.u < (control.userEpochs[session.userId] ?? 0)) return { ok: false, reason: "user-epoch" };
+  // Epoch checks — stamp-matched to the LIVE ANCHOR (== own identity when not
+  // sandboxed).
+  if (liveAgencyId && stamped.t < (control.tenantEpochs[liveAgencyId] ?? 0)) return { ok: false, reason: "tenant-epoch" };
+  if (stamped.u < (control.userEpochs[liveUserId] ?? 0)) return { ok: false, reason: "user-epoch" };
 
   if (session.sid) {
     const record = control.sessions[session.sid];

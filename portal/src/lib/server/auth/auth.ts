@@ -119,8 +119,18 @@ export function issueSession(input: IssueSessionInput): string {
     // Assume-breach containment: per-session id + security-epoch stamps. The
     // stamp read tolerates missing state (standalone mints), reading as 0s —
     // which the central gate treats as "born before the first bump".
+    //
+    // For a SANDBOX session the stamp is taken against the LIVE anchor
+    // (returnUserId / returnAgencyId), not the persona — so a per-user or
+    // per-tenant epoch bump on the real operator/tenant invalidates the sandbox
+    // session too. The central gate compares epochs against the same live
+    // anchor, so stamp and check always line up (for a non-sandbox session the
+    // anchor IS the session's own identity, so nothing changes there).
     sid: input.sid ?? newSessionId(),
-    se: currentEpochStamp(input.userId, activeAgencyId),
+    se: currentEpochStamp(
+      input.sandbox?.returnUserId ?? input.userId,
+      input.sandbox?.returnAgencyId ?? activeAgencyId,
+    ),
     iat: now,
     exp: now + COOKIE_MAX_AGE,
   };

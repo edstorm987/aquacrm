@@ -16,6 +16,8 @@ import test, { beforeEach } from "node:test";
 
 import { getState, mutate, SecurityLockdownError } from "../src/server/storage";
 import {
+  bumpTenantSecurityEpoch,
+  bumpUserSecurityEpoch,
   clearGlobalReadOnly,
   enforceSessionSecurity,
   isGlobalReadOnly,
@@ -211,4 +213,25 @@ test("a locked LIVE tenant blocks a sandbox session anchored to it (persona role
   assert.deepEqual(enforceSessionSecurity(s), { ok: false, reason: "tenant-lockdown" });
   liftTenantLockdown("live-agency", "ic");
   assert.equal(enforceSessionSecurity(s).ok, true);
+});
+
+test("a user/tenant epoch bump on the LIVE identity invalidates a sandbox session", () => {
+  // A sandbox session born before any bump (se all zeros), anchored to the live
+  // operator/tenant. Bumping the live user's epoch must fail it (user-epoch);
+  // bumping the live tenant's epoch must fail it (tenant-epoch).
+  const s = sandboxSession({ user: "live-op2", agency: "live-agency2" }, { user: "persona-demo2", agency: "demo-agency2" });
+  s.se = { g: 0, t: 0, u: 0 };
+  assert.equal(enforceSessionSecurity(s).ok, true);
+
+  bumpUserSecurityEpoch("live-op2", "ic", "rotate the live operator");
+  assert.deepEqual(enforceSessionSecurity(s), { ok: false, reason: "user-epoch" });
+
+  // A fresh sandbox session (stamped after the bump) is fine again — proves the
+  // check is stamp-matched to the live anchor, not a blanket block.
+  const fresh = sandboxSession({ user: "live-op2", agency: "live-agency2" }, { user: "persona-demo2", agency: "demo-agency2" });
+  fresh.se = { g: 0, t: 0, u: 1 };
+  assert.equal(enforceSessionSecurity(fresh).ok, true);
+
+  bumpTenantSecurityEpoch("live-agency2", "ic", "rotate the live tenant");
+  assert.deepEqual(enforceSessionSecurity(fresh), { ok: false, reason: "tenant-epoch" });
 });
