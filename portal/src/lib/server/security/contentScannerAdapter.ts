@@ -16,14 +16,21 @@ import { setContentScanner, type ContentScanner } from "@/lib/server/security/co
 
 const SCAN_TIMEOUT_MS = 30_000;
 
-export function buildEnvContentScanner(env: NodeJS.ProcessEnv = process.env): ContentScanner | null {
+// `fetchImpl` is injectable (defaults to the audited egress broker) purely so
+// the behavioural test can drive the verdict-mapping and fail-closed logic with
+// controlled scanner responses — the real broker refuses the loopback address a
+// hermetic test server would use. Real callers pass nothing.
+export function buildEnvContentScanner(
+  env: NodeJS.ProcessEnv = process.env,
+  fetchImpl: typeof brokeredFetch = brokeredFetch,
+): ContentScanner | null {
   const url = env.PORTAL_AV_SCANNER_URL?.trim();
   if (!url) return null;
   const token = env.PORTAL_AV_SCANNER_TOKEN?.trim();
   return async ({ bytes, digest, declaredType, sizeBytes }) => {
     let response;
     try {
-      response = await brokeredFetch({
+      response = await fetchImpl({
         url,
         method: "POST",
         headers: {
@@ -48,7 +55,15 @@ export function buildEnvContentScanner(env: NodeJS.ProcessEnv = process.env): Co
     if (response.status < 200 || response.status >= 300) {
       throw new Error(`scanner returned HTTP ${response.status}`);
     }
-    const parsed = JSON.parse(response.bodyText || "null") as { malicious?: unknown; detail?: unknown } | null;
+    // A non-JSON body must fail CLOSED with the same clear error as a
+    // JSON-but-shapeless one — never leak a raw SyntaxError (and never default to
+    // clean). Any malformed scanner answer → quarantine.
+    let parsed: { malicious?: unknown; detail?: unknown } | null;
+    try {
+      parsed = JSON.parse(response.bodyText || "null") as { malicious?: unknown; detail?: unknown } | null;
+    } catch {
+      throw new Error("scanner returned an unparseable verdict");
+    }
     if (!parsed || typeof parsed.malicious !== "boolean") {
       throw new Error("scanner returned an unparseable verdict");
     }
