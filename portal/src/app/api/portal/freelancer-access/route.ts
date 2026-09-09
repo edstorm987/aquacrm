@@ -49,6 +49,19 @@ export async function POST(request: Request) {
 
     // Per-job override — clear it, or set it (normalised field-by-field).
     if (body.jobId) {
+      // TENANT GUARD: the job-override store (freelancerJobOverride) is keyed
+      // GLOBALLY by jobId, and requireRole only proves this caller is *some*
+      // agency owner/manager — NOT that the job belongs to their agency. Without
+      // this check an agency owner/manager could set or clear the freelancer-
+      // access policy governing ANOTHER agency's job (e.g. name that agency's
+      // client to its contractor, reveal the fee, enable upload/message) — a
+      // cross-tenant policy-tampering IDOR. Only jobs THIS agency owns (the same
+      // set GET exposes) may be overridden.
+      const ownsJob = listFreelancerJobsForConfig(session.agencyId).some(job => job.id === body.jobId);
+      if (!ownsJob) {
+        // 404, not 403: do not confirm the existence of another agency's job id.
+        return NextResponse.json({ ok: false, error: "not found" }, { status: 404 });
+      }
       if (body.clear) {
         clearFreelancerJobOverride(body.jobId);
         return NextResponse.json({ ok: true, config: getFreelancerAccessConfig(session.agencyId), jobId: body.jobId, cleared: true });
