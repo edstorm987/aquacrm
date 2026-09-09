@@ -6,10 +6,10 @@
 - **Report date:** 2026-09-09
 - **Branch:** `security/production-gate-repair-20260908`
 - **Base (verified live remote main):** `08670b626b839a439929b006f0f152712a864a9c`
-- **Head (this report):** `d3bcc0793c28d8e0d55b7ea8c0aea6bec26a06c8`
+- **Head (this report):** `35fd2864` (see git for full SHA)
 - **Worktree:** `/private/tmp/aquacrm-gate-repair` (isolated; the developer's
   primary checkout was never reset, stashed or overwritten).
-- **Commits on the branch since base:** 37.
+- **Commits on the branch since base:** 40.
 - **Not merged, not deployed** by this pass. Pushed for independent review only.
 
 > **Adversarial verification (2026-09-09).** After the 12 items were closed, an
@@ -66,20 +66,21 @@ backends.
 
 ---
 
-## Verification gates run for THIS report (HEAD d3bcc079, isolated worktree)
+## Verification gates run for THIS report (HEAD 35fd2864, isolated worktree)
 
 | Command | Result | Evidence class |
 |---|---|---|
 | `npx tsc --noEmit` (portal) | **0 errors (exit 0)** | locally-verified |
 | Focused security suites (13 files, see below) | **116 tests / 0 fail** | locally-verified |
-| `PORTAL_BACKEND=memory` canonical suite | **7009 tests / 7006 pass / 0 fail / 3 skipped (exit 0)** | locally-verified |
+| `PORTAL_BACKEND=memory` canonical suite | **7012 tests / 7009 pass / 0 fail / 3 skipped (exit 0)** | locally-verified |
 | Website-editor gate | **49/49 files passed** | locally-verified |
 | `npm run build` (portal, webpack, 6 GB cap) | **compiled, exit 0** | locally-verified |
 | `npm run build` (client-portal, webpack) | **compiled, exit 0** | locally-verified |
 | `git diff --check` (working tree + base..HEAD) | **clean** — no whitespace/conflict markers | locally-verified |
 
-(The canonical total rose from 6996 to 7009 as behavioural pin/freeze/
-scanner-adapter tests were added during the adversarial pass.)
+(The canonical total rose from 6996 to 7012 as behavioural pin/freeze/
+scanner-adapter and API cross-tenant tests were added during the adversarial and
+API-audit passes.)
 
 The 13 focused security files:
 `smoke-radar-probe-ssrf`, `smoke-security-control-fail-closed`,
@@ -193,6 +194,43 @@ catching, no code gap). **2 flagged, both fixed:**
 
 No live vulnerability was found in either flagged item; both production
 enforcement paths were confirmed intact before the fixes.
+
+## Per-route API authorization audit (2026-09-09)
+
+Run at the owner's request ("are all the APIs secure?"). A 16-way fan-out
+reviewed **all 252 API route files** (coverage reconciled: 252/252) against five
+dimensions — authentication, authorization/role, tenant-scoping (cross-agency /
+cross-client IDOR), input validation, and CSRF/method — each auditor briefed on
+the real auth model (the `requireRole` / `requireRoleForClient` / proxy-CSRF
+contract) so it hunted the genuine cross-tenant class rather than false
+positives. Every medium+ finding was then adversarially verified (concrete
+exploit required, or refuted by naming the guard).
+
+Result: **1 confirmed vulnerability, 1 low (accepted), 0 plausible, 0 refuted.**
+
+- **CONFIRMED (cross-tenant IDOR) — FIXED (`35fd2864`).**
+  `POST /api/portal/freelancer-access` wrote/cleared a per-job override in a
+  store keyed globally by `jobId`; `requireRole` proved the caller was an agency
+  owner/manager but not that the job was theirs, so agency A could tamper with
+  agency B's freelancer-access policy (name B's client to its contractor, reveal
+  the fee, enable upload/message). Fixed with a per-route ownership guard (404 on
+  a non-owned job); `smoke-freelancer-access-tenant-isolation` drives the real
+  handler across the boundary. Severity medium (job ids are 64-bit random with no
+  enumeration primitive found; impact is cross-tenant policy tampering, not
+  direct exfiltration).
+- **LOW (accepted, not changed) — `POST /api/tenants/seed`.** A dev seeder with
+  default credentials ships in the bundle; in production it is gated by
+  `getSession()` non-null. Analysis shows it is **effectively unreachable in
+  production**: with a populated store it returns 409 (agencies exist), and on an
+  empty store no user exists to hold a session → 403. The two guards are mutually
+  exclusive. Not changed here because its prod-with-session path is likely
+  load-bearing for the isolated acceptance lane; recommended hardening (make it
+  strictly dev-only, 403 in production regardless of session) is left as an owner
+  decision.
+
+This audit reviewed authorization logic by reading code; it is not a penetration
+test and did not exercise every route at runtime. No route outside the one fix
+was modified.
 
 ## Migrations created but NOT applied
 
@@ -387,6 +425,6 @@ the readiness-pointer edit invalidated; `aae1ec60`/(this) update the ledger.
 ## Is GitHub CI green?
 Not observed on this branch yet (owner to run/enable). The CI pipeline itself
 was repaired here (Node 22, SHA-pinned actions, deterministic discovery, new
-required `containment` and `client-portal` jobs). Locally at HEAD d3bcc079:
-typecheck 0, both builds green, canonical suite 7006 pass / 0 fail, focused
-security 116/0.
+required `containment` and `client-portal` jobs). Locally at HEAD 35fd2864:
+typecheck 0, both builds green, canonical suite 7009 pass / 0 fail, focused
+security 116/0, and a full per-route API authorization audit (252/252).
