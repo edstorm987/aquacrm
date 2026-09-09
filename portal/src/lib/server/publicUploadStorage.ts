@@ -184,6 +184,8 @@ export async function storePublicUpload(
 // proxied back through the app.
 export async function deleteSupabasePublicUpload(storageKey: string): Promise<boolean> {
   assertLiveProviderAccess("Public media deletion");
+  // Item 4 write boundary: a global write-freeze stops public-media deletes too.
+  assertWritesAllowed("storage.public-delete");
   if (!supabasePublicUploadsConfigured() || !storageKey.trim()) return false;
   const bucket = resolvePublicBucket();
   const admin = createSupabaseAdminClient();

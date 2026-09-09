@@ -257,6 +257,10 @@ export async function deletePrivateUpload(
   const storageKey = (input.storageKey ?? "").trim();
   if (!provider || !storageKey) return { ok: true, outcome: "skipped" };
   if (isSandboxDataRealm()) return { ok: true, outcome: "skipped" };
+  // Phase 2/Item 4 write boundary: a global write-freeze stops destructive
+  // deletes too (an active-incident freeze means "nothing mutates"); remediation
+  // deletes resume after thaw. No tenant context here → global scope only.
+  assertWritesAllowed("storage.private-delete");
 
   try {
     if (provider === "supabase") {
