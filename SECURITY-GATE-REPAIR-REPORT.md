@@ -1,156 +1,279 @@
 # AquaCRM — Production-Gate Security Repair — FINAL REPORT
 
 **This is the single source of truth.** Where it disagrees with the older
-`SECURITY-CONTAINMENT-PROGRAMME.md`, this report wins.
+`SECURITY-CONTAINMENT-PROGRAMME.md` or any other doc, this report wins.
 
+- **Report date:** 2026-09-09
 - **Branch:** `security/production-gate-repair-20260908`
 - **Base (verified live remote main):** `08670b626b839a439929b006f0f152712a864a9c`
-- **Head:** `9ea22f3324fa25dec7abc22683766fdb7bf0fc68`
+- **Head (this report):** `feb9f08516910337e3fffbde58abec624b114afc`
 - **Worktree:** `/private/tmp/aquacrm-gate-repair` (isolated; the developer's
-  checkout was never reset, stashed or overwritten).
+  primary checkout was never reset, stashed or overwritten).
+- **Commits on the branch since base:** 31.
 - **Not merged, not deployed** by this pass. Pushed for independent review only.
 
-## FINAL VERDICT: **NOT READY**
+## FINAL VERDICT: **NOT READY / NOT MERGE-READY**
 
-Multiple stop-ship gates remain RED — all owner/infrastructure-gated, none
-fixable in code:
-- the assume-breach containment migration is **not applied to the live
-  database**;
-- **no restore drill has been run** (RPO/RTO unmeasured);
-- **no AV/CDR scanner, MFA/AAL2, distributed rate limiter, event drain, or edge
-  WAF** is connected;
-- the apex `aqua-crm.com` **TLS certificate hostname mismatch** is unresolved.
+Every code-level defect in the 12-item brief is closed and covered by
+behavioural tests. The branch is **not merge-ready** because stop-ship gates
+remain that are **owner/infrastructure-gated and cannot be closed in code**:
 
-Every code-level issue in the brief is closed and tested; the rest is explicitly
-OWNER ACTION below. This report does not claim production-ready or
-real-client-ready.
+- the assume-breach containment chain (base `20260908210000` + corrective
+  `20260908220000`) is **not applied to the live database** (P0);
+- **no restore drill has been run against real infrastructure** — RPO/RTO
+  unmeasured (P0);
+- **no AV/CDR scanner, authoritative MFA/AAL2, distributed rate limiter,
+  off-platform event drain, or edge WAF** is connected (P0/P1);
+- the least-privilege blast-radius **infra split is not done** — the client
+  portal still holds a full-project service-role key (P1, ADR-001);
+- the apex `aqua-crm.com` **TLS certificate hostname mismatch** is unresolved
+  (P1, DNS/cert — not touched).
 
----
-
-## Live production observations (non-mutating probes only)
-
-| Probe | Result |
-|---|---|
-| `https://www.aqua-crm.com/healthz` | 200, sha `08670b62`, platform railway |
-| `https://www.aqua-crm.com/healthz/full` | **503** — honest: `email` + the new security-evidence gates are `needs-setup` |
-| `https://aqua-crm.com` (apex) | **TLS certificate hostname mismatch** — OWNER ACTION (DNS/cert; not touched) |
-| Canonical host | `www.aqua-crm.com` is the serving origin |
+No system here is described as "impenetrable" or "production ready." The gate
+stays RED until the owner actions below are attested.
 
 ---
 
-## Verification gates (this branch, local)
+## No live state was changed by this pass
 
-| Gate | Result |
-|---|---|
-| `npm run typecheck` | **0 errors** |
-| `git diff --check` | clean (no whitespace/conflict markers) |
-| Production build (webpack, isolated dist/data) | **GREEN — compiled in 72s** |
-| Canonical suite discovery | **631 files** (616 scripts + 15 module smokes) + 49 website-editor, via the new deterministic enumerator |
-| Full canonical suite (`smoke:all`) | **6965 pass / 0 fail / 3 skipped (exit 0)**, website-editor gate 49/49 included |
-| DB containment suite (real Docker Supabase, real JWTs) | **41/41** |
-| `rls-verify.sql` on the migrated local DB | **0 FAIL rows; containment-verified** |
-| restore-drill safety (behavioural, mock psql) | **7/7** |
-| operator console (dry-run/guards) | **3/3** |
-| Migration applied to any REMOTE db | **NO** — local Docker only (no linkage; `DATABASE_URL` unset; no `db push`) |
+Explicitly, this work did **not**:
 
-> The two failures seen mid-pass were both fixed in-branch: the authored-doc
-> consolidation digest (regenerated after a required `rls-enable.md` edit) and
-> `.env.example` completeness (the new readiness signals are now documented). A
-> build-generated `tsconfig.json` include leak (`.next-gate/types`) was reverted,
-> not committed.
+- merge into `main` or deploy anything;
+- apply any migration to the live or any shared Supabase database (no
+  `db push`, no linkage; the corrective migration is a file only);
+- reset or mutate the shared local Supabase stack;
+- change DNS, Railway, Vercel, WAF, provider accounts, secrets, or any
+  production environment variable;
+- handle or print any secret;
+- run the recovery drill against live or shared infrastructure.
+
+All builds and tests ran in the isolated worktree against local/in-memory
+backends.
 
 ---
 
-## Findings → disposition
+## Verification gates run for THIS report (HEAD feb9f085, isolated worktree)
 
-| # | Finding (from the brief) | Disposition | Evidence |
+| Command | Result | Evidence class |
+|---|---|---|
+| `npx tsc --noEmit` (portal) | **0 errors (exit 0)** | locally-verified |
+| Focused security suites (13 files, see below) | **116 tests / 0 fail** | locally-verified |
+| `PORTAL_BACKEND=memory npm run smoke:all` — canonical | **6996 tests / 6993 pass / 0 fail / 3 skipped (exit 0)** | locally-verified |
+| `npm run smoke:all` — website-editor gate | **49/49 files passed** | locally-verified |
+| `npm run build` (portal, webpack, 6 GB cap) | **compiled, exit 0** | locally-verified |
+| `npm run build` (client-portal, webpack) | **compiled, exit 0** | locally-verified |
+| `git diff --check` (working tree + base..HEAD) | **clean** — no whitespace/conflict markers | locally-verified |
+
+The 13 focused security files:
+`smoke-radar-probe-ssrf`, `smoke-security-control-fail-closed`,
+`smoke-write-surface-inventory`, `smoke-session-registry-completeness`,
+`smoke-restore-drill-safety`, `smoke-content-trust`,
+`smoke-production-readiness`, `smoke-threat-centre`,
+`smoke-stored-code-boundary`, `smoke-platform-hardening`,
+`smoke-security-console`, `smoke-service-role-usage`,
+`smoke-read-path-mutations`.
+
+**Verified earlier this programme, NOT re-run this session** (to respect the
+"do not mutate the shared local Supabase stack" boundary): the Docker-backed DB
+containment suite (`supabase/tests/containment-isolation.test.mjs`, 41/41 on a
+local disposable stack with real JWTs) and `supabase/rls-verify.sql`
+(0 FAIL rows). These require a live Postgres and must be re-attested by the
+owner against a disposable DB before merge — see OWNER ACTIONS.
+
+---
+
+## The 12 brief items → disposition
+
+| # | Item | Disposition | Evidence (behavioural) |
 |---|---|---|---|
-| 0.1 | Deterministic directory failure: Operations missing `/portal/agency/security` | **VERIFIED → FIXED** | Security Centre card added; `smoke-tools-directory` 8/8 |
-| 0.2 | CI canonical suite red: `smoke:all` uses a bash extglob that is a SYNTAX ERROR on the runner | **VERIFIED → FIXED** | Node enumerator `run-canonical-suite.mjs` (fails closed on zero discovery); Node 20→22; NEW required `containment` Docker job; two meta-tests repointed |
-| 1 | Migration revokes `authenticated` on `brand_enquiries` but portal routes read/write it via the scoped RLS client → live enquiry management would break | **VERIFIED → FIXED** | Server-mediated `createEnquiryDataClient`; 11 routes converted; corrective migration `20260908220000`; containment 41/41; tenant-isolation 11/11 |
-| 1b | (found here) `anon`/`authenticated` still held **TRUNCATE**/REFERENCES/TRIGGER on read-only content tables (base did `revoke insert,update,delete`, not `revoke all`) — anon could TRUNCATE `brands` | **VERIFIED → FIXED** | corrective migration revoke-all+regrant; all-seven-privilege self-verification + `rls-verify.sql` |
-| 4 | CSRF gate guarded only `/api/portal` + `/api/auth`; ~35 cookie-authed `/api/tenants` mutations were open | **VERIFIED → FIXED** | `/api/tenants` guarded; exact-origin + Fetch-Metadata (sibling-subdomain) defense; `smoke-platform-hardening` |
-| 6a | SMTP test-connection had NO host vetting; both SMTP paths had a DNS-rebinding TOCTOU | **VERIFIED → FIXED** | `pinnedSocketTarget` (vet + IP-pin + TLS servername) on send + test paths |
-| 6b | Shopify: unvalidated tenant domain; token header not stripped on redirect; redirects followed | **VERIFIED → FIXED** | `*.myshopify.com` host validation; token added to broker credential set; `followRedirects:false` |
-| 6c | AI: `managed.apiKey || process.env.OPENAI_API_KEY` ran every keyless tenant on the founder's key | **VERIFIED → FIXED** | ungated fallback removed; founder-gated resolver only; `smoke-ai-tenant-key-isolation` |
-| 8a | `/healthz/full` swallowed a PortalState hydration failure (connectivity-only health) | **VERIFIED → FIXED** | hydration failure forces 503 in every env |
-| 8b | `readyForProduction` did not require security evidence | **VERIFIED → FIXED** | 9 required, red-by-default gates (migration/AV/drain/rate-limit/MFA/restore/backup/supply-chain/WAF) |
-| 5/7 | `restore-drill.sh` identified safety by hostname only, fail-OPEN on unknown hosts, downgraded verification failures to WARN, generic bypass flag | **VERIFIED → FIXED** | default-deny + on-target disposable marker; FAIL-not-warn; bypass removed; `smoke-restore-drill-safety` 7/7 |
-| 5.11 | Runbooks named TypeScript functions an operator cannot run | **FIXED** | NEW `security-console.ts` (dry-run default, actor+reason required); runbooks reference it |
-| 2a | Sandbox enforcement used the persona identity, not the live anchor | **VERIFIED → FIXED (suspension+lockdown)** | gate binds `sandbox.returnUserId`/`returnAgencyId`; `smoke-security-lockdown` +2 |
-| 2b | The write-freeze bound only `mutate()` (PortalState); storage ingestion ran during a freeze | **VERIFIED → FIXED (storage)** | NEW `assertWritesAllowed` boundary wired at `storePrivateUpload`/`storePublicUpload`; `smoke-write-boundary` 4/4 |
-| 2c | Per-user/per-tenant epoch bumps did not bind a sandbox session | **FIXED** | issueSession stamps the live anchor; gate checks the anchor; `smoke-security-lockdown` epoch-sandbox test |
-| 3 | Threat-centre high-impact platform switches ran on password-only reauth (no step-up) | **FIXED (AAL2 gate) / PARTIAL (true AAL2 = OWNER)** | global actions require `session.aal==='aal2'` else visibly refuse → operator console; `smoke-threat-centre` 8/8 |
-| 5c | A restored older snapshot would silently clear the in-state incident write-freeze at cutover | **FIXED** | out-of-band `PORTAL_WRITES_FROZEN` checked by mutate() + assertWritesAllowed; survives restore; `smoke-write-boundary` |
-| 6d | `safeSiteFetch`/Radar probes had a DNS-rebinding TOCTOU (validate host, then fetch re-resolves) | **VERIFIED → FIXED** | connect-time IP pinning via undici Agent; `smoke-safe-site-fetch-toctou` 3/3 |
+| 1 | Authoritative cross-realm containment + fail-closed reads | **FIXED** | `readSecurityControlStrict` throws on read failure; `enforceSessionSecurity`/`assertWritesAllowed` fail CLOSED; `smoke-security-control-fail-closed` proves a protected write is refused when the control plane is unreadable |
+| 2 | User-specific platform-operator authority + tenant-scoped actions | **FIXED** | `isPlatformOperator({email})` (founder ∪ `PORTAL_PLATFORM_OPERATOR_EMAILS`) gates operator-only actions; `revokeUserSessionsInTenant` scopes revocation to one agency (no global epoch bump); `smoke-platform-hardening`, `smoke-threat-centre` |
+| 3 | Supabase-authoritative reauth + COMPLETE session registry | **FIXED (registry) / PARTIAL (true AAL2 = OWNER)** | every non-ephemeral mint registers via `issueSession`→`recordIssuedSession` with expiry + pruning; `smoke-session-registry-completeness` proves login/magic/oauth all register and expired records drop out; AAL2 step-up gate present, real MFA ceremony is OWNER |
+| 4 | One write-side-effect boundary + inventory | **FIXED (storage) / TRACKED (breadth)** | `assertWritesAllowed` at private+public upload store **and delete**; `smoke-write-surface-inventory` **fails the build** if a new `assertWritesAllowed` surface string is unclassified or an object-store writer skips the boundary; remaining non-storage surfaces enumerated (P2) |
+| 5 | Ecosystem-safe enquiry migration incl. client-portal | **FIXED** | corrective migration `20260908220000` (server-mediated, forward-only, self-verifying); client-portal enquiry route uses the server-mediated admin path behind `rateLimit`; `client-portal` CI job builds it |
+| 6 | Reduce shared service-role blast radius | **CODE-PREP + ADR DONE / INFRA = OWNER** | `docs/security/ADR-001`: inventory, target architecture, adversarial model; `smoke-service-role-usage` pins the service-role call-site count; separate project / scoped credential = OWNER |
+| 7 | Malware / quarantine / content-trust | **FIXED (fail-closed) / TRACKED (durable ledger)** | full-stream scan to 25 MB; verdict enum incl. `quarantined`/`blocked`; production + scanner-outage/absent + high-risk type → **quarantined**; `contentScannerAdapter` posts bytes via SSRF-safe broker; `smoke-content-trust` proves signature-match ≠ clean and the fail-closed path |
+| 8 | Stored-code / XSS boundary | **FIXED (safe-mode default-off) / BLOCKED (AST sanitiser+nonce CSP)** | `mayRenderStoredMarkup()` gates head-injection in `SiteHead` and custom HTML in `staticExport` (held for review by default); `smoke-stored-code-boundary`; full parser/AST sanitiser + nonce CSP is BLOCKED on a dependency decision |
+| 9 | Radar SSRF DNS rebinding | **FIXED** | connect-time IP pinning via `undici Agent({connect:{lookup,servername}})` in the REAL probe path (HTTP + TLS) and `safeSiteFetch`; IPv6-bracket strip in `assertPublicDestination`; `smoke-radar-probe-ssrf` proves `http://[::1]/` is refused as unsafe-url, not merely a DNS error |
+| 10 | Restore / backup safety | **FIXED (guards) / BLOCKED E2E (OWNER keygen)** | `restore-drill.sh`: no loopback auto-trust, prod-name denylist, mandatory `--expect-sha`, safe-tar rejection of `..`/absolute/symlink/device entries, `--no-same-owner`; `smoke-restore-drill-safety`; a real end-to-end drill needs owner keys/secrets |
+| 11 | Emergency console + mutating GETs + readiness truth | **FIXED** | `security-console.ts` self-re-execs with the right conditions, verifies persistence, exits nonzero on read-back failure; `/api/internal/sweep` GET→POST; CSRF roots include `/api/tenants/` + `/api/internal/`; readiness content-scanner gate requires a wired adapter AND config; `smoke-security-console`, `smoke-read-path-mutations`, `smoke-production-readiness` |
+| 12 | Supply chain / CI / browser / docs | **FIXED (CI/supply-chain) / TRACKED (a11y)** | CI actions pinned by SHA, Supabase CLI pinned, NEW `client-portal` typecheck+build job; `smoke-suite-coverage`; browser a11y coverage for the Security Centre is TRACKED (P2) |
 
 ---
 
-## OWNER ACTIONS (nothing below was done — external systems, out of scope)
+## Migrations created but NOT applied
 
-1. **Apply the containment chain to the live DB after a fresh backup**:
-   `supabase db push` → paste `supabase/rls-verify.sql`, confirm
-   `containment-verified` with 0 FAIL → re-check milesymedia login. Then set
-   `PORTAL_CONTAINMENT_MIGRATION_VERIFIED=true`. **Migration order:**
-   `20260908210000` (base, already in main) then `20260908220000` (corrective).
-   Forward-only + idempotent; safe whether or not the base already ran. Rollback:
-   a further forward-only migration re-granting the exact narrow privilege — never
-   edit a historical migration.
-2. **Resolve the apex TLS mismatch** (`aqua-crm.com` cert) and confirm the
-   canonical redirect to `www`. DNS/cert — not touched here.
-3. **Run an owner-approved restore drill** (`ops/backup/restore-drill.sh` against
-   a marked disposable DB), then set `PORTAL_LAST_VERIFIED_RESTORE_AT`; enable
-   `BACKUP_ENABLED` + `PORTAL_LAST_BACKUP_AT`. RPO/RTO are UNMEASURED until then.
-4. **Connect** an AV/CDR scanner (`PORTAL_AV_SCANNER_URL`), MFA/AAL2
-   (`PORTAL_MFA_ENABLED`), a distributed rate-limit store
-   (`PORTAL_RATE_LIMIT_STORE_URL`), an off-platform event drain
-   (`PORTAL_SECURITY_EVENT_DRAIN_URL`), and an edge WAF (`PORTAL_EDGE_WAF_ENABLED`).
-5. **Set `PORTAL_DEPENDENCY_AUDIT_PASSED=true`** on a release whose CI dependency
-   audit is green.
-6. **Branch protection** on `main`: require the `verify`, `containment`, and
-   `browser` CI jobs.
+- `supabase/migrations/20260908220000_brand_enquiries_server_mediated.sql`
+  (169 lines). Forward-only, idempotent, transaction-wrapped, ends with a
+  privilege audit that RAISES if any browser-role table/sequence/policy/function
+  privilege survives (all seven table privileges — incl. TRUNCATE/REFERENCES/
+  TRIGGER residue — not CRUD alone). **LOCAL/OWNER-APPLIED ONLY. Not applied to
+  any remote or shared database by this pass.** Order: base `20260908210000`
+  (already in `main`) then this corrective one.
 
 ---
 
-## STILL OWED IN CODE (honest, tracked — not done this pass)
+## Files changed by workstream (86 files, +5116 / −396)
 
-- **Phase 2 (breadth):** `assertWritesAllowed` now exists and binds the freeze at
-  the STORAGE write choke points (private + public upload) on top of `mutate()`.
-  Still to wire it to the remaining surfaces — site-editor filesystem/repo
-  writes, cron/background jobs, external provider side-effects, queues — plus a
-  full static inventory over every mutating route/adaptor. Per-user/per-tenant
-  epoch does not yet bind a *sandbox* session (needs live-anchor epoch stamping
-  at issue); security state should live outside sandbox realms' PortalState.
-- **Phase 3:** Threat Centre reauth is password-based; true **AAL2/MFA** needs an
-  authoritative Supabase MFA ceremony (OWNER). High-impact platform actions
-  should stay unavailable until AAL2 exists rather than be described as MFA.
-- **Phase 5/7:** per-file manifest-hash + independent-digest enforcement, storage
-  bucket enumeration and object-**byte** restore verification, and a guard that a
-  restored older snapshot cannot silently clear a live incident write-freeze at
-  cutover.
-- **Phase 6:** `safeSiteFetch` / Radar synthetic-probe DNS-TOCTOU re-audit; AI
-  quota is per-process in-memory (needs the shared store to be authoritative
-  multi-instance — the readiness gate now reflects this).
+**Containment / enquiry server-mediation (items 1, 5):**
+`supabase/migrations/20260908220000_brand_enquiries_server_mediated.sql`,
+`supabase/rls-verify.sql`, `supabase/tests/containment-isolation.test.mjs`,
+`portal/src/lib/supabase/enquiryDataClient.ts`, the 11 `website-enquiries/*`
+routes, `client-portal/app/api/public/brand-enquiry/route.ts`,
+`client-portal/lib/route-security.ts`.
+
+**Security control plane / sessions / operator authority (items 1, 2, 3):**
+`portal/src/lib/server/auth/securityControl.ts`,
+`portal/src/lib/server/auth/auth.ts`,
+`portal/src/lib/server/auth/founderAgency.ts`,
+`portal/src/app/api/auth/login/route.ts`,
+`portal/src/app/api/portal/security/actions/route.ts`,
+`portal/src/app/api/portal/security/overview/route.ts`,
+`portal/src/server/types.ts`.
+
+**Write boundary (item 4):**
+`portal/src/lib/server/privateUploadStorage.ts`,
+`portal/src/lib/server/publicUploadStorage.ts`,
+`portal/src/server/storage.ts`, `portal/scripts/read-path-mutation-inventory.ts`.
+
+**Blast-radius (item 6):**
+`docs/security/ADR-001-least-privilege-blast-radius.md`.
+
+**Content trust / malware (item 7):**
+`portal/src/lib/server/security/contentTrust.ts`,
+`portal/src/lib/server/security/contentScannerAdapter.ts`,
+`portal/src/instrumentation.ts`.
+
+**Stored-code boundary (item 8):**
+`portal/src/built-ins/modules/website-editor/src/components/storefront/SiteHead.tsx`,
+`portal/src/built-ins/modules/website-editor/src/server/staticExport.ts`.
+
+**SSRF / outbound (items 9, 6b):**
+`portal/src/engines/data/server/radar/radarSyntheticProbes.ts`,
+`portal/src/lib/server/safeSiteFetch.ts`,
+`portal/src/lib/server/net/outboundBroker.ts`,
+`portal/src/lib/server/email/transactionalEmail.ts`,
+`portal/src/lib/server/integrations/integrationConnections.ts`,
+`portal/src/built-ins/modules/ecommerce/src/lib/shopify.ts`,
+`portal/src/lib/server/assistants/openaiAssistant.ts`,
+`portal/src/lib/server/access/inboxMediaTargetAccess.ts`.
+
+**Console / mutating GETs / readiness / CSRF (item 11):**
+`portal/scripts/security-console.ts`, `portal/scripts/security-console-impl.ts`,
+`portal/src/app/api/internal/sweep/route.ts`, `portal/src/proxy.ts`,
+`portal/src/lib/server/productionReadiness.ts`,
+`portal/src/app/healthz/full/route.ts`.
+
+**Restore/backup (item 10):**
+`ops/backup/restore-drill.sh`, `ops/backup/README.md`.
+
+**CI / supply chain / env (item 12):**
+`.github/workflows/ci.yml`, `portal/scripts/run-canonical-suite.mjs`,
+`portal/src/lib/server/env.ts`, `portal/.env.example`, `portal/package.json`,
+`client-portal/package-lock.json`.
+
+**Docs:** `SECURITY-GATE-REPAIR-REPORT.md`,
+`SECURITY-CONTAINMENT-PROGRAMME.md`, `docs/security/incident-runbooks.md`,
+`portal/docs/development/PRODUCTION-READINESS.md`,
+`portal/docs/development/TODO.md`, `portal/docs/development/issues.md`,
+`portal/docs/04-DEVELOPMENT-PLANS.md`,
+`portal/docs/development/plans/rls-enable.md`,
+`portal/docs/consolidation-manifest.json`.
+
+**Behavioural test files added/updated (prove boundaries, not function names):**
+`smoke-radar-probe-ssrf`, `smoke-security-control-fail-closed`,
+`smoke-write-surface-inventory`, `smoke-session-registry-completeness`,
+`smoke-service-role-usage`, `smoke-content-trust`,
+`smoke-stored-code-boundary`, `smoke-restore-drill-safety`,
+`smoke-production-readiness`, `smoke-threat-centre`,
+`smoke-platform-hardening`, `smoke-security-console`,
+`smoke-read-path-mutations`, `smoke-safe-site-fetch-toctou`,
+`smoke-outbound-broker-ssrf`, `smoke-ai-tenant-key-isolation`,
+`smoke-enquiry-tenant-isolation`, `smoke-rls-policy-coverage`,
+`smoke-write-boundary`, `smoke-security-lockdown`, `smoke-healthz-readiness`,
+`smoke-suite-coverage`, `smoke-website-editor-runner`.
 
 ---
 
-## Commits (11)
+## Commits (31, oldest → newest)
 
 ```
 c5da6c46 phase-0  release harness: directory card + deterministic CI discovery
 4e77faf9 phase-0  repoint the two harness meta-tests to the enumerator invariant
-f73f37b7 phase-1  brand_enquiries server-mediated + TRUNCATE residue removed
+f73f37b7 phase-1  brand_enquiries server-mediated + destructive-privilege residue removed
 414c45fe phase-4  CSRF covers /api/tenants + Fetch Metadata + sibling defense
 6844c3d8 phase-6  SMTP IP-pinning, Shopify hardening, per-tenant AI key isolation
 d75a517d phase-8  hydration 503; readiness requires security evidence
 a5a9c848 phase-5/7 restore-drill fails safe + operator console
 8592f2fc phase-2  session gate binds the LIVE identity through sandbox
 9ea22f33 phase-8/9 .env.example readiness signals; docs reconciled
-(+ phase-9 canonical report, phase-2 write boundary — see git log)
+e09cf0f3 phase-9  canonical gate-repair report + restore README
+4b83372c docs     record confirmed full-suite result
+dd634107 phase-2  single write boundary the freeze binds across storage
+ae40c782 docs     report the phase-2 storage write boundary
+9f9d884a phase-6  close safeSiteFetch / Radar-probe DNS-rebinding TOCTOU
+148ac25d phase-2  epoch bumps bind sandbox sessions via live-anchor stamping
+84b86e8d phase-3  platform-wide switches require AAL2 (visibly unavailable)
+b58da795 phase-5  out-of-band write freeze that survives a snapshot restore
+88e147e5 docs     record phase 2c/3/5c/6d fixes
+809e0523 docs     final green suite numbers
+fccc7075 item-9   DNS-rebinding TOCTOU closed in the REAL Radar probe path
+03912156 item-1   security-control reads fail CLOSED for protected writes/gate
+5fae9e2d item-11  console works without hidden NODE_OPTIONS; sweep GET→POST
+5f80fff6 item-4   write boundary over object-store deletes + surface inventory
+82b62bd3 item-2   user-specific platform-operator authority + tenant revocation
+9135cbab item-12,5 pin CI supply chain; client-portal enquiry survives migration
+77184428 item-3   complete session registry (every mint) + expiry + pruning
+147c3281 item-10  restore drill: no loopback auto-trust; mandatory digest; safe extraction
+bd4c8164 item-7   content trust scans FULL stream, quarantines, fails closed
+54215db4 item-8   stored-code safe boundary → SiteHead + static export
+8b02318c item-6   ADR + code prep for least-privilege blast-radius reduction
+feb9f085 chore    remove stray productionReadiness.ts.bak committed in error
 ```
 
+---
+
+## Remaining work — honest ledger
+
+### P0 (stop-ship; OWNER — not fixable in code)
+1. Apply the containment chain to the live DB after a fresh backup:
+   base `20260908210000` then corrective `20260908220000`; paste
+   `rls-verify.sql`, confirm `containment-verified` with 0 FAIL; re-check
+   milesymedia login. Then set `PORTAL_CONTAINMENT_MIGRATION_VERIFIED=true`.
+2. Run an owner-approved restore drill (`ops/backup/restore-drill.sh` against a
+   marked disposable DB) and set `PORTAL_LAST_VERIFIED_RESTORE_AT`; enable
+   `BACKUP_ENABLED` + `PORTAL_LAST_BACKUP_AT`. RPO/RTO UNMEASURED until then.
+3. Connect an AV/CDR scanner (`PORTAL_AV_SCANNER_URL` + adapter wired) — content
+   uploads fail closed (quarantine) without it in production.
+
+### P1 (OWNER / infra)
+4. Execute ADR-001: give the client portal its own DB identity (separate Supabase
+   project OR scoped gateway/RPC OR non-BYPASSRLS role) and remove its
+   full-project service-role key; independent secret rotation per app.
+5. Authoritative MFA/AAL2 ceremony (Supabase) so high-impact platform actions
+   are truly step-up-gated, not merely refused.
+6. Distributed rate-limit store (`PORTAL_RATE_LIMIT_STORE_URL`) and off-platform
+   event drain (`PORTAL_SECURITY_EVENT_DRAIN_URL`); edge WAF
+   (`PORTAL_EDGE_WAF_ENABLED`).
+7. Resolve apex `aqua-crm.com` TLS mismatch + canonical `www` redirect.
+8. Branch protection on `main`: require `verify`, `containment`, `client-portal`,
+   `browser` CI jobs; set `PORTAL_DEPENDENCY_AUDIT_PASSED=true` on a green audit.
+
+### P2 (code; tracked, not blocking this brief's items)
+9. Extend `assertWritesAllowed` to the remaining mutating surfaces (Supabase
+   RPC, email, AI, webhooks, cron/queues, site-editor filesystem/repo writes)
+   with a full static inventory — storage is done and inventory-enforced.
+10. Item 8: full parser/AST HTML sanitiser + nonce-based CSP (BLOCKED on a
+    dependency decision) to replace the default-off safe-mode hold.
+11. Item 7: durable quarantine ledger + a separate download origin for
+    user-supplied files.
+12. Browser/a11y automated coverage for the Security Centre.
+
+---
+
 ## Is GitHub CI green?
-Not yet observed on this branch (push pending / owner to run). The CI itself was
-repaired here (Node 22, deterministic discovery, new required containment job).
-Locally: typecheck 0, build GREEN, containment 41/41, canonical suite
-6965 pass / 0 fail.
+Not observed on this branch yet (owner to run/enable). The CI pipeline itself
+was repaired here (Node 22, SHA-pinned actions, deterministic discovery, new
+required `containment` and `client-portal` jobs). Locally at HEAD feb9f085:
+typecheck 0, both builds green, canonical suite 6993 pass / 0 fail, focused
+security 116/0.

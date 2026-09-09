@@ -10,6 +10,15 @@ owns detailed findings, and [status.md](status.md) retains the verification
 history. Older readiness plans are historical once this file records a newer
 verification.
 
+> **Security readiness lives in its own ledger.** For the production-gate
+> security repair (branch `security/production-gate-repair-20260908`, **not
+> merged**), the single dated source of truth is the repo-root
+> `SECURITY-GATE-REPAIR-REPORT.md` — findings, dispositions, the live SHA, the
+> honest gate ledger (observed / locally-verified / owner-attested / blocked),
+> and OWNER ACTIONS. That report's verdict is **NOT READY / not merge-ready**
+> while owner/live gates remain. This file assesses `main`; it does not claim
+> the security branch's state as merged.
+
 > **UI Wave 9 (2026-09-08, uncommitted on `integration/ui-final-20260908`).** UI gate:
 > **PASS — all ten items closed.** Closed with direct evidence: a harness that
 > can no longer report a false pass, all 8 write journeys driven through the UI, a real
