@@ -45,8 +45,8 @@ real-client-ready.
 | `npm run typecheck` | **0 errors** |
 | `git diff --check` | clean (no whitespace/conflict markers) |
 | Production build (webpack, isolated dist/data) | **GREEN — compiled in 72s** |
-| Canonical suite discovery | **629 files** (614 scripts + 15 module smokes) + 49 website-editor, via the new deterministic enumerator |
-| Full canonical suite (`smoke:all`) | **6957 pass / 0 fail / 3 skipped (exit 0)**, website-editor gate included (the pre-existing `smoke-product-workspace-lease-fencing` contention flake did not trigger this run; it passes 3/3 in isolation regardless) |
+| Canonical suite discovery | **631 files** (616 scripts + 15 module smokes) + 49 website-editor, via the new deterministic enumerator |
+| Full canonical suite (`smoke:all`) | **6965 pass / 0 fail / 3 skipped (exit 0)**, website-editor gate 49/49 included |
 | DB containment suite (real Docker Supabase, real JWTs) | **41/41** |
 | `rls-verify.sql` on the migrated local DB | **0 FAIL rows; containment-verified** |
 | restore-drill safety (behavioural, mock psql) | **7/7** |
@@ -153,4 +153,4 @@ a5a9c848 phase-5/7 restore-drill fails safe + operator console
 Not yet observed on this branch (push pending / owner to run). The CI itself was
 repaired here (Node 22, deterministic discovery, new required containment job).
 Locally: typecheck 0, build GREEN, containment 41/41, canonical suite
-6957 pass / 0 fail.
+6965 pass / 0 fail.
