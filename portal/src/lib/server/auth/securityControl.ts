@@ -42,13 +42,44 @@ const EMPTY: SecurityControlState = {
   sessions: {},
 };
 
-/** Tolerant read: absent state (fresh tenant, standalone scripts) = all zeros. */
+/**
+ * Tolerant read: absent state (fresh tenant, standalone scripts) = all zeros.
+ * Use ONLY where "no control state yet" legitimately means all-clear (e.g.
+ * stamping epochs at session issue, where 0s = "born before the first bump").
+ * For protected writes and privileged actions use readSecurityControlStrict —
+ * a read FAILURE must never be treated as all-clear.
+ */
 export function readSecurityControl(): SecurityControlState {
   try {
     return getState().securityControl ?? EMPTY;
   } catch {
     return EMPTY;
   }
+}
+
+/** Thrown when the security-control plane cannot be read for a protected decision. */
+export class SecurityControlUnavailableError extends Error {
+  readonly code = "security_control_unavailable";
+  constructor() {
+    super("[security] the security control plane could not be read — failing closed.");
+    this.name = "SecurityControlUnavailableError";
+  }
+}
+
+/**
+ * Fail-CLOSED read for protected writes / privileged actions. A missing
+ * `securityControl` field is fine (fresh tenant → all zeros); a FAILURE to read
+ * state at all throws, so the caller denies rather than proceeds on a fabricated
+ * all-clear object.
+ */
+export function readSecurityControlStrict(): SecurityControlState {
+  let state: ReturnType<typeof getState>;
+  try {
+    state = getState();
+  } catch {
+    throw new SecurityControlUnavailableError();
+  }
+  return state.securityControl ?? EMPTY;
 }
 
 function withControl(fn: (control: SecurityControlState) => void): void {
@@ -254,7 +285,22 @@ export function assertWritesAllowed(surface: string, ctx: { tenantId?: string; a
     });
     throw new WritesFrozenError(surface, "out-of-band write freeze (PORTAL_WRITES_FROZEN=1)");
   }
-  const control = readSecurityControl();
+  // FAIL CLOSED: if the control plane cannot be read, refuse the write rather
+  // than proceed on a fabricated all-clear. Only a genuine ABSENCE of state
+  // (fresh tenant) is treated as no freeze.
+  let control: SecurityControlState;
+  try {
+    control = readSecurityControlStrict();
+  } catch {
+    recordSecurityEvent({
+      kind: "lockdown.write-refused",
+      severity: "critical",
+      tenantId: ctx.tenantId,
+      actor: ctx.actor,
+      detail: { surface, scope: "control-unavailable", reason: "security control unreadable" },
+    });
+    throw new WritesFrozenError(surface, "security control plane unavailable (failing closed)");
+  }
   if (control.globalReadOnly) {
     recordSecurityEvent({
       kind: "lockdown.write-refused",
@@ -392,14 +438,22 @@ export function touchSessionSeen(sid: string | undefined): void {
 
 export type SessionGateResult =
   | { ok: true }
-  | { ok: false; reason: "suspended" | "tenant-lockdown" | "global-epoch" | "tenant-epoch" | "user-epoch" | "session-revoked" };
+  | { ok: false; reason: "suspended" | "tenant-lockdown" | "global-epoch" | "tenant-epoch" | "user-epoch" | "session-revoked" | "control-unavailable" };
 
 /**
  * Called by `resolveFreshSessionUser` on every authenticated request. Pure
  * read against hydrated state — no writes, safe in RSC renders.
+ *
+ * FAIL CLOSED: if the control plane cannot be read at all, the session is
+ * refused (control-unavailable) rather than admitted on a fabricated all-clear.
  */
 export function enforceSessionSecurity(session: SessionPayload): SessionGateResult {
-  const control = readSecurityControl();
+  let control: SecurityControlState;
+  try {
+    control = readSecurityControlStrict();
+  } catch {
+    return { ok: false, reason: "control-unavailable" };
+  }
 
   // LIVE ANCHOR (Phase 2). A sandbox session's own userId/agencyId are the
   // PERSONA it is impersonating, not the real operator. Suspension, lockdown
