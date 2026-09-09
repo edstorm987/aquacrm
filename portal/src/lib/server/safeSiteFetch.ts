@@ -2,6 +2,7 @@ import "server-only";
 
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
+import { Agent } from "undici";
 
 import { isReservedSyntheticHostname, isUnsafeSyntheticAddress } from "@/engines/data/radar/radarSyntheticSafety";
 
@@ -114,9 +115,21 @@ async function assertPublicDestination(url: URL): Promise<string[]> {
   return records.map(record => record.address);
 }
 
-async function fetchNoRedirect(url: URL, timeoutMs: number, userAgent: string): Promise<Response> {
+async function fetchNoRedirect(url: URL, pinnedAddress: string, timeoutMs: number, userAgent: string): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  // CLOSE THE DNS-REBINDING TOCTOU (Phase 6). assertPublicDestination resolved
+  // and vetted the hostname a moment ago, but a plain fetch(url) would let the
+  // resolver answer AGAIN at connect time — a rebind to 169.254.169.254 between
+  // check and connect is the classic SSRF escape. Pin the connection to the
+  // exact vetted IP; TLS still validates against the original hostname (SNI).
+  const family = isIP(pinnedAddress);
+  const agent = new Agent({
+    connect: {
+      lookup: (_hostname, _options, callback) => callback(null, pinnedAddress, family),
+      servername: url.hostname,
+    },
+  });
   try {
     return await fetch(url, {
       method: "GET",
@@ -127,7 +140,9 @@ async function fetchNoRedirect(url: URL, timeoutMs: number, userAgent: string): 
         accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1",
         "user-agent": userAgent,
       },
-    });
+      // undici extension; not in the DOM RequestInit type.
+      dispatcher: agent,
+    } as RequestInit);
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
       throw new SafeFetchError("timeout", `${url.hostname} took too long to respond.`);
@@ -185,8 +200,11 @@ export async function fetchPublicSiteHtml(value: string, options: SafeFetchOptio
   let redirectCount = 0;
 
   for (;;) {
-    for (const address of await assertPublicDestination(current)) dnsAddresses.add(address);
-    const response = await fetchNoRedirect(current, timeoutMs, userAgent);
+    const vetted = await assertPublicDestination(current);
+    for (const address of vetted) dnsAddresses.add(address);
+    // Pin to the FIRST vetted address (all resolved addresses passed the
+    // private/reserved check above, so any is safe; the first is deterministic).
+    const response = await fetchNoRedirect(current, vetted[0]!, timeoutMs, userAgent);
     if (!isRedirect(response.status)) {
       const body = await readBodyPrefix(response, maxBytes).catch(() => ({ text: "", bytes: 0 }));
       return {
