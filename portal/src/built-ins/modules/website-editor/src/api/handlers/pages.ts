@@ -11,6 +11,7 @@ import {
   getPage,
   getPageBySlug,
   listPages,
+  PagePatchValidationError,
   publishPage,
   revertPage,
   updatePage,
@@ -19,7 +20,89 @@ import {
 } from "../../server/pages";
 import { listAllPortalVariants } from "../../server/portalVariants";
 import { loadStarterTree } from "../../server/starterLoader";
-import { fail, ok, readJsonBody, readQuery, requireClientScope } from "../helpers";
+import { fail, json, ok, readJsonBody, readQuery, requireClientScope } from "../helpers";
+
+const PUBLIC_MEDIA_LIFECYCLE_ERROR_CODE = "public_upload_atomic_lifecycle_required";
+const PUBLIC_MEDIA_LIFECYCLE_ERROR_MESSAGE =
+  "Public media publishing is temporarily unavailable while protected publication and recall are being completed.";
+
+const PUBLIC_MEDIA_AVAILABILITY_CODES = new Set([
+  "durable_public_uploads_required",
+  "public_media_provider_unavailable",
+  "public_upload_provider_failed",
+]);
+const PUBLIC_MEDIA_AVAILABILITY_ERROR_CODE = "public_media_temporarily_unavailable";
+const PUBLIC_MEDIA_AVAILABILITY_ERROR_MESSAGE =
+  "Public media publishing is temporarily unavailable. No page changes were published.";
+
+const PUBLIC_MEDIA_VALIDATION_CODES = new Set([
+  "content_trust_blocked",
+  "public_media_data_url_invalid",
+  "public_media_identity_invalid",
+  "public_media_promotion_policy_refused",
+  "public_media_promotion_traversal_refused",
+  "public_upload_content_not_cleared",
+  "public_upload_content_type_not_allowed",
+  "public_upload_path_escape",
+  "public_upload_size_not_allowed",
+  "public_upload_tenant_scope_mismatch",
+]);
+const PUBLIC_MEDIA_VALIDATION_ERROR_CODE = "public_media_security_validation_failed";
+const PUBLIC_MEDIA_VALIDATION_ERROR_MESSAGE =
+  "Public media did not pass security validation. No page changes were published.";
+
+const SECURITY_LOCKDOWN_INTERNAL_CODE = "writes_frozen";
+const SECURITY_LOCKDOWN_ERROR_CODE = "publishing_temporarily_locked";
+const SECURITY_LOCKDOWN_ERROR_MESSAGE =
+  "Publishing is temporarily disabled by a security control. The page was not published.";
+
+function errorCode(error: unknown): string | undefined {
+  if (!error || typeof error !== "object" || !("code" in error)) return undefined;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === "string" ? code : undefined;
+}
+
+/**
+ * Map expected public-media refusals to stable, secret-free API contracts.
+ * Internal reason codes and raw provider/scanner messages are never reflected.
+ * Unknown failures keep flowing to the platform's generic 500 boundary.
+ */
+export function pagePublishSecurityFailure(error: unknown): Response | null {
+  const internalCode = errorCode(error);
+  let code: string;
+  let message: string;
+  let status: number;
+  if (internalCode === PUBLIC_MEDIA_LIFECYCLE_ERROR_CODE) {
+    code = PUBLIC_MEDIA_LIFECYCLE_ERROR_CODE;
+    message = PUBLIC_MEDIA_LIFECYCLE_ERROR_MESSAGE;
+    status = 503;
+  } else if (internalCode && PUBLIC_MEDIA_AVAILABILITY_CODES.has(internalCode)) {
+    code = PUBLIC_MEDIA_AVAILABILITY_ERROR_CODE;
+    message = PUBLIC_MEDIA_AVAILABILITY_ERROR_MESSAGE;
+    status = 503;
+  } else if (internalCode && PUBLIC_MEDIA_VALIDATION_CODES.has(internalCode)) {
+    code = PUBLIC_MEDIA_VALIDATION_ERROR_CODE;
+    message = PUBLIC_MEDIA_VALIDATION_ERROR_MESSAGE;
+    status = 422;
+  } else if (internalCode === SECURITY_LOCKDOWN_INTERNAL_CODE) {
+    code = SECURITY_LOCKDOWN_ERROR_CODE;
+    message = SECURITY_LOCKDOWN_ERROR_MESSAGE;
+    status = 503;
+  } else {
+    return null;
+  }
+  return json(
+    {
+      ok: false,
+      code,
+      error: message,
+    },
+    {
+      status,
+      headers: { "cache-control": "no-store" },
+    },
+  );
+}
 
 function siteIdOrFail(query: Record<string, string>): string | Response {
   const siteId = query.siteId;
@@ -126,14 +209,22 @@ export async function handleUpdatePage(req: Request, ctx: PluginCtx): Promise<Re
   if (!body?.siteId || !body?.pageId || !body?.patch) {
     return fail("siteId, pageId, patch required", 400);
   }
-  const page = await updatePage(
-    ctx.storage,
-    scope.agencyId,
-    scope.clientId,
-    body.siteId,
-    body.pageId,
-    body.patch as never,
-  );
+  let page: Awaited<ReturnType<typeof updatePage>>;
+  try {
+    page = await updatePage(
+      ctx.storage,
+      scope.agencyId,
+      scope.clientId,
+      body.siteId,
+      body.pageId,
+      body.patch as never,
+    );
+  } catch (error) {
+    if (error instanceof PagePatchValidationError) {
+      return fail(`patch.${error.field} rejected: ${error.reason}`, 400);
+    }
+    throw error;
+  }
   if (!page) return fail("page not found", 404);
   return ok({ page });
 }
@@ -143,11 +234,18 @@ export async function handlePublishPage(req: Request, ctx: PluginCtx): Promise<R
   if (!scope.ok) return scope.res;
   const body = await readJsonBody<{ siteId?: string; pageId?: string }>(req);
   if (!body?.siteId || !body?.pageId) return fail("siteId, pageId required", 400);
-  const page = await publishPage(ctx.storage, scope.agencyId, scope.clientId, body.siteId, body.pageId, {
-    publicMedia: ctx.services.publicMedia,
-  });
-  if (!page) return fail("page not found", 404);
-  return ok({ page });
+  try {
+    const page = await publishPage(ctx.storage, scope.agencyId, scope.clientId, body.siteId, body.pageId, {
+      publicMedia: ctx.services.publicMedia,
+      actor: ctx.actor,
+    });
+    if (!page) return fail("page not found", 404);
+    return ok({ page });
+  } catch (error) {
+    const safeFailure = pagePublishSecurityFailure(error);
+    if (safeFailure) return safeFailure;
+    throw error;
+  }
 }
 
 export async function handleRevertPage(req: Request, ctx: PluginCtx): Promise<Response> {

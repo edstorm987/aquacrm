@@ -64,7 +64,10 @@ test("global read-only refuses ordinary writes before they apply", () => {
       mutate(state => {
         state.agencies["agency-a"] = { id: "agency-a", name: "After" } as never;
       }),
-    SecurityLockdownError,
+    (error: unknown) => (
+      error instanceof SecurityLockdownError
+      && error.code === "writes_frozen"
+    ),
   );
   // The refused write did not partially apply — reads keep serving the
   // pre-lockdown value.

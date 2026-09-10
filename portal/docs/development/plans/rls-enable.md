@@ -4,15 +4,16 @@
 
 **Status: BUILDING — phases 1, 2, 3 and 5 are done; phase 4 remains. The
 2026-09-03 alignment record says the Inbox and `brand_enquiries` migrations
-were applied live and verified, while the captured `rls_auto_enable` definition
-remained one no-op migration to record. The 2026-09-08 review did not
-independently re-probe Supabase.**
+were applied live and verified. Since that checkpoint, four repository
+versions have accumulated beyond the last verified live set: `20260903130000`,
+`20260908210000`, `20260908220000`, and `20260910010000`. They remain
+owner-gated; the current security lanes did not apply or verify them live.**
 
 This plan was written around "RLS is not in the repo". It is. The policies live
 in **[`../../../../supabase/migrations/`](../../../../supabase/README.md)** — a
 standard Supabase CLI project sitting beside `portal/`, linked to project ref
 `dghzbsxbdatskserctgt`, the same ref `NEXT_PUBLIC_SUPABASE_URL` points at.
-The repository now contains 28 ordered migrations defining the schema,
+The repository now contains 31 ordered migrations defining the schema,
 policies, grants, bucket ACLs and database functions.
 
 The reason nobody found them is worth recording, because it will happen again:
@@ -46,11 +47,16 @@ tenant isolation, and it must not be sold as such.**
 
 ## The gaps that remain
 
-1. **Record the already-live RLS event trigger migration.** The former
+1. **Reconcile and apply the four owner-gated migrations safely.** The former
    dashboard-only `rls_auto_enable()` definition and trigger are now captured
    in `20260903130000_ensure_rls_event_trigger.sql`. At the 2026-09-03
-   checkpoint it was the sole pending migration and was a no-op on live; it
-   still needs a current drift check before the next approved push.
+   checkpoint it was the sole pending migration and was a no-op on live. It is
+   now the first of four expected local-only versions, followed by the two
+   containment migrations and public-bucket hardening. Before any approved
+   push, run a read-only `supabase migration list --linked` and
+   `supabase db push --linked --dry-run`; abort if the delta is not exactly
+   those four versions. Take a fresh backup and obtain explicit owner approval
+   before the real push.
 
 2. **Reduce service-role reliance and re-prove the live boundary.** Admin
    clients bypass RLS, so their tenant filters remain application controls.
@@ -94,7 +100,9 @@ at all. Superseded first-cut model, or unfinished? Decide and record it.
 > does not read — so a plan the Status line calls "mostly done" rendered `0/5`.
 > They carry ✅ leads, and phase 3 is now also marked complete from the verified
 > 2026-09-03 application record. Phase 4 landed only its *first* reduction
-> (23 → 13 service-role call sites), so it is genuinely still open. Verified
+> (23 → 13 service-role call sites), and the 2026-09-10 removal of the dormant
+> remote public-media provider reduced the current posture to 12. It is still
+> genuinely open. Verified
 > 2026-08-31 that phase 5's two halves exist —
 > [`supabase/rls-verify.sql`](../../../../supabase/rls-verify.sql) and
 > `portal/scripts/smoke-rls-policy-coverage.test.ts` — and that phase 4's pin,
@@ -113,7 +121,10 @@ at all. Superseded first-cut model, or unfinished? Decide and record it.
 4. **Reduce service-role reliance where feasible** — **first reduction landed
    2026-08-20.** Measured by grep for `createSupabaseAdminClient(` in `src/`,
    excluding its definition file (`src/lib/supabase/admin.ts`): **before 23
-   call sites in 18 files → after 13 call sites in 8 files.** The count is
+   call sites in 18 files → current 12 call sites in 8 files.** The first
+   reduction reached 13; the server-mediated enquiry boundary then added one,
+   and removal of the unsafe dormant remote public-media provider removed two
+   on 2026-09-10. The current count is
    pinned in `scripts/smoke-service-role-usage.test.ts`, which fails on any
    drift and demands the table below stay in step.
 
@@ -145,7 +156,7 @@ at all. Superseded first-cut model, or unfinished? Decide and record it.
    through these routes — they get a 401 unless real Supabase cookies are also
    present (Ed's own dev-mode keeps his cookies, so his flows still work).
 
-   **What stays on the service role, and why (14 sites, 9 files):**
+   **What stays on the service role, and why (12 sites, 8 files):**
 
    > **2026-09-08 (assume-breach Phase 1).** `brand_enquiries` became fully
    > server-mediated: the containment migration
@@ -167,8 +178,12 @@ at all. Superseded first-cut model, or unfinished? Decide and record it.
    | `src/app/api/portal/clients/[clientId]/erase/route.ts` (1) | GDPR erasure must scrub rows and storage objects regardless of what RLS would show the caller; `smoke-client-erasure.test.ts` pins this wiring. |
    | `src/lib/server/websiteEnquiries.ts` (3) | Shared read/annotate layer for radar, operational alerts, marketing intelligence and server components — paths with no request/user context. **The remaining phase-4 candidate**: converting it means deciding those engines run as somebody. |
    | `src/lib/server/privateUploadStorage.ts` (3) | Private buckets deny anon/authenticated by design; the app proxies bytes itself. |
-   | `src/lib/server/publicUploadStorage.ts` (2) | Public-assets bucket is service-role-writable only. |
    | `src/lib/server/databaseStorageHealth.ts` (1) | Diagnostics must count ALL rows to report truthfully; runs without a user session. |
+
+   The former two `src/lib/server/publicUploadStorage.ts` call sites are no
+   longer present. AquaCRM now refuses remote public-media publication until
+   an operation-owned, recoverable publish/recall lifecycle exists; there is
+   no dormant service-role provider implementation waiting behind a toggle.
 
    (`src/lib/supabase/admin.ts` is outside the count as the definition file;
    its three internal call sites are `auth.admin.*` operations that exist only

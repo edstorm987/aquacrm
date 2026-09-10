@@ -492,7 +492,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(req: NextRequest)`
 
-**Depends on (11):** [`src/lib/brands/authBrand.ts`](lib.md#file-src-lib-brands-authbrand-ts-036ce85121) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/mfa.ts`](lib.md#file-src-lib-server-auth-mfa-ts-2eef53bfa4) · [`src/lib/server/auth/postLoginRedirect.ts`](lib.md#file-src-lib-server-auth-postloginredirect-ts-17fc4de17b) · [`src/lib/server/rateLimit.ts`](lib.md#file-src-lib-server-ratelimit-ts-4b02277298) · [`src/lib/server/seeds/founderSeed.ts`](lib.md#file-src-lib-server-seeds-founderseed-ts-a8d60a4bd5) · [`src/lib/supabase/route.ts`](lib.md#file-src-lib-supabase-route-ts-62d79257db) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (12):** [`src/lib/brands/authBrand.ts`](lib.md#file-src-lib-brands-authbrand-ts-036ce85121) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/mfa.ts`](lib.md#file-src-lib-server-auth-mfa-ts-2eef53bfa4) · [`src/lib/server/auth/postLoginRedirect.ts`](lib.md#file-src-lib-server-auth-postloginredirect-ts-17fc4de17b) · [`src/lib/server/auth/securityControl.ts`](lib.md#file-src-lib-server-auth-securitycontrol-ts-20ca5b763a) · [`src/lib/server/rateLimit.ts`](lib.md#file-src-lib-server-ratelimit-ts-4b02277298) · [`src/lib/server/seeds/founderSeed.ts`](lib.md#file-src-lib-server-seeds-founderseed-ts-a8d60a4bd5) · [`src/lib/supabase/route.ts`](lib.md#file-src-lib-supabase-route-ts-62d79257db) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by (3):** [`scripts/smoke-auth-form-encoding.test.ts`](scripts.md#file-scripts-smoke-auth-form-encoding-test-ts-5ce004c3f5) · [`scripts/smoke-mfa.test.ts`](scripts.md#file-scripts-smoke-mfa-test-ts-246b24e7ad) · [`src/app/api/auth/login/browser/route.ts`](#file-src-app-api-auth-login-browser-route-ts-169294a35d)
 
@@ -577,7 +577,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async GET(req: NextRequest)`
 
-**Depends on (9):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/mfa.ts`](lib.md#file-src-lib-server-auth-mfa-ts-2eef53bfa4) · [`src/lib/server/auth/postLoginRedirect.ts`](lib.md#file-src-lib-server-auth-postloginredirect-ts-17fc4de17b) · [`src/lib/server/integrations/oauthGoogle.ts`](lib.md#file-src-lib-server-integrations-oauthgoogle-ts-f174ce736b) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/agencyBootstrap.ts`](server.md#file-src-server-agencybootstrap-ts-7ff459b170) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (10):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/mfa.ts`](lib.md#file-src-lib-server-auth-mfa-ts-2eef53bfa4) · [`src/lib/server/auth/postLoginRedirect.ts`](lib.md#file-src-lib-server-auth-postloginredirect-ts-17fc4de17b) · [`src/lib/server/auth/sessionToken.ts`](lib.md#file-src-lib-server-auth-sessiontoken-ts-b0b933a575) · [`src/lib/server/integrations/oauthGoogle.ts`](lib.md#file-src-lib-server-integrations-oauthgoogle-ts-f174ce736b) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/agencyBootstrap.ts`](server.md#file-src-server-agencybootstrap-ts-7ff459b170) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by (1):** [`scripts/smoke-mfa-doors.test.ts`](scripts.md#file-scripts-smoke-mfa-doors-test-ts-fd58cf015f)
 
@@ -594,7 +594,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async GET(req: NextRequest)`
 
-**Depends on (1):** [`src/lib/server/integrations/oauthGoogle.ts`](lib.md#file-src-lib-server-integrations-oauthgoogle-ts-f174ce736b)
+**Depends on (2):** [`src/lib/server/auth/sessionToken.ts`](lib.md#file-src-lib-server-auth-sessiontoken-ts-b0b933a575) · [`src/lib/server/integrations/oauthGoogle.ts`](lib.md#file-src-lib-server-integrations-oauthgoogle-ts-f174ce736b)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -834,7 +834,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
-- `async GET(request: NextRequest)`
+- `async POST(request: NextRequest)`
 
 **Depends on (6):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/inbox/inboxService.ts`](lib.md#file-src-lib-server-inbox-inboxservice-ts-1c9968c293) · [`src/lib/server/rateLimit.ts`](lib.md#file-src-lib-server-ratelimit-ts-4b02277298) · [`src/server/automations.ts`](server.md#file-src-server-automations-ts-3e92d448c5) · [`src/server/outbox.ts`](server.md#file-src-server-outbox-ts-de86d78655) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
 
@@ -1285,7 +1285,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async GET(request: NextRequest)`
 
-**Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/integrations/googleCalendar.ts`](lib.md#file-src-lib-server-integrations-googlecalendar-ts-457297d4a6) · [`src/lib/server/intelligence/personalRadarAccess.ts`](lib.md#file-src-lib-server-intelligence-personalradaraccess-ts-2d7bf41648) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (6):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/sessionToken.ts`](lib.md#file-src-lib-server-auth-sessiontoken-ts-b0b933a575) · [`src/lib/server/integrations/googleCalendar.ts`](lib.md#file-src-lib-server-integrations-googlecalendar-ts-457297d4a6) · [`src/lib/server/intelligence/personalRadarAccess.ts`](lib.md#file-src-lib-server-intelligence-personalradaraccess-ts-2d7bf41648) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -1319,7 +1319,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async GET(request: NextRequest)`
 
-**Depends on (6):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/integrations/googleCalendar.ts`](lib.md#file-src-lib-server-integrations-googlecalendar-ts-457297d4a6) · [`src/lib/server/intelligence/personalRadarAccess.ts`](lib.md#file-src-lib-server-intelligence-personalradaraccess-ts-2d7bf41648) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (7):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/sessionToken.ts`](lib.md#file-src-lib-server-auth-sessiontoken-ts-b0b933a575) · [`src/lib/server/integrations/googleCalendar.ts`](lib.md#file-src-lib-server-integrations-googlecalendar-ts-457297d4a6) · [`src/lib/server/intelligence/personalRadarAccess.ts`](lib.md#file-src-lib-server-intelligence-personalradaraccess-ts-2d7bf41648) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -2251,7 +2251,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (5):** [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/freelancerWorkspace.ts`](server.md#file-src-server-freelancerworkspace-ts-f31c25464f) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+**Used by (1):** [`scripts/smoke-freelancer-access-tenant-isolation.test.ts`](scripts.md#file-scripts-smoke-freelancer-access-tenant-isolation-test-ts-5f8fcf6863)
 
 
 ## `src/app/api/portal/freelancer/message/`
@@ -3193,6 +3193,43 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 
+## `src/app/api/portal/security/actions/`
+
+<a id="file-src-app-api-portal-security-actions-route-ts-2cd87a58e8"></a>
+
+### `src/app/api/portal/security/actions/route.ts`
+
+**What it is:** against the caller like a login failure would.
+
+**Exports (2):**
+
+- `async POST(request: NextRequest): Promise<Response>`
+- `dynamic = "force-dynamic"`
+
+**Depends on (6):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/founderAgency.ts`](lib.md#file-src-lib-server-auth-founderagency-ts-ab8355b6de) · [`src/lib/server/auth/securityControl.ts`](lib.md#file-src-lib-server-auth-securitycontrol-ts-20ca5b763a) · [`src/lib/server/rateLimit.ts`](lib.md#file-src-lib-server-ratelimit-ts-4b02277298) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
+## `src/app/api/portal/security/overview/`
+
+<a id="file-src-app-api-portal-security-overview-route-ts-99b4645fa6"></a>
+
+### `src/app/api/portal/security/overview/route.ts`
+
+**What it is:** dashboard; this one says "no scanner is connected" in so many words.
+
+**Exports (3):**
+
+- `async GET(): Promise<Response>`
+- `dynamic = "force-dynamic"`
+- `interface SecurityPostureItem (4 members)`
+
+**Depends on (6):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/founderAgency.ts`](lib.md#file-src-lib-server-auth-founderagency-ts-ab8355b6de) · [`src/lib/server/auth/securityControl.ts`](lib.md#file-src-lib-server-auth-securitycontrol-ts-20ca5b763a) · [`src/lib/server/security/contentTrust.ts`](lib.md#file-src-lib-server-security-contenttrust-ts-8100703c87) · [`src/lib/server/security/securityEvents.ts`](lib.md#file-src-lib-server-security-securityevents-ts-f771bad0c8) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
 ## `src/app/api/portal/settings/activity-log/`
 
 <a id="file-src-app-api-portal-settings-activity-log-route-ts-d364125887"></a>
@@ -3541,7 +3578,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET(request: NextRequest)`
 - `runtime = "nodejs"`
 
-**Depends on (7):** [`src/lib/server/access/websiteEnquiryAccess.ts`](lib.md#file-src-lib-server-access-websiteenquiryaccess-ts-3def274122) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/privateMediaResponse.ts`](lib.md#file-src-lib-server-privatemediaresponse-ts-5f57a20b36) · [`src/lib/server/privateUploadStorage.ts`](lib.md#file-src-lib-server-privateuploadstorage-ts-80d5415fe8) · [`src/lib/supabase/scoped.ts`](lib.md#file-src-lib-supabase-scoped-ts-b3ff18df40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (7):** [`src/lib/server/access/websiteEnquiryAccess.ts`](lib.md#file-src-lib-server-access-websiteenquiryaccess-ts-3def274122) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/privateMediaResponse.ts`](lib.md#file-src-lib-server-privatemediaresponse-ts-5f57a20b36) · [`src/lib/server/privateUploadStorage.ts`](lib.md#file-src-lib-server-privateuploadstorage-ts-80d5415fe8) · [`src/lib/supabase/enquiryDataClient.ts`](lib.md#file-src-lib-supabase-enquirydataclient-ts-3803838942) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3559,7 +3596,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async POST(request: Request)`
 - `runtime = "nodejs"`
 
-**Depends on (7):** [`src/lib/server/access/websiteEnquiryAccess.ts`](lib.md#file-src-lib-server-access-websiteenquiryaccess-ts-3def274122) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/privateUploadStorage.ts`](lib.md#file-src-lib-server-privateuploadstorage-ts-80d5415fe8) · [`src/lib/supabase/scoped.ts`](lib.md#file-src-lib-supabase-scoped-ts-b3ff18df40) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (7):** [`src/lib/server/access/websiteEnquiryAccess.ts`](lib.md#file-src-lib-server-access-websiteenquiryaccess-ts-3def274122) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/privateUploadStorage.ts`](lib.md#file-src-lib-server-privateuploadstorage-ts-80d5415fe8) · [`src/lib/supabase/enquiryDataClient.ts`](lib.md#file-src-lib-supabase-enquirydataclient-ts-3803838942) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3577,7 +3614,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async POST(request: Request)`
 - `async PATCH(request: Request)`
 
-**Depends on (11):** [`src/lib/server/access/websiteEnquiryAccess.ts`](lib.md#file-src-lib-server-access-websiteenquiryaccess-ts-3def274122) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/email/outboundCommunications.ts`](lib.md#file-src-lib-server-email-outboundcommunications-ts-2c4deea1df) · [`src/lib/server/websiteEnquiries.ts`](lib.md#file-src-lib-server-websiteenquiries-ts-e00ecfd23b) · [`src/lib/server/websiteEnquiryLeadSync.ts`](lib.md#file-src-lib-server-websiteenquiryleadsync-ts-90c226107f) · [`src/lib/supabase/scoped.ts`](lib.md#file-src-lib-supabase-scoped-ts-b3ff18df40) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
+**Depends on (12):** [`src/lib/server/access/websiteEnquiryAccess.ts`](lib.md#file-src-lib-server-access-websiteenquiryaccess-ts-3def274122) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/email/outboundCommunications.ts`](lib.md#file-src-lib-server-email-outboundcommunications-ts-2c4deea1df) · [`src/lib/server/websiteEnquiries.ts`](lib.md#file-src-lib-server-websiteenquiries-ts-e00ecfd23b) · [`src/lib/server/websiteEnquiryLeadSync.ts`](lib.md#file-src-lib-server-websiteenquiryleadsync-ts-90c226107f) · [`src/lib/supabase/enquiryDataClient.ts`](lib.md#file-src-lib-supabase-enquirydataclient-ts-3803838942) · [`src/lib/supabase/scoped.ts`](lib.md#file-src-lib-supabase-scoped-ts-b3ff18df40) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3594,7 +3631,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async PATCH(request: Request)`
 
-**Depends on (14):** [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-leadspipelinefoundation-ts-a0444ffabc) · [`src/lib/brands/tradingBrands.ts`](lib.md#file-src-lib-brands-tradingbrands-ts-6199c72f28) · [`src/lib/enquiries/enquiryClassification.ts`](lib.md#file-src-lib-enquiries-enquiryclassification-ts-e9934c6609) · [`src/lib/server/access/websiteEnquiryAccess.ts`](lib.md#file-src-lib-server-access-websiteenquiryaccess-ts-3def274122) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/leadsPipelinePorts.ts`](lib.md#file-src-lib-server-leadspipelineports-ts-65fb36de0a) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/supabase/scoped.ts`](lib.md#file-src-lib-supabase-scoped-ts-b3ff18df40) · [`src/server/persons.ts`](server.md#file-src-server-persons-ts-c2f3c0cfec) · [`src/server/pipelines.ts`](server.md#file-src-server-pipelines-ts-b3d01c6a82) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/zimanteTradingCompanies.ts`](server.md#file-src-server-zimantetradingcompanies-ts-ef9a41c5a6)
+**Depends on (14):** [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-leadspipelinefoundation-ts-a0444ffabc) · [`src/lib/brands/tradingBrands.ts`](lib.md#file-src-lib-brands-tradingbrands-ts-6199c72f28) · [`src/lib/enquiries/enquiryClassification.ts`](lib.md#file-src-lib-enquiries-enquiryclassification-ts-e9934c6609) · [`src/lib/server/access/websiteEnquiryAccess.ts`](lib.md#file-src-lib-server-access-websiteenquiryaccess-ts-3def274122) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/leadsPipelinePorts.ts`](lib.md#file-src-lib-server-leadspipelineports-ts-65fb36de0a) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/supabase/enquiryDataClient.ts`](lib.md#file-src-lib-supabase-enquirydataclient-ts-3803838942) · [`src/server/persons.ts`](server.md#file-src-server-persons-ts-c2f3c0cfec) · [`src/server/pipelines.ts`](server.md#file-src-server-pipelines-ts-b3d01c6a82) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/zimanteTradingCompanies.ts`](server.md#file-src-server-zimantetradingcompanies-ts-ef9a41c5a6)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3611,7 +3648,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: Request)`
 
-**Depends on (14):** [`src/lib/brands/tradingBrands.ts`](lib.md#file-src-lib-brands-tradingbrands-ts-6199c72f28) · [`src/lib/inbox/media.ts`](lib.md#file-src-lib-inbox-media-ts-699ea4c966) · [`src/lib/server/access/websiteEnquiryAccess.ts`](lib.md#file-src-lib-server-access-websiteenquiryaccess-ts-3def274122) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/email/outboundCommunications.ts`](lib.md#file-src-lib-server-email-outboundcommunications-ts-2c4deea1df) · [`src/lib/server/email/transactionalEmail.ts`](lib.md#file-src-lib-server-email-transactionalemail-ts-778ef382d4) · [`src/lib/server/inbox/inboxMedia.ts`](lib.md#file-src-lib-server-inbox-inboxmedia-ts-4dccec2f91) · [`src/lib/server/privateObjectLifecycle.ts`](lib.md#file-src-lib-server-privateobjectlifecycle-ts-340cbd1888) · [`src/lib/server/websiteEnquiryLeadSync.ts`](lib.md#file-src-lib-server-websiteenquiryleadsync-ts-90c226107f) · [`src/lib/supabase/scoped.ts`](lib.md#file-src-lib-supabase-scoped-ts-b3ff18df40) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
+**Depends on (14):** [`src/lib/brands/tradingBrands.ts`](lib.md#file-src-lib-brands-tradingbrands-ts-6199c72f28) · [`src/lib/inbox/media.ts`](lib.md#file-src-lib-inbox-media-ts-699ea4c966) · [`src/lib/server/access/websiteEnquiryAccess.ts`](lib.md#file-src-lib-server-access-websiteenquiryaccess-ts-3def274122) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/email/outboundCommunications.ts`](lib.md#file-src-lib-server-email-outboundcommunications-ts-2c4deea1df) · [`src/lib/server/email/transactionalEmail.ts`](lib.md#file-src-lib-server-email-transactionalemail-ts-778ef382d4) · [`src/lib/server/inbox/inboxMedia.ts`](lib.md#file-src-lib-server-inbox-inboxmedia-ts-4dccec2f91) · [`src/lib/server/privateObjectLifecycle.ts`](lib.md#file-src-lib-server-privateobjectlifecycle-ts-340cbd1888) · [`src/lib/server/websiteEnquiryLeadSync.ts`](lib.md#file-src-lib-server-websiteenquiryleadsync-ts-90c226107f) · [`src/lib/supabase/enquiryDataClient.ts`](lib.md#file-src-lib-supabase-enquirydataclient-ts-3803838942) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3629,7 +3666,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async GET(request: NextRequest)` — Operator-added contact details for an enquiry (enquiry-detail-card plan, Phase 4). Agency-scoped. Deliberately file-backed — this records what the operator learns by hand, it must…
 - `async POST(request: NextRequest)`
 
-**Depends on (6):** [`src/lib/server/access/websiteEnquiryAccess.ts`](lib.md#file-src-lib-server-access-websiteenquiryaccess-ts-3def274122) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/supabase/scoped.ts`](lib.md#file-src-lib-supabase-scoped-ts-b3ff18df40) · [`src/server/enquiryContactDetails.ts`](server.md#file-src-server-enquirycontactdetails-ts-8b75ea62b0) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (6):** [`src/lib/server/access/websiteEnquiryAccess.ts`](lib.md#file-src-lib-server-access-websiteenquiryaccess-ts-3def274122) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/supabase/enquiryDataClient.ts`](lib.md#file-src-lib-supabase-enquirydataclient-ts-3803838942) · [`src/server/enquiryContactDetails.ts`](server.md#file-src-server-enquirycontactdetails-ts-8b75ea62b0) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3646,7 +3683,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: Request)` — Permanently delete a website enquiry. Owner-only, and irreversible — the enquiry is removed from the store, not hidden. This is the manual counterpart to a client erasure: a singl…
 
-**Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/supabase/ownedEnquiry.ts`](lib.md#file-src-lib-supabase-ownedenquiry-ts-d9fd6a5183) · [`src/lib/supabase/scoped.ts`](lib.md#file-src-lib-supabase-scoped-ts-b3ff18df40) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/supabase/enquiryDataClient.ts`](lib.md#file-src-lib-supabase-enquirydataclient-ts-3803838942) · [`src/lib/supabase/ownedEnquiry.ts`](lib.md#file-src-lib-supabase-ownedenquiry-ts-d9fd6a5183) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3680,7 +3717,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: Request)`
 
-**Depends on (10):** [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-leadspipelinefoundation-ts-a0444ffabc) · [`src/lib/brands/tradingBrands.ts`](lib.md#file-src-lib-brands-tradingbrands-ts-6199c72f28) · [`src/lib/server/access/websiteEnquiryAccess.ts`](lib.md#file-src-lib-server-access-websiteenquiryaccess-ts-3def274122) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/supabase/scoped.ts`](lib.md#file-src-lib-supabase-scoped-ts-b3ff18df40) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/zimanteTradingCompanies.ts`](server.md#file-src-server-zimantetradingcompanies-ts-ef9a41c5a6)
+**Depends on (10):** [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-leadspipelinefoundation-ts-a0444ffabc) · [`src/lib/brands/tradingBrands.ts`](lib.md#file-src-lib-brands-tradingbrands-ts-6199c72f28) · [`src/lib/server/access/websiteEnquiryAccess.ts`](lib.md#file-src-lib-server-access-websiteenquiryaccess-ts-3def274122) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/supabase/enquiryDataClient.ts`](lib.md#file-src-lib-supabase-enquirydataclient-ts-3803838942) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/zimanteTradingCompanies.ts`](server.md#file-src-server-zimantetradingcompanies-ts-ef9a41c5a6)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3697,7 +3734,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async POST(request: Request)`
 
-**Depends on (8):** [`src/lib/brands/tradingBrands.ts`](lib.md#file-src-lib-brands-tradingbrands-ts-6199c72f28) · [`src/lib/server/access/websiteEnquiryAccess.ts`](lib.md#file-src-lib-server-access-websiteenquiryaccess-ts-3def274122) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/email/transactionalEmail.ts`](lib.md#file-src-lib-server-email-transactionalemail-ts-778ef382d4) · [`src/lib/supabase/scoped.ts`](lib.md#file-src-lib-supabase-scoped-ts-b3ff18df40) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (8):** [`src/lib/brands/tradingBrands.ts`](lib.md#file-src-lib-brands-tradingbrands-ts-6199c72f28) · [`src/lib/server/access/websiteEnquiryAccess.ts`](lib.md#file-src-lib-server-access-websiteenquiryaccess-ts-3def274122) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/email/transactionalEmail.ts`](lib.md#file-src-lib-server-email-transactionalemail-ts-778ef382d4) · [`src/lib/supabase/enquiryDataClient.ts`](lib.md#file-src-lib-supabase-enquirydataclient-ts-3803838942) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3714,7 +3751,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `async PATCH(request: Request)`
 
-**Depends on (7):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/websiteEnquiries.ts`](lib.md#file-src-lib-server-websiteenquiries-ts-e00ecfd23b) · [`src/lib/supabase/ownedEnquiry.ts`](lib.md#file-src-lib-supabase-ownedenquiry-ts-d9fd6a5183) · [`src/lib/supabase/scoped.ts`](lib.md#file-src-lib-supabase-scoped-ts-b3ff18df40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (7):** [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d) · [`src/lib/server/access/workspaceElementAccess.ts`](lib.md#file-src-lib-server-access-workspaceelementaccess-ts-f261fe7485) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/websiteEnquiries.ts`](lib.md#file-src-lib-server-websiteenquiries-ts-e00ecfd23b) · [`src/lib/supabase/enquiryDataClient.ts`](lib.md#file-src-lib-supabase-enquirydataclient-ts-3803838942) · [`src/lib/supabase/ownedEnquiry.ts`](lib.md#file-src-lib-supabase-ownedenquiry-ts-d9fd6a5183) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -4967,7 +5004,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `default async ClientWebsitePreview({ params }: PreviewProps)`
 - `dynamic = "force-dynamic"`
 
-**Depends on (8):** [`src/built-ins/modules/website-editor/src/components/storefront/PortalPageRenderer.tsx`](built-ins.md#file-src-built-ins-modules-website-editor-src-components-storefront-portalpagerenderer-tsx-4a806d74ff) · [`src/built-ins/modules/website-editor/src/server/pages.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-server-pages-ts-2624a905b7) · [`src/built-ins/modules/website-editor/src/server/themes.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-server-themes-ts-6072a56dcb) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (9):** [`src/built-ins/modules/website-editor/src/components/storefront/PortalPageRenderer.tsx`](built-ins.md#file-src-built-ins-modules-website-editor-src-components-storefront-portalpagerenderer-tsx-4a806d74ff) · [`src/built-ins/modules/website-editor/src/lib/customCodeSafeMode.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-customcodesafemode-ts-fba737a4d8) · [`src/built-ins/modules/website-editor/src/server/pages.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-server-pages-ts-2624a905b7) · [`src/built-ins/modules/website-editor/src/server/themes.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-server-themes-ts-6072a56dcb) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -5081,11 +5118,11 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (3):**
 
-- `async GET(): Promise<NextResponse>`
+- `async GET(request: NextRequest): Promise<NextResponse>`
 - `dynamic = "force-dynamic"`
 - `revalidate = 0`
 
-**Depends on (4):** [`src/lib/server/databaseStorageHealth.ts`](lib.md#file-src-lib-server-databasestoragehealth-ts-dd5148388d) · [`src/lib/server/deployment.ts`](lib.md#file-src-lib-server-deployment-ts-bdadc9047d) · [`src/lib/server/productionReadiness.ts`](lib.md#file-src-lib-server-productionreadiness-ts-4763c179fe) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (6):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/databaseStorageHealth.ts`](lib.md#file-src-lib-server-databasestoragehealth-ts-dd5148388d) · [`src/lib/server/deployment.ts`](lib.md#file-src-lib-server-deployment-ts-bdadc9047d) · [`src/lib/server/productionReadiness.ts`](lib.md#file-src-lib-server-productionreadiness-ts-4763c179fe) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -5799,7 +5836,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface NewClientProductOption (28 members)`
 - `interface NewClientBrandOption (3 members)`
 
-**Depends on (7):** [`src/built-ins/modules/fulfillment/src/lib/mutationPayloads.ts`](built-ins.md#file-src-built-ins-modules-fulfillment-src-lib-mutationpayloads-ts-8c87aea933) · [`src/components/forms/PortalCustomFields.tsx`](components.md#file-src-components-forms-portalcustomfields-tsx-c3122bba6b) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/client/checkedMutation.ts`](lib.md#file-src-lib-client-checkedmutation-ts-afe8d37eb1) · [`src/lib/clients/fulfillmentPhaseRead.ts`](lib.md#file-src-lib-clients-fulfillmentphaseread-ts-24fe4b874a) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (8):** [`src/built-ins/modules/fulfillment/src/lib/mutationPayloads.ts`](built-ins.md#file-src-built-ins-modules-fulfillment-src-lib-mutationpayloads-ts-8c87aea933) · [`src/components/forms/PortalCustomFields.tsx`](components.md#file-src-components-forms-portalcustomfields-tsx-c3122bba6b) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/a11y/useHydrated.ts`](lib.md#file-src-lib-a11y-usehydrated-ts-76b076d928) · [`src/lib/client/checkedMutation.ts`](lib.md#file-src-lib-client-checkedmutation-ts-afe8d37eb1) · [`src/lib/clients/fulfillmentPhaseRead.ts`](lib.md#file-src-lib-clients-fulfillmentphaseread-ts-24fe4b874a) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (2):** [`src/app/portal/agency/_ExecutiveCommandWorkspace.tsx`](#file-src-app-portal-agency-executivecommandworkspace-tsx-bac840fa46) · [`src/app/portal/clients/_PeopleHub.tsx`](#file-src-app-portal-clients-peoplehub-tsx-62c6426811)
 
@@ -6387,7 +6424,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `ContactCard({ person, state, displayName, organisation, organisationCandidates, colleagues, clients, allOrganisations, interactions, interactionsComplete = true, }: Props)`
 
-**Depends on (4):** [`src/app/portal/agency/contacts/[personId]/_Interactions.tsx`](#file-src-app-portal-agency-contacts-personid-interactions-tsx-df6649e0a7) · [`src/lib/enquiries/enquiryClassification.ts`](lib.md#file-src-lib-enquiries-enquiryclassification-ts-e9934c6609) · [`src/lib/inbox/personInteractions.ts`](lib.md#file-src-lib-inbox-personinteractions-ts-85e3cf5009) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (5):** [`src/app/portal/agency/contacts/[personId]/_Interactions.tsx`](#file-src-app-portal-agency-contacts-personid-interactions-tsx-df6649e0a7) · [`src/lib/enquiries/enquiryClassification.ts`](lib.md#file-src-lib-enquiries-enquiryclassification-ts-e9934c6609) · [`src/lib/inbox/personInteractions.ts`](lib.md#file-src-lib-inbox-personinteractions-ts-85e3cf5009) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (1):** [`src/app/portal/agency/contacts/[personId]/page.tsx`](#file-src-app-portal-agency-contacts-personid-page-tsx-1e9c15e11f)
 
@@ -8231,6 +8268,38 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
 
+## `src/app/portal/agency/security/`
+
+<a id="file-src-app-portal-agency-security-securitycentrepanel-tsx-0b2a4b10a9"></a>
+
+### `src/app/portal/agency/security/SecurityCentrePanel.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `SecurityCentrePanel()`
+
+**Depends on:** _No internal imports._
+
+**Used by (1):** [`src/app/portal/agency/security/page.tsx`](#file-src-app-portal-agency-security-page-tsx-4976e0e02a)
+
+<a id="file-src-app-portal-agency-security-page-tsx-4976e0e02a"></a>
+
+### `src/app/portal/agency/security/page.tsx`
+
+**What it is:** never the gate.
+
+**Exports (2):**
+
+- `default async AgencySecurityPage()`
+- `dynamic = "force-dynamic"`
+
+**Depends on (3):** [`src/app/portal/agency/security/SecurityCentrePanel.tsx`](#file-src-app-portal-agency-security-securitycentrepanel-tsx-0b2a4b10a9) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
 ## `src/app/portal/agency/`
 
 <a id="file-src-app-portal-agency-serverstationnavigation-ts-a2741da569"></a>
@@ -8808,7 +8877,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `ClientRadarPanel({ initialRadar }: { initialRadar: ClientRadarSnapshot })`
 
-**Depends on (3):** [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/client/clientRadarRead.ts`](lib.md#file-src-lib-client-clientradarread-ts-e066309791)
+**Depends on (4):** [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/client/clientRadarRead.ts`](lib.md#file-src-lib-client-clientradarread-ts-e066309791) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
 
 **Used by (1):** [`src/app/portal/clients/[clientId]/_ClientSpineOverview.tsx`](#file-src-app-portal-clients-clientid-clientspineoverview-tsx-335864e1ea)
 
@@ -8896,7 +8965,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `ClientSpineOverview({ clientId, relatedWorkspaces, relationship, delivery, systems, hasServices, portalReady, portal, lastContactAt, commercialGaps, commercial, operationsBrief, operationOwners, acceptedOperationSourceI…`
 
-**Depends on (10):** [`src/app/portal/clients/[clientId]/_ClientAdvancedControls.tsx`](#file-src-app-portal-clients-clientid-clientadvancedcontrols-tsx-6fa769a12e) · [`src/app/portal/clients/[clientId]/_ClientOperatingPlan.tsx`](#file-src-app-portal-clients-clientid-clientoperatingplan-tsx-92b0cdf584) · [`src/app/portal/clients/[clientId]/_ClientOperationTaskButton.tsx`](#file-src-app-portal-clients-clientid-clientoperationtaskbutton-tsx-15319dd19f) · [`src/app/portal/clients/[clientId]/_ClientOperationsControl.tsx`](#file-src-app-portal-clients-clientid-clientoperationscontrol-tsx-341a3f7669) · [`src/app/portal/clients/[clientId]/_ClientRadarPanel.tsx`](#file-src-app-portal-clients-clientid-clientradarpanel-tsx-3dc4abc2e6) · [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/lib/clients/clientAquaHealth.ts`](lib.md#file-src-lib-clients-clientaquahealth-ts-423527fa78) · [`src/lib/clients/clientOperations.ts`](lib.md#file-src-lib-clients-clientoperations-ts-35602e4928) · [`src/lib/clients/clientPaymentPlans.ts`](lib.md#file-src-lib-clients-clientpaymentplans-ts-e2f45163b3) · [`src/lib/clients/clientWorkspace.ts`](lib.md#file-src-lib-clients-clientworkspace-ts-90fa37f756)
+**Depends on (11):** [`src/app/portal/clients/[clientId]/_ClientAdvancedControls.tsx`](#file-src-app-portal-clients-clientid-clientadvancedcontrols-tsx-6fa769a12e) · [`src/app/portal/clients/[clientId]/_ClientOperatingPlan.tsx`](#file-src-app-portal-clients-clientid-clientoperatingplan-tsx-92b0cdf584) · [`src/app/portal/clients/[clientId]/_ClientOperationTaskButton.tsx`](#file-src-app-portal-clients-clientid-clientoperationtaskbutton-tsx-15319dd19f) · [`src/app/portal/clients/[clientId]/_ClientOperationsControl.tsx`](#file-src-app-portal-clients-clientid-clientoperationscontrol-tsx-341a3f7669) · [`src/app/portal/clients/[clientId]/_ClientRadarPanel.tsx`](#file-src-app-portal-clients-clientid-clientradarpanel-tsx-3dc4abc2e6) · [`src/engines/data/radar/businessRadar.ts`](engines.md#file-src-engines-data-radar-businessradar-ts-1535895c95) · [`src/lib/clients/clientAquaHealth.ts`](lib.md#file-src-lib-clients-clientaquahealth-ts-423527fa78) · [`src/lib/clients/clientOperations.ts`](lib.md#file-src-lib-clients-clientoperations-ts-35602e4928) · [`src/lib/clients/clientPaymentPlans.ts`](lib.md#file-src-lib-clients-clientpaymentplans-ts-e2f45163b3) · [`src/lib/clients/clientWorkspace.ts`](lib.md#file-src-lib-clients-clientworkspace-ts-90fa37f756) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
 
 **Used by (1):** [`src/app/portal/clients/[clientId]/page.tsx`](#file-src-app-portal-clients-clientid-page-tsx-f2587fcff8)
 
@@ -9451,7 +9520,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface HubClient (22 members)`
 - `interface HubContact (26 members)`
 
-**Depends on (7):** [`src/app/portal/agency/_NewClientButton.tsx`](#file-src-app-portal-agency-newclientbutton-tsx-933174699b) · [`src/app/portal/clients/_IdentityReviewWorkspace.tsx`](#file-src-app-portal-clients-identityreviewworkspace-tsx-9d55e97a62) · [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) · [`src/components/chrome/NotificationAttentionProvider.tsx`](components.md#file-src-components-chrome-notificationattentionprovider-tsx-51754b1c61) · [`src/lib/enquiries/enquiryClassification.ts`](lib.md#file-src-lib-enquiries-enquiryclassification-ts-e9934c6609) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (9):** [`src/app/portal/agency/_NewClientButton.tsx`](#file-src-app-portal-agency-newclientbutton-tsx-933174699b) · [`src/app/portal/clients/_IdentityReviewWorkspace.tsx`](#file-src-app-portal-clients-identityreviewworkspace-tsx-9d55e97a62) · [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) · [`src/components/chrome/NotificationAttentionProvider.tsx`](components.md#file-src-components-chrome-notificationattentionprovider-tsx-51754b1c61) · [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/a11y/useHydrated.ts`](lib.md#file-src-lib-a11y-usehydrated-ts-76b076d928) · [`src/lib/enquiries/enquiryClassification.ts`](lib.md#file-src-lib-enquiries-enquiryclassification-ts-e9934c6609) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (1):** [`src/app/portal/clients/page.tsx`](#file-src-app-portal-clients-page-tsx-bffc1e671f)
 
@@ -9656,7 +9725,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `PortalPageComposition({ section, customPageSlug, data, providerName, previewHrefPrefix, children, }: { section?: ClientPortalSectionId; customPageSlug?: string; data: CustomerPortalData; providerName: string; previewHre…`
 
-**Depends on (11):** [`src/app/portal/customer/_PortalBuilderSelectionBridge.tsx`](#file-src-app-portal-customer-portalbuilderselectionbridge-tsx-8ff2e68e1a) · [`src/app/portal/customer/_PortalCustomExtension.tsx`](#file-src-app-portal-customer-portalcustomextension-tsx-2415087a4c) · [`src/app/portal/customer/_PortalInteractionBlocks.tsx`](#file-src-app-portal-customer-portalinteractionblocks-tsx-392b00a1c4) · [`src/app/portal/customer/_portalData.ts`](#file-src-app-portal-customer-portaldata-ts-2f1995696c) · [`src/lib/clients/clientPaymentPlans.ts`](lib.md#file-src-lib-clients-clientpaymentplans-ts-e2f45163b3) · [`src/lib/portal/clientPortalBuilder.ts`](lib.md#file-src-lib-portal-clientportalbuilder-ts-efd225ebe5) · [`src/lib/portal/clientPortalDesign.ts`](lib.md#file-src-lib-portal-clientportaldesign-ts-99f227974c) · [`src/lib/portal/customerPortalReadState.ts`](lib.md#file-src-lib-portal-customerportalreadstate-ts-28e67f4eb2) · [`src/lib/portal/portalProductModules.ts`](lib.md#file-src-lib-portal-portalproductmodules-ts-4c2c99cb26) · [`src/lib/readAvailability.ts`](lib.md#file-src-lib-readavailability-ts-35b000b352) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (12):** [`src/app/portal/customer/_PortalBuilderSelectionBridge.tsx`](#file-src-app-portal-customer-portalbuilderselectionbridge-tsx-8ff2e68e1a) · [`src/app/portal/customer/_PortalCustomExtension.tsx`](#file-src-app-portal-customer-portalcustomextension-tsx-2415087a4c) · [`src/app/portal/customer/_PortalInteractionBlocks.tsx`](#file-src-app-portal-customer-portalinteractionblocks-tsx-392b00a1c4) · [`src/app/portal/customer/_portalData.ts`](#file-src-app-portal-customer-portaldata-ts-2f1995696c) · [`src/lib/clients/clientPaymentPlans.ts`](lib.md#file-src-lib-clients-clientpaymentplans-ts-e2f45163b3) · [`src/lib/portal/clientPortalBuilder.ts`](lib.md#file-src-lib-portal-clientportalbuilder-ts-efd225ebe5) · [`src/lib/portal/clientPortalDesign.ts`](lib.md#file-src-lib-portal-clientportaldesign-ts-99f227974c) · [`src/lib/portal/customerPortalReadState.ts`](lib.md#file-src-lib-portal-customerportalreadstate-ts-28e67f4eb2) · [`src/lib/portal/portalProductModules.ts`](lib.md#file-src-lib-portal-portalproductmodules-ts-4c2c99cb26) · [`src/lib/readAvailability.ts`](lib.md#file-src-lib-readavailability-ts-35b000b352) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (2):** [`scripts/smoke-portal-element-parity.harness.tsx`](scripts.md#file-scripts-smoke-portal-element-parity-harness-tsx-96fd9b59e6) · [`src/app/portal/customer/_CustomerPortalViews.tsx`](#file-src-app-portal-customer-customerportalviews-tsx-d55a5b8f78)
 

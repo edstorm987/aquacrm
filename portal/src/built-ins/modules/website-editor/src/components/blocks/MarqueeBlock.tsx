@@ -40,7 +40,7 @@ export default function MarqueeBlock({ block }: BlockRenderProps) {
         ...blockStylesToCss(block.styles),
       }}
     >
-      <style dangerouslySetInnerHTML={{ __html: css }} />
+      <style>{css}</style>
       <div className="marquee-track" style={{ display: "flex", gap: 48, whiteSpace: "nowrap", width: "max-content" }}>
         {[...items, ...items].map((item, i) => (
           <span key={i} style={{ fontSize: 13, opacity: 0.85 }}>{item}</span>

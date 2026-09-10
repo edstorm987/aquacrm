@@ -271,6 +271,17 @@ test("the Supabase adapter makes a real ranged read instead of downloading the o
   assert.equal(calls[0].auth, "Bearer service-role-key");
   assert.ok(Buffer.from(await new Response(body).arrayBuffer()).equals(BYTES.subarray(64, 128)));
 
+  // An empty modern alias must not shadow a usable legacy key. The shared key
+  // resolver deliberately uses first-nonblank precedence everywhere.
+  process.env.SUPABASE_SECRET_KEY = "";
+  const legacyFallback = await storage.readSupabasePrivateUploadRange(
+    "inbox-calls/agency-1/clip.webm",
+    { start: 64, end: 127 },
+    fetchImpl,
+  );
+  assert.ok(legacyFallback);
+  assert.equal(calls.at(-1)?.auth, "Bearer service-role-key");
+
   // A bucket that ignores the range still yields exactly the requested slice.
   const ignoring = (async () => new Response(BYTES, { status: 200 })) as unknown as typeof fetch;
   const fallback = await storage.readSupabasePrivateUploadRange("inbox-media/agency-1/note.webm", { start: 2048, end: 2147 }, ignoring);
@@ -282,6 +293,7 @@ test("the Supabase adapter makes a real ranged read instead of downloading the o
   assert.equal(await storage.readSupabasePrivateUploadRange("inbox-media/agency-1/note.webm", { start: 0, end: 9 }, refusing), null);
 
   delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+  delete process.env.SUPABASE_SECRET_KEY;
   delete process.env.SUPABASE_SERVICE_ROLE_KEY;
   delete process.env.NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET;
 });

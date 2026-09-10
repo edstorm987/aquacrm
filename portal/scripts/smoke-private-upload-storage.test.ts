@@ -60,6 +60,33 @@ test("private uploads use one durable storage boundary", () => {
   assert.match(source, /\.data/);
 });
 
+test("private Supabase access accepts only the fixed private/public bucket split", () => {
+  assert.equal(storage.resolvePrivateUploadBucket({}), "aquacrm-uploads");
+  assert.throws(
+    () => storage.resolvePrivateUploadBucket({
+      NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET: "aquacrm-public",
+      NEXT_PUBLIC_SUPABASE_PUBLIC_BUCKET: "aquacrm-public",
+    }),
+    (error: unknown) => (
+      error instanceof storage.StorageBucketConfigurationError
+      && error.code === "storage_bucket_configuration_invalid"
+    ),
+  );
+  assert.throws(() => storage.resolvePrivateUploadBucket({
+    NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET: "milesymedia-uploads",
+    NEXT_PUBLIC_SUPABASE_PUBLIC_BUCKET: "aquacrm-public",
+  }), storage.StorageBucketConfigurationError);
+  assert.throws(() => storage.resolvePrivateUploadBucket({
+    NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET: " aquacrm-uploads ",
+    NEXT_PUBLIC_SUPABASE_PUBLIC_BUCKET: "aquacrm-public",
+  }), storage.StorageBucketConfigurationError);
+
+  const source = read("src/lib/server/privateUploadStorage.ts");
+  assert.doesNotMatch(source, /process\.env\.NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET/);
+  assert.equal((source.match(/resolvePrivateUploadBucket\(\)/g) ?? []).length, 5,
+    "every service-role private Storage call and the planning boundary must use the fixed-zone resolver");
+});
+
 test("every business upload route fails closed through the shared boundary", () => {
   for (const route of [
     "src/app/api/tenants/client-files/upload/route.ts",

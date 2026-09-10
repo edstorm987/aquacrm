@@ -171,10 +171,16 @@ overlap. Re-read [state.md](state.md) before dispatching because workers are act
 > `scripts/smoke-sandbox-protection.test.ts`. Workers browser-verify their own work.
 
 ### The original 2026-08-19 note — `:3032` FREED, Commander verify server RUNNING
+> **DO NOT EXECUTE THE LIVE PUBLIC-BUCKET STEP BELOW.** This section is retained
+> as historical planning evidence. The current security lane deliberately
+> disables remote app-server public writes and blocks routine public deletion
+> until an ownership-proven durable lifecycle exists. No live write/delete is
+> authorised by this note; use the current security gate and public-bucket plan.
+
 ✅ `:3032` is **free and serving** — the dead lock cleared when its owning chat closed; the Commander verify server is back up (`aquacrm-verify` = file backend + `milesymedia` seed + dev-mode; `/dev` mints an owner session; browser-verified — Contacts renders, no console errors). The **browser-verify sweep can proceed.** ⚠ Shared file backend (`.data/portal-state.json`): concurrent worker `dev:verify` runs can clobber it → route UI checks through the Commander server, or commit → git worktrees (own checkout/port/`.data` per worker). The **Commander runs the browser-verify sweep:**
 - Freelancer (after its fix — incl. the manager-exit-doesn't-become-owner test)
 - Finance UIs (pay-by-card, close-the-deal, AR/AP aging)
-- Public-bucket **live CDN** — ⚠ writes 1 test image to the **LIVE** `aquacrm-public` bucket (no local Supabase sandbox) → **needs Ed's explicit OK**; delete the object after.
+- ~~Public-bucket **live CDN** write/delete~~ — **RETIRED / DO NOT RUN:** remote publication is disabled and routine deletion is ownership-blocked in the current correction.
 - Dev-docs · connect-flow code-step · enquiry-card real-data · KPI custom-builder + customer-intel
 
 ---

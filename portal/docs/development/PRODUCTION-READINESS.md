@@ -19,6 +19,26 @@ verification.
 > while owner/live gates remain. This file assesses `main`; it does not claim
 > the security branch's state as merged.
 
+> **CURRENT SECURITY OVERLAY — 10 September 2026.** The 8 September numerical
+> ratings below remain that day's snapshot, not a current launch approval. The
+> local remote-tracking `origin/main` is `08670b626b839a439929b006f0f152712a864a9c`;
+> the corrected gate-repair baseline is
+> `72acac904ba6af88cb1a3d84483b4a4359d03747` and remains unmerged. A separate
+> public-media candidate, `security/public-upload-byte-inspection-20260910`, is
+> also unmerged/undeployed. It makes recursively inspected block-tree data URLs
+> fail closed, removes the dormant remote writer, ownership-blocks public delete,
+> emits security events, returns a safe 503 to the editor and stops GitHub
+> promotion after active-page failure. It deliberately keeps remote public-media
+> publication RED because no atomic page/object lifecycle exists. It is not a
+> Supabase-wide firewall: the containment migration still needs live application
+> and verification. The scanner broker remains capped at 1 MiB against the 8 MiB
+> product contract pending an explicit owner decision. Claude's separate template
+> containment commit `c87e6874cfd5dc762dc8b69c0faf3ce351c28291` is quarantined
+> after adversarial review found remaining stored-XSS, fail-open safe-mode,
+> Shopify secret/timeout/response-cap and preview-isolation defects. **Current
+> combined verdict: NOT READY; do not integrate to `main` until all three lanes
+> are reconciled on a temporary branch and the full release gates are rerun.**
+
 > **UI Wave 9 (2026-09-08, uncommitted on `integration/ui-final-20260908`).** UI gate:
 > **PASS — all ten items closed.** Closed with direct evidence: a harness that
 > can no longer report a false pass, all 8 write journeys driven through the UI, a real

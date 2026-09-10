@@ -14,7 +14,12 @@ import { dirname, join } from "node:path";
 import test, { beforeEach } from "node:test";
 
 import { storePrivateUpload, deletePrivateUpload, deleteSupabasePrivateUpload } from "../src/lib/server/privateUploadStorage";
-import { storePublicUpload, deleteSupabasePublicUpload } from "../src/lib/server/publicUploadStorage";
+import {
+  storePublicUpload,
+  deleteSupabasePublicUpload,
+  PublicUploadOwnershipProofError,
+} from "../src/lib/server/publicUploadStorage";
+import { setContentScanner } from "../src/lib/server/security/contentTrust";
 import {
   assertWritesAllowed,
   WritesFrozenError,
@@ -31,6 +36,7 @@ const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0
 const blob = (b: Uint8Array) => new Blob([Uint8Array.from(b).buffer]);
 
 beforeEach(() => {
+  setContentScanner(null);
   if (isGlobalReadOnly()) clearGlobalReadOnly("test-reset");
   for (const a of Object.keys(getState().securityControl?.tenantLockdowns ?? {})) liftTenantLockdown(a, "test-reset");
 });
@@ -85,12 +91,22 @@ test("a frozen private DELETE is refused before the provider is touched (both de
 });
 
 test("a frozen public upload and public delete are refused by the boundary", async () => {
-  const input = { pathname: "wb/x.png", file: blob(PNG), contentType: "image/png", localDirectory: "wb", localKey: "x.png" };
+  const input = {
+    pathname: "website-media/agency-x/x.png",
+    file: blob(PNG),
+    contentType: "image/png",
+    localDirectory: "wb",
+    localKey: "x.png",
+    trust: { tenantId: "agency-x", actor: "publisher", purpose: "test.public-media" },
+  };
   setGlobalReadOnly("ic", "freeze");
   // public-upload: refused before content-type/provider branching or any I/O.
   await assert.rejects(storePublicUpload(input, {}), WritesFrozenError);
   // public-delete: refused before the configured/empty-key checks.
-  await assert.rejects(deleteSupabasePublicUpload("wb/x.png"), WritesFrozenError);
+  await assert.rejects(
+    deleteSupabasePublicUpload({ storageKey: "website-media/agency-x/x.png", tenantId: "agency-x", actor: "publisher" }),
+    WritesFrozenError,
+  );
   clearGlobalReadOnly("ic");
   // After thaw the guard no longer blocks: with a production-shaped env and no
   // Supabase configured, storePublicUpload reaches the provider layer and throws
@@ -100,9 +116,76 @@ test("a frozen public upload and public delete are refused by the boundary", asy
     storePublicUpload(input, { NODE_ENV: "production" } as NodeJS.ProcessEnv),
     (err: unknown) => err instanceof Error && !(err instanceof WritesFrozenError) && (err as { code?: string }).code === "durable_public_uploads_required",
   );
-  // public-delete after thaw: Supabase unconfigured in test → returns false
-  // (reached the provider check, not blocked by the freeze).
-  assert.equal(await deleteSupabasePublicUpload("wb/x.png"), false);
+  // public-delete after thaw reaches the separate ownership/refcount refusal;
+  // there is deliberately no dormant provider-delete implementation.
+  await assert.rejects(
+    deleteSupabasePublicUpload({ storageKey: "website-media/agency-x/x.png", tenantId: "agency-x", actor: "publisher" }),
+    PublicUploadOwnershipProofError,
+  );
+});
+
+test("a tenant lockdown binds public media writes through their agency lineage", async () => {
+  const localKey = `tenant-frozen-${Date.now()}.png`;
+  const absolutePath = join(process.cwd(), "public", "uploads-public", "write-boundary-test", localKey);
+  lockdownTenant("agency-x", "ic", "contained tenant");
+  await assert.rejects(
+    storePublicUpload(
+      {
+        pathname: `website-media/agency-x/${localKey}`,
+        file: blob(PNG),
+        contentType: "image/png",
+        localDirectory: "write-boundary-test",
+        localKey,
+        trust: { tenantId: "agency-x", actor: "publisher", purpose: "test.public-media" },
+      },
+      { NODE_ENV: "development" } as NodeJS.ProcessEnv,
+    ),
+    WritesFrozenError,
+  );
+  assert.equal(existsSync(absolutePath), false, "tenant-contained public media must not touch disk");
+  liftTenantLockdown("agency-x", "ic");
+});
+
+test("a lockdown activated while public media is scanning wins before provider I/O", async () => {
+  const localKey = `scan-race-${Date.now()}.png`;
+  const absolutePath = join(process.cwd(), "public", "uploads-public", "write-boundary-test", localKey);
+  setContentScanner(async () => {
+    lockdownTenant("agency-x", "incident-controller", "scanner race containment");
+    return { malicious: false };
+  });
+  try {
+    await assert.rejects(
+      storePublicUpload(
+        {
+          pathname: `website-media/agency-x/${localKey}`,
+          file: blob(PNG),
+          contentType: "image/png",
+          localDirectory: "write-boundary-test",
+          localKey,
+          trust: { tenantId: "agency-x", actor: "publisher", purpose: "test.scan-race" },
+        },
+        { NODE_ENV: "development" } as NodeJS.ProcessEnv,
+      ),
+      WritesFrozenError,
+    );
+    assert.equal(existsSync(absolutePath), false, "the post-scan containment check must run before disk I/O");
+  } finally {
+    setContentScanner(null);
+    liftTenantLockdown("agency-x", "incident-controller");
+  }
+});
+
+test("tenant lockdown and namespace checks bind the latent public delete path", async () => {
+  lockdownTenant("agency-x", "ic", "contained tenant");
+  await assert.rejects(
+    deleteSupabasePublicUpload({ storageKey: "website-media/agency-x/x.png", tenantId: "agency-x", actor: "operator" }),
+    WritesFrozenError,
+  );
+  liftTenantLockdown("agency-x", "ic");
+  await assert.rejects(
+    deleteSupabasePublicUpload({ storageKey: "website-media/agency-y/x.png", tenantId: "agency-x", actor: "operator" }),
+    /tenant namespace/i,
+  );
 });
 
 test("PORTAL_WRITES_FROZEN blocks writes even with NO in-state freeze (survives a restore)", () => {
@@ -127,4 +210,6 @@ test("the storage write choke points call the boundary (static inventory)", () =
   assert.match(privateSrc, /assertWritesAllowed\("storage\.private-upload"/, "storePrivateUpload must call the write boundary");
   const publicSrc = readFileSync(join(ROOT, "src/lib/server/publicUploadStorage.ts"), "utf8");
   assert.match(publicSrc, /assertWritesAllowed\("storage\.public-upload"/, "storePublicUpload must call the write boundary");
+  assert.match(publicSrc, /tenantId: input\.trust\.tenantId/, "public uploads must bind tenant lockdown lineage");
+  assert.match(publicSrc, /assertWritesAllowed\("storage\.public-delete"/, "public deletes must call the write boundary");
 });

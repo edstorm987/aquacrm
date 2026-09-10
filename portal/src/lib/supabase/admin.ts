@@ -10,7 +10,7 @@ function requireAdminConfig() {
   const serviceRoleKey = resolveSupabaseSecretKey();
   if (!url || !serviceRoleKey) {
     throw new Error(
-      "Supabase admin access is not configured. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.",
+      "Supabase admin access is not configured. Set the Supabase URL and a server key (SUPABASE_SECRET_KEY or legacy SUPABASE_SERVICE_ROLE_KEY).",
     );
   }
   return { url, serviceRoleKey };

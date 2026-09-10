@@ -93,12 +93,14 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (2):**
+**Exports (4):**
 
+- `isPortalSecurityStrict(nodeEnv: string | undefined, securityEnv: string | undefined): boolean` — FAIL CLOSED (assume-breach containment, 2026-09-08). The portal gate used to be conditional on NEXT_PUBLIC_PORTAL_SECURITY alone — unset (or any value but "strict"/"true") switche…
+- `isCrossOriginBrowserMutation(input: { method: string; path: string; origin: string | null; host: string | null; secFetchSite?: string | null; }): boolean`
 - `proxy(req: NextRequest)`
 - `config = {`
 
 **Depends on (1):** [`src/lib/staffWorkspacePolicy.ts`](lib.md#file-src-lib-staffworkspacepolicy-ts-3b2d90ae3d)
 
-**Used by (4):** [`scripts/smoke-bos-middleware-integration.test.ts`](scripts.md#file-scripts-smoke-bos-middleware-integration-test-ts-80126501cc) · [`scripts/smoke-sandbox-environment.test.ts`](scripts.md#file-scripts-smoke-sandbox-environment-test-ts-99a8655e6d) · [`scripts/smoke-showcase-mode.test.ts`](scripts.md#file-scripts-smoke-showcase-mode-test-ts-a1d2a86c7a) · [`scripts/smoke-staff-workspace-policy.test.ts`](scripts.md#file-scripts-smoke-staff-workspace-policy-test-ts-571c82073c)
+**Used by (6):** [`scripts/smoke-auth-fail-closed.test.ts`](scripts.md#file-scripts-smoke-auth-fail-closed-test-ts-5ef4c04eef) · [`scripts/smoke-bos-middleware-integration.test.ts`](scripts.md#file-scripts-smoke-bos-middleware-integration-test-ts-80126501cc) · [`scripts/smoke-platform-hardening.test.ts`](scripts.md#file-scripts-smoke-platform-hardening-test-ts-a99e092645) · [`scripts/smoke-sandbox-environment.test.ts`](scripts.md#file-scripts-smoke-sandbox-environment-test-ts-99a8655e6d) · [`scripts/smoke-showcase-mode.test.ts`](scripts.md#file-scripts-smoke-showcase-mode-test-ts-a1d2a86c7a) · [`scripts/smoke-staff-workspace-policy.test.ts`](scripts.md#file-scripts-smoke-staff-workspace-policy-test-ts-571c82073c)
 

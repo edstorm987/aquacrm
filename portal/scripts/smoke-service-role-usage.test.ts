@@ -8,7 +8,9 @@
  * 2026-08-20 the portal had 23 call sites across 18 files; the website-inbox
  * routes were then moved onto the signed-in user's scoped client
  * (`createScopedSupabaseClient`), leaving the sites pinned below — each of
- * which has a documented reason it must keep the service role.
+ * which has a documented reason it must keep the service role. Subsequent
+ * containment changes moved the count to 14, then removal of the dormant
+ * remote public-media provider reduced the current posture to 12.
  *
  * MEASUREMENT METHOD (keep it identical or the history is meaningless):
  * count occurrences of the literal `createSupabaseAdminClient(` in `src/`,
@@ -43,7 +45,7 @@ const MARKER = "createSupabaseAdminClient(";
 
 /**
  * The pinned posture. 23 sites / 18 files before the 2026-08-20 reduction;
- * 13 sites / 8 files after it. Every entry here must also appear, with its
+ * 12 sites / 8 files now. Every entry here must also appear, with its
  * reason, in the plan's phase-4 "what stays and why" table.
  */
 const EXPECTED_SITES: Record<string, number> = {
@@ -74,8 +76,6 @@ const EXPECTED_SITES: Record<string, number> = {
   // Private storage buckets deny anon/authenticated by design; app-mediated
   // signed access is the model, so storage ops need the service role.
   "src/lib/server/privateUploadStorage.ts": 3,
-  // Writes to the public-assets bucket; only the service role may write it.
-  "src/lib/server/publicUploadStorage.ts": 2,
   // Shared read/annotate layer used by radar, operational alerts, marketing
   // intelligence and server components — paths that run without a request or
   // user session. Moving it under a user session would make radar evidence
@@ -110,7 +110,7 @@ describe("service-role usage stays measured and documented", () => {
   const foundTotal = Object.values(found).reduce((sum, n) => sum + n, 0);
   const expectedTotal = Object.values(EXPECTED_SITES).reduce((sum, n) => sum + n, 0);
 
-  it("matches the pinned call-site count (14 sites in 9 files; +1 centralized enquiry client, 2026-09-08)", () => {
+  it("matches the pinned call-site count (12 sites in 8 files; remote public-media provider removed, 2026-09-10)", () => {
     assert.deepEqual(
       found,
       EXPECTED_SITES,

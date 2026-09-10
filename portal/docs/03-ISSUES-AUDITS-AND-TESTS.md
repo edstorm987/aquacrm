@@ -2,18 +2,18 @@
 
 > Verified findings, independent reviews, browser audits and the testing record.
 >
-> Consolidated 2026-09-09 from **11** source documents / **122,772 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-10 from **11** source documents / **122,864 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
 - [`docs/context/auditor-brief.md`](#source-docs-context-auditor-brief-md) — 1,437 words · `b00fc7df2874`
 - [`docs/development/AUDIT-2026-08-30.md`](#source-docs-development-audit-2026-08-30-md) — 670 words · `32afb89f6627`
-- [`docs/development/audits.md`](#source-docs-development-audits-md) — 36,769 words · `56326c89aea1`
+- [`docs/development/audits.md`](#source-docs-development-audits-md) — 36,828 words · `ba6f731248fb`
 - [`docs/development/findings/2026-08-22-agency-staff-can-read-salaries.md`](#source-docs-development-findings-2026-08-22-agency-staff-can-read-salaries-md) — 502 words · `7c087bfecb74`
 - [`docs/development/findings/2026-08-22-app-audit-salvage.md`](#source-docs-development-findings-2026-08-22-app-audit-salvage-md) — 1,294 words · `16f6f10e5bc4`
 - [`docs/development/findings/2026-08-22-stripe-can-never-be-configured.md`](#source-docs-development-findings-2026-08-22-stripe-can-never-be-configured-md) — 466 words · `e91f13c8620f`
 - [`docs/development/findings/2026-08-22-surfaces-that-state-a-falsehood.md`](#source-docs-development-findings-2026-08-22-surfaces-that-state-a-falsehood-md) — 892 words · `dfeb4a6302c1`
-- [`docs/development/issues.md`](#source-docs-development-issues-md) — 45,808 words · `2a49944dd8ab`
+- [`docs/development/issues.md`](#source-docs-development-issues-md) — 45,841 words · `8c9b8b1e0fd6`
 - [`docs/development/tests.md`](#source-docs-development-tests-md) — 15,828 words · `c3e9afa772e2`
 - [`docs/development/ultra-review-2026-08-24.md`](#source-docs-development-ultra-review-2026-08-24-md) — 15,523 words · `549d7565f978`
 - [`docs/development/visual-browser-audit-2026-08-23.md`](#source-docs-development-visual-browser-audit-2026-08-23-md) — 3,583 words · `f7864aed237f`
@@ -219,7 +219,7 @@ each lands. Severity order, not arrival order.
 
 ## Source document — `docs/development/audits.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/audits.md" sha256="56326c89aea1e7749d47a7115b173d27c8b1f98bfc7b999af8f879fd4a96a77a" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/audits.md" sha256="ba6f731248fb40a1fddc9163ae652d0298aae444eac2fe3c2d379bd7fda9d7a6" -->
 # Audit log
 
 ← Back to [development.md](../development.md) (the law) · Auditor how-to: [auditor-brief.md](../context/auditor-brief.md)
@@ -240,6 +240,13 @@ each lands. Severity order, not arrival order.
 > boundaries by itself.
 > Every verdict below is preserved dated evidence, including claims later
 > narrowed or superseded.
+
+> **Public-media correction, 2026-09-10:** old findings below that describe a
+> Supabase `upsert/getPublicUrl` writer or `deleteSupabasePublicUpload` as a ready
+> cleanup hook are superseded. The local corrective branch removes the dormant
+> remote writer and makes that compatibility delete helper ownership-blocked.
+> Remote publication remains red pending the atomic lifecycle, scanner/provider
+> proof and the separately applied/verified containment migration.
 
 > ## 🟡 SUITE effectively green — 2382 pass / 0 fail · `tsc` 0 errors (2026-08-20, commander-verified) — **but one red observed since**
 > **No open 🔴 findings.** The three items that were briefed as
@@ -2003,7 +2010,7 @@ _Captured from the Dev Team portal. Findings are the input side: review them, tu
 
 ## Source document — `docs/development/issues.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/issues.md" sha256="2a49944dd8ab47b38ed962500b1501128d75fa87eac224e55d94f850592c44d8" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/issues.md" sha256="8c9b8b1e0fd6d44b8b4e8d527f9484b6df942d0e5e2bdae1036a02d571a90b29" -->
 # Issues & risks
 
 ← Back to [development.md](../development.md) (the law)
@@ -2027,7 +2034,7 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
 > source verification. Those entries supersede the earlier deferral note.
 
 ## 🔴 Security / compliance (from verified source reads)
-1. **Database RLS — live and version-controlled; engineering residue remains.** **RECONCILED 2026-09-08:** RLS was live-verified on 2026-08-20, and the expanded migration set including `brand_enquiries.agency_id` and Master Inbox was applied and verified on 2026-09-03. The repository now contains 28 ordered migrations; `20260903130000_ensure_rls_event_trigger` was the one no-op-on-live version still to record. Admin/service-role paths still bypass RLS, so their tenant filters and a current two-tenant live exercise remain necessary before claiming universal database-enforced isolation. The 2026-09-08 review did not independently reconnect to Supabase. See [rls-enable](plans/rls-enable.md), [database.md](../workspace/database.md) and [current readiness](PRODUCTION-READINESS.md).
+1. **Database RLS — live and version-controlled; four migrations remain owner-gated.** **RECONCILED 2026-09-10:** RLS was live-verified on 2026-08-20, and the expanded migration set including `brand_enquiries.agency_id` and Master Inbox was applied and verified on 2026-09-03. The repository now contains **31 ordered migrations**; the last verified live alignment covered 27. The four later versions are `20260903130000`, `20260908210000`, `20260908220000`, and `20260910010000`; none is claimed applied by the current local security lanes. Admin/service-role paths still bypass RLS, so their tenant filters and a current two-tenant live exercise remain necessary before claiming universal database-enforced isolation. See [rls-enable](plans/rls-enable.md), [database.md](../workspace/database.md) and [current readiness](PRODUCTION-READINESS.md).
 
     *2026-09-03, before application:* live anon posture was re-probed read-only (0 rows on every private table, `401` on `app_datastore_history`, the three public tables public by design); the live schema was eleven migrations behind the repo. Grants were inherited from cloud defaults rather than written, so `20260903120000_explicit_service_role_grants.sql` stated them.
 
@@ -2749,7 +2756,7 @@ new bug. Severity: 🔴 needs a decision/fix · 🟠 worth addressing · ⚪ kno
     `assignPlanHandler`. Fixing it at the gate covers both placements.
 
 ## 🟠 Config / correctness
-4. **`.env.example` is missing the 3 required Supabase credentials** (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`) — all prod-required and enforced by the boot self-check, so a dev copying the example gets a build that fails to start. **Trivial fix.**
+4. **✅ RESOLVED 2026-09-10 — `.env.example`, startup and readiness now share the runtime Supabase key contract.** They document and accept `NEXT_PUBLIC_SUPABASE_URL`, either current publishable-key alias (`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` / `NEXT_PUBLIC_PUBLISHABLE_KEY`) or the legacy anon key, and either `SUPABASE_SECRET_KEY` or the legacy service-role key. Missing an entire public/server key class still fails production boot; one deprecated spelling is no longer incorrectly mandatory.
 5. **`00000` connect code is a dev-only bypass** — ✅ **RESOLVED 2026-08-20 (source-verified).** Real emailed codes shipped: `lib/server/connectionConfirmation.ts` mints a 6-digit code (`CONFIRMATION_CODE_LENGTH`), HMAC-hashes it (`hashConfirmationCode`, `:129`), stores only the hash with a **15-minute TTL** (`CONFIRMATION_CODE_TTL_MS`, `:50`) and single-use semantics, verifies in constant time and **fails closed in every direction that is not an explicit unexpired match** (`:147`), and emails the raw code (`:221-267`). `DEV_CONFIRMATION_CODE` (`:53`) is accepted **only** when `input.bypassEnabled` (`:177`), which requires dev mode. A Resend sender is configured and `inspectProductionReadiness()` reports email READY. **Only remaining gate: the code-step browser walk** — see [connect-flow-real-codes](plans/connect-flow-real-codes.md). *(This item previously pointed at `phases.md #3`, which is superseded history — use [roadmap.md](roadmap.md).)*
 6. **Two blob backends use different tables AND row keys** (`portal_kv."__portal_state__"` vs `app_datastores.app_key='aquacrm-portal-state'`) — fine as long as you don't switch backends expecting the data to follow.
 7. **Erasure doesn't sweep nested plugin data** — ✅ **RESOLVED** (2026-08-19, [plugin-data-erasure](plans/plugin-data-erasure.md), all phases, runtime-verified in memory). The nested/plugin disposition coverage remains implemented. **Do not read this as “erasure is complete”:** operational false-success, retry and audit-PII defects are open separately as **#24**.

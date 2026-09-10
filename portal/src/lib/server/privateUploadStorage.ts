@@ -5,15 +5,20 @@ import { dirname, join, resolve, sep } from "node:path";
 import { del, put } from "@vercel/blob";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { resolveSupabaseSecretKey } from "@/lib/supabase/keys";
 import { sliceStream, type ByteRange } from "@/lib/server/privateMediaResponse";
 import { assertLiveProviderAccess } from "@/lib/server/sandbox/providerPolicy";
 import { assessUploadContent, ContentTrustError, type ContentTrustAssessment } from "@/lib/server/security/contentTrust";
 import { assertWritesAllowed } from "@/lib/server/auth/securityControl";
+import {
+  resolvePrivateUploadBucket,
+  StorageBucketConfigurationError,
+} from "@/lib/server/storageBucketPolicy";
 import { isSandboxDataRealm } from "@/server/dataRealm";
 
 export type PrivateUploadStorageProvider = "supabase" | "vercel-blob" | "local";
 
-const DEFAULT_SUPABASE_UPLOAD_BUCKET = "aquacrm-uploads";
+export { resolvePrivateUploadBucket, StorageBucketConfigurationError };
 
 export class PrivateUploadStorageError extends Error {
   readonly code = "durable_private_uploads_required";
@@ -53,6 +58,7 @@ export interface StoredPrivateUpload {
  */
 export function planPrivateUpload(input: Pick<StorePrivateUploadInput, "pathname" | "localKey">): StoredPrivateUpload {
   if (supabasePrivateUploadsConfigured()) {
+    resolvePrivateUploadBucket();
     return { storageProvider: "supabase", storageKey: input.pathname };
   }
   if (privateUploadsConfigured()) {
@@ -89,6 +95,13 @@ export async function storePrivateUpload(input: StorePrivateUploadInput): Promis
   // so an incident write-freeze must refuse it here too — before content
   // assessment or any provider I/O, so a frozen upload leaves nothing behind.
   assertWritesAllowed("storage.private-upload", { tenantId: input.trust?.tenantId, actor: input.trust?.actor });
+  // Resolve the fixed private/public zone contract before inspecting or sending
+  // bytes anywhere. A configured Supabase client always wins provider
+  // precedence, so a bad bucket must fail closed rather than fall through to
+  // another provider or silently write private data to a public bucket.
+  const supabaseBucket = supabasePrivateUploadsConfigured()
+    ? resolvePrivateUploadBucket()
+    : null;
   // CONTENT TRUST GATEWAY (Phase 2): every route stores through this function,
   // so every stored upload is judged by its BYTES here — before any provider
   // I/O. A blocked verdict throws and nothing is written anywhere. See
@@ -106,11 +119,9 @@ export async function storePrivateUpload(input: StorePrivateUploadInput): Promis
   // or serve it until a scanner clears it (Item 7). Both refuse here.
   if (assessment.verdict === "blocked" || assessment.verdict === "quarantined") throw new ContentTrustError(assessment);
   const contentTrust = { verdict: assessment.verdict, digest: assessment.digest, sniffedType: assessment.sniffedType };
-  if (supabasePrivateUploadsConfigured()) {
-    const bucket = process.env.NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET?.trim()
-      || DEFAULT_SUPABASE_UPLOAD_BUCKET;
+  if (supabaseBucket) {
     const admin = createSupabaseAdminClient();
-    const { error } = await admin.storage.from(bucket).upload(input.pathname, input.file, {
+    const { error } = await admin.storage.from(supabaseBucket).upload(input.pathname, input.file, {
       cacheControl: "3600",
       contentType: input.contentType,
       upsert: false,
@@ -138,8 +149,7 @@ export async function storePrivateUpload(input: StorePrivateUploadInput): Promis
 
 export async function readSupabasePrivateUpload(storageKey: string): Promise<Blob | null> {
   if (!supabasePrivateUploadsConfigured() || !storageKey.trim()) return null;
-  const bucket = process.env.NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET?.trim()
-    || DEFAULT_SUPABASE_UPLOAD_BUCKET;
+  const bucket = resolvePrivateUploadBucket();
   const admin = createSupabaseAdminClient();
   const { data, error } = await admin.storage.from(bucket).download(storageKey);
   return error ? null : data;
@@ -161,10 +171,9 @@ export async function readSupabasePrivateUploadRange(
 ): Promise<BodyInit | null> {
   if (!range) return readSupabasePrivateUpload(storageKey);
   if (!supabasePrivateUploadsConfigured() || !storageKey.trim()) return null;
-  const bucket = process.env.NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET?.trim()
-    || DEFAULT_SUPABASE_UPLOAD_BUCKET;
+  const bucket = resolvePrivateUploadBucket();
   const base = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim().replace(/\/+$/, "");
-  const serviceKey = (process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? "").trim();
+  const serviceKey = resolveSupabaseSecretKey() ?? "";
   const path = storageKey.split("/").map(encodeURIComponent).join("/");
   let response: Response;
   try {
@@ -187,8 +196,7 @@ async function removeSupabasePrivateUpload(storageKey: string): Promise<void> {
   if (!supabasePrivateUploadsConfigured()) {
     throw new Error("Supabase private storage is not connected, so the stored file could not be removed.");
   }
-  const bucket = process.env.NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET?.trim()
-    || DEFAULT_SUPABASE_UPLOAD_BUCKET;
+  const bucket = resolvePrivateUploadBucket();
   const admin = createSupabaseAdminClient();
   const { error } = await admin.storage.from(bucket).remove([storageKey]);
   if (error) throw new Error(error.message);

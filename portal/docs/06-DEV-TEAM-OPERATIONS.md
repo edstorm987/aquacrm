@@ -2,13 +2,13 @@
 
 > Commander/worker briefs, orchestration guidance, compatibility state and operational handoffs; individual sources identify whether they are current or historical.
 >
-> Consolidated 2026-09-09 from **7** source documents / **18,648 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-10 from **7** source documents / **18,702 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
 - [`aqua dev.md`](#source-aqua-dev-md) — 3,658 words · `2f70ff272bdc`
 - [`docs/context/commander-handoff.md`](#source-docs-context-commander-handoff-md) — 1,028 words · `9946ecf4528f`
-- [`docs/context/next-wave-briefs.md`](#source-docs-context-next-wave-briefs-md) — 2,513 words · `2b836aab17d9`
+- [`docs/context/next-wave-briefs.md`](#source-docs-context-next-wave-briefs-md) — 2,567 words · `863357d7fb14`
 - [`docs/context/orchestration-model.md`](#source-docs-context-orchestration-model-md) — 979 words · `10a0791cafc5`
 - [`docs/context/README.md`](#source-docs-context-readme-md) — 733 words · `80bd216311d3`
 - [`docs/context/state.md`](#source-docs-context-state-md) — 8,511 words · `d5b53fac2f6d`
@@ -566,7 +566,7 @@ the law to know the work, and maintains the context to run the work.
 
 ## Source document — `docs/context/next-wave-briefs.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/context/next-wave-briefs.md" sha256="2b836aab17d9affc0749a47501f5757a23e702e98bb1d40b8204f3d831f04bf3" -->
+<!-- AQUACRM_SOURCE_START path="docs/context/next-wave-briefs.md" sha256="863357d7fb1480eaaee34312421a5fdea168ce0a41a9dafded75742a5aa83df6" -->
 # Next wave — ready-to-spin briefs + launch checklist
 
 ← [state.md](state.md) · Written 2026-08-19 · **P0/P1 queue corrected against source/runtime evidence 2026-08-24.**
@@ -740,10 +740,16 @@ overlap. Re-read [state.md](state.md) before dispatching because workers are act
 > `scripts/smoke-sandbox-protection.test.ts`. Workers browser-verify their own work.
 
 ### The original 2026-08-19 note — `:3032` FREED, Commander verify server RUNNING
+> **DO NOT EXECUTE THE LIVE PUBLIC-BUCKET STEP BELOW.** This section is retained
+> as historical planning evidence. The current security lane deliberately
+> disables remote app-server public writes and blocks routine public deletion
+> until an ownership-proven durable lifecycle exists. No live write/delete is
+> authorised by this note; use the current security gate and public-bucket plan.
+
 ✅ `:3032` is **free and serving** — the dead lock cleared when its owning chat closed; the Commander verify server is back up (`aquacrm-verify` = file backend + `milesymedia` seed + dev-mode; `/dev` mints an owner session; browser-verified — Contacts renders, no console errors). The **browser-verify sweep can proceed.** ⚠ Shared file backend (`.data/portal-state.json`): concurrent worker `dev:verify` runs can clobber it → route UI checks through the Commander server, or commit → git worktrees (own checkout/port/`.data` per worker). The **Commander runs the browser-verify sweep:**
 - Freelancer (after its fix — incl. the manager-exit-doesn't-become-owner test)
 - Finance UIs (pay-by-card, close-the-deal, AR/AP aging)
-- Public-bucket **live CDN** — ⚠ writes 1 test image to the **LIVE** `aquacrm-public` bucket (no local Supabase sandbox) → **needs Ed's explicit OK**; delete the object after.
+- ~~Public-bucket **live CDN** write/delete~~ — **RETIRED / DO NOT RUN:** remote publication is disabled and routine deletion is ownership-blocked in the current correction.
 - Dev-docs · connect-flow code-step · enquiry-card real-data · KPI custom-builder + customer-intel
 
 ---

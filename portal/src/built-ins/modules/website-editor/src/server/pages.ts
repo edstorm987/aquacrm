@@ -8,8 +8,13 @@ import type { AgencyId, ClientId } from "../lib/tenancy";
 import type { PortalRole } from "../lib/portalRole";
 import { pageId as makePageId, slugify } from "../lib/ids";
 import { storageKeys } from "./storage-keys";
-import { promoteBlockTreeMedia } from "./publicMediaPromotion";
+import {
+  assertPublicStyleSurfaceSafe,
+  promoteBlockTreeMedia,
+  PublicMediaPortUnavailableError,
+} from "./publicMediaPromotion";
 import { stabiliseCountdownDeadlines } from "./../lib/countdownDeadline";
+import { validateCustomCode } from "../lib/customCode";
 import { getDefaultTheme, getTheme } from "./themes";
 import {
   capturePublishedPage,
@@ -33,11 +38,35 @@ const UPDATE_PAGE_FIELDS = [
   "privacy", "passwordHash", "redirectSourceSlugs", "locales",
 ] as const satisfies readonly (keyof UpdatePagePatch)[];
 
+export class PagePatchValidationError extends Error {
+  readonly code = "page_patch_validation_refused";
+
+  constructor(
+    readonly field: "customCSS" | "customCss",
+    readonly reason: string,
+  ) {
+    super(`Page patch ${field} was refused (${reason}).`);
+    this.name = "PagePatchValidationError";
+  }
+}
+
 function sanitiseUpdatePagePatch(patch: UpdatePagePatch): UpdatePagePatch {
   const source = patch as unknown as Record<string, unknown>;
   const safe: Record<string, unknown> = {};
   for (const field of UPDATE_PAGE_FIELDS) {
     if (Object.prototype.hasOwnProperty.call(source, field)) safe[field] = source[field];
+  }
+  for (const field of ["customCSS", "customCss"] as const) {
+    if (!Object.prototype.hasOwnProperty.call(safe, field)) continue;
+    const value = safe[field];
+    if (value === undefined) continue;
+    if (typeof value !== "string") {
+      throw new PagePatchValidationError(field, "must-be-text");
+    }
+    const checked = validateCustomCode(value, "css");
+    if (!checked.ok) {
+      throw new PagePatchValidationError(field, checked.reason ?? "invalid-css");
+    }
   }
   return safe as UpdatePagePatch;
 }
@@ -215,7 +244,7 @@ export async function publishPage(
   clientId: ClientId,
   siteId: string,
   id: string,
-  opts?: { publicMedia?: PublicMediaPort },
+  opts?: { publicMedia?: PublicMediaPort; actor?: string },
 ): Promise<EditorPage | null> {
   const page = await getPage(storage, agencyId, clientId, siteId, id);
   if (!page) return null;
@@ -223,15 +252,29 @@ export async function publishPage(
   const publishedTheme = page.themeId
     ? await getTheme(storage, agencyId, clientId, siteId, page.themeId)
     : await getDefaultTheme(storage, agencyId, clientId, siteId);
+  // Page CSS and theme tokens are rendered outside the block-prop walker but
+  // can still carry inline bytes. Inspect the combined stored surface before
+  // any provider I/O so aliases or adjacent token values cannot hide a data
+  // URL across their eventual CSS declaration boundaries.
+  assertPublicStyleSurfaceSafe([
+    page.customCSS,
+    page.customCss,
+    publishedTheme?.tokens,
+  ]);
   let blocks = page.draftBlocks ?? page.blocks;
   blocks = stabiliseCountdownDeadlines(blocks, now);
   // Auto-public on publish: push inline data-URL media to the public CDN
   // bucket and rewrite the published blocks to the durable public URLs. Only
-  // runs when the foundation wired the port; otherwise blocks publish as-is.
+  // A page without inline media does not need the optional foundation port.
+  // A page WITH inline media fails closed when the port is absent: publishing
+  // it unchanged would bypass byte inspection and the malware-clear gate.
   const port = opts?.publicMedia;
-  if (port && Array.isArray(blocks)) {
+  if (Array.isArray(blocks)) {
     const { blocks: promoted } = await promoteBlockTreeMedia(blocks, dataUrl =>
-      port.store({ agencyId, clientId, siteId, dataUrl }).then(r => r.publicUrl));
+      (port
+        ? port.store({ agencyId, clientId, siteId, actor: opts?.actor, dataUrl })
+        : Promise.reject(new PublicMediaPortUnavailableError()))
+        .then(r => r.publicUrl));
     blocks = promoted;
   }
   const next: EditorPage = {

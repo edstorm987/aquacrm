@@ -33,27 +33,89 @@ const EXT_BY_MIME: Record<string, string> = {
 };
 
 const MEDIA_DIR = "website-media";
+export const MAX_PUBLIC_MEDIA_BYTES = 8 * 1024 * 1024;
+
+export class PublicMediaDataUrlError extends Error {
+  readonly code = "public_media_data_url_invalid";
+
+  constructor(readonly reason: "invalid" | "empty" | "too-large") {
+    super(
+      reason === "too-large"
+        ? "Public website media must be 8 MiB or smaller."
+        : "Public website media must be a non-empty base64 data URL.",
+    );
+    this.name = "PublicMediaDataUrlError";
+  }
+}
+
+export class PublicMediaIdentityError extends Error {
+  readonly code = "public_media_identity_invalid";
+
+  constructor(readonly field: "agencyId" | "clientId" | "siteId") {
+    super(`Public media ${field} is not a safe storage-path identifier.`);
+    this.name = "PublicMediaIdentityError";
+  }
+}
+
+const SAFE_PUBLIC_MEDIA_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
+
+function assertSafePublicMediaIdentifier(
+  field: "agencyId" | "clientId" | "siteId",
+  value: string | undefined,
+  required: boolean,
+): void {
+  if (value === undefined && !required) return;
+  if (!value || !SAFE_PUBLIC_MEDIA_IDENTIFIER.test(value)) {
+    throw new PublicMediaIdentityError(field);
+  }
+}
 
 export interface DecodedDataUrl {
   contentType: string;
   bytes: Buffer;
 }
 
-// Parse `data:<mime>[;base64],<payload>`. Returns null for non-data inputs.
-export function parseDataUrl(dataUrl: string): DecodedDataUrl | null {
-  const match = /^data:([^;,]*)(;base64)?,([\s\S]*)$/.exec(dataUrl);
+// Parse `data:<mime>;base64,<payload>` with a hard decoded-size bound BEFORE
+// allocating the byte buffer. The editor's asset contract is 8 MiB; enforcing
+// the same invariant here covers legacy/direct page PATCHes that bypass the
+// asset handler. Returns null for malformed/non-data inputs.
+export function parseDataUrl(
+  dataUrl: string,
+  maxBytes = MAX_PUBLIC_MEDIA_BYTES,
+): DecodedDataUrl | null {
+  const maxEncodedChars = Math.ceil(maxBytes * 4 / 3) + 1_024;
+  if (dataUrl.length > maxEncodedChars) {
+    throw new PublicMediaDataUrlError("too-large");
+  }
+  const canonical = dataUrl
+    .replace(/^[\u0000-\u0020]+/, "")
+    .replace(/[\u0009\u000a\u000d]/g, "");
+  // Bound the encoded representation too. This avoids copying an arbitrarily
+  // large attacker-controlled string merely to discover it decodes over cap.
+  if (canonical.length > maxEncodedChars) {
+    throw new PublicMediaDataUrlError("too-large");
+  }
+  const match = /^data:([^;,]{1,128});base64,([\s\S]*)$/i.exec(canonical);
   if (!match) return null;
-  const contentType = match[1] || "application/octet-stream";
-  const isBase64 = Boolean(match[2]);
-  const payload = match[3] ?? "";
-  const bytes = isBase64
-    ? Buffer.from(payload, "base64")
-    : Buffer.from(decodeURIComponent(payload), "utf8");
+  const contentType = match[1]!.trim().toLowerCase();
+  const payload = (match[2] ?? "").replace(/[\u0009-\u000d\u0020]/g, "");
+  if (!payload || !/^[A-Za-z0-9+/]*={0,2}$/.test(payload) || payload.length % 4 === 1) {
+    return null;
+  }
+  const padding = payload.endsWith("==") ? 2 : payload.endsWith("=") ? 1 : 0;
+  if (padding > 0 && payload.length % 4 !== 0) return null;
+  const expectedBytes = Math.floor(payload.length * 3 / 4) - padding;
+  if (expectedBytes <= 0) throw new PublicMediaDataUrlError("empty");
+  if (expectedBytes > maxBytes) throw new PublicMediaDataUrlError("too-large");
+  const bytes = Buffer.from(payload, "base64");
+  if (bytes.byteLength !== expectedBytes) return null;
   return { contentType, bytes };
 }
 
-// Content-addressed object key: identical bytes → identical key → a stable
-// public URL across re-publishes (paired with the helper's `upsert:true`).
+// Legacy-compatible content-addressed key used by local development. Remote
+// publication is hard-disabled: shared keys plus upsert cannot prove which
+// operation owns a public object or recall it safely. The durable lifecycle must
+// replace this with operation-owned immutable identity before remote enablement.
 export function publicMediaKey(input: {
   agencyId: string;
   clientId?: string;
@@ -61,6 +123,14 @@ export function publicMediaKey(input: {
   contentType: string;
   bytes: Buffer;
 }): string {
+  // These values become URL path segments on a service-role Supabase write.
+  // Permit only the identifier alphabet used by AquaCRM's generated IDs. Raw
+  // concatenation of slash, backslash, percent, dot-segment, query or fragment
+  // characters would otherwise be normalized by a downstream URL layer after
+  // the tenant-prefix check and could escape the authenticated namespace.
+  assertSafePublicMediaIdentifier("agencyId", input.agencyId, true);
+  assertSafePublicMediaIdentifier("clientId", input.clientId, false);
+  assertSafePublicMediaIdentifier("siteId", input.siteId, false);
   const hash = createHash("sha256").update(input.bytes).digest("hex").slice(0, 32);
   const ext = EXT_BY_MIME[input.contentType.toLowerCase()] ?? "bin";
   return [
@@ -75,7 +145,7 @@ export function publicMediaKey(input: {
 export const publicMediaAdapter: PublicMediaPort = {
   async store(input: PublicMediaStoreInput): Promise<StoredPublicMedia> {
     const decoded = parseDataUrl(input.dataUrl);
-    if (!decoded) throw new Error("publicMedia.store expects a data: URL");
+    if (!decoded) throw new PublicMediaDataUrlError("invalid");
     const pathname = publicMediaKey({
       agencyId: input.agencyId,
       clientId: input.clientId,
@@ -92,6 +162,13 @@ export const publicMediaAdapter: PublicMediaPort = {
       contentType: decoded.contentType,
       localDirectory: MEDIA_DIR,
       localKey,
+      trust: {
+        tenantId: input.agencyId,
+        clientId: input.clientId,
+        siteId: input.siteId,
+        actor: input.actor,
+        purpose: "website-editor.public-media.publish",
+      },
     });
     return { publicUrl: stored.publicUrl, storageKey: stored.storageKey };
   },

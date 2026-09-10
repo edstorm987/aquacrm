@@ -51,7 +51,7 @@ export default function FooterBlock({ block }: BlockRenderProps) {
 
   return (
     <footer data-block-type="footer" data-footer-id={id} style={style}>
-      <style dangerouslySetInnerHTML={{ __html: responsiveCss }} />
+      <style>{responsiveCss}</style>
       <div className="footer-inner">
         <div className="footer-brand">
           <p style={{ fontFamily: "var(--font-playfair, Georgia, serif)", fontSize: 20, fontWeight: 700, margin: "0 0 8px" }}>{brand}</p>

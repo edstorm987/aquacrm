@@ -12,6 +12,46 @@
 - **Commits on the branch since base:** 40.
 - **Not merged, not deployed** by this pass. Pushed for independent review only.
 
+> **PUBLIC-UPLOAD CORRECTION / LOCAL FOLLOW-ON (2026-09-10).** Later
+> architecture mapping proved that this report's item 7 generalized the
+> byte-level protection at `storePrivateUpload` to a separate path it did not
+> cover: the separate `storePublicUpload` website-media boundary. The original
+> helper wrote website media to the public CDN bucket; the corrective candidate now exists on
+> `security/public-upload-byte-inspection-20260910`, based on
+> `72acac904ba6af88cb1a3d84483b4a4359d03747`. At the time of this note it is a
+> **local branch candidate only: unmerged and undeployed**. Its prospective
+> public-media boundary verifies declared type against inspected bytes locally,
+> refuses unsafe or oversized content, restricts storage identifiers to canonical
+> path-safe segments, and aborts block-tree data-URL publication on every
+> provider, policy, traversal or content-trust failure; there is no
+> provider-error fallback for those inspected block-tree values. Page/site/theme
+> CSS and head/foot fields are separate stored-code surfaces and are not covered
+> by that media walker.
+>
+> This candidate does **not** create an atomic publication transaction, a
+> durable object/refcount ledger, a durable
+> quarantine/release/rescan/purge store, a durable off-platform security-event
+> drain, a live scanner attestation, or live proof of CDN response headers. A
+> failed multi-object publish could therefore leave an earlier cleared object
+> public but not linked from the page, while shared content-addressed keys make
+> compensating deletion unsafe. The final adversarial correction closes that
+> fresh exposure by refusing every configured app-server write through
+> `storePublicUpload` before scanner or provider I/O and removing the dormant
+> provider branch. That choke point does not replace the database/storage
+> migration: direct authenticated, dashboard or other service-role access must
+> be contained and verified separately. New remote public-media publication remains disabled
+> until an operation-owned durable saga can prove atomic page-generation commit,
+> recovery and recall. The configured scanner's audited egress path also
+> retains its 1 MiB request cap, so the advertised 8 MiB media ceiling cannot be
+> supported when remote publication is later enabled until the owner explicitly
+> approves a larger scanner-data egress cap (or lowers the product limit). Nor
+> does this pass retroactively inspect
+> objects already in the public bucket or inline payloads already published.
+> After merge, deployment and provider connection, those existing artifacts need
+> an inventory + scan + safe republish/removal job before the public-media gate
+> can be called complete. The historical evidence below remains evidence for its
+> 2026-09-09 head only. The current verdict remains **NOT READY**.
+
 > **Adversarial verification (2026-09-09).** After the 12 items were closed, an
 > independent multi-agent adversarial pass re-checked each "FIXED" claim against
 > the actual code AND its test — specifically whether each test proves the
@@ -33,6 +73,9 @@ remain that are **owner/infrastructure-gated and cannot be closed in code**:
 - the assume-breach containment chain (base `20260908210000` + corrective
   `20260908220000`) is **not applied to the live database** (P0) — though its
   correctness is now locally-verified on a disposable DB (0 FAIL);
+- the follow-on public-bucket hardening migration `20260910010000` is likewise
+  **local, unmerged and unapplied**; its source checks pass, but it has not been
+  exercised or attested against a remote/shared Storage service (P0);
 - the restore path is now locally-verified end-to-end on a disposable DB, but
   **no operational drill has run against the real backup/key on real
   infrastructure** — RPO/RTO still unmeasured (P0);
@@ -92,7 +135,7 @@ The 13 focused security files:
 `smoke-read-path-mutations`.
 
 **Now verified on a fresh DISPOSABLE database this session** (see
-"Disposable-DB verification" below): the full 30-migration chain (base + the
+"Disposable-DB verification" below): the then-current 30-migration chain (base + the
 corrective containment migration) + `rls-verify.sql` (`containment-verified`,
 0 FAIL), AND an end-to-end backup→restore drill with row-count parity and
 `rls-verify` clean on the restored DB. The shared local Supabase stack
@@ -110,7 +153,7 @@ programme was not re-run this session.
 | 1 | Authoritative cross-realm containment + fail-closed reads | **FIXED** | `readSecurityControlStrict` throws on read failure; `enforceSessionSecurity`/`assertWritesAllowed` fail CLOSED; `smoke-security-control-fail-closed` proves a protected write is refused when the control plane is unreadable |
 | 2 | User-specific platform-operator authority + tenant-scoped actions | **FIXED** | `isPlatformOperator({email})` (founder ∪ `PORTAL_PLATFORM_OPERATOR_EMAILS`) gates operator-only actions; `revokeUserSessionsInTenant` scopes revocation to one agency (no global epoch bump); `smoke-platform-hardening`, `smoke-threat-centre` |
 | 3 | Supabase-authoritative reauth + COMPLETE session registry | **FIXED (registry) / PARTIAL (true AAL2 = OWNER)** | every non-ephemeral mint registers via `issueSession`→`recordIssuedSession` with expiry + pruning; `smoke-session-registry-completeness` proves login/magic/oauth all register and expired records drop out; AAL2 step-up gate present, real MFA ceremony is OWNER |
-| 4 | One write-side-effect boundary + inventory | **FIXED (storage) / TRACKED (breadth)** | `assertWritesAllowed` at private+public upload store **and delete** (incl. the exported `deleteSupabasePrivateUpload`, guarded during the adversarial pass so a freeze throws rather than returning a silent `false`); `smoke-write-surface-inventory` fails the build if any server module performs an object-store write/delete (Supabase storage upload/remove, Vercel Blob put/del) without the boundary, or a surface string is unclassified/stale; **all four** storage surfaces have behavioural freeze-refusal proof (`smoke-write-boundary`); remaining non-storage surfaces enumerated (P2) |
+| 4 | One write-side-effect boundary + inventory | **FIXED (storage) / TRACKED (breadth)** | `assertWritesAllowed` at private+public upload store/delete boundaries (incl. the exported `deleteSupabasePrivateUpload`, guarded during the adversarial pass so a freeze throws rather than returning a silent `false`); the public-delete compatibility boundary is additionally hard-disabled with `PublicUploadOwnershipProofError` because shared legacy keys lack ownership/refcount proof and contains no provider delete. `smoke-write-surface-inventory` fails the build if any server module performs an object-store write/delete (Supabase storage upload/remove, Vercel Blob put/del) without the boundary, or a surface string is unclassified/stale; all four boundaries have behavioural freeze-refusal proof (`smoke-write-boundary`); remaining non-storage surfaces enumerated (P2) |
 | 5 | Ecosystem-safe enquiry migration incl. client-portal | **FIXED** | corrective migration `20260908220000` (server-mediated, forward-only, self-verifying); client-portal enquiry route uses the server-mediated admin path behind `rateLimit`; `client-portal` CI job builds it |
 | 6 | Reduce shared service-role blast radius | **CODE-PREP + ADR DONE / INFRA = OWNER** | `docs/security/ADR-001`: inventory, target architecture, adversarial model; `smoke-service-role-usage` pins the service-role call-site count; separate project / scoped credential = OWNER |
 | 7 | Malware / quarantine / content-trust | **FIXED (fail-closed) / TRACKED (durable ledger)** | full-stream scan to 25 MB; verdict enum incl. `quarantined`/`blocked`; production + scanner-outage/absent + high-risk type → **quarantined**; `contentScannerAdapter` posts bytes via the SSRF-safe broker; `smoke-content-trust` proves signature-match ≠ clean and the fail-closed path. The real adapter now has its own behavioural suite (`smoke-content-scanner-adapter`): verdict mapping, and fail-closed on non-2xx / unparseable body / egress refusal — a gap found in the adversarial pass, where the adapter shared the broken broker pin (a "wired" scanner would have thrown on every scan) and threw a raw `SyntaxError` on a non-JSON body (now caught) |
@@ -119,6 +162,11 @@ programme was not re-run this session.
 | 10 | Restore / backup safety | **FIXED (guards) / BLOCKED E2E (OWNER keygen)** | `restore-drill.sh`: no loopback auto-trust, prod-name denylist, mandatory `--expect-sha`, safe-tar rejection of `..`/absolute/symlink/device entries, `--no-same-owner`; `smoke-restore-drill-safety`; a real end-to-end drill needs owner keys/secrets |
 | 11 | Emergency console + mutating GETs + readiness truth | **FIXED** | `security-console.ts` self-re-execs with the right conditions, verifies persistence, exits nonzero on read-back failure; `/api/internal/sweep` GET→POST; CSRF roots include `/api/tenants/` + `/api/internal/`; readiness content-scanner gate requires a wired adapter AND config; `smoke-security-console`, `smoke-read-path-mutations`, `smoke-production-readiness` |
 | 12 | Supply chain / CI / browser / docs | **FIXED (CI/supply-chain) / TRACKED (a11y)** | CI actions pinned by SHA, Supabase CLI pinned, NEW `client-portal` typecheck+build job; `smoke-suite-coverage`; browser a11y coverage for the Security Centre is TRACKED (P2) |
+
+> **Item 7 scope correction (2026-09-10):** at this report's head, the evidence
+> covered the private-upload storage choke point, not the separate public-CDN
+> writer. Use the local follow-on note above for the prospective public path;
+> do not read the historical row as proof of a deployed public-media control.
 
 ---
 
@@ -132,7 +180,7 @@ and destroyed for this drill; the shared local stack (`supabase_db_aquacrm`,
 live/remote database was touched. An ephemeral throwaway keypair was generated
 for the encryption step and shredded afterward (no real secret handled).
 
-**P0 #1 — containment migration + rls-verify → PASS.** The full 30-migration
+**P0 #1 — containment migration + rls-verify → PASS.** The then-current 30-migration
 history applied cleanly to a fresh Supabase-shaped DB, including base
 `20260908210000` and corrective `20260908220000`; the corrective migration's own
 embedded privilege self-checks did not raise. `supabase/rls-verify.sql` then
@@ -241,6 +289,14 @@ was modified.
   TRIGGER residue — not CRUD alone). **LOCAL/OWNER-APPLIED ONLY. Not applied to
   any remote or shared database by this pass.** Order: base `20260908210000`
   (already in `main`) then this corrective one.
+- `supabase/migrations/20260910010000_harden_aquacrm_public_media_bucket.sql`
+  (local follow-on). It narrows the AquaCRM public bucket's byte/MIME contract
+  and verifies the public/private bucket flags. It also raises on every
+  `storage.objects` INSERT/UPDATE/DELETE/ALL policy targeting anon,
+  authenticated or PUBLIC, independent of policy name. **LOCAL, UNMERGED, UNAPPLIED and
+  not included in the disposable-DB attestation above.** Apply only after the
+  containment chain, a fresh backup and explicit owner approval; then verify the
+  live bucket contract independently.
 
 ---
 
@@ -377,14 +433,25 @@ the readiness-pointer edit invalidated; `aae1ec60`/(this) update the ledger.
 ## Remaining work — honest ledger
 
 ### P0 (stop-ship; OWNER — not fixable in code)
-1. Apply the containment chain to the live DB after a fresh backup:
-   base `20260908210000` then corrective `20260908220000`; paste
+1. Before any database mutation, run read-only
+   `supabase migration list --linked` and
+   `supabase db push --linked --dry-run`. The expected local-only delta is
+   exactly `20260903130000`, `20260908210000`, `20260908220000`, and
+   `20260910010000`, in that order. Abort on any unexpected local or remote
+   version. After a fresh backup and explicit owner approval, apply that exact
+   set to the live DB. For the containment chain, paste
    `rls-verify.sql`, confirm `containment-verified` with 0 FAIL; re-check
    milesymedia login. Then set `PORTAL_CONTAINMENT_MIGRATION_VERIFIED=true`.
    **Migration correctness is now LOCALLY-VERIFIED** (disposable-DB drill below):
-   the full 30-migration chain applies cleanly and `rls-verify` reports
+   the then-current 30-migration chain applies cleanly and `rls-verify` reports
    `containment-verified` / 0 FAIL. What remains OWNER is *applying it to the
    live DB* (must not be done from here) and re-running `rls-verify` there.
+   Then, as a separate attested step, apply
+   `20260910010000_harden_aquacrm_public_media_bucket.sql` and verify that
+   `aquacrm-uploads` remains private, `aquacrm-public` remains public, and the
+   public bucket's byte/MIME limits match the migration. `rls-verify.sql` must
+   also report no `containment-storage-browser-write-policy` finding. This newer migration
+   has source-level checks only and was not part of that disposable-DB drill.
 2. Run an owner-approved restore drill and set `PORTAL_LAST_VERIFIED_RESTORE_AT`;
    enable `BACKUP_ENABLED` + `PORTAL_LAST_BACKUP_AT`. **The restore path is now
    LOCALLY-VERIFIED** (disposable-DB drill below): a real dump → encrypt → sha

@@ -56,6 +56,18 @@ const SECURITY_EVIDENCE_SIGNALS: Array<[string, string]> = [
   ["edge-waf", "PORTAL_EDGE_WAF_ENABLED"],
 ];
 
+function assertOnlyPublicMediaLifecycleBlocks(
+  result: ReturnType<typeof inspectProductionReadiness>,
+): void {
+  assert.equal(result.ready, false);
+  assert.deepEqual(
+    result.items
+      .filter(item => item.required && item.status !== "ready")
+      .map(item => item.id),
+    ["public-media-lifecycle"],
+  );
+}
+
 describe("production readiness", () => {
   it("does not call an unconfigured local environment production-ready", () => {
     const result = inspectProductionReadiness({});
@@ -64,11 +76,10 @@ describe("production readiness", () => {
     assert.equal(result.items.filter(item => item.required && item.status === "ready").length, 0);
   });
 
-  it("accepts a fully configured production environment", () => {
+  it("keeps an otherwise fully configured production environment blocked on the missing public-media lifecycle", () => {
     const result = inspectProductionReadiness(productionEnv());
     assert.equal(result.environment, "production");
-    assert.equal(result.ready, true);
-    assert.ok(result.items.filter(item => item.required).every(item => item.status === "ready"));
+    assertOnlyPublicMediaLifecycleBlocks(result);
   });
 
   it("content-scanner needs an ACTUALLY WIRED adapter, not just the env string (Item 11)", () => {
@@ -79,6 +90,23 @@ describe("production readiness", () => {
     // Env present AND adapter wired → ready.
     const wired = inspectProductionReadiness(productionEnv(), { contentScannerWired: true });
     assert.equal(wired.items.find(i => i.id === "content-scanner")?.status, "ready");
+  });
+
+  it("keeps atomic public-media publication RED with no environment-variable bypass", () => {
+    const blocked = inspectProductionReadiness(productionEnv({
+      PORTAL_PUBLIC_MEDIA_LIFECYCLE_VERIFIED: "true",
+    }));
+    const item = blocked.items.find(entry => entry.id === "public-media-lifecycle");
+    assert.equal(item?.required, true);
+    assert.equal(item?.status, "needs-setup");
+    assert.deepEqual(item?.envKeys, []);
+    assert.equal(blocked.ready, false);
+
+    assert.equal(
+      blocked.items.find(entry => entry.id === "public-media-lifecycle")?.status,
+      "needs-setup",
+      "an invented environment attestation must not clear a missing code capability",
+    );
   });
 
   it("makes every security-evidence gate REQUIRED and RED by default (no green-by-default)", () => {
@@ -151,11 +179,81 @@ describe("production readiness", () => {
       NEXT_PUBLIC_SUPABASE_URL: "https://project.supabase.co",
       NEXT_PUBLIC_SUPABASE_ANON_KEY: "public-anon-key",
       SUPABASE_SERVICE_ROLE_KEY: "server-service-role-key",
+      NEXT_PUBLIC_SUPABASE_PUBLIC_BUCKET: "aquacrm-public",
       NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET: "aquacrm-uploads",
     }));
-    assert.equal(result.ready, true);
+    assertOnlyPublicMediaLifecycleBlocks(result);
     assert.equal(result.items.find(item => item.id === "database")?.status, "ready");
     assert.equal(result.items.find(item => item.id === "uploads")?.status, "ready");
+  });
+
+  it("accepts modern Supabase publishable and secret keys exactly like the runtime resolver", () => {
+    for (const publicKeyName of [
+      "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+      "NEXT_PUBLIC_PUBLISHABLE_KEY",
+    ] as const) {
+      const env = productionEnv({
+        PORTAL_BACKEND: "supabase",
+        DATABASE_URL: "",
+        BLOB_READ_WRITE_TOKEN: "",
+        NEXT_PUBLIC_SUPABASE_URL: "https://project.supabase.co",
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: "",
+        SUPABASE_SERVICE_ROLE_KEY: "",
+        SUPABASE_SECRET_KEY: "modern-server-secret",
+        NEXT_PUBLIC_SUPABASE_PUBLIC_BUCKET: "aquacrm-public",
+        NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET: "aquacrm-uploads",
+        [publicKeyName]: "modern-browser-key",
+      });
+      const result = inspectProductionReadiness(env);
+      assertOnlyPublicMediaLifecycleBlocks(result);
+      assert.equal(result.items.find(item => item.id === "database")?.status, "ready");
+      assert.equal(result.items.find(item => item.id === "uploads")?.status, "ready");
+    }
+  });
+
+  it("keeps Supabase customer data red when every public-key alias is absent", () => {
+    const result = inspectProductionReadiness(productionEnv({
+      PORTAL_BACKEND: "supabase",
+      DATABASE_URL: "",
+      NEXT_PUBLIC_SUPABASE_URL: "https://project.supabase.co",
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: "",
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "",
+      NEXT_PUBLIC_PUBLISHABLE_KEY: "",
+      SUPABASE_SECRET_KEY: "modern-server-secret",
+    }));
+    assert.equal(result.items.find(item => item.id === "database")?.status, "needs-setup");
+    assert.equal(result.ready, false);
+  });
+
+  it("does not let a Blob fallback hide a Supabase private/public bucket collision", () => {
+    for (const overrides of [
+      {
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: "public-anon-key",
+        SUPABASE_SERVICE_ROLE_KEY: "server-service-role-key",
+      },
+      {
+        // The upload runtime already selects Supabase without an anon key. The
+        // readiness row must use that same selector instead of falling to Blob.
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: "",
+        SUPABASE_SERVICE_ROLE_KEY: "server-service-role-key",
+      },
+      {
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: "",
+        SUPABASE_SERVICE_ROLE_KEY: "",
+        SUPABASE_SECRET_KEY: "new-scheme-server-secret",
+      },
+    ]) {
+      const result = inspectProductionReadiness(productionEnv({
+        NEXT_PUBLIC_SUPABASE_URL: "https://project.supabase.co",
+        NEXT_PUBLIC_SUPABASE_PUBLIC_BUCKET: "aquacrm-public",
+        NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET: "aquacrm-public",
+        BLOB_READ_WRITE_TOKEN: "configured-but-lower-precedence",
+        ...overrides,
+      }));
+      const uploads = result.items.find(item => item.id === "uploads");
+      assert.equal(uploads?.status, "needs-setup");
+      assert.match(uploads?.summary ?? "", /bucket boundary is missing or unsafe/);
+    }
   });
 
   it("requires both account mail and enquiry notifications", () => {
@@ -169,7 +267,7 @@ describe("production readiness", () => {
       activeClientCount: 3,
       billingConfiguredClientCount: 0,
     });
-    assert.equal(result.ready, true);
+    assertOnlyPublicMediaLifecycleBlocks(result);
     assert.equal(result.items.find(item => item.id === "billing")?.status, "optional");
     assert.equal(result.items.find(item => item.id === "monitoring")?.status, "optional");
   });
@@ -195,7 +293,7 @@ describe("production readiness", () => {
     });
     assert.equal(result.items.find(item => item.id === "monitoring")?.status, "ready");
     // Monitoring is not a required launch gate either way.
-    assert.equal(result.ready, true);
+    assertOnlyPublicMediaLifecycleBlocks(result);
   });
 
   it("probes the live dependency state when no capability is supplied", () => {
@@ -312,7 +410,7 @@ describe("production readiness", () => {
       result.items.some(item => item.id === "database" && item.scope === "platform"),
       "the environment IS the founder's configuration, so their rows still read from it",
     );
-    assert.equal(result.ready, true);
+    assertOnlyPublicMediaLifecycleBlocks(result);
   });
 
   it("reports optional service connections without exposing their values", () => {

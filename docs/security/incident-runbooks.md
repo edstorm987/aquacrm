@@ -1,8 +1,11 @@
 # AquaCRM — Incident Response Runbooks
 
-Phase 5 of the assume-breach containment programme. Every action named here is
-a REAL, TESTED control that exists on this branch — nothing aspirational. All
-control-plane functions live in `portal/src/lib/server/auth/securityControl.ts`.
+Phase 5 of the assume-breach containment programme. Actions described in the
+present tense below map to real, tested code on this branch. Steps explicitly
+conditioned on a future deployment, live migration, provider connection or
+owner drill are prospective and remain release gates; they are not current
+production capabilities. Control-plane functions live in
+`portal/src/lib/server/auth/securityControl.ts`.
 Two invocation paths exist:
 
 - **The threat centre** — `/portal/agency/security` (owner-only). Every action
@@ -26,6 +29,17 @@ Two invocation paths exist:
 Every action below records a SecurityEvent (`lib/server/security/securityEvents.ts`)
 and a structured `[security-control]` log line. Events are secret-free by
 construction; logs never carry prompts, file contents or credentials.
+
+> **Public-upload status (2026-09-10):** the public-CDN byte-inspection changes
+> on `security/public-upload-byte-inspection-20260910` are local, unmerged and
+> undeployed. That branch now refuses every configured app-server write through
+> `storePublicUpload` before scanner/provider I/O because atomic publication
+> ownership and recall do not exist, and its dormant provider upload/delete code
+> has been removed or hard-disabled. This is not a Supabase-wide firewall:
+> direct authenticated, dashboard and other service-role access remains governed
+> by the unapplied/unverified containment migration. Treat every enablement or
+> cleanup step below as prospective until the exact branch is reviewed and the
+> later lifecycle is independently proved.
 
 > **The one rule:** contain FIRST with the reversible switch, investigate
 > second, restore third. Every switch here is reversible — flipping one on
@@ -99,17 +113,51 @@ live during freeze, liftable).
 
 ## R5 — Malicious upload discovered
 
-1. Uploads are content-judged at the storage choke point (Phase 2): pull the
-   file's `content-trust` digest from the stored record / event spine.
-2. **Delete the object** via `deletePrivateUpload(...)` for its provider, and
-   the referencing record.
-3. Search the event spine for the same digest across tenants (the digest IS
-   the artifact identity).
-4. If the gateway missed a class of file, add its signature to
-   `contentTrust.ts` and add the regression to `smoke-content-trust` — the
-   gateway is one module, one policy, everywhere.
-5. If an AV/CDR engine is available, connect it via `setContentScanner` —
-   config, not redesign.
+1. **Contain by location.** For a private object, remove the referencing record
+   and delete it through the private-upload delete path. For an already-public
+   object, freeze further app writes and unpublish/remove references, but do
+   **not** call `deleteSupabasePublicUpload`: the compatibility helper is
+   deliberately ownership-blocked and a shared legacy content-addressed key may
+   still serve another page. Provider-admin deletion is an owner-approved
+   emergency action only after an independent tenant/site-wide reference
+   inventory, explicit object-scope sign-off and a durable incident/audit
+   checkpoint. For a published inline `data:` payload, remove it from the page
+   record and republish a known-safe replacement.
+2. Pull the `content-trust` digest and verdict from the stored record or
+   SecurityEvent where one exists. Historic public objects and already-published
+   inline payloads may have neither; inventory them instead of assuming a
+   missing trust record means clean.
+3. "Quarantined" currently means **refused/held by policy**, not retained in a
+   durable quarantine store. There is no release, rescan or purge lifecycle, so
+   do not tell responders that a suspicious object can be recovered from an
+   isolation vault.
+4. Search the available event tail and durable control-action record for the
+   same digest across the authorized scope. There is no configured durable
+   off-platform event drain yet; process-local telemetry alone is not complete
+   forensic evidence.
+5. **After the public-upload follow-on is deployed**, configured app-server
+   writes through `storePublicUpload` are disabled before scanner/provider I/O.
+   Local development still applies byte/type inspection and every content-trust,
+   policy, traversal or provider failure aborts publication for recursively
+   inspected block-tree data URLs; no provider-error marker may retain one of
+   those values inline. This does not cover CSS/head/foot stored-code fields and
+   does not stop direct Supabase access. Existing public URLs can continue rendering.
+6. After that deployment, run an explicit inventory + scan + safe
+   republish/removal job for pre-existing public objects and published inline
+   payloads. The new request-time gate is not retroactive.
+7. If the local gateway missed a class of file, add its signature to
+   `contentTrust.ts` and add a regression to `smoke-content-trust`. Connect and
+   live-prove the AV/CDR adapter before treating malware scanning as enforced.
+   The present outbound broker caps scanner request bodies at 1 MiB, below the
+   public-media 8 MiB ceiling; larger files fail closed until the owner approves
+   a bounded scanner-data egress increase or the product limit is reduced.
+8. Do not re-enable remote writes with a feature flag or "best effort" delete.
+   The enabling design needs durable intent before provider I/O,
+   operation-owned immutable keys, an atomic page-generation commit, exact
+   ownership/refcount lineage and an idempotent recovery/recall worker. Legacy
+   shared keys must never be automatically deleted. Until that exists, treat
+   any historic failed multi-object publish as a possible unlinked-public-object
+   incident and reconcile by tenant/site.
 
 ## R6 — AI incident (prompt injection, runaway generation, key abuse)
 
@@ -151,14 +199,15 @@ treat restore capability as UNPROVEN and say so in any incident comms.
 
 ## R8 — Cross-application / ecosystem incident
 
-The Phase 0-A migration sealed cross-app reach (datastore service-role-only;
-storage policies per-app; profiles own-row). If a sibling app (aquaoasis,
-milesymedia, zimante) is compromised, its blast radius into AquaCRM is now:
-public-read content and its own user's profile row — nothing tenant-scoped.
-Verify with `supabase/tests/run-containment-tests.sh` against the live schema
-(after the owner applies the migration). Until the migration is applied in
-production, assume the OLD reach (everything) and treat any sibling compromise
-as R4.
+The local Phase 0-A migration is designed and locally tested to seal cross-app
+reach (datastore service-role-only; storage policies per-app; profiles own-row).
+It has **not** been applied to the live database. After the owner applies and
+verifies the full migration chain, the intended sibling-app blast radius is
+public-read content plus that app's own user's profile row — nothing
+tenant-scoped. Verify with `supabase/tests/run-containment-tests.sh` against an
+authorised non-production target and run `rls-verify.sql` on live. Until live
+attestation exists, assume the OLD reach (everything) and treat any sibling
+compromise as R4.
 
 ---
 

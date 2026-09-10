@@ -44,7 +44,7 @@ export default function ButtonBlock({ block, editorMode }: BlockRenderProps) {
 
   return (
     <>
-      {hoverCss && <style dangerouslySetInnerHTML={{ __html: hoverCss }} />}
+      {hoverCss && <style>{hoverCss}</style>}
       <a
         data-block-type="button"
         data-block-id={block.id}

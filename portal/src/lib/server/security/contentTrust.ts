@@ -20,10 +20,10 @@ import "server-only";
 //     never file contents, never a caller-supplied filename).
 //
 // What this is NOT: a malware scanner. A real AV/CDR engine is an external
-// service the owner must connect (OWNER ACTION, tracked); the `setContentScanner`
-// hook below is the seam it plugs into, so connecting one is a config change,
-// not a redesign. Until then the honest verdict vocabulary is clean /
-// unverified / blocked — never "scanned".
+// service the owner must connect (OWNER ACTION, tracked); the
+// `setContentScanner` hook below is the in-process seam, but no durable adapter
+// or live-reachability proof exists yet. Until then the honest verdicts are
+// type-verified / unverified / quarantined / blocked — never malware-cleared.
 
 import crypto from "node:crypto";
 import { recordSecurityEvent } from "./securityEvents";
@@ -35,13 +35,16 @@ export type ContentTrustReason =
   | "binary-masquerading-as-text"
   | "svg-active-content"
   | "scanner-verdict-malicious"
-  | "scanner-unavailable";
+  | "scanner-unavailable"
+  | "scanner-input-too-large";
 
 // Verdict vocabulary (Item 7):
 //   malware-cleared  — a REAL AV/CDR scanner inspected the full bytes and passed
 //   type-verified    — content matches its declared type, but NOT malware-scanned
 //   unverified       — stored, unknown type, no scan (low-risk, non-production)
-//   quarantined      — held, unservable, pending a scanner verdict (fail-closed)
+//   quarantined      — must remain unservable pending a scanner verdict. The
+//                      current storage caller refuses it; a durable quarantine
+//                      store/release workflow is still an explicit open gate.
 //   blocked          — rejected outright (content/type/scanner-malicious)
 export type ContentTrustVerdict =
   | "malware-cleared"
@@ -61,7 +64,7 @@ export interface ContentTrustAssessment {
   /** What the magic bytes say, when a signature matched. */
   sniffedType: string | null;
   /** How the scanner was involved. */
-  scannerStatus: "cleared" | "malicious" | "unavailable" | "not-configured";
+  scannerStatus: "cleared" | "malicious" | "unavailable" | "incomplete" | "not-configured" | "not-run";
   reason?: ContentTrustReason;
 }
 
@@ -82,7 +85,7 @@ export class ContentTrustError extends Error {
 // ─── Optional external scanner seam ─────────────────────────────────────────
 
 export type ContentScanner = (input: {
-  /** The FULL uploaded bytes (up to MAX_SCAN_BYTES), not just the head. */
+  /** Uploaded bytes, accepted as a clear verdict only when the entire file fits within MAX_SCAN_BYTES. */
   bytes: Uint8Array;
   digest: string;
   declaredType: string;
@@ -135,6 +138,28 @@ function sniffsAsActiveContent(head: Uint8Array): "html" | "svg" | null {
   return null;
 }
 
+function sniffIsoBmff(head: Uint8Array): "image/avif" | "iso-bmff" | null {
+  if (head.length < 16 || ascii(head.subarray(4), 4) !== "ftyp") return null;
+  const boxSize = (
+    ((head[0] ?? 0) << 24)
+    | ((head[1] ?? 0) << 16)
+    | ((head[2] ?? 0) << 8)
+    | (head[3] ?? 0)
+  ) >>> 0;
+  // Normal ftyp boxes include size + type + major brand + minor version.
+  // Size 0/1 have special ISO-BMFF meanings; retain family detection but do
+  // not trust compatible-brand bytes beyond the captured header.
+  if (boxSize !== 0 && boxSize !== 1 && boxSize < 16) return null;
+  const end = boxSize >= 16 ? Math.min(head.length, boxSize) : head.length;
+  const brands = [ascii(head.subarray(8), 4)];
+  for (let offset = 16; offset + 4 <= end; offset += 4) {
+    brands.push(ascii(head.subarray(offset), 4));
+  }
+  return brands.some(brand => brand === "avif" || brand === "avis")
+    ? "image/avif"
+    : "iso-bmff";
+}
+
 /** Magic-number sniff for the types the portal's allowlists actually accept. */
 function sniffKnownType(head: Uint8Array): string | null {
   if (startsWith(head, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return "image/png";
@@ -145,7 +170,8 @@ function sniffKnownType(head: Uint8Array): string | null {
   if (ascii(head, 5) === "%PDF-") return "application/pdf";
   if (startsWith(head, [0x50, 0x4b, 0x03, 0x04]) || startsWith(head, [0x50, 0x4b, 0x05, 0x06])) return "application/zip";
   if (ascii(head, 3) === "ID3" || (head[0] === 0xff && (head[1]! & 0xe0) === 0xe0)) return "audio/mpeg";
-  if (ascii(head.subarray(4), 4) === "ftyp") return "iso-bmff"; // mp4 / quicktime / m4a / heic family
+  const isoBmff = sniffIsoBmff(head);
+  if (isoBmff) return isoBmff;
   if (startsWith(head, [0x1a, 0x45, 0xdf, 0xa3])) return "video/webm";
   return null;
 }
@@ -159,6 +185,7 @@ function declaredTypeSatisfiedBy(declaredType: string): string[] | null {
     "image/jpg": ["image/jpeg"],
     "image/gif": ["image/gif"],
     "image/webp": ["image/webp"],
+    "image/avif": ["image/avif"],
     "image/heic": ["iso-bmff"],
     "image/heif": ["iso-bmff"],
     "application/pdf": ["application/pdf"],
@@ -212,6 +239,8 @@ export interface AssessUploadInput {
 
 /**
  * Hash the full stream, sniff the head, and judge content against declaration.
+ * This protects storage paths explicitly wired to the gateway; it is not a
+ * claim that every possible repository or provider upload already routes here.
  * Refusals record a security event (digest and types only — never contents,
  * never a caller-supplied filename).
  */
@@ -274,7 +303,11 @@ export async function assessUploadContent(input: AssessUploadInput): Promise<Con
 
   const production = process.env.NODE_ENV === "production";
 
-  const block = (reason: ContentTrustReason, sniffedType: string | null): ContentTrustAssessment => {
+  const block = (
+    reason: ContentTrustReason,
+    sniffedType: string | null,
+    scannerStatus: ContentTrustAssessment["scannerStatus"] = scanner ? "not-run" : "not-configured",
+  ): ContentTrustAssessment => {
     recordSecurityEvent({
       kind: "content-trust.blocked",
       severity: "warning",
@@ -282,7 +315,7 @@ export async function assessUploadContent(input: AssessUploadInput): Promise<Con
       actor: input.actor,
       detail: { reason, declaredType: input.declaredType, sniffedType, digest, sizeBytes, purpose: input.purpose },
     });
-    return { verdict: "blocked", quarantined: false, digest, sizeBytes, declaredType: input.declaredType, sniffedType, scannerStatus: scanner ? "cleared" : "not-configured", reason };
+    return { verdict: "blocked", quarantined: false, digest, sizeBytes, declaredType: input.declaredType, sniffedType, scannerStatus, reason };
   };
 
   // 1. Native executables are refused EVERYWHERE.
@@ -315,15 +348,22 @@ export async function assessUploadContent(input: AssessUploadInput): Promise<Con
   if (scanner) {
     try {
       const result = await scanner({ bytes: fullBuffer, digest, declaredType: input.declaredType, sizeBytes });
-      if (result.malicious) return block("scanner-verdict-malicious", sniffed);
-      // A truncated scan of an oversized file cannot be called cleared in prod.
-      if (truncatedForScan && production) {
-        recordSecurityEvent({ kind: "content-trust.quarantined", severity: "warning", tenantId: input.tenantId, detail: { digest, purpose: input.purpose, reason: "file-too-large-to-fully-scan" } });
-        return { ...base, verdict: "quarantined", quarantined: true, scannerStatus: "unavailable" };
+      if (result.malicious) return block("scanner-verdict-malicious", sniffed, "malicious");
+      // A partial scan can never honestly clear the full artifact in any
+      // environment. Hold it for an out-of-band/streaming scanner instead.
+      if (truncatedForScan) {
+        recordSecurityEvent({ kind: "content-trust.quarantined", severity: "warning", tenantId: input.tenantId, actor: input.actor, detail: { digest, purpose: input.purpose, reason: "file-too-large-to-fully-scan" } });
+        return {
+          ...base,
+          verdict: "quarantined",
+          quarantined: true,
+          scannerStatus: "incomplete",
+          reason: "scanner-input-too-large",
+        };
       }
       return { ...base, verdict: "malware-cleared", quarantined: false, scannerStatus: "cleared" };
     } catch {
-      recordSecurityEvent({ kind: "content-trust.scanner-unavailable", severity: production ? "critical" : "warning", tenantId: input.tenantId, detail: { digest, purpose: input.purpose } });
+      recordSecurityEvent({ kind: "content-trust.scanner-unavailable", severity: production ? "critical" : "warning", tenantId: input.tenantId, actor: input.actor, detail: { digest, purpose: input.purpose } });
       if (production) {
         return { ...base, verdict: "quarantined", quarantined: true, scannerStatus: "unavailable", reason: "scanner-unavailable" };
       }
@@ -336,7 +376,7 @@ export async function assessUploadContent(input: AssessUploadInput): Promise<Con
   //    it is quarantined until a real scan clears it. Lower-risk types and all
   //    non-production uploads get the honest signature-based verdict.
   if (production && isHighRiskType(input.declaredType)) {
-    recordSecurityEvent({ kind: "content-trust.quarantined", severity: "warning", tenantId: input.tenantId, detail: { digest, purpose: input.purpose, reason: "high-risk-type-needs-scanner" } });
+    recordSecurityEvent({ kind: "content-trust.quarantined", severity: "warning", tenantId: input.tenantId, actor: input.actor, detail: { digest, purpose: input.purpose, reason: "high-risk-type-needs-scanner" } });
     return { ...base, verdict: "quarantined", quarantined: true, scannerStatus: scanner ? "unavailable" : "not-configured", reason: "scanner-unavailable" };
   }
   const matchedSignature = Boolean(accepted && sniffed && accepted.includes(sniffed));

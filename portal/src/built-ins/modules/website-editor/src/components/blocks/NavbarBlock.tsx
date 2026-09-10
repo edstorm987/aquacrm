@@ -36,7 +36,7 @@ export default function NavbarBlock({ block }: BlockRenderProps) {
 
   return (
     <nav data-block-type="navbar" data-nav-id={id} style={style}>
-      <style dangerouslySetInnerHTML={{ __html: responsiveCss }} />
+      <style>{responsiveCss}</style>
       <a href="/" style={{ fontFamily: "var(--font-playfair, Georgia, serif)", fontSize: 18, fontWeight: 700, textDecoration: "none", color: "inherit" }}>
         {brand}
       </a>

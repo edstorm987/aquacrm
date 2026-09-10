@@ -282,6 +282,12 @@ describe("Threat centre — honest overview", () => {
       assert.match(scanner?.detail ?? "", /NO scanner is connected/);
       const drain = body.posture.find(item => item.id === "event-drain");
       assert.equal(drain?.status, "blind");
+      const publicMediaLifecycle = body.posture.find(item => item.id === "public-media-lifecycle");
+      assert.equal(publicMediaLifecycle?.status, "blind");
+      assert.match(publicMediaLifecycle?.detail ?? "", /NO durable publication intent/);
+      assert.match(publicMediaLifecycle?.detail ?? "", /remote upload implementation is absent/);
+      assert.match(publicMediaLifecycle?.detail ?? "", /deletion is ownership-blocked/);
+      assert.match(publicMediaLifecycle?.detail ?? "", /Direct Supabase access remains a separate/);
       // Restore capability is honestly "owner action", never "enforced".
       assert.equal(body.posture.find(item => item.id === "backup")?.status, "owner");
 

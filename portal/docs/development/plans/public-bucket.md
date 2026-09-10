@@ -2,17 +2,66 @@
 
 ← [todo.md](../TODO.md) · [development.md](../../development.md) · reference: [database dossier](../../workspace/database.md) · **[HANDOFF »](public-bucket-HANDOFF.md)** (state + the one remaining live verification)
 
-**Status: ✅ DONE (2026-08-19, all phases; runtime-verified in memory, not yet
-browser/live-bucket).** `aquacrm-public` is wired end-to-end: approved
+> **SECURITY CORRECTION / LOCAL FOLLOW-ON (2026-09-10).** The DONE record below
+> proves the functional publish-to-CDN path, not a complete content-trust
+> boundary. The original public writer trusted the declared MIME type and the
+> promotion walker failed open; Phase-2 byte inspection covered the separate
+> private-upload path only. A corrective candidate on
+> `security/public-upload-byte-inspection-20260910`, based on
+> `72acac904ba6af88cb1a3d84483b4a4359d03747`, is currently **local, unmerged and
+> undeployed**. It adds byte/type agreement, an 8 MiB bound, recursive nested
+> media coverage, strict tenant-path identifiers and fail-closed error handling
+> for block-tree data URLs; there is no provider-error inline fallback for those
+> recursively inspected values. CSS/head/foot stored-code fields remain separate
+> security surfaces.
+>
+> This does not supply an atomic publication transaction, a durable
+> public-object/refcount ledger, a durable
+> quarantine/release/rescan/purge store, durable off-platform event drain, live
+> scanner proof or live CDN response-header proof. Because uploading before the
+> page commit can create an unlinked public object and shared keys make safe
+> compensation impossible, the branch now refuses every configured app-server
+> write through `storePublicUpload` before scanner/provider I/O and contains no
+> dormant remote upload implementation. This does not stop direct authenticated,
+> dashboard or other service-role Supabase access; the containment migration is
+> a separate release gate. Local development and
+> publication of already-public URLs remain available. Remote enablement needs
+> durable intent, operation-owned keys, atomic page-generation commit, exact
+> lineage/refcounts and an idempotent recovery/recall worker. The scanner's
+> audited outbound broker also retains a 1 MiB request cap, so the 8 MiB product
+> limit cannot be supported when remote writes are later enabled without an
+> explicit owner decision to approve larger scanner-data egress or lower the
+> product cap. It is also not retroactive:
+> pre-existing public-bucket objects and already-published inline payloads need a
+> post-merge inventory + scan + safe republish/removal job. Production remains
+> **NOT READY**. Treat the historical
+> "pure fail-open walker" and "not code gaps" statements below as superseded for
+> security readiness, while retaining them as evidence of the 2026-08-19
+> functional milestone.
+>
+> The private/public bucket names are now fixed security-zone identifiers:
+> `aquacrm-uploads` and `aquacrm-public`. Startup, readiness and every
+> service-role private Storage operation fail closed if they are renamed,
+> swapped or shared; a lower-priority Blob credential cannot mask an unsafe
+> Supabase configuration. The forward migration and `rls-verify.sql` also
+> reject any `storage.objects` INSERT/UPDATE/DELETE/ALL policy aimed at anon,
+> authenticated or PUBLIC by effective command and role, so a renamed or
+> dashboard-created write policy cannot hide behind an expected policy name.
+> This code guard does not replace applying and verifying the containment and
+> bucket-hardening migrations against the live project.
+
+**Historical status at 2026-08-19: ✅ DONE (all phases; runtime-verified in
+memory, not then browser/live-bucket). Superseded by the red correction above.**
+At that checkpoint, `aquacrm-public` was wired end-to-end: approved
 website-editor media is promoted to the bucket on publish and the published
 site renders the durable CDN URL. **17 behavioural tests** (8 P1 + 9 P2 incl.
 the end-to-end capstone); full suite 0-fail; plugin smoke 49/49; typecheck-clean.
-- **P1** — [`publicUploadStorage.ts`](../../../src/lib/server/publicUploadStorage.ts): `storePublicUpload` → durable `getPublicUrl` (Supabase → hard-error-in-prod → local `public/`, no Blob tier, `upsert`) + `deleteSupabasePublicUpload`.
-- **P2** — auto-public on publish: the new additive `publicMedia` foundation port ([`publicMediaAdapter.ts`](../../../src/built-ins/runtime/foundation-adapters/publicMediaAdapter.ts)) + a pure fail-open walker ([`publicMediaPromotion.ts`](../../../src/built-ins/modules/website-editor/src/server/publicMediaPromotion.ts)) wired into `publishPage`; brand-kit images ride the same walker.
+- **P1 historical milestone** — the original helper implemented Supabase `getPublicUrl`/`upsert` plus `deleteSupabasePublicUpload`. The current corrective branch removes the dormant remote upload branch and makes the delete helper throw `PublicUploadOwnershipProofError`; only inspected local-development writes remain until the durable lifecycle exists.
+- **P2 historical milestone** — auto-public on publish used the additive `publicMedia` foundation port plus a pure fail-open walker. The current corrective implementation makes recursively inspected block-tree data URLs fail closed and stops the higher-level workflow before GitHub on an active-page failure.
 - **P3 (gate)** — satisfied by design: the **publish click is the deliberate gate** (Ed's "auto-public on publish"); drafts stay inline, private uploads keep their own separate helper → nothing private leaks. **Active unpublish-deletion deferred** (content-addressed keys are shared across pages, so safe deletion needs refcounting; an unlinked orphan at an unguessable key is not a new exposure — the bytes were already public when published).
 - **P4 (renderers)** — verified: both `ImageBlock` (live) and `renderPageHtml` (export) emit `props.src` directly, so the promoted CDN URL flows through with no proxy/placeholder path. The capstone test renders a published page and asserts the CDN URL is served and the `data:` URL is gone.
 - **Decisions (Ed):** approved = editor + brand-kit images · auto-public on publish · defer private→public promotion · the `publicMedia` port is additive and worker-owned.
-- **Remaining (not code gaps):** browser-verify the publish→CDN flow on a live server; exercise the real Supabase-CDN upload against a live bucket (source-shape-pinned today).
+- **Historical remainder (do not execute):** the old note requested a live Supabase-CDN exercise. Remote publication is now deliberately unavailable and must not be re-enabled for a browser check.
 
 ---
 

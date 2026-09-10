@@ -269,6 +269,79 @@ read_only_tables(table_name) as (
 all_privs(priv) as (
   values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE'),
          ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')
+),
+storage_objects_relation as (
+  select c.oid, c.relowner, c.relrowsecurity, c.relforcerowsecurity
+  from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'storage'
+    and c.relname = 'objects'
+    and c.relkind in ('r', 'p')
+),
+browser_storage_rls_bypasses as (
+  select browser.role_name,
+         case
+           when role_row.oid is null then 'browser role is missing'
+           when role_row.rolsuper then 'browser role is a superuser'
+           when role_row.rolbypassrls then 'browser role has BYPASSRLS'
+           else 'browser role effectively owns storage.objects while FORCE RLS is disabled'
+         end as reason
+  from (values ('anon'::name), ('authenticated'::name)) as browser(role_name)
+  left join pg_roles role_row on role_row.rolname = browser.role_name
+  where role_row.oid is null
+     or role_row.rolsuper
+     or role_row.rolbypassrls
+     or exists (
+       select 1
+       from storage_objects_relation storage_relation
+       where storage_relation.relforcerowsecurity is false
+         and role_row.oid is not null
+         and pg_has_role(role_row.oid, storage_relation.relowner, 'member')
+     )
+),
+browser_storage_read_policies as (
+  select pol.*
+  from pg_policies pol
+  where pol.schemaname = 'storage'
+    and pol.tablename = 'objects'
+    and pol.cmd in ('SELECT', 'ALL')
+    and exists (
+      select 1
+      from unnest(pol.roles) as policy_role(role_name)
+      left join pg_roles target_role on target_role.rolname = policy_role.role_name
+      where case
+        when policy_role.role_name = 'public'::name then true
+        when target_role.oid is null then false
+        else pg_has_role('anon', target_role.oid, 'member')
+          or pg_has_role('authenticated', target_role.oid, 'member')
+      end
+    )
+),
+canonical_storage_read_policies as (
+  select pol.*
+  from browser_storage_read_policies pol
+  where pol.policyname = 'Public can read public ecosystem assets'
+    and pol.permissive = 'PERMISSIVE'
+    and pol.cmd = 'SELECT'
+    and cardinality(pol.roles) = 2
+    and pol.roles @> array['anon', 'authenticated']::name[]
+    and pol.roles <@ array['anon', 'authenticated']::name[]
+    and regexp_replace(lower(coalesce(pol.qual, '')), '[[:space:]()]', '', 'g') =
+      'bucket_id=anyarray[''aquacrm-public''::text,''aquaoasis-web-public''::text,''milesymedia-public''::text,''zimante-group-public''::text]'
+),
+unexpected_browser_storage_read_policies as (
+  select pol.*
+  from browser_storage_read_policies pol
+  where not (
+    pol.policyname = 'Public can read public ecosystem assets'
+    and pol.permissive = 'PERMISSIVE'
+    and pol.cmd = 'SELECT'
+    and cardinality(pol.roles) = 2
+    and pol.roles @> array['anon', 'authenticated']::name[]
+    and pol.roles <@ array['anon', 'authenticated']::name[]
+    and regexp_replace(lower(coalesce(pol.qual, '')), '[[:space:]()]', '', 'g') =
+      'bucket_id=anyarray[''aquacrm-public''::text,''aquaoasis-web-public''::text,''milesymedia-public''::text,''zimante-group-public''::text]'
+  )
 )
 select * from (
   select 'FAIL' as severity, 'containment-sealed-table-leak' as check_name,
@@ -313,18 +386,145 @@ select * from (
       or has_sequence_privilege(r.role, s.oid, 'SELECT')
       or has_sequence_privilege(r.role, s.oid, 'UPDATE'))
   union all
+  select 'FAIL', 'containment-private-storage-public',
+         'aquacrm-uploads',
+         'The private AquaCRM upload bucket is missing or public; customer files may be world-readable.'
+  where not exists (
+    select 1 from storage.buckets
+    where id = 'aquacrm-uploads' and public is false
+  )
+  union all
+  select 'FAIL', 'containment-public-storage-private',
+         'aquacrm-public',
+         'The AquaCRM public-media bucket is missing or not public; the checked-in storage contract has drifted.'
+  where not exists (
+    select 1 from storage.buckets
+    where id = 'aquacrm-public' and public is true
+  )
+  union all
+  select 'FAIL', 'containment-storage-objects-missing',
+         'storage.objects',
+         'The storage.objects table is missing; storage policy containment cannot be verified.'
+  where not exists (
+    select 1
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'storage'
+      and c.relname = 'objects'
+      and c.relkind in ('r', 'p')
+  )
+  union all
+  select 'FAIL', 'containment-storage-objects-rls-disabled',
+         'storage.objects',
+         'RLS is disabled on storage.objects; storage policies are not enforcing the browser boundary.'
+  where exists (
+    select 1
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'storage'
+      and c.relname = 'objects'
+      and c.relkind in ('r', 'p')
+      and c.relrowsecurity is false
+  )
+  union all
+  select 'FAIL', 'containment-storage-browser-role-bypasses-rls',
+         bypass.role_name,
+         bypass.reason || '; storage.objects policy checks cannot provide containment.'
+  from browser_storage_rls_bypasses bypass
+  union all
+  select 'FAIL', 'containment-storage-browser-write-policy',
+         pol.policyname || ' (cmd=' || pol.cmd || ', to=[' || array_to_string(pol.roles, ',') || '])',
+         'A storage.objects policy can authorize anon/authenticated writes directly, through role inheritance or through PUBLIC; AquaCRM storage mutations must remain server-mediated.'
+  from pg_policies pol
+  where pol.schemaname = 'storage'
+    and pol.tablename = 'objects'
+    and pol.cmd in ('INSERT', 'UPDATE', 'DELETE', 'ALL')
+    and exists (
+      select 1
+      from unnest(pol.roles) as policy_role(role_name)
+      left join pg_roles target_role on target_role.rolname = policy_role.role_name
+      where case
+        when policy_role.role_name = 'public'::name then true
+        when target_role.oid is null then false
+        else pg_has_role('anon', target_role.oid, 'member')
+          or pg_has_role('authenticated', target_role.oid, 'member')
+      end
+    )
+  union all
+  select 'FAIL', 'containment-storage-public-read-contract-missing-or-altered',
+         'Public can read public ecosystem assets',
+         'The sole browser SELECT policy for storage.objects is absent or differs from the canonical four-public-bucket contract.'
+  where not exists (select 1 from canonical_storage_read_policies)
+  union all
+  select 'FAIL', 'containment-storage-unexpected-browser-read-policy',
+         pol.policyname || ' (cmd=' || pol.cmd || ', to=[' || array_to_string(pol.roles, ',') || '])',
+         'An additional or altered storage.objects SELECT/ALL policy is reachable by a browser role and may expose private uploads.'
+  from unexpected_browser_storage_read_policies pol
+  union all
   select 'INFO', 'containment-verified',
          'assume-breach containment invariants',
-         'All containment invariants hold (sealed tables incl. brand_enquiries, read-only surfaces, no browser-role policy on any sealed table, no leaked sequences).'
+         'All containment invariants hold (sealed tables incl. brand_enquiries, read-only surfaces, no browser-role policy on any sealed table, no leaked sequences, storage.objects RLS enforced, only the canonical four-public-bucket browser read policy, no browser-role storage writes, AquaCRM private/public bucket flags separated).'
   where not exists (
     select 1 from sealed_tables s
     cross join (values ('anon'), ('authenticated')) r(role)
     cross join all_privs p
     where has_table_privilege(r.role, s.table_name, p.priv)
   ) and not exists (
+    select 1 from read_only_tables t
+    cross join (values ('anon'), ('authenticated')) r(role)
+    cross join (values ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')) p(priv)
+    where has_table_privilege(r.role, t.table_name, p.priv)
+  ) and not exists (
+    select 1 from browser_storage_rls_bypasses
+  ) and not exists (
     select 1 from pg_policies pol
     join sealed_tables s on s.table_name = pol.schemaname || '.' || pol.tablename
     where pol.roles && array['anon','authenticated','public']::name[]
+  ) and not exists (
+    select 1 from pg_class s
+    join pg_depend d on d.objid = s.oid and d.deptype = 'a'
+    join pg_class t on t.oid = d.refobjid
+    join pg_namespace n on n.oid = t.relnamespace
+    join sealed_tables st on st.table_name = 'public.' || t.relname
+    cross join (values ('anon'), ('authenticated')) r(role)
+    where s.relkind = 'S' and n.nspname = 'public'
+      and (has_sequence_privilege(r.role, s.oid, 'USAGE')
+        or has_sequence_privilege(r.role, s.oid, 'SELECT')
+        or has_sequence_privilege(r.role, s.oid, 'UPDATE'))
+  ) and exists (
+    select 1 from storage.buckets
+    where id = 'aquacrm-uploads' and public is false
+  ) and exists (
+    select 1 from storage.buckets
+    where id = 'aquacrm-public' and public is true
+  ) and exists (
+    select 1
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'storage'
+      and c.relname = 'objects'
+      and c.relkind in ('r', 'p')
+      and c.relrowsecurity is true
+  ) and not exists (
+    select 1 from pg_policies pol
+    where pol.schemaname = 'storage'
+      and pol.tablename = 'objects'
+      and pol.cmd in ('INSERT', 'UPDATE', 'DELETE', 'ALL')
+      and exists (
+        select 1
+        from unnest(pol.roles) as policy_role(role_name)
+        left join pg_roles target_role on target_role.rolname = policy_role.role_name
+        where case
+          when policy_role.role_name = 'public'::name then true
+          when target_role.oid is null then false
+          else pg_has_role('anon', target_role.oid, 'member')
+            or pg_has_role('authenticated', target_role.oid, 'member')
+        end
+      )
+  ) and exists (
+    select 1 from canonical_storage_read_policies
+  ) and not exists (
+    select 1 from unexpected_browser_storage_read_policies
   )
 ) checks
 order by case severity when 'FAIL' then 0 else 1 end, check_name, subject;

@@ -2,7 +2,7 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-09-09 from **29** source documents / **54,045 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-10 from **29** source documents / **54,105 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -22,10 +22,10 @@
 - [`docs/data/LINEAGE.md`](#source-docs-data-lineage-md) — 681 words · `427fd35d964a`
 - [`docs/data/MIGRATION-PLAN.md`](#source-docs-data-migration-plan-md) — 2,061 words · `63ae56160277`
 - [`docs/data/SEMANTIC-LAYER.md`](#source-docs-data-semantic-layer-md) — 783 words · `cea3578c4a18`
-- [`docs/data/SOURCE-INVENTORY.md`](#source-docs-data-source-inventory-md) — 1,768 words · `f001415a20ae`
+- [`docs/data/SOURCE-INVENTORY.md`](#source-docs-data-source-inventory-md) — 1,798 words · `94cd2c6147ca`
 - [`docs/DEVELOPMENT-HANDOFF.md`](#source-docs-development-handoff-md) — 1,621 words · `38e159caa2a5`
 - [`docs/development-workspace-cleanup.md`](#source-docs-development-workspace-cleanup-md) — 793 words · `bdb46a5cecd3`
-- [`docs/development.md`](#source-docs-development-md) — 3,625 words · `c5aae51179a7`
+- [`docs/development.md`](#source-docs-development-md) — 3,655 words · `30b497c575be`
 - [`docs/development/BLOCKERS-FOR-ED.md`](#source-docs-development-blockers-for-ed-md) — 1,480 words · `826f40222930`
 - [`docs/development/CAMPAIGN-LEDGER.md`](#source-docs-development-campaign-ledger-md) — 11,397 words · `b3678421ef01`
 - [`docs/development/CLOUD-RESUME.md`](#source-docs-development-cloud-resume-md) — 500 words · `03458cdf18bf`
@@ -1849,7 +1849,7 @@ strangler migration moves (MIGRATION-PLAN §phases).
 
 ## Source document — `docs/data/SOURCE-INVENTORY.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/data/SOURCE-INVENTORY.md" sha256="f001415a20ae292630ad496711227d7eedc65f69725d708b0aac4ad4fddaa2f6" -->
+<!-- AQUACRM_SOURCE_START path="docs/data/SOURCE-INVENTORY.md" sha256="94cd2c6147ca5a28a211b977a14b49a62e3d42f7939504bbd136cd2cf7873b37" -->
 # Source inventory — every store, its authority, and its consumers
 
 *Compiled 2026-08-30 from a full survey of the working tree (storage adapters,
@@ -1924,7 +1924,7 @@ pinned by `scripts/smoke-semantic-registry.test.ts`).
 
 | Store | Authority | Tenancy | Notes |
 |---|---|---|---|
-| Supabase Storage, 8 buckets | SoT for uploads (private `aquacrm-uploads`, public `aquacrm-public`, 6 brand buckets) | **path-prefix per user** (`auth.uid()`), not per agency | private bytes proxied by the app; no signed URLs |
+| Supabase Storage, 8 buckets | SoT for uploads (private `aquacrm-uploads`, public `aquacrm-public`, 6 brand buckets) | **Target contract: server-mediated mutations with no browser-role write policy.** The local containment/hardening chain checks effective policy role membership, but is not claimed live until owner application + `rls-verify.sql`. | private bytes proxied by the app; no signed URLs; remote app-server public-media writes currently stop before provider I/O |
 | Vercel Blob | private-upload middle tier | none in store — route guards only | ~12 API routes |
 | `.data/*-uploads/`, `.data/inbox-media/<agencyId>/`, `.data/inbox-call-recordings/<agencyId>/` | dev fallback | path-embedded at best | CVs and call audio are PII |
 | Git working trees (`client-projects/`, `aqua-editor/<projectId>` worktrees) | SoT for project source | directory per client/project | outside any DB |
@@ -2440,7 +2440,7 @@ Before deleting a source folder:
 
 ## Source document — `docs/development.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development.md" sha256="c5aae51179a7437bf0cf3cef67dac81f5dcd65b4f4c0a840932bb19fa3a8dd64" -->
+<!-- AQUACRM_SOURCE_START path="docs/development.md" sha256="30b497c575be99c36cf384d94d56ed51e3faa238242b4342ba2bda867887251a" -->
 # development.md — the law
 
 **This is the master catalogue and build map for AquaCRM. Use it to find the
@@ -2702,7 +2702,7 @@ release decision.
   critical browser journeys. The exact order is
   [TODO.md](development/TODO.md).
 - **The three former 🔴 launch blockers are all FIXED** (source-verified 2026-08-20): freelancer preview escalation (`api/auth/preview-as-freelancer/route.ts:49,101` stashes/restores `previewReturnUserId`), finance create-surface idempotency (`agency-finance/src/lib/idempotency.ts`, wired into invoices · plans · operations · expenses · payments · income), and erasure email-in-log (`leads-pipeline/src/server/contacts.ts:168,227,252,279` log an **id**, never an address).
-- **RLS is ON in live Supabase** (verified across 14 tables with the public anon key, 2026-08-20). What remains is **engineering, not an Ed decision**: the RLS policies ARE version-controlled — 14 migrations in `aquaCRM/supabase/migrations/`, 13 of them predating 2026-08-20. An earlier note here said there were none; that was wrong, written by looking inside `portal/` only, `brand_enquiries` has no `agency_id`, ~37 service-role refs bypass it — see [rls-enable](development/plans/rls-enable.md).
+- **RLS is ON in live Supabase** (verified across 14 tables with the public anon key, 2026-08-20). What remains is **engineering, not an Ed decision**: the RLS policies ARE version-controlled. At that 2026-08-20 checkpoint the repository contained 14 migrations; it now contains **31 ordered migrations**, while the last verified live alignment covered 27. The four later versions (`20260903130000`, `20260908210000`, `20260908220000`, `20260910010000`) remain owner-gated and are not claimed live. An earlier note here said there were no migrations; that was wrong, written by looking inside `portal/` only. Admin/service-role paths bypass RLS and still require application-level tenant enforcement — see [rls-enable](development/plans/rls-enable.md).
 - **MFA on login is BUILT — all four phases** (verified 2026-08-21). The server gate is `api/auth/login/route.ts:320` (`loginMfaStep`), session assurance is `raisedToSecondFactor` at `:399`, and RECOVERY CODES are built too: `consumeRecoveryCode` (`lib/server/auth/mfa.ts:500`) called from the `check-recovery` branch (`login/route.ts:338,353,358`), with the login form's code step at `app/login/LoginForm.tsx:253-272`. Native form posts carry the code through (`login/route.ts:151`). See [mfa-login](development/plans/mfa-login.md) for what genuinely remains.
 - **Real emailed connect codes are SHIPPED** (`lib/server/connectionConfirmation.ts` — 6-digit, HMAC-hashed, 15-min TTL, single-use; `00000` is dev-mode-gated only). A Resend sender is configured and `inspectProductionReadiness()` reports email READY. Only the code-step **browser walk** is unwalked.
 - **Standard portal = one Website product**; Aqua Tags setup steps **1, 2, 3 and 6 are done**, step 4 (link the repo) is next, step 5 (seed into the editor) is planned — `agency/fulfilment/_AquaTagsWorkspace.tsx:85-90`.

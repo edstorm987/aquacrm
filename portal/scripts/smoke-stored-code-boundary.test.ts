@@ -36,7 +36,15 @@ test("production holds stored markup out of the same-origin render", () => {
 
 test("development still renders stored markup so the feature can be built", () => {
   assert.equal(mayRenderStoredMarkup({ NODE_ENV: "development" } as NodeJS.ProcessEnv), true);
+  assert.equal(mayRenderStoredMarkup({ NODE_ENV: "test" } as NodeJS.ProcessEnv), true);
   assert.equal(storedMarkupOrNull("<b>hi</b>", { NODE_ENV: "development" } as NodeJS.ProcessEnv), "<b>hi</b>");
+});
+
+test("unknown or standalone runtime environments fail closed", () => {
+  assert.equal(storedCodeMode({}), "safe");
+  assert.equal(storedCodeMode({ NODE_ENV: "staging" }), "safe");
+  assert.equal(mayRenderStoredMarkup({ STORED_CODE_UNSAFE_RENDER: "allow" }), false);
+  assert.equal(storedMarkupOrNull("<b>held</b>", {}), null);
 });
 
 test("the production break-glass is explicit, non-default and loud to set", () => {
@@ -57,6 +65,8 @@ test("the preview page and both active-content blocks route through safe mode", 
 
   const textBlock = read("src/built-ins/modules/website-editor/src/components/blocks/TextBlock.tsx");
   assert.match(textBlock, /mayRenderStoredMarkup\(\)/, "TextBlock must gate raw-HTML rendering on safe mode");
+  assert.match(textBlock, /if \(!editorMode \|\| !rawMarkupAllowed\) return;/, "TextBlock effect must not assign innerHTML in safe mode");
+  assert.match(textBlock, /if \(!rawMarkupAllowed\)[\s\S]*?textContent \?\? ""/, "TextBlock editor must render and commit inert text in safe mode");
 });
 
 test("the editor iframe no longer combines allow-scripts with allow-same-origin", () => {

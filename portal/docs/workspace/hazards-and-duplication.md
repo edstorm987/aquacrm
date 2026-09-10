@@ -12,7 +12,7 @@ data**. If you read one chapter before touching the codebase, read this one.
 
 - **Live Supabase is not sandboxed.** `PORTAL_BACKEND=file` guards the local state file only. The Supabase **admin client reads env directly**, so any code path through `lib/supabase/admin.ts` hits the **real** auth + `brand_enquiries` + Storage project — even in local dev.
 - **The env safety classifier blocks scripts that hard-delete live Supabase rows.** That's why `scripts/cleanup-junk-enquiries.mjs` exists for **Ed to run himself**, not me. Never expect me to run a live hard-delete.
-- **What's live:** see the [API chapter's LIVE callout](api-and-routes.md#-live-supabase-callout-dont-break-real-data). Short version: all auth, all `brand_enquiries` enquiry endpoints, `telemetry/collect`, and all Storage-bucket file uploads.
+- **What's live:** see the [API chapter's LIVE callout](api-and-routes.md#-live-supabase-callout-dont-break-real-data). Short version: all auth, all `brand_enquiries` enquiry endpoints, `telemetry/collect`, and private/business upload paths when their Supabase provider is selected. The app-server public-media writer is deliberately inert before provider I/O until its durable publication/recall lifecycle exists. Direct dashboard or separately credentialed Supabase Storage access is still live and must be contained independently.
 - **Dev/demo inboxes load ZERO enquiries** (`agency/inbox/page.tsx`: `session.isDemo ? []`). The enquiry-delete button and master-tag ingestion only appear in a **real** (non-demo) inbox — don't conclude they're broken from the sandbox.
 
 ### A real person's identity is a SOURCE CONSTANT — erasure cannot reach it (2026-08-31)

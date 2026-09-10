@@ -34,6 +34,26 @@ map stays trustworthy.
 
 ---
 
+## 2026-09-10 — Public-media trust correction remains release-blocked
+
+- Local branch `security/public-upload-byte-inspection-20260910`, based on
+  `72acac904ba6af88cb1a3d84483b4a4359d03747`; unmerged and undeployed.
+- The 2026-08-19 entries below remain historical functional evidence, not the
+  current security contract. The block-tree walker is now recursive and
+  fail-closed for data URLs; a configured app-server remote publication stops
+  before scanner/provider I/O because there is no atomic page/object lifecycle.
+- The dormant Supabase upload branch was removed. `deleteSupabasePublicUpload`
+  is compatibility-only and refuses with `PublicUploadOwnershipProofError`
+  after containment/namespace checks; it is not a routine recall mechanism.
+- This app choke point is not a Supabase-wide firewall. The containment
+  migration must be applied and verified to constrain direct authenticated
+  access. Existing public objects need a scoped inventory and owner-approved
+  recovery/recall procedure. Scanner egress remains capped at 1 MiB pending an
+  explicit owner decision against the 8 MiB public-media product limit.
+- Page-publish failure now has a safe typed API/client error and the editor
+  workflow stops before GitHub promotion, explicitly disclosing if content
+  drafts were already published first.
+
 ## 2026-09-08 — UI/UX acceptance (Wave 9): closure with direct runtime evidence — GATE **BLOCKED** (2 external blockers)
 
 - Branch `integration/ui-final-20260908` (base `d76ba1c0`). Nothing committed/pushed/merged/deployed.

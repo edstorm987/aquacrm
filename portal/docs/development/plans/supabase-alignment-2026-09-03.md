@@ -9,6 +9,13 @@ migrations recorded, 0 pending; the `brand_enquiries.agency_id` backfill stamped
 `milesymedia` with every table's row count preserved; `rls-verify.sql` on live returns 51 INFO /
 0 FAIL / 0 WARN; the drift tool reports 0 missing objects.
 
+> **Current correction — 10 September 2026:** the status above is a frozen
+> record of the 3 September operation, not today's migration state. The repo now
+> contains 31 migrations and the last verified live alignment covered 27.
+> Exactly four later versions are expected to be local-only: `20260903130000`,
+> `20260908210000`, `20260908220000`, and `20260910010000`. Nothing in this
+> historical record authorises a new push or claims those four are live.
+
 ← [production-readiness-roadmap-2026-09-03.md](production-readiness-roadmap-2026-09-03.md) ·
 [`../../../supabase/README.md`](../../../../supabase/README.md) · [ED-QUESTIONS Q7, Q8, Q11](../ED-QUESTIONS.md)
 
@@ -132,8 +139,11 @@ authorisation, not routed around the gate.
 
 ### Remaining, after the live apply
 
-- **`20260903130000`** is 1 no-op pending migration on live (records the already-present
-  `rls_auto_enable`); push it on the next `db push` to reach 0 pending.
+- **At this 2026-09-03 checkpoint, `20260903130000`** was the one no-op pending
+  migration on live (recording the already-present `rls_auto_enable`). That is
+  historical evidence only. As of 2026-09-10 it is the first of four expected
+  local-only versions; follow the current security gate's read-only preflight,
+  backup and explicit-approval procedure rather than this dated record.
 - **Inherited over-broad grants.** The older tables carry the cloud default `GRANT ALL` to
   anon/authenticated (e.g. `audit_events` UPDATE/DELETE), **inert under RLS** (no permissive policy,
   so every such row is denied — the live audit is 0 FAIL). The new grants migration codifies

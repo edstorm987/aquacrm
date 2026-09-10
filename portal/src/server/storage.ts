@@ -1747,6 +1747,8 @@ export async function withAtomicPortalStateMutation<T>(
  * runs, so a refused write can never partially apply.
  */
 export class SecurityLockdownError extends Error {
+  readonly code = "writes_frozen";
+
   constructor(reason: string) {
     super(
       `[security] write refused: the portal is in global read-only lockdown (${reason}). ` +

@@ -3,6 +3,7 @@ import {
   type ObservabilityCapability,
 } from "./observabilityCapability";
 import { hasContentScanner } from "./security/contentTrust";
+import { inspectStorageBucketPolicy } from "./storageBucketPolicy";
 
 export type ReadinessStatus = "ready" | "needs-setup" | "optional";
 export type ReadinessGroup = "core" | "communication" | "money" | "development" | "intelligence" | "security-evidence";
@@ -43,6 +44,7 @@ export interface ReadinessItem {
     // after the real control is in place. Missing evidence never reads as green.
     | "containment-migration"
     | "content-scanner"
+    | "public-media-lifecycle"
     | "security-event-drain"
     | "rate-limiting"
     | "mfa"
@@ -156,9 +158,19 @@ export function inspectProductionReadiness(
   const envCounts = audience === "platform";
   const explicitBackend = env.PORTAL_BACKEND?.trim().toLowerCase();
   const isPublicDeployment = env.VERCEL_ENV === "production" || env.VERCEL_ENV === "preview";
+  const supabasePublicKeyReady = has(env, "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY")
+    || has(env, "NEXT_PUBLIC_PUBLISHABLE_KEY")
+    || has(env, "NEXT_PUBLIC_SUPABASE_ANON_KEY");
+  const supabaseServerKeyReady = has(env, "SUPABASE_SECRET_KEY")
+    || has(env, "SUPABASE_SERVICE_ROLE_KEY");
   const supabaseReady = has(env, "NEXT_PUBLIC_SUPABASE_URL")
-    && has(env, "NEXT_PUBLIC_SUPABASE_ANON_KEY")
-    && has(env, "SUPABASE_SERVICE_ROLE_KEY");
+    && supabasePublicKeyReady
+    && supabaseServerKeyReady;
+  // Match the private-storage provider selector exactly. The upload path does
+  // not use the anon key, so a URL + server key already selects Supabase and
+  // must block lower-precedence Blob fallbacks when its bucket contract is bad.
+  const supabasePrivateStorageSelected = has(env, "NEXT_PUBLIC_SUPABASE_URL")
+    && supabaseServerKeyReady;
   const postgresReady = has(env, "DATABASE_URL")
     && (explicitBackend === "postgres" || !explicitBackend)
     && (!isPublicDeployment || isRemoteDatabase(env.DATABASE_URL));
@@ -181,10 +193,17 @@ export function inspectProductionReadiness(
   const enquiryEmailReady = context.enquiryNotificationsConfigured
     ?? (envCounts && has(env, "RESEND_API_KEY") && has(env, "ENQUIRY_NOTIFY_TO") && has(env, "ENQUIRY_EMAIL_FROM"));
   const emailReady = transactionalEmailReady && enquiryEmailReady;
-  const uploadsReady = (supabaseReady && has(env, "NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET"))
-    || has(env, "BLOB_READ_WRITE_TOKEN")
+  const bucketPolicy = inspectStorageBucketPolicy(env);
+  const supabaseUploadsReady = supabasePrivateStorageSelected
+    && has(env, "NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET")
+    && has(env, "NEXT_PUBLIC_SUPABASE_PUBLIC_BUCKET")
+    && bucketPolicy.valid;
+  const supabaseUploadConfigurationBlocksFallback = supabasePrivateStorageSelected && !supabaseUploadsReady;
+  const blobUploadsReady = has(env, "BLOB_READ_WRITE_TOKEN")
     || has(env, "BLOB_STORE_ID")
     || has(env, "VERCEL_OIDC_TOKEN");
+  const uploadsReady = supabaseUploadsReady
+    || (!supabaseUploadConfigurationBlocksFallback && blobUploadsReady);
   const stripeReady = managedProviders.has("stripe")
     || (envCounts && has(env, "STRIPE_SECRET_KEY") && has(env, "STRIPE_WEBHOOK_SECRET"));
   const googleReady = has(env, "GOOGLE_OAUTH_CLIENT_ID") && has(env, "GOOGLE_OAUTH_CLIENT_SECRET");
@@ -229,9 +248,15 @@ export function inspectProductionReadiness(
       "Apply supabase/migrations to the live DB after a backup, run rls-verify.sql, then set PORTAL_CONTAINMENT_MIGRATION_VERIFIED=true.",
       ["PORTAL_CONTAINMENT_MIGRATION_VERIFIED"]],
     ["content-scanner", "Malware / content scanning", contentScannerReady,
-      "A real AV/CDR scanner inspects every upload before it is served.",
-      "Connect an AV/CDR engine and set PORTAL_AV_SCANNER_URL. Until then high-risk uploads fail closed.",
+      "An AV/CDR adapter is wired and configured. The audited outbound broker currently limits scanner requests to 1 MiB, below the 8 MiB public-media contract, and this signal does not prove live provider reachability.",
+      "Connect and live-prove an AV/CDR engine, then set PORTAL_AV_SCANNER_URL. Keep public CDN publication disabled until the scanner can safely inspect the full accepted object and the separate atomic lifecycle gate is verified.",
       ["PORTAL_AV_SCANNER_URL"]],
+    // Intentionally code-owned and unconditionally RED. Do not replace this
+    // with an environment flag: configuration cannot supply the missing saga.
+    ["public-media-lifecycle", "Atomic public-media publication and recall", false,
+      "A durable operation-owned publication saga atomically links public objects to a committed page generation and can safely recall unreferenced objects after failures, unpublish or deletion.",
+      "Keep the app-server remote public writer absent and deletion ownership-blocked. Apply and verify the containment migration for direct Supabase access; then implement and fault-test durable intent, operation-owned immutable keys, page-generation commit, ownership-proven cleanup and an idempotent recovery/recall worker before connecting a code-backed verifier.",
+      []],
     ["security-event-drain", "Off-platform security event drain", eventDrainReady,
       "Security events are shipped to durable off-platform storage (WORM).",
       "Configure PORTAL_SECURITY_EVENT_DRAIN_URL so events survive the process.",
@@ -283,7 +308,7 @@ export function inspectProductionReadiness(
       required: true,
       group: "core",
       scope: "platform",
-      envKeys: ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "DATABASE_URL", "PORTAL_BACKEND"],
+      envKeys: ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "NEXT_PUBLIC_PUBLISHABLE_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY", "DATABASE_URL", "PORTAL_BACKEND"],
     },
     {
       id: "security",
@@ -340,12 +365,20 @@ export function inspectProductionReadiness(
       id: "uploads",
       label: "Private files",
       status: uploadsReady ? "ready" : "needs-setup",
-      summary: uploadsReady ? "Customer uploads use durable object storage." : "Uploads currently depend on the local filesystem.",
-      action: uploadsReady ? "No action needed." : "Configure the private Supabase upload bucket.",
+      summary: uploadsReady
+        ? "Customer uploads use durable object storage and the configured private/public bucket names are separated."
+        : supabaseUploadConfigurationBlocksFallback
+          ? "Supabase is connected, but its private/public bucket boundary is missing or unsafe."
+          : "Uploads currently depend on the local filesystem.",
+      action: uploadsReady
+        ? "No action needed."
+        : supabaseUploadConfigurationBlocksFallback
+          ? "Set the private bucket to aquacrm-uploads and the public bucket to aquacrm-public; they cannot be renamed or shared."
+          : "Configure the private Supabase upload bucket.",
       required: true,
       group: "core",
       scope: "platform",
-      envKeys: ["NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET", "BLOB_READ_WRITE_TOKEN"],
+      envKeys: ["NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY", "NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET", "NEXT_PUBLIC_SUPABASE_PUBLIC_BUCKET", "BLOB_READ_WRITE_TOKEN"],
     },
     {
       id: "billing",

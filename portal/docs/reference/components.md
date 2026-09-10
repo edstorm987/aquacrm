@@ -34,7 +34,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `AccessRequests({ requests, canManage, people, scope, scopeChoices, onSelectScope, environment, mutate }: { requests: AccessRequest[]; canManage: boolean; people: readonly AccessPerson[]; scope: NamedAccessScope; scopeCh…`
 - `CapabilityComposer({ capabilities, onChange, scope, scopeKind, idPrefix, compact = false, allowedCapabilities }: CapabilityComposerProps)`
 
-**Depends on (1):** [`src/components/access/accessModel.ts`](#file-src-components-access-accessmodel-ts-87afdaff76)
+**Depends on (2):** [`src/components/access/accessModel.ts`](#file-src-components-access-accessmodel-ts-87afdaff76) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
 
 **Used by (2):** [`scripts/smoke-access-control-ui.test.ts`](scripts.md#file-scripts-smoke-access-control-ui-test-ts-b983e0a0f7) · [`src/app/portal/agency/fulfilment/_FulfilmentWorkspace.tsx`](app.md#file-src-app-portal-agency-fulfilment-fulfilmentworkspace-tsx-efb66537d4)
 
@@ -1704,7 +1704,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `PersonalRadarPanel({ reading, actions, actionsAvailable, actionSummary, headline, variant = "page", showHeader = true, actionsHref = "/portal/agency/actions", goalsHref = "/portal/agency/calendar", businessRadarHref = "…`
 - `interface PersonalRadarPanelProps (10 members)`
 
-**Depends on (1):** [`src/lib/intelligence/personalRadar.ts`](lib.md#file-src-lib-intelligence-personalradar-ts-d1e0282176)
+**Depends on (2):** [`src/lib/intelligence/personalRadar.ts`](lib.md#file-src-lib-intelligence-personalradar-ts-d1e0282176) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
 
 **Used by (3):** [`src/app/portal/agency/my-radar/page.tsx`](app.md#file-src-app-portal-agency-my-radar-page-tsx-065cdf2270) · [`src/app/portal/agency/page.tsx`](app.md#file-src-app-portal-agency-page-tsx-35a1d5c98a) · [`src/components/chrome/MyRadarQuickLookPanel.tsx`](#file-src-components-chrome-myradarquicklookpanel-tsx-028d2ead5a)
 

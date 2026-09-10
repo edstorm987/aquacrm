@@ -63,7 +63,9 @@ test("every assertWritesAllowed surface string is classified in the registry", (
 // Adding a file here is a deliberate, reviewed decision — the point of the net
 // below is that a NEW unguarded object-store write path cannot appear silently.
 const OBJECT_STORE_WRITE_ALLOWLIST: Record<string, string> = {
-  // (currently empty — both storage modules guard their own primitives)
+  // (currently empty — the private storage module guards its live primitives;
+  // public remote storage has no provider primitive until its durable
+  // publication/recall lifecycle exists)
 };
 
 // Object-store WRITE primitives, matched narrowly so generic look-alikes do not
@@ -90,19 +92,22 @@ test("every server module that performs an object-store write/delete calls the w
   // is explicitly allowlisted above. Closes the "a mutator in a differently
   // named module escapes the net" gap the earlier filename-scoped check had.
   const offenders: string[] = [];
-  let matched = 0;
+  const matchedFiles: string[] = [];
   for (const file of walk(join(ROOT, "src"))) {
     const rel = file.replace(ROOT + "/", "");
     const src = read(file);
     if (!performsObjectStoreWrite(src)) continue;
-    matched += 1;
+    matchedFiles.push(rel);
     if (rel in OBJECT_STORE_WRITE_ALLOWLIST) continue;
     if (!/assertWritesAllowed\(/.test(src)) offenders.push(rel);
   }
-  // Sanity: the net must actually be finding the known object-store modules, so
+  // Sanity: the net must actually be finding the known live object-store module, so
   // a future refactor that hides the primitives can't turn this test into a
   // silent no-op that passes because it matched nothing.
-  assert.ok(matched >= 2, `expected to match at least the two upload-storage modules, matched ${matched}`);
+  assert.ok(
+    matchedFiles.includes("src/lib/server/privateUploadStorage.ts"),
+    `expected to match the live private upload-storage module, matched: ${matchedFiles.join(", ")}`,
+  );
   assert.deepEqual(
     offenders,
     [],

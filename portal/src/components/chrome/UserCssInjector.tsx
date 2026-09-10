@@ -17,7 +17,8 @@ import { useEffect, useState } from "react";
  * route with `?nocss=1` renders nothing and hands the page back.
  *
  * The css prop arrives ALREADY re-validated by `customCssForInjection` on the
- * server read — this component never widens what the store allows.
+ * server read. It is rendered as style text (not raw HTML), so the component
+ * neither widens the CSS policy nor introduces an HTML breakout boundary.
  */
 export function UserCssInjector({ css }: { css: string }) {
   const [enabled, setEnabled] = useState(false);
@@ -30,5 +31,5 @@ export function UserCssInjector({ css }: { css: string }) {
   }, []);
 
   if (!enabled || !css) return null;
-  return <style data-user-css dangerouslySetInnerHTML={{ __html: css }} />;
+  return <style data-user-css>{css}</style>;
 }

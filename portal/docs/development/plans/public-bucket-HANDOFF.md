@@ -4,11 +4,19 @@
 >
 > *It stays in `plans/` rather than moving to [archive/](archive/README.md) for two reasons: `smoke-dev-tasks-parse.test.ts` pins it by name in the set of plans that parse to zero phases, and `archive/README.md` says not to archive a handoff another plan still points at as its brief.*
 
+> **DO NOT EXECUTE THE LIVE-BUCKET STEPS BELOW (security override,
+> 2026-09-10).** They predate the public-media adversarial review. The current
+> local corrective branch deliberately has no remote upload implementation and
+> its delete compatibility helper refuses without ownership/refcount proof.
+> Remote publication remains release-blocked; direct Supabase access requires
+> the separately applied and verified containment migration. Use
+> [public-bucket.md](public-bucket.md) for the current gate and runbook.
+
 ← [plan](public-bucket.md) · [updates.md](../updates.md) · [status.md](../status.md) · [database.md §3](../../workspace/database.md)
 
-**One-liner:** `aquacrm-public` went from *declared-but-dead* → **wired end-to-end**.
-Approved website-editor media is promoted to the public CDN bucket **on publish**
-and the published site renders durable public URLs instead of inline base64.
+**Historical one-liner (2026-08-19):** `aquacrm-public` went from
+*declared-but-dead* to functionally wired in that dated implementation. This is
+not the current security posture: remote app-server publication is now disabled.
 
 **State (2026-08-19):** ✅ **code-complete, all 4 phases; runtime-verified in
 memory (17 behavioural tests incl. an end-to-end capstone).** The **only**
@@ -17,7 +25,10 @@ the shared dev-server environment (details below), not by the code.
 
 ---
 
-## What shipped
+## What the 2026-08-19 implementation shipped (superseded)
+
+Every statement in this section describes the dated implementation, not the
+current corrective branch. The security override above is authoritative.
 
 ### Phase 1 — the storage helper (owned)
 - **`src/lib/server/publicUploadStorage.ts`** (new) — mirror of `privateUploadStorage.ts` for the **public** bucket. `storePublicUpload` uploads to `aquacrm-public` and returns a durable **`getPublicUrl`** CDN link (vs. private, which stores a key and proxies bytes). Precedence: **Supabase → hard-error-in-prod → local `public/uploads-public/`** (no Vercel-Blob tier, `upsert:true` for stable URLs). Plus `deleteSupabasePublicUpload` + config predicates + `PublicUploadStorageError`.
@@ -61,41 +72,29 @@ Approved media = **editor + brand-kit images** · approval = **auto-public on pu
 
 ---
 
-## The one remaining task: live publish→CDN walk
+## Retired live task — do not execute
 
-Prove the plan's "Done when" on a real server: **publish a website-editor page that
-has an inline `data:` image, then confirm the published `<img src>` is a public
-URL** (and the `data:` blob is gone).
+The dated handoff proposed a live publish-to-CDN walk. That task is retired: the
+current branch intentionally has no remote writer and no routine public-object
+delete path. A live write/delete would bypass the security design and is not
+authorised by this document.
 
 ### Why it wasn't done this session
 1. The shared `:3032` server was **thrashing on constant recompiles** (~5 workers editing simultaneously), then went **fully down** (`ERR_CONNECTION_REFUSED`).
 2. `preview_start` for my own `aquacrm-verify` server is **blocked by a stale folder-lock** — the tooling still tracks the commander chat's dead `aquacrm-portal` server on `:3032` and won't launch a second server in the folder (and can't stop another chat's).
 
-### To do it (whoever has a clean server)
-1. **Get a server up:** restart `:3032` from the chat that owns it, **or** free the stale lock and `preview_start` `aquacrm-verify` (auto-port), **or** `npm run dev:verify` (auto-port) if Bash is sanctioned in that chat.
-2. **Sign in:** navigate to **`/dev`** (zero-cred founder sign-in) → lands in the portal.
-3. **Reach the website editor:** Fulfilment → *Client workspaces* (or a client's *Website* service) → the editor (Editor / Pages / Assets).
-4. **Have an inline image:** add an image via the editor's asset picker/upload (it stores a `data:` URL), or use a draft page that already has one.
-5. **Publish** the page.
-6. **Verify the published render** — inspect the `<img src>`:
-   - **Supabase configured** (the `.env` here has it): `https://<project>.supabase.co/storage/v1/object/public/aquacrm-public/website-media/<agency>/<client>/<site>/<sha>.<ext>`
-   - **Local-only fallback:** `/uploads-public/website-media/…`
-   - …and confirm the giant `data:` URL is **gone**.
-7. **(Optional) confirm the object** exists — Supabase dashboard → `aquacrm-public`, or the local file under `public/uploads-public/`.
+### Current disposition
 
-### ⚠️ Live-bucket note
-This `.env` has Supabase configured, so a real publish **writes the image to the
-live `aquacrm-public` bucket** (there is no local Supabase sandbox — see
-[[aquacrm-local-writes-to-live-supabase]]). That's fine — it's the *strongest*
-verification (it exercises the real Supabase-CDN path, the one gap the tests only
-pin by shape), all data here is Ed's pre-launch test data, and the object is
-deletable (dashboard or `deleteSupabasePublicUpload`). Use an obvious test image
-and **delete it after** if you don't want the artifact.
+Do not restore those steps from history. Future remote verification begins only
+after the durable publication saga, ownership/refcount ledger, recovery/recall
+worker, scanner contract, migration application and owner approval are all in
+place. It must use an authorised non-production object first and must preserve a
+durable incident/recovery checkpoint; routine deletion remains unavailable.
 
 ---
 
 ## Also non-code, for later
-- **Unpublish/erasure cleanup** of public objects (refcount-aware) — deliberately deferred; `deleteSupabasePublicUpload` is the hook.
+- **Unpublish/erasure cleanup** of public objects remains deliberately deferred; the compatibility helper now refuses without ownership proof and is not a usable deletion hook.
 - The **flaky inbox/enquiry suite cluster** + the KPI worker's transient `tsc` errors are **other workers' lanes**, not this plan.
 
 ## File map — what this plan owns

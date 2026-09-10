@@ -44,10 +44,17 @@ describe("the file somebody copies names everything production checks", () => {
       `.env.example does not mention ${missing.join(", ")} — somebody configuring production would never know to set them`);
   });
 
-  it("names the three Supabase credentials, not only the buckets", () => {
+  it("names the Supabase URL and every supported public/server key alias", () => {
     // The exact shape of issue #4, pinned by name so it cannot come back the
     // same way: buckets present, keys absent, section looking finished.
-    for (const key of ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY"]) {
+    for (const key of [
+      "NEXT_PUBLIC_SUPABASE_URL",
+      "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+      "NEXT_PUBLIC_PUBLISHABLE_KEY",
+      "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+      "SUPABASE_SECRET_KEY",
+      "SUPABASE_SERVICE_ROLE_KEY",
+    ]) {
       assert.ok(example.includes(key), `.env.example is missing ${key} (issue #4)`);
     }
   });

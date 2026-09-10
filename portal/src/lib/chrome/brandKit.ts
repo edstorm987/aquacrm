@@ -59,8 +59,9 @@ export function brandToCss(brand: BrandKit | null | undefined): BrandCssVars {
   return { vars, customCSS: brand?.customCSS };
 }
 
-// Render the brand kit as a single `<style>` tag content string.
-// The component inserts it into the DOM verbatim.
+// Render the brand kit as a single `<style>` tag content string. The component
+// supplies it as React text content so a stored closing-tag spelling cannot
+// terminate the style element.
 export function brandToStyleString(brand: BrandKit | null | undefined): string {
   const { vars, customCSS } = brandToCss(brand);
   const decls = Object.entries(vars)

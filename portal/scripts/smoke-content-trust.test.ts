@@ -120,6 +120,11 @@ test("a connected scanner can block; an unreachable scanner does not take upload
   const caught = await assess(PNG, "image/png");
   assert.equal(caught.verdict, "blocked");
   assert.equal(caught.reason, "scanner-verdict-malicious");
+  assert.equal(caught.scannerStatus, "malicious", "a malicious scanner verdict must not be recorded as cleared");
+
+  const rejectedBeforeScan = await assess(HTML, "image/png");
+  assert.equal(rejectedBeforeScan.verdict, "blocked");
+  assert.equal(rejectedBeforeScan.scannerStatus, "not-run", "a pre-scan byte rejection must not claim the scanner cleared it");
 
   setContentScanner(async () => {
     throw new Error("scanner down");
@@ -167,6 +172,26 @@ test("a connected scanner that clears the FULL bytes yields malware-cleared", as
   assert.equal(pdf.scannerStatus, "cleared");
   assert.equal(sawBytes, PDF.byteLength, "the scanner must receive the FULL bytes, not a 512-byte head");
   setContentScanner(null);
+});
+
+test("a partial scanner input can never clear an oversized artifact", async () => {
+  const oversized = new Uint8Array((25 * 1024 * 1024) + 1);
+  oversized.set(PNG, 0);
+  let scannedBytes = 0;
+  setContentScanner(async ({ bytes }) => {
+    scannedBytes = bytes.byteLength;
+    return { malicious: false };
+  });
+  try {
+    const result = await assess(oversized, "image/png");
+    assert.equal(scannedBytes, 25 * 1024 * 1024, "the in-process scanner seam remains memory-bounded");
+    assert.equal(result.sizeBytes, oversized.byteLength, "the full artifact is still hashed and measured");
+    assert.equal(result.verdict, "quarantined");
+    assert.equal(result.scannerStatus, "incomplete");
+    assert.equal(result.reason, "scanner-input-too-large");
+  } finally {
+    setContentScanner(null);
+  }
 });
 
 test("a signature-valid PDF is NEVER labelled malware-clean without a scan", async () => {

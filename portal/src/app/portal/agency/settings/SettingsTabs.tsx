@@ -992,6 +992,7 @@ const SERVICE_DESTINATIONS: Record<ReadinessItemId | "vercelEnvironment", { labe
   // are filtered out by scope). Destinations point at the env-var surface.
   "containment-migration": { label: "Open deployment env variables", href: "https://vercel.com/edstorm987-1130s-projects/aquacrm/settings/environment-variables", external: true },
   "content-scanner": { label: "Open deployment env variables", href: "https://vercel.com/edstorm987-1130s-projects/aquacrm/settings/environment-variables", external: true },
+  "public-media-lifecycle": { label: "Open production-readiness auditor", href: "/portal/dev-team/auditor" },
   "security-event-drain": { label: "Open deployment env variables", href: "https://vercel.com/edstorm987-1130s-projects/aquacrm/settings/environment-variables", external: true },
   "rate-limiting": { label: "Open deployment env variables", href: "https://vercel.com/edstorm987-1130s-projects/aquacrm/settings/environment-variables", external: true },
   mfa: { label: "Open deployment env variables", href: "https://vercel.com/edstorm987-1130s-projects/aquacrm/settings/environment-variables", external: true },

@@ -72,7 +72,7 @@ pinned by `scripts/smoke-semantic-registry.test.ts`).
 
 | Store | Authority | Tenancy | Notes |
 |---|---|---|---|
-| Supabase Storage, 8 buckets | SoT for uploads (private `aquacrm-uploads`, public `aquacrm-public`, 6 brand buckets) | **path-prefix per user** (`auth.uid()`), not per agency | private bytes proxied by the app; no signed URLs |
+| Supabase Storage, 8 buckets | SoT for uploads (private `aquacrm-uploads`, public `aquacrm-public`, 6 brand buckets) | **Target contract: server-mediated mutations with no browser-role write policy.** The local containment/hardening chain checks effective policy role membership, but is not claimed live until owner application + `rls-verify.sql`. | private bytes proxied by the app; no signed URLs; remote app-server public-media writes currently stop before provider I/O |
 | Vercel Blob | private-upload middle tier | none in store — route guards only | ~12 API routes |
 | `.data/*-uploads/`, `.data/inbox-media/<agencyId>/`, `.data/inbox-call-recordings/<agencyId>/` | dev fallback | path-embedded at best | CVs and call audio are PII |
 | Git working trees (`client-projects/`, `aqua-editor/<projectId>` worktrees) | SoT for project source | directory per client/project | outside any DB |

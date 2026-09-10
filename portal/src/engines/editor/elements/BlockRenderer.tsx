@@ -151,7 +151,7 @@ function BlockNode({
     ].filter(Boolean).join("\n");
     body = (
       <div data-block-id={block.id} style={{ display: "contents" }}>
-        <style dangerouslySetInnerHTML={{ __html: css }} />
+        <style>{css}</style>
         {node}
       </div>
     );

@@ -4769,10 +4769,10 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async shopifyFetch<T>(config: ShopifyConfig, args: { query: string; variables?: Record<string, unknown> }, options: ShopifyRequestOptions = {}): Promise<{ status: number; body: T }>`
 - `async createShopifyCart(config: ShopifyConfig, options: ShopifyRequestOptions = {}): Promise<{ id: string; checkoutUrl: string }>` — to Shopify Checkout instead of Stripe Checkout.
 - `async addLineToShopifyCart(config: ShopifyConfig, cartId: string, variantId: string, quantity: number, options: ShopifyRequestOptions = {}): Promise<{ id: string; checkoutUrl: string }>`
-- `interface ShopifyConfig (2 members)`
+- `interface ShopifyConfig (3 members)`
 - `interface ShopifyRequestOptions (3 members)`
 
-**Depends on (2):** [`src/lib/server/remoteOperation.ts`](lib.md#file-src-lib-server-remoteoperation-ts-60689f2f16) · [`src/lib/server/sandbox/providerPolicy.ts`](lib.md#file-src-lib-server-sandbox-providerpolicy-ts-d36e7025f0)
+**Depends on (3):** [`src/lib/server/net/outboundBroker.ts`](lib.md#file-src-lib-server-net-outboundbroker-ts-1b5e0fb1d0) · [`src/lib/server/remoteOperation.ts`](lib.md#file-src-lib-server-remoteoperation-ts-60689f2f16) · [`src/lib/server/sandbox/providerPolicy.ts`](lib.md#file-src-lib-server-sandbox-providerpolicy-ts-d36e7025f0)
 
 **Used by (1):** [`scripts/smoke-provider-deadlines.test.ts`](scripts.md#file-scripts-smoke-provider-deadlines-test-ts-b3c5fd9785)
 
@@ -8577,7 +8577,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on (6):** [`src/built-ins/modules/website-editor/src/api/handlers/customCode.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-customcode-ts-a575fd3d26) · [`src/built-ins/modules/website-editor/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-website-editor-src-lib-aquaplugintypes-ts-0dd53b92c8) · [`src/built-ins/modules/website-editor/src/lib/customCode.ts`](#file-src-built-ins-modules-website-editor-src-lib-customcode-ts-d18c49cfa0) · [`src/built-ins/modules/website-editor/src/lib/tenancy.ts`](#file-src-built-ins-modules-website-editor-src-lib-tenancy-ts-9b7092e47a) · [`src/built-ins/modules/website-editor/src/server/pages.ts`](#file-src-built-ins-modules-website-editor-src-server-pages-ts-2624a905b7) · [`src/built-ins/modules/website-editor/src/server/sites.ts`](#file-src-built-ins-modules-website-editor-src-server-sites-ts-2ef002b8d2)
+**Depends on (8):** [`src/built-ins/modules/website-editor/src/api/handlers/customCode.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-customcode-ts-a575fd3d26) · [`src/built-ins/modules/website-editor/src/components/blocks/TextBlock.tsx`](#file-src-built-ins-modules-website-editor-src-components-blocks-textblock-tsx-42a0c15ca8) · [`src/built-ins/modules/website-editor/src/components/storefront/EditorThemeInjector.tsx`](#file-src-built-ins-modules-website-editor-src-components-storefront-editorthemeinjector-tsx-2056e8019e) · [`src/built-ins/modules/website-editor/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-website-editor-src-lib-aquaplugintypes-ts-0dd53b92c8) · [`src/built-ins/modules/website-editor/src/lib/customCode.ts`](#file-src-built-ins-modules-website-editor-src-lib-customcode-ts-d18c49cfa0) · [`src/built-ins/modules/website-editor/src/lib/tenancy.ts`](#file-src-built-ins-modules-website-editor-src-lib-tenancy-ts-9b7092e47a) · [`src/built-ins/modules/website-editor/src/server/pages.ts`](#file-src-built-ins-modules-website-editor-src-server-pages-ts-2624a905b7) · [`src/built-ins/modules/website-editor/src/server/sites.ts`](#file-src-built-ins-modules-website-editor-src-server-sites-ts-2ef002b8d2)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -9070,8 +9070,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** declarative `PluginApiRoute.handler` functions.
 
-**Exports (11):**
+**Exports (12):**
 
+- `pagePublishSecurityFailure(error: unknown): Response | null` — Map expected public-media refusals to stable, secret-free API contracts. Internal reason codes and raw provider/scanner messages are never reflected. Unknown failures keep flowing…
 - `async handleListPages(req: Request, ctx: PluginCtx): Promise<Response>`
 - `async handleCreatePage(req: Request, ctx: PluginCtx): Promise<Response>`
 - `async handleGetPage(req: Request, ctx: PluginCtx): Promise<Response>`
@@ -9086,7 +9087,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (7):** [`src/built-ins/modules/website-editor/src/api/helpers.ts`](#file-src-built-ins-modules-website-editor-src-api-helpers-ts-9a02781d21) · [`src/built-ins/modules/website-editor/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-website-editor-src-lib-aquaplugintypes-ts-0dd53b92c8) · [`src/built-ins/modules/website-editor/src/lib/editorSettings.ts`](#file-src-built-ins-modules-website-editor-src-lib-editorsettings-ts-dd2222b099) · [`src/built-ins/modules/website-editor/src/lib/portalRole.ts`](#file-src-built-ins-modules-website-editor-src-lib-portalrole-ts-352abcd032) · [`src/built-ins/modules/website-editor/src/server/pages.ts`](#file-src-built-ins-modules-website-editor-src-server-pages-ts-2624a905b7) · [`src/built-ins/modules/website-editor/src/server/portalVariants.ts`](#file-src-built-ins-modules-website-editor-src-server-portalvariants-ts-57e81222f5) · [`src/built-ins/modules/website-editor/src/server/starterLoader.ts`](#file-src-built-ins-modules-website-editor-src-server-starterloader-ts-b7afd807b0)
 
-**Used by (3):** [`scripts/smoke-website-editor-settings-contract.test.ts`](scripts.md#file-scripts-smoke-website-editor-settings-contract-test-ts-ea651b6679) · [`src/built-ins/modules/website-editor/src/__smoke__/r012-portal-variant-editor.test.ts`](#file-src-built-ins-modules-website-editor-src-smoke-r012-portal-variant-editor-test-ts-f07d17cb43) · [`src/built-ins/modules/website-editor/src/api/routes.ts`](#file-src-built-ins-modules-website-editor-src-api-routes-ts-74f54dcdc1)
+**Used by (4):** [`scripts/smoke-public-media-promotion.test.ts`](scripts.md#file-scripts-smoke-public-media-promotion-test-ts-fbdd9dd480) · [`scripts/smoke-website-editor-settings-contract.test.ts`](scripts.md#file-scripts-smoke-website-editor-settings-contract-test-ts-ea651b6679) · [`src/built-ins/modules/website-editor/src/__smoke__/r012-portal-variant-editor.test.ts`](#file-src-built-ins-modules-website-editor-src-smoke-r012-portal-variant-editor-test-ts-f07d17cb43) · [`src/built-ins/modules/website-editor/src/api/routes.ts`](#file-src-built-ins-modules-website-editor-src-api-routes-ts-74f54dcdc1)
 
 <a id="file-src-built-ins-modules-website-editor-src-api-handlers-promote-ts-64a909b565"></a>
 
@@ -9950,9 +9951,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
-- `default HtmlBlock({ block }: BlockRenderProps)` — strict mode in PortalSettings.
+- `default HtmlBlock({ block }: BlockRenderProps)` — editor's own sandboxed iframe still shows the author their markup.
 
-**Depends on (2):** [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](#file-src-built-ins-modules-website-editor-src-components-blockregistry-ts-28285b9913) · [`src/built-ins/modules/website-editor/src/components/blockStyles.ts`](#file-src-built-ins-modules-website-editor-src-components-blockstyles-ts-4baaa846b8)
+**Depends on (3):** [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](#file-src-built-ins-modules-website-editor-src-components-blockregistry-ts-28285b9913) · [`src/built-ins/modules/website-editor/src/components/blockStyles.ts`](#file-src-built-ins-modules-website-editor-src-components-blockstyles-ts-4baaa846b8) · [`src/built-ins/modules/website-editor/src/lib/customCodeSafeMode.ts`](#file-src-built-ins-modules-website-editor-src-lib-customcodesafemode-ts-fba737a4d8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -10429,9 +10430,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default TextBlock({ block, editorMode }: BlockRenderProps)`
 
-**Depends on (2):** [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](#file-src-built-ins-modules-website-editor-src-components-blockregistry-ts-28285b9913) · [`src/built-ins/modules/website-editor/src/components/blockStyles.ts`](#file-src-built-ins-modules-website-editor-src-components-blockstyles-ts-4baaa846b8)
+**Depends on (3):** [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](#file-src-built-ins-modules-website-editor-src-components-blockregistry-ts-28285b9913) · [`src/built-ins/modules/website-editor/src/components/blockStyles.ts`](#file-src-built-ins-modules-website-editor-src-components-blockstyles-ts-4baaa846b8) · [`src/built-ins/modules/website-editor/src/lib/customCodeSafeMode.ts`](#file-src-built-ins-modules-website-editor-src-lib-customcodesafemode-ts-fba737a4d8)
 
-**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+**Used by (1):** [`src/built-ins/modules/website-editor/src/__smoke__/r029-custom-css.test.ts`](#file-src-built-ins-modules-website-editor-src-smoke-r029-custom-css-test-ts-b8a6bca5d7)
 
 <a id="file-src-built-ins-modules-website-editor-src-components-blocks-themeselectorblock-tsx-5b47a85d2b"></a>
 
@@ -11168,7 +11169,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (2):** [`src/built-ins/modules/website-editor/src/components/themeCss.ts`](#file-src-built-ins-modules-website-editor-src-components-themecss-ts-4837ae02ea) · [`src/built-ins/modules/website-editor/src/types/theme.ts`](#file-src-built-ins-modules-website-editor-src-types-theme-ts-cfd518e577)
 
-**Used by (2):** [`src/built-ins/modules/website-editor/src/components/index.ts`](#file-src-built-ins-modules-website-editor-src-components-index-ts-3f1fe97075) · [`src/built-ins/modules/website-editor/src/components/storefront/PortalPageRenderer.tsx`](#file-src-built-ins-modules-website-editor-src-components-storefront-portalpagerenderer-tsx-4a806d74ff)
+**Used by (3):** [`src/built-ins/modules/website-editor/src/__smoke__/r029-custom-css.test.ts`](#file-src-built-ins-modules-website-editor-src-smoke-r029-custom-css-test-ts-b8a6bca5d7) · [`src/built-ins/modules/website-editor/src/components/index.ts`](#file-src-built-ins-modules-website-editor-src-components-index-ts-3f1fe97075) · [`src/built-ins/modules/website-editor/src/components/storefront/PortalPageRenderer.tsx`](#file-src-built-ins-modules-website-editor-src-components-storefront-portalpagerenderer-tsx-4a806d74ff)
 
 <a id="file-src-built-ins-modules-website-editor-src-components-storefront-portaleditoverlay-tsx-9510ad2f11"></a>
 
@@ -11226,7 +11227,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `SiteHead({ site, page, defaultLocale, defaultDescription, agencyName, baseUrl, brandKit }: SiteHeadProps)`
 - `interface SiteHeadProps (7 members)`
 
-**Depends on (5):** [`src/built-ins/modules/website-editor/src/lib/jsonLdInjection.ts`](#file-src-built-ins-modules-website-editor-src-lib-jsonldinjection-ts-95350382d2) · [`src/built-ins/modules/website-editor/src/lib/pagePublication.ts`](#file-src-built-ins-modules-website-editor-src-lib-pagepublication-ts-e9156098fa) · [`src/built-ins/modules/website-editor/src/lib/tenancy.ts`](#file-src-built-ins-modules-website-editor-src-lib-tenancy-ts-9b7092e47a) · [`src/built-ins/modules/website-editor/src/types/editorPage.ts`](#file-src-built-ins-modules-website-editor-src-types-editorpage-ts-8ec7c1cdce) · [`src/built-ins/modules/website-editor/src/types/site.ts`](#file-src-built-ins-modules-website-editor-src-types-site-ts-22f3ff2a8a)
+**Depends on (6):** [`src/built-ins/modules/website-editor/src/lib/customCodeSafeMode.ts`](#file-src-built-ins-modules-website-editor-src-lib-customcodesafemode-ts-fba737a4d8) · [`src/built-ins/modules/website-editor/src/lib/jsonLdInjection.ts`](#file-src-built-ins-modules-website-editor-src-lib-jsonldinjection-ts-95350382d2) · [`src/built-ins/modules/website-editor/src/lib/pagePublication.ts`](#file-src-built-ins-modules-website-editor-src-lib-pagepublication-ts-e9156098fa) · [`src/built-ins/modules/website-editor/src/lib/tenancy.ts`](#file-src-built-ins-modules-website-editor-src-lib-tenancy-ts-9b7092e47a) · [`src/built-ins/modules/website-editor/src/types/editorPage.ts`](#file-src-built-ins-modules-website-editor-src-types-editorpage-ts-8ec7c1cdce) · [`src/built-ins/modules/website-editor/src/types/site.ts`](#file-src-built-ins-modules-website-editor-src-types-site-ts-22f3ff2a8a)
 
 **Used by (1):** [`src/built-ins/modules/website-editor/src/components/index.ts`](#file-src-built-ins-modules-website-editor-src-components-index-ts-3f1fe97075)
 
@@ -11370,7 +11371,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type BlockCategory = ElementCategory` — is part of the shared element vocabulary now, not a plugin-local enum.
 - `interface PluginCtx (6 members)` — ─── Runtime context ───────────────────────────────────────────────────────
 - `interface PluginStorage (5 members)`
-- `interface PublicMediaStoreInput (5 members)` — mirror of the foundation `PublicMediaPort` (`built-ins/runtime/_types.ts`).
+- `interface PublicMediaStoreInput (6 members)` — mirror of the foundation `PublicMediaPort` (`built-ins/runtime/_types.ts`).
 - `interface StoredPublicMedia (2 members)`
 - `interface PublicMediaPort (1 members)`
 - `interface PluginServices (9 members)`
@@ -11616,7 +11617,25 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on:** _No internal imports._
 
-**Used by (2):** [`src/built-ins/modules/website-editor/src/__smoke__/r029-custom-css.test.ts`](#file-src-built-ins-modules-website-editor-src-smoke-r029-custom-css-test-ts-b8a6bca5d7) · [`src/built-ins/modules/website-editor/src/api/handlers/customCode.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-customcode-ts-a575fd3d26)
+**Used by (3):** [`src/built-ins/modules/website-editor/src/__smoke__/r029-custom-css.test.ts`](#file-src-built-ins-modules-website-editor-src-smoke-r029-custom-css-test-ts-b8a6bca5d7) · [`src/built-ins/modules/website-editor/src/api/handlers/customCode.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-customcode-ts-a575fd3d26) · [`src/built-ins/modules/website-editor/src/server/pages.ts`](#file-src-built-ins-modules-website-editor-src-server-pages-ts-2624a905b7)
+
+<a id="file-src-built-ins-modules-website-editor-src-lib-customcodesafemode-ts-fba737a4d8"></a>
+
+### `src/built-ins/modules/website-editor/src/lib/customCodeSafeMode.ts`
+
+**What it is:** separate preview origin will remove. Setting the break-glass is loud.
+
+**Exports (5):**
+
+- `storedCodeMode(env?: Record<string, string | undefined>): StoredCodeMode`
+- `mayRenderStoredMarkup(env?: Record<string, string | undefined>): boolean` — True when raw operator markup may be stamped into the authenticated same-origin render.
+- `storedMarkupOrNull(value: string | undefined, env?: Record<string, string | undefined>): string | null` — The value to inject for a stored markup slot. In safe mode returns null (the caller renders nothing / a placeholder); otherwise the original string. Centralised so every sink (cus…
+- `STORED_CODE_UNSAFE_RENDER_VALUE = "allow"` — The exact — and only — value that re-enables raw stored markup in production.
+- `type StoredCodeMode = "safe" | "unsafe-render"` — separate preview origin will remove. Setting the break-glass is loud.
+
+**Depends on:** _No internal imports._
+
+**Used by (6):** [`scripts/smoke-stored-code-boundary.test.ts`](scripts.md#file-scripts-smoke-stored-code-boundary-test-ts-4b3e737880) · [`src/app/client-website-preview/[clientId]/[siteId]/[pageId]/page.tsx`](app.md#file-src-app-client-website-preview-clientid-siteid-pageid-page-tsx-5c23b67350) · [`src/built-ins/modules/website-editor/src/components/blocks/HtmlBlock.tsx`](#file-src-built-ins-modules-website-editor-src-components-blocks-htmlblock-tsx-ae7d5d4382) · [`src/built-ins/modules/website-editor/src/components/blocks/TextBlock.tsx`](#file-src-built-ins-modules-website-editor-src-components-blocks-textblock-tsx-42a0c15ca8) · [`src/built-ins/modules/website-editor/src/components/storefront/SiteHead.tsx`](#file-src-built-ins-modules-website-editor-src-components-storefront-sitehead-tsx-3db81c01f0) · [`src/built-ins/modules/website-editor/src/server/staticExport.ts`](#file-src-built-ins-modules-website-editor-src-server-staticexport-ts-5b7eb2eef9)
 
 <a id="file-src-built-ins-modules-website-editor-src-lib-custompages-ts-4b6c3c8144"></a>
 
@@ -11845,25 +11864,31 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (13):**
+**Exports (17):**
 
+- `async readPagePublishResponse(res: Response, expected?: ExpectedPublishedPage): Promise<EditorPage>` — Parse the publish endpoint without ever reflecting a raw server/provider error.
+- `async readPageListResponse(res: Response, expectedSiteId?: string): Promise<EditorPage[]>` — Parse the list endpoint fail-closed so an unreadable tree is never cached as empty.
 - `async listPages(siteId: string, force = false): Promise<EditorPage[]>`
 - `async getPage(siteId: string, pageId: string): Promise<EditorPage | null>`
 - `async createPage(siteId: string, input: CreatePageInput): Promise<EditorPage | null>`
 - `async updatePage(siteId: string, pageId: string, patch: UpdatePageInput | UpdatePagePatch): Promise<EditorPage | null>`
 - `async deletePage(siteId: string, pageId: string): Promise<boolean>`
-- `async publishPage(siteId: string, pageId: string): Promise<EditorPage | null>`
+- `async publishPage(siteId: string, pageId: string): Promise<EditorPage>`
 - `async revertPage(siteId: string, pageId: string): Promise<EditorPage | null>`
 - `onPagesChange(cb: (siteId: string) => void): () => void`
 - `async listPortalVariants(siteId: string, role: PortalRole): Promise<EditorPage[]>` — ─── Portal variants ──────────────────────────────────────────────────────
 - `async setActivePortalVariant(siteId: string, role: PortalRole, pageId: string | null): Promise<EditorPage[]>`
+- `class EditorPagePublishError`
+    - `constructor(readonly code: string, readonly status: number)`
+- `class EditorPageListError`
+    - `constructor(readonly code: "page_list_failed" | "page_list_invalid_response", readonly status: number)`
 - `interface CreatePageInput (8 members)` — the type level — those come from the request session server-side).
 - `interface UpdatePageInput (12 members)`
 - `{ BaseCreatePageInput, UpdatePagePatch }`
 
 **Depends on (3):** [`src/built-ins/modules/website-editor/src/lib/portalRole.ts`](#file-src-built-ins-modules-website-editor-src-lib-portalrole-ts-352abcd032) · [`src/built-ins/modules/website-editor/src/types/block.ts`](#file-src-built-ins-modules-website-editor-src-types-block-ts-68d8cdbe7f) · [`src/built-ins/modules/website-editor/src/types/editorPage.ts`](#file-src-built-ins-modules-website-editor-src-types-editorpage-ts-8ec7c1cdce)
 
-**Used by (5):** [`src/built-ins/modules/website-editor/src/components/editor/EditorBlockStage.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editorblockstage-tsx-90a4d3c20c) · [`src/built-ins/modules/website-editor/src/lib/savePipeline.ts`](#file-src-built-ins-modules-website-editor-src-lib-savepipeline-ts-813b46e7af) · [`src/built-ins/modules/website-editor/src/pages/EditorPage.tsx`](#file-src-built-ins-modules-website-editor-src-pages-editorpage-tsx-147aac838c) · [`src/built-ins/modules/website-editor/src/pages/PagesPage.tsx`](#file-src-built-ins-modules-website-editor-src-pages-pagespage-tsx-b2a55d5034) · [`src/built-ins/modules/website-editor/src/pages/PortalsPage.tsx`](#file-src-built-ins-modules-website-editor-src-pages-portalspage-tsx-ba83f5c5cf)
+**Used by (6):** [`scripts/smoke-public-media-promotion.test.ts`](scripts.md#file-scripts-smoke-public-media-promotion-test-ts-fbdd9dd480) · [`src/built-ins/modules/website-editor/src/components/editor/EditorBlockStage.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editorblockstage-tsx-90a4d3c20c) · [`src/built-ins/modules/website-editor/src/lib/savePipeline.ts`](#file-src-built-ins-modules-website-editor-src-lib-savepipeline-ts-813b46e7af) · [`src/built-ins/modules/website-editor/src/pages/EditorPage.tsx`](#file-src-built-ins-modules-website-editor-src-pages-editorpage-tsx-147aac838c) · [`src/built-ins/modules/website-editor/src/pages/PagesPage.tsx`](#file-src-built-ins-modules-website-editor-src-pages-pagespage-tsx-b2a55d5034) · [`src/built-ins/modules/website-editor/src/pages/PortalsPage.tsx`](#file-src-built-ins-modules-website-editor-src-pages-portalspage-tsx-ba83f5c5cf)
 
 <a id="file-src-built-ins-modules-website-editor-src-lib-editorsettings-ts-dd2222b099"></a>
 
@@ -12374,6 +12399,27 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Depends on:** _No internal imports._
 
 **Used by (4):** [`src/built-ins/modules/website-editor/src/pages/GitStatusPage.tsx`](#file-src-built-ins-modules-website-editor-src-pages-gitstatuspage-tsx-200754932f) · [`src/built-ins/modules/website-editor/src/pages/PagesPage.tsx`](#file-src-built-ins-modules-website-editor-src-pages-pagespage-tsx-b2a55d5034) · [`src/built-ins/modules/website-editor/src/pages/PortalsPage.tsx`](#file-src-built-ins-modules-website-editor-src-pages-portalspage-tsx-ba83f5c5cf) · [`src/built-ins/modules/website-editor/src/pages/ThemeDetailPage.tsx`](#file-src-built-ins-modules-website-editor-src-pages-themedetailpage-tsx-7c19c4ac83)
+
+<a id="file-src-built-ins-modules-website-editor-src-lib-publishworkflow-ts-3a3e666e28"></a>
+
+### `src/built-ins/modules/website-editor/src/lib/publishWorkflow.ts`
+
+**What it is:** testable: a failed active-page publish can never be treated as best effort.
+
+**Exports (7):**
+
+- `partitionPublishPreviewPages<TPage extends PublishPreviewPage>(changedPages: readonly TPage[], activePageId: string | null): { activePage: TPage | null; deferredPages: TPage[] }` — The current command publishes at most the active editor page. Keep the modal copy derived from the same invariant so other dirty pages are never presented as part of this action.
+- `sitePublishSuccessMessage(activePageId: string | null): string`
+- `async runSitePublishWorkflow<TResult>(input: SitePublishWorkflowInput<TResult>): Promise<TResult>`
+- `class SitePublishWorkflowError`
+    - `constructor(readonly stage: SitePublishWorkflowStage, readonly contentPublished: boolean, readonly activePagePublished: boolean)`
+- `type SitePublishWorkflowStage = "content" | "active-page" | "github-promote"` — testable: a failed active-page publish can never be treated as best effort.
+- `interface SitePublishWorkflowInput<TResult> (4 members)`
+- `interface PublishPreviewPage (3 members)`
+
+**Depends on:** _No internal imports._
+
+**Used by (2):** [`scripts/smoke-public-media-promotion.test.ts`](scripts.md#file-scripts-smoke-public-media-promotion-test-ts-fbdd9dd480) · [`src/built-ins/modules/website-editor/src/pages/EditorPage.tsx`](#file-src-built-ins-modules-website-editor-src-pages-editorpage-tsx-147aac838c)
 
 <a id="file-src-built-ins-modules-website-editor-src-lib-responsiveimage-ts-17ef0c3ce9"></a>
 
@@ -12910,7 +12956,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default VisualEditorPage({ enabledPluginIds = NO_ENABLED_PLUGINS }: VisualEditorPageProps)`
 
-**Depends on (24):** [`src/built-ins/modules/website-editor/src/components/canvas/blockTreeOps.ts`](#file-src-built-ins-modules-website-editor-src-components-canvas-blocktreeops-ts-825c40c7ad) · [`src/built-ins/modules/website-editor/src/components/devicePreview.tsx`](#file-src-built-ins-modules-website-editor-src-components-devicepreview-tsx-0fee6b9bce) · [`src/built-ins/modules/website-editor/src/components/editor/EditorBlockStage.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editorblockstage-tsx-90a4d3c20c) · [`src/built-ins/modules/website-editor/src/components/editor/EditorFunnelStage.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editorfunnelstage-tsx-eb24cbb707) · [`src/built-ins/modules/website-editor/src/components/editor/EditorOutliner.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editoroutliner-tsx-50801dc75d) · [`src/built-ins/modules/website-editor/src/components/editor/EditorPropertiesSidebar.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editorpropertiessidebar-tsx-47e3d37588) · [`src/built-ins/modules/website-editor/src/components/editor/EditorTopBar.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editortopbar-tsx-5488c17b23) · [`src/built-ins/modules/website-editor/src/components/editor/GenerateModal.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-generatemodal-tsx-adc29a5f75) · [`src/built-ins/modules/website-editor/src/components/editor/LivePreview.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-livepreview-tsx-5c55fe2a65) · [`src/built-ins/modules/website-editor/src/components/editor/PagePickerToolbar.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-pagepickertoolbar-tsx-10e3a921af) · [`src/built-ins/modules/website-editor/src/components/pageTemplates.ts`](#file-src-built-ins-modules-website-editor-src-components-pagetemplates-ts-a6b20b21c8) · [`src/built-ins/modules/website-editor/src/lib/confirm.ts`](#file-src-built-ins-modules-website-editor-src-lib-confirm-ts-33ae610d92) · [`src/built-ins/modules/website-editor/src/lib/content.ts`](#file-src-built-ins-modules-website-editor-src-lib-content-ts-c979a99f42) · [`src/built-ins/modules/website-editor/src/lib/devicePresets.ts`](#file-src-built-ins-modules-website-editor-src-lib-devicepresets-ts-fdbbacbde1) · [`src/built-ins/modules/website-editor/src/lib/editorDeepLink.ts`](#file-src-built-ins-modules-website-editor-src-lib-editordeeplink-ts-70a964fc9b) · [`src/built-ins/modules/website-editor/src/lib/editorMode.ts`](#file-src-built-ins-modules-website-editor-src-lib-editormode-ts-0e8c99e000) · [`src/built-ins/modules/website-editor/src/lib/editorPages.ts`](#file-src-built-ins-modules-website-editor-src-lib-editorpages-ts-e5b139ae15) · [`src/built-ins/modules/website-editor/src/lib/featureBackends.ts`](#file-src-built-ins-modules-website-editor-src-lib-featurebackends-ts-5198844225) · [`src/built-ins/modules/website-editor/src/lib/funnels.ts`](#file-src-built-ins-modules-website-editor-src-lib-funnels-ts-1e196119cd) · [`src/built-ins/modules/website-editor/src/lib/pluginRequired.tsx`](#file-src-built-ins-modules-website-editor-src-lib-pluginrequired-tsx-30c1037542) · [`src/built-ins/modules/website-editor/src/lib/promote.ts`](#file-src-built-ins-modules-website-editor-src-lib-promote-ts-7b7a91818b) · [`src/built-ins/modules/website-editor/src/lib/sites.ts`](#file-src-built-ins-modules-website-editor-src-lib-sites-ts-7f50908a93) · [`src/built-ins/modules/website-editor/src/types/block.ts`](#file-src-built-ins-modules-website-editor-src-types-block-ts-68d8cdbe7f) · [`src/built-ins/modules/website-editor/src/types/editorPage.ts`](#file-src-built-ins-modules-website-editor-src-types-editorpage-ts-8ec7c1cdce)
+**Depends on (25):** [`src/built-ins/modules/website-editor/src/components/canvas/blockTreeOps.ts`](#file-src-built-ins-modules-website-editor-src-components-canvas-blocktreeops-ts-825c40c7ad) · [`src/built-ins/modules/website-editor/src/components/devicePreview.tsx`](#file-src-built-ins-modules-website-editor-src-components-devicepreview-tsx-0fee6b9bce) · [`src/built-ins/modules/website-editor/src/components/editor/EditorBlockStage.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editorblockstage-tsx-90a4d3c20c) · [`src/built-ins/modules/website-editor/src/components/editor/EditorFunnelStage.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editorfunnelstage-tsx-eb24cbb707) · [`src/built-ins/modules/website-editor/src/components/editor/EditorOutliner.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editoroutliner-tsx-50801dc75d) · [`src/built-ins/modules/website-editor/src/components/editor/EditorPropertiesSidebar.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editorpropertiessidebar-tsx-47e3d37588) · [`src/built-ins/modules/website-editor/src/components/editor/EditorTopBar.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-editortopbar-tsx-5488c17b23) · [`src/built-ins/modules/website-editor/src/components/editor/GenerateModal.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-generatemodal-tsx-adc29a5f75) · [`src/built-ins/modules/website-editor/src/components/editor/LivePreview.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-livepreview-tsx-5c55fe2a65) · [`src/built-ins/modules/website-editor/src/components/editor/PagePickerToolbar.tsx`](#file-src-built-ins-modules-website-editor-src-components-editor-pagepickertoolbar-tsx-10e3a921af) · [`src/built-ins/modules/website-editor/src/components/pageTemplates.ts`](#file-src-built-ins-modules-website-editor-src-components-pagetemplates-ts-a6b20b21c8) · [`src/built-ins/modules/website-editor/src/lib/confirm.ts`](#file-src-built-ins-modules-website-editor-src-lib-confirm-ts-33ae610d92) · [`src/built-ins/modules/website-editor/src/lib/content.ts`](#file-src-built-ins-modules-website-editor-src-lib-content-ts-c979a99f42) · [`src/built-ins/modules/website-editor/src/lib/devicePresets.ts`](#file-src-built-ins-modules-website-editor-src-lib-devicepresets-ts-fdbbacbde1) · [`src/built-ins/modules/website-editor/src/lib/editorDeepLink.ts`](#file-src-built-ins-modules-website-editor-src-lib-editordeeplink-ts-70a964fc9b) · [`src/built-ins/modules/website-editor/src/lib/editorMode.ts`](#file-src-built-ins-modules-website-editor-src-lib-editormode-ts-0e8c99e000) · [`src/built-ins/modules/website-editor/src/lib/editorPages.ts`](#file-src-built-ins-modules-website-editor-src-lib-editorpages-ts-e5b139ae15) · [`src/built-ins/modules/website-editor/src/lib/featureBackends.ts`](#file-src-built-ins-modules-website-editor-src-lib-featurebackends-ts-5198844225) · [`src/built-ins/modules/website-editor/src/lib/funnels.ts`](#file-src-built-ins-modules-website-editor-src-lib-funnels-ts-1e196119cd) · [`src/built-ins/modules/website-editor/src/lib/pluginRequired.tsx`](#file-src-built-ins-modules-website-editor-src-lib-pluginrequired-tsx-30c1037542) · [`src/built-ins/modules/website-editor/src/lib/promote.ts`](#file-src-built-ins-modules-website-editor-src-lib-promote-ts-7b7a91818b) · [`src/built-ins/modules/website-editor/src/lib/publishWorkflow.ts`](#file-src-built-ins-modules-website-editor-src-lib-publishworkflow-ts-3a3e666e28) · [`src/built-ins/modules/website-editor/src/lib/sites.ts`](#file-src-built-ins-modules-website-editor-src-lib-sites-ts-7f50908a93) · [`src/built-ins/modules/website-editor/src/types/block.ts`](#file-src-built-ins-modules-website-editor-src-types-block-ts-68d8cdbe7f) · [`src/built-ins/modules/website-editor/src/types/editorPage.ts`](#file-src-built-ins-modules-website-editor-src-types-editorpage-ts-8ec7c1cdce)
 
 **Used by (1):** [`src/built-ins/modules/website-editor/src/pages/EditorRoutePage.tsx`](#file-src-built-ins-modules-website-editor-src-pages-editorroutepage-tsx-d7e8b2f724)
 
@@ -13278,7 +13324,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** `(agencyId, clientId, siteId)` triple per 04's tenancy model.
 
-**Exports (12):**
+**Exports (13):**
 
 - `async listPages(storage: PluginStorage, agencyId: AgencyId, clientId: ClientId, siteId: string): Promise<EditorPage[]>`
 - `async getPage(storage: PluginStorage, agencyId: AgencyId, clientId: ClientId, siteId: string, id: string): Promise<EditorPage | null>`
@@ -13286,14 +13332,16 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async getPublishedPageBySlug(storage: PluginStorage, agencyId: AgencyId, clientId: ClientId, siteId: string, slug: string): Promise<EditorPage | null>` — Public lookup that keeps an unpublished slug edit off the live route.
 - `async createPage(storage: PluginStorage, input: CreatePageInput): Promise<EditorPage>`
 - `async updatePage(storage: PluginStorage, agencyId: AgencyId, clientId: ClientId, siteId: string, id: string, patch: UpdatePagePatch): Promise<EditorPage | null>`
-- `async publishPage(storage: PluginStorage, agencyId: AgencyId, clientId: ClientId, siteId: string, id: string, opts?: { publicMedia?: PublicMediaPort }): Promise<EditorPage | null>`
+- `async publishPage(storage: PluginStorage, agencyId: AgencyId, clientId: ClientId, siteId: string, id: string, opts?: { publicMedia?: PublicMediaPort; actor?: string }): Promise<EditorPage | null>`
 - `async revertPage(storage: PluginStorage, agencyId: AgencyId, clientId: ClientId, siteId: string, id: string): Promise<EditorPage | null>`
 - `async deletePage(storage: PluginStorage, agencyId: AgencyId, clientId: ClientId, siteId: string, id: string): Promise<boolean>`
 - `async listVariantsForPortal(storage: PluginStorage, agencyId: AgencyId, clientId: ClientId, siteId: string, role: PortalRole): Promise<EditorPage[]>` — ─── Portal-variant helpers (singleton-enforced) ──────────────────────────
 - `async getActivePortalVariant(storage: PluginStorage, agencyId: AgencyId, clientId: ClientId, siteId: string, role: PortalRole): Promise<EditorPage | null>`
 - `async setActivePortalVariant(storage: PluginStorage, agencyId: AgencyId, clientId: ClientId, siteId: string, role: PortalRole, pageId: string | null): Promise<boolean>`
+- `class PagePatchValidationError`
+    - `constructor(readonly field: "customCSS" | "customCss", readonly reason: string)`
 
-**Depends on (10):** [`src/built-ins/modules/website-editor/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-website-editor-src-lib-aquaplugintypes-ts-0dd53b92c8) · [`src/built-ins/modules/website-editor/src/lib/countdownDeadline.ts`](#file-src-built-ins-modules-website-editor-src-lib-countdowndeadline-ts-e95121bce2) · [`src/built-ins/modules/website-editor/src/lib/ids.ts`](#file-src-built-ins-modules-website-editor-src-lib-ids-ts-498ae77f15) · [`src/built-ins/modules/website-editor/src/lib/pagePublication.ts`](#file-src-built-ins-modules-website-editor-src-lib-pagepublication-ts-e9156098fa) · [`src/built-ins/modules/website-editor/src/lib/portalRole.ts`](#file-src-built-ins-modules-website-editor-src-lib-portalrole-ts-352abcd032) · [`src/built-ins/modules/website-editor/src/lib/tenancy.ts`](#file-src-built-ins-modules-website-editor-src-lib-tenancy-ts-9b7092e47a) · [`src/built-ins/modules/website-editor/src/server/publicMediaPromotion.ts`](#file-src-built-ins-modules-website-editor-src-server-publicmediapromotion-ts-370cf2e55f) · [`src/built-ins/modules/website-editor/src/server/storage-keys.ts`](#file-src-built-ins-modules-website-editor-src-server-storage-keys-ts-6246e38445) · [`src/built-ins/modules/website-editor/src/server/themes.ts`](#file-src-built-ins-modules-website-editor-src-server-themes-ts-6072a56dcb) · [`src/built-ins/modules/website-editor/src/types/editorPage.ts`](#file-src-built-ins-modules-website-editor-src-types-editorpage-ts-8ec7c1cdce)
+**Depends on (11):** [`src/built-ins/modules/website-editor/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-website-editor-src-lib-aquaplugintypes-ts-0dd53b92c8) · [`src/built-ins/modules/website-editor/src/lib/countdownDeadline.ts`](#file-src-built-ins-modules-website-editor-src-lib-countdowndeadline-ts-e95121bce2) · [`src/built-ins/modules/website-editor/src/lib/customCode.ts`](#file-src-built-ins-modules-website-editor-src-lib-customcode-ts-d18c49cfa0) · [`src/built-ins/modules/website-editor/src/lib/ids.ts`](#file-src-built-ins-modules-website-editor-src-lib-ids-ts-498ae77f15) · [`src/built-ins/modules/website-editor/src/lib/pagePublication.ts`](#file-src-built-ins-modules-website-editor-src-lib-pagepublication-ts-e9156098fa) · [`src/built-ins/modules/website-editor/src/lib/portalRole.ts`](#file-src-built-ins-modules-website-editor-src-lib-portalrole-ts-352abcd032) · [`src/built-ins/modules/website-editor/src/lib/tenancy.ts`](#file-src-built-ins-modules-website-editor-src-lib-tenancy-ts-9b7092e47a) · [`src/built-ins/modules/website-editor/src/server/publicMediaPromotion.ts`](#file-src-built-ins-modules-website-editor-src-server-publicmediapromotion-ts-370cf2e55f) · [`src/built-ins/modules/website-editor/src/server/storage-keys.ts`](#file-src-built-ins-modules-website-editor-src-server-storage-keys-ts-6246e38445) · [`src/built-ins/modules/website-editor/src/server/themes.ts`](#file-src-built-ins-modules-website-editor-src-server-themes-ts-6072a56dcb) · [`src/built-ins/modules/website-editor/src/types/editorPage.ts`](#file-src-built-ins-modules-website-editor-src-types-editorpage-ts-8ec7c1cdce)
 
 **Used by (22):** [`scripts/smoke-countdown-deadline.test.ts`](scripts.md#file-scripts-smoke-countdown-deadline-test-ts-2966be70f3) · [`scripts/smoke-public-media-promotion.test.ts`](scripts.md#file-scripts-smoke-public-media-promotion-test-ts-fbdd9dd480) · [`scripts/smoke-website-editor-public-newsletter.test.ts`](scripts.md#file-scripts-smoke-website-editor-public-newsletter-test-ts-c307f3897f) · [`scripts/smoke-website-editor-public-visitors.test.ts`](scripts.md#file-scripts-smoke-website-editor-public-visitors-test-ts-b860bc0b94) · [`src/app/client-website-preview/[clientId]/[siteId]/[pageId]/page.tsx`](app.md#file-src-app-client-website-preview-clientid-siteid-pageid-page-tsx-5c23b67350) · [`src/built-ins/modules/website-editor/src/__smoke__/r012-portal-variant-editor.test.ts`](#file-src-built-ins-modules-website-editor-src-smoke-r012-portal-variant-editor-test-ts-f07d17cb43) · [`src/built-ins/modules/website-editor/src/__smoke__/r026-page-privacy.test.ts`](#file-src-built-ins-modules-website-editor-src-smoke-r026-page-privacy-test-ts-4a2306c761) · [`src/built-ins/modules/website-editor/src/__smoke__/r029-custom-css.test.ts`](#file-src-built-ins-modules-website-editor-src-smoke-r029-custom-css-test-ts-b8a6bca5d7) · [`src/built-ins/modules/website-editor/src/__smoke__/r033-static-export.test.ts`](#file-src-built-ins-modules-website-editor-src-smoke-r033-static-export-test-ts-8d54971c9f) · [`src/built-ins/modules/website-editor/src/__smoke__/r044-sitemap-host-routes.test.ts`](#file-src-built-ins-modules-website-editor-src-smoke-r044-sitemap-host-routes-test-ts-93276249a6) · [`src/built-ins/modules/website-editor/src/__smoke__/r046-static-export-sitemap-bundle.test.ts`](#file-src-built-ins-modules-website-editor-src-smoke-r046-static-export-sitemap-bundle-test-ts-686d02b574) · [`src/built-ins/modules/website-editor/src/__smoke__/r047-form-submission-host-route.test.ts`](#file-src-built-ins-modules-website-editor-src-smoke-r047-form-submission-host-route-test-ts-529c8a9c9e) · [`src/built-ins/modules/website-editor/src/api/handlers/customCode.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-customcode-ts-a575fd3d26) · [`src/built-ins/modules/website-editor/src/api/handlers/formSubmissionHost.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-formsubmissionhost-ts-447f7f4b8c) · [`src/built-ins/modules/website-editor/src/api/handlers/pagePrivacy.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-pageprivacy-ts-c09259305e) · [`src/built-ins/modules/website-editor/src/api/handlers/pages.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-pages-ts-5b080b3a4b) · [`src/built-ins/modules/website-editor/src/api/handlers/seoMeta.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-seometa-ts-ddb49617b6) · [`src/built-ins/modules/website-editor/src/api/handlers/sitemapHostRoutes.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-sitemaphostroutes-ts-3436214398) · [`src/built-ins/modules/website-editor/src/api/handlers/visitor.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-visitor-ts-75b41af6b2) · [`src/built-ins/modules/website-editor/src/server/index.ts`](#file-src-built-ins-modules-website-editor-src-server-index-ts-6e14f5c1a3) · [`src/built-ins/modules/website-editor/src/server/portalVariants.ts`](#file-src-built-ins-modules-website-editor-src-server-portalvariants-ts-57e81222f5) · [`src/built-ins/modules/website-editor/src/server/staticExport.ts`](#file-src-built-ins-modules-website-editor-src-server-staticexport-ts-5b7eb2eef9)
 
@@ -13379,11 +13427,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ### `src/built-ins/modules/website-editor/src/server/publicMediaPromotion.ts`
 
-**What it is:** data URL is kept so a storage hiccup never blocks a publish.
+**What it is:** provider outage must never switch the page to an inline-media bypass path.
 
-**Exports (3):**
+**Exports (7):**
 
+- `assertPublicStyleSurfaceSafe(value: unknown): void` — Inspect a complete stored style surface, not only each leaf value. Browsers parse the final serialised declaration text, so comment delimiters split across two stored fields can c…
 - `async promoteBlockTreeMedia(blocks: Block[], promote: MediaPromoter): Promise<PromotionResult>`
+- `class PublicMediaPromotionTraversalError`
+    - `constructor(readonly reason: "cyclic-props" | "depth-limit" | "node-limit")`
+- `class PublicMediaPortUnavailableError`
+    - `constructor()`
+- `class PublicMediaPromotionPolicyError`
+    - `constructor(readonly reason: "unsupported-data-url" | "encoded-size-limit" | "inline-data-in-style" | "style-size-limit")`
 - `type MediaPromoter = (dataUrl: string) => Promise<string>`
 - `interface PromotionResult (2 members)`
 
@@ -13485,7 +13540,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface ExportSiteInput (8 members)`
 - `interface ExportSiteResult (4 members)`
 
-**Depends on (7):** [`src/built-ins/modules/website-editor/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-website-editor-src-lib-aquaplugintypes-ts-0dd53b92c8) · [`src/built-ins/modules/website-editor/src/lib/pagePublication.ts`](#file-src-built-ins-modules-website-editor-src-lib-pagepublication-ts-e9156098fa) · [`src/built-ins/modules/website-editor/src/lib/sitemap.ts`](#file-src-built-ins-modules-website-editor-src-lib-sitemap-ts-5153f9c73c) · [`src/built-ins/modules/website-editor/src/lib/tenancy.ts`](#file-src-built-ins-modules-website-editor-src-lib-tenancy-ts-9b7092e47a) · [`src/built-ins/modules/website-editor/src/server/pages.ts`](#file-src-built-ins-modules-website-editor-src-server-pages-ts-2624a905b7) · [`src/built-ins/modules/website-editor/src/types/block.ts`](#file-src-built-ins-modules-website-editor-src-types-block-ts-68d8cdbe7f) · [`src/built-ins/modules/website-editor/src/types/editorPage.ts`](#file-src-built-ins-modules-website-editor-src-types-editorpage-ts-8ec7c1cdce)
+**Depends on (8):** [`src/built-ins/modules/website-editor/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-website-editor-src-lib-aquaplugintypes-ts-0dd53b92c8) · [`src/built-ins/modules/website-editor/src/lib/customCodeSafeMode.ts`](#file-src-built-ins-modules-website-editor-src-lib-customcodesafemode-ts-fba737a4d8) · [`src/built-ins/modules/website-editor/src/lib/pagePublication.ts`](#file-src-built-ins-modules-website-editor-src-lib-pagepublication-ts-e9156098fa) · [`src/built-ins/modules/website-editor/src/lib/sitemap.ts`](#file-src-built-ins-modules-website-editor-src-lib-sitemap-ts-5153f9c73c) · [`src/built-ins/modules/website-editor/src/lib/tenancy.ts`](#file-src-built-ins-modules-website-editor-src-lib-tenancy-ts-9b7092e47a) · [`src/built-ins/modules/website-editor/src/server/pages.ts`](#file-src-built-ins-modules-website-editor-src-server-pages-ts-2624a905b7) · [`src/built-ins/modules/website-editor/src/types/block.ts`](#file-src-built-ins-modules-website-editor-src-types-block-ts-68d8cdbe7f) · [`src/built-ins/modules/website-editor/src/types/editorPage.ts`](#file-src-built-ins-modules-website-editor-src-types-editorpage-ts-8ec7c1cdce)
 
 **Used by (5):** [`scripts/smoke-public-media-promotion.test.ts`](scripts.md#file-scripts-smoke-public-media-promotion-test-ts-fbdd9dd480) · [`scripts/smoke-website-editor-public-visitors.test.ts`](scripts.md#file-scripts-smoke-website-editor-public-visitors-test-ts-b860bc0b94) · [`src/built-ins/modules/website-editor/src/__smoke__/r033-static-export.test.ts`](#file-src-built-ins-modules-website-editor-src-smoke-r033-static-export-test-ts-8d54971c9f) · [`src/built-ins/modules/website-editor/src/__smoke__/r046-static-export-sitemap-bundle.test.ts`](#file-src-built-ins-modules-website-editor-src-smoke-r046-static-export-sitemap-bundle-test-ts-686d02b574) · [`src/built-ins/modules/website-editor/src/api/handlers/staticExport.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-staticexport-ts-e3edfce345)
 
@@ -13841,7 +13896,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface EventBusPort (1 members)`
 - `interface PortalVariantPort (1 members)`
 - `interface PhaseStorePort (4 members)`
-- `interface PublicMediaStoreInput (5 members)` — docs/development/plans/public-bucket.md (Phase 2).
+- `interface PublicMediaStoreInput (6 members)` — docs/development/plans/public-bucket.md (Phase 2).
 - `interface StoredPublicMedia (2 members)`
 - `interface PublicMediaPort (1 members)`
 - `interface PluginServices (9 members)` — ─── PluginServices — the foundation toolbox handed to plugins ────────────
@@ -14320,10 +14375,15 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (4):**
+**Exports (7):**
 
-- `parseDataUrl(dataUrl: string): DecodedDataUrl | null` — Parse `data:<mime>[;base64],<payload>`. Returns null for non-data inputs.
-- `publicMediaKey(input: { agencyId: string; clientId?: string; siteId?: string; contentType: string; bytes: Buffer; }): string` — public URL across re-publishes (paired with the helper's `upsert:true`).
+- `parseDataUrl(dataUrl: string, maxBytes = MAX_PUBLIC_MEDIA_BYTES): DecodedDataUrl | null` — asset handler. Returns null for malformed/non-data inputs.
+- `publicMediaKey(input: { agencyId: string; clientId?: string; siteId?: string; contentType: string; bytes: Buffer; }): string` — replace this with operation-owned immutable identity before remote enablement.
+- `class PublicMediaDataUrlError`
+    - `constructor(readonly reason: "invalid" | "empty" | "too-large")`
+- `class PublicMediaIdentityError`
+    - `constructor(readonly field: "agencyId" | "clientId" | "siteId")`
+- `MAX_PUBLIC_MEDIA_BYTES = 8 * 1024 * 1024`
 - `publicMediaAdapter: PublicMediaPort`
 - `interface DecodedDataUrl (2 members)`
 

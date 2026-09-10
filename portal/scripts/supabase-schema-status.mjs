@@ -40,6 +40,7 @@ function loadEnvLocal() {
 /** Objects each migration file creates, by a conservative regex over the SQL. */
 export function expectedObjects(dir = MIGRATIONS) {
   const tables = new Map(); const rpcs = new Map(); const columns = new Map(); const buckets = new Map();
+  const quotedValues = raw => [...raw.matchAll(/'([^']+)'/g)].map(match => match[1]);
   for (const file of readdirSync(dir).filter(f => f.endsWith(".sql")).sort()) {
     const sql = readFileSync(join(dir, file), "utf8");
     for (const m of sql.matchAll(/create table if not exists public\.(\w+)/gi)) tables.set(m[1], file);
@@ -50,7 +51,34 @@ export function expectedObjects(dir = MIGRATIONS) {
       rpcs.set(m[1], { file, params });
     }
     for (const m of sql.matchAll(/alter table public\.(\w+)\s+add column if not exists (\w+)/gi)) columns.set(`${m[1]}.${m[2]}`, file);
-    for (const m of sql.matchAll(/\('([a-z0-9-]+)',\s*'[a-z0-9-]+',\s*(true|false),\s*(\d+)/gi)) buckets.set(m[1], { file, isPublic: m[2] === "true", limit: Number(m[3]) });
+    for (const m of sql.matchAll(/\('([a-z0-9-]+)',\s*'[a-z0-9-]+',\s*(true|false),\s*(\d+),\s*array\[([^\]]*)\]\)/gi)) {
+      buckets.set(m[1], {
+        file,
+        isPublic: m[2] === "true",
+        limit: Number(m[3]),
+        mimes: quotedValues(m[4]),
+      });
+    }
+    // Forward hardening migrations update an existing bucket rather than
+    // rewriting history. Fold those values into the expected live contract.
+    for (const m of sql.matchAll(/update\s+storage\.buckets\s+set\s+file_size_limit\s*=\s*(\d+)\s*,\s*allowed_mime_types\s*=\s*array\[([\s\S]*?)\]\s*where\s+id\s*=\s*'([a-z0-9-]+)'/gi)) {
+      const prior = buckets.get(m[3]);
+      buckets.set(m[3], {
+        file,
+        isPublic: prior?.isPublic,
+        limit: Number(m[1]),
+        mimes: quotedValues(m[2]),
+      });
+    }
+    for (const m of sql.matchAll(/update\s+storage\.buckets\s+set\s+public\s*=\s*(true|false)\s+where\s+id\s*=\s*'([a-z0-9-]+)'/gi)) {
+      const prior = buckets.get(m[2]);
+      if (!prior) continue;
+      buckets.set(m[2], {
+        ...prior,
+        file,
+        isPublic: m[1].toLowerCase() === "true",
+      });
+    }
   }
   return { tables, rpcs, columns, buckets };
 }
@@ -58,9 +86,14 @@ export function expectedObjects(dir = MIGRATIONS) {
 async function main() {
   loadEnvLocal();
   const url = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace(/\/+$/, "");
-  const service = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-  if (!url || !service) { console.error("NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required (from .env.local)."); process.exit(2); }
+  const service = process.env.SUPABASE_SECRET_KEY?.trim()
+    || process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
+    || "";
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim()
+    || process.env.NEXT_PUBLIC_PUBLISHABLE_KEY?.trim()
+    || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()
+    || "";
+  if (!url || !service) { console.error("NEXT_PUBLIC_SUPABASE_URL and a Supabase server key are required (SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY, from .env.local)."); process.exit(2); }
   const H = key => ({ apikey: key, authorization: `Bearer ${key}` });
   const fingerprint = key => createHash("sha256").update(key).digest("hex").slice(0, 12);
 
@@ -79,7 +112,11 @@ async function main() {
     counts[table] = { service: await head(service), anon: anon ? await head(anon) : null };
   }
   const bucketList = await fetch(`${url}/storage/v1/bucket`, { headers: H(service) }).then(r => r.ok ? r.json() : []);
-  const liveBuckets = new Map(bucketList.map(b => [b.id, { isPublic: b.public, limit: b.file_size_limit, mimes: (b.allowed_mime_types ?? []).length }]));
+  const liveBuckets = new Map(bucketList.map(b => [b.id, {
+    isPublic: b.public,
+    limit: b.file_size_limit,
+    mimes: [...(b.allowed_mime_types ?? [])].sort(),
+  }]));
 
   const expected = expectedObjects();
   const rows = [];
@@ -96,9 +133,22 @@ async function main() {
     const [table, col] = column.split(".");
     rows.push({ kind: "column", object: column, migration: file, live: liveTables.get(table)?.includes(col) ? "present" : liveTables.has(table) ? "MISSING" : "table missing" });
   }
-  for (const [id, { file, isPublic, limit }] of [...expected.buckets].sort()) {
+  for (const [id, { file, isPublic, limit, mimes }] of [...expected.buckets].sort()) {
     const live = liveBuckets.get(id);
-    rows.push({ kind: "bucket", object: id, migration: file, live: live ? (live.isPublic === isPublic && live.limit === limit ? `present (${live.mimes} mimes)` : `present, differs (public=${live.isPublic}, limit=${live.limit})`) : "MISSING" });
+    const expectedMimes = [...(mimes ?? [])].sort();
+    const mimeMatch = live
+      ? live.mimes.length === expectedMimes.length && live.mimes.every((mime, index) => mime === expectedMimes[index])
+      : false;
+    rows.push({
+      kind: "bucket",
+      object: id,
+      migration: file,
+      live: live
+        ? (live.isPublic === isPublic && live.limit === limit && mimeMatch
+          ? `present (${live.mimes.length} mimes)`
+          : `present, differs (public=${live.isPublic}, limit=${live.limit}, mimes=${live.mimes.join(",")})`)
+        : "MISSING",
+    });
   }
   const anonReadable = Object.entries(counts).filter(([, c]) => c.anon && c.anon.status === 200 && c.anon.count !== null && c.anon.count !== "0" && c.anon.count === c.service.count).map(([t]) => t);
   const drift = rows.filter(r => /MISSING|DIFFERENT|differs|not in any migration/.test(r.live));

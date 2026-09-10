@@ -1,5 +1,9 @@
 // Smoke — R029 Custom CSS / head injection.
 
+import React from "react";
+// @ts-expect-error — react-dom/server has no shipped d.ts in plugin scope.
+import * as ReactDomServer from "react-dom/server";
+
 import {
   validateCustomCode,
   buildCustomCodeHead,
@@ -14,6 +18,10 @@ import { createPage } from "../server/pages";
 import { getOrCreateDefaultSite } from "../server/sites";
 import type { PluginStorage } from "../lib/aquaPluginTypes";
 import type { AgencyId, ClientId } from "../lib/tenancy";
+import { EditorThemeInjector } from "../components/storefront/EditorThemeInjector";
+import TextBlock from "../components/blocks/TextBlock";
+
+const renderToStaticMarkup = (ReactDomServer as { renderToStaticMarkup: (node: unknown) => string }).renderToStaticMarkup;
 
 function memStorage(): PluginStorage {
   const m = new Map<string, unknown>();
@@ -51,6 +59,10 @@ const c = "cl_smoke" as ClientId;
   const scriptCss = validateCustomCode(":root { --x: red; } <script>alert(1)</script>", "css");
   expect("CSS with <script> fails (script-detected)",
     !scriptCss.ok && scriptCss.reason === "script-detected");
+
+  const styleTerminatorCss = validateCustomCode("body{} </STYLE><div>held</div>", "css");
+  expect("CSS cannot contain an HTML style terminator",
+    !styleTerminatorCss.ok && styleTerminatorCss.reason === "style-terminator");
 
   // CSS allows iframe selectors (e.g. iframe { width: 100% })
   const iframeSelectorCss = validateCustomCode("iframe { width: 100%; }", "css");
@@ -115,6 +127,32 @@ const c = "cl_smoke" as ClientId;
 
   const empty = buildCustomCodeHead({});
   expect("empty input → empty string", empty === "");
+
+  const marker = "data-aqua-style-breakout-marker";
+  const authoredCss = `body{color:red}</style><img ${marker}>`;
+  const renderedStyle = renderToStaticMarkup(React.createElement(EditorThemeInjector, {
+    customCSS: authoredCss,
+  }));
+  expect("stored CSS cannot terminate the React-rendered style element",
+    (renderedStyle.match(/<style\b/gi) ?? []).length === 1
+    && (renderedStyle.match(/<\/style>/gi) ?? []).length === 1
+    && renderedStyle.lastIndexOf("</style>") === renderedStyle.length - "</style>".length
+    && !renderedStyle.includes(`</style><img ${marker}>`));
+
+  const priorNodeEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = "production";
+  try {
+    const storedText = `<img ${marker}>`;
+    const editorText = renderToStaticMarkup(React.createElement(TextBlock, {
+      block: { id: "text-1", type: "text", props: { text: storedText } },
+      editorMode: true,
+    } as never));
+    expect("editor-mode TextBlock renders stored markup as inert text in production",
+      !editorText.includes(storedText) && editorText.includes("&lt;img"));
+  } finally {
+    if (priorNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = priorNodeEnv;
+  }
 
   // ─── D: HTTP handlers ─────────────────────────────────────────────────
   const ctxStorage = memStorage();

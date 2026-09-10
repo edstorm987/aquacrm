@@ -25,17 +25,34 @@
 
 export type StoredCodeMode = "safe" | "unsafe-render";
 
-export function storedCodeMode(env: NodeJS.ProcessEnv = process.env): StoredCodeMode {
-  if (env.NODE_ENV !== "production") return "unsafe-render";
+/** The exact — and only — value that re-enables raw stored markup in production. */
+export const STORED_CODE_UNSAFE_RENDER_VALUE = "allow";
+
+function readEnv(env?: Record<string, string | undefined>): Record<string, string | undefined> {
+  if (env) return env;
+  if (typeof process !== "undefined" && process.env) {
+    return process.env as Record<string, string | undefined>;
+  }
+  return {};
+}
+
+export function storedCodeMode(env?: Record<string, string | undefined>): StoredCodeMode {
+  const e = readEnv(env);
+  // Raw markup is a development tool, not the fallback for an unknown build
+  // environment. Unknown, staging and standalone/browser contexts stay safe.
+  if (e.NODE_ENV === "development" || e.NODE_ENV === "test") return "unsafe-render";
   // Break-glass, production only, deliberately awkward to set and never a
   // default. It exists so a separate-origin preview rollout can flip it per
   // environment; it should never be on for aqua-crm.com.
-  if (env.STORED_CODE_UNSAFE_RENDER === "allow") return "unsafe-render";
+  if (
+    e.NODE_ENV === "production"
+    && e.STORED_CODE_UNSAFE_RENDER === STORED_CODE_UNSAFE_RENDER_VALUE
+  ) return "unsafe-render";
   return "safe";
 }
 
 /** True when raw operator markup may be stamped into the authenticated same-origin render. */
-export function mayRenderStoredMarkup(env: NodeJS.ProcessEnv = process.env): boolean {
+export function mayRenderStoredMarkup(env?: Record<string, string | undefined>): boolean {
   return storedCodeMode(env) === "unsafe-render";
 }
 
@@ -45,7 +62,10 @@ export function mayRenderStoredMarkup(env: NodeJS.ProcessEnv = process.env): boo
  * Centralised so every sink (customHead, customFoot, HtmlBlock, FooterBlock,
  * MarqueeBlock, TextBlock, staticExport) makes the SAME decision.
  */
-export function storedMarkupOrNull(value: string | undefined, env: NodeJS.ProcessEnv = process.env): string | null {
+export function storedMarkupOrNull(
+  value: string | undefined,
+  env?: Record<string, string | undefined>,
+): string | null {
   if (!value) return null;
   return mayRenderStoredMarkup(env) ? value : null;
 }
