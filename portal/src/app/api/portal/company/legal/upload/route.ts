@@ -34,6 +34,7 @@ export async function POST(request: Request) {
       contentType: file.type,
       localDirectory: "legal-uploads",
       localKey: relative,
+      trust: { tenantId: session.agencyId, actor: session.userId, purpose: "legal-document" },
     });
     const date = (key: string) => {
       const value = String(form?.get(key) ?? "");

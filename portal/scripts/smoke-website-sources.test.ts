@@ -249,12 +249,15 @@ describe("form-capture honours the master tag", () => {
   });
 
   it("treats a master-tag submission as a real enquiry, not a held capture", () => {
-    assert.match(src, /masterAgencyId \? \{ masterTag: true, agencyId: masterAgencyId \} : \{ captureOnly: true \}/);
+    // Pass 5 threads the write-admission tenant (`admissionAgencyId`, which equals
+    // `masterAgencyId` for a master-tag submission) as the attributed agencyId, and
+    // now also stamps it on capture-only rows. Master-tag detection is unchanged.
+    assert.match(src, /masterAgencyId \? \{ masterTag: true, agencyId: admissionAgencyId \} : \{ captureOnly: true, agencyId: admissionAgencyId \}/);
   });
 
   it("surfaces a routed master submission on the client's record", () => {
     assert.match(src, /if \(masterAgencyId && routedClientId && inserted\?\.id\)/);
-    assert.match(src, /upsertClientRecordLedgerEvent\(masterAgencyId, routedClientId/);
+    assert.match(src, /upsertClientRecordLedgerEvent\(admissionAgencyId, routedClientId/);
   });
 
   it("records a company route on the enquiry without firing the client ledger", () => {

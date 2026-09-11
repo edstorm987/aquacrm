@@ -418,6 +418,7 @@ test("the Connect driver maps every StripeConnectPort method onto the SDK", asyn
   const port = makeAffiliatesStripeConnectPort(
     { secretKey: "sk_test_x", webhookSecret: "whsec_x" },
     fake,
+    { tenantId: "agency_1" },
   );
 
   const created = await port.createAccount({

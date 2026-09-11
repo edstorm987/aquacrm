@@ -62,8 +62,11 @@ const EXPECTED_SITES: Record<string, number> = {
   "src/app/api/portal/clients/[clientId]/erase/route.ts": 1,
   // Public endpoint, no user session. Anon may only INSERT consented rows by
   // policy; this route also SELECTs for dedupe and UPDATEs metadata — powers
-  // the anon key must never have (an email-probe would leak enquiries).
-  "src/app/api/public/brand-enquiry/route.ts": 1,
+  // the anon key must never have (an email-probe would leak enquiries). The
+  // SECOND site is the durable delivery sweep's admin-client factory
+  // (registerBrandEnquiryDelivery): a background cross-tenant-queue-claim that
+  // runs with no user session and is guarded by assertFreshWriteAdmission(platform).
+  "src/app/api/public/brand-enquiry/route.ts": 2,
   // Public endpoint, no user session; inserts consent:false hold rows the
   // anon insert policy correctly refuses, and attaches to existing rows.
   "src/app/api/public/form-capture/route.ts": 1,

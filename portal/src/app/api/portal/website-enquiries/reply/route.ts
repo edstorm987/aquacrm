@@ -4,6 +4,7 @@ import { createEnquiryDataClient } from "@/lib/supabase/enquiryDataClient";
 import { NextResponse } from "next/server";
 
 import { authErrorResponse } from "@/lib/server/auth/auth";
+import { assertWritesAllowed } from "@/lib/server/auth/securityControl";
 import { loadActorWebsiteEnquiry } from "@/lib/server/access/websiteEnquiryAccess";
 import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 import { sendTransactionalEmail } from "@/lib/server/email/transactionalEmail";
@@ -56,6 +57,10 @@ export async function POST(request: Request) {
     const { actor } = await requireCurrentWorkspaceElementAccess("staff", "workspace.inbox", "use");
     const session = actor.session;
     const agencyId = actor.resourceAgencyId;
+    assertWritesAllowed("database.website-enquiry.reply", {
+      tenantId: agencyId,
+      actor: session.userId,
+    });
     const body = await request.json().catch(() => null) as {
       enquiryId?: unknown;
       subject?: unknown;
@@ -67,7 +72,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "Submission ID and a reply are required." }, { status: 400 });
     }
 
-    const supabase = await createEnquiryDataClient();
+    const supabase = await createEnquiryDataClient({
+      tenantId: agencyId,
+      actor: session.userId,
+      surface: "database.website-enquiry.reply",
+    });
     const data = await loadActorWebsiteEnquiry<EnquiryRow>(actor, supabase, {
       id: enquiryId,
       required: "use",

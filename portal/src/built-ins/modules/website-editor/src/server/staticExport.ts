@@ -33,6 +33,7 @@ import { mayRenderStoredMarkup } from "../lib/customCodeSafeMode";
 import type { EditorPage } from "../types/editorPage";
 import { resolvePublishedPage } from "../lib/pagePublication";
 import { listPages } from "./pages";
+import { assertValidPageBlockTree } from "./pageBlockValidation";
 import {
   buildSitemap as buildAdvancedSitemap,
   buildRobotsTxt as buildAdvancedRobotsTxt,
@@ -41,24 +42,28 @@ import {
 } from "../lib/sitemap";
 
 /**
- * The client's OWN Supabase, baked into the exported site.
+ * The client's OWN Supabase intake endpoint, baked into the exported site.
  *
- * Ed, 2026-08-27: the client's website writes into the client's database. An
- * exported site is a static bundle dropped on Vercel, so there is no server of
- * ours in the request path — the form posts straight from the visitor's browser
- * to their PostgREST endpoint.
+ * After the 2026-09 secure-intake redesign an exported form NO LONGER writes to
+ * a raw PostgREST table with a public anon key (which put a caller-controlled
+ * table destination and a bearer key into the bundle and leaned on RLS as the
+ * only guard). Instead it posts to the client-owned `aqua-form-submit` Edge
+ * Function, which enforces the field allowlist, Turnstile, honeypot, rate
+ * limits, PAN rejection and idempotency SERVER-SIDE before anything is stored.
  *
- * **The anon key is in the bundle, and that is correct.** A Supabase anon key
- * is designed to be public; it is the row-level-security policy on the table
- * that decides what it may do, which is why the setup instructions ask for an
- * INSERT-only policy. Nothing secret is exported — and the README says so
- * plainly, because a reader who finds a key in a ZIP and is not told this will
- * reasonably assume the worst.
+ * Only three PUBLIC values reach the bundle: the Edge Function URL, the public
+ * form id (mapped to a fixed destination server-side, never a table name), and
+ * the public Turnstile site key. There is NO anon/service key, NO table
+ * endpoint, and NO secret of any kind — the shape of this type is the guarantee,
+ * and the export tests assert the generated ZIP bytes contain none of them.
  */
 export interface ExportSupabaseTarget {
-  projectUrl: string;
-  anonKey: string;
-  table: string;
+  /** The client-owned intake Edge Function the exported form posts to. */
+  submitUrl: string;
+  /** The PUBLIC form id the function maps to a fixed destination server-side. */
+  formId: string;
+  /** The PUBLIC Cloudflare Turnstile site key (safe to expose), or "". */
+  turnstileSiteKey: string;
 }
 
 export interface ExportSiteInput {
@@ -419,7 +424,9 @@ function renderContactFormHtml(
   const subheading = String(props.subheading ?? "");
   const submitLabel = String(props.submitLabel ?? "Send message");
   const showPhone = props.showPhone !== false;
-  const formId = `aqua-contact-${block.id}`;
+  // The DOM element id, distinct from `supabase.formId` (the PUBLIC intake id the
+  // Edge Function maps to a fixed destination).
+  const domId = `aqua-contact-${block.id}`;
   // #2 — transparency notice, mirroring CrmContactFormBlock. Default is Ed's
   // approved DPO-draft (SUBJECT TO DPO SIGN-OFF); a site overrides `consentNotice`
   // and may set `privacyPolicyUrl` to link its policy. Kept in sync with the
@@ -440,27 +447,46 @@ function renderContactFormHtml(
     ? `<label style="display:flex;flex-direction:column;gap:4px"><span>Phone</span><input name="phone" type="tel" /></label>`
     : "";
 
-  // The script is emitted only when there is somewhere to post to.
+  // The Cloudflare Turnstile widget — only when a PUBLIC site key is present. The
+  // widget injects a hidden `cf-turnstile-response` input the script forwards as
+  // `turnstileToken`; the Edge Function verifies it server-side against the SECRET
+  // (which never leaves the client's Supabase). No site key → no widget, and the
+  // function simply has no Turnstile secret configured for that form.
+  const turnstileWidget = supabase && supabase.turnstileSiteKey
+    ? `<div class="cf-turnstile" data-sitekey="${escapeAttr(supabase.turnstileSiteKey)}"></div>`
+    : "";
+  const turnstileScript = supabase && supabase.turnstileSiteKey
+    ? `<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>`
+    : "";
+
+  // The submit script is emitted only when there is an intake endpoint to post
+  // to. It posts JSON to the client-owned Edge Function — the PUBLIC form id, the
+  // allowlisted fields, the honeypot value, the Turnstile token, and a per-visit
+  // idempotency key. It carries NO table endpoint, NO key, and NO secret; the
+  // server owns the destination mapping, the field allowlist, and every check.
   const script = supabase
     ? `<script>(function(){
-  var f=document.getElementById(${JSON.stringify(formId)});
+  var f=document.getElementById(${JSON.stringify(domId)});
   if(!f)return;
   var s=f.querySelector("[data-aqua-status]");
+  function uuid(){try{return crypto.randomUUID();}catch(e){return "aqua-"+Date.now()+"-"+Math.random().toString(16).slice(2);}}
+  var idem=uuid();
   f.addEventListener("submit",function(e){
     e.preventDefault();
     if(f.dataset.sending==="yes")return;
     var d=new FormData(f);
-    if(d.get("website"))return;
+    var fields={};
+    d.forEach(function(v,k){if(k==="website"||k==="cf-turnstile-response")return;fields[k]=v;});
+    var payload={formId:${JSON.stringify(supabase.formId)},fields:fields,website:d.get("website")||"",turnstileToken:d.get("cf-turnstile-response")||"",idempotencyKey:idem};
     f.dataset.sending="yes";
     s.textContent="Sending…";
-    var body={};d.forEach(function(v,k){if(k!=="website")body[k]=v;});
-    fetch(${JSON.stringify(`${supabase.projectUrl.replace(/\/+$/, "")}/rest/v1/${supabase.table}`)},{
+    fetch(${JSON.stringify(supabase.submitUrl)},{
       method:"POST",
-      headers:{"Content-Type":"application/json","apikey":${JSON.stringify(supabase.anonKey)},"Authorization":"Bearer "+${JSON.stringify(supabase.anonKey)},"Prefer":"return=minimal"},
-      body:JSON.stringify(body)
-    }).then(function(r){
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(payload)
+    }).then(function(r){return r.json().then(function(j){return j;},function(){return {};});}).then(function(j){
       f.dataset.sending="";
-      if(r.ok){f.reset();s.textContent="Thanks — we have your message.";}
+      if(j&&j.ok){f.reset();idem=uuid();s.textContent="Thanks — we have your message.";if(window.turnstile){try{window.turnstile.reset();}catch(e){}}}
       else{s.textContent="Sorry, that did not send. Please try again.";}
     }).catch(function(){
       f.dataset.sending="";
@@ -474,17 +500,18 @@ function renderContactFormHtml(
   <h2>${escapeHtml(heading)}</h2>
   ${subheading ? `<p>${escapeHtml(subheading)}</p>` : ""}
   ${notConnected}
-  <form id="${escapeAttr(formId)}" style="display:flex;flex-direction:column;gap:12px;max-width:480px">
+  <form id="${escapeAttr(domId)}" style="display:flex;flex-direction:column;gap:12px;max-width:480px">
     <label style="display:flex;flex-direction:column;gap:4px"><span>Name</span><input name="name" type="text" required /></label>
     <label style="display:flex;flex-direction:column;gap:4px"><span>Email</span><input name="email" type="email" required /></label>
     ${phoneField}
     <label style="display:flex;flex-direction:column;gap:4px"><span>Message</span><textarea name="message" rows="4" required></textarea></label>
     <input name="website" type="text" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" />
+    ${turnstileWidget}
     <button type="submit"${supabase ? "" : " disabled"}>${escapeHtml(submitLabel)}</button>
     ${consentHtml}
     <p data-aqua-status role="status" aria-live="polite" style="margin:0;font-size:13px"></p>
   </form>
-</section>${script}`;
+</section>${turnstileScript}${script}`;
 }
 
 export function renderPageHtml(page: EditorPage, opts: {
@@ -495,6 +522,7 @@ export function renderPageHtml(page: EditorPage, opts: {
 }): string {
   const publishedPage = resolvePublishedPage(page);
   const blocks = (publishedPage.publishedBlocks ?? publishedPage.blocks ?? []) as Block[];
+  assertValidPageBlockTree(blocks);
   const body = blocks.map(block => renderBlockToHtml(block, opts.supabase)).join("\n");
   const title = publishedPage.seo?.metaTitle ?? publishedPage.title ?? publishedPage.slug;
   const desc = publishedPage.seo?.metaDescription ?? publishedPage.description ?? "";
@@ -562,11 +590,16 @@ This bundle is a SNAPSHOT of the site at the moment you clicked Export.
 Drop the contents on any static host (S3, Netlify, GitHub Pages, etc.).
 
 ${supabase ? `Contact forms in this bundle DO work.
-They post straight from the visitor's browser to this site's own Supabase
-table "${supabase.table}". The anon key is in the page source, which is how
-Supabase is meant to be used — it is a PUBLIC key, and the row-level-security
-policy on that table is what decides what it may do. Keep that policy to INSERT
-only, and never put a service-role key anywhere near a static bundle.
+They post to this site's own Supabase Edge Function:
+  ${supabase.submitUrl}
+using the PUBLIC form id "${supabase.formId}". That function — which runs in
+your own Supabase project — enforces the field allowlist, CAPTCHA, honeypot,
+rate limits, card-number rejection and idempotency, then stores the submission
+with a service-role key that never leaves the function. The bundle contains NO
+database table endpoint, NO anon/service key, and NO secret of any kind: the
+only server-side values here are the function URL, the public form id, and the
+public Turnstile site key. Deploy the client-supabase bundle (migrations +
+Edge Functions) before this form can accept anything.
 
 ` : `Contact forms in this bundle are NOT connected.
 They render, and say so, but cannot be sent. Connect this client's Supabase in

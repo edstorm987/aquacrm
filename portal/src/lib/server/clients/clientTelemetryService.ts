@@ -385,3 +385,11 @@ export function recordClientTelemetry(
   syncClientPerformanceMilestones(client.agencyId, client.id);
   return { status: "recorded", clientId: client.id, event };
 }
+
+/** Pure tenant resolution for the public collector's pre-mutation admission. */
+export function resolveClientTelemetryOwner(siteKey: string): { agencyId: string; clientId: string } | null {
+  const client = Object.values(getState().clients).find(candidate =>
+    candidate.metadata?.telemetrySiteKey === siteKey
+  );
+  return client ? { agencyId: client.agencyId, clientId: client.id } : null;
+}

@@ -52,6 +52,7 @@ describe("Health Check public-funnel journey", () => {
       { makePluginStorage },
       { getInstall },
       { getAgencyBySlug },
+      { seedFounder },
     ] = await Promise.all([
       import("next/server"),
       import("../src/app/api/public/health-check/complete/route"),
@@ -60,8 +61,12 @@ describe("Health Check public-funnel journey", () => {
       import("../src/lib/server/pluginStorage"),
       import("../src/server/pluginInstalls"),
       import("../src/server/tenants"),
+      import("../src/lib/server/seeds/founderSeed"),
     ]);
 
+    // Pass 5 makes the public route read-only w.r.t. seeding (production seeds the
+    // founder via founderSeed elsewhere); seed it here so the agency resolves.
+    await seedFounder();
     const firstResponse = await completeRoute.POST(completionRequest(NextRequest));
     assert.equal(firstResponse.status, 200);
     const first = await firstResponse.json() as Record<string, unknown>;

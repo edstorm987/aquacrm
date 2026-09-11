@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createSupabaseAdminClient } from "./admin";
+import type { ServiceRoleEffectContext } from "./guardedServiceRoleClient";
 import type { ScopedSupabaseClient } from "./scoped";
 
 // ── brand_enquiries is SERVER-MEDIATED (assume-breach containment, Phase 1) ──
@@ -35,8 +36,11 @@ import type { ScopedSupabaseClient } from "./scoped";
 // with the helpers above.
 export type EnquiryDbClient = ScopedSupabaseClient;
 
-export function createEnquiryDataClient(): EnquiryDbClient {
+export function createEnquiryDataClient(context: Partial<ServiceRoleEffectContext> = {}): EnquiryDbClient {
   // Structurally identical SupabaseClient; the alias keeps call sites honest
   // about which access model they are on.
-  return createSupabaseAdminClient() as unknown as EnquiryDbClient;
+  return createSupabaseAdminClient({
+    ...context,
+    surface: context.surface ?? "database.website-enquiries.service-role",
+  }) as unknown as EnquiryDbClient;
 }

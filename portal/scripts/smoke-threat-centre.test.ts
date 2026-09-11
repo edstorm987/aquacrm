@@ -18,7 +18,7 @@
 import { withRequestScope, withSession } from "./dev-console-request-scope";
 
 import assert from "node:assert/strict";
-import { before, describe, it } from "node:test";
+import { after, before, describe, it } from "node:test";
 import type { NextRequest } from "next/server";
 
 const AGENCY_A = "threat-agency-a";
@@ -26,6 +26,24 @@ const AGENCY_B = "threat-agency-b";
 const FOUNDER_AGENCY = "threat-founder-agency";
 const FOUNDER_EMAIL = "founder-threat@example.com";
 const PASSWORD = "Threat-centre-1!";
+
+// Pass 5 moved freeze/tenant-lockdown onto the durable aqua_write_controls plane
+// (Supabase), so setDurableTenantLockdown now requires a durable backend. Provide
+// one WITHOUT flipping the storage backend: PORTAL_BACKEND=memory keeps storage
+// in-memory, while write-admission (which reads env at call time) sees Supabase
+// creds; a test-reader satisfies the durable read-back and a 204 stub accepts the
+// set RPC. The process-local mirror (lockdownTenant) is what isTenantLockedDown reads.
+process.env.NODE_ENV = "test";
+process.env.PORTAL_BACKEND = "memory";
+process.env.NEXT_PUBLIC_SUPABASE_URL = "https://threat-centre.supabase.test";
+process.env.SUPABASE_SERVICE_ROLE_KEY = "threat-centre-service-role";
+
+let threatCentreOriginalFetch: typeof fetch = globalThis.fetch;
+after(async () => {
+  globalThis.fetch = threatCentreOriginalFetch;
+  const wa = await import("../src/lib/server/security/writeAdmission");
+  wa.setWriteAdmissionTestReader(null);
+});
 
 let overviewRoute: typeof import("../src/app/api/portal/security/overview/route");
 let actionsRoute: typeof import("../src/app/api/portal/security/actions/route");
@@ -64,6 +82,26 @@ before(async () => {
   control = await import("../src/lib/server/auth/securityControl");
   overviewRoute = await import("../src/app/api/portal/security/overview/route");
   actionsRoute = await import("../src/app/api/portal/security/actions/route");
+
+  const wa = await import("../src/lib/server/security/writeAdmission");
+  wa.setWriteAdmissionTestReader(async (tenantId?: string) => ({
+    appKey: wa.AQUA_WRITE_ADMISSION_APP_KEY,
+    global: { scope: "global", scopeId: "global", frozen: false, revision: 1, reason: null, actor: null, changedAt: new Date().toISOString() },
+    tenant: tenantId ? { scope: "tenant", scopeId: tenantId, frozen: false, revision: 1, reason: null, actor: null, changedAt: new Date().toISOString() } : null,
+    pendingQuarantines: 0,
+    frozenTenants: 0,
+  }));
+  threatCentreOriginalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url;
+    const method = init?.method ?? "GET";
+    if (method === "POST" && url.includes("/rpc/set_aqua_write_control")) return new Response(null, { status: 204 });
+    if (method === "POST" && url.includes("/rpc/read_aqua_write_admission")) {
+      const iso = new Date().toISOString();
+      return Response.json({ appKey: "aquacrm-portal-state", global: { scope: "global", scopeId: "global", frozen: false, revision: 1, reason: null, actor: null, changedAt: iso }, tenant: null, pendingQuarantines: 0, frozenTenants: 0 });
+    }
+    return new Response(null, { status: 204 });
+  }) as typeof fetch;
 
   const { createUser } = await import("../src/server/users");
   const ownerA = createUser({ email: "owner-a-threat@example.com", password: PASSWORD, role: "agency-owner", agencyId: AGENCY_A });

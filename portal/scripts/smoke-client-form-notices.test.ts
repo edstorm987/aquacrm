@@ -45,62 +45,82 @@ test("a notice can hold a pointer and cannot hold a person", () => {
   }
 });
 
-test("the webhook reads the row's KEY and throws the rest of the body away", () => {
+test("the webhook receives a signed POINTER and can lift no person out of it", () => {
   const route = stripComments(read("src/app/api/public/client-forms/[connectionId]/route.ts"));
 
-  // `record` may be touched exactly once, by the key extractor.
-  assert.match(route, /function rowIdFrom\(record: unknown\)/, "the key extractor must exist");
-  assert.match(route, /rowIdFrom\(body\.record\)/, "the row key must come from the payload's record");
-
-  // …and nothing else may be lifted out of it.
-  //
-  // COUNTED, not pattern-matched. The first version of this assertion looked
-  // for `body.record.<field>` and duly passed when the probe inserted
-  // `(body.record as any)?.email` — a cast and an optional chain were enough to
-  // walk straight through it. A test that green-lights the leak it exists to
-  // prevent is worse than no test, so the invariant is now arithmetic: the
-  // payload's record may be MENTIONED exactly once in the whole route, in the
-  // call that extracts the key. Any second use fails, whatever it looks like.
-  const recordMentions = [...route.matchAll(/body\.record\b/g)].length;
-  assert.equal(
-    recordMentions, 1,
-    `the payload record may be touched exactly once (by rowIdFrom) — found ${recordMentions} uses`,
+  // After the 2026-09 secure-intake redesign the notification is a SIGNED
+  // POINTER from the client's own Edge Function — `{connectionId, rowKey, rowId,
+  // ts}` — not the whole inserted row. There is no `record` body to discard,
+  // because the customer's details never arrive at this endpoint at all.
+  assert.doesNotMatch(route, /body\.record\b/, "there is no row body — the notification is a pointer, not the record");
+  assert.doesNotMatch(
+    route, /body\.(email|name|phone|message|fields|values|record|payload)\b/i,
+    "no personal field may be read from the notification body",
   );
-  assert.doesNotMatch(route, /record\[["'](email|name|phone|message)/i, "no personal field may be read");
+  assert.match(route, /body\.rowId\b/, "the row id comes from the signed pointer");
 
-  // The table comes from our stored config, never the payload — otherwise a
-  // forged webhook could aim a notice at a table the client never authorised.
-  assert.match(route, /table: connection\.submissionsTable/, "the table must come from the stored connection");
-  assert.doesNotMatch(route, /table: [^\n]*body\./, "the table must not be taken from the request body");
+  // The notification is authenticated by an HMAC signature over the RAW bytes
+  // with the webhook secret, plus a fresh timestamp — the connection id alone is
+  // not authority.
+  assert.match(route, /createHmac\(/, "the pointer must be verified by an HMAC signature");
+  assert.match(route, /x-aqua-signature/i, "the signature header must be read");
+  assert.match(route, /x-aqua-timestamp/i, "a fresh timestamp must bound replay");
+  assert.match(route, /req\.text\(\)/, "the raw bytes must be read before parsing, so the signature covers them");
+
+  // The destination label comes from OUR stored config, never the payload — a
+  // forged notification must not be able to aim a notice anywhere the client
+  // never authorised. The read function maps this connection server-side.
+  assert.match(route, /table: connection\.formId/, "the destination label must come from the stored connection");
+  assert.doesNotMatch(route, /table: [^\n]*body\./, "the destination must not be taken from the request body");
 });
 
-test("the secret is compared in constant time, and unknown ids are not distinguishable", () => {
+test("the pointer is compared in constant time, and unknown ids are not distinguishable", () => {
   const route = stripComments(read("src/app/api/public/client-forms/[connectionId]/route.ts"));
-  assert.match(route, /timingSafeEqual/, "the shared secret must be compared in constant time");
+  assert.match(route, /timingSafeEqual/, "the signature must be compared in constant time");
   assert.match(route, /rateLimit\(/, "an unauthenticated write must be rate limited");
-  // Both "no such connection" and "wrong secret" return the same thing, so
-  // status codes cannot be used to enumerate which connection ids exist.
+  // Everything — unknown connection, bad signature, stale timestamp — returns
+  // the same 202, so status codes cannot be used to enumerate connection ids.
   assert.doesNotMatch(route, /status: 404/, "an unknown connection must not answer 404");
-  assert.doesNotMatch(route, /status: 401/, "a bad secret must not answer 401");
+  assert.doesNotMatch(route, /status: 401/, "a bad signature must not answer 401");
 });
 
-test("the vault entry offers an anon key and no service-role key", async () => {
-  // A service-role key bypasses row-level security — it is root on the client's
-  // whole database. Holding one per client would make this vault a far more
-  // valuable target than it needs to be.
+test("the vault entry stores no anon key, no table, and two distinct secrets", async () => {
+  // After the 2026-09 secure-intake redesign there is no anon key and no raw
+  // table here — an exported form posts to the client-owned Edge Function, which
+  // holds the service-role key only inside its own runtime. AquaCRM stores only
+  // PUBLIC values plus two DISTINCT secrets (webhook + read). A service-role key
+  // would make this vault a far more valuable target than it needs to be, and an
+  // anon key + table would put a browser-direct write back into the bundle.
   const { INTEGRATION_CATALOG } = await import("../src/lib/integrations/catalog.ts");
   const supabase = INTEGRATION_CATALOG.find(entry => entry.id === "client-supabase");
   assert.ok(supabase, "the client-supabase provider must exist");
 
   const fieldIds = supabase.fields.map(field => field.id);
-  assert.ok(fieldIds.includes("anonKey"), "the anon key must be collected");
+  assert.ok(!fieldIds.includes("anonKey"), "no anon key may be collected — the browser-direct write is removed");
+  assert.ok(!fieldIds.includes("submissionsTable"), "no raw table name may be collected");
   for (const field of fieldIds) {
     assert.doesNotMatch(field, /service.?role/i, `"${field}" looks like a service-role key — that must never be stored`);
   }
+  for (const required of ["projectUrl", "formId", "webhookSecret", "readSecret", "turnstileSiteKey"]) {
+    assert.ok(fieldIds.includes(required), `the ${required} field must be collected`);
+  }
 
-  const anon = supabase.fields.find(field => field.id === "anonKey");
-  assert.equal(anon?.secret, true, "the anon key must be stored as a secret");
-  assert.match(anon?.help ?? "", /never the service-role key/i, "the field must warn against pasting the wrong key");
+  const byId = (id: string) => supabase.fields.find(field => field.id === id);
+  assert.equal(byId("webhookSecret")?.secret, true, "the webhook secret must be stored as a secret");
+  assert.equal(byId("readSecret")?.secret, true, "the read secret must be stored as a secret");
+  // The public values are NOT secrets — hiding a public form id or site key
+  // behind a write-only field would make the mapping impossible to check.
+  assert.notEqual(byId("formId")?.secret, true, "the public form id is not a secret");
+  assert.notEqual(byId("turnstileSiteKey")?.secret, true, "the public Turnstile site key is not a secret");
+  // The removed field's misleading help text must be gone with it.
+  for (const field of supabase.fields) {
+    assert.doesNotMatch(
+      field.help ?? "", /row-level-security policy allowing this key to read it/i,
+      `"${field.id}" still carries the removed anon-SELECT help text`,
+    );
+  }
+  assert.match(byId("readSecret")?.help ?? "", /never the same value as the webhook secret/i,
+    "the read secret must be documented as distinct from the webhook secret");
 });
 
 test("a retried webhook delivery does not become a second enquiry", async () => {
@@ -176,14 +196,21 @@ test("the reader never writes what it reads", () => {
   assert.match(reader, /timeoutMs:/, "a call into somebody else's database must be bounded");
 });
 
-test("the reader filters on the column the webhook actually matched", () => {
-  // Supabase does not promise the key is called `id`. Guessing at read time
-  // turns "we looked in the wrong column" into a silent "that enquiry is gone".
+test("the reader fetches exactly the submission the pointer identified, and signs the request", () => {
+  // After the redesign the read function looks a submission up by its id (the
+  // pointer the webhook carried) through the bounded, HMAC-signed `aqua-form-read`
+  // Edge Function — no client-chosen filter column, no raw table query.
   const reader = stripComments(read("src/lib/server/clientForms/clientFormReader.ts"));
-  assert.match(reader, /notice\.rowKey/, "the reader must use the recorded key column");
+  assert.match(reader, /notice\.rowId/, "the reader reads the submission the pointer identified");
+  assert.match(reader, /aqua-form-read/, "the reader goes through the bounded read Edge Function");
+  assert.match(reader, /createHmac\(/, "the reader signs its request with the read secret");
+  assert.match(reader, /connection\.readSecret/, "the reader signs with the READ secret, distinct from the webhook secret");
+  assert.doesNotMatch(reader, /\/rest\/v1/, "the reader must not query a raw PostgREST table");
 
+  // The route still records which column the pointer named, carried in the
+  // signed body — a label for the notice, taken from the authenticated pointer.
   const route = stripComments(read("src/app/api/public/client-forms/[connectionId]/route.ts"));
-  assert.match(route, /rowKey: row\.key/, "the webhook must record which column it matched");
+  assert.match(route, /rowKey/, "the webhook records the key column the pointer named");
 });
 
 test("opening an enquiry is gated on the client it belongs to", () => {
@@ -613,8 +640,8 @@ test("saving a mapping cannot wipe the connection it is saved onto", () => {
   // `saveIntegrationConnection` rebuilds the whole config and does
   // `delete config[field.id]` for any non-secret field it was NOT given. So the
   // obvious "just save the five column fields" call would silently remove
-  // `projectUrl` and `submissionsTable` — the two values without which the
-  // connection resolves to nothing and every enquiry stops arriving.
+  // `projectUrl` and `formId` — values without which the connection resolves to
+  // nothing and every enquiry stops arriving.
   //
   // The narrow mutator is incapable of that, which is a better guarantee than
   // remembering to send the other fields back every time.

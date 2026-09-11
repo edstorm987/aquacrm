@@ -366,6 +366,8 @@ export async function publishWordsEdit(
     message: input.message?.trim() || defaultMessage(input),
     confirm: input.confirm === true,
     token: source.token,
+    tenantId: input.agencyId,
+    actor: input.actorUserId,
   });
 
   if (!outcome.published || input.openPullRequest === false) return { ...shell, outcome };
@@ -381,6 +383,8 @@ export async function publishWordsEdit(
       title: `Aqua Editor — ${input.project.name || input.project.id}`,
       body: "Words edited in the Aqua Dev Editor. Each edit adds a commit to this branch.",
       token: source.token,
+      tenantId: input.agencyId,
+      actor: input.actorUserId,
     });
     return { ...shell, outcome, pullRequest };
   } catch {

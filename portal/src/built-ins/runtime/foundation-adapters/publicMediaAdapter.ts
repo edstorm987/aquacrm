@@ -10,6 +10,12 @@ import "server-only";
 import { createHash } from "node:crypto";
 
 import { storePublicUpload } from "@/lib/server/publicUploadStorage";
+import {
+  MAX_PUBLIC_MEDIA_BYTES,
+  PublicMediaDataUrlError,
+  parseDataUrl,
+  type DecodedDataUrl,
+} from "@/lib/server/security/base64DataUrl";
 import type {
   PublicMediaPort,
   PublicMediaStoreInput,
@@ -33,20 +39,8 @@ const EXT_BY_MIME: Record<string, string> = {
 };
 
 const MEDIA_DIR = "website-media";
-export const MAX_PUBLIC_MEDIA_BYTES = 8 * 1024 * 1024;
-
-export class PublicMediaDataUrlError extends Error {
-  readonly code = "public_media_data_url_invalid";
-
-  constructor(readonly reason: "invalid" | "empty" | "too-large") {
-    super(
-      reason === "too-large"
-        ? "Public website media must be 8 MiB or smaller."
-        : "Public website media must be a non-empty base64 data URL.",
-    );
-    this.name = "PublicMediaDataUrlError";
-  }
-}
+export { MAX_PUBLIC_MEDIA_BYTES, PublicMediaDataUrlError, parseDataUrl };
+export type { DecodedDataUrl };
 
 export class PublicMediaIdentityError extends Error {
   readonly code = "public_media_identity_invalid";
@@ -68,48 +62,6 @@ function assertSafePublicMediaIdentifier(
   if (!value || !SAFE_PUBLIC_MEDIA_IDENTIFIER.test(value)) {
     throw new PublicMediaIdentityError(field);
   }
-}
-
-export interface DecodedDataUrl {
-  contentType: string;
-  bytes: Buffer;
-}
-
-// Parse `data:<mime>;base64,<payload>` with a hard decoded-size bound BEFORE
-// allocating the byte buffer. The editor's asset contract is 8 MiB; enforcing
-// the same invariant here covers legacy/direct page PATCHes that bypass the
-// asset handler. Returns null for malformed/non-data inputs.
-export function parseDataUrl(
-  dataUrl: string,
-  maxBytes = MAX_PUBLIC_MEDIA_BYTES,
-): DecodedDataUrl | null {
-  const maxEncodedChars = Math.ceil(maxBytes * 4 / 3) + 1_024;
-  if (dataUrl.length > maxEncodedChars) {
-    throw new PublicMediaDataUrlError("too-large");
-  }
-  const canonical = dataUrl
-    .replace(/^[\u0000-\u0020]+/, "")
-    .replace(/[\u0009\u000a\u000d]/g, "");
-  // Bound the encoded representation too. This avoids copying an arbitrarily
-  // large attacker-controlled string merely to discover it decodes over cap.
-  if (canonical.length > maxEncodedChars) {
-    throw new PublicMediaDataUrlError("too-large");
-  }
-  const match = /^data:([^;,]{1,128});base64,([\s\S]*)$/i.exec(canonical);
-  if (!match) return null;
-  const contentType = match[1]!.trim().toLowerCase();
-  const payload = (match[2] ?? "").replace(/[\u0009-\u000d\u0020]/g, "");
-  if (!payload || !/^[A-Za-z0-9+/]*={0,2}$/.test(payload) || payload.length % 4 === 1) {
-    return null;
-  }
-  const padding = payload.endsWith("==") ? 2 : payload.endsWith("=") ? 1 : 0;
-  if (padding > 0 && payload.length % 4 !== 0) return null;
-  const expectedBytes = Math.floor(payload.length * 3 / 4) - padding;
-  if (expectedBytes <= 0) throw new PublicMediaDataUrlError("empty");
-  if (expectedBytes > maxBytes) throw new PublicMediaDataUrlError("too-large");
-  const bytes = Buffer.from(payload, "base64");
-  if (bytes.byteLength !== expectedBytes) return null;
-  return { contentType, bytes };
 }
 
 // Legacy-compatible content-addressed key used by local development. Remote
@@ -153,15 +105,10 @@ export const publicMediaAdapter: PublicMediaPort = {
       contentType: decoded.contentType,
       bytes: decoded.bytes,
     });
-    // localKey drops the leading MEDIA_DIR segment so the local-dev tree is
-    // `public/uploads-public/website-media/…` (matches the Supabase key).
-    const localKey = pathname.slice(MEDIA_DIR.length + 1);
     const stored = await storePublicUpload({
       pathname,
       file: new Blob([Uint8Array.from(decoded.bytes)], { type: decoded.contentType }),
       contentType: decoded.contentType,
-      localDirectory: MEDIA_DIR,
-      localKey,
       trust: {
         tenantId: input.agencyId,
         clientId: input.clientId,

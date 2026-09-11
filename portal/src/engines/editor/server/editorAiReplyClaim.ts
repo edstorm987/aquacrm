@@ -2,6 +2,7 @@ import "server-only";
 
 import crypto from "node:crypto";
 
+import { assertWritesAllowed } from "@/lib/server/auth/securityControl";
 import { getActiveDataRealmId, getBackendInfo } from "@/server/storage";
 
 export type EditorAiReplyClaimState =
@@ -97,52 +98,64 @@ function normaliseClaim(value: unknown): EditorAiReplyClaimState {
   throw new Error("editor_ai_reply_claim_invalid");
 }
 
-const remoteCoordinator: EditorAiReplyClaimCoordinator = {
-  async claim(claimKey, holderId, leaseMs) {
+function createRuntimeCoordinator(
+  context: { tenantId?: string; actor?: string } = {},
+): EditorAiReplyClaimCoordinator {
+  return {
+    async claim(claimKey, holderId, leaseMs) {
     const backend = getBackendInfo().kind;
     const realmId = getActiveDataRealmId();
     if (backend === "supabase") {
+      assertWritesAllowed("database.editor-ai-reply-claim", context);
       const { claimEditorAiReply } = await import("@/server/storageSupabase");
       return normaliseClaim(await claimEditorAiReply(claimKey, holderId, leaseMs, {}, realmId));
     }
     if (backend === "postgres") {
+      assertWritesAllowed("database.editor-ai-reply-claim", context);
       const { claimEditorAiReply } = await import("@/server/storagePostgres");
       return normaliseClaim(await claimEditorAiReply(claimKey, holderId, leaseMs, realmId));
     }
     return localCoordinator.claim(localClaimKey(claimKey), holderId, leaseMs);
-  },
-  async complete(claimKey, holderId) {
+    },
+    async complete(claimKey, holderId) {
     const backend = getBackendInfo().kind;
     const realmId = getActiveDataRealmId();
     if (backend === "supabase") {
+      assertWritesAllowed("database.editor-ai-reply-claim", context);
       const { completeEditorAiReply } = await import("@/server/storageSupabase");
       await completeEditorAiReply(claimKey, holderId, {}, realmId);
       return;
     }
     if (backend === "postgres") {
+      assertWritesAllowed("database.editor-ai-reply-claim", context);
       const { completeEditorAiReply } = await import("@/server/storagePostgres");
       await completeEditorAiReply(claimKey, holderId, realmId);
       return;
     }
     await localCoordinator.complete(localClaimKey(claimKey), holderId);
-  },
-  async release(claimKey, holderId) {
+    },
+    async release(claimKey, holderId) {
     const backend = getBackendInfo().kind;
     const realmId = getActiveDataRealmId();
     if (backend === "supabase") {
+      assertWritesAllowed("database.editor-ai-reply-claim", context);
       const { releaseEditorAiReply } = await import("@/server/storageSupabase");
       await releaseEditorAiReply(claimKey, holderId, {}, realmId);
       return;
     }
     if (backend === "postgres") {
+      assertWritesAllowed("database.editor-ai-reply-claim", context);
       const { releaseEditorAiReply } = await import("@/server/storagePostgres");
       await releaseEditorAiReply(claimKey, holderId, realmId);
       return;
     }
     await localCoordinator.release(localClaimKey(claimKey), holderId);
-  },
-};
+    },
+  };
+}
 
-export function editorAiReplyClaimCoordinator(): EditorAiReplyClaimCoordinator {
-  return remoteCoordinator;
+export function editorAiReplyClaimCoordinator(
+  context: { tenantId?: string; actor?: string } = {},
+): EditorAiReplyClaimCoordinator {
+  return createRuntimeCoordinator(context);
 }

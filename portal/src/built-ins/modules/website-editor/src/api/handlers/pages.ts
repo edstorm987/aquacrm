@@ -19,6 +19,7 @@ import {
   setActivePortalVariant,
 } from "../../server/pages";
 import { listAllPortalVariants } from "../../server/portalVariants";
+import { PageBlockValidationError } from "../../server/pageBlockValidation";
 import { loadStarterTree } from "../../server/starterLoader";
 import { fail, json, ok, readJsonBody, readQuery, requireClientScope } from "../helpers";
 
@@ -46,6 +47,7 @@ const PUBLIC_MEDIA_VALIDATION_CODES = new Set([
   "public_upload_path_escape",
   "public_upload_size_not_allowed",
   "public_upload_tenant_scope_mismatch",
+  "page_block_validation_refused",
 ]);
 const PUBLIC_MEDIA_VALIDATION_ERROR_CODE = "public_media_security_validation_failed";
 const PUBLIC_MEDIA_VALIDATION_ERROR_MESSAGE =
@@ -156,19 +158,27 @@ export async function handleCreatePage(req: Request, ctx: PluginCtx): Promise<Re
     }
   }
 
-  const page = await createPage(ctx.storage, {
-    siteId: body.siteId,
-    agencyId: scope.agencyId,
-    clientId: scope.clientId,
-    slug: body.slug,
-    title: body.title,
-    description: body.description,
-    portalRole,
-    variantId,
-    blocks,
-    themeId: body.themeId,
-    isHomepage: body.isHomepage,
-  });
+  let page;
+  try {
+    page = await createPage(ctx.storage, {
+      siteId: body.siteId,
+      agencyId: scope.agencyId,
+      clientId: scope.clientId,
+      slug: body.slug,
+      title: body.title,
+      description: body.description,
+      portalRole,
+      variantId,
+      blocks,
+      themeId: body.themeId,
+      isHomepage: body.isHomepage,
+    });
+  } catch (error) {
+    if (error instanceof PageBlockValidationError) {
+      return fail("page blocks failed security validation", 422);
+    }
+    throw error;
+  }
   return ok({ page }, { status: 201 });
 }
 
@@ -222,6 +232,9 @@ export async function handleUpdatePage(req: Request, ctx: PluginCtx): Promise<Re
   } catch (error) {
     if (error instanceof PagePatchValidationError) {
       return fail(`patch.${error.field} rejected: ${error.reason}`, 400);
+    }
+    if (error instanceof PageBlockValidationError) {
+      return fail("page blocks failed security validation", 422);
     }
     throw error;
   }

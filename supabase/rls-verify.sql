@@ -178,7 +178,9 @@ findings as (
     'editor_ai_reply_claims', 'lead_conversion_operations', 'product_workspace_leases',
     'app_datastore_patch_receipts',
     -- 20260902093000_aqua_tag_submission_delivery.sql (issues #87)
-    'aqua_tag_submissions'
+    'aqua_tag_submissions',
+    -- 20260910130000_durable_write_admission.sql
+    'aqua_write_controls', 'aqua_write_control_events', 'aqua_write_quarantines'
   )
 
   union all
@@ -259,7 +261,8 @@ order by sort_key, subject;
 with sealed_tables(table_name) as (
   values ('public.app_datastores'), ('public.audit_events'),
          ('public.website_consent_events'), ('public.app_datastore_history'),
-         ('public.brand_enquiries')
+         ('public.brand_enquiries'), ('public.aqua_write_controls'),
+         ('public.aqua_write_control_events'), ('public.aqua_write_quarantines')
 ),
 read_only_tables(table_name) as (
   values ('public.profiles'), ('public.brands'), ('public.shoots'),
@@ -527,4 +530,134 @@ select * from (
     select 1 from unexpected_browser_storage_read_policies
   )
 ) checks
+order by case severity when 'FAIL' then 0 else 1 end, check_name, subject;
+
+-- ============================================================================
+-- DURABLE WRITE-ADMISSION INVARIANTS (migration 20260910130000)
+--
+-- This is catalog evidence only. It proves that the durable authority objects,
+-- grants and final-fence triggers are installed; it does not replace the
+-- isolated runtime exercise that must prove freeze/thaw/replay semantics.
+-- ============================================================================
+with
+required_tables(table_name) as (
+  values ('aqua_write_controls'), ('aqua_write_control_events'),
+         ('aqua_write_quarantines')
+),
+required_functions(signature, service_role_exec) as (
+  values
+    ('public.read_aqua_write_admission(text,text)', true),
+    ('public.set_aqua_write_control(text,text,text,boolean,text,text,bigint)', true),
+    ('public.aqua_assert_write_admitted(text,text)', false),
+    ('public.record_aqua_write_quarantine(text,text,text,uuid,jsonb,jsonb,text)', true),
+    ('public.list_aqua_write_quarantines(text,text)', true),
+    ('public.resolve_aqua_write_quarantine(text,bigint,text,text,text,bigint)', true),
+    ('public.claim_product_workspace_lease(text,text,text,integer,text)', true),
+    ('public.renew_product_workspace_lease(text,text,text,integer,text)', true),
+    ('public.release_product_workspace_lease(text,text,text)', true)
+),
+required_triggers(trigger_name, table_name) as (
+  values
+    ('aqua_write_admission_app_datastores', 'app_datastores'),
+    ('aqua_write_admission_patch_receipts', 'app_datastore_patch_receipts'),
+    ('aqua_write_admission_brand_enquiries', 'brand_enquiries'),
+    ('aqua_write_admission_website_consent_events', 'website_consent_events'),
+    ('aqua_write_admission_inbox_connections', 'inbox_channel_connections'),
+    ('aqua_write_admission_inbox_identities', 'inbox_contact_identities'),
+    ('aqua_write_admission_inbox_conversations', 'inbox_conversations'),
+    ('aqua_write_admission_inbox_messages', 'inbox_messages'),
+    ('aqua_write_admission_inbox_webhooks', 'inbox_webhook_events'),
+    ('aqua_write_admission_aqua_tag_submissions', 'aqua_tag_submissions'),
+    ('aqua_write_admission_editor_ai_claims', 'editor_ai_reply_claims'),
+    ('aqua_write_admission_lead_conversion', 'lead_conversion_operations')
+),
+write_admission_failures as (
+  select 'FAIL'::text as severity,
+         'write-admission-table-missing'::text as check_name,
+         'public.' || required.table_name as subject,
+         'A required durable write-admission table is absent.'::text as detail
+  from required_tables required
+  where to_regclass('public.' || required.table_name) is null
+
+  union all
+  select 'FAIL', 'write-admission-table-rls-disabled',
+         'public.' || required.table_name,
+         'A durable write-admission table exists without row level security.'
+  from required_tables required
+  join pg_class relation on relation.oid = to_regclass('public.' || required.table_name)
+  where relation.relrowsecurity is false
+
+  union all
+  select 'FAIL', 'write-admission-direct-table-privilege',
+         'public.' || required.table_name || ' → ' || role_name || ':' || privilege,
+         'Durable control rows and quarantine payloads must be reachable only through narrow RPCs.'
+  from required_tables required
+  cross join (values ('anon'), ('authenticated'), ('service_role')) roles(role_name)
+  cross join (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')) privileges(privilege)
+  where has_table_privilege(
+    roles.role_name,
+    to_regclass('public.' || required.table_name),
+    privileges.privilege
+  )
+
+  union all
+  select 'FAIL', 'write-admission-rpc-missing', required.signature,
+         'A required durable write-admission or holder-cleanup RPC is absent.'
+  from required_functions required
+  where to_regprocedure(required.signature) is null
+
+  union all
+  select 'FAIL', 'write-admission-browser-rpc-execute',
+         required.signature || ' → ' || roles.role_name,
+         'A browser role can invoke a privileged durable write-admission RPC.'
+  from required_functions required
+  cross join (values ('anon'), ('authenticated')) roles(role_name)
+  where has_function_privilege(roles.role_name, to_regprocedure(required.signature), 'EXECUTE')
+
+  union all
+  select 'FAIL', 'write-admission-service-rpc-grant-drift', required.signature,
+         case when required.service_role_exec
+           then 'The service role cannot invoke a required narrow admission RPC.'
+           else 'The service role can directly invoke an internal-only admission helper.'
+         end
+  from required_functions required
+  where to_regprocedure(required.signature) is not null
+    and has_function_privilege('service_role', to_regprocedure(required.signature), 'EXECUTE')
+      is distinct from required.service_role_exec
+
+  union all
+  select 'FAIL', 'write-admission-final-fence-trigger-missing',
+         'public.' || required.table_name || ' → ' || required.trigger_name,
+         'A required same-transaction database write fence is absent or disabled.'
+  from required_triggers required
+  where not exists (
+    select 1
+    from pg_trigger trigger_row
+    join pg_class relation on relation.oid = trigger_row.tgrelid
+    join pg_namespace namespace on namespace.oid = relation.relnamespace
+    where namespace.nspname = 'public'
+      and relation.relname = required.table_name
+      and trigger_row.tgname = required.trigger_name
+      and not trigger_row.tgisinternal
+      and trigger_row.tgenabled <> 'D'
+  )
+
+  union all
+  select 'FAIL', 'write-admission-lease-direct-dml',
+         'public.product_workspace_leases → service_role:' || privileges.privilege,
+         'Lease claim/renew must pass through admission RPCs; only holder-checked release is exempt.'
+  from (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')) privileges(privilege)
+  where has_table_privilege(
+    'service_role',
+    to_regclass('public.product_workspace_leases'),
+    privileges.privilege
+  )
+)
+select severity, check_name, subject, detail
+from write_admission_failures
+union all
+select 'INFO', 'write-admission-catalog-verified',
+       'durable control plane, quarantine and lease fences',
+       'Required tables, RLS, narrow RPC grants, final-fence triggers and holder-only lease cleanup are present. Runtime semantics still require an isolated database exercise.'
+where not exists (select 1 from write_admission_failures)
 order by case severity when 'FAIL' then 0 else 1 end, check_name, subject;

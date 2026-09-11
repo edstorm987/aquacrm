@@ -37,8 +37,10 @@ import type SMTPTransport from "nodemailer/lib/smtp-transport";
 import {
   defaultDriverRegistry,
   registerEmailSenderFoundation,
+  type EmailDriver,
   type SmtpTransport,
 } from "@aqua/plugin-email-sender/server";
+import { assertFreshWritesAllowed, assertWritesAllowed } from "@/lib/server/auth/securityControl";
 import { getAgency } from "@/server/tenants";
 import {
   activityPort,
@@ -113,7 +115,33 @@ export const nodeSmtpTransport: SmtpTransport = async options => {
   }
 };
 
-const productionEmailDrivers = defaultDriverRegistry(fetch, nodeSmtpTransport);
+// The plugin stays provider-neutral and testable, while this server-only
+// production adapter supplies the incident boundary. Both Postmark HTTP and
+// SMTP/Nodemailer therefore pass one tenant-aware check immediately before the
+// selected driver can touch its provider.
+function guardedEmailDriver(driver: EmailDriver): EmailDriver {
+  return {
+    kind: driver.kind,
+    assertSendAllowed(ctx) {
+      assertWritesAllowed("provider.email-plugin.delivery", { tenantId: ctx.agencyId });
+    },
+    async send(args) {
+      await assertFreshWritesAllowed("provider.email-plugin.delivery", { tenantId: args.ctx.agencyId });
+      return driver.send(args);
+    },
+    ...(driver.verifyWebhook ? {
+      verifyWebhook: (args: Parameters<NonNullable<EmailDriver["verifyWebhook"]>>[0]) => driver.verifyWebhook!(args),
+    } : {}),
+    ...(driver.verifyIdentity ? {
+      verifyIdentity: (args: Parameters<NonNullable<EmailDriver["verifyIdentity"]>>[0]) => driver.verifyIdentity!(args),
+    } : {}),
+  };
+}
+
+const productionEmailDrivers = new Map(
+  [...defaultDriverRegistry(fetch, nodeSmtpTransport)]
+    .map(([provider, driver]) => [provider, guardedEmailDriver(driver)] as const),
+);
 
 let registered = false;
 

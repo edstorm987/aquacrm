@@ -23,6 +23,7 @@ import test, { beforeEach } from "node:test";
 
 import { assessUploadContent, ContentTrustError, setContentScanner } from "../src/lib/server/security/contentTrust";
 import { storePrivateUpload } from "../src/lib/server/privateUploadStorage";
+import { setWriteAdmissionTestReader, AQUA_WRITE_ADMISSION_APP_KEY } from "../src/lib/server/security/writeAdmission";
 import { clearSecurityEventsForTest, recentSecurityEvents } from "../src/lib/server/security/securityEvents";
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 73, 72, 68, 82]);
@@ -143,6 +144,7 @@ test("storePrivateUpload refuses a blocked file BEFORE any provider I/O", async 
       contentType: "image/png",
       localDirectory: "content-trust-test",
       localKey,
+      trust: { tenantId: "ag_ct_test", purpose: "content-trust-smoke" },
     }),
     ContentTrustError,
   );
@@ -157,6 +159,7 @@ test("storePrivateUpload returns the digest-level trust record for type-verified
     contentType: "image/png",
     localDirectory: "content-trust-test",
     localKey,
+    trust: { tenantId: "ag_ct_test", purpose: "content-trust-smoke" },
   });
   assert.equal(stored.contentTrust?.verdict, "type-verified");
   assert.match(stored.contentTrust?.digest ?? "", /^[0-9a-f]{64}$/);
@@ -203,6 +206,19 @@ test("a signature-valid PDF is NEVER labelled malware-clean without a scan", asy
 
 test("PRODUCTION + no scanner: a high-risk type is QUARANTINED (fail closed) and refused at store", async () => {
   const prior = process.env.NODE_ENV;
+  // Durable write-admission is a SEPARATE fail-closed control that also guards
+  // storePrivateUpload. Satisfy it with an allowing snapshot so this test
+  // exercises the CONTENT-TRUST quarantine refusal specifically, not
+  // write-admission. The reader is test-only, so install it under NODE_ENV=test
+  // before switching to the production scanner behaviour below.
+  process.env.NODE_ENV = "test";
+  setWriteAdmissionTestReader(async () => ({
+    appKey: AQUA_WRITE_ADMISSION_APP_KEY,
+    global: { scope: "global", scopeId: "global", frozen: false, revision: 1, reason: null, actor: null, changedAt: new Date().toISOString() },
+    tenant: null,
+    pendingQuarantines: 0,
+    frozenTenants: 0,
+  }));
   process.env.NODE_ENV = "production";
   try {
     setContentScanner(null);
@@ -212,11 +228,13 @@ test("PRODUCTION + no scanner: a high-risk type is QUARANTINED (fail closed) and
     // And storePrivateUpload refuses it (never stored/served).
     const localKey = `q-${Date.now()}.pdf`;
     await assert.rejects(
-      storePrivateUpload({ pathname: localKey, file: blob(PDF), contentType: "application/pdf", localDirectory: "content-trust-test", localKey }),
+      storePrivateUpload({ pathname: localKey, file: blob(PDF), contentType: "application/pdf", localDirectory: "content-trust-test", localKey, trust: { tenantId: "ag_ct_test", purpose: "content-trust-smoke" } }),
       ContentTrustError,
     );
     assert.ok(!existsSync(join(process.cwd(), ".data", "content-trust-test", localKey)), "a quarantined upload must never touch disk");
   } finally {
+    process.env.NODE_ENV = "test";
+    setWriteAdmissionTestReader(null);
     if (prior === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = prior;
   }
 });

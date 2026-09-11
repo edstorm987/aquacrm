@@ -25,14 +25,18 @@
 //   bump-tenant-epoch <agencyId> --actor <id> --reason <text> --commit
 //   disable-ai        --actor <id> --reason <text> --commit
 //   enable-ai         --actor <id> --commit
+//   quarantine-list   [pending|replayed|discarded|all]
+//   quarantine-replay <id> --actor <id> --reason <text> --commit
+//   quarantine-discard <id> --actor <id> --reason <text> --commit
 
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import {
   readSecurityControl,
-  setGlobalReadOnly,
-  clearGlobalReadOnly,
-  lockdownTenant,
-  liftTenantLockdown,
+  readDurableWriteControl,
+  setDurableGlobalReadOnly,
+  clearDurableGlobalReadOnly,
+  setDurableTenantLockdown,
+  clearDurableTenantLockdown,
   suspendUser,
   unsuspendUser,
   listUserSessions,
@@ -43,6 +47,10 @@ import {
   disableAi,
   enableAi,
 } from "@/lib/server/auth/securityControl";
+import {
+  listAuthoritativeWriteQuarantines,
+  resolveAuthoritativeWriteQuarantine,
+} from "@/lib/server/security/writeAdmission";
 
 function arg(flag: string): string | undefined {
   const i = process.argv.indexOf(flag);
@@ -96,8 +104,11 @@ async function main() {
   switch (command) {
     case "status": {
       const c = readSecurityControl();
+      const durable = await readDurableWriteControl(target);
       console.log(JSON.stringify({
-        globalReadOnly: c.globalReadOnly ?? null,
+        globalReadOnly: durable.global,
+        tenantWriteControl: durable.tenant,
+        pendingWriteQuarantines: durable.pendingQuarantines,
         aiDisabled: c.aiDisabled ?? null,
         globalEpoch: c.globalEpoch,
         tenantLockdowns: Object.keys(c.tenantLockdowns ?? {}),
@@ -107,18 +118,53 @@ async function main() {
       }, null, 2));
       return;
     }
+    case "quarantine-list": {
+      const requested = target === "all" ? null : target || "pending";
+      if (requested !== null && requested !== "pending" && requested !== "replayed" && requested !== "discarded") {
+        fail("quarantine-list status must be pending, replayed, discarded or all.");
+      }
+      console.log(JSON.stringify(await listAuthoritativeWriteQuarantines(requested), null, 2));
+      return;
+    }
+    case "quarantine-replay":
+    case "quarantine-discard": {
+      requireTarget("quarantine id"); requireActor(); requireReason();
+      const id = Number(target);
+      if (!Number.isSafeInteger(id) || id < 1) fail("quarantine id must be a positive integer.");
+      const action = command === "quarantine-replay" ? "replay" : "discard";
+      preview(`${action} quarantined PortalState write #${id}`);
+      const quarantine = (await listAuthoritativeWriteQuarantines("pending")).find(item => item.id === id);
+      if (!quarantine) fail(`pending quarantine #${id} was not found.`);
+      const snapshot = await readDurableWriteControl(
+        quarantine.controlScope === "tenant" ? quarantine.controlScopeId : undefined,
+      );
+      const control = quarantine.controlScope === "tenant" ? snapshot.tenant : snapshot.global;
+      if (!control) fail(`the ${quarantine.controlScope} control row for quarantine #${id} is unavailable.`);
+      if (action === "replay" && control.frozen) {
+        fail(`the ${quarantine.controlScope} control is still frozen; thaw it, then re-run replay with a fresh revision check.`);
+      }
+      const result = await resolveAuthoritativeWriteQuarantine({
+        id,
+        action,
+        actor,
+        reason,
+        expectedControlRevision: control.revision,
+      });
+      console.error(`Quarantine #${result.id} ${result.status} at control revision ${result.controlRevision}. Restart fenced workers after all pending quarantines are resolved.`);
+      return;
+    }
     case "freeze":
       requireActor(); requireReason(); preview(`set GLOBAL READ-ONLY (reason: ${reason})`);
-      setGlobalReadOnly(actor, reason); await finish("Global read-only ON.", c => Boolean(c.globalReadOnly)); return;
+      await setDurableGlobalReadOnly(actor, reason); console.error("Global read-only ON (durable)."); return;
     case "thaw":
       requireActor(); preview("clear GLOBAL READ-ONLY");
-      clearGlobalReadOnly(actor); await finish("Global read-only OFF.", c => !c.globalReadOnly); return;
+      await clearDurableGlobalReadOnly(actor); console.error("Global read-only OFF (durable)."); return;
     case "lockdown-tenant":
       requireTarget("agencyId"); requireActor(); requireReason(); preview(`lock down tenant ${target}`);
-      lockdownTenant(target!, actor, reason); await finish(`Tenant ${target} locked down.`, c => Boolean(c.tenantLockdowns?.[target!])); return;
+      await setDurableTenantLockdown(target!, actor, reason); await finish(`Tenant ${target} locked down.`, c => Boolean(c.tenantLockdowns?.[target!])); return;
     case "lift-tenant":
       requireTarget("agencyId"); requireActor(); preview(`lift lockdown on tenant ${target}`);
-      liftTenantLockdown(target!, actor); await finish(`Tenant ${target} lockdown lifted.`, c => !c.tenantLockdowns?.[target!]); return;
+      await clearDurableTenantLockdown(target!, actor); await finish(`Tenant ${target} lockdown lifted.`, c => !c.tenantLockdowns?.[target!]); return;
     case "suspend-user":
       requireTarget("userId"); requireActor(); requireReason(); preview(`suspend user ${target}`);
       suspendUser(target!, actor, reason); await finish(`User ${target} suspended.`, c => Boolean(c.suspendedUsers?.[target!])); return;

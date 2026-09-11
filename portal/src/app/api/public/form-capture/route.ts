@@ -17,6 +17,8 @@ import {
 } from "@/lib/enquiries/formCapture";
 import { enquirySubmissionId, normaliseAquaSubmissionId } from "@/lib/enquiries/submissionIdentity";
 import { aquaTagTenantScope, ingestAquaTagSubmission } from "@/lib/supabase/enquirySubmissionClaims";
+import { assertFreshWriteAdmission } from "@/lib/server/security/writeAdmission";
+import { ensureHydrated } from "@/server/storage";
 
 /**
  * What a website form actually contained, sent by the Aqua Tag.
@@ -163,6 +165,16 @@ export async function POST(req: NextRequest) {
       { status: 400, headers: corsHeaders(origin) },
     );
   }
+  if (process.env.NODE_ENV === "production" && !submissionId) {
+    return NextResponse.json(
+      { ok: false, error: "A durable submission reference is required." },
+      { status: 503, headers: corsHeaders(origin) },
+    );
+  }
+
+  // Site/tenant resolution is a LIVE read. It must not inherit a warm
+  // sandbox/showcase snapshot before the durable admission decision below.
+  await ensureHydrated({ fresh: true, forceFreshReload: true });
 
   const isHardcodedPublicSite = Boolean(
     (PUBLIC_AQUA_SITES as Record<string, unknown>)[siteKey],
@@ -222,6 +234,20 @@ export async function POST(req: NextRequest) {
   // If the submitting host is registered to a client, it routes to them
   // instead — the master key is the default, not a bypass.
   const masterAgencyId = resolveAgencyByMasterSiteKey(siteKey);
+  const admissionAgencyId = masterAgencyId
+    ?? (isHardcodedPublicSite ? founderAgencyId() : undefined);
+  if (!admissionAgencyId) {
+    return NextResponse.json(
+      { ok: false, error: "This site is not registered." },
+      { status: 404, headers: corsHeaders(origin) },
+    );
+  }
+  await assertFreshWriteAdmission({
+    kind: "tenant",
+    tenantId: admissionAgencyId,
+    surface: "database.public-form-capture",
+    actor: `site:${siteKey}`,
+  });
   const submissionHost = (() => {
     try { return capture.pageUrl ? new URL(capture.pageUrl).host : undefined; }
     catch { return undefined; }
@@ -252,7 +278,7 @@ export async function POST(req: NextRequest) {
     // that agency; a capture-only hold has no owner yet and the trigger in
     // the agency_scope migration defaults it). metadata.agencyId below stays
     // as the routing key the rest of the code reads.
-    agency_id: masterAgencyId ?? null,
+    agency_id: admissionAgencyId,
     metadata: {
       inboxStatus: "open",
       enquiryClassification: "unclassified",
@@ -266,7 +292,7 @@ export async function POST(req: NextRequest) {
       formCapture: capture,
       // A master-tag submission is a real enquiry, not a held capture waiting
       // for the site's own POST — so it is not flagged capture-only.
-      ...(masterAgencyId ? { masterTag: true, agencyId: masterAgencyId } : { captureOnly: true }),
+      ...(masterAgencyId ? { masterTag: true, agencyId: admissionAgencyId } : { captureOnly: true, agencyId: admissionAgencyId }),
       ...(routedClientId ? { routedClientId } : {}),
       ...(routedCompanyId ? { routedCompanyId } : {}),
     },
@@ -275,8 +301,8 @@ export async function POST(req: NextRequest) {
   const surfaceOnRoutedClient = (enquiryId: string) => {
     // Surface it on the client the site is routed to, so it reaches them and
     // not just the agency queue.
-    if (masterAgencyId && routedClientId) {
-      upsertClientRecordLedgerEvent(masterAgencyId, routedClientId, {
+    if (admissionAgencyId && routedClientId) {
+      upsertClientRecordLedgerEvent(admissionAgencyId, routedClientId, {
         sourceType: "enquiry",
         sourceId: `website-enquiry:${enquiryId}`,
         group: "messages",
@@ -292,7 +318,11 @@ export async function POST(req: NextRequest) {
 
   return withEnquirySubmissionOperation(submissionId, async () => {
   try {
-    const supabase = createSupabaseAdminClient();
+    const supabase = createSupabaseAdminClient({
+      tenantId: admissionAgencyId,
+      surface: "database.public-form-capture",
+      actor: `site:${siteKey}`,
+    });
 
     // ── The durable boundary (issues #87) ──────────────────────────────────
     //
@@ -336,6 +366,9 @@ export async function POST(req: NextRequest) {
       }
       // `unavailable`: the migration is not applied here yet — the older path
       // below still holds the capture, with its weaker process-local guarantee.
+      if (process.env.NODE_ENV === "production") {
+        throw new Error("aqua_tag_submission_boundary_required_in_production");
+      }
     }
 
     // ── Process-local fallback ─────────────────────────────────────────────

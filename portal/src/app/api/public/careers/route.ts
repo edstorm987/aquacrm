@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { FOUNDER_AGENCY_SLUG, seedFounder } from "@/lib/server/seeds/founderSeed";
+import { FOUNDER_AGENCY_SLUG } from "@/lib/server/seeds/founderSeed";
+import { assertFreshWriteAdmission, isWriteAdmissionDenied } from "@/lib/server/security/writeAdmission";
 import { attachStoredPrivateUpload, storePrivateUpload, PrivateUploadStorageError } from "@/lib/server/privateUploadStorage";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
 import { createPeopleApplication, rollbackPeopleApplicationUpload } from "@/server/people";
@@ -88,10 +89,15 @@ export async function POST(req: NextRequest) {
   if (!emailLimit.allowed) return responseError("We already have a recent application for this email address.", 429, emailLimit.retryAfterSec);
 
   try {
-    await ensureHydrated();
-    await seedFounder();
+    await ensureHydrated({ fresh: true });
     const agency = getAgencyBySlug(FOUNDER_AGENCY_SLUG);
     if (!agency) return privateFailure("agency_lookup", new Error("founder agency missing"), 503);
+    await assertFreshWriteAdmission({
+      kind: "tenant",
+      tenantId: agency.id,
+      surface: "public-careers-submit",
+      actor: "public-careers",
+    });
 
     const fileKey = `${Date.now()}-${crypto.randomBytes(8).toString("hex")}`;
     const extension = cv.name.toLowerCase().endsWith(".pdf") ? "pdf" : cv.name.toLowerCase().endsWith(".docx") ? "docx" : "doc";
@@ -101,6 +107,7 @@ export async function POST(req: NextRequest) {
       contentType: cv.type,
       localDirectory: "people-cvs",
       localKey: `${fileKey}.${extension}`,
+      trust: { tenantId: agency.id, actor: "public-careers", purpose: "career-application-cv" },
     });
     const employment = field(form, "employmentPreference", 40) as PeopleEmploymentType;
     const attached = await attachStoredPrivateUpload(stored, "people-cvs", () => {
@@ -144,7 +151,7 @@ export async function POST(req: NextRequest) {
     return privateFailure(
       cause instanceof PrivateUploadStorageError ? "storage_unavailable" : "application_write",
       cause,
-      cause instanceof PrivateUploadStorageError ? 503 : 500,
+      cause instanceof PrivateUploadStorageError || isWriteAdmissionDenied(cause) ? 503 : 500,
     );
   }
 }

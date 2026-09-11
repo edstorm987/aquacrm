@@ -2,6 +2,7 @@
 
 import type { BlockRenderProps } from "../blockRegistry";
 import { blockStylesToCss } from "../blockStyles";
+import { blockCssScopeId, isSafeBlockId } from "@/engines/editor/elements/blockIdentity";
 
 type HoverAnim = "none" | "lift" | "glow" | "shrink" | "shine" | "wiggle";
 
@@ -62,8 +63,8 @@ export default function ButtonBlock({ block, editorMode }: BlockRenderProps) {
   );
 }
 
-function hoverStylesFor(id: string, anim: HoverAnim): string | null {
-  if (anim === "none") return null;
+export function hoverStylesFor(id: string, anim: HoverAnim): string | null {
+  if (anim === "none" || !isSafeBlockId(id)) return null;
   const sel = `[data-block-id="${id}"]`;
   switch (anim) {
     case "lift":
@@ -72,8 +73,10 @@ function hoverStylesFor(id: string, anim: HoverAnim): string | null {
       return `${sel}:hover { box-shadow: 0 0 0 4px rgba(255,107,53,0.25), 0 0 24px rgba(255,107,53,0.45); }`;
     case "shrink":
       return `${sel}:hover { transform: scale(0.97); }`;
-    case "wiggle":
-      return `@keyframes lk-wiggle-${id} { 0%,100% { transform: rotate(0); } 25% { transform: rotate(-2deg); } 75% { transform: rotate(2deg); } } ${sel}:hover { animation: lk-wiggle-${id} 400ms ease-in-out; }`;
+    case "wiggle": {
+      const keyframe = blockCssScopeId("lk-wiggle", id)!;
+      return `@keyframes ${keyframe} { 0%,100% { transform: rotate(0); } 25% { transform: rotate(-2deg); } 75% { transform: rotate(2deg); } } ${sel}:hover { animation: ${keyframe} 400ms ease-in-out; }`;
+    }
     case "shine":
       return `${sel} [data-shine] { position: absolute; inset: 0; background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.35) 50%, transparent 70%); transform: translateX(-100%); transition: transform 600ms ease-out; pointer-events: none; } ${sel}:hover [data-shine] { transform: translateX(100%); }`;
     default:

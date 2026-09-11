@@ -12,6 +12,7 @@
 // provider outage must never switch the page to an inline-media bypass path.
 
 import type { Block } from "../types/block";
+import { MAX_PUBLIC_MEDIA_BYTES } from "@/lib/server/security/base64DataUrl";
 
 export type MediaPromoter = (dataUrl: string) => Promise<string>;
 
@@ -23,7 +24,7 @@ export interface PromotionResult {
 
 const MAX_PROP_DEPTH = 32;
 const MAX_PROP_NODES = 10_000;
-const MAX_PUBLIC_MEDIA_DATA_URL_CHARS = Math.ceil(8 * 1024 * 1024 * 4 / 3) + 1_024;
+const MAX_PUBLIC_MEDIA_DATA_URL_CHARS = Math.ceil(MAX_PUBLIC_MEDIA_BYTES * 4 / 3) + 1_024;
 const MAX_STYLE_INSPECTION_CHARS = 256 * 1024;
 
 export class PublicMediaPromotionTraversalError extends Error {

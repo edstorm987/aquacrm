@@ -2,25 +2,36 @@ import "server-only";
 
 // Resolving a client's own Supabase connection from the vault.
 //
-// Split out from the webhook route because two very different callers need it:
-// the unauthenticated webhook (which knows only a connection id) and the
-// portal's on-demand reader (which knows a session and a client). Keeping the
-// lookup in one place means the "is this connection really this client's"
-// question is answered the same way both times.
+// After the 2026-09 secure-intake redesign a client-supabase connection no
+// longer carries an anon key or a raw submissions-table name: an exported site
+// posts to the client-owned `aqua-form-submit` Edge Function, and Aqua reads one
+// submission back through the bounded, HMAC-authenticated `aqua-form-read`
+// function. The connection therefore holds the project URL, the PUBLIC form id,
+// the pointer-webhook secret (to VERIFY the notification), and the SEPARATE read
+// secret (to SIGN the bounded read). The public anon key is never stored, never
+// exported, and has no table access at all.
 
 import { getState } from "@/server/storage";
 import { resolveIntegrationConnectionValues } from "@/lib/server/integrations/integrationConnections";
 import type { ClientFormColumnOverrides } from "@/lib/enquiries/clientFormMapping";
 
+/** The config key that binds a tested+active connection to exactly one site. */
+export const INTAKE_APPROVED_SITE_KEY = "intakeApprovedSiteId";
+
 export interface ClientSupabaseConnection {
   connectionId: string;
   agencyId: string;
   clientId: string;
+  /** The client's Supabase project base URL — the Edge Function origin. */
   projectUrl: string;
-  /** The ANON key. Never a service-role key — see the catalogue entry. */
-  anonKey: string;
-  submissionsTable: string;
+  /** The PUBLIC form id the intake/read functions map to a fixed destination. */
+  formId: string;
+  /** The site this connection is approved-and-bound to (server-owned). */
+  siteId: string;
+  /** Verifies the signed POINTER webhook Aqua receives. Never exported. */
   webhookSecret: string;
+  /** Signs the bounded server-to-server read. DISTINCT from webhookSecret. Never exported. */
+  readSecret: string;
   /** Optional column overrides. Empty is the normal case — see clientFormMapping. */
   columns: ClientFormColumnOverrides;
   /** Blank means the client did not ask for a confirmation. */
@@ -29,35 +40,28 @@ export interface ClientSupabaseConnection {
 }
 
 /**
- * The connection with `connectionId`, if it is a live client-scoped
- * `client-supabase` connection with a webhook secret set.
+ * The connection with `connectionId`, if it is a live, approved, client-scoped
+ * `client-supabase` connection with both secrets set.
  *
- * ── Why this takes no agency id ──────────────────────────────────────────
- *
- * Every other read of a vault connection is scoped by the caller's agency,
- * because every other caller HAS one. A webhook arrives from a client's
- * Supabase project with no session and no tenant — the connection id is the
- * only thing it can present. That is exactly why the id alone is not
- * sufficient authority: this returns the connection, and the caller must still
- * verify the shared secret before believing anything in the request.
- *
- * The agency and client ids then come from the STORED connection rather than
- * from the payload, so a forged body cannot aim a notice at another tenant.
+ * A webhook arrives from a client's Supabase project with no session and no
+ * tenant — the connection id is the only thing it can present. That is exactly
+ * why the id alone is not authority: this returns the connection, and the caller
+ * must still verify the pointer-webhook secret before believing anything. The
+ * agency, client and site ids come from the STORED connection, so a forged body
+ * cannot aim a notice at another tenant or site.
  */
 export function findClientSupabaseConnection(connectionId: string): ClientSupabaseConnection | null {
   const connection = getState().integrationConnections[connectionId];
   if (!connection) return null;
   if (connection.provider !== "client-supabase") return null;
-  // No status check, deliberately. `revokeIntegrationConnection` DELETES the
-  // record rather than flagging it, so existence is already the revocation
-  // check — and filtering on `status` would suggest a revoked connection could
-  // still be found here, which it cannot. `needs-attention` is not a reason to
-  // drop a notification either: a webhook arriving is evidence the link works,
-  // and discarding it would lose an enquiry to a stale status flag.
-  // Client-scoped by definition. An agency-wide one would have no client to
-  // attribute an enquiry to, and silently attributing it to the agency would be
-  // the data merge this whole design exists to avoid.
+  // Existence is the revocation check: revokeIntegrationConnection DELETES the
+  // record. Client-scoped by definition — an agency-wide one would have no
+  // client to attribute an enquiry to.
   if (!connection.clientId) return null;
+  // Fail-closed: an unapproved connection resolves to nothing here too, so a
+  // pointer webhook for an unbound connection is dropped rather than acted on.
+  const siteId = (connection.config?.[INTAKE_APPROVED_SITE_KEY] ?? "").trim();
+  if (!siteId) return null;
 
   let values: Record<string, string>;
   try {
@@ -68,19 +72,21 @@ export function findClientSupabaseConnection(connectionId: string): ClientSupaba
   }
 
   const projectUrl = (values.projectUrl ?? "").trim();
-  const anonKey = (values.anonKey ?? "").trim();
-  const submissionsTable = (values.submissionsTable ?? "").trim();
+  const formId = (values.formId ?? "").trim();
   const webhookSecret = (values.webhookSecret ?? "").trim();
-  if (!projectUrl || !anonKey || !submissionsTable || !webhookSecret) return null;
+  const readSecret = (values.readSecret ?? "").trim();
+  // Distinct secrets for verify vs read — never the same value.
+  if (!projectUrl || !formId || !webhookSecret || !readSecret || webhookSecret === readSecret) return null;
 
   return {
     connectionId,
     agencyId: connection.agencyId,
     clientId: connection.clientId,
     projectUrl,
-    anonKey,
-    submissionsTable,
+    formId,
+    siteId,
     webhookSecret,
+    readSecret,
     columns: {
       columnName: values.columnName?.trim() || undefined,
       columnEmail: values.columnEmail?.trim() || undefined,

@@ -275,6 +275,7 @@ export async function POST(request: NextRequest, context: Context) {
         contentType: file.type,
         localDirectory: LOCAL_DIRECTORY,
         localKey,
+        trust: { tenantId: who.agencyId, actor: who.userId, purpose: STAGE_PURPOSE },
       });
       await confirmStagedPrivateUpload({
         agencyId: who.agencyId,

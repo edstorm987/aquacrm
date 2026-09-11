@@ -53,6 +53,7 @@ export async function POST(request: Request) {
       contentType: file.type,
       localDirectory: "campaign-assets",
       localKey,
+      trust: { tenantId: session.agencyId, actor: session.userId, purpose: "campaign-asset" },
     });
     await confirmStagedPrivateUpload({ agencyId: session.agencyId, purpose: "campaign-asset", objectId: id, requestHash, stored });
 

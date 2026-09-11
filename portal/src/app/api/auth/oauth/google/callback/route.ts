@@ -7,7 +7,7 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { ensureHydrated } from "@/server/storage";
-import { issueSession, sessionCookie } from "@/lib/server/auth/auth";
+import { issueSessionForResponse, sessionCookie } from "@/lib/server/auth/auth";
 import {
   exchangeAndVerify,
   readGoogleOAuthConfig,
@@ -111,15 +111,15 @@ export async function GET(req: NextRequest) {
     message: `${user.email} signed in via Google.`,
   });
 
-  return setSessionAndRedirect(req, stateCheck.returnUrl, user);
+  return await setSessionAndRedirect(req, stateCheck.returnUrl, user);
 }
 
-function setSessionAndRedirect(
+async function setSessionAndRedirect(
   req: NextRequest,
   returnUrl: string,
   user: { id: string; email: string; role: import("@/server/types").Role; agencyId: string; clientId?: string },
-) {
-  const token = issueSession({
+): Promise<Response> {
+  const token = await issueSessionForResponse({
     userId: user.id, email: user.email, role: user.role,
     agencyId: user.agencyId, ...(user.clientId ? { clientId: user.clientId } : {}),
     // One factor was proven here (the Google identity), and the cookie says so.

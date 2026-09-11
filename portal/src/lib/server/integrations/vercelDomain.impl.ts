@@ -37,11 +37,19 @@ export interface VercelDomainConfig {
   token: string;
   projectId: string;
   teamId?: string;
+  /** Optional tenant lineage, populated by server callers. */
+  tenantId: string;
 }
 
 export interface VercelDomainCallOptions {
   signal?: AbortSignal;
   timeoutMs?: number;
+  /**
+   * Required by the transport before an HTTP mutation. The server-only public
+   * wrapper injects the incident-control guard; hermetic tests inject a spy.
+   * Raw impl callers fail closed when it is absent.
+   */
+  writeGuard?: () => void | Promise<void>;
 }
 
 export interface DnsRequirement {
@@ -100,6 +108,7 @@ export function isVercelDomainConfigured(): boolean {
 export function configFromEnv(args: {
   projectId: string;
   teamId?: string;
+  tenantId: string;
 }): VercelDomainConfig {
   const token = readEnvToken();
   if (!token) {
@@ -112,6 +121,7 @@ export function configFromEnv(args: {
   return {
     token,
     projectId: args.projectId,
+    tenantId: args.tenantId,
     ...(args.teamId !== undefined ? { teamId: args.teamId } : { ...(readEnvTeamId() !== undefined ? { teamId: readEnvTeamId() as string } : {}) }),
   };
 }
@@ -138,6 +148,8 @@ async function call(
   init: RequestInit,
   options: VercelDomainCallOptions,
 ): Promise<{ ok: boolean; status: number; body: string }> {
+  if (!options.writeGuard) throw new Error("vercel_domain_write_guard_required");
+  await options.writeGuard();
   return withRemoteOperationDeadline({
     operation: `Vercel domain ${init.method?.toUpperCase() ?? "request"}`,
     budget: "providerWrite",

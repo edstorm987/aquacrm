@@ -48,7 +48,11 @@ export async function PATCH(request: Request) {
     }
     const classification = body.classification;
 
-    const supabase = await createEnquiryDataClient();
+    const supabase = await createEnquiryDataClient({
+      tenantId: agencyId,
+      actor: session.userId,
+      surface: "database.website-enquiry.classification",
+    });
     const data = await loadActorWebsiteEnquiry<EnquiryRow>(actor, supabase, {
       id: enquiryId,
       required: "use",

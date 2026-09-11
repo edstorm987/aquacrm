@@ -32,7 +32,11 @@ export async function POST(request: Request) {
     if (!file.size || file.size > MAX_RECORDING_BYTES) return NextResponse.json({ ok: false, error: "Call recordings must be smaller than 100 MB." }, { status: 413 });
     if (!AUDIO_TYPES.has(file.type)) return NextResponse.json({ ok: false, error: "This audio recording format is not supported." }, { status: 415 });
 
-    const supabase = await createEnquiryDataClient();
+    const supabase = await createEnquiryDataClient({
+      tenantId: agencyId,
+      actor: session.userId,
+      surface: "database.website-enquiry.call-recording",
+    });
     const data = await loadActorWebsiteEnquiry<{ id: string; name: string; metadata: Record<string, unknown> | null }>(
       actor, supabase, { id: enquiryId, required: "use", columns: ["name"] });
     if (!data) return NextResponse.json({ ok: false, error: "Website submission not found." }, { status: 404 });
@@ -67,6 +71,7 @@ export async function POST(request: Request) {
       contentType: file.type,
       localDirectory: "inbox-call-recordings",
       localKey: relativeKey,
+      trust: { tenantId: agencyId, actor: actor.session.userId, purpose: "website-enquiry-call-recording" },
     });
     const recording = {
       url: `/api/portal/website-enquiries/calls/recording/content?enquiryId=${encodeURIComponent(enquiryId)}&callId=${encodeURIComponent(callId)}`,

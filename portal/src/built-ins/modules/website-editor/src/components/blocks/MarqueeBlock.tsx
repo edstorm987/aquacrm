@@ -5,6 +5,7 @@
 
 import type { BlockRenderProps } from "../blockRegistry";
 import { blockStylesToCss } from "../blockStyles";
+import { blockCssScopeId } from "@/engines/editor/elements/blockIdentity";
 
 export default function MarqueeBlock({ block }: BlockRenderProps) {
   const items = (block.props.items as string[] | undefined) ?? [
@@ -13,11 +14,14 @@ export default function MarqueeBlock({ block }: BlockRenderProps) {
     "✦  Hormone-safe, lab-certified",
     "✦  30-day returns",
   ];
-  const speed = (block.props.speed as number | undefined) ?? 30;
-  const id = `marquee-${block.id}`;
+  const rawSpeed = block.props.speed;
+  const speed = typeof rawSpeed === "number" && Number.isFinite(rawSpeed)
+    ? Math.min(600, Math.max(1, rawSpeed))
+    : 30;
+  const id = blockCssScopeId("marquee", block.id);
 
   // Render the items twice so the animation seamlessly loops.
-  const css = `
+  const css = id ? `
     @keyframes ${id}-anim {
       from { transform: translateX(0); }
       to   { transform: translateX(-50%); }
@@ -25,12 +29,12 @@ export default function MarqueeBlock({ block }: BlockRenderProps) {
     [data-marquee="${id}"] .marquee-track {
       animation: ${id}-anim ${speed}s linear infinite;
     }
-  `;
+  ` : "";
 
   return (
     <div
       data-block-type="marquee"
-      data-marquee={id}
+      data-marquee={id ?? undefined}
       style={{
         overflow: "hidden",
         padding: "12px 0",
@@ -40,7 +44,7 @@ export default function MarqueeBlock({ block }: BlockRenderProps) {
         ...blockStylesToCss(block.styles),
       }}
     >
-      <style>{css}</style>
+      {css && <style>{css}</style>}
       <div className="marquee-track" style={{ display: "flex", gap: 48, whiteSpace: "nowrap", width: "max-content" }}>
         {[...items, ...items].map((item, i) => (
           <span key={i} style={{ fontSize: 13, opacity: 0.85 }}>{item}</span>

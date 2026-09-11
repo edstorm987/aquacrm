@@ -22,8 +22,9 @@ import crypto from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { getSessionFromRequest } from "@/lib/server/auth/auth";
 import { AGENCY_ROLES } from "@/server/types";
-import { ensureHydrated, getState } from "@/server/storage";
+import { ensureHydrated, getBackendInfo, getState } from "@/server/storage";
 import { inspectProductionReadiness } from "@/lib/server/productionReadiness";
+import { readAuthoritativeWriteAdmission } from "@/lib/server/security/writeAdmission";
 import { databaseStorageHealth, primaryDbProbeStatus } from "@/lib/server/databaseStorageHealth";
 import {
   deployedCommitSha,
@@ -92,20 +93,53 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     pluginCount = null;
   }
   const probe = await probeDb();
+  let writeAdmissionOk = true;
+  let writeAdmissionError: string | undefined;
+  let pendingWriteQuarantines = 0;
+  let frozenWriteTenants = 0;
+  try {
+    const snapshot = await readAuthoritativeWriteAdmission();
+    pendingWriteQuarantines = snapshot.pendingQuarantines;
+    frozenWriteTenants = snapshot.frozenTenants;
+    if (snapshot.global.frozen) {
+      writeAdmissionOk = false;
+      writeAdmissionError = snapshot.global.reason || "global read-only is active";
+    } else if (snapshot.pendingQuarantines > 0) {
+      writeAdmissionOk = false;
+      writeAdmissionError = `${snapshot.pendingQuarantines} quarantined write(s) require operator reconciliation`;
+    } else if (snapshot.frozenTenants > 0) {
+      writeAdmissionOk = false;
+      writeAdmissionError = `${snapshot.frozenTenants} tenant containment(s) are active`;
+    }
+  } catch (error) {
+    writeAdmissionOk = false;
+    writeAdmissionError = error instanceof Error ? error.message : "durable write admission unavailable";
+  }
+  const backendInfo = getBackendInfo();
+  const localQuarantineOk = backendInfo.quarantineDurable && backendInfo.quarantine === null;
+  if (!localQuarantineOk && !writeAdmissionError) {
+    writeAdmissionError = backendInfo.quarantine
+      ? `local write quarantine #${backendInfo.quarantine.id} still requires reconciliation`
+      : "a refused local write could not be durably quarantined";
+  }
   const readiness = inspectProductionReadiness(env);
   // Enforce readiness on the ACTUAL production substrate (Railway included), not
   // only Vercel (#187). Outside production the body still reports the truth, but
   // the status stays green so local/dev/preview lanes are not tripped by a
   // deliberately-unset provider. A hydration failure is fatal in EVERY
   // environment: a `probeOk` that ignores it would be a connectivity-only lie.
-  const decision = resolveFullHealthOk({ env, probeOk: probe.ok && hydrationOk, ready: readiness.ready });
+  const decision = resolveFullHealthOk({
+    env,
+    probeOk: probe.ok && hydrationOk && writeAdmissionOk && localQuarantineOk,
+    ready: readiness.ready,
+  });
   const ok = decision.ok && hydrationOk;
   const { enforcingReadiness } = decision;
   const uptimeSec = Math.floor((Date.now() - BOOT_AT) / 1000);
   const body = {
     ok,
     db: probe.db,
-    error: probe.error ?? hydrationError,
+    error: probe.error ?? hydrationError ?? writeAdmissionError,
     state: hydrationOk ? "hydrated" : "hydration-failed",
     plugins: pluginCount,
     uptime: uptimeSec,
@@ -114,7 +148,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     platform: deploymentPlatform(env),
     sha: deployedCommitSha(env),
     enforcingReadiness,
-    readyForProduction: readiness.ready,
+    readyForProduction: readiness.ready && writeAdmissionOk && localQuarantineOk,
+    writeAdmission: writeAdmissionOk && localQuarantineOk ? "authoritative" : "closed",
+    pendingWriteQuarantines,
+    frozenWriteTenants,
+    localWriteQuarantine: backendInfo.quarantine,
+    quarantineDurable: backendInfo.quarantineDurable,
     readiness: readiness.items.map(item => ({
       id: item.id,
       status: item.status,

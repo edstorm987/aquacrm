@@ -10,7 +10,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import crypto from "crypto";
 import { ensureHydrated } from "@/server/storage";
-import { issueSession, sessionCookie } from "@/lib/server/auth/auth";
+import { issueSessionForResponse, sessionCookie } from "@/lib/server/auth/auth";
 import { getClient } from "@/server/tenants";
 import { createUser, getUser } from "@/server/users";
 import { logActivity } from "@/server/activity";
@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  const sessionToken = issueSession({
+  const sessionToken = await issueSessionForResponse({
     userId: user.id, email: user.email, role: user.role,
     agencyId: user.agencyId, ...(user.clientId ? { clientId: user.clientId } : {}),
     // One factor was proven here (mailbox access), and the cookie says so.

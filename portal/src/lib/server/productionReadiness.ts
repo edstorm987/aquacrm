@@ -3,7 +3,9 @@ import {
   type ObservabilityCapability,
 } from "./observabilityCapability";
 import { hasContentScanner } from "./security/contentTrust";
+import { hasSecurityEventDrain } from "./security/securityEvents";
 import { inspectStorageBucketPolicy } from "./storageBucketPolicy";
+import { deployedCommitSha, deploymentEnvironmentLabel, deploymentPlatform } from "./deployment";
 
 export type ReadinessStatus = "ready" | "needs-setup" | "optional";
 export type ReadinessGroup = "core" | "communication" | "money" | "development" | "intelligence" | "security-evidence";
@@ -24,6 +26,23 @@ export type ReadinessGroup = "core" | "communication" | "money" | "development" 
  * could act on.
  */
 export type ReadinessScope = "platform" | "company";
+
+/**
+ * Runtime evidence supplied by an attached control, signed evidence registry,
+ * or health-probe coordinator. Environment variables are configuration and
+ * labels only: they may corroborate this object but can never create it.
+ */
+export interface OperationalSecurityEvidence {
+  containment?: { migrationVersion: string; verifiedAtMs: number };
+  contentScanner?: { healthyAtMs: number };
+  securityEventDrain?: { healthyAtMs: number };
+  distributedRateLimit?: { healthyAtMs: number; provider: string };
+  mfa?: { provider: string; verifiedAtMs: number };
+  restore?: { verifiedAtMs: number; artifactSha256: string };
+  backup?: { verifiedAtMs: number; artifactSha256: string };
+  supplyChain?: { verifiedAtMs: number; commitSha: string };
+  edgeWaf?: { provider: string; verifiedAtMs: number };
+}
 
 export interface ReadinessItem {
   id:
@@ -80,8 +99,6 @@ export interface ReadinessContext {
   billingConfiguredClientCount?: number;
   activeExternalAssistantKeyCount?: number;
   managedIntegrationProviders?: string[];
-  /** Whether a real content scanner adapter is wired (defaults to hasContentScanner()). */
-  contentScannerWired?: boolean;
   /**
    * The agency this readiness view is for. Omit for the deployment-wide view
    * (`/healthz/full`, the Dev Team dashboard, `scripts/launch-audit.ts`).
@@ -118,6 +135,10 @@ export interface ReadinessContext {
    * and tests can describe both sides without touching module resolution.
    */
   observabilityCapability?: ObservabilityCapability;
+  /** Typed runtime/registry evidence. Absent means all operational gates remain red. */
+  operationalSecurityEvidence?: OperationalSecurityEvidence;
+  /** Deterministic clock for evidence freshness checks. */
+  nowMs?: number;
 }
 
 function has(env: NodeJS.ProcessEnv, name: string): boolean {
@@ -144,6 +165,48 @@ function isRemoteDatabase(value?: string): boolean {
   }
 }
 
+const HOUR = 60 * 60 * 1000;
+const DAY = 24 * HOUR;
+const ISO_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
+const SHA256 = /^[0-9a-f]{64}$/i;
+const GIT_SHA = /^[0-9a-f]{40}$/i;
+const EVIDENCE_ID = /^[a-z0-9][a-z0-9._-]{1,63}$/i;
+
+function isRecentEvidence(value: string | undefined, nowMs: number, maxAgeMs: number): boolean {
+  if (!value || !ISO_UTC.test(value)) return false;
+  const at = Date.parse(value);
+  if (!Number.isFinite(at)) return false;
+  // A little clock skew is harmless; a future attestation is not evidence.
+  return at <= nowMs + 5 * 60 * 1000 && nowMs - at <= maxAgeMs;
+}
+
+function isRecentObservation(value: number | undefined, nowMs: number, maxAgeMs: number): boolean {
+  return typeof value === "number"
+    && Number.isFinite(value)
+    && value <= nowMs + 5 * 60 * 1000
+    && nowMs - value <= maxAgeMs;
+}
+
+function sameEvidenceInstant(value: string | undefined, observedAtMs: number | undefined): boolean {
+  return Boolean(value && ISO_UTC.test(value) && Date.parse(value) === observedAtMs);
+}
+
+function isTypedProvider(value: string | undefined): boolean {
+  return Boolean(value && EVIDENCE_ID.test(value.trim()));
+}
+
+function isSecureServiceUrl(value: string | undefined, protocols: readonly string[] = ["https:"]): boolean {
+  if (!value) return false;
+  try {
+    const url = new URL(value);
+    return protocols.includes(url.protocol)
+      && Boolean(url.hostname)
+      && !["localhost", "127.0.0.1", "::1"].includes(url.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
 export function inspectProductionReadiness(
   env: NodeJS.ProcessEnv = process.env,
   context: ReadinessContext = {},
@@ -157,13 +220,21 @@ export function inspectProductionReadiness(
     : "platform";
   const envCounts = audience === "platform";
   const explicitBackend = env.PORTAL_BACKEND?.trim().toLowerCase();
-  const isPublicDeployment = env.VERCEL_ENV === "production" || env.VERCEL_ENV === "preview";
+  const platform = deploymentPlatform(env);
+  const deploymentLabel = deploymentEnvironmentLabel(env).trim().toLowerCase();
+  // Every recognised hosted runtime is public for endpoint-safety purposes,
+  // including Railway staging/preview. A loopback DB on a host is the host's
+  // own container, not the managed database somebody intended to configure.
+  const isPublicDeployment = platform !== "node"
+    || ["production", "preview", "staging"].includes(deploymentLabel);
+  const backendIsKnown = !explicitBackend || ["postgres", "supabase", "file", "memory"].includes(explicitBackend);
   const supabasePublicKeyReady = has(env, "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY")
     || has(env, "NEXT_PUBLIC_PUBLISHABLE_KEY")
     || has(env, "NEXT_PUBLIC_SUPABASE_ANON_KEY");
   const supabaseServerKeyReady = has(env, "SUPABASE_SECRET_KEY")
     || has(env, "SUPABASE_SERVICE_ROLE_KEY");
   const supabaseReady = has(env, "NEXT_PUBLIC_SUPABASE_URL")
+    && (!isPublicDeployment || isRemoteDatabase(env.NEXT_PUBLIC_SUPABASE_URL))
     && supabasePublicKeyReady
     && supabaseServerKeyReady;
   // Match the private-storage provider selector exactly. The upload path does
@@ -174,11 +245,22 @@ export function inspectProductionReadiness(
   const postgresReady = has(env, "DATABASE_URL")
     && (explicitBackend === "postgres" || !explicitBackend)
     && (!isPublicDeployment || isRemoteDatabase(env.DATABASE_URL));
-  const databaseReady = explicitBackend === "postgres"
+  const databaseReady = !backendIsKnown
+    ? false
+    : explicitBackend === "postgres"
     ? postgresReady
     : explicitBackend === "supabase"
       ? supabaseReady
       : postgresReady || supabaseReady;
+  // The durable write-admission/fencing migration is implemented on Supabase.
+  // A hosted Postgres selection must remain unready until schema/function
+  // parity exists; process-local PortalState controls are not a substitute.
+  const primaryBackendIsSupabase = explicitBackend === "supabase"
+    || (!explicitBackend && !env.DATABASE_URL && supabaseReady);
+  const canonicalStateKey = !env.PORTAL_STATE_KEY?.trim()
+    || env.PORTAL_STATE_KEY.trim() === "aquacrm-portal-state";
+  const writeAdmissionBackendReady = !isPublicDeployment
+    || (primaryBackendIsSupabase && canonicalStateKey);
   const securityReady = (env.PORTAL_SESSION_SECRET?.length ?? 0) >= 32
     && env.NEXT_PUBLIC_PORTAL_SECURITY === "strict"
     && isSecurePublicOrigin(env.NEXT_PUBLIC_PORTAL_BASE_URL);
@@ -222,34 +304,68 @@ export function inspectProductionReadiness(
     ?? inspectObservabilityCapability(env);
 
   // ── Security-evidence gates (Phase 8) ──────────────────────────────────────
-  // Each is RED unless an explicit owner-set signal proves the control is in
-  // place. These are deliberately env-signalled (not inferred), because the
-  // real thing (a migration applied + verified, an AV engine connected, a
-  // restore drill run) happens OUTSIDE the app and cannot be sensed from code —
-  // so the honest default is "unproven", never "green".
-  const containmentMigrationVerified = env.PORTAL_CONTAINMENT_MIGRATION_VERIFIED === "true";
+  // Each is RED unless an attached runtime control or evidence registry
+  // supplies typed evidence. Environment values only corroborate that runtime
+  // evidence; a plausible string can never turn a gate green by itself.
+  const nowMs = context.nowMs ?? Date.now();
+  const evidence = context.operationalSecurityEvidence;
+  const containmentMigrationVerified = env.PORTAL_CONTAINMENT_MIGRATION_VERIFIED === "true"
+    && env.PORTAL_CONTAINMENT_MIGRATION_VERSION === "20260908220000"
+    && evidence?.containment?.migrationVersion === env.PORTAL_CONTAINMENT_MIGRATION_VERSION
+    && isRecentObservation(evidence?.containment?.verifiedAtMs, nowMs, 365 * DAY)
+    && sameEvidenceInstant(env.PORTAL_CONTAINMENT_MIGRATION_VERIFIED_AT, evidence?.containment?.verifiedAtMs);
   // ACTUAL wired capability, not just an env string (Item 11): the scanner is
   // "ready" only when an adapter is actually registered (wired at boot from
   // PORTAL_AV_SCANNER_URL) AND the config is present. A stray env var with no
-  // live adapter stays red. The wired state is injectable for tests; it defaults
-  // to the real registration.
-  const contentScannerReady = (context.contentScannerWired ?? hasContentScanner()) && has(env, "PORTAL_AV_SCANNER_URL");
-  const eventDrainReady = has(env, "PORTAL_SECURITY_EVENT_DRAIN_URL");
-  const distributedRateLimitReady = has(env, "PORTAL_RATE_LIMIT_STORE_URL");
-  const mfaReady = env.PORTAL_MFA_ENABLED === "true";
-  const verifiedRestoreReady = has(env, "PORTAL_LAST_VERIFIED_RESTORE_AT");
-  const backupFreshnessReady = env.BACKUP_ENABLED === "1" && has(env, "PORTAL_LAST_BACKUP_AT");
-  const supplyChainReady = env.PORTAL_DEPENDENCY_AUDIT_PASSED === "true";
-  const edgeWafReady = env.PORTAL_EDGE_WAF_ENABLED === "true";
+  // live adapter stays red. A registered adapter must also have a recent
+  // healthy observation from the caller's trusted evidence source.
+  const contentScannerReady = hasContentScanner()
+    && isSecureServiceUrl(env.PORTAL_AV_SCANNER_URL)
+    && isRecentObservation(evidence?.contentScanner?.healthyAtMs, nowMs, 15 * 60 * 1000);
+  const eventDrainReady = hasSecurityEventDrain()
+    && isSecureServiceUrl(env.PORTAL_SECURITY_EVENT_DRAIN_URL)
+    && isRecentObservation(evidence?.securityEventDrain?.healthyAtMs, nowMs, 15 * 60 * 1000);
+  const distributedRateLimitReady = isTypedProvider(evidence?.distributedRateLimit?.provider)
+    && isRecentObservation(evidence?.distributedRateLimit?.healthyAtMs, nowMs, 15 * 60 * 1000)
+    && isSecureServiceUrl(env.PORTAL_RATE_LIMIT_STORE_URL, ["https:", "rediss:"]);
+  const mfaReady = env.PORTAL_MFA_ENABLED === "true"
+    && isTypedProvider(env.PORTAL_MFA_PROVIDER)
+    && evidence?.mfa?.provider === env.PORTAL_MFA_PROVIDER?.trim()
+    && isRecentObservation(evidence?.mfa?.verifiedAtMs, nowMs, 90 * DAY)
+    && sameEvidenceInstant(env.PORTAL_MFA_VERIFIED_AT, evidence?.mfa?.verifiedAtMs);
+  const verifiedRestoreReady = isRecentEvidence(env.PORTAL_LAST_VERIFIED_RESTORE_AT, nowMs, 90 * DAY)
+    && SHA256.test(env.PORTAL_LAST_VERIFIED_RESTORE_SHA256?.trim() ?? "")
+    && evidence?.restore?.artifactSha256.toLowerCase() === env.PORTAL_LAST_VERIFIED_RESTORE_SHA256?.trim().toLowerCase()
+    && isRecentObservation(evidence?.restore?.verifiedAtMs, nowMs, 90 * DAY)
+    && sameEvidenceInstant(env.PORTAL_LAST_VERIFIED_RESTORE_AT, evidence?.restore?.verifiedAtMs);
+  const backupFreshnessReady = env.BACKUP_ENABLED === "1"
+    && isRecentEvidence(env.PORTAL_LAST_BACKUP_AT, nowMs, 36 * HOUR)
+    && SHA256.test(env.PORTAL_LAST_BACKUP_SHA256?.trim() ?? "")
+    && evidence?.backup?.artifactSha256.toLowerCase() === env.PORTAL_LAST_BACKUP_SHA256?.trim().toLowerCase()
+    && isRecentObservation(evidence?.backup?.verifiedAtMs, nowMs, 36 * HOUR)
+    && sameEvidenceInstant(env.PORTAL_LAST_BACKUP_AT, evidence?.backup?.verifiedAtMs);
+  const deployedSha = deployedCommitSha(env)?.trim() ?? "";
+  const auditedSha = env.PORTAL_DEPENDENCY_AUDIT_SHA?.trim() ?? "";
+  const supplyChainReady = env.PORTAL_DEPENDENCY_AUDIT_PASSED === "true"
+    && GIT_SHA.test(auditedSha)
+    && auditedSha.toLowerCase() === deployedSha.toLowerCase()
+    && evidence?.supplyChain?.commitSha.toLowerCase() === auditedSha.toLowerCase()
+    && isRecentObservation(evidence?.supplyChain?.verifiedAtMs, nowMs, 7 * DAY)
+    && sameEvidenceInstant(env.PORTAL_DEPENDENCY_AUDIT_AT, evidence?.supplyChain?.verifiedAtMs);
+  const edgeWafReady = env.PORTAL_EDGE_WAF_ENABLED === "true"
+    && isTypedProvider(env.PORTAL_EDGE_WAF_PROVIDER)
+    && evidence?.edgeWaf?.provider === env.PORTAL_EDGE_WAF_PROVIDER?.trim()
+    && isRecentObservation(evidence?.edgeWaf?.verifiedAtMs, nowMs, 30 * DAY)
+    && sameEvidenceInstant(env.PORTAL_EDGE_WAF_VERIFIED_AT, evidence?.edgeWaf?.verifiedAtMs);
 
   const securityEvidence: ReadinessItem[] = [
     ["containment-migration", "Tenant-isolation migration", containmentMigrationVerified,
       "The assume-breach containment migration is applied and rls-verify.sql passed.",
       "Apply supabase/migrations to the live DB after a backup, run rls-verify.sql, then set PORTAL_CONTAINMENT_MIGRATION_VERIFIED=true.",
-      ["PORTAL_CONTAINMENT_MIGRATION_VERIFIED"]],
+      ["PORTAL_CONTAINMENT_MIGRATION_VERIFIED", "PORTAL_CONTAINMENT_MIGRATION_VERSION", "PORTAL_CONTAINMENT_MIGRATION_VERIFIED_AT"]],
     ["content-scanner", "Malware / content scanning", contentScannerReady,
-      "An AV/CDR adapter is wired and configured. The audited outbound broker currently limits scanner requests to 1 MiB, below the 8 MiB public-media contract, and this signal does not prove live provider reachability.",
-      "Connect and live-prove an AV/CDR engine, then set PORTAL_AV_SCANNER_URL. Keep public CDN publication disabled until the scanner can safely inspect the full accepted object and the separate atomic lifecycle gate is verified.",
+      "An AV/CDR adapter is registered and configured through a valid HTTPS endpoint; live provider reachability is still a separate deployment proof.",
+      "Connect and live-prove an AV/CDR engine, register its adapter at runtime, then set PORTAL_AV_SCANNER_URL. Keep public CDN publication disabled until the separate atomic lifecycle gate is verified.",
       ["PORTAL_AV_SCANNER_URL"]],
     // Intentionally code-owned and unconditionally RED. Do not replace this
     // with an environment flag: configuration cannot supply the missing saga.
@@ -259,32 +375,32 @@ export function inspectProductionReadiness(
       []],
     ["security-event-drain", "Off-platform security event drain", eventDrainReady,
       "Security events are shipped to durable off-platform storage (WORM).",
-      "Configure PORTAL_SECURITY_EVENT_DRAIN_URL so events survive the process.",
+      "Register a tested HTTPS/WORM drain at runtime and configure PORTAL_SECURITY_EVENT_DRAIN_URL; a URL alone is not evidence.",
       ["PORTAL_SECURITY_EVENT_DRAIN_URL"]],
     ["rate-limiting", "Distributed rate limiting", distributedRateLimitReady,
       "Rate-limit state is shared across instances.",
-      "Point PORTAL_RATE_LIMIT_STORE_URL at a shared store; in-memory limits are per-process and not authoritative.",
+      "Wire the request limiter to a TLS-protected shared store and configure PORTAL_RATE_LIMIT_STORE_URL; the current in-memory limiter cannot clear this gate.",
       ["PORTAL_RATE_LIMIT_STORE_URL"]],
     ["mfa", "Step-up MFA / AAL2", mfaReady,
       "High-impact actions require an authoritative AAL2 / MFA ceremony.",
-      "Enable Supabase MFA (or an equivalent authoritative factor) and set PORTAL_MFA_ENABLED=true.",
-      ["PORTAL_MFA_ENABLED"]],
+      "Enable an authoritative factor, run an AAL2 ceremony, then record its provider and verification time.",
+      ["PORTAL_MFA_ENABLED", "PORTAL_MFA_PROVIDER", "PORTAL_MFA_VERIFIED_AT"]],
     ["verified-restore", "Verified restore", verifiedRestoreReady,
       "A restore from backup has been drilled and verified.",
-      "Run an owner-approved restore drill, then record PORTAL_LAST_VERIFIED_RESTORE_AT.",
-      ["PORTAL_LAST_VERIFIED_RESTORE_AT"]],
+      "Run an owner-approved restore drill, then record its recent UTC time and verified artifact SHA-256.",
+      ["PORTAL_LAST_VERIFIED_RESTORE_AT", "PORTAL_LAST_VERIFIED_RESTORE_SHA256"]],
     ["backup-freshness", "Backup freshness", backupFreshnessReady,
       "Backups run and a recent one is recorded.",
-      "Enable BACKUP_ENABLED and record PORTAL_LAST_BACKUP_AT from the backup job.",
-      ["BACKUP_ENABLED", "PORTAL_LAST_BACKUP_AT"]],
+      "Enable backups and publish the latest successful UTC time plus encrypted artifact SHA-256 from the job.",
+      ["BACKUP_ENABLED", "PORTAL_LAST_BACKUP_AT", "PORTAL_LAST_BACKUP_SHA256"]],
     ["supply-chain", "Dependency / supply-chain gate", supplyChainReady,
       "The production dependency audit passed in CI for this release.",
-      "Run the production dependency audit in CI and set PORTAL_DEPENDENCY_AUDIT_PASSED=true on the release.",
-      ["PORTAL_DEPENDENCY_AUDIT_PASSED"]],
+      "Run the production dependency audit in CI and record its UTC time and exact deployed commit SHA.",
+      ["PORTAL_DEPENDENCY_AUDIT_PASSED", "PORTAL_DEPENDENCY_AUDIT_AT", "PORTAL_DEPENDENCY_AUDIT_SHA"]],
     ["edge-waf", "Edge / WAF posture", edgeWafReady,
       "An edge WAF fronts the deployment.",
-      "Enable an edge/WAF layer at the provider and set PORTAL_EDGE_WAF_ENABLED=true.",
-      ["PORTAL_EDGE_WAF_ENABLED"]],
+      "Enable the provider WAF, verify it against the public origin, then record its provider and UTC verification time.",
+      ["PORTAL_EDGE_WAF_ENABLED", "PORTAL_EDGE_WAF_PROVIDER", "PORTAL_EDGE_WAF_VERIFIED_AT"]],
   ].map(([id, label, ready, readySummary, action, envKeys]) => ({
     id: id as ReadinessItem["id"],
     label: label as string,
@@ -302,13 +418,25 @@ export function inspectProductionReadiness(
     {
       id: "database",
       label: "Customer data",
-      status: databaseReady ? "ready" : "needs-setup",
-      summary: databaseReady ? "Durable Supabase or Postgres storage selected." : "Local file storage is not safe for a live deployment.",
-      action: databaseReady ? "No action needed." : "Connect Supabase or Postgres and select the matching portal backend.",
+      status: databaseReady && writeAdmissionBackendReady ? "ready" : "needs-setup",
+      summary: databaseReady && writeAdmissionBackendReady
+        ? "Durable Supabase storage and the supported write-admission backend are selected."
+        : databaseReady && !canonicalStateKey
+          ? "The production datastore namespace is not mapped to the durable AquaCRM write fence."
+        : databaseReady
+          ? "The selected hosted backend does not have durable write-admission parity."
+          : "Local file storage is not safe for a live deployment.",
+      action: databaseReady && writeAdmissionBackendReady
+        ? "No action needed."
+        : databaseReady && !canonicalStateKey
+          ? "Unset PORTAL_STATE_KEY (or set aquacrm-portal-state); custom production namespaces require an explicit database fence migration."
+        : databaseReady
+          ? "Select the Supabase portal backend, or implement and verify PostgreSQL write-admission parity before launch."
+          : "Connect Supabase and explicitly select the supported portal backend.",
       required: true,
       group: "core",
       scope: "platform",
-      envKeys: ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "NEXT_PUBLIC_PUBLISHABLE_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY", "DATABASE_URL", "PORTAL_BACKEND"],
+      envKeys: ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "NEXT_PUBLIC_PUBLISHABLE_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY", "DATABASE_URL", "PORTAL_BACKEND", "PORTAL_STATE_KEY"],
     },
     {
       id: "security",
@@ -478,9 +606,9 @@ export function inspectProductionReadiness(
 
   return {
     ready: visibleItems.filter(item => item.required).every(item => item.status === "ready"),
-    environment: env.VERCEL_ENV === "production"
+    environment: deploymentLabel === "production"
       ? "production"
-      : env.VERCEL_ENV === "preview"
+      : isPublicDeployment
         ? "preview"
         : "local",
     audience,

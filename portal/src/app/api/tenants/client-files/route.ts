@@ -235,6 +235,7 @@ export async function POST(req: Request) {
       storageProvider: target?.storageProvider,
       storageKey: target?.storageKey,
       localDirectory: "client-uploads",
+      admission: { tenantId: session.agencyId, actor: session.userId },
     });
     if (!removal.ok) {
       // Provider I/O yielded to every other request. Merge the failure marker

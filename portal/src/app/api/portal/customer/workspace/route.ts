@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { authErrorResponse, issueSession, requireRole, sessionCookie } from "@/lib/server/auth/auth";
+import { authErrorResponse, issueSessionForResponse, requireRole, sessionCookie } from "@/lib/server/auth/auth";
 import { listAccessibleClientPortals } from "@/server/clientRelationships";
 import { getUserById } from "@/server/users";
 import { CUSTOMER_PORTAL_ROLES } from "@/server/types";
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     }
 
     const user = getUserById(session.userId);
-    const token = issueSession({
+    const token = await issueSessionForResponse({
       userId: session.userId,
       email: session.email,
       role: session.role,

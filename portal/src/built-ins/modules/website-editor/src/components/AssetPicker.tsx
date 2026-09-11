@@ -13,6 +13,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { PortalAsset } from "../lib/media";
 import { listAssets, loadAssets, uploadAsset } from "../lib/media";
+import { PUBLIC_MEDIA_FILE_ACCEPT } from "@/lib/shared/publicMediaLimits";
 
 interface AssetPickerProps {
   value: string;
@@ -73,7 +74,7 @@ export default function AssetPicker({ value, onChange, placeholder }: AssetPicke
         <input
           ref={fileInput}
           type="file"
-          accept="image/*"
+          accept={PUBLIC_MEDIA_FILE_ACCEPT}
           className="hidden"
           onChange={e => void handleUpload(e.target.files)}
         />

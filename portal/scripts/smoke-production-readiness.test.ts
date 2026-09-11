@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { before, after, describe, it } from "node:test";
-import { inspectProductionReadiness } from "../src/lib/server/productionReadiness";
+import {
+  inspectProductionReadiness as inspectProductionReadinessRaw,
+  type OperationalSecurityEvidence,
+  type ReadinessContext,
+} from "../src/lib/server/productionReadiness";
 import { setContentScanner } from "../src/lib/server/security/contentTrust";
+import { setSecurityEventDrain } from "../src/lib/server/security/securityEvents";
 import {
   inspectObservabilityCapability,
   isSentrySdkInstalled,
@@ -11,14 +16,50 @@ import {
 // scanner (Item 7/11) — env presence alone is not enough. Wire a stub so the
 // "fully configured → ready" cases reflect a real deployment; the red-by-default
 // cases rely on the ENV being absent, so they are unaffected.
-before(() => setContentScanner(async () => ({ malicious: false })));
-after(() => setContentScanner(null));
+before(() => {
+  setContentScanner(async () => ({ malicious: false }));
+  setSecurityEventDrain(() => {});
+});
+after(() => {
+  setContentScanner(null);
+  setSecurityEventDrain(null);
+});
+
+const TEST_NOW = Date.parse("2026-09-10T12:00:00Z");
+const BUILD_SHA = "0123456789abcdef0123456789abcdef01234567";
+const ARTIFACT_SHA256 = "a".repeat(64);
+const VERIFIED_OPERATIONAL_EVIDENCE: OperationalSecurityEvidence = {
+  containment: { migrationVersion: "20260908220000", verifiedAtMs: Date.parse("2026-09-10T11:00:00Z") },
+  contentScanner: { healthyAtMs: Date.parse("2026-09-10T11:59:00Z") },
+  securityEventDrain: { healthyAtMs: Date.parse("2026-09-10T11:59:00Z") },
+  distributedRateLimit: { healthyAtMs: Date.parse("2026-09-10T11:59:00Z"), provider: "redis" },
+  mfa: { provider: "supabase", verifiedAtMs: Date.parse("2026-09-10T11:00:00Z") },
+  restore: { verifiedAtMs: Date.parse("2026-09-01T00:00:00Z"), artifactSha256: ARTIFACT_SHA256 },
+  backup: { verifiedAtMs: Date.parse("2026-09-10T11:00:00Z"), artifactSha256: ARTIFACT_SHA256 },
+  supplyChain: { verifiedAtMs: Date.parse("2026-09-10T11:00:00Z"), commitSha: BUILD_SHA },
+  edgeWaf: { provider: "vercel", verifiedAtMs: Date.parse("2026-09-10T11:00:00Z") },
+};
+
+function inspectProductionReadiness(
+  env: NodeJS.ProcessEnv = {},
+  context: ReadinessContext = {},
+) {
+  return inspectProductionReadinessRaw(env, {
+    nowMs: TEST_NOW,
+    operationalSecurityEvidence: VERIFIED_OPERATIONAL_EVIDENCE,
+    ...context,
+  });
+}
 
 function productionEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   return {
     VERCEL_ENV: "production",
-    PORTAL_BACKEND: "postgres",
-    DATABASE_URL: "postgres://portal.example.invalid/milesymedia",
+    PORTAL_BACKEND: "supabase",
+    NEXT_PUBLIC_SUPABASE_URL: "https://project.supabase.co",
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: "public-anon-key",
+    SUPABASE_SERVICE_ROLE_KEY: "server-service-role-key",
+    NEXT_PUBLIC_SUPABASE_PUBLIC_BUCKET: "aquacrm-public",
+    NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET: "aquacrm-uploads",
     PORTAL_SESSION_SECRET: "a-production-session-secret-over-32-characters",
     NEXT_PUBLIC_PORTAL_SECURITY: "strict",
     NEXT_PUBLIC_PORTAL_BASE_URL: "https://portal.milesymedia.co.uk",
@@ -31,15 +72,26 @@ function productionEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     // environment must now PROVE each control, not merely leave it unset. These
     // are the owner-set signals recorded after the real control is in place.
     PORTAL_CONTAINMENT_MIGRATION_VERIFIED: "true",
+    PORTAL_CONTAINMENT_MIGRATION_VERSION: "20260908220000",
+    PORTAL_CONTAINMENT_MIGRATION_VERIFIED_AT: "2026-09-10T11:00:00Z",
     PORTAL_AV_SCANNER_URL: "https://av.internal.example/scan",
     PORTAL_SECURITY_EVENT_DRAIN_URL: "https://drain.internal.example/events",
-    PORTAL_RATE_LIMIT_STORE_URL: "redis://rate.internal.example:6379",
+    PORTAL_RATE_LIMIT_STORE_URL: "rediss://rate.internal.example:6379",
     PORTAL_MFA_ENABLED: "true",
+    PORTAL_MFA_PROVIDER: "supabase",
+    PORTAL_MFA_VERIFIED_AT: "2026-09-10T11:00:00Z",
     PORTAL_LAST_VERIFIED_RESTORE_AT: "2026-09-01T00:00:00Z",
+    PORTAL_LAST_VERIFIED_RESTORE_SHA256: ARTIFACT_SHA256,
     BACKUP_ENABLED: "1",
-    PORTAL_LAST_BACKUP_AT: "2026-09-08T00:00:00Z",
+    PORTAL_LAST_BACKUP_AT: "2026-09-10T11:00:00Z",
+    PORTAL_LAST_BACKUP_SHA256: ARTIFACT_SHA256,
     PORTAL_DEPENDENCY_AUDIT_PASSED: "true",
+    PORTAL_DEPENDENCY_AUDIT_AT: "2026-09-10T11:00:00Z",
+    PORTAL_DEPENDENCY_AUDIT_SHA: BUILD_SHA,
+    VERCEL_GIT_COMMIT_SHA: BUILD_SHA,
     PORTAL_EDGE_WAF_ENABLED: "true",
+    PORTAL_EDGE_WAF_PROVIDER: "vercel",
+    PORTAL_EDGE_WAF_VERIFIED_AT: "2026-09-10T11:00:00Z",
     ...overrides,
   };
 }
@@ -83,13 +135,84 @@ describe("production readiness", () => {
   });
 
   it("content-scanner needs an ACTUALLY WIRED adapter, not just the env string (Item 11)", () => {
-    // Env present but no adapter registered → still red.
-    const notWired = inspectProductionReadiness(productionEnv(), { contentScannerWired: false });
-    assert.equal(notWired.items.find(i => i.id === "content-scanner")?.status, "needs-setup");
-    assert.equal(notWired.ready, false);
-    // Env present AND adapter wired → ready.
-    const wired = inspectProductionReadiness(productionEnv(), { contentScannerWired: true });
-    assert.equal(wired.items.find(i => i.id === "content-scanner")?.status, "ready");
+    setContentScanner(null);
+    try {
+      const notWired = inspectProductionReadiness(productionEnv());
+      assert.equal(notWired.items.find(i => i.id === "content-scanner")?.status, "needs-setup");
+      assert.equal(notWired.ready, false);
+    } finally {
+      setContentScanner(async () => ({ malicious: false }));
+    }
+    assert.equal(inspectProductionReadiness(productionEnv()).items.find(i => i.id === "content-scanner")?.status, "ready");
+  });
+
+  it("does not turn operational gates green from plausible environment strings alone", () => {
+    const env = productionEnv();
+    const result = inspectProductionReadinessRaw(env, { nowMs: TEST_NOW });
+    for (const [id] of SECURITY_EVIDENCE_SIGNALS) {
+      assert.equal(result.items.find(item => item.id === id)?.status, "needs-setup", id);
+    }
+  });
+
+  it("requires recent healthy observations for registered scanner, drain and rate-limit capabilities", () => {
+    const stale = Date.parse("2026-09-10T10:00:00Z");
+    const result = inspectProductionReadiness(productionEnv(), {
+      operationalSecurityEvidence: {
+        ...VERIFIED_OPERATIONAL_EVIDENCE,
+        contentScanner: { healthyAtMs: stale },
+        securityEventDrain: { healthyAtMs: stale },
+        distributedRateLimit: { healthyAtMs: stale, provider: "redis" },
+      },
+    });
+    for (const id of ["content-scanner", "security-event-drain", "rate-limiting"]) {
+      assert.equal(result.items.find(item => item.id === id)?.status, "needs-setup", id);
+    }
+  });
+
+  it("rejects malformed, future and stale evidence instead of treating strings as proof", () => {
+    const cases: Array<[string, NodeJS.ProcessEnv]> = [
+      ["containment-migration", { PORTAL_CONTAINMENT_MIGRATION_VERIFIED_AT: "not-a-date" }],
+      ["mfa", { PORTAL_MFA_VERIFIED_AT: "2099-01-01T00:00:00Z" }],
+      ["mfa", { PORTAL_MFA_ENABLED: "TRUE" }],
+      ["verified-restore", { PORTAL_LAST_VERIFIED_RESTORE_SHA256: "not-a-sha" }],
+      ["backup-freshness", { PORTAL_LAST_BACKUP_AT: "2026-09-01T00:00:00Z" }],
+      ["supply-chain", { PORTAL_DEPENDENCY_AUDIT_SHA: "f".repeat(40) }],
+      ["edge-waf", { PORTAL_EDGE_WAF_PROVIDER: "invalid provider value" }],
+    ];
+    for (const [id, override] of cases) {
+      const result = inspectProductionReadiness(productionEnv(override));
+      assert.equal(result.items.find(item => item.id === id)?.status, "needs-setup", id);
+      assert.equal(result.ready, false);
+    }
+  });
+
+  it("rejects loopback, plaintext and malformed capability endpoints", () => {
+    const cases: Array<[string, NodeJS.ProcessEnv]> = [
+      ["content-scanner", { PORTAL_AV_SCANNER_URL: "http://localhost:8080/scan" }],
+      ["security-event-drain", { PORTAL_SECURITY_EVENT_DRAIN_URL: "not-a-url" }],
+      ["rate-limiting", { PORTAL_RATE_LIMIT_STORE_URL: "redis://rate.example.test:6379" }],
+    ];
+    for (const [id, override] of cases) {
+      const result = inspectProductionReadiness(productionEnv(override));
+      assert.equal(result.items.find(item => item.id === id)?.status, "needs-setup", id);
+    }
+  });
+
+  it("classifies Railway production and preview as public and refuses their loopback databases", () => {
+    for (const name of ["production", "staging"] as const) {
+      const env = productionEnv({
+        VERCEL_ENV: "",
+        VERCEL_GIT_COMMIT_SHA: "",
+        RAILWAY_ENVIRONMENT_NAME: name,
+        RAILWAY_PROJECT_ID: "project-id",
+        RAILWAY_GIT_COMMIT_SHA: BUILD_SHA,
+        PORTAL_BACKEND: "postgres",
+        DATABASE_URL: "postgres://portal:secret@localhost:5432/aquacrm",
+      });
+      const result = inspectProductionReadiness(env);
+      assert.equal(result.environment, name === "production" ? "production" : "preview");
+      assert.equal(result.items.find(item => item.id === "database")?.status, "needs-setup");
+    }
   });
 
   it("keeps atomic public-media publication RED with no environment-variable bypass", () => {
@@ -156,6 +279,7 @@ describe("production readiness", () => {
 
   it("does not accept a localhost database for a public deployment", () => {
     const result = inspectProductionReadiness(productionEnv({
+      PORTAL_BACKEND: "postgres",
       DATABASE_URL: "postgres://portal:secret@127.0.0.1:5432/milesymedia",
     }));
     assert.equal(result.ready, false);

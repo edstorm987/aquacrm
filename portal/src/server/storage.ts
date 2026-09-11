@@ -55,6 +55,10 @@ import {
 } from "./storagePatch";
 import { isRemoteOperationError } from "@/lib/server/remoteOperation";
 import {
+  assertFreshWriteAdmission,
+  isWriteAdmissionDenied,
+} from "@/lib/server/security/writeAdmission";
+import {
   applyDevTeamWorkspaceFileMutations as applyDevTeamWorkspaceMutationsToState,
   DevTeamWorkspaceConflictError,
   type DevTeamWorkspaceFileMutation,
@@ -190,6 +194,12 @@ interface Backend {
     operationId: string,
     realmId: string,
   ): Promise<{ mainBlob: string; sidecarBlobs: Record<string, string> }>;
+  quarantinePatch?(
+    operations: StoragePatchOperation[],
+    sidecars: Array<{ slug: string; key: string; operations: StoragePatchOperation[] }>,
+    operationId: string,
+    realmId: string,
+  ): Promise<PortalStateWriteQuarantine>;
   /**
    * Load the Dev Team workspace files from their own datastore row.
    *
@@ -330,6 +340,10 @@ const supabaseBackend: Backend = {
   async applyPatchWithSidecars(operations, sidecars, operationId, realmId) {
     const { applyPatchWithSidecars } = await import("./storageSupabase");
     return applyPatchWithSidecars(operations, sidecars, { operationId }, realmId);
+  },
+  async quarantinePatch(operations, sidecars, operationId, realmId) {
+    const { quarantinePatch } = await import("./storageSupabase");
+    return quarantinePatch(operations, sidecars, operationId, realmId);
   },
   async loadSidecarBlob(slug, realmId) {
     const { loadSidecarBlob } = await import("./storageSupabase");
@@ -525,6 +539,10 @@ interface RealmRuntime {
   /** Exact operations required to make an unknown durable outcome definite. */
   reconciliationPlan: RealmReconciliationPlan | null;
   pendingPatchOperations: StoragePatchOperation[];
+  /** Exact freeze-refused operations sealed outside PortalState. */
+  writeQuarantine: PortalStateWriteQuarantine | null;
+  /** Quarantine persistence failed; RAM is retained but the realm stays shut. */
+  writeQuarantineFailure: Error | null;
   activeAtomicCommit: PortalStateCommitCapture | null;
   atomicCommitTail: Promise<void>;
   hydrated: boolean;
@@ -566,6 +584,32 @@ interface RealmReconciliationPlan {
     /** Exact in-memory operations covered by this receipt; identity is intentional. */
     capturedPendingOperations: StoragePatchOperation[];
   } | null;
+}
+
+export interface PortalStateWriteQuarantine {
+  id: number;
+  status: "pending" | "replayed" | "discarded";
+  operationId: string;
+  controlScope: "global" | "tenant";
+  controlScopeId: string;
+  controlRevision: number;
+  controlReason: string | null;
+  capturedAt: string;
+}
+
+export class PortalStateWriteQuarantinedError extends Error {
+  readonly code = "write_quarantined";
+  readonly quarantine: PortalStateWriteQuarantine;
+
+  constructor(quarantine: PortalStateWriteQuarantine) {
+    super(
+      `[security] PortalState write ${quarantine.operationId} was sealed in quarantine #${quarantine.id} `
+      + `at ${quarantine.controlScope} ${quarantine.controlScopeId} revision ${quarantine.controlRevision}; `
+      + "an operator must explicitly replay or discard it.",
+    );
+    this.name = "PortalStateWriteQuarantinedError";
+    this.quarantine = quarantine;
+  }
 }
 
 interface PortalStateCommitCapture {
@@ -618,6 +662,8 @@ function realmRuntimeIsEvictable(runtime: RealmRuntime): boolean {
     && runtime.flushInFlight === null
     && runtime.activeAtomicCommit === null
     && runtime.reconciliationRequired === null
+    && runtime.writeQuarantine === null
+    && runtime.writeQuarantineFailure === null
     && runtime.pendingPatchOperations.length === 0
     && runtime.mutationVersion === runtime.persistedVersion;
 }
@@ -667,6 +713,8 @@ function realmRuntime(realmId = getActiveDataRealmId()): RealmRuntime {
     reconciliationRequired: null,
     reconciliationPlan: null,
     pendingPatchOperations: [],
+    writeQuarantine: null,
+    writeQuarantineFailure: null,
     activeAtomicCommit: null,
     atomicCommitTail: Promise.resolve(),
     hydrated: false,
@@ -1058,6 +1106,12 @@ export async function ensureHydrated(options?: {
         runtime.lastFlushError = null;
         runtime.reconciliationRequired = null;
         runtime.reconciliationPlan = null;
+        // A read refresh is allowed while quarantined, but it must not turn a
+        // sealed worker writable again. Resolution is explicit and durable;
+        // this process rejoins only after restart and a fresh authority read.
+        runtime.writable = backend.kind !== "kv"
+          && runtime.writeQuarantine === null
+          && runtime.writeQuarantineFailure === null;
         // R025: migrate legacy single-agency user rows in place. Pure +
         // idempotent — re-running on already-migrated rows is a no-op.
         // Lazy-import to avoid pulling the migration helper into every
@@ -1310,6 +1364,16 @@ async function flushRealm(
     let requiresReconciliation = false;
     let durableResponseReceived = false;
     try {
+      // A PortalState cache (including sandbox/showcase copies) is never an
+      // incident authority. Take a no-store LIVE snapshot immediately before
+      // transport; the database trigger remains the final same-transaction
+      // fence if a freeze commits after this read.
+      await assertFreshWriteAdmission({
+        kind: "platform",
+        purpose: "platform-maintenance",
+        surface: "database.portal-state-flush",
+        actor: `portal-storage:${realmId}`,
+      });
       const writeMain = async (): Promise<{ mainBlob: string | null; sidecarBlobs: Record<string, string> }> => {
         if (ownedSidecarPatches.length > 0 && backend.applyPatchWithSidecars) {
           const saved = await backend.applyPatchWithSidecars(operations, ownedSidecarPatches, operationId, realmId);
@@ -1386,6 +1450,63 @@ async function flushRealm(
     } catch (e) {
       const primaryError = e instanceof Error ? e : new Error(String(e));
       runtime.lastFlushError = primaryError;
+      if (isWriteAdmissionDenied(primaryError) && !runtime.activeAtomicCommit) {
+        // A durable containment refusal is definitive, not a transient outage.
+        // Stop mutation synchronously, then seal EVERY operation currently
+        // based on this optimistic cache. The quarantine RPC is permitted only
+        // while admission is closed and records the authoritative revision and
+        // reason. Once sealed, invalidate the cache so reads cannot mistake
+        // uncommitted state for durable truth.
+        if (runtime.flushTimer) clearTimeout(runtime.flushTimer);
+        runtime.flushTimer = null;
+        runtime.writable = false;
+        const quarantinedPending = runtime.pendingPatchOperations.slice();
+        const quarantinedSidecars = SIDECAR_COLLECTIONS
+          .filter(entry => !entry.dedicatedWriter)
+          .flatMap(entry => {
+            const sidecarOperations = quarantinedPending.filter(operation => operation.path[0] === entry.key);
+            return sidecarOperations.length > 0
+              ? [{ slug: entry.slug, key: entry.key, operations: sidecarOperations }]
+              : [];
+          });
+        const quarantineMain = quarantinedPending.filter(operation =>
+          !quarantinedSidecars.some(sidecar => sidecar.key === operation.path[0]));
+        if (backend.quarantinePatch && quarantinedPending.length > 0) {
+          try {
+            const quarantine = await backend.quarantinePatch(
+              quarantineMain,
+              quarantinedSidecars,
+              operationId,
+              realmId,
+            );
+            runtime.writeQuarantine = quarantine;
+            runtime.writeQuarantineFailure = null;
+            runtime.pendingPatchOperations = [];
+            runtime.cache = null;
+            runtime.hydrated = false;
+            runtime.hydratePromise = null;
+            runtime.sidecarPopulated.clear();
+            runtime.sidecarLoaded.clear();
+            runtime.mutationVersion = 0;
+            runtime.persistedVersion = 0;
+            runtime.lastFlushError = new PortalStateWriteQuarantinedError(quarantine);
+          } catch (quarantineCause) {
+            runtime.writeQuarantineFailure = new Error(
+              `[security] write admission closed and durable quarantine failed: ${
+                quarantineCause instanceof Error ? quarantineCause.message : String(quarantineCause)
+              }`,
+              { cause: new AggregateError([primaryError, quarantineCause]) },
+            );
+            runtime.lastFlushError = runtime.writeQuarantineFailure;
+          }
+        } else if (quarantinedPending.length > 0) {
+          runtime.writeQuarantineFailure = new Error(
+            `[security] write admission closed but backend "${backend.kind}" has no durable quarantine boundary.`,
+            { cause: primaryError },
+          );
+          runtime.lastFlushError = runtime.writeQuarantineFailure;
+        }
+      }
       // A transport-successful commit whose authoritative state cannot be
       // decoded locally is still durable. Keep the exact receipt and fence the
       // realm; treating this as an ordinary rollback would drop retry state.
@@ -1771,6 +1892,8 @@ export function mutate(fn: (state: PortalState) => void, options?: MutateOptions
   const realmId = getActiveDataRealmId();
   const runtime = realmRuntime(realmId);
   if (runtime.reconciliationRequired) throw runtime.reconciliationRequired;
+  if (runtime.writeQuarantine) throw new PortalStateWriteQuarantinedError(runtime.writeQuarantine);
+  if (runtime.writeQuarantineFailure) throw runtime.writeQuarantineFailure;
   const transaction = portalStateMutationTransactions.getStore();
   // KILL SWITCH — checked before the callback runs so nothing partially
   // applies. Realm-scoped: each data realm's own securityControl governs it.
@@ -1916,6 +2039,8 @@ export async function reset(): Promise<void> {
   const realmId = getActiveDataRealmId();
   const runtime = realmRuntime(realmId);
   if (runtime.reconciliationRequired) throw runtime.reconciliationRequired;
+  if (runtime.writeQuarantine) throw new PortalStateWriteQuarantinedError(runtime.writeQuarantine);
+  if (runtime.writeQuarantineFailure) throw runtime.writeQuarantineFailure;
   runtime.cache = empty();
   runtime.pendingPatchOperations = [];
   runtime.hydrated = true;
@@ -1935,6 +2060,8 @@ export interface BackendInfo {
   hydrated: boolean;
   writable: boolean;
   realmId: string;
+  quarantine: PortalStateWriteQuarantine | null;
+  quarantineDurable: boolean;
 }
 
 export function getBackendInfo(): BackendInfo {
@@ -1947,6 +2074,8 @@ export function getBackendInfo(): BackendInfo {
     hydrated: runtime.hydrated,
     writable: runtime.writable && !runtime.reconciliationRequired,
     realmId,
+    quarantine: runtime.writeQuarantine,
+    quarantineDurable: runtime.writeQuarantineFailure === null,
   };
 }
 
@@ -1960,6 +2089,8 @@ export async function replaceDataRealmState(realmId: string, state: PortalState)
   await runInDataRealm(realmId, async () => {
     const valid = getActiveDataRealmId();
     const runtime = realmRuntime(valid);
+    if (runtime.writeQuarantine) throw new PortalStateWriteQuarantinedError(runtime.writeQuarantine);
+    if (runtime.writeQuarantineFailure) throw runtime.writeQuarantineFailure;
     if (runtime.flushTimer) clearTimeout(runtime.flushTimer);
     runtime.flushTimer = null;
     runtime.cache = parseBlob(JSON.stringify(state));

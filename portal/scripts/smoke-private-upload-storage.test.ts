@@ -1173,7 +1173,7 @@ test("a stored upload whose record cannot be written is nothing to delete", asyn
 
 test("a refusing provider is reported as a failure, never as a deletion", async () => {
   const supabase = await storage.deletePrivateUpload(
-    { storageProvider: "supabase", storageKey: "clients/a/b.pdf", localDirectory: LOCAL_DIR },
+    { storageProvider: "supabase", storageKey: "clients/a/b.pdf", localDirectory: LOCAL_DIR, admission: { platformPurpose: "platform-maintenance" } },
     { supabase: async () => { throw new Error("bucket is read-only"); } },
   );
   assert.equal(supabase.ok, false);
@@ -1181,13 +1181,13 @@ test("a refusing provider is reported as a failure, never as a deletion", async 
   assert.equal(supabase.error, "bucket is read-only");
 
   const blob = await storage.deletePrivateUpload(
-    { storageProvider: "vercel-blob", storageKey: "https://blob.example/a.pdf", localDirectory: LOCAL_DIR },
+    { storageProvider: "vercel-blob", storageKey: "https://blob.example/a.pdf", localDirectory: LOCAL_DIR, admission: { platformPurpose: "platform-maintenance" } },
     { vercelBlob: async () => { throw new Error("blob store unreachable"); } },
   );
   assert.equal(blob.ok, false);
   assert.equal(blob.error, "blob store unreachable");
 
-  const unknown = await storage.deletePrivateUpload({ storageProvider: "dropbox", storageKey: "x", localDirectory: LOCAL_DIR });
+  const unknown = await storage.deletePrivateUpload({ storageProvider: "dropbox", storageKey: "x", localDirectory: LOCAL_DIR, admission: { platformPurpose: "platform-maintenance" } });
   assert.equal(unknown.ok, false);
   assert.match(unknown.error ?? "", /Unknown storage provider/);
 });
@@ -1203,7 +1203,7 @@ test("a delete retry after the provider already converged is idempotent", async 
     missing.code = "ObjectNotFound";
     throw missing;
   };
-  const input = { storageProvider: "vercel-blob", storageKey: "https://blob.example/retry.pdf", localDirectory: LOCAL_DIR };
+  const input = { storageProvider: "vercel-blob", storageKey: "https://blob.example/retry.pdf", localDirectory: LOCAL_DIR, admission: { platformPurpose: "platform-maintenance" as const } };
   const first = await storage.deletePrivateUpload(input, { vercelBlob: provider });
   const afterCrashRetry = await storage.deletePrivateUpload(input, { vercelBlob: provider });
   assert.deepEqual(first, { ok: true, outcome: "deleted" });
@@ -1215,14 +1215,14 @@ test("a local delete really removes the file, is idempotent and refuses to escap
   const key = join("agency", "brief.txt");
   writeFileSync(join(localRoot, key), "brief");
   try {
-    const removed = await storage.deletePrivateUpload({ storageProvider: "local", storageKey: key, localDirectory: LOCAL_DIR });
+    const removed = await storage.deletePrivateUpload({ storageProvider: "local", storageKey: key, localDirectory: LOCAL_DIR, admission: { platformPurpose: "platform-maintenance" } });
     assert.deepEqual(removed, { ok: true, outcome: "deleted" });
     assert.equal(existsSync(join(localRoot, key)), false);
 
-    const again = await storage.deletePrivateUpload({ storageProvider: "local", storageKey: key, localDirectory: LOCAL_DIR });
+    const again = await storage.deletePrivateUpload({ storageProvider: "local", storageKey: key, localDirectory: LOCAL_DIR, admission: { platformPurpose: "platform-maintenance" } });
     assert.equal(again.ok, true, "removing an already-removed file is convergent, not an error");
 
-    const escape = await storage.deletePrivateUpload({ storageProvider: "local", storageKey: "../../package.json", localDirectory: LOCAL_DIR });
+    const escape = await storage.deletePrivateUpload({ storageProvider: "local", storageKey: "../../package.json", localDirectory: LOCAL_DIR, admission: { platformPurpose: "platform-maintenance" } });
     assert.equal(escape.ok, false, "a traversal key must be refused, not silently reported as deleted");
     assert.equal(escape.outcome, "failed");
     assert.equal(existsSync(join(process.cwd(), "package.json")), true);

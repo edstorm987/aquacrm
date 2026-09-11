@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-10T02:33:16.924Z",
+  "generatedAt": "2026-09-10T21:06:31.150Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -51,46 +51,6 @@
   ],
   "generatedReferenceDirectory": "docs/reference",
   "sources": [
-    {
-      "path": ".artefacts/ui-wave9/03-write-journeys.md",
-      "volume": "docs/00-START-HERE.md",
-      "anchor": "source-artefacts-ui-wave9-03-write-journeys-md",
-      "sha256": "8030166105658cd37ece46f94f0e7c93f3330499bb477e668f92f963af460ad0",
-      "words": 359,
-      "bytes": 2438
-    },
-    {
-      "path": ".artefacts/ui-wave9/04-prehydration-FINDING.md",
-      "volume": "docs/00-START-HERE.md",
-      "anchor": "source-artefacts-ui-wave9-04-prehydration-finding-md",
-      "sha256": "c5d1c376bc5129ac54400639b0a052d7f537edb5112a03eace844cf1f8a985b0",
-      "words": 1161,
-      "bytes": 8434
-    },
-    {
-      "path": ".artefacts/ui-wave9/07-prod-roles-BLOCKED.md",
-      "volume": "docs/00-START-HERE.md",
-      "anchor": "source-artefacts-ui-wave9-07-prod-roles-blocked-md",
-      "sha256": "05266377c83ffc5b8c83cfe78eda4dea2bc692eff7bfcc8fb7b1563b3db3822f",
-      "words": 267,
-      "bytes": 1880
-    },
-    {
-      "path": ".artefacts/ui-wave9/10-item7-prod-role-matrix.md",
-      "volume": "docs/00-START-HERE.md",
-      "anchor": "source-artefacts-ui-wave9-10-item7-prod-role-matrix-md",
-      "sha256": "632eb9e894d0acb82879f8cf8ce59fa0cfcd4d160f85a0e20a326a999a21f14e",
-      "words": 347,
-      "bytes": 2321
-    },
-    {
-      "path": ".artefacts/ui-wave9/FINDING-workspace-curtain.md",
-      "volume": "docs/00-START-HERE.md",
-      "anchor": "source-artefacts-ui-wave9-finding-workspace-curtain-md",
-      "sha256": "ec097f764684e5e2bc6f8b206c1832f6dbabf5654648e62cf6048c55d7f5261a",
-      "words": 291,
-      "bytes": 2016
-    },
     {
       "path": "AGENTS.md",
       "volume": "docs/00-START-HERE.md",

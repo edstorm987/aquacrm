@@ -273,9 +273,8 @@ export function recordAgencyWebsiteTelemetry(
   userAgent?: string,
 ): { status: "recorded"; agencyId: string; event: AgencyWebsiteTelemetryEvent } | { status: "rate-limited" } | null {
   const publicSite = publicAquaSite(siteKey);
-  const project = publicSite
-    ? ensurePrimaryAgencyWebsite()
-    : Object.values(getState().agencyWebsites).find(item => item.telemetrySiteKey === siteKey);
+  const owner = resolveAgencyWebsiteTelemetryOwner(siteKey);
+  const project = owner ? getState().agencyWebsites[owner.agencyId] : undefined;
   if (!project) return null;
   const minuteAgo = Date.now() - 60_000;
   const propertyId = publicSite
@@ -344,6 +343,18 @@ export function recordAgencyWebsiteTelemetry(
     });
   }
   return { status: "recorded", agencyId: project.agencyId, event };
+}
+
+/** Pure tenant resolution; public traffic must never provision a website. */
+export function resolveAgencyWebsiteTelemetryOwner(siteKey: string): { agencyId: string } | null {
+  const state = getState();
+  if (publicAquaSite(siteKey)) {
+    const agency = Object.values(state.agencies).find(item => /milesy\s*media/i.test(item.name))
+      ?? Object.values(state.agencies)[0];
+    return agency && state.agencyWebsites[agency.id] ? { agencyId: agency.id } : null;
+  }
+  const project = Object.values(state.agencyWebsites).find(item => item.telemetrySiteKey === siteKey);
+  return project ? { agencyId: project.agencyId } : null;
 }
 
 export function summarizeAgencyWebsite(project: AgencyWebsiteProject): ClientTelemetrySummary {

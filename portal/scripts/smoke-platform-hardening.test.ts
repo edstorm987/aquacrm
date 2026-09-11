@@ -17,7 +17,7 @@ import { dirname, join } from "node:path";
 import test, { beforeEach } from "node:test";
 
 import { clientIpFromHeaders } from "../src/lib/server/rateLimit";
-import { isCrossOriginBrowserMutation } from "../src/proxy";
+import { isCrossOriginBrowserMutation, isOutOfBandWriteFreezeRefusal } from "../src/proxy";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -120,4 +120,26 @@ test("absent Origin+metadata passes (non-browser, no ambient cookie); null/malfo
   assert.equal(isCrossOriginBrowserMutation({ ...guarded, origin: null }), false);
   assert.equal(isCrossOriginBrowserMutation({ ...guarded, origin: "null" }), true);
   assert.equal(isCrossOriginBrowserMutation({ ...guarded, origin: "not a url" }), true);
+});
+
+test("the out-of-band freeze refuses HTTP effects before route code but preserves incident control", () => {
+  for (const path of [
+    "/api/portal/website-enquiries/status",
+    "/api/portal/website-enquiries/erase",
+    "/api/portal/website-enquiries/reply",
+    "/api/public/brand-enquiry",
+  ]) {
+    assert.equal(isOutOfBandWriteFreezeRefusal({ frozen: "1", method: "POST", path }), true, path);
+  }
+  assert.equal(isOutOfBandWriteFreezeRefusal({ frozen: "1", method: "GET", path: "/api/cron/radar-probes" }), true);
+  assert.equal(isOutOfBandWriteFreezeRefusal({ frozen: "1", method: "GET", path: "/api/portal/tasks" }), false);
+  for (const path of [
+    "/api/auth/login",
+    "/api/auth/login/browser",
+    "/api/auth/logout",
+    "/api/portal/security/actions",
+  ]) {
+    assert.equal(isOutOfBandWriteFreezeRefusal({ frozen: "1", method: "POST", path }), false, path);
+  }
+  assert.equal(isOutOfBandWriteFreezeRefusal({ frozen: "true", method: "POST", path: "/api/portal/tasks" }), false);
 });

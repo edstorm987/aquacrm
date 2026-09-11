@@ -14,6 +14,7 @@
 
 import "server-only";
 
+import { assertFreshWritesAllowed } from "@/lib/server/auth/securityControl";
 import type { Currency } from "./domain";
 
 export interface StripeKeys {
@@ -69,6 +70,7 @@ export interface InvoiceCheckoutInput {
   description?: string;
   successUrl: string;
   cancelUrl: string;
+  tenantId: string;
 }
 
 // Create a Stripe Checkout session (a pay-link) for a single invoice. The
@@ -79,6 +81,7 @@ export async function createInvoiceCheckout(
   input: InvoiceCheckoutInput,
   client?: StripeClientLike,
 ): Promise<{ id: string; url: string }> {
+  await assertFreshWritesAllowed("provider.stripe.agency-finance", { tenantId: input.tenantId });
   const stripe = await getStripeClient(keys.secretKey, client);
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
@@ -119,9 +122,10 @@ export async function verifyStripeWebhook(
 // Issue a refund against Ed's Stripe account. `amountCents` omitted → full refund.
 export async function createStripeRefund(
   keys: StripeKeys,
-  input: { paymentIntentId: string; amountCents?: number; reason?: string; idempotencyKey?: string },
+  input: { paymentIntentId: string; amountCents?: number; reason?: string; idempotencyKey?: string; tenantId: string },
   client?: StripeClientLike,
 ): Promise<{ id: string; status?: string; amount?: number; created?: number; reason?: string | null }> {
+  await assertFreshWritesAllowed("provider.stripe.agency-finance", { tenantId: input.tenantId });
   const stripe = await getStripeClient(keys.secretKey, client);
   return stripe.refunds.create(
     {

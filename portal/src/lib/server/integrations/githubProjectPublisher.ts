@@ -2,6 +2,7 @@ import "server-only";
 
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import { assertFreshWritesAllowed } from "@/lib/server/auth/securityControl";
 import { isProvisionedClientProjectPath } from "@/lib/server/clients/clientProjectProvisioner";
 import { resolveIntegrationValues } from "@/lib/server/integrations/integrationConnections";
 import { assertLiveProviderAccess } from "@/lib/server/sandbox/providerPolicy";
@@ -132,7 +133,7 @@ function repositoryDescriptions(description: string, recoveryToken?: string) {
 }
 
 export async function publishProjectToGitHub(input: {
-  agencyId?: string;
+  agencyId: string;
   clientId?: string;
   localPath: string;
   projectSlug: string;
@@ -157,6 +158,10 @@ export async function publishProjectToGitHub(input: {
    */
   onRepositoryCreated?: (repository: PublishedGitHubProject) => Promise<void> | void;
 }, dependencies: PublishDependencies = {}): Promise<PublishedGitHubProject> {
+  // Repository creation, metadata mutation and git push are irreversible
+  // provider effects. Refuse the operation before inspecting credentials or
+  // invoking either HTTP or git transports.
+  await assertFreshWritesAllowed("provider.github.publish", { tenantId: input.agencyId });
   assertLiveProviderAccess("GitHub publishing");
   if (!isProvisionedClientProjectPath(input.localPath) || !existsSync(input.localPath)) {
     throw new Error("Only projects provisioned inside the Milesymedia client-projects workspace can be published.");

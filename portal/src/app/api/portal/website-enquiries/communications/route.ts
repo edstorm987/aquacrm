@@ -97,7 +97,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "Enquiry, channel, send-as account and a message or attachment are required." }, { status: 400 });
     }
     const channel = channelInput as MessageChannel;
-    const supabase = await createEnquiryDataClient();
+    const supabase = await createEnquiryDataClient({
+      tenantId: agencyId,
+      actor: session.userId,
+      surface: "database.website-enquiry.communications",
+    });
     const data = await loadActorWebsiteEnquiry<EnquiryRow>(actor, supabase, {
       id: enquiryId,
       required: "use",

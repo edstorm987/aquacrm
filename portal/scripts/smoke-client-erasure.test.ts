@@ -305,7 +305,9 @@ describe("erasure disposition policy (GDPR Art. 17(3)(e)) + live scrub", () => {
     const src = require("node:fs").readFileSync(
       require("node:path").join(__dirname, "..", "src", "app", "api", "portal", "clients", "[clientId]", "erase", "route.ts"), "utf-8") as string;
     assert.match(src, /createSupabaseAdminClient/);
-    assert.match(src, /supabase: createSupabaseAdminClient\(\)/);
+    // Pass 5 threads the guarded service-role context (tenantId/surface/actor) into
+    // the admin client; the erase boundary still wires the live admin client.
+    assert.match(src, /supabase: createSupabaseAdminClient\(/);
   });
 });
 

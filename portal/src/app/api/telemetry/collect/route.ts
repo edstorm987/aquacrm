@@ -1,10 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { recordClientTelemetry } from "@/lib/server/clients/clientTelemetryService";
-import { recordAgencyWebsiteTelemetry } from "@/server/agencyWebsite";
+import { recordClientTelemetry, resolveClientTelemetryOwner } from "@/lib/server/clients/clientTelemetryService";
+import { recordAgencyWebsiteTelemetry, resolveAgencyWebsiteTelemetryOwner } from "@/server/agencyWebsite";
 import { ensureHydrated } from "@/server/storage";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isAllowedPublicSiteOrigin, publicAquaPropertyId, publicAquaSite } from "@/lib/public/publicSites";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
+import { assertFreshWriteAdmission } from "@/lib/server/security/writeAdmission";
 
 function corsHeaders(origin: string | null): HeadersInit {
   return {
@@ -109,7 +110,16 @@ export async function POST(req: NextRequest) {
     return json({ ok: false, error: "signal limit reached" }, 429, requestedOrigin, limit.retryAfterSec);
   }
 
-  await ensureHydrated();
+  await ensureHydrated({ fresh: true, forceFreshReload: true });
+  const owner = resolveClientTelemetryOwner(siteKey)
+    ?? resolveAgencyWebsiteTelemetryOwner(siteKey);
+  if (!owner) return json({ ok: false, error: "unknown site" }, 404, requestedOrigin);
+  await assertFreshWriteAdmission({
+    kind: "tenant",
+    tenantId: owner.agencyId,
+    surface: "database.public-telemetry",
+    actor: `site:${siteKey}`,
+  });
   const userAgent = req.headers.get("user-agent") ?? undefined;
   const recorded = recordClientTelemetry(siteKey, telemetry, userAgent)
     ?? recordAgencyWebsiteTelemetry(siteKey, telemetry, userAgent);
@@ -119,11 +129,16 @@ export async function POST(req: NextRequest) {
   }
 
   if (body.type === "consent") {
-    const supabase = createSupabaseAdminClient();
+    const supabase = createSupabaseAdminClient({
+      tenantId: owner.agencyId,
+      surface: "database.public-telemetry",
+      actor: `site:${siteKey}`,
+    });
     const occurredAt = typeof body.occurredAt === "number" && Number.isFinite(body.occurredAt)
       ? new Date(body.occurredAt).toISOString()
       : new Date().toISOString();
     const { error } = await supabase.from("website_consent_events").insert({
+      agency_id: owner.agencyId,
       brand_slug: publicSite?.brand ?? null,
       site_key: siteKey,
       property_id: publicAquaPropertyId(siteKey, body.propertyId) ?? (clean(body.propertyId, 120) || "unassigned"),

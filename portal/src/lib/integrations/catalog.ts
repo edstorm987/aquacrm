@@ -32,18 +32,22 @@ export const INTEGRATION_CATALOG: IntegrationDefinition[] = [
     // say they got the form so we can track enquiries without merging or
     // breaching data."*
     //
-    // ── Why there is no service-role key field here ──────────────────────
+    // ── Why there is no key or table field here (2026-09 secure-intake) ──
     //
     // A Supabase service-role key bypasses row-level security entirely: it is
     // root on that project. Storing one per client would mean a single
     // compromise of this vault hands over every client's whole database, and
     // no amount of encryption at rest changes what the key itself grants.
     //
-    // The anon key is powerless on its own — it can only do what that
-    // project's RLS policies allow — so the client stays in control of exactly
-    // which table we may read, and can revoke it without touching anything
-    // else. If somebody later "just needs" the service key for a feature, that
-    // is the moment to design the feature differently, not to add the field.
+    // The earlier design shipped the client's ANON key and a raw table name in
+    // the exported bundle and leaned on RLS as the only guard. That is gone: an
+    // exported form now posts to the client-owned `aqua-form-submit` Edge
+    // Function, which enforces the allowlist, CAPTCHA, rate limits, PAN
+    // rejection and idempotency server-side and holds the service-role key only
+    // inside its own runtime. So AquaCRM stores NO anon key and NO table here —
+    // only the project URL, the PUBLIC form id, the public Turnstile site key,
+    // and two DISTINCT secrets (webhook + read) used server-to-server. The
+    // anon/publishable role has no table access at all.
     //
     // ── Why a webhook secret rather than polling ─────────────────────────
     //
@@ -60,10 +64,11 @@ export const INTEGRATION_CATALOG: IntegrationDefinition[] = [
     setupLabel: "Open Supabase API settings",
     outcome: "Enquiries land in this client's portal, and the agency inbox shows that one arrived without holding the customer's details.",
     fields: [
-      { id: "projectUrl", label: "Project URL", kind: "url", required: true, placeholder: "https://xxxxxxxx.supabase.co", help: "Settings → API → Project URL in the client's Supabase dashboard." },
-      { id: "anonKey", label: "Anon (public) key", kind: "password", secret: true, required: true, placeholder: "eyJ...", help: "The anon key ONLY. Never the service-role key — that one bypasses row-level security and would give AquaCRM full access to their database." },
-      { id: "submissionsTable", label: "Submissions table", kind: "text", required: true, placeholder: "form_submissions", help: "The table their website form writes into. It needs a row-level-security policy allowing this key to read it." },
-      { id: "webhookSecret", label: "Webhook secret", kind: "password", secret: true, placeholder: "A long random string", help: "Paste the same value into the client's Supabase Database Webhook header so AquaCRM can verify the notification really came from them." },
+      { id: "projectUrl", label: "Project URL", kind: "url", required: true, placeholder: "https://xxxxxxxx.supabase.co", help: "Settings → API → Project URL in the client's Supabase dashboard. AquaCRM only ever calls the client-supabase Edge Functions on it — never a raw table." },
+      { id: "formId", label: "Form id", kind: "text", required: true, placeholder: "contact", help: "The PUBLIC form id you configured in the client-supabase bundle (a row in aqua_intake.form_configs). The Edge Function maps it to the fixed destination — the exported page carries this id, never a table name." },
+      { id: "turnstileSiteKey", label: "Turnstile site key", kind: "text", placeholder: "0x4AAAAAAA...", help: "The PUBLIC Cloudflare Turnstile site key (safe to expose). Baked into the exported form's CAPTCHA widget. The matching SECRET stays in the client's Edge Function, never here." },
+      { id: "webhookSecret", label: "Webhook secret", kind: "password", secret: true, required: true, placeholder: "A long random string", help: "The pointer-webhook secret. The intake function signs each notification with it, and AquaCRM verifies the notification really came from the client's project. Must DIFFER from the read secret." },
+      { id: "readSecret", label: "Read secret", kind: "password", secret: true, required: true, placeholder: "A different long random string", help: "A SEPARATE secret AquaCRM uses to sign its bounded server-to-server read of one submission (aqua-form-read). Never the same value as the webhook secret." },
       // Column overrides — all optional, because the common case needs none.
       // `clientFormMapping` recognises the ordinary names (email, full_name,
       // phone, message, created_at) on its own; these exist for the table that

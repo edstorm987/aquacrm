@@ -707,6 +707,10 @@ export interface SessionPayload {
   // device/session can be revoked without rotating the whole user. Additive —
   // legacy cookies carry none and are only killable via epochs/sessionRev.
   sid?: string;
+  // Registry-required marker. Real credentials minted after the containment
+  // upgrade carry 1 and are invalid unless their durable registry row exists;
+  // deliberately ephemeral demo/showcase/sandbox sessions omit it.
+  sr?: 1;
   // Security epochs stamped at issue: global / tenant (active agency) / user.
   // The central session gate refuses any session whose stamped epoch is behind
   // the current one, so bumping an epoch invalidates every earlier cookie for
@@ -2398,6 +2402,8 @@ export interface SharedKpiComparisonView {
  * enforced — see `retention.ts`.
  */
 export interface RetentionPolicy {
+  /** Destructive sweeps remain inert until an owner explicitly activates them. */
+  enforcementEnabled?: boolean;
   /** The audit trail. Long by nature: it is the evidence of everything else. */
   activityDays?: number;
   /** The DSAR register — evidence a request was received and answered. */

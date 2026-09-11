@@ -80,14 +80,17 @@ export async function POST(request: NextRequest) {
       if (existing) {
         await updateSupabasePassword(user.email, password);
       } else {
+        if (!user.agencyId?.trim()) {
+          throw new Error("The account has no tenant assignment for identity provisioning.");
+        }
         await provisionSupabaseIdentity({
           email: user.email,
           password,
           name: user.name,
           role: "client",
-          // A client identity carries its agency where the account records one,
-          // so its profile is tenant-stamped like staff; omitted when unknown.
-          agencyId: user.agencyId || undefined,
+          // A client identity must carry trusted tenant lineage before any
+          // service-role identity or profile mutation is admitted.
+          agencyId: user.agencyId,
         });
       }
     } catch (error) {

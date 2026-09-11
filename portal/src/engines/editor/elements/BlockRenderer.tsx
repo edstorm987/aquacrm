@@ -24,6 +24,7 @@ import { getElementDefinition, getElementRenderer } from "./registry";
 import AnimateOnScroll from "./AnimateOnScroll";
 import { overridesToCssText } from "./blockStyles";
 import { applyVariant, recordExposure, resolveVariant } from "./variantResolver";
+import { isSafeBlockId } from "./blockIdentity";
 
 export interface BlockRendererProps {
   blocks: Block[] | undefined;
@@ -141,7 +142,7 @@ function BlockNode({
 
   const tabletCss = !editorMode ? overridesToCssText(block.styles?.tablet) : "";
   const mobileCss = !editorMode ? overridesToCssText(block.styles?.mobile) : "";
-  const needsScopedCss = tabletCss || mobileCss;
+  const needsScopedCss = Boolean((tabletCss || mobileCss) && isSafeBlockId(block.id));
 
   let body: React.ReactNode = node;
   if (needsScopedCss) {

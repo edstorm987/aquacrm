@@ -147,7 +147,8 @@ jobs:
     # The sibling standalone client portal ships independently and shares the
     # ecosystem's enquiry surface (Item 5). It must typecheck and build in CI so
     # a change here (e.g. the server-mediated enquiry migration) cannot silently
-    # break it. It has no lockfile, so `npm install` (not `npm ci`).
+    # break it. Its tracked lockfile is authoritative, so installs are
+    # reproducible and fail when package metadata drifts.
     defaults:
       run:
         working-directory: client-portal
@@ -156,8 +157,8 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
+      - name: Clean install from lockfile
+        run: npm ci --no-audit --no-fund
       - name: TypeScript
         run: npm run typecheck
       - name: Production build

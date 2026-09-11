@@ -28,9 +28,17 @@ import {
   signSessionPayload,
   verifySessionToken,
 } from "@/lib/server/auth/sessionToken";
-import { LIVE_DATA_REALM_ID, ensureHydrated, runInDataRealm } from "@/server/storage";
+import { LIVE_DATA_REALM_ID, ensureHydrated, flushPendingWrites, runInDataRealm } from "@/server/storage";
 import { normaliseDataRealmId } from "@/server/dataRealm";
-import { currentEpochStamp, enforceSessionSecurity, newSessionId, recordIssuedSession } from "@/lib/server/auth/securityControl";
+import { deploymentPlatform } from "@/lib/server/deployment";
+import {
+  currentEpochStamp,
+  enforceSessionSecurity,
+  newSessionId,
+  recordIssuedSession,
+  SecurityControlUnavailableError,
+  WritesFrozenError,
+} from "@/lib/server/auth/securityControl";
 
 const COOKIE_NAME = SESSION_COOKIE_NAME;
 const COOKIE_MAX_AGE = SESSION_COOKIE_MAX_AGE;
@@ -95,6 +103,15 @@ interface IssueSessionInput {
 
 export function issueSession(input: IssueSessionInput): string {
   const now = Math.floor(Date.now() / 1000);
+  // A public showcase is an anonymous, centrally write-blocked capability, not
+  // a customer credential. Demo/sandbox exemptions are permitted only on an
+  // unhosted development process; a hosted or production-mode preview can
+  // reach a deployed app and therefore gets the same durable registry contract
+  // as every other real session.
+  const localDevelopmentOnly = deploymentPlatform(process.env) === "node"
+    && process.env.NODE_ENV !== "production";
+  const ephemeral = input.publicShowcase === true
+    || (localDevelopmentOnly && (Boolean(input.sandbox) || input.isDemo === true));
   // R025: derive multi-agency fields. activeAgencyId defaults to the
   // legacy agencyId; agencyIds defaults to `[agencyId]` (or [] for
   // leads carrying the global sentinel).
@@ -134,6 +151,7 @@ export function issueSession(input: IssueSessionInput): string {
     // anchor, so stamp and check always line up (for a non-sandbox session the
     // anchor IS the session's own identity, so nothing changes there).
     sid: input.sid ?? newSessionId(),
+    sr: ephemeral ? undefined : 1,
     se: currentEpochStamp(
       input.sandbox?.returnUserId ?? input.userId,
       input.sandbox?.returnAgencyId ?? activeAgencyId,
@@ -147,17 +165,42 @@ export function issueSession(input: IssueSessionInput): string {
   // so it can be listed and revoked, not just password logins. Ephemeral /
   // development sessions are deliberately excluded: a public showcase, a
   // sandbox persona, or a dev-mode (isDemo) session is not a real credential
-  // and must not populate the operator's device list. Best-effort: a registry
-  // write must never break a login (it is a durable convenience, not the auth).
-  const ephemeral = payload.publicShowcase === true || Boolean(payload.sandbox) || payload.isDemo === true;
-  if (!ephemeral && payload.sid) {
-    try {
-      recordIssuedSession(payload, { issuedVia: input.issuedVia ?? "session", exp: payload.exp, ip: input.ip, userAgent: input.userAgent });
-    } catch {
-      // swallow — never let registration failure block issuing the session.
-    }
+  // and must not populate the operator's device list. Real credentials fail
+  // closed: if the registry cannot accept the row, no signed token is returned.
+  // Validation independently requires the row, covering lost persistence or a
+  // different instance that cannot see the write.
+  if (payload.sr === 1 && payload.sid) {
+    recordIssuedSession(payload, { issuedVia: input.issuedVia ?? "session", exp: payload.exp, ip: input.ip, userAgent: input.userAgent });
   }
   return signSessionPayload(payload);
+}
+
+/**
+ * Request-handler issuance boundary. A real/hosted credential is not returned
+ * to a response until the registry mutation has reached the configured durable
+ * backend. `issueSession` remains the synchronous token primitive used by
+ * local fixtures and tests; production-capable HTTP mints must call this
+ * function and await it before constructing a cookie or redirect.
+ */
+export async function issueSessionForResponse(input: IssueSessionInput): Promise<string> {
+  // Security controls belong to the live identity realm, including for a
+  // sandbox persona. Issuing inside whichever realm the current request
+  // happens to carry would strand an exit token's registry row in the sandbox.
+  return runInDataRealm(LIVE_DATA_REALM_ID, async () => {
+    await ensureHydrated({ preserveExplicitRealm: true });
+    const token = issueSession(input);
+    const payload = verifySessionToken(token);
+    if (payload?.sr !== 1) return token;
+
+    try {
+      await flushPendingWrites();
+    } catch {
+      throw new SecurityControlUnavailableError();
+    }
+    const gate = enforceSessionSecurity(payload);
+    if (!gate.ok) throw new SecurityControlUnavailableError();
+    return token;
+  });
 }
 
 export function verifyToken(token: string | undefined): SessionPayload | null {
@@ -384,6 +427,12 @@ export function authErrorResponse(err: unknown): Response {
     return new Response(JSON.stringify({ ok: false, error: err.message }), {
       status: err.status,
       headers: { "content-type": "application/json" },
+    });
+  }
+  if (err instanceof WritesFrozenError || err instanceof SecurityControlUnavailableError) {
+    return new Response(JSON.stringify({ ok: false, error: "Service temporarily unavailable while security controls are active." }), {
+      status: 503,
+      headers: { "content-type": "application/json", "cache-control": "no-store", "retry-after": "60" },
     });
   }
   throw err;

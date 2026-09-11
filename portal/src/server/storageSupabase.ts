@@ -10,6 +10,7 @@ import {
 import type { StoragePatchOperation } from "./storagePatch";
 import type { DevTeamWorkspaceFileMutation } from "./devTeamWorkspacePersistence";
 import { resolveSupabaseSecretKey, resolveSupabaseUrl } from "@/lib/supabase/keys";
+import { WriteAdmissionDeniedError } from "@/lib/server/security/writeAdmission";
 
 const STATE_KEY = process.env.PORTAL_STATE_KEY?.trim() || "aquacrm-portal-state";
 
@@ -75,6 +76,17 @@ export interface SupabaseStorageRequestOptions {
   operationId?: string;
 }
 
+export interface SupabaseWriteQuarantineReceipt {
+  id: number;
+  status: "pending" | "replayed" | "discarded";
+  operationId: string;
+  controlScope: "global" | "tenant";
+  controlScopeId: string;
+  controlRevision: number;
+  controlReason: string | null;
+  capturedAt: string;
+}
+
 interface SupabaseRawResponse {
   ok: boolean;
   status: number;
@@ -104,6 +116,22 @@ async function request<T = SupabaseRawResponse>(
     const response = await fetch(url, { ...init, signal });
     const raw = { ok: response.ok, status: response.status, body: await response.text() };
     if (!raw.ok) {
+      let databaseCode = "";
+      let databaseMessage = "";
+      try {
+        const parsed = JSON.parse(raw.body) as { code?: unknown; message?: unknown; details?: unknown };
+        databaseCode = typeof parsed.code === "string" ? parsed.code : "";
+        databaseMessage = [parsed.message, parsed.details]
+          .filter(value => typeof value === "string")
+          .join(": ");
+      } catch { /* Non-JSON gateway response; handled by the normal transport path. */ }
+      if (databaseCode === "AQ423" || databaseCode === "AQ503") {
+        throw new WriteAdmissionDeniedError(
+          operation,
+          databaseCode === "AQ423" ? "global" : "unavailable",
+          databaseMessage || "the durable database write fence refused the operation",
+        );
+      }
       const failure = `${operation} failed (${raw.status})${raw.body ? `: ${raw.body}` : ""}`;
       // A gateway/server failure may be the response to a transaction that
       // already committed. Throwing a normal error inside the deadline wrapper
@@ -389,6 +417,66 @@ export async function applyPatchWithSidecars(
   );
 }
 
+/**
+ * Seal a freeze-refused optimistic patch outside PortalState. This RPC is the
+ * only storage write permitted while the global control row is frozen; it
+ * validates that freeze under a row lock and never applies the patch itself.
+ */
+export async function quarantinePatch(
+  operations: StoragePatchOperation[],
+  sidecars: Array<{ slug: string; key: string; operations: StoragePatchOperation[] }>,
+  operationId: string,
+  realmId = "live",
+  options: SupabaseStorageRequestOptions = {},
+): Promise<SupabaseWriteQuarantineReceipt> {
+  const { url, serviceRoleKey } = getConfig();
+  return request(
+    "Supabase write quarantine",
+    "storageWrite",
+    "idempotent-write",
+    `${url}/rest/v1/rpc/record_aqua_write_quarantine`,
+    {
+      method: "POST",
+      headers: headers(serviceRoleKey),
+      body: JSON.stringify({
+        p_app_key: "aquacrm-portal-state",
+        p_datastore_key: stateKeyForRealm(realmId),
+        p_realm_id: realmId,
+        p_operation_id: operationId,
+        p_main_operations: operations,
+        p_sidecar_patches: sidecars,
+        p_actor: `portal-storage:${process.env.RAILWAY_REPLICA_ID?.trim() || process.env.VERCEL_REGION?.trim() || "worker"}`,
+      }),
+      cache: "no-store",
+    },
+    { ...options, operationId },
+    response => {
+      const saved = decodeJsonObject(response, "Supabase write quarantine");
+      if (
+        typeof saved.id !== "number"
+        || saved.status !== "pending"
+        || saved.operationId !== operationId
+        || (saved.controlScope !== "global" && saved.controlScope !== "tenant")
+        || typeof saved.controlScopeId !== "string"
+        || typeof saved.controlRevision !== "number"
+        || typeof saved.capturedAt !== "string"
+      ) {
+        throw new Error("Supabase write quarantine returned a malformed receipt.");
+      }
+      return {
+        id: saved.id,
+        status: saved.status,
+        operationId: saved.operationId,
+        controlScope: saved.controlScope,
+        controlScopeId: saved.controlScopeId,
+        controlRevision: saved.controlRevision,
+        controlReason: typeof saved.controlReason === "string" ? saved.controlReason : null,
+        capturedAt: saved.capturedAt,
+      };
+    },
+  );
+}
+
 export async function applyDevTeamWorkspaceFiles(
   operations: DevTeamWorkspaceFileMutation[],
   options: SupabaseStorageRequestOptions = {},
@@ -523,6 +611,7 @@ export function claimProductWorkspaceLease(
   workspaceKey: string,
   holderId: string,
   leaseMs: number,
+  tenantId: string,
   options: SupabaseStorageRequestOptions = {},
   realmId = "live",
 ): Promise<unknown> {
@@ -530,6 +619,7 @@ export function claimProductWorkspaceLease(
     p_workspace_key: workspaceKey,
     p_holder_id: holderId,
     p_lease_ms: Math.max(1_000, Math.floor(leaseMs)),
+    p_tenant_id: tenantId,
   }, options, realmId);
 }
 
@@ -537,6 +627,7 @@ export function renewProductWorkspaceLease(
   workspaceKey: string,
   holderId: string,
   leaseMs: number,
+  tenantId: string,
   options: SupabaseStorageRequestOptions = {},
   realmId = "live",
 ): Promise<unknown> {
@@ -544,6 +635,7 @@ export function renewProductWorkspaceLease(
     p_workspace_key: workspaceKey,
     p_holder_id: holderId,
     p_lease_ms: Math.max(1_000, Math.floor(leaseMs)),
+    p_tenant_id: tenantId,
   }, options, realmId);
 }
 

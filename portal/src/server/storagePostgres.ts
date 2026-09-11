@@ -241,8 +241,10 @@ export async function claimProductWorkspaceLease(
   workspaceKey: string,
   holderId: string,
   leaseMs: number,
+  tenantId: string,
   realmId = "live",
 ): Promise<unknown> {
+  void tenantId; // Hosted Postgres is held unready until durable admission parity is implemented.
   const result = await getPool().query<{ result: unknown }>(
     "SELECT public.claim_product_workspace_lease($1, $2, $3, $4)::jsonb AS result",
     [stateKeyForRealm(realmId), workspaceKey, holderId, Math.max(1_000, Math.floor(leaseMs))],
@@ -254,8 +256,10 @@ export async function renewProductWorkspaceLease(
   workspaceKey: string,
   holderId: string,
   leaseMs: number,
+  tenantId: string,
   realmId = "live",
 ): Promise<unknown> {
+  void tenantId; // Hosted Postgres is held unready until durable admission parity is implemented.
   const result = await getPool().query<{ result: unknown }>(
     "SELECT public.renew_product_workspace_lease($1, $2, $3, $4)::jsonb AS result",
     [stateKeyForRealm(realmId), workspaceKey, holderId, Math.max(1_000, Math.floor(leaseMs))],

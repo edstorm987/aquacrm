@@ -39,6 +39,17 @@ const SANDBOX_SESSION_ESCAPE_PATHS = new Set([
   "/api/auth/logout",
 ]);
 
+// The environment freeze is the restore-safe outer wall. It must reject a
+// mutating request before route code can reach a provider or a database that is
+// outside PortalState. These exact paths remain available so an operator can
+// authenticate, inspect, and lift containment; they are not business writes.
+const GLOBAL_FREEZE_ESCAPE_PATHS = new Set([
+  "/api/auth/login",
+  "/api/auth/login/browser",
+  "/api/auth/logout",
+  "/api/portal/security/actions",
+]);
+
 // GET is safe from mutation, but not automatically safe from disclosure. A
 // public product-tour token may explore the fictional CRM; it may not browse
 // this repository, internal Dev Team material, workspace settings or the
@@ -98,6 +109,17 @@ const PUBLIC_SHOWCASE_MUTATING_GET_ROOTS = [
 
 function matchesRoot(path: string, root: string): boolean {
   return path === root || path.startsWith(`${root}/`);
+}
+
+export function isOutOfBandWriteFreezeRefusal(input: {
+  frozen: string | undefined;
+  method: string;
+  path: string;
+}): boolean {
+  if (input.frozen !== "1" || GLOBAL_FREEZE_ESCAPE_PATHS.has(input.path)) return false;
+  if (!["GET", "HEAD", "OPTIONS"].includes(input.method.toUpperCase())) return true;
+  return PUBLIC_SHOWCASE_MUTATING_GET_ROOTS.some(root => matchesRoot(input.path, root))
+    || /^\/api\/portal\/clients\/[^/]+\/radar(?:\/|$)/.test(input.path);
 }
 
 /**
@@ -215,6 +237,16 @@ export function isCrossOriginBrowserMutation(input: {
 
 export function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;
+  if (isOutOfBandWriteFreezeRefusal({
+    frozen: process.env.PORTAL_WRITES_FROZEN,
+    method: req.method,
+    path,
+  })) {
+    return NextResponse.json(
+      { ok: false, error: "The service is in emergency read-only mode." },
+      { status: 503, headers: { "cache-control": "no-store", "retry-after": "60" } },
+    );
+  }
   // CSRF origin gate — before anything else touches the request.
   if (
     isCrossOriginBrowserMutation({

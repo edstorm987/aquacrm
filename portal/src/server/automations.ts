@@ -7,6 +7,7 @@ import { flushPendingWrites, getState, mutate } from "./storage";
 import { getAgency } from "./tenants";
 import { listUsersForAgency } from "./users";
 import { sendTransactionalEmail } from "@/lib/server/email/transactionalEmail";
+import { assertFreshWritesAllowed } from "@/lib/server/auth/securityControl";
 import { listWebsiteEnquiries } from "@/lib/server/websiteEnquiries";
 import { privateObjectLifecycleLockKey } from "@/lib/server/privateObjectLifecycle";
 import { brokeredFetch, OutboundBlockedError } from "@/lib/server/net/outboundBroker";
@@ -747,6 +748,10 @@ async function executeAction(workflow: AutomationWorkflow, run: AutomationRun, n
       appendRunLog(run.id, { nodeId: node.id, level: "success", message: `Would send ${method} webhook to ${url.host}.` });
       return;
     }
+    await assertFreshWritesAllowed("provider.automation.webhook", {
+      tenantId: workflow.agencyId,
+      actor: run.initiatedBy || workflow.createdBy,
+    });
     // Through the audited egress broker (assume-breach containment): rejects
     // private/loopback/metadata destinations and DNS rebinding, and never
     // forwards a header across an origin-changing redirect.

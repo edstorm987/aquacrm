@@ -66,6 +66,19 @@ test("dev workspace files are written to their own row, and the portal is not wi
   globalThis.fetch = async (input, init) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     const method = init?.method ?? "GET";
+    if (method === "POST" && url.includes("/rpc/read_aqua_write_admission")) {
+      const admissionBody = JSON.parse(String(init?.body)) as { p_tenant_id?: string | null };
+      const admissionNow = new Date().toISOString();
+      return Response.json({
+        appKey: "aquacrm-portal-state",
+        global: { scope: "global", scopeId: "global", frozen: false, revision: 1, reason: null, actor: null, changedAt: admissionNow },
+        tenant: admissionBody.p_tenant_id
+          ? { scope: "tenant", scopeId: admissionBody.p_tenant_id, frozen: false, revision: 1, reason: null, actor: null, changedAt: admissionNow }
+          : null,
+        pendingQuarantines: 0,
+        frozenTenants: 0,
+      });
+    }
 
     if (method === "POST" && url.includes("/rpc/load_app_datastore_with_sidecars")) {
       const body = JSON.parse(String(init?.body)) as { p_app_key: string; p_sidecar_specs: Array<{ slug: string; key: string }> };

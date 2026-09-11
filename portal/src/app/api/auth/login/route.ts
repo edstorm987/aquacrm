@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createRouteSupabaseClient } from "@/lib/supabase/route";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { seedFounder } from "@/lib/server/seeds/founderSeed";
-import { issueSession, sessionCookie } from "@/lib/server/auth/auth";
+import { issueSessionForResponse, sessionCookie } from "@/lib/server/auth/auth";
 import { newSessionId } from "@/lib/server/auth/securityControl";
 import {
   clientIpFromHeaders,
@@ -447,7 +447,7 @@ async function handleJsonLogin(req: NextRequest) {
   // the durable session registry so THIS device/session can be individually
   // revoked later (epochs cover the coarse scopes).
   const sid = newSessionId();
-  const token = issueSession({
+  const token = await issueSessionForResponse({
     userId: portalUser.id,
     email: portalUser.email,
     role: portalUser.role,

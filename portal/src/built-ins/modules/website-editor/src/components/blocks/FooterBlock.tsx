@@ -2,6 +2,7 @@
 
 import type { BlockRenderProps } from "../blockRegistry";
 import { blockStylesToCss } from "../blockStyles";
+import { blockCssScopeId } from "@/engines/editor/elements/blockIdentity";
 
 interface FooterLink { label: string; href: string; }
 interface FooterColumn { title: string; links: FooterLink[]; }
@@ -23,8 +24,8 @@ export default function FooterBlock({ block }: BlockRenderProps) {
   // template so the footer collapses cleanly on narrow viewports without
   // an overflow scroll. Per-instance scoped CSS — keeps the inline style
   // story consistent with the rest of the block components.
-  const id = `footer-${block.id}`;
-  const responsiveCss = `
+  const id = blockCssScopeId("footer", block.id);
+  const responsiveCss = id ? `
     [data-footer-id="${id}"] .footer-inner {
       max-width: 1200px;
       margin: 0 auto;
@@ -47,11 +48,11 @@ export default function FooterBlock({ block }: BlockRenderProps) {
         text-align: center;
       }
     }
-  `;
+  ` : "";
 
   return (
-    <footer data-block-type="footer" data-footer-id={id} style={style}>
-      <style>{responsiveCss}</style>
+    <footer data-block-type="footer" data-footer-id={id ?? undefined} style={style}>
+      {responsiveCss && <style>{responsiveCss}</style>}
       <div className="footer-inner">
         <div className="footer-brand">
           <p style={{ fontFamily: "var(--font-playfair, Georgia, serif)", fontSize: 20, fontWeight: 700, margin: "0 0 8px" }}>{brand}</p>

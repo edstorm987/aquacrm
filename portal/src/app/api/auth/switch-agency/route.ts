@@ -4,7 +4,7 @@ import {
   authErrorResponse,
   getSessionFromRequest,
   isSessionFresh,
-  issueSession,
+  issueSessionForResponse,
   sessionCookie,
 } from "@/lib/server/auth/auth";
 import {
@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
     // whether this agency exists.
     if (!agency || agency.status !== "active") return refuse();
 
-    const token = issueSession({
+    const token = await issueSessionForResponse({
       userId: user.id,
       email: user.email,
       role: user.role,

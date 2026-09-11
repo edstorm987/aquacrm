@@ -1,45 +1,62 @@
-// An exported site's contact form must actually post somewhere.
+// An exported site's contact form must post to the client-owned Edge Function,
+// and NOTHING in the bundle may be a raw database write.
 //
 // The export's own README used to list "Form submissions (contact-form, …)"
-// under *things that will not work*. The reason turned out to be blunter than
-// "unwired": `renderBlockToHtml` handled twelve block types and `contact-form`
-// fell through to `default`, which emits an empty `<div>`. The form was not
-// broken; it was **not rendered at all**.
+// under *things that will not work*, because `renderBlockToHtml` handled twelve
+// block types and `contact-form` fell through to `default` (an empty `<div>`).
 //
-// Ed's architecture supplies the missing half — the client's own Supabase — so
-// the exported page can post straight from the visitor's browser to their
-// PostgREST endpoint with no server of ours in the path.
+// The first fix wired the form straight to the client's PostgREST table with a
+// public anon key. The 2026-09 secure-intake redesign REPLACES that: an exported
+// form posts to the client-owned `aqua-form-submit` Edge Function, which enforces
+// the field allowlist, CAPTCHA, honeypot, rate limits, PAN rejection and
+// idempotency server-side. The bundle carries only PUBLIC values — the function
+// URL, the public form id, and the public Turnstile site key — never a table
+// endpoint, an anon/service key, or any secret.
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-const TARGET = { projectUrl: "https://abc.supabase.co", anonKey: "ANON-TEST-KEY", table: "form_submissions" };
+// The PUBLIC-only export target: an Edge Function URL, a public form id, and a
+// public Turnstile site key. No table, no key, no secret can be expressed here.
+const TARGET = {
+  submitUrl: "https://abc.supabase.co/functions/v1/aqua-form-submit",
+  formId: "contact",
+  turnstileSiteKey: "0xTURNSTILESITEKEY",
+};
 const block = {
   id: "b1",
   type: "contact-form",
   props: { heading: "Talk to us", submitLabel: "Send" },
 } as never;
 
-test("a connected export renders a form that posts to the client's own table", async () => {
+test("a connected export posts to the client-owned Edge Function, not a table", async () => {
   const { renderBlockToHtml } = await import(
     "../src/built-ins/modules/website-editor/src/server/staticExport.ts"
   );
   const html = renderBlockToHtml(block, TARGET);
 
   assert.match(html, /<form /, "the block must render an actual form");
-  assert.match(html, /https:\/\/abc\.supabase\.co\/rest\/v1\/form_submissions/, "it must post to their PostgREST table");
-  assert.match(html, /ANON-TEST-KEY/, "the anon key must be present — it is public by design and the RLS policy is the control");
+  assert.match(html, /https:\/\/abc\.supabase\.co\/functions\/v1\/aqua-form-submit/, "it must post to the client-owned intake Edge Function");
+  assert.match(html, /"contact"/, "the PUBLIC form id must be carried so the function can map it server-side");
   assert.match(html, /name="website"/, "the honeypot must survive the export");
+  assert.match(html, /class="cf-turnstile"/, "the CAPTCHA widget must be rendered when a site key is set");
+  assert.match(html, /data-sitekey="0xTURNSTILESITEKEY"/, "the PUBLIC Turnstile site key must be present");
+  assert.match(html, /challenges\.cloudflare\.com\/turnstile\/v0\/api\.js/, "the Turnstile loader must be included");
   assert.match(html, /aria-live="polite"/, "the result must be announced, not only shown");
   assert.doesNotMatch(html, /<button type="submit" disabled/, "a connected form must be submittable");
+
+  // The whole point of the redesign: NO browser-direct database write survives.
+  assert.doesNotMatch(html, /\/rest\/v1/, "no raw PostgREST table endpoint may appear");
+  assert.doesNotMatch(html, /apikey/i, "no anon/publishable apikey header may appear");
+  assert.doesNotMatch(html, /Bearer/i, "no bearer key may be concatenated into the request");
+  assert.doesNotMatch(html, /form_submissions/, "no database table name may appear");
 });
 
-test("an unconnected export says so instead of pretending", async () => {
-  // The alternative — rendering a Send button with nowhere to send — is the
-  // exact failure this whole thread started from: a published contact form
-  // that tells the visitor "Couldn't send. Please email us directly." on a page
-  // carrying no email address.
+test("an unconnected export renders an inert form instead of pretending", async () => {
+  // The alternative — a Send button with nowhere to send — is the exact failure
+  // this thread started from. And it must also carry no endpoint, so an
+  // unapproved/inactive site's bundle is inert by construction.
   const { renderBlockToHtml } = await import(
     "../src/built-ins/modules/website-editor/src/server/staticExport.ts"
   );
@@ -48,20 +65,26 @@ test("an unconnected export says so instead of pretending", async () => {
   assert.match(html, /<form /, "the fields still render, so the page looks like what was designed");
   assert.match(html, /not connected yet/, "it must say plainly that it cannot be sent");
   assert.match(html, /<button type="submit" disabled/, "an unconnected form must not be submittable");
-  assert.doesNotMatch(html, /apikey|rest\/v1/, "no endpoint or key may appear when there is nothing to post to");
+  assert.doesNotMatch(html, /\/functions\/v1\//, "no endpoint may appear when there is nothing to post to");
+  assert.doesNotMatch(html, /apikey|rest\/v1|cf-turnstile/, "no endpoint, key or CAPTCHA may appear on an inert form");
 });
 
-test("the README tells the truth in both cases", async () => {
+test("the README tells the truth in both cases, and names no table or key", async () => {
   const { buildExportReadme } = await import(
     "../src/built-ins/modules/website-editor/src/server/staticExport.ts"
   );
 
   const wired = buildExportReadme("site_1", "https://example.test", 3, TARGET);
   assert.match(wired, /Contact forms in this bundle DO work/);
-  assert.match(wired, /form_submissions/, "it must name the table so somebody can check the RLS policy");
-  // Somebody who finds a key in a ZIP and is not told why will assume the worst.
-  assert.match(wired, /PUBLIC key/, "it must explain why a key in the bundle is not a leak");
-  assert.match(wired, /never put a service-role key/, "and warn against the one that would be");
+  assert.match(wired, /functions\/v1\/aqua-form-submit/, "it must name the Edge Function the form posts to");
+  assert.match(wired, /PUBLIC form id "contact"/, "it must name the public form id, not a table");
+  assert.match(wired, /NO\s+database table endpoint/i, "it must state that no table endpoint is in the bundle");
+  assert.match(wired, /NO\s+anon\/service key/i, "it must state that no key is in the bundle");
+  assert.match(wired, /NO\s+secret of any kind/i, "it must state that no secret is in the bundle");
+  // The removed design's reassurances must be gone: there is no public key to
+  // explain, and no table to name.
+  assert.doesNotMatch(wired, /form_submissions/, "the removed table name must not appear");
+  assert.doesNotMatch(wired, /the anon key is in the page source/i, "the removed anon-key story must be gone");
   assert.doesNotMatch(wired, /Form submissions \(contact-form/, "the stale 'will not work' line must be gone when they do");
 
   const bare = buildExportReadme("site_1", "https://example.test", 3);
@@ -70,11 +93,6 @@ test("the README tells the truth in both cases", async () => {
 });
 
 test("the first-party template vocabulary survives an export, or says it did not", async () => {
-  // The renderer used to know twelve block types plus contact-form, and read
-  // only `props.text`. The first-party Homepage template's hero and CTA carry
-  // `headline`, so they exported as EMPTY `<div data-block-type="hero">`
-  // shells — no content, no warning, nothing in the README. A client would
-  // have found out from a visitor.
   const { renderBlockToHtml, collectUnexportableBlockTypes, buildExportReadme } = await import(
     "../src/built-ins/modules/website-editor/src/server/staticExport.ts"
   );
@@ -93,7 +111,6 @@ test("the first-party template vocabulary survives an export, or says it did not
   assert.match(testimonials, /This is the future\./, "the quotes are the block — losing them loses everything");
   assert.match(testimonials, /Felicia/);
 
-  // A block a static bundle genuinely cannot reproduce is REJECTED VISIBLY.
   const grid = renderBlockToHtml({ id: "g", type: "product-grid", props: { collectionHandle: "all" } } as never);
   assert.match(grid, /data-aqua-export="unsupported"/, "it must be machine-detectable");
   assert.match(grid, /not included in this static export/, "and readable by whoever opens the page");
@@ -118,11 +135,8 @@ test("the first-party template vocabulary survives an export, or says it did not
 });
 
 test("an exported form does not disagree with the editor about being connected", async () => {
-  // `FormBlock` decides "connected" with `action.trim().length > 0`. The export
-  // renderer tested emptiness on the RAW string, so an action of a single space
-  // — which the editor shows as "no destination yet, cannot be sent" — exported
-  // as an enabled Send button posting to the page itself. That is issue #29's
-  // failure mode, reached one space at a time.
+  // The generic `form` block posts natively to `props.action`; a whitespace
+  // action is "no destination" in the editor and must be inert in the export too.
   const { renderBlockToHtml } = await import(
     "../src/built-ins/modules/website-editor/src/server/staticExport.ts"
   );
@@ -137,11 +151,6 @@ test("an exported form does not disagree with the editor about being connected",
 });
 
 test("the README names the relative-Submit-URL trap instead of leaving it to be discovered", async () => {
-  // The renderer now emits generic `form` blocks with a live action. The block
-  // registry still DEFAULTS that action to "/api/contact", which is not a route
-  // here and certainly not one on the static host somebody drops this bundle
-  // on — so the bundle can contain an enabled Send button that loses the
-  // message. The README has to say so; it is the only place that can.
   const { buildExportReadme } = await import(
     "../src/built-ins/modules/website-editor/src/server/staticExport.ts"
   );
@@ -151,18 +160,23 @@ test("the README names the relative-Submit-URL trap instead of leaving it to be 
 });
 
 test("the export is given only the PUBLIC half of the connection", () => {
-  // `findClientSupabaseConnection` returns the webhook secret too. The export
-  // path uses a different function that CANNOT return it — a shape that makes
-  // the mistake impossible beats a comment asking people not to make it.
+  // `findClientSupabaseConnection` returns both secrets. The export path uses a
+  // different function whose return TYPE cannot carry a secret, a table, or an
+  // anon key — a shape that makes the mistake impossible beats a comment asking
+  // people not to make it.
   const src = readFileSync("src/lib/server/clientForms/clientSupabaseExport.ts", "utf8");
   const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 
   assert.doesNotMatch(code, /webhookSecret/, "the export target must never read the webhook secret");
+  assert.doesNotMatch(code, /readSecret/, "the export target must never read the read secret");
   const shape = code.match(/export interface ClientSupabaseExportTarget \{([\s\S]*?)\n\}/)?.[1] ?? "";
   assert.ok(shape, "the export target type must exist");
   assert.doesNotMatch(shape, /secret/i, "the export target type must have no secret field");
+  assert.doesNotMatch(shape, /\b(anonKey|table)\b/i, "the export target type must have no anon key or table field");
+  assert.match(shape, /submitUrl/, "the export target carries the Edge Function URL");
 
   const handler = readFileSync("src/built-ins/modules/website-editor/src/api/handlers/staticExport.ts", "utf8");
   assert.match(handler, /clientSupabaseExportTarget\(/, "the handler must use the public-only resolver");
+  assert.match(handler, /clientSupabaseExportTarget\(\s*scope\.agencyId[^,]*,\s*scope\.clientId[^,]*,\s*q\.siteId/, "the resolver must be bound to the exact agency, client and site being exported");
   assert.doesNotMatch(handler, /findClientSupabaseConnection/, "the handler must not reach for the full connection");
 });

@@ -492,17 +492,19 @@ function restoreEnv(key: string, value: string | undefined) {
   else process.env[key] = value;
 }
 
-test("testing a client's Supabase refuses a table the public key can read", async () => {
-  // The safety check behind the client-owned form data design.
+test("testing a client's Supabase probes the Edge Functions and refuses a fail-open read", async () => {
+  // The safety check behind the client-owned form data design, after the 2026-09
+  // secure-intake redesign. There is no anon key and no raw table to probe now —
+  // an exported site posts to the client-owned `aqua-form-submit` Edge Function,
+  // and AquaCRM reads one submission back through the HMAC-signed
+  // `aqua-form-read` function. So the test answers two questions:
   //
-  // An exported site posts to this table from the visitor's browser with the
-  // ANON key in the page source. That is correct — the anon key is public and
-  // RLS is the control. But if the same policy also allows SELECT, every
-  // enquiry the client has ever received is readable by anyone who opens their
-  // homepage and reads the source.
-  //
-  // The exported README has always said "keep that policy to INSERT only".
-  // Prose is not a check. This is the check.
+  //   1. Are both functions deployed? (A project that never deployed the bundle
+  //      answers 404.)
+  //   2. Does the READ function FAIL CLOSED — refuse a forged, unsigned read? It
+  //      must never answer `ok:true` to an unauthenticated caller. That is the
+  //      exact "every enquiry is exposed" failure the old anon-SELECT probe
+  //      existed to catch, moved to where the boundary now lives.
   const agency = tenants.createAgency({ name: "RLS Co", slug: `rls-${Math.floor(performance.now())}` });
   const client = tenants.createClient(agency.id, { name: "Formful" });
   const saved = connections.saveIntegrationConnection({
@@ -511,56 +513,95 @@ test("testing a client's Supabase refuses a table the public key can read", asyn
     clientId: client.id,
     values: {
       projectUrl: "https://formful.supabase.co",
-      anonKey: "anon_public_key_value",
-      submissionsTable: "form_submissions",
+      formId: "contact",
+      webhookSecret: "webhook-secret-value-1234567890",
+      readSecret: "read-secret-value-0987654321",
     },
     actorUserId: "owner",
   });
 
-  const calls: Array<{ url: string; method: string }> = [];
-  const fetchWith = (status: number, body: unknown) => (async (input: RequestInfo | URL, init?: RequestInit) => {
-    calls.push({ url: String(input), method: init?.method ?? "GET" });
-    return new Response(body === undefined ? null : JSON.stringify(body), {
-      status,
-      headers: { "content-type": "application/json" },
-    });
-  }) as typeof fetch;
+  const calls: Array<{ url: string; method: string; body: string }> = [];
+  // Route by URL: the submit function is GET-probed, the read function is
+  // POST-probed with a forged signature.
+  const fetchRouted = (submitStatus: number, read: { status: number; body?: unknown }) =>
+    (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ url, method: init?.method ?? "GET", body: String(init?.body ?? "") });
+      if (url.includes("/functions/v1/aqua-form-read")) {
+        return new Response(read.body === undefined ? null : JSON.stringify(read.body), {
+          status: read.status, headers: { "content-type": "application/json" },
+        });
+      }
+      // aqua-form-submit
+      return new Response(null, { status: submitStatus, headers: { "content-type": "application/json" } });
+    }) as typeof fetch;
 
-  // ── The dangerous case: anon CAN read. Must fail. ──────────────────────
-  const exposed = await connections.testIntegrationConnection(
-    agency.id, saved.id, { userId: "owner" }, fetchWith(200, [{ id: 1, email: "someone@example.com" }]),
+  // ── The dangerous case: the read function answers a FORGED request ok:true. ──
+  const failOpen = await connections.testIntegrationConnection(
+    agency.id, saved.id, { userId: "owner" }, fetchRouted(405, { status: 200, body: { ok: true, submission: { fields: {} } } }),
   );
-  assert.equal(exposed.lastTestStatus, "failed", "a publicly readable enquiry table must fail the test");
-  assert.match(String(exposed.lastTestMessage), /every enquiry in it is exposed/i);
-  assert.match(String(exposed.lastTestMessage), /INSERT/, "the message must say what to change");
+  assert.equal(failOpen.lastTestStatus, "failed", "a read function that answers a forged request must fail the test");
+  assert.match(String(failOpen.lastTestMessage), /failing OPEN/i);
 
-  // An EMPTY array is exactly as dangerous — the policy still permits the read,
-  // there simply are no enquiries yet. This is the case a naive check misses.
-  const exposedButEmpty = await connections.testIntegrationConnection(
-    agency.id, saved.id, { userId: "owner" }, fetchWith(200, []),
+  // ── The good case: submit deployed (405 to GET), read refuses the forgery. ──
+  const healthy = await connections.testIntegrationConnection(
+    agency.id, saved.id, { userId: "owner" }, fetchRouted(405, { status: 403, body: { ok: false, error: "unavailable" } }),
   );
-  assert.equal(exposedButEmpty.lastTestStatus, "failed", "an empty result still proves anon may read");
+  assert.equal(healthy.lastTestStatus, "passed", "a deployed intake + a read that refuses forgery must pass");
+  assert.match(String(healthy.lastTestMessage), /refuses unsigned reads/i);
 
-  // ── The good case: RLS refuses anon. ───────────────────────────────────
-  const locked = await connections.testIntegrationConnection(
-    agency.id, saved.id, { userId: "owner" }, fetchWith(401, { message: "permission denied" }),
+  // ── The intake function is not deployed. ───────────────────────────────
+  const noIntake = await connections.testIntegrationConnection(
+    agency.id, saved.id, { userId: "owner" }, fetchRouted(404, { status: 403, body: { ok: false } }),
   );
-  assert.equal(locked.lastTestStatus, "passed", "a table that refuses public reads must pass");
-  assert.match(String(locked.lastTestMessage), /refuses public reads/i);
+  assert.equal(noIntake.lastTestStatus, "failed");
+  assert.match(String(noIntake.lastTestMessage), /aqua-form-submit Edge Function is not deployed/i);
 
-  // ── A missing table is its own problem, not a security verdict. ────────
-  const missing = await connections.testIntegrationConnection(
-    agency.id, saved.id, { userId: "owner" }, fetchWith(404, { message: "not found" }),
+  // ── The read function is not deployed. ─────────────────────────────────
+  const noRead = await connections.testIntegrationConnection(
+    agency.id, saved.id, { userId: "owner" }, fetchRouted(405, { status: 404, body: { ok: false } }),
   );
-  assert.equal(missing.lastTestStatus, "failed");
-  assert.match(String(missing.lastTestMessage), /could not find a table/i);
+  assert.equal(noRead.lastTestStatus, "failed");
+  assert.match(String(noRead.lastTestMessage), /aqua-form-read Edge Function is not deployed/i);
 
-  // It must probe THAT project's table with the anon key, and never write.
-  assert.ok(calls.every(call => call.method === "GET"), "the test must never write into a client's table");
+  // It must probe THAT project's Edge Functions, never a raw table, and never
+  // submit real data (the intake probe is a GET, so it inserts nothing).
   assert.ok(
-    calls.every(call => call.url.startsWith("https://formful.supabase.co/rest/v1/form_submissions")),
-    `expected only PostgREST reads of the configured table, saw ${calls.map(c => c.url).join(", ")}`,
+    calls.every(call => call.url.startsWith("https://formful.supabase.co/functions/v1/")),
+    `expected only Edge Function probes, saw ${calls.map(c => c.url).join(", ")}`,
+  );
+  assert.ok(!calls.some(call => call.url.includes("/rest/v1")), "the test must never touch a raw PostgREST table");
+  assert.ok(
+    calls.filter(c => c.url.includes("aqua-form-submit")).every(c => c.method === "GET"),
+    "the intake function must be GET-probed so no submission is written",
   );
   // The old fall-through sent every unknown provider to OpenAI.
   assert.ok(!calls.some(call => call.url.includes("openai")), "a client's Supabase must not be tested against OpenAI");
+});
+
+test("testing a client's Supabase rejects reused secrets before any network call", async () => {
+  // The webhook secret verifies inbound notifications; the read secret signs the
+  // outbound bounded read. They authorise different operations and must differ —
+  // reusing one value would let a leak of one become a leak of both.
+  const agency = tenants.createAgency({ name: "Dup Co", slug: `dup-${Math.floor(performance.now())}` });
+  const client = tenants.createClient(agency.id, { name: "Samesame" });
+  const saved = connections.saveIntegrationConnection({
+    agencyId: agency.id,
+    provider: "client-supabase",
+    clientId: client.id,
+    values: {
+      projectUrl: "https://samesame.supabase.co",
+      formId: "contact",
+      webhookSecret: "identical-secret-value",
+      readSecret: "identical-secret-value",
+    },
+    actorUserId: "owner",
+  });
+
+  let touched = false;
+  const trap = (async () => { touched = true; return new Response(null, { status: 200 }); }) as typeof fetch;
+  const result = await connections.testIntegrationConnection(agency.id, saved.id, { userId: "owner" }, trap);
+  assert.equal(result.lastTestStatus, "failed", "identical secrets must fail the test");
+  assert.match(String(result.lastTestMessage), /must be different/i);
+  assert.equal(touched, false, "the distinctness check must fail closed before any network call");
 });

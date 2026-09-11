@@ -2,6 +2,12 @@ import "server-only";
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import crypto from "node:crypto";
+import {
+  assertFreshWriteAdmission,
+  isWriteAdmissionDenied,
+  type PlatformWritePurpose,
+  type WriteAdmissionContext,
+} from "@/lib/server/security/writeAdmission";
 
 import { withDevFileTransaction } from "@/lib/server/dev/devFileTransaction";
 import {
@@ -175,6 +181,7 @@ function assertActiveRemoteLeasesHeld(): void {
 async function withRemoteLock<T>(
   backend: "supabase" | "postgres",
   key: string,
+  admission: WriteAdmissionContext,
   operation: () => Promise<T>,
 ): Promise<T> {
   const realmId = getActiveDataRealmId();
@@ -200,12 +207,21 @@ async function withRemoteLock<T>(
   const holder = holderId();
   const deadline = Date.now() + WAIT_MS;
   let delayMs = 30;
-  const claim = () => backend === "supabase"
-    ? import("./storageSupabase").then(module => module.claimProductWorkspaceLease(key, holder, LEASE_MS, {}, realmId))
-    : import("./storagePostgres").then(module => module.claimProductWorkspaceLease(key, holder, LEASE_MS, realmId));
-  const renew = () => backend === "supabase"
-    ? import("./storageSupabase").then(module => module.renewProductWorkspaceLease(key, holder, LEASE_MS, {}, realmId))
-    : import("./storagePostgres").then(module => module.renewProductWorkspaceLease(key, holder, LEASE_MS, realmId));
+  const leaseTenantId = admission.kind === "tenant"
+    ? admission.tenantId
+    : `platform:${admission.purpose}`;
+  const claim = async () => {
+    await assertFreshWriteAdmission(admission);
+    return backend === "supabase"
+      ? import("./storageSupabase").then(module => module.claimProductWorkspaceLease(key, holder, LEASE_MS, leaseTenantId, {}, realmId))
+      : import("./storagePostgres").then(module => module.claimProductWorkspaceLease(key, holder, LEASE_MS, leaseTenantId, realmId));
+  };
+  const renew = async () => {
+    await assertFreshWriteAdmission(admission);
+    return backend === "supabase"
+      ? import("./storageSupabase").then(module => module.renewProductWorkspaceLease(key, holder, LEASE_MS, leaseTenantId, {}, realmId))
+      : import("./storagePostgres").then(module => module.renewProductWorkspaceLease(key, holder, LEASE_MS, leaseTenantId, realmId));
+  };
   let claimedLease: RemoteLease;
   for (;;) {
     const rawLease = await claim();
@@ -262,6 +278,13 @@ async function withRemoteLock<T>(
       scope.leaseExpiresAt = lease.leaseExpiresAt;
     } catch (error) {
       if (error instanceof ProductWorkspaceLeaseLostError) throw error;
+      if (isWriteAdmissionDenied(error)) {
+        throw markRemoteLeaseLost(
+          scope,
+          "Write admission was revoked while this workspace lease was held.",
+          error,
+        );
+      }
       if (requiredForBoundary || Date.now() >= scope.leaseExpiresAt) {
         throw markRemoteLeaseLost(
           scope,
@@ -308,23 +331,40 @@ async function withRemoteLock<T>(
     stopped = true;
     if (refreshTimer) clearTimeout(refreshTimer);
     await refreshInFlight.catch(() => undefined);
-    // Once the lease is lost or locally expired, this holder no longer owns
-    // anything to release. The database release RPC is holder-checked too, but
-    // skipping it makes that ownership rule explicit and avoids ambiguous logs.
-    if (!scope.lostError && Date.now() < scope.leaseExpiresAt) {
-      try {
-        if (backend === "supabase") {
-          await (await import("./storageSupabase")).releaseProductWorkspaceLease(key, holder, {}, realmId);
-        } else {
-          await (await import("./storagePostgres")).releaseProductWorkspaceLease(key, holder, realmId);
-        }
-      } catch (error) {
-        // The bounded lease will self-release. Do not turn a committed workspace
-        // mutation into an ambiguous client failure solely because unlock failed.
-        console.warn("[product-workspace] durable lease release failed:", error instanceof Error ? error.message : error);
+    // Cleanup is intentionally admitted during containment. The release RPC is
+    // holder-checked, so attempting it after expiry/loss cannot delete a
+    // successor's lease and avoids stranding our still-owned row until timeout.
+    try {
+      if (backend === "supabase") {
+        await (await import("./storageSupabase")).releaseProductWorkspaceLease(key, holder, {}, realmId);
+      } else {
+        await (await import("./storagePostgres")).releaseProductWorkspaceLease(key, holder, realmId);
       }
+    } catch (error) {
+      // The bounded lease will self-release. Do not turn a committed workspace
+      // mutation into an ambiguous client failure solely because unlock failed.
+      console.warn("[product-workspace] durable lease release failed:", error instanceof Error ? error.message : error);
     }
   }
+}
+
+type TransactionAdmission =
+  | { tenantId: string; actor?: string }
+  | { platformPurpose: PlatformWritePurpose; actor?: string };
+
+function transactionAdmission(
+  input: TransactionAdmission | undefined,
+  surface: string,
+): WriteAdmissionContext {
+  if (input && "tenantId" in input) {
+    return { kind: "tenant", tenantId: input.tenantId, surface, actor: input.actor };
+  }
+  return {
+    kind: "platform",
+    purpose: input?.platformPurpose ?? "platform-maintenance",
+    surface,
+    actor: input?.actor,
+  };
 }
 
 /**
@@ -336,7 +376,7 @@ export function withProductWorkspaceTransaction<T>(
   input: { agencyId: string; clientId: string; productId: string },
   operation: () => T | Promise<T>,
 ): Promise<T> {
-  return withPortalStateTransaction(workspaceKey(input), operation);
+  return withPortalStateTransaction(workspaceKey(input), operation, { tenantId: input.agencyId });
 }
 
 /**
@@ -348,6 +388,7 @@ export function withProductWorkspaceTransaction<T>(
 export function withPortalStateTransaction<T>(
   key: string,
   operation: () => T | Promise<T>,
+  admission?: TransactionAdmission,
 ): Promise<T> {
   const run = async () => {
     // Nested domain transactions share the outer isolated working tree and its
@@ -428,10 +469,20 @@ export function withPortalStateTransaction<T>(
   }
   if (backend === "postgres") {
     // The generic Postgres driver also persists one whole JSONB blob.
-    return withRemoteLock(backend, "portal-state-coordinated-write", run);
+    return withRemoteLock(
+      backend,
+      "portal-state-coordinated-write",
+      transactionAdmission(admission, "database.product-workspace-lease"),
+      run,
+    );
   }
   if (backend === "supabase") {
-    return withRemoteLock(backend, key, run);
+    return withRemoteLock(
+      backend,
+      key,
+      transactionAdmission(admission, "database.product-workspace-lease"),
+      run,
+    );
   }
   return withMemoryLock(key, run);
 }
@@ -444,11 +495,17 @@ export function withPortalStateTransaction<T>(
 export function withPortalProviderLease<T>(
   key: string,
   operation: () => Promise<T>,
+  admission?: TransactionAdmission,
 ): Promise<T> {
   const backend = getBackendInfo().kind;
   const lane = `provider:${key}`;
   if (backend === "supabase" || backend === "postgres") {
-    return withRemoteLock(backend, lane, operation);
+    return withRemoteLock(
+      backend,
+      lane,
+      transactionAdmission(admission, "provider.workspace-lease"),
+      operation,
+    );
   }
   if (backend === "file") {
     const path = getFileBackendDataPath();

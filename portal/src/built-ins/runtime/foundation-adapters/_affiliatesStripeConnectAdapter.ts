@@ -25,6 +25,7 @@ import type {
   StripeConnectPort,
 } from "@aqua/plugin-affiliates/server";
 import type { StripeKeys } from "@aqua/plugin-ecommerce/lib/stripe/server";
+import { assertFreshWritesAllowed } from "@/lib/server/auth/securityControl";
 
 // ─── The slice of the SDK this adapter actually uses ─────────────────────
 //
@@ -111,12 +112,18 @@ function snapshotFromRaw(raw: RawConnectAccount): StripeConnectAccountSnapshot {
 export function makeAffiliatesStripeConnectPort(
   keys: StripeKeys,
   injected?: StripeConnectClientLike,
+  context: { tenantId?: string; actor?: string } = {},
 ): StripeConnectPort {
   const client = (): Promise<StripeConnectClientLike> =>
     getAffiliatesStripeConnectClient(keys.secretKey, injected);
+  const assertStripeWriteAllowed = () => assertFreshWritesAllowed("provider.stripe-connect.affiliates", {
+    tenantId: context.tenantId ?? "",
+    actor: context.actor,
+  });
 
   return {
     async createAccount(args): Promise<{ accountId: string }> {
+      await assertStripeWriteAllowed();
       const stripe = await client();
       // Express: Stripe hosts the onboarding and the affiliate's payout
       // dashboard, which is what the customer-facing panel links to.
@@ -141,6 +148,7 @@ export function makeAffiliatesStripeConnectPort(
     },
 
     async createOnboardingLink(args): Promise<{ url: string; expiresAt: number }> {
+      await assertStripeWriteAllowed();
       const stripe = await client();
       const link = await stripe.accountLinks.create({
         account: args.accountId,
@@ -159,6 +167,7 @@ export function makeAffiliatesStripeConnectPort(
     },
 
     async createTransfer(args): Promise<{ transferId: string; created: number }> {
+      await assertStripeWriteAllowed();
       const stripe = await client();
       const transfer = await stripe.transfers.create(
         {

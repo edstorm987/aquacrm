@@ -52,6 +52,7 @@ export async function POST(request: NextRequest) {
         contentType: file.type,
         localDirectory: "freelancer-work",
         localKey: relativeKey,
+        trust: { tenantId: session.agencyId, actor: session.userId, purpose: "freelancer-work-submission" },
       });
     } catch (error) {
       if (error instanceof PrivateUploadStorageError) {

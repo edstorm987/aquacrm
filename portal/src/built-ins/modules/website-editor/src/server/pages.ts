@@ -16,6 +16,7 @@ import {
 import { stabiliseCountdownDeadlines } from "./../lib/countdownDeadline";
 import { validateCustomCode } from "../lib/customCode";
 import { getDefaultTheme, getTheme } from "./themes";
+import { assertValidPageBlockTree } from "./pageBlockValidation";
 import {
   capturePublishedPage,
   migratePublishedPageSnapshot,
@@ -145,6 +146,8 @@ export async function createPage(
   storage: PluginStorage,
   input: CreatePageInput,
 ): Promise<EditorPage> {
+  const inputBlocks = input.blocks ?? [];
+  assertValidPageBlockTree(inputBlocks);
   const id = makePageId();
   const now = Date.now();
   const status: EditorPageStatus = "draft";
@@ -161,7 +164,7 @@ export async function createPage(
     portalRole: input.portalRole,
     isActivePortal: input.isActivePortal,
     variantId: input.variantId,
-    blocks: stabiliseCountdownDeadlines(input.blocks ?? [], now),
+    blocks: stabiliseCountdownDeadlines(inputBlocks, now),
     themeId: input.themeId,
     createdAt: now,
     updatedAt: now,
@@ -189,6 +192,12 @@ export async function updatePage(
   if (!page) return null;
   const now = Date.now();
   const safePatch = sanitiseUpdatePagePatch(patch);
+  if (Object.prototype.hasOwnProperty.call(safePatch, "blocks")) {
+    assertValidPageBlockTree(safePatch.blocks);
+  }
+  if (Object.prototype.hasOwnProperty.call(safePatch, "draftBlocks")) {
+    assertValidPageBlockTree(safePatch.draftBlocks);
+  }
   const touchesPublishedBlocks = Object.prototype.hasOwnProperty.call(safePatch, "blocks");
   const needsLegacyPageSnapshot = (
     page.status === "published"
@@ -229,6 +238,12 @@ export async function updatePage(
 }
 
 function stabiliseStoredPageCountdowns(page: EditorPage): EditorPage {
+  // Validate legacy rows before the recursive countdown normaliser, publisher,
+  // or exporter can consume them. Corrupt stored content fails closed without
+  // risking a call-stack exhaustion path.
+  assertValidPageBlockTree(page.blocks);
+  if (page.draftBlocks !== undefined) assertValidPageBlockTree(page.draftBlocks);
+  if (page.publishedBlocks !== undefined) assertValidPageBlockTree(page.publishedBlocks);
   const publishedAnchor = page.publishedAt ?? page.updatedAt ?? page.createdAt;
   const draftAnchor = page.updatedAt ?? page.createdAt;
   const blocks = stabiliseCountdownDeadlines(page.blocks, page.status === "published" ? publishedAnchor : draftAnchor);

@@ -42,7 +42,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "Submission ID required." }, { status: 400 });
     }
 
-    const supabase = await createEnquiryDataClient();
+    const supabase = await createEnquiryDataClient({
+      tenantId: agencyId,
+      actor: session.userId,
+      surface: "database.website-enquiry.lead",
+    });
     const data = await loadActorWebsiteEnquiry<EnquiryRow>(actor, supabase, {
       id: enquiryId,
       required: "use",

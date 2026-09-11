@@ -180,6 +180,23 @@ test("remote portal storage flushes writes and refreshes warm-process state", as
         ? input.href
         : input.url;
     const method = init?.method ?? "GET";
+    if (method === "POST" && url.includes("/rpc/read_aqua_write_admission")) {
+      return Response.json({
+        appKey: "aquacrm-portal-state",
+        global: {
+          scope: "global",
+          scopeId: "global",
+          frozen: false,
+          revision: 1,
+          reason: null,
+          actor: "storage-smoke",
+          changedAt: "2026-09-10T12:00:00.000Z",
+        },
+        tenant: null,
+        pendingQuarantines: 0,
+        frozenTenants: 0,
+      });
+    }
     if (method === "POST" && url.includes("/rpc/load_app_datastore_with_sidecars")) {
       const body = JSON.parse(String(init?.body)) as { p_sidecar_specs: Array<{ slug: string; key: string }> };
       return Response.json({

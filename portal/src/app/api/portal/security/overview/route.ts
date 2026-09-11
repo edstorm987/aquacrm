@@ -9,7 +9,7 @@
 import { NextResponse } from "next/server";
 import { AuthError, authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { isPlatformOperator } from "@/lib/server/auth/founderAgency";
-import { readSecurityControl } from "@/lib/server/auth/securityControl";
+import { readDurableWriteControl, readSecurityControl } from "@/lib/server/auth/securityControl";
 import { hasContentScanner } from "@/lib/server/security/contentTrust";
 import { hasSecurityEventDrain, recentSecurityEvents } from "@/lib/server/security/securityEvents";
 import { ensureHydrated, getState } from "@/server/storage";
@@ -30,6 +30,14 @@ export async function GET(): Promise<Response> {
     const session = await requireRole("agency-owner");
     const control = readSecurityControl();
     const agencyId = session.agencyId ?? "";
+    const durableWriteControl = await readDurableWriteControl(agencyId || undefined);
+    const globalReadOnly = durableWriteControl.global.frozen ? {
+      active: true,
+      reason: durableWriteControl.global.reason ?? "Global read-only is active",
+      at: Date.parse(durableWriteControl.global.changedAt),
+      actor: durableWriteControl.global.actor ?? "unknown",
+      revision: durableWriteControl.global.revision,
+    } : null;
     // TENANT SCOPE: a customer tenant's owner sees THEIR OWN tenant's
     // security data. Only the platform operator's owner sees across tenants —
     // suspended users elsewhere, other tenants' sessions and events are not
@@ -49,7 +57,7 @@ export async function GET(): Promise<Response> {
     const scopedEvent = (event: { tenantId?: string }) => operator || event.tenantId === agencyId;
 
     const posture: SecurityPostureItem[] = [
-      { id: "write-freeze", label: "Emergency write freeze", status: "enforced", detail: control.globalReadOnly ? `ON since ${new Date(control.globalReadOnly.at).toISOString()} (${control.globalReadOnly.reason})` : "Ready. One action freezes every write while reads keep serving." },
+      { id: "write-freeze", label: "Emergency write freeze", status: "enforced", detail: globalReadOnly ? `ON since ${new Date(globalReadOnly.at).toISOString()} (${globalReadOnly.reason})` : "Ready. One action freezes every write while reads keep serving." },
       { id: "session-gate", label: "Per-request session gate", status: "enforced", detail: "Suspension, revocation, epochs and tenant lockdown are checked on every authenticated request." },
       { id: "egress", label: "Outbound request broker", status: "enforced", detail: "Webhooks, integrations, form reads, shop domains and SMTP hosts are vetted and pinned before any connection." },
       { id: "uploads", label: "Upload content judgement", status: "enforced", detail: "Private storage inspects bytes. Public media is byte/type checked locally; every configured app-server remote write through storePublicUpload is refused until the separate atomic lifecycle exists. This does not replace the production Supabase containment migration." },
@@ -67,7 +75,7 @@ export async function GET(): Promise<Response> {
       switches: {
         // Global switch POSITIONS are observable app-wide anyway (writes fail /
         // AI refuses); the reason+actor detail is the operator's.
-        globalReadOnly: control.globalReadOnly ? (operator ? control.globalReadOnly : { active: true, at: control.globalReadOnly.at }) : null,
+        globalReadOnly: globalReadOnly ? (operator ? globalReadOnly : { active: true, at: globalReadOnly.at }) : null,
         aiDisabled: control.aiDisabled ? (operator ? control.aiDisabled : { active: true, at: control.aiDisabled.at }) : null,
         tenantLockdowns: operator
           ? (control.tenantLockdowns ?? {})

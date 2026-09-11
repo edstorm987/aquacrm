@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import crypto from "node:crypto";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -25,6 +26,14 @@ interface Manifest {
 
 const manifest = JSON.parse(readFileSync("docs/consolidation-manifest.json", "utf8")) as Manifest;
 
+function trackedMarkdown(): Set<string> {
+  return new Set(
+    execFileSync("git", ["ls-files", "-z", "--", "*.md"], { encoding: "utf8" })
+      .split("\0")
+      .filter(Boolean),
+  );
+}
+
 test("nine authored volumes retain every source with path and digest provenance", () => {
   assert.equal(CONSOLIDATED_AUTHORED_DOC_PATHS.length, 9);
   assert.ok(manifest.sources.length >= 120, `only ${manifest.sources.length} source documents were consolidated`);
@@ -43,6 +52,18 @@ test("nine authored volumes retain every source with path and digest provenance"
     const embedded = volume.slice(from + start.length, to);
     assert.equal(embedded, current.endsWith("\n") ? current : `${current}\n`, `${source.path} was not retained verbatim`);
   }
+});
+
+test("every consolidated source exists in the commit — ignored local evidence is never canonical", () => {
+  const tracked = trackedMarkdown();
+  const nonReproducible = manifest.sources
+    .map(source => source.path)
+    .filter(path => !tracked.has(path));
+  assert.deepEqual(
+    nonReproducible,
+    [],
+    `canonical docs include sources absent from a clean checkout: ${nonReproducible.join(", ")}`,
+  );
 });
 
 test("the founder-facing documentation index is exactly twenty canonical volumes", () => {

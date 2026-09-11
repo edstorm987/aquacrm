@@ -560,6 +560,7 @@ export async function createCommercialStripeCheckoutHandler(req: Request, ctx: P
       .update(`${ctx.agencyId}\u0000${pack.id}\u0000${params.toString()}`)
       .digest("hex")}`;
     const response = await stripeHttpRequest<{ id?: string; url?: string; error?: { message?: string } }>({
+      tenantId: ctx.agencyId,
       secretKey: secret,
       path: "/v1/checkout/sessions",
       method: "POST",
@@ -717,6 +718,7 @@ export async function commercialStripeWebhookHandler(req: Request, ctx: PluginCt
       subscriptionId,
       requestStop: async () => {
         const cancellation = await stripeHttpRequest<{ error?: { message?: string } }>({
+          tenantId: ctx.agencyId,
           secretKey,
           path: `/v1/subscriptions/${encodeURIComponent(subscriptionId)}`,
           method: "POST",
@@ -1404,7 +1406,7 @@ export async function updateLeadMeetingHandler(req: Request, ctx: PluginCtx): Pr
       note: body.attempt.notes,
     }, ctx.actor) ?? updated;
     const enquiryId = typeof updated.customFields?.enquiryId === "string" ? updated.customFields.enquiryId : undefined;
-    if (enquiryId) await recordWebsiteEnquiryResponse(enquiryId, contactAt, ctx.actor).catch(() => false);
+    if (enquiryId) await recordWebsiteEnquiryResponse(ctx.agencyId, enquiryId, contactAt, ctx.actor).catch(() => false);
   } else if (typeof body.nextMeetingAt === "number" && !existing.firstContactedAt) {
     const contactAt = Date.now();
     updated = await service.recordContact(body.id, {
@@ -1414,7 +1416,7 @@ export async function updateLeadMeetingHandler(req: Request, ctx: PluginCtx): Pr
       note: "First contact inferred from the scheduled meeting.",
     }, ctx.actor) ?? updated;
     const enquiryId = typeof updated.customFields?.enquiryId === "string" ? updated.customFields.enquiryId : undefined;
-    if (enquiryId) await recordWebsiteEnquiryResponse(enquiryId, contactAt, ctx.actor).catch(() => false);
+    if (enquiryId) await recordWebsiteEnquiryResponse(ctx.agencyId, enquiryId, contactAt, ctx.actor).catch(() => false);
   }
   return json({ ok: true, lead: updated });
 }
@@ -1433,7 +1435,7 @@ export async function markLeadContactedHandler(req: Request, ctx: PluginCtx): Pr
   }, ctx.actor);
   if (!updated) return notFound("lead_not_found");
   const enquiryId = typeof updated.customFields?.enquiryId === "string" ? updated.customFields.enquiryId : undefined;
-  if (enquiryId) await recordWebsiteEnquiryResponse(enquiryId, contactedAt, ctx.actor).catch(() => false);
+  if (enquiryId) await recordWebsiteEnquiryResponse(ctx.agencyId, enquiryId, contactedAt, ctx.actor).catch(() => false);
   return json({ ok: true, lead: updated });
 }
 
@@ -1494,7 +1496,7 @@ export async function convertLeadToClientHandler(req: Request, ctx: PluginCtx): 
   });
   if (!initialConversion) return badRequest("product_not_found");
 
-  const coordinator = leadConversionCoordinator();
+  const coordinator = leadConversionCoordinator({ tenantId: ctx.agencyId });
   const operation: LeadConversionClaimInput = {
     claimKey: leadConversionClaimKey({
       agencyId: ctx.agencyId,

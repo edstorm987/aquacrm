@@ -28,6 +28,7 @@ import { PAGE_TEMPLATES } from "../components/pageTemplates";
 import type { PluginStorage, PluginCtx } from "../lib/aquaPluginTypes";
 import type { AgencyId, ClientId, BrandKit } from "../lib/tenancy";
 import type { Block } from "../types/block";
+import { PageBlockValidationError } from "../server/pageBlockValidation";
 
 function memStorage(): PluginStorage {
   const m = new Map<string, unknown>();
@@ -328,26 +329,80 @@ function findEntry(zip: Uint8Array, name: string): { offset: number; size: numbe
   expect("handler names the unsupported block types",
     (tplRes.headers.get("x-aqua-export-unsupported-block-types") ?? "").includes("product-grid"));
 
-  // `Block.type` is an open string and page trees are stored unvalidated, so a
-  // stored type can carry a CR/LF. Putting that straight into a response header
-  // makes `new Response()` throw, and a working export would 500 for the sake of
-  // a diagnostic header. The download must survive its own reporting.
+  // The authoritative page boundary now refuses a CR/LF-bearing open extension
+  // type before it can ever reach a CSS selector, export header, or stored row.
   const hostileStorage = memStorage();
   const hostileSiteId = "site_hostile";
-  const hostile = await createPage(hostileStorage, {
-    agencyId: a, clientId: c, siteId: hostileSiteId, slug: "/", title: "Home",
+  let hostileRefused = false;
+  try {
+    await createPage(hostileStorage, {
+      agencyId: a, clientId: c, siteId: hostileSiteId, slug: "/", title: "Home",
+      isHomepage: true,
+      blocks: [{ id: "x1", type: "evil\r\nx-injected: yes", props: {} } as Block],
+    } as never);
+  } catch (error) {
+    hostileRefused = error instanceof PageBlockValidationError
+      && error.reason === "unsafe-block-type";
+  }
+  expect("a block type containing CRLF is refused before persistence", hostileRefused);
+
+  // ─── Secure client-intake export — REAL generated ZIP bytes ──────────────
+  //
+  // The 2026-09 secure-intake redesign: an APPROVED site's exported contact form
+  // posts to the client-owned `aqua-form-submit` Edge Function. The generated
+  // bundle must carry that URL plus the PUBLIC form id and Turnstile site key —
+  // and NOT one byte of a raw table endpoint, anon/service key, or secret. This
+  // inspects the actual ZIP the export produces, not the renderer in isolation.
+  const intakeStorage = memStorage();
+  const intakeSiteId = "site_intake";
+  const intakeHome = await createPage(intakeStorage, {
+    agencyId: a, clientId: c, siteId: intakeSiteId, slug: "/", title: "Contact",
     isHomepage: true,
-    blocks: [{ id: "x1", type: "evil\r\nx-injected: yes", props: {} } as Block],
+    blocks: [{ id: "cf", type: "contact-form", props: { heading: "Talk to us" } }],
   } as never);
-  await publishPage(hostileStorage, a, c, hostileSiteId, hostile.id);
-  const hostileRes = await handleExportSite(
-    new Request(`http://x/export?siteId=${hostileSiteId}`),
-    { storage: hostileStorage, agencyId: a, clientId: c } as unknown as PluginCtx,
-  );
-  expect("a block type containing CRLF does not 500 the export", hostileRes.status === 200);
-  expect("and does not inject a header", hostileRes.headers.get("x-injected") === null);
-  expect("the count still reports the block was dropped",
-    hostileRes.headers.get("x-aqua-export-unsupported-blocks") === "1");
+  await publishPage(intakeStorage, a, c, intakeSiteId, intakeHome.id);
+
+  const INTAKE_TARGET = {
+    submitUrl: "https://clientproj.supabase.co/functions/v1/aqua-form-submit",
+    formId: "contact",
+    turnstileSiteKey: "0xPUBLICSITEKEY",
+  };
+  const intakeResult = await exportSiteToZip({
+    storage: intakeStorage, agencyId: a, clientId: c, siteId: intakeSiteId,
+    baseUrl: "https://example.com", supabase: INTAKE_TARGET,
+  });
+  const intakeIndex = findEntry(intakeResult.zip, "index.html")!;
+  const intakeHtml = decode(intakeResult.zip, intakeIndex.offset, intakeIndex.size);
+
+  expect("connected export posts to the Edge Function",
+    intakeHtml.includes("https://clientproj.supabase.co/functions/v1/aqua-form-submit"));
+  expect("connected export carries the public form id", intakeHtml.includes('"contact"'));
+  expect("connected export renders the Turnstile widget",
+    intakeHtml.includes('class="cf-turnstile"') && intakeHtml.includes('data-sitekey="0xPUBLICSITEKEY"'));
+  expect("connected export keeps the honeypot", intakeHtml.includes('name="website"'));
+  expect("connected export is submittable",
+    intakeHtml.includes('<button type="submit">') && !intakeHtml.includes('<button type="submit" disabled'));
+
+  // The WHOLE bundle — every byte of every file — must contain no browser-direct
+  // database write and no secret.
+  const wholeZip = new TextDecoder().decode(intakeResult.zip);
+  expect("no raw PostgREST table endpoint anywhere in the bundle", !wholeZip.includes("/rest/v1"));
+  expect("no apikey header anywhere in the bundle", !/apikey/i.test(wholeZip));
+  expect("no bearer key anywhere in the bundle", !/Bearer\s/.test(wholeZip));
+  expect("no table name leaked into the bundle", !wholeZip.includes("form_submissions"));
+
+  // An UNAPPROVED / inactive site resolves to no target, so the SAME page
+  // exports an inert form — no endpoint at all.
+  const inertResult = await exportSiteToZip({
+    storage: intakeStorage, agencyId: a, clientId: c, siteId: intakeSiteId,
+    baseUrl: "https://example.com",
+  });
+  const inertIndex = findEntry(inertResult.zip, "index.html")!;
+  const inertHtml = decode(inertResult.zip, inertIndex.offset, inertIndex.size);
+  expect("unapproved export renders an inert, disabled form",
+    inertHtml.includes("not connected yet") && inertHtml.includes('<button type="submit" disabled>'));
+  expect("unapproved export carries no endpoint",
+    !inertHtml.includes("/functions/v1/") && !inertHtml.includes("/rest/v1"));
 
   console.log(`\n${passes} passed · ${failures} failed`);
   if (failures > 0) process.exit(1);

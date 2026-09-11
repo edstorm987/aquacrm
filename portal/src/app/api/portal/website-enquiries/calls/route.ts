@@ -169,7 +169,11 @@ export async function PATCH(request: Request) {
 }
 
 async function loadEnquiry(id: string, actor: CurrentAccessActor): Promise<{ supabase: ScopedSupabaseClient; enquiry: EnquiryRow }> {
-  const supabase = await createEnquiryDataClient();
+  const supabase = await createEnquiryDataClient({
+    tenantId: actor.resourceAgencyId,
+    actor: actor.session.userId,
+    surface: "database.website-enquiry.calls",
+  });
   // Ownership-guarded: an enquiry outside this agency returns null exactly as a
   // missing one, so call mode can never be driven against another tenant's row.
   const enquiry = await loadActorWebsiteEnquiry<EnquiryRow>(actor, supabase, {

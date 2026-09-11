@@ -275,10 +275,8 @@ describe("§ parseDataUrl + publicMediaKey", () => {
     assert.ok(d!.bytes.length > 0);
   });
 
-  it("canonicalises browser-significant URL whitespace and rejects malformed or oversized encodings", () => {
-    const d = parseDataUrl(OBFUSCATED_PNG);
-    assert.ok(d);
-    assert.equal(d!.contentType, "image/png");
+  it("rejects browser-normalized alternate spellings, malformed encodings, and oversized inputs", () => {
+    assert.equal(parseDataUrl(OBFUSCATED_PNG), null);
     assert.equal(parseDataUrl("data:image/png,not-base64"), null);
     assert.equal(parseDataUrl("data:image/png;base64,!!!!"), null);
     assert.throws(

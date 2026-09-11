@@ -1,4 +1,5 @@
 import { mayUseEnvironmentCredentials } from "@/lib/server/auth/founderAgency";
+import { assertFreshWritesAllowed } from "@/lib/server/auth/securityControl";
 import { sendResendEmail } from "@/lib/server/email/resendEmail";
 import { OutboundBlockedError, pinnedSocketTarget } from "@/lib/server/net/outboundBroker";
 import { assertLiveProviderAccess } from "@/lib/server/sandbox/providerPolicy";
@@ -57,6 +58,10 @@ export function transactionalEmailReadiness(
 export async function sendTransactionalEmail(
   input: TransactionalEmailInput,
 ): Promise<TransactionalEmailResult> {
+  // Provider delivery is irreversible and does not pass through PortalState's
+  // mutate() guard. Bind it centrally so every caller inherits incident
+  // containment before credentials are resolved or a network socket is opened.
+  await assertFreshWritesAllowed("provider.email.transactional", { tenantId: input.agencyId });
   assertLiveProviderAccess("Transactional email delivery");
   const workspace = getAgencyWorkspaceSettings(input.agencyId);
   const requestedProvider = input.sender?.provider;
@@ -96,6 +101,7 @@ export async function sendTransactionalEmail(
     const fromName = input.fromName?.trim() || resend.fromName || workspace.legalName
       || (envMailAllowed ? process.env.MILESYMEDIA_FROM_NAME?.trim() : undefined) || "AquaCRM";
     const result = await sendResendEmail({
+      tenantId: input.agencyId,
       apiKey,
       to: input.to,
       from: `${fromName} <${resendFromEmail}>`,

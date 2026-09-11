@@ -169,6 +169,7 @@ export async function POST(req: Request) {
       contentType: file.type,
       localDirectory: "client-uploads",
       localKey: relativeKey,
+      trust: { tenantId: session.agencyId, actor: session.userId, purpose: "client-file" },
     });
   } catch (error) {
     if (error instanceof PrivateUploadStorageError) {

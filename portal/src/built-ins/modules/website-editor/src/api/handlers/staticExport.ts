@@ -7,6 +7,7 @@
 import type { PluginCtx } from "../../lib/aquaPluginTypes";
 import { fail, readQuery, requireClientScope } from "../helpers";
 import { exportSiteToZip } from "../../server/staticExport";
+import { PageBlockValidationError } from "../../server/pageBlockValidation";
 import type { AgencyId, ClientId, BrandKit } from "../../lib/tenancy";
 
 // Namespace, not a named import: this plugin is ESM ("type": "module") while
@@ -33,23 +34,36 @@ export async function handleExportSite(req: Request, ctx: PluginCtx): Promise<Re
   const baseUrl = q.baseUrl ?? `https://${q.siteId}.example`;
   const brandKit = (ctx as unknown as { brand?: BrandKit }).brand;
 
-  // The client's own Supabase, if they have one connected. Absent is fine and
-  // is not an error: the export then renders forms that say they are not
+  // The client's own Supabase intake, if they have one connected, tested, active
+  // AND approved-and-bound to THIS site. Absent is the normal, fail-closed answer
+  // (not an error): the export then renders inert forms that say they are not
   // connected rather than a Send button that throws the message away.
   //
-  // Only the PUBLIC half is read — project URL, anon key and table. The webhook
-  // secret is deliberately not passed anywhere near a downloadable bundle.
-  const supabase = clientSupabaseExportTarget(scope.clientId as string);
+  // Only the PUBLIC half is read — the Edge Function URL, the public form id and
+  // the public Turnstile site key. No table, no anon/service key, and neither the
+  // webhook nor the read secret is passed anywhere near a downloadable bundle.
+  // `siteId` is required: approval binds a connection to exactly one site. The
+  // agency is passed too, so the lookup is bound to the exact tenant that owns
+  // the connection, never a client id on its own.
+  const supabase = clientSupabaseExportTarget(scope.agencyId as string, scope.clientId as string, q.siteId);
 
-  const result = await exportSiteToZip({
-    storage: ctx.storage,
-    agencyId: scope.agencyId as AgencyId,
-    clientId: scope.clientId as ClientId,
-    siteId: q.siteId,
-    baseUrl,
-    brandKit,
-    supabase,
-  });
+  let result;
+  try {
+    result = await exportSiteToZip({
+      storage: ctx.storage,
+      agencyId: scope.agencyId as AgencyId,
+      clientId: scope.clientId as ClientId,
+      siteId: q.siteId,
+      baseUrl,
+      brandKit,
+      supabase,
+    });
+  } catch (error) {
+    if (error instanceof PageBlockValidationError) {
+      return fail("stored page content failed security validation", 422);
+    }
+    throw error;
+  }
 
   // `Block.type` is a deliberately OPEN string (see `types/block.ts`) and page
   // trees are persisted unvalidated, so a stored type can contain a CR/LF that

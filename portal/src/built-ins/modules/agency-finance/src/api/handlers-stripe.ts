@@ -103,6 +103,7 @@ export async function stripeCheckoutHandler(req: Request, ctx: PluginCtx): Promi
       description: `Payment for invoice ${invoice.number}`,
       successUrl,
       cancelUrl,
+      tenantId: ctx.agencyId,
     });
     return json({ ok: true, url: session.url, id: session.id });
   } catch (err) {
@@ -180,6 +181,7 @@ export async function stripeRefundHandler(req: Request, ctx: PluginCtx): Promise
       amountCents,
       reason: body.reason,
       idempotencyKey: `aqua:${ctx.agencyId}:${payment.id}:${requestId}`,
+      tenantId: ctx.agencyId,
     });
     if (refund.status && refund.status !== "succeeded") {
       return json({ ok: true, refundId: refund.id, status: refund.status, recorded: false }, 202);

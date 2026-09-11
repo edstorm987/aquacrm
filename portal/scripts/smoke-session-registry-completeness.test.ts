@@ -11,12 +11,13 @@ import assert from "node:assert/strict";
 import test, { before } from "node:test";
 
 let issueSession: typeof import("../src/lib/server/auth/auth")["issueSession"];
+let verifyToken: typeof import("../src/lib/server/auth/auth")["verifyToken"];
 let control: typeof import("../src/lib/server/auth/securityControl");
 
 before(async () => {
   const storage = await import("../src/server/storage");
   await storage.ensureHydrated();
-  ({ issueSession } = await import("../src/lib/server/auth/auth"));
+  ({ issueSession, verifyToken } = await import("../src/lib/server/auth/auth"));
   control = await import("../src/lib/server/auth/securityControl");
 });
 
@@ -24,11 +25,14 @@ test("every real mint flow registers a listable, revocable session", () => {
   const flows = ["password", "oauth", "magic-link", "signup", "agency-switch", "end-customer"];
   for (const [i, issuedVia] of flows.entries()) {
     const userId = `registry-user-${i}`;
-    issueSession({
+    const token = issueSession({
       userId, email: `${userId}@example.test`, role: "agency-owner",
       agencyId: "registry-agency", agencyIds: ["registry-agency"], activeAgencyId: "registry-agency",
       issuedVia,
     } as never);
+    const payload = verifyToken(token);
+    assert.equal(payload?.sr, 1, `${issuedVia} must require its registry row at validation`);
+    assert.deepEqual(payload && control.enforceSessionSecurity(payload), { ok: true });
     const sessions = control.listUserSessions(userId);
     assert.equal(sessions.length, 1, `${issuedVia} must register exactly one session`);
     assert.equal(sessions[0].issuedVia, issuedVia, `${issuedVia} must record how it was minted`);
@@ -40,7 +44,8 @@ test("every real mint flow registers a listable, revocable session", () => {
 
 test("ephemeral / development mints do NOT register", () => {
   // Public showcase.
-  issueSession({ userId: "eph-showcase", email: "s@example.test", role: "agency-owner", agencyId: "a", publicShowcase: true } as never);
+  const showcase = verifyToken(issueSession({ userId: "eph-showcase", email: "s@example.test", role: "agency-owner", agencyId: "a", publicShowcase: true } as never));
+  assert.equal(showcase?.sr, undefined, "showcase is explicitly outside the durable registry contract");
   assert.equal(control.listUserSessions("eph-showcase").length, 0, "showcase must not register");
   // Dev-mode (isDemo).
   issueSession({ userId: "eph-dev", email: "d@example.test", role: "agency-owner", agencyId: "a", isDemo: true } as never);

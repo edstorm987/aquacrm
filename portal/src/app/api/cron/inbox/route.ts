@@ -12,6 +12,7 @@ import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { listAgencies } from "@/server/tenants";
 import { processPrivateObjectLifecycleSweep } from "@/lib/server/privateObjectLifecycle";
 import { processAquaTagSubmissionDeliveries, type AquaTagDeliverySweepResult } from "@/lib/server/enquirySubmissionDelivery";
+import { runRetentionSweep, type RetentionSweepResult } from "@/lib/server/compliance/retention";
 
 export const runtime = "nodejs";
 
@@ -48,13 +49,15 @@ export async function GET(request: NextRequest) {
     radarInfra = error instanceof Error ? `error:${error.message}` : "error";
   }
   const radarSweeps: RadarScheduledSweepResult[] = [];
+  const retentionSweeps: Array<{ agencyId: string; result: RetentionSweepResult }> = [];
   for (const agency of listAgencies().filter(item => item.status === "active")) {
     radarSweeps.push(await runRadarScheduledSweep(agency.id));
+    retentionSweeps.push({ agencyId: agency.id, result: runRetentionSweep(agency.id) });
   }
   // The lifecycle coordinator rehydrates under its cross-process lock. Flush
   // this tick's queue/radar work first so that fresh read cannot replace it.
   await flushPendingWrites();
   const privateUploads = await processPrivateObjectLifecycleSweep();
   await flushPendingWrites();
-  return NextResponse.json({ ok: true, ...queue, pruned, aquaTagDeliveries, radarInfra, radarSweeps, privateUploads });
+  return NextResponse.json({ ok: true, ...queue, pruned, aquaTagDeliveries, radarInfra, radarSweeps, retentionSweeps, privateUploads });
 }

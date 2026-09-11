@@ -21,14 +21,14 @@ import {
   bumpGlobalSecurityEpoch,
   bumpTenantSecurityEpoch,
   bumpUserSecurityEpoch,
-  clearGlobalReadOnly,
+  clearDurableGlobalReadOnly,
   disableAi,
   enableAi,
-  liftTenantLockdown,
-  lockdownTenant,
+  clearDurableTenantLockdown,
   revokeUserSessionsInTenant,
   revokeSession,
-  setGlobalReadOnly,
+  setDurableGlobalReadOnly,
+  setDurableTenantLockdown,
   suspendUser,
   unsuspendUser,
   readSecurityControl,
@@ -202,20 +202,20 @@ export async function POST(request: NextRequest): Promise<Response> {
       }
       case "lockdown-tenant": {
         if (!agencyId) return NextResponse.json({ ok: false, error: "no_tenant_scope" }, { status: 400 });
-        lockdownTenant(agencyId, actor, reason);
+        await setDurableTenantLockdown(agencyId, actor, reason);
         break;
       }
       case "lift-tenant-lockdown": {
         if (!agencyId) return NextResponse.json({ ok: false, error: "no_tenant_scope" }, { status: 400 });
-        liftTenantLockdown(agencyId, actor);
+        await clearDurableTenantLockdown(agencyId, actor, reason);
         break;
       }
       case "set-global-read-only": {
-        setGlobalReadOnly(actor, reason);
+        await setDurableGlobalReadOnly(actor, reason);
         break;
       }
       case "clear-global-read-only": {
-        clearGlobalReadOnly(actor);
+        await clearDurableGlobalReadOnly(actor, reason);
         break;
       }
       case "disable-ai": {

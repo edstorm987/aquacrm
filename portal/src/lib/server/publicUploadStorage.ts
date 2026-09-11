@@ -1,15 +1,29 @@
 import "server-only";
 
 import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, relative, resolve, sep } from "node:path";
+import { dirname, resolve, sep } from "node:path";
 
 import { assertLiveProviderAccess } from "@/lib/server/sandbox/providerPolicy";
-import { assertWritesAllowed } from "@/lib/server/auth/securityControl";
+import { assertFreshWritesAllowed } from "@/lib/server/auth/securityControl";
 import {
   assessUploadContent,
   type ContentTrustAssessment,
 } from "@/lib/server/security/contentTrust";
 import { recordSecurityEvent } from "@/lib/server/security/securityEvents";
+import {
+  ALLOWED_PUBLIC_UPLOAD_CONTENT_TYPES,
+  MAX_PUBLIC_MEDIA_BYTES,
+  normalizePublicUploadContentType,
+  publicUploadContentTypeAllowed,
+  type AllowedPublicUploadContentType,
+} from "@/lib/shared/publicMediaLimits";
+
+export {
+  ALLOWED_PUBLIC_UPLOAD_CONTENT_TYPES,
+  normalizePublicUploadContentType,
+  publicUploadContentTypeAllowed,
+};
+export type { AllowedPublicUploadContentType };
 
 // Public media storage boundary. Local development can materialise inspected
 // media beneath Next's public/ tree. Remote Supabase/CDN writes are deliberately
@@ -21,7 +35,7 @@ import { recordSecurityEvent } from "@/lib/server/security/securityEvents";
 
 export type PublicUploadStorageProvider = "supabase" | "local";
 
-export const MAX_PUBLIC_UPLOAD_BYTES = 8 * 1024 * 1024;
+export const MAX_PUBLIC_UPLOAD_BYTES = MAX_PUBLIC_MEDIA_BYTES;
 
 // Local-dev only. Approved public media is written under Next's `public/`
 // directory — the same home as the published site folders (milesymedia,
@@ -96,18 +110,6 @@ export class PublicUploadOwnershipProofError extends Error {
 //   · `text/html` and everything else is rejected by omission.
 // The uploader is a trusted agency user, but the boundary must not depend on
 // that: "approved website media" should never be able to be executable.
-export const ALLOWED_PUBLIC_UPLOAD_CONTENT_TYPES = [
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-  "image/gif",
-  "image/avif",
-  "video/mp4",
-  "video/webm",
-] as const;
-
-export type AllowedPublicUploadContentType = (typeof ALLOWED_PUBLIC_UPLOAD_CONTENT_TYPES)[number];
-
 export class PublicUploadContentTypeError extends Error {
   readonly code = "public_upload_content_type_not_allowed";
 
@@ -172,27 +174,10 @@ export class PublicUploadTenantScopeError extends Error {
   }
 }
 
-// Strip any parameters (`image/png; charset=utf-8`) and case before matching,
-// so a decorated header can't smuggle a type past the list. The normalised
-// value is what gets stored — never the caller's verbatim string.
-export function normalizePublicUploadContentType(contentType: string): string {
-  const normalized = contentType.split(";")[0]!.trim().toLowerCase();
-  // `image/jpg` is a common caller alias, but the standard/provider MIME is
-  // `image/jpeg`; canonicalise it so code and bucket policy cannot drift.
-  return normalized === "image/jpg" ? "image/jpeg" : normalized;
-}
-
-export function publicUploadContentTypeAllowed(contentType: string): contentType is AllowedPublicUploadContentType {
-  return (ALLOWED_PUBLIC_UPLOAD_CONTENT_TYPES as readonly string[])
-    .includes(normalizePublicUploadContentType(contentType));
-}
-
 export interface StorePublicUploadInput {
   pathname: string;
   file: Blob;
   contentType: string;
-  localDirectory: string;
-  localKey: string;
   /** Required, secret-free lineage for containment and incident evidence. */
   trust: {
     tenantId: string;
@@ -248,8 +233,8 @@ function assertTenantScopedPublicPath(pathname: string, tenantId: string): void 
   }
 }
 
-function assertPublicUploadWritesAllowed(input: StorePublicUploadInput): void {
-  assertWritesAllowed("storage.public-upload", {
+async function assertPublicUploadWritesAllowed(input: StorePublicUploadInput): Promise<void> {
+  await assertFreshWritesAllowed("storage.public-upload", {
     tenantId: input.trust.tenantId,
     actor: input.trust.actor,
   });
@@ -313,7 +298,7 @@ export async function storePublicUpload(
   assertLiveProviderAccess("Public media storage");
   // Phase 2 write boundary: an incident write-freeze must stop public-media
   // ingestion too (a write path mutate() never sees).
-  assertPublicUploadWritesAllowed(input);
+  await assertPublicUploadWritesAllowed(input);
   // Allow-list BEFORE any branch, so Supabase and local-dev share one gate.
   if (!publicUploadContentTypeAllowed(input.contentType)) {
     throw new PublicUploadContentTypeError(input.contentType);
@@ -396,31 +381,31 @@ export async function storePublicUpload(
   // Local-dev fallback: write under `public/` so Next serves it directly at
   // the returned URL — no proxy route required.
   //
-  // The caller's `localDirectory`/`localKey` are resolved and then checked to
-  // still sit inside `public/uploads-public/`, so a traversal (`../`, or an
-  // absolute key) can never escape the media root. The one real caller passes
-  // safe values today; this makes the boundary self-defending for the next one.
+  // `pathname` has already passed the canonical segment + tenant check above.
+  // It is the sole storage coordinate: accepting a second caller-controlled
+  // local path would let the URL/tenant proof describe one object while disk
+  // materialised another.
   const publicRoot = resolve(process.cwd(), "public", LOCAL_PUBLIC_DIR);
-  const absolutePath = resolve(publicRoot, input.localDirectory, input.localKey);
+  const absolutePath = resolve(publicRoot, input.pathname);
   if (!absolutePath.startsWith(publicRoot + sep)) {
     throw new PublicUploadPathError(absolutePath);
   }
   // Same scan-time lockdown re-check for the local development provider. Keep
   // it outside the provider catch for the same fail-closed classification.
-  assertPublicUploadWritesAllowed(input);
+  await assertPublicUploadWritesAllowed(input);
   try {
     await mkdir(dirname(absolutePath), { recursive: true });
     await writeFile(absolutePath, Buffer.from(await input.file.arrayBuffer()));
   } catch {
     throw new PublicUploadProviderError("local");
   }
-  // Derive the URL from the path actually written, so URL and disk can't drift.
-  const relativeUrlPath = `${LOCAL_PUBLIC_DIR}/${relative(publicRoot, absolutePath).split(sep).join("/")}`;
+  // URL, storage identity, and the disk destination all derive from the same
+  // already-validated canonical pathname.
   recordPublicUploadStored(input, assessment, "local");
   return {
     storageProvider: "local",
-    storageKey: input.localKey,
-    publicUrl: `/${relativeUrlPath}`,
+    storageKey: input.pathname,
+    publicUrl: `/${LOCAL_PUBLIC_DIR}/${input.pathname}`,
     contentTrust,
   };
 }
@@ -440,7 +425,7 @@ export async function deleteSupabasePublicUpload(input: {
   // Global and tenant-scoped containment both bind deletion. Require lineage
   // even though this currently has no production caller, so the future caller
   // cannot silently reopen a service-role cross-tenant path.
-  assertWritesAllowed("storage.public-delete", {
+  await assertFreshWritesAllowed("storage.public-delete", {
     tenantId: input.tenantId,
     actor: input.actor,
   });

@@ -40,11 +40,20 @@ export async function POST(request: Request) {
     const agencyId = getActiveAgencyId(session);
 
     const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+    const current = getAgencyWorkspaceSettings(agencyId);
     const policy: RetentionPolicy = {};
     const applied: string[] = [];
     const cleared: string[] = [];
 
     for (const category of RETENTION_CATEGORIES) {
+      // Activation is a separate operation. If a caller sends only the
+      // activation fields, preserve every existing period; an explicitly
+      // present blank/zero still means "clear this period" as documented.
+      if (!body || !Object.hasOwn(body, category.id)) {
+        const existingDays = current.retention?.[category.id];
+        if (typeof existingDays === "number") policy[category.id] = existingDays;
+        continue;
+      }
       const raw = body?.[category.id];
       const days = typeof raw === "number" ? raw : Number.parseInt(String(raw ?? ""), 10);
       if (Number.isFinite(days) && days > 0) {
@@ -58,6 +67,24 @@ export async function POST(request: Request) {
       }
     }
 
+    let enforcementEnabled = current.retention?.enforcementEnabled === true;
+    if (body && Object.hasOwn(body, "enforcementEnabled")) {
+      if (body.enforcementEnabled === true) {
+        if (body.confirmActivation !== "ACTIVATE RETENTION") {
+          return NextResponse.json({
+            ok: false,
+            error: "Type ACTIVATE RETENTION to enable destructive scheduled sweeps.",
+          }, { status: 400 });
+        }
+        enforcementEnabled = true;
+      } else if (body.enforcementEnabled === false) {
+        enforcementEnabled = false;
+      } else {
+        return NextResponse.json({ ok: false, error: "enforcementEnabled must be true or false." }, { status: 400 });
+      }
+    }
+    policy.enforcementEnabled = enforcementEnabled;
+
     // Built from `getAgencyWorkspaceSettings`, which merges defaults, so the
     // record EXISTS even for an agency that has never opened settings.
     //
@@ -70,7 +97,6 @@ export async function POST(request: Request) {
     // so it would drop what we just set — the same shape as the
     // `saveIntegrationConnection` wipe that the client-Supabase mapping had to
     // avoid.
-    const current = getAgencyWorkspaceSettings(agencyId);
     mutate(state => {
       state.agencySettings[agencyId] = { ...current, retention: policy, updatedAt: Date.now() };
     });
@@ -84,7 +110,7 @@ export async function POST(request: Request) {
       message: "Retention periods were changed.",
       // Periods only — no personal data, and the categories are already public
       // names of collections rather than anything about a person.
-      metadata: { applied, cleared },
+      metadata: { applied, cleared, enforcementEnabled },
     });
     await flushPendingWrites();
 

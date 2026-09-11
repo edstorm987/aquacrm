@@ -6,6 +6,7 @@
 // failure) and then exercising the real guards.
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 // Stub the storage module BEFORE securityControl is loaded, so its getState
@@ -43,4 +44,18 @@ test("the session gate FAILS CLOSED (control-unavailable) when the control plane
     issuedAt: Date.now(), se: { g: 0, t: 0, u: 0 },
   } as never);
   assert.deepEqual(result, { ok: false, reason: "control-unavailable" });
+});
+
+test("session registration throws when persistence is unavailable and issuance does not swallow it", () => {
+  assert.throws(
+    () => control.recordIssuedSession(
+      { sid: "must-persist", userId: "u", agencyId: "a", role: "agency-owner" } as never,
+      { issuedVia: "test" },
+    ),
+    /state backend unreachable/,
+  );
+  const auth = readFileSync("src/lib/server/auth/auth.ts", "utf8");
+  const registration = auth.slice(auth.indexOf("if (payload.sr === 1"), auth.indexOf("return signSessionPayload"));
+  assert.match(registration, /recordIssuedSession\(/);
+  assert.doesNotMatch(registration, /catch\s*\(/, "a failed required registry write must stop token issuance");
 });

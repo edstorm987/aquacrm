@@ -5,6 +5,7 @@
 // than env vars (since each client may connect to a different Shopify store).
 
 import { withRemoteOperationDeadline, type RemoteOperationOutcome } from "@/lib/server/remoteOperation";
+import { assertFreshWritesAllowed } from "@/lib/server/auth/securityControl";
 import { assertLiveProviderAccess } from "@/lib/server/sandbox/providerPolicy";
 import { brokeredFetch } from "@/lib/server/net/outboundBroker";
 
@@ -28,6 +29,13 @@ export async function shopifyFetch<T>(
 ): Promise<{ status: number; body: T }> {
   if (!config.domain || !config.storefrontAccessToken) {
     throw new Error("shopifyFetch: domain and storefrontAccessToken required.");
+  }
+  const mutation = isGraphqlMutation(args.query)
+    || (options.outcome !== undefined && options.outcome !== "read");
+  if (mutation) {
+    const tenantId = config.agencyId?.trim();
+    if (!tenantId) throw new Error("shopifyFetch: agencyId is required for mutations.");
+    await assertFreshWritesAllowed("provider.shopify.mutation", { tenantId });
   }
   assertLiveProviderAccess("Shopify Storefront");
   // Validate the destination is a LEGITIMATE Shopify storefront host before the

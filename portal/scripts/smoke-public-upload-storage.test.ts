@@ -32,7 +32,6 @@ import {
   PublicUploadAtomicLifecycleError,
   PublicUploadOwnershipProofError,
   PublicUploadSizeError,
-  PublicUploadPathError,
   PublicUploadTenantScopeError,
   MAX_PUBLIC_UPLOAD_BYTES,
   publicUploadTrustFailure,
@@ -73,26 +72,23 @@ function assessment(
 
 // --- 1. Local-dev fallback returns a resolvable public URL + writes bytes ---
 test("local-dev stores public media under public/ and returns a servable URL", async () => {
-  const smokeDir = "smoke-phase1";
-  const localKey = "brand/logo.png";
-  const absDir = join(process.cwd(), "public", "uploads-public", smokeDir);
+  const pathname = "website-media/agency-1/smoke-phase1/brand/logo.png";
+  const absDir = join(process.cwd(), "public", "uploads-public", "website-media", "agency-1", "smoke-phase1");
   try {
     const stored = await storePublicUpload(
       {
-        pathname: `website-media/agency-1/${smokeDir}/${localKey}`,
+        pathname,
         file: tinyBlob(),
         contentType: "image/png",
-        localDirectory: smokeDir,
-        localKey,
         trust: TRUST,
       },
       { NODE_ENV: "development" } as NodeJS.ProcessEnv, // no Supabase, not durable → local
     );
 
     assert.equal(stored.storageProvider, "local");
-    assert.equal(stored.storageKey, localKey);
+    assert.equal(stored.storageKey, pathname);
     // The returned URL must be a root-relative path Next serves statically.
-    assert.equal(stored.publicUrl, `/uploads-public/${smokeDir}/${localKey}`);
+    assert.equal(stored.publicUrl, `/uploads-public/${pathname}`);
     assert.ok(stored.publicUrl.startsWith("/"), "public URL is root-relative");
     assert.equal(stored.contentTrust.verdict, "type-verified");
     assert.equal(stored.contentTrust.sniffedType, "image/png");
@@ -105,16 +101,15 @@ test("local-dev stores public media under public/ and returns a servable URL", a
 });
 
 test("a successful public write records digest, tenant and actor lineage", async () => {
-  const absDir = join(process.cwd(), "public", "uploads-public", "smoke-lineage");
+  const pathname = "website-media/agency-1/smoke-lineage/lineage.png";
+  const absDir = join(process.cwd(), "public", "uploads-public", "website-media", "agency-1", "smoke-lineage");
   clearSecurityEventsForTest();
   try {
     await storePublicUpload(
       {
-        pathname: "website-media/agency-1/lineage.png",
+        pathname,
         file: tinyBlob(),
         contentType: "image/png",
-        localDirectory: "smoke-lineage",
-        localKey: "lineage.png",
         trust: TRUST,
       },
       { NODE_ENV: "development" } as NodeJS.ProcessEnv,
@@ -124,7 +119,7 @@ test("a successful public write records digest, tenant and actor lineage", async
     assert.equal(event.tenantId, TRUST.tenantId);
     assert.equal(event.actor, TRUST.actor);
     assert.match(String(event.detail?.digest), /^[a-f0-9]{64}$/);
-    assert.equal(event.detail?.objectPath, "website-media/agency-1/lineage.png");
+    assert.equal(event.detail?.objectPath, pathname);
     assert.equal(event.detail?.clientId, TRUST.clientId);
     assert.equal(event.detail?.siteId, TRUST.siteId);
     assert.equal(event.detail?.verdict, "type-verified");
@@ -143,8 +138,6 @@ test("public uploads fail closed in production when Supabase is unconfigured", a
         pathname: "website-media/agency-1/x.png",
         file: tinyBlob(),
         contentType: "image/png",
-        localDirectory: "x",
-        localKey: "x.png",
         trust: TRUST,
       },
       { NODE_ENV: "production" } as NodeJS.ProcessEnv, // durable required, no Supabase → throw
@@ -243,8 +236,6 @@ describe("§ Public upload content-type allow-list", () => {
       pathname: `website-media/agency-1/x`,
       file: new Blob([Uint8Array.from([1, 2, 3, 4])], { type: contentType }),
       contentType,
-      localDirectory: "smoke-mime",
-      localKey: "x",
       trust: TRUST,
     },
     { NODE_ENV: "development" } as NodeJS.ProcessEnv,
@@ -273,8 +264,6 @@ describe("§ Public upload content-type allow-list", () => {
           pathname: "website-media/agency-1/evil.svg",
           file: new Blob([Uint8Array.from([1])], { type: "image/svg+xml" }),
           contentType: "image/svg+xml",
-          localDirectory: "smoke-mime",
-          localKey: "evil.svg",
           trust: TRUST,
         },
         {
@@ -307,15 +296,13 @@ describe("§ Public upload content-type allow-list", () => {
   });
 
   it("stores the NORMALISED content type, not the caller's verbatim string", async () => {
-    const absDir = join(process.cwd(), "public", "uploads-public", "smoke-norm");
+    const absDir = join(process.cwd(), "public", "uploads-public", "website-media", "agency-1", "smoke-norm");
     try {
       const stored = await storePublicUpload(
         {
-          pathname: "website-media/agency-1/n.png",
+          pathname: "website-media/agency-1/smoke-norm/n.png",
           file: tinyBlob(),
           contentType: "IMAGE/PNG; charset=utf-8",
-          localDirectory: "smoke-norm",
-          localKey: "n.png",
           trust: TRUST,
         },
         { NODE_ENV: "development" } as NodeJS.ProcessEnv,
@@ -331,7 +318,7 @@ describe("§ Public upload content-type allow-list", () => {
 // --- 6. Byte-level trust + public-CDN malware-clear policy -----------------
 describe("§ Public upload byte-level trust gate", () => {
   it("rejects arbitrary bytes declared as PNG before any local write", async () => {
-    const absDir = join(process.cwd(), "public", "uploads-public", "smoke-byte-mismatch");
+    const absDir = join(process.cwd(), "public", "uploads-public", "website-media", "agency-1", "mismatch.png");
     try {
       await assert.rejects(
         () => storePublicUpload(
@@ -339,8 +326,6 @@ describe("§ Public upload byte-level trust gate", () => {
             pathname: "website-media/agency-1/mismatch.png",
             file: new Blob([Uint8Array.from([1, 2, 3, 4])], { type: "image/png" }),
             contentType: "image/png",
-            localDirectory: "smoke-byte-mismatch",
-            localKey: "mismatch.png",
             trust: TRUST,
           },
           { NODE_ENV: "development" } as NodeJS.ProcessEnv,
@@ -366,8 +351,6 @@ describe("§ Public upload byte-level trust gate", () => {
           pathname: "website-media/agency-1/polyglot.png",
           file: new Blob(["<!doctype html><script>alert(1)</script>"], { type: "image/png" }),
           contentType: "image/png",
-          localDirectory: "smoke-byte-polyglot",
-          localKey: "polyglot.png",
           trust: TRUST,
         },
         { NODE_ENV: "development" } as NodeJS.ProcessEnv,
@@ -403,8 +386,6 @@ describe("§ Public upload byte-level trust gate", () => {
             pathname: "website-media/agency-1/needs-scan.png",
             file: tinyBlob(),
             contentType: "image/png",
-            localDirectory: "smoke-cdn-scan",
-            localKey: "needs-scan.png",
             trust: { ...TRUST, purpose: "test.public-cdn" },
           },
           {
@@ -464,7 +445,7 @@ describe("§ Public upload byte-level trust gate", () => {
   });
 
   it("recognises AVIF's ISO-BMFF signature instead of treating allowed AVIF as unverified", async () => {
-    const absDir = join(process.cwd(), "public", "uploads-public", "smoke-avif");
+    const absDir = join(process.cwd(), "public", "uploads-public", "website-media", "agency-1", "smoke-avif");
     try {
       const avif = Uint8Array.from([
         0x00, 0x00, 0x00, 0x18,
@@ -476,11 +457,9 @@ describe("§ Public upload byte-level trust gate", () => {
       ]);
       const stored = await storePublicUpload(
         {
-          pathname: "website-media/agency-1/image.avif",
+          pathname: "website-media/agency-1/smoke-avif/image.avif",
           file: new Blob([avif], { type: "image/avif" }),
           contentType: "image/avif",
-          localDirectory: "smoke-avif",
-          localKey: "image.avif",
           trust: TRUST,
         },
         { NODE_ENV: "development" } as NodeJS.ProcessEnv,
@@ -504,11 +483,9 @@ describe("§ Public upload byte-level trust gate", () => {
     await assert.rejects(
       () => storePublicUpload(
         {
-          pathname: "website-media/agency-1/not-avif.avif",
+          pathname: "website-media/agency-1/smoke-avif/not-avif.avif",
           file: new Blob([mp4Family], { type: "image/avif" }),
           contentType: "image/avif",
-          localDirectory: "smoke-avif",
-          localKey: "not-avif.avif",
           trust: TRUST,
         },
         { NODE_ENV: "development" } as NodeJS.ProcessEnv,
@@ -534,8 +511,6 @@ describe("§ Public upload byte-level trust gate", () => {
             pathname: "website-media/agency-1/oversized.png",
             file: new Blob([new Uint8Array(MAX_PUBLIC_UPLOAD_BYTES + 1)], { type: "image/png" }),
             contentType: "image/png",
-            localDirectory: "smoke-size",
-            localKey: "oversized.png",
             trust: TRUST,
           },
           { NODE_ENV: "development" } as NodeJS.ProcessEnv,
@@ -555,8 +530,6 @@ describe("§ Public upload byte-level trust gate", () => {
           pathname: "website-media/agency-2/cross-tenant.png",
           file: tinyBlob(),
           contentType: "image/png",
-          localDirectory: "smoke-scope",
-          localKey: "cross-tenant.png",
           trust: TRUST,
         },
         { NODE_ENV: "development" } as NodeJS.ProcessEnv,
@@ -582,8 +555,6 @@ describe("§ Public upload byte-level trust gate", () => {
             pathname,
             file: tinyBlob(),
             contentType: "image/png",
-            localDirectory: "smoke-scope",
-            localKey: "x.png",
             trust: TRUST,
           },
           { NODE_ENV: "development" } as NodeJS.ProcessEnv,
@@ -595,12 +566,13 @@ describe("§ Public upload byte-level trust gate", () => {
   });
 });
 
-test("the forward bucket migration matches the application MIME and size contract", () => {
+test("the forward bucket migration permits the stricter application MIME and size contract", () => {
   const migration = readFileSync(
     join(process.cwd(), "..", "supabase", "migrations", "20260910010000_harden_aquacrm_public_media_bucket.sql"),
     "utf8",
   );
-  assert.match(migration, /file_size_limit = 8388608/);
+  const migrationLimit = Number(/file_size_limit\s*=\s*(\d+)/.exec(migration)?.[1]);
+  assert.ok(migrationLimit >= MAX_PUBLIC_UPLOAD_BYTES);
   for (const contentType of ALLOWED_PUBLIC_UPLOAD_CONTENT_TYPES) {
     assert.ok(migration.includes(`'${contentType}'`), `migration must allow ${contentType}`);
   }
@@ -609,67 +581,23 @@ test("the forward bucket migration matches the application MIME and size contrac
   }
 });
 
-// --- 7. Local-write path stays inside public/uploads-public/ ---------------
-// Not exploitable from the one real caller (content-addressed keys), but the
-// boundary must self-defend for the next caller. Dev-only path; prod fails
-// closed before it.
+// --- 7. Local-write path derives only from the canonical tenant pathname ---
 describe("§ Public upload local-write path guard", () => {
-  const escape = (localDirectory: string, localKey: string) => storePublicUpload(
-    {
-      pathname: "website-media/agency-1/x.png",
-      file: tinyBlob(),
-      contentType: "image/png",
-      localDirectory,
-      localKey,
-      trust: TRUST,
-    },
-    { NODE_ENV: "development" } as NodeJS.ProcessEnv,
-  );
-
-  it("rejects ../ traversal in localKey and localDirectory", async () => {
-    const escapee = join(process.cwd(), "public", "pwned.png");
-    for (const [dir, key] of [
-      ["website-media", "../../pwned.png"],
-      ["../..", "pwned.png"],
-      ["website-media", "../../../../../../tmp/pwned.png"],
-    ] as const) {
-      await assert.rejects(() => escape(dir, key), (err: unknown) => {
-        assert.ok(err instanceof PublicUploadPathError, `expected path error for ${dir}/${key}`);
-        assert.equal((err as PublicUploadPathError).code, "public_upload_path_escape");
-        return true;
-      });
-    }
-    assert.equal(existsSync(escapee), false, "traversal must not write outside uploads-public");
-  });
-
-  it("rejects an absolute localKey (resolve would honour it)", async () => {
-    await assert.rejects(
-      () => escape("website-media", join(process.cwd(), "public", "abs-pwned.png")),
-      PublicUploadPathError,
-    );
-    assert.equal(existsSync(join(process.cwd(), "public", "abs-pwned.png")), false);
-  });
-
-  it("rejects a sibling-prefix escape (uploads-public-evil)", async () => {
-    await assert.rejects(() => escape("..", "uploads-public-evil/x.png"), PublicUploadPathError);
-    assert.equal(existsSync(join(process.cwd(), "public", "uploads-public-evil")), false);
-  });
-
-  it("still writes normal nested keys and returns a URL matching the file on disk", async () => {
-    const absDir = join(process.cwd(), "public", "uploads-public", "smoke-guard");
+  it("writes the canonical tenant pathname and returns that same storage identity", async () => {
+    const pathname = "website-media/agency-1/smoke-guard/deep/a.png";
+    const absDir = join(process.cwd(), "public", "uploads-public", "website-media", "agency-1", "smoke-guard");
     try {
       const stored = await storePublicUpload(
         {
-          pathname: "website-media/agency-1/deep/a.png",
+          pathname,
           file: tinyBlob(),
           contentType: "image/png",
-          localDirectory: "smoke-guard",
-          localKey: "agency-1/deep/a.png",
           trust: TRUST,
         },
         { NODE_ENV: "development" } as NodeJS.ProcessEnv,
       );
-      assert.equal(stored.publicUrl, "/uploads-public/smoke-guard/agency-1/deep/a.png");
+      assert.equal(stored.storageKey, pathname);
+      assert.equal(stored.publicUrl, `/uploads-public/${pathname}`);
       // The URL must resolve to the file that was actually written.
       assert.equal(
         existsSync(join(process.cwd(), "public", ...stored.publicUrl.slice(1).split("/"))),

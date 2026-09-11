@@ -2,6 +2,7 @@
 
 import type { BlockRenderProps } from "../blockRegistry";
 import { blockStylesToCss } from "../blockStyles";
+import { blockCssScopeId } from "@/engines/editor/elements/blockIdentity";
 
 interface NavLink { label: string; href: string; }
 
@@ -11,7 +12,7 @@ export default function NavbarBlock({ block }: BlockRenderProps) {
   const ctaLabel = (block.props.ctaLabel as string | undefined) ?? "";
   const ctaHref = (block.props.ctaHref as string | undefined) ?? "#";
 
-  const id = `nav-${block.id}`;
+  const id = blockCssScopeId("nav", block.id);
   const style: React.CSSProperties = {
     display: "flex",
     alignItems: "center",
@@ -22,7 +23,7 @@ export default function NavbarBlock({ block }: BlockRenderProps) {
     ...blockStylesToCss(block.styles),
   };
 
-  const responsiveCss = `
+  const responsiveCss = id ? `
     [data-nav-id="${id}"] .nav-links { display: flex; gap: 24px; list-style: none; margin: 0; padding: 0; }
     @media (max-width: 768px) {
       [data-nav-id="${id}"] .nav-links { gap: 16px; flex-wrap: wrap; justify-content: center; }
@@ -32,11 +33,11 @@ export default function NavbarBlock({ block }: BlockRenderProps) {
       [data-nav-id="${id}"] { flex-wrap: wrap; gap: 12px; }
       [data-nav-id="${id}"] .nav-links { width: 100%; order: 3; }
     }
-  `;
+  ` : "";
 
   return (
-    <nav data-block-type="navbar" data-nav-id={id} style={style}>
-      <style>{responsiveCss}</style>
+    <nav data-block-type="navbar" data-nav-id={id ?? undefined} style={style}>
+      {responsiveCss && <style>{responsiveCss}</style>}
       <a href="/" style={{ fontFamily: "var(--font-playfair, Georgia, serif)", fontSize: 18, fontWeight: 700, textDecoration: "none", color: "inherit" }}>
         {brand}
       </a>

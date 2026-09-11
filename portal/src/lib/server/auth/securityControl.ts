@@ -13,12 +13,11 @@ import "server-only";
 //      no stamp and therefore read as epoch 0 — one bump kills them all).
 //      This is the guaranteed coarse kill switch: it needs no registry row.
 //   2. USER SUSPENSION — a suspended user fails the gate everywhere at once.
-//   3. SESSION REGISTRY — sessions minted through the real login flow are
-//      recorded with a `sid`, so ONE device/session can be revoked without
-//      rotating the whole user. Enforcement refuses a session only when its
-//      registry row is explicitly revoked; unrecorded sids (dev/showcase/demo
-//      mints) stay governed by the epoch layer above, so a missing row can
-//      never lock the owner out while still being killable at user scope.
+//   3. SESSION REGISTRY — real sessions carry `sr: 1` and are usable only while
+//      a matching, unexpired registry row exists. Missing persistence therefore
+//      denies the credential rather than silently disabling per-device
+//      revocation. Deliberately ephemeral dev/showcase/sandbox mints omit `sr`
+//      and remain governed by the epoch layer.
 //
 // Writes go through the same `mutate()` path the user store uses. Reads are
 // in-memory against hydrated state. No render-time writes: `touchSessionSeen`
@@ -30,8 +29,15 @@ import "server-only";
 // that move unchanged.
 
 import crypto from "crypto";
-import { getState, mutate } from "@/server/storage";
+import { getState, LIVE_DATA_REALM_ID, mutate, runInDataRealm } from "@/server/storage";
 import { recordSecurityEvent } from "@/lib/server/security/securityEvents";
+import {
+  assertFreshWriteAdmission,
+  readAuthoritativeWriteAdmission,
+  setAuthoritativeWriteControl,
+  type DurableWriteAdmissionSnapshot,
+  type PlatformWritePurpose,
+} from "@/lib/server/security/writeAdmission";
 import type { SecurityControlState, SecuritySessionRecord, SessionPayload, Role } from "@/server/types";
 
 const EMPTY: SecurityControlState = {
@@ -249,6 +255,71 @@ export function isTenantLockedDown(agencyId: string): boolean {
   return Boolean(readSecurityControl().tenantLockdowns?.[agencyId]);
 }
 
+/**
+ * Authoritative write containment lives outside PortalState.  The synchronous
+ * helpers above remain the session-control/legacy test representation only;
+ * neither their active realm nor their process cache is a write authority.
+ */
+export async function readDurableWriteControl(tenantId?: string): Promise<DurableWriteAdmissionSnapshot> {
+  return readAuthoritativeWriteAdmission(tenantId);
+}
+
+export async function setDurableGlobalReadOnly(actor: string, reason: string): Promise<DurableWriteAdmissionSnapshot> {
+  const snapshot = await setAuthoritativeWriteControl({
+    scope: "global",
+    frozen: true,
+    reason,
+    actor,
+  });
+  logSecurityAction("durable-global-read-only-set", { actor, reason, revision: snapshot.global.revision });
+  return snapshot;
+}
+
+export async function clearDurableGlobalReadOnly(actor: string, reason = "Operator cleared global read-only"): Promise<DurableWriteAdmissionSnapshot> {
+  const snapshot = await setAuthoritativeWriteControl({
+    scope: "global",
+    frozen: false,
+    reason,
+    actor,
+  });
+  logSecurityAction("durable-global-read-only-cleared", { actor, revision: snapshot.global.revision });
+  return snapshot;
+}
+
+export async function setDurableTenantLockdown(
+  agencyId: string,
+  actor: string,
+  reason: string,
+): Promise<DurableWriteAdmissionSnapshot> {
+  const snapshot = await setAuthoritativeWriteControl({
+    scope: "tenant",
+    scopeId: agencyId,
+    frozen: true,
+    reason,
+    actor,
+  });
+  // Session denial still uses PortalState. It is a compatibility mirror, not
+  // the admission authority; provider/database admission uses `snapshot`.
+  lockdownTenant(agencyId, actor, reason);
+  return snapshot;
+}
+
+export async function clearDurableTenantLockdown(
+  agencyId: string,
+  actor: string,
+  reason = "Operator lifted tenant lockdown",
+): Promise<DurableWriteAdmissionSnapshot> {
+  const snapshot = await setAuthoritativeWriteControl({
+    scope: "tenant",
+    scopeId: agencyId,
+    frozen: false,
+    reason,
+    actor,
+  });
+  liftTenantLockdown(agencyId, actor);
+  return snapshot;
+}
+
 // ─── The write boundary (Phase 2) ───────────────────────────────────────────
 //
 // The global read-only kill switch binds `mutate()` — but that only covers
@@ -290,7 +361,12 @@ export function assertWritesAllowed(surface: string, ctx: { tenantId?: string; a
   // (fresh tenant) is treated as no freeze.
   let control: SecurityControlState;
   try {
-    control = readSecurityControlStrict();
+    // Containment is deliberately anchored to the LIVE realm. A request may
+    // be executing inside a preview/showcase/sandbox realm, but that realm
+    // must never carry its own stale all-clear copy of the incident controls.
+    // runInDataRealm is synchronous for this read and restores the caller's
+    // realm immediately afterwards.
+    control = runInDataRealm(LIVE_DATA_REALM_ID, readSecurityControlStrict);
   } catch {
     recordSecurityEvent({
       kind: "lockdown.write-refused",
@@ -321,6 +397,25 @@ export function assertWritesAllowed(surface: string, ctx: { tenantId?: string; a
     });
     throw new WritesFrozenError(surface, `tenant ${ctx.tenantId} is locked down`);
   }
+}
+
+export type FreshWriteEffectContext =
+  | { tenantId: string; actor?: string; platformPurpose?: never }
+  | { tenantId?: never; actor?: string; platformPurpose: PlatformWritePurpose };
+
+/**
+ * Fresh remote-effect admission. The synchronous guard remains a fast local
+ * tripwire and event source; this second gate is the durable, no-store LIVE
+ * authority and requires either tenant lineage or a closed platform purpose.
+ */
+export async function assertFreshWritesAllowed(
+  surface: string,
+  context: FreshWriteEffectContext,
+): Promise<void> {
+  assertWritesAllowed(surface, { tenantId: context.tenantId, actor: context.actor });
+  await assertFreshWriteAdmission(context.tenantId !== undefined
+    ? { kind: "tenant", tenantId: context.tenantId, surface, actor: context.actor }
+    : { kind: "platform", purpose: context.platformPurpose, surface, actor: context.actor });
 }
 
 // ─── AI kill switch (Phase 3) ───────────────────────────────────────────────
@@ -383,6 +478,13 @@ export function recordIssuedSession(
       .sort((a, b) => b.issuedAt - a.issuedAt);
     for (const stale of mine.slice(50)) delete control.sessions[stale.sid];
   });
+  const accepted = readSecurityControlStrict().sessions[record.sid];
+  if (!accepted
+    || accepted.userId !== record.userId
+    || accepted.agencyId !== record.agencyId
+    || accepted.role !== record.role) {
+    throw new SecurityControlUnavailableError();
+  }
 }
 
 export function listUserSessions(userId: string): SecuritySessionRecord[] {
@@ -482,7 +584,7 @@ export function touchSessionSeen(sid: string | undefined): void {
 
 export type SessionGateResult =
   | { ok: true }
-  | { ok: false; reason: "suspended" | "tenant-lockdown" | "global-epoch" | "tenant-epoch" | "user-epoch" | "session-revoked" | "control-unavailable" };
+  | { ok: false; reason: "suspended" | "tenant-lockdown" | "global-epoch" | "tenant-epoch" | "user-epoch" | "session-unregistered" | "session-expired" | "session-revoked" | "control-unavailable" };
 
 /**
  * Called by `resolveFreshSessionUser` on every authenticated request. Pure
@@ -494,7 +596,13 @@ export type SessionGateResult =
 export function enforceSessionSecurity(session: SessionPayload): SessionGateResult {
   let control: SecurityControlState;
   try {
-    control = readSecurityControlStrict();
+    // A sandbox request executes in its sandbox data realm, but its authority
+    // is anchored to the live account. Read epochs, suspensions and the
+    // required registry row from that live realm so incident response cannot
+    // be escaped merely by entering a preview dataset.
+    control = session.sandbox && !session.publicShowcase
+      ? runInDataRealm(LIVE_DATA_REALM_ID, readSecurityControlStrict)
+      : readSecurityControlStrict();
   } catch {
     return { ok: false, reason: "control-unavailable" };
   }
@@ -544,9 +652,17 @@ export function enforceSessionSecurity(session: SessionPayload): SessionGateResu
   if (liveAgencyId && stamped.t < (control.tenantEpochs[liveAgencyId] ?? 0)) return { ok: false, reason: "tenant-epoch" };
   if (stamped.u < (control.userEpochs[liveUserId] ?? 0)) return { ok: false, reason: "user-epoch" };
 
-  if (session.sid) {
+  if (session.sr === 1) {
+    if (!session.sid) return { ok: false, reason: "session-unregistered" };
     const record = control.sessions[session.sid];
-    if (record?.revokedAt) return { ok: false, reason: "session-revoked" };
+    if (!record
+      || record.userId !== session.userId
+      || record.agencyId !== (session.activeAgencyId ?? session.agencyId)
+      || record.role !== session.role) {
+      return { ok: false, reason: "session-unregistered" };
+    }
+    if (record.expiresAt && record.expiresAt < Date.now()) return { ok: false, reason: "session-expired" };
+    if (record.revokedAt) return { ok: false, reason: "session-revoked" };
   }
 
   return { ok: true };

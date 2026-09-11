@@ -2,7 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { containerFor } from "@aqua/plugin-leads-pipeline/server";
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
-import { FOUNDER_AGENCY_SLUG, FOUNDER_EMAIL, seedFounder } from "@/lib/server/seeds/founderSeed";
+import { FOUNDER_AGENCY_SLUG, FOUNDER_EMAIL } from "@/lib/server/seeds/founderSeed";
+import { assertFreshWriteAdmission, isWriteAdmissionDenied } from "@/lib/server/security/writeAdmission";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { getInstall } from "@/server/pluginInstalls";
 import { logActivity } from "@/server/activity";
@@ -76,8 +77,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    await ensureHydrated();
-    await seedFounder();
+    await ensureHydrated({ fresh: true });
     ensureLeadsPipelineFoundationRegistered();
 
     const agency = getAgencyBySlug(FOUNDER_AGENCY_SLUG);
@@ -85,6 +85,12 @@ export async function POST(req: NextRequest) {
     if (!agency || !founder) {
       return error("Milesymedia contact is temporarily unavailable. Please email hello@milesymedia.co.", 503);
     }
+    await assertFreshWriteAdmission({
+      kind: "tenant",
+      tenantId: agency.id,
+      surface: "public-contact-submit",
+      actor: "public-contact",
+    });
 
     const install = getInstall({ agencyId: agency.id }, "leads-pipeline");
     if (!install?.enabled) {
@@ -134,6 +140,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (cause) {
     console.error("[public-contact] failed to capture enquiry", cause);
-    return error("We could not save your message. Please try again or email hello@milesymedia.co.", 500);
+    return error(
+      "We could not save your message. Please try again or email hello@milesymedia.co.",
+      isWriteAdmissionDenied(cause) ? 503 : 500,
+    );
   }
 }

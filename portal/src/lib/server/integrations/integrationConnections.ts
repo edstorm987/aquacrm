@@ -501,16 +501,18 @@ async function testProvider(
   // can never reach a private/loopback/metadata address (the VERIFIED SSRF).
   const brokeredResponse = async (
     url: string | URL,
-    init: { headers?: Record<string, string>; purpose: string },
+    init: { method?: string; body?: string; headers?: Record<string, string>; purpose: string },
   ): Promise<{ status: number; ok: boolean; json: () => Promise<unknown> }> => {
     if (fetchImpl) {
-      const legacy = await fetchImpl(url, { headers: init.headers, cache: "no-store", signal });
+      const legacy = await fetchImpl(url, { method: init.method, body: init.body, headers: init.headers, cache: "no-store", signal });
       return { status: legacy.status, ok: legacy.ok, json: () => legacy.json().catch(() => null) };
     }
     let response;
     try {
       response = await brokeredFetch({
         url: url.toString(),
+        method: init.method,
+        body: init.body,
         headers: init.headers,
         timeoutMs: TEST_TIMEOUT_MS,
         purpose: init.purpose,
@@ -591,58 +593,72 @@ async function testProvider(
     return testGoogleSearchConsole(values, fetchImpl, signal);
   }
   if (provider === "client-supabase") {
-    // Testing a CLIENT's database, and the interesting question is not "does
-    // the key work" — it is "is the table locked down".
+    // After the 2026-09 secure-intake redesign there is NO anon key and NO raw
+    // table to probe — an exported site posts to the client-owned
+    // `aqua-form-submit` Edge Function, and AquaCRM reads one submission back
+    // through the bounded, HMAC-signed `aqua-form-read` function. So the
+    // question "test" answers is no longer "is the table locked down" but:
     //
-    // ── Why this is the check that matters ───────────────────────────────
+    //   1. Are both Edge Functions actually DEPLOYED and reachable? (A project
+    //      that never deployed the bundle answers 404.)
+    //   2. Does the READ function FAIL CLOSED — i.e. refuse a forged, unsigned
+    //      read? It must never answer `ok:true` to an unauthenticated caller;
+    //      that would be the client-owned data design failing open, the exact
+    //      failure the old anon-SELECT probe existed to catch.
     //
-    // An exported site posts to this table straight from the visitor's browser,
-    // carrying the ANON key in the page source. That is how Supabase is meant
-    // to be used: the anon key is public, and the row-level-security policy is
-    // the actual control. The README we ship says "keep that policy to INSERT
-    // only" — but that was prose, and nobody had ever verified it.
-    //
-    // If the table also allows anon SELECT, then every enquiry that client has
-    // ever received is readable by anyone who views their homepage source.
-    // That is the whole point of the client-owned data design failing open.
-    //
-    // So: ask, with the anon key, to read one row.
-    //   • 200 with an ARRAY  → anon may read. Refuse the test and say so.
-    //                          An EMPTY array is just as bad: the policy
-    //                          permits the read, there simply are no rows yet.
-    //   • 401 / 403          → RLS is denying anon. This is the good case.
-    //   • 404                → the table is missing or not exposed by PostgREST.
-    //
-    // Deliberately read-only. Proving INSERT works would mean writing a test
-    // row into a client's live table, and no diagnostic is worth that.
+    // Both probes are side-effect-free. The intake probe is a GET, which a live
+    // function refuses with 405 and writes nothing — deliberately NOT a POST,
+    // which would insert a real submission. The read probe is a POST carrying an
+    // intentionally invalid signature, which the function rejects (403/401)
+    // before any nonce is spent or row returned.
     const base = (values.projectUrl || "").trim().replace(/\/+$/, "");
-    const table = (values.submissionsTable || "").trim();
-    const anonKey = (values.anonKey || "").trim();
-    if (!base || !table || !anonKey) {
-      throw new Error("Add the project URL, the anon key and the submissions table before testing.");
+    const formId = (values.formId || "").trim();
+    const webhookSecret = (values.webhookSecret || "").trim();
+    const readSecret = (values.readSecret || "").trim();
+    if (!base || !formId || !webhookSecret || !readSecret) {
+      throw new Error("Add the project URL, form id, webhook secret and read secret before testing.");
     }
-    const probe = await brokeredResponse(`${base}/rest/v1/${encodeURIComponent(table)}?select=*&limit=1`, {
-      headers: { apikey: anonKey, authorization: `Bearer ${anonKey}` },
-      purpose: "integration.supabase-probe",
+    if (webhookSecret === readSecret) {
+      throw new Error("The webhook secret and the read secret must be different values — they authorise different operations.");
+    }
+
+    // 1) The intake function must be deployed. A GET is refused by a live
+    //    function (405) and answered 404 by a project that has not deployed it.
+    const submitProbe = await brokeredResponse(`${base}/functions/v1/aqua-form-submit`, {
+      purpose: "integration.supabase-intake-probe",
     });
-    if (probe.status === 404) {
-      throw new Error(`Supabase could not find a table called "${table}". Check the name, and that it is exposed through the API.`);
+    if (submitProbe.status === 404) {
+      throw new Error("The aqua-form-submit Edge Function is not deployed on this project. Deploy the client-supabase bundle, then test again.");
     }
-    if (probe.ok) {
-      const rows = await probe.json().catch(() => null);
-      if (Array.isArray(rows)) {
+
+    // 2) The read function must REFUSE a forged read. A deliberately invalid
+    //    signature must never come back `ok:true`.
+    const forged = JSON.stringify({
+      siteId: "connection-test",
+      submissionId: "connection-test",
+      ts: String(Date.now()),
+      nonce: `test-${crypto.randomBytes(12).toString("hex")}`,
+      signature: "0".repeat(64),
+    });
+    const readProbe = await brokeredResponse(`${base}/functions/v1/aqua-form-read`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: forged,
+      purpose: "integration.supabase-read-probe",
+    });
+    if (readProbe.status === 404) {
+      throw new Error("The aqua-form-read Edge Function is not deployed on this project. Deploy the client-supabase bundle, then test again.");
+    }
+    if (readProbe.ok) {
+      const payload = await readProbe.json().catch(() => null) as { ok?: boolean } | null;
+      if (payload && payload.ok === true) {
         throw new Error(
-          `Anyone can READ "${table}" with this site's public key, so every enquiry in it is exposed. ` +
-          "Restrict the table's row-level-security policy to INSERT for the anon role, then test again.",
+          "The read function answered a FORGED, unsigned request with success — it is failing OPEN. " +
+          "Do not connect this until aqua-form-read verifies the read secret before returning anything.",
         );
       }
     }
-    if (probe.status === 401 || probe.status === 403) {
-      return `Connected. "${table}" refuses public reads, so enquiries can be submitted but not read back from the site.`;
-    }
-    // Anything else: reachable, not obviously wrong, but not a clean refusal
-    // either — say exactly what came back rather than implying it is fine.
-    return `Connected to "${table}". Supabase answered ${probe.status} to a public read test — confirm that policy allows INSERT only.`;
+    return "Connected. The intake function is deployed and the read function refuses unsigned reads — submissions can be received, and read back only with the read secret.";
   }
   if (provider === "aqua-editor-ai") {
     // Same wire call as `openai` — a different CREDENTIAL, not a different

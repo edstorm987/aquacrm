@@ -3,12 +3,14 @@ import "server-only";
 import crypto from "node:crypto";
 
 import type { InboxAuthMode, InboxChannel, MetaInboxReadiness } from "@/lib/inbox/types";
+import { assertFreshWritesAllowed } from "@/lib/server/auth/securityControl";
 import { findPrivateConnectionByExternalAccount, type PrivateInboxConnection } from "@/lib/server/inbox/inboxStore";
 import { decryptInboxSecret } from "@/lib/server/inbox/inboxVault";
 import { listAgencyIdsForProvider, resolveIntegrationValues } from "@/lib/server/integrations/integrationConnections";
 import { assertLiveProviderAccess } from "@/lib/server/sandbox/providerPolicy";
 
 export interface MetaMessagingConfig {
+  agencyId: string;
   appId: string;
   appSecret: string;
   webhookVerifyToken: string;
@@ -90,6 +92,7 @@ export function readMetaMessagingConfig(agencyId: string, origin?: string): Meta
   const values = resolveIntegrationValues(agencyId, "meta");
   const base = process.env.NEXT_PUBLIC_PORTAL_BASE_URL?.trim() || origin || "http://localhost:3032";
   return {
+    agencyId,
     appId: values.appId!.trim(),
     appSecret: values.appSecret!.trim(),
     webhookVerifyToken: values.webhookVerifyToken!.trim(),
@@ -180,6 +183,7 @@ export async function exchangeMetaOAuthCode(
   mode: InboxAuthMode,
   fetchImpl: typeof fetch = fetch,
 ): Promise<DiscoveredMetaAccount[]> {
+  await assertFreshWritesAllowed("provider.meta.oauth", { tenantId: config.agencyId });
   assertLiveProviderAccess("Meta OAuth");
   if (mode === "instagram-login") return exchangeInstagramCode(config, code, fetchImpl);
   return exchangeFacebookCode(config, code, fetchImpl);
@@ -296,6 +300,7 @@ export async function subscribeMetaWebhooks(
   account: DiscoveredMetaAccount,
   fetchImpl: typeof fetch = fetch,
 ): Promise<{ subscribed: boolean; message: string }> {
+  await assertFreshWritesAllowed("provider.meta.webhook-subscription", { tenantId: config.agencyId });
   assertLiveProviderAccess("Meta webhook subscription");
   const host = account.authMode === "instagram-login" ? "graph.instagram.com" : "graph.facebook.com";
   const url = new URL(`https://${host}/${config.graphApiVersion}/${account.externalPageId || account.externalAccountId}/subscribed_apps`);
@@ -319,6 +324,7 @@ export async function sendMetaTextMessage(
   text: string,
   fetchImpl: typeof fetch = fetch,
 ): Promise<{ messageId: string }> {
+  await assertFreshWritesAllowed("provider.meta.message", { tenantId: connection.agencyId });
   assertLiveProviderAccess("Meta message delivery");
   const accessToken = decryptInboxSecret(connection.encryptedAccessToken);
   const host = connection.authMode === "instagram-login" ? "graph.instagram.com" : "graph.facebook.com";
@@ -345,6 +351,7 @@ export async function sendMetaAttachmentMessage(
   attachment: { type: "image" | "audio" | "video" | "file"; url: string },
   fetchImpl: typeof fetch = fetch,
 ): Promise<{ messageId: string }> {
+  await assertFreshWritesAllowed("provider.meta.attachment", { tenantId: connection.agencyId });
   assertLiveProviderAccess("Meta attachment delivery");
   const accessToken = decryptInboxSecret(connection.encryptedAccessToken);
   const host = connection.authMode === "instagram-login" ? "graph.instagram.com" : "graph.facebook.com";
