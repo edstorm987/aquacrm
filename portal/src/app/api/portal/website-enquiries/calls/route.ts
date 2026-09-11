@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { createEnquiryDataClient } from "@/lib/supabase/enquiryDataClient";
 
 import { NextResponse } from "next/server";
 
@@ -7,7 +8,7 @@ import { loadActorWebsiteEnquiry } from "@/lib/server/access/websiteEnquiryAcces
 import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 import { initiatePhoneCall, resolveCommunicationSender } from "@/lib/server/email/outboundCommunications";
 import { recordWebsiteEnquiryLeadContact } from "@/lib/server/websiteEnquiryLeadSync";
-import { createScopedSupabaseClient, type ScopedSupabaseClient } from "@/lib/supabase/scoped";
+import { type ScopedSupabaseClient } from "@/lib/supabase/scoped";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getClientForAgency } from "@/server/tenants";
@@ -168,7 +169,11 @@ export async function PATCH(request: Request) {
 }
 
 async function loadEnquiry(id: string, actor: CurrentAccessActor): Promise<{ supabase: ScopedSupabaseClient; enquiry: EnquiryRow }> {
-  const supabase = await createScopedSupabaseClient();
+  const supabase = await createEnquiryDataClient({
+    tenantId: actor.resourceAgencyId,
+    actor: actor.session.userId,
+    surface: "database.website-enquiry.calls",
+  });
   // Ownership-guarded: an enquiry outside this agency returns null exactly as a
   // missing one, so call mode can never be driven against another tenant's row.
   const enquiry = await loadActorWebsiteEnquiry<EnquiryRow>(actor, supabase, {

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-08T19:09:05.795Z",
+  "generatedAt": "2026-09-10T21:06:31.150Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -51,46 +51,6 @@
   ],
   "generatedReferenceDirectory": "docs/reference",
   "sources": [
-    {
-      "path": ".artefacts/ui-wave9/03-write-journeys.md",
-      "volume": "docs/00-START-HERE.md",
-      "anchor": "source-artefacts-ui-wave9-03-write-journeys-md",
-      "sha256": "8030166105658cd37ece46f94f0e7c93f3330499bb477e668f92f963af460ad0",
-      "words": 359,
-      "bytes": 2438
-    },
-    {
-      "path": ".artefacts/ui-wave9/04-prehydration-FINDING.md",
-      "volume": "docs/00-START-HERE.md",
-      "anchor": "source-artefacts-ui-wave9-04-prehydration-finding-md",
-      "sha256": "c5d1c376bc5129ac54400639b0a052d7f537edb5112a03eace844cf1f8a985b0",
-      "words": 1161,
-      "bytes": 8434
-    },
-    {
-      "path": ".artefacts/ui-wave9/07-prod-roles-BLOCKED.md",
-      "volume": "docs/00-START-HERE.md",
-      "anchor": "source-artefacts-ui-wave9-07-prod-roles-blocked-md",
-      "sha256": "05266377c83ffc5b8c83cfe78eda4dea2bc692eff7bfcc8fb7b1563b3db3822f",
-      "words": 267,
-      "bytes": 1880
-    },
-    {
-      "path": ".artefacts/ui-wave9/10-item7-prod-role-matrix.md",
-      "volume": "docs/00-START-HERE.md",
-      "anchor": "source-artefacts-ui-wave9-10-item7-prod-role-matrix-md",
-      "sha256": "632eb9e894d0acb82879f8cf8ce59fa0cfcd4d160f85a0e20a326a999a21f14e",
-      "words": 347,
-      "bytes": 2321
-    },
-    {
-      "path": ".artefacts/ui-wave9/FINDING-workspace-curtain.md",
-      "volume": "docs/00-START-HERE.md",
-      "anchor": "source-artefacts-ui-wave9-finding-workspace-curtain-md",
-      "sha256": "ec097f764684e5e2bc6f8b206c1832f6dbabf5654648e62cf6048c55d7f5261a",
-      "words": 291,
-      "bytes": 2016
-    },
     {
       "path": "AGENTS.md",
       "volume": "docs/00-START-HERE.md",
@@ -295,9 +255,9 @@
       "path": "docs/context/next-wave-briefs.md",
       "volume": "docs/06-DEV-TEAM-OPERATIONS.md",
       "anchor": "source-docs-context-next-wave-briefs-md",
-      "sha256": "2b836aab17d9affc0749a47501f5757a23e702e98bb1d40b8204f3d831f04bf3",
-      "words": 2513,
-      "bytes": 18289
+      "sha256": "863357d7fb1480eaaee34312421a5fdea168ce0a41a9dafded75742a5aa83df6",
+      "words": 2567,
+      "bytes": 18676
     },
     {
       "path": "docs/context/orchestration-model.md",
@@ -415,9 +375,9 @@
       "path": "docs/data/SOURCE-INVENTORY.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-data-source-inventory-md",
-      "sha256": "f001415a20ae292630ad496711227d7eedc65f69725d708b0aac4ad4fddaa2f6",
-      "words": 1768,
-      "bytes": 13292
+      "sha256": "94cd2c6147ca5a28a211b977a14b49a62e3d42f7939504bbd136cd2cf7873b37",
+      "words": 1798,
+      "bytes": 13539
     },
     {
       "path": "docs/DEVELOPMENT-HANDOFF.md",
@@ -439,9 +399,9 @@
       "path": "docs/development.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-md",
-      "sha256": "c5aae51179a7437bf0cf3cef67dac81f5dcd65b4f4c0a840932bb19fa3a8dd64",
-      "words": 3625,
-      "bytes": 27970
+      "sha256": "30b497c575be99c36cf384d94d56ed51e3faa238242b4342ba2bda867887251a",
+      "words": 3655,
+      "bytes": 28221
     },
     {
       "path": "docs/development/AUDIT-2026-08-30.md",
@@ -455,9 +415,9 @@
       "path": "docs/development/audits.md",
       "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
       "anchor": "source-docs-development-audits-md",
-      "sha256": "56326c89aea1e7749d47a7115b173d27c8b1f98bfc7b999af8f879fd4a96a77a",
-      "words": 36769,
-      "bytes": 269380
+      "sha256": "ba6f731248fb40a1fddc9163ae652d0298aae444eac2fe3c2d379bd7fda9d7a6",
+      "words": 36828,
+      "bytes": 269846
     },
     {
       "path": "docs/development/BLOCKERS-FOR-ED.md",
@@ -543,9 +503,9 @@
       "path": "docs/development/issues.md",
       "volume": "docs/03-ISSUES-AUDITS-AND-TESTS.md",
       "anchor": "source-docs-development-issues-md",
-      "sha256": "2a49944dd8ab47b38ed962500b1501128d75fa87eac224e55d94f850592c44d8",
-      "words": 45808,
-      "bytes": 356248
+      "sha256": "8c9b8b1e0fd6d44b8b4e8d527f9484b6df942d0e5e2bdae1036a02d571a90b29",
+      "words": 45841,
+      "bytes": 356511
     },
     {
       "path": "docs/development/LOOP-PROGRESS.md",
@@ -959,17 +919,17 @@
       "path": "docs/development/plans/public-bucket-HANDOFF.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-public-bucket-handoff-md",
-      "sha256": "773db28850a7a39736efd2762619dcea12a09bafa6c43859fd56df509c8d665e",
-      "words": 1220,
-      "bytes": 9388
+      "sha256": "ec8455489e425750c392d58975ba8c306e570e29fa38ae067a6dca91a2ea6f28",
+      "words": 1133,
+      "bytes": 8856
     },
     {
       "path": "docs/development/plans/public-bucket.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-public-bucket-md",
-      "sha256": "c13e9ce003324e418789701170cb335f2330e5fcbd3886d2cb43167181edcc76",
-      "words": 764,
-      "bytes": 6252
+      "sha256": "a68f2d96f534b107084de8b5c9ba7e4900024a441060b7e1fce20adb62480a0a",
+      "words": 1261,
+      "bytes": 9565
     },
     {
       "path": "docs/development/plans/radar-upgrade.md",
@@ -983,9 +943,9 @@
       "path": "docs/development/plans/rls-enable.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-rls-enable-md",
-      "sha256": "803185e8c9ccc9a63facaf4dc8f70ef27a8fbf2207262149bc6dbb569391e04e",
-      "words": 1606,
-      "bytes": 12806
+      "sha256": "2a93b711d5490bf4deacd5e1f6e226e87eeee991043fda83ab1f996d81e8d7e5",
+      "words": 1891,
+      "bytes": 15012
     },
     {
       "path": "docs/development/plans/runtime-verification.md",
@@ -1047,9 +1007,9 @@
       "path": "docs/development/plans/supabase-alignment-2026-09-03.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-supabase-alignment-2026-09-03-md",
-      "sha256": "fe76984637fe9bc3da8c8f717aebddf0b85e35f6f309db77c33312e488a4edda",
-      "words": 3064,
-      "bytes": 21266
+      "sha256": "69f7d40dd7e92a944deb67d5ae7fefed0c482585f664282bb80f92b95fd1345b",
+      "words": 3162,
+      "bytes": 21954
     },
     {
       "path": "docs/development/plans/supabase-cutover-and-policy-drafts.md",
@@ -1071,9 +1031,9 @@
       "path": "docs/development/PRODUCTION-READINESS.md",
       "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
       "anchor": "source-docs-development-production-readiness-md",
-      "sha256": "69689073325f254a4639a7af63e847988e74c1cfbbac89dd5e34d0fcfedcb536",
-      "words": 2257,
-      "bytes": 16386
+      "sha256": "08f1e62e9fb4dc4fcb9cf1c77a729d385fc6f4884ad0f58f4e6ac22bb7c8f923",
+      "words": 2531,
+      "bytes": 18433
     },
     {
       "path": "docs/development/roadmap.md",
@@ -1087,9 +1047,9 @@
       "path": "docs/development/status.md",
       "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
       "anchor": "source-docs-development-status-md",
-      "sha256": "10c744ce76c81343595183206c0ca909e9257b1c319a0247fb89be172371414d",
-      "words": 22045,
-      "bytes": 173170
+      "sha256": "8e7ca03ff5646278b7c105ee40dbb9b70d58e9272a7ca34464284ea76f4a055d",
+      "words": 21908,
+      "bytes": 172213
     },
     {
       "path": "docs/development/STRUCTURE.md",
@@ -1111,17 +1071,17 @@
       "path": "docs/development/todo-retired.md",
       "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
       "anchor": "source-docs-development-todo-retired-md",
-      "sha256": "4bde57e97f03f6a571dabe6931f33a2c8e651291a8f8e49fd0a0d099890b64e8",
-      "words": 15920,
-      "bytes": 127286
+      "sha256": "d5f26e0a68903e962845871af43fb1a73739b60fcd7c55e0975cf0460c779169",
+      "words": 15764,
+      "bytes": 125685
     },
     {
       "path": "docs/development/TODO.md",
       "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
       "anchor": "source-docs-development-todo-md",
-      "sha256": "1803d5dd4755e2a6b66204c831044c9b47f0cee23c471be6b894378c376e525e",
-      "words": 4181,
-      "bytes": 31977
+      "sha256": "41b6137c7e6d896de6bda05594de021f20c652649fd4a95462c8987fe40bd0d0",
+      "words": 4369,
+      "bytes": 33422
     },
     {
       "path": "docs/development/UI-UX-RESPONSIVE-ACCEPTANCE-2026-09-08.md",
@@ -1151,9 +1111,9 @@
       "path": "docs/development/updates.md",
       "volume": "docs/08-HISTORY-AND-ARCHIVE.md",
       "anchor": "source-docs-development-updates-md",
-      "sha256": "d0a3f82ccd58a9beb9b5709dcdb3f075bb2ce9d2b227e47b9b7b6f7ffd523aed",
-      "words": 111191,
-      "bytes": 833709
+      "sha256": "66ded81ccb2d38ecb6291c16f31d108b9e151788cda07cc73408bf7dc322d733",
+      "words": 111355,
+      "bytes": 835032
     },
     {
       "path": "docs/development/visual-browser-audit-2026-08-23.md",
@@ -1199,9 +1159,9 @@
       "path": "docs/WORKSPACE-FILE-TREE.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-file-tree-md",
-      "sha256": "6cd666857abaf954182453083eb059eeed02b1d17de9e2171bf312fc64149514",
-      "words": 1376,
-      "bytes": 10819
+      "sha256": "4124eac3da9a9e8491f0e5ccb08e930371bf3fae89c7dcefe2409880598d3791",
+      "words": 1414,
+      "bytes": 11054
     },
     {
       "path": "docs/workspace/advisor.md",
@@ -1247,9 +1207,9 @@
       "path": "docs/workspace/database.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-database-md",
-      "sha256": "396394473cec1654b5b5fdd1a2900334246d6b94bcca2903e73c39a3c32f72fe",
-      "words": 2263,
-      "bytes": 18538
+      "sha256": "481810261ad3acbf7c099cbeaf78a74fa81c6c15cd19b347875317237112346e",
+      "words": 2380,
+      "bytes": 19491
     },
     {
       "path": "docs/workspace/env-and-sellability.md",
@@ -1271,9 +1231,9 @@
       "path": "docs/workspace/hazards-and-duplication.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-hazards-and-duplication-md",
-      "sha256": "16f6a1abda8766e039a3ab45c3eaa3ee06e35b1acce2da86c08825a5c4098ad3",
-      "words": 7937,
-      "bytes": 60660
+      "sha256": "693cf3848ce4abf138b45604aedf99187b97d74a70e7d4173c8a4e02975103a0",
+      "words": 7974,
+      "bytes": 60950
     },
     {
       "path": "docs/workspace/kpi-intelligence.md",

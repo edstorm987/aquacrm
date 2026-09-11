@@ -16,8 +16,134 @@ import type { Block } from "../types/block";
 import type { EditorPage, CreatePageInput as BaseCreatePageInput, UpdatePagePatch } from "../types/editorPage";
 import type { PortalRole } from "./portalRole";
 
-interface ListPayload { ok: boolean; pages: EditorPage[]; }
 interface PagePayload { ok: boolean; page: EditorPage; }
+
+const KNOWN_PAGE_PUBLISH_MESSAGES: Readonly<Record<string, string>> = {
+  public_upload_atomic_lifecycle_required:
+    "Public media publishing is temporarily unavailable while protected publication and recall are being completed.",
+  public_media_temporarily_unavailable:
+    "Public media publishing is temporarily unavailable. No page changes were published.",
+  public_media_security_validation_failed:
+    "Public media did not pass security validation. No page changes were published.",
+  publishing_temporarily_locked:
+    "Publishing is temporarily disabled by a security control. The page was not published.",
+};
+
+export class EditorPagePublishError extends Error {
+  constructor(
+    readonly code: string,
+    readonly status: number,
+  ) {
+    super(
+      KNOWN_PAGE_PUBLISH_MESSAGES[code]
+      ?? "The page could not be published. No success was recorded; try again or contact the app owner.",
+    );
+    this.name = "EditorPagePublishError";
+  }
+}
+
+export class EditorPageListError extends Error {
+  constructor(
+    readonly code: "page_list_failed" | "page_list_invalid_response",
+    readonly status: number,
+  ) {
+    super("The page list could not be read. Its state is unknown; reload or try again before publishing.");
+    this.name = "EditorPageListError";
+  }
+}
+
+function safePagePublishCode(value: unknown): string {
+  return typeof value === "string" && /^[a-z0-9_]{1,80}$/.test(value)
+    ? value
+    : "page_publish_failed";
+}
+
+interface ExpectedPublishedPage {
+  siteId: string;
+  pageId: string;
+}
+
+function isEditorPage(value: unknown): value is EditorPage {
+  if (!value || typeof value !== "object") return false;
+  const page = value as Partial<EditorPage>;
+  return typeof page.id === "string"
+    && page.id.length > 0
+    && typeof page.siteId === "string"
+    && page.siteId.length > 0
+    && typeof page.agencyId === "string"
+    && page.agencyId.length > 0
+    && typeof page.clientId === "string"
+    && page.clientId.length > 0
+    && typeof page.slug === "string"
+    && typeof page.title === "string"
+    && (page.status === "draft" || page.status === "published")
+    && Array.isArray(page.blocks)
+    && typeof page.createdAt === "number"
+    && Number.isFinite(page.createdAt)
+    && typeof page.updatedAt === "number"
+    && Number.isFinite(page.updatedAt);
+}
+
+function isPublishedEditorPage(value: unknown, expected?: ExpectedPublishedPage): value is EditorPage {
+  if (!isEditorPage(value)) return false;
+  const page = value;
+  return (!expected || page.id === expected.pageId)
+    && (!expected || page.siteId === expected.siteId)
+    && page.status === "published";
+}
+
+/** Parse the publish endpoint without ever reflecting a raw server/provider error. */
+export async function readPagePublishResponse(
+  res: Response,
+  expected?: ExpectedPublishedPage,
+): Promise<EditorPage> {
+  let data: unknown;
+  try {
+    data = await res.json();
+  } catch {
+    data = null;
+  }
+  if (!res.ok) {
+    const code = safePagePublishCode(
+      data && typeof data === "object" && "code" in data
+        ? (data as { code?: unknown }).code
+        : undefined,
+    );
+    throw new EditorPagePublishError(code, res.status);
+  }
+  const payload = data && typeof data === "object"
+    ? data as { ok?: unknown; page?: unknown }
+    : null;
+  const page = payload && payload.ok === true
+    ? payload.page
+    : undefined;
+  if (!isPublishedEditorPage(page, expected)) {
+    throw new EditorPagePublishError("page_publish_invalid_response", res.status);
+  }
+  return page;
+}
+
+/** Parse the list endpoint fail-closed so an unreadable tree is never cached as empty. */
+export async function readPageListResponse(res: Response, expectedSiteId?: string): Promise<EditorPage[]> {
+  let data: unknown;
+  try {
+    data = await res.json();
+  } catch {
+    throw new EditorPageListError("page_list_invalid_response", res.status);
+  }
+  if (!res.ok) throw new EditorPageListError("page_list_failed", res.status);
+  const payload = data && typeof data === "object"
+    ? data as { ok?: unknown; pages?: unknown }
+    : null;
+  if (
+    payload?.ok !== true
+    || !Array.isArray(payload.pages)
+    || !payload.pages.every(page => isEditorPage(page) && (!expectedSiteId || page.siteId === expectedSiteId))
+  ) {
+    throw new EditorPageListError("page_list_invalid_response", res.status);
+  }
+  return payload.pages;
+}
 
 const cache: Record<string, EditorPage[]> = {};
 const CHANGE_EVENT = "lk-editor-pages-change";
@@ -34,8 +160,7 @@ function bust(siteId: string) {
 export async function listPages(siteId: string, force = false): Promise<EditorPage[]> {
   if (!force && cache[siteId]) return cache[siteId]!;
   const res = await fetch(`${BASE}/pages?siteId=${encodeURIComponent(siteId)}`, { cache: "no-store" });
-  const data = await res.json() as ListPayload;
-  cache[siteId] = data.pages ?? [];
+  cache[siteId] = await readPageListResponse(res, siteId);
   return cache[siteId]!;
 }
 
@@ -104,16 +229,15 @@ export async function deletePage(siteId: string, pageId: string): Promise<boolea
   return res.ok;
 }
 
-export async function publishPage(siteId: string, pageId: string): Promise<EditorPage | null> {
+export async function publishPage(siteId: string, pageId: string): Promise<EditorPage> {
   const res = await fetch(`${BASE}/pages/publish`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ siteId, pageId }),
   });
-  if (!res.ok) return null;
-  const data = await res.json() as PagePayload;
+  const page = await readPagePublishResponse(res, { siteId, pageId });
   bust(siteId);
-  return data.page;
+  return page;
 }
 
 export async function revertPage(siteId: string, pageId: string): Promise<EditorPage | null> {

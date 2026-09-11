@@ -8,8 +8,8 @@
 
 import { NextResponse } from "next/server";
 import { AuthError, authErrorResponse, requireRole } from "@/lib/server/auth/auth";
-import { mayUseEnvironmentCredentials } from "@/lib/server/auth/founderAgency";
-import { readSecurityControl } from "@/lib/server/auth/securityControl";
+import { isPlatformOperator } from "@/lib/server/auth/founderAgency";
+import { readDurableWriteControl, readSecurityControl } from "@/lib/server/auth/securityControl";
 import { hasContentScanner } from "@/lib/server/security/contentTrust";
 import { hasSecurityEventDrain, recentSecurityEvents } from "@/lib/server/security/securityEvents";
 import { ensureHydrated, getState } from "@/server/storage";
@@ -30,11 +30,20 @@ export async function GET(): Promise<Response> {
     const session = await requireRole("agency-owner");
     const control = readSecurityControl();
     const agencyId = session.agencyId ?? "";
+    const durableWriteControl = await readDurableWriteControl(agencyId || undefined);
+    const globalReadOnly = durableWriteControl.global.frozen ? {
+      active: true,
+      reason: durableWriteControl.global.reason ?? "Global read-only is active",
+      at: Date.parse(durableWriteControl.global.changedAt),
+      actor: durableWriteControl.global.actor ?? "unknown",
+      revision: durableWriteControl.global.revision,
+    } : null;
     // TENANT SCOPE: a customer tenant's owner sees THEIR OWN tenant's
     // security data. Only the platform operator's owner sees across tenants —
     // suspended users elsewhere, other tenants' sessions and events are not
     // this owner's to read.
-    const operator = mayUseEnvironmentCredentials(agencyId);
+    // Operator authority is USER-specific (Item 2), not founder-agency membership.
+    const operator = isPlatformOperator({ email: session.email });
     const ownUserIds = new Set(
       Object.values(getState().users)
         .filter(user => user.agencyId === agencyId || Boolean(agencyId && user.agencyIds?.includes(agencyId)))
@@ -48,11 +57,13 @@ export async function GET(): Promise<Response> {
     const scopedEvent = (event: { tenantId?: string }) => operator || event.tenantId === agencyId;
 
     const posture: SecurityPostureItem[] = [
-      { id: "write-freeze", label: "Emergency write freeze", status: "enforced", detail: control.globalReadOnly ? `ON since ${new Date(control.globalReadOnly.at).toISOString()} (${control.globalReadOnly.reason})` : "Ready. One action freezes every write while reads keep serving." },
+      { id: "write-freeze", label: "Emergency write freeze", status: "enforced", detail: globalReadOnly ? `ON since ${new Date(globalReadOnly.at).toISOString()} (${globalReadOnly.reason})` : "Ready. One action freezes every write while reads keep serving." },
       { id: "session-gate", label: "Per-request session gate", status: "enforced", detail: "Suspension, revocation, epochs and tenant lockdown are checked on every authenticated request." },
       { id: "egress", label: "Outbound request broker", status: "enforced", detail: "Webhooks, integrations, form reads, shop domains and SMTP hosts are vetted and pinned before any connection." },
-      { id: "uploads", label: "Upload content judgement", status: "enforced", detail: "Every stored file is judged by its bytes at the storage choke point; executables and polyglots are refused." },
-      { id: "scanner", label: "Malware scanning", status: hasContentScanner() ? "enforced" : "blind", detail: hasContentScanner() ? "An external scanner is connected." : "NO scanner is connected — upload verdicts are content-signature checks only. Connect an AV/CDR engine." },
+      { id: "uploads", label: "Upload content judgement", status: "enforced", detail: "Private storage inspects bytes. Public media is byte/type checked locally; every configured app-server remote write through storePublicUpload is refused until the separate atomic lifecycle exists. This does not replace the production Supabase containment migration." },
+      { id: "scanner", label: "Malware scanning", status: hasContentScanner() ? "owner" : "blind", detail: hasContentScanner() ? "An external scanner adapter is wired, but provider reachability is not live-proven and its audited egress path currently caps requests at 1 MiB, below the 8 MiB public-media contract. App-server remote public writes remain disabled independently." : "NO scanner is connected — app-server remote public writes are disabled; in production, high-risk private uploads are quarantined and lower-risk private uploads receive byte/signature checks only." },
+      { id: "public-media-lifecycle", label: "Atomic public-media publication and recall", status: "blind", detail: "NO durable publication intent, operation-owned object ledger, atomic page-generation commit or ownership-proven recall worker exists. The app-server remote upload implementation is absent and public deletion is ownership-blocked. Direct Supabase access remains a separate migration/provider control." },
+      { id: "upload-quarantine", label: "Durable upload quarantine", status: "blind", detail: "Quarantine is currently a refusal verdict, not a retained isolation store. Release, rescan and purge workflows do not exist yet." },
       { id: "event-drain", label: "Off-platform event archive", status: hasSecurityEventDrain() ? "enforced" : "blind", detail: hasSecurityEventDrain() ? "Events also stream off-platform." : "Events live in this app only (bounded ring + the durable action record). An attacker with host access could hide their traces — connect an off-platform drain." },
       { id: "backup", label: "Restore capability", status: "owner", detail: "The encrypted backup lane exists but the restore drill has not been run. Until it has, recovery time is UNMEASURED." },
       { id: "db-migration", label: "Database containment migration", status: "owner", detail: "Cannot be verified from inside the app. Run supabase/rls-verify.sql against production and confirm the containment invariants are all-INFO." },
@@ -64,7 +75,7 @@ export async function GET(): Promise<Response> {
       switches: {
         // Global switch POSITIONS are observable app-wide anyway (writes fail /
         // AI refuses); the reason+actor detail is the operator's.
-        globalReadOnly: control.globalReadOnly ? (operator ? control.globalReadOnly : { active: true, at: control.globalReadOnly.at }) : null,
+        globalReadOnly: globalReadOnly ? (operator ? globalReadOnly : { active: true, at: globalReadOnly.at }) : null,
         aiDisabled: control.aiDisabled ? (operator ? control.aiDisabled : { active: true, at: control.aiDisabled.at }) : null,
         tenantLockdowns: operator
           ? (control.tenantLockdowns ?? {})

@@ -16,6 +16,8 @@
 // No `server-only` shim so the smoke can drive every branch under
 // tsx --test.
 
+import { inspectStorageBucketPolicy } from "./storageBucketPolicy";
+
 export interface EnvIssue {
   name: string;
   severity: "error" | "warn";
@@ -27,12 +29,21 @@ const PRODUCTION_REQUIRED = [
   "NEXT_PUBLIC_PORTAL_BASE_URL",
   "NEXT_PUBLIC_PORTAL_SECURITY",
   "NEXT_PUBLIC_SUPABASE_URL",
-  "NEXT_PUBLIC_SUPABASE_ANON_KEY",
   "NEXT_PUBLIC_SUPABASE_PUBLIC_BUCKET",
   "NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET",
-  "SUPABASE_SERVICE_ROLE_KEY",
   "FOUNDER_EMAIL",
   "FOUNDER_PASSWORD",
+] as const;
+
+const SUPABASE_SERVER_KEY_NAMES = [
+  "SUPABASE_SECRET_KEY",
+  "SUPABASE_SERVICE_ROLE_KEY",
+] as const;
+
+const SUPABASE_PUBLIC_KEY_NAMES = [
+  "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+  "NEXT_PUBLIC_PUBLISHABLE_KEY",
+  "NEXT_PUBLIC_SUPABASE_ANON_KEY",
 ] as const;
 
 const MIN_LENGTHS: Record<string, number> = {
@@ -61,6 +72,28 @@ export const ENV_ALLOWLIST: readonly string[] = [
   "PORTAL_AI_CALLS_PER_HOUR",
   "PORTAL_HEALTH_TOKEN",
   "PORTAL_TRUSTED_PROXY_HOPS",
+  "PORTAL_WRITES_FROZEN",
+  "PORTAL_PLATFORM_OPERATOR_EMAILS",
+  "PORTAL_CONTAINMENT_MIGRATION_VERIFIED",
+  "PORTAL_CONTAINMENT_MIGRATION_VERSION",
+  "PORTAL_CONTAINMENT_MIGRATION_VERIFIED_AT",
+  "PORTAL_AV_SCANNER_URL",
+  "PORTAL_AV_SCANNER_TOKEN",
+  "PORTAL_SECURITY_EVENT_DRAIN_URL",
+  "PORTAL_RATE_LIMIT_STORE_URL",
+  "PORTAL_MFA_ENABLED",
+  "PORTAL_MFA_PROVIDER",
+  "PORTAL_MFA_VERIFIED_AT",
+  "PORTAL_LAST_VERIFIED_RESTORE_AT",
+  "PORTAL_LAST_VERIFIED_RESTORE_SHA256",
+  "PORTAL_LAST_BACKUP_AT",
+  "PORTAL_LAST_BACKUP_SHA256",
+  "PORTAL_DEPENDENCY_AUDIT_PASSED",
+  "PORTAL_DEPENDENCY_AUDIT_AT",
+  "PORTAL_DEPENDENCY_AUDIT_SHA",
+  "PORTAL_EDGE_WAF_ENABLED",
+  "PORTAL_EDGE_WAF_PROVIDER",
+  "PORTAL_EDGE_WAF_VERIFIED_AT",
   "PORTAL_BACKEND",
   "PORTAL_PG_POOL_MAX",
   "PORTAL_PG_IDLE_MS",
@@ -71,9 +104,12 @@ export const ENV_ALLOWLIST: readonly string[] = [
   "NEXT_PUBLIC_PORTAL_BASE_URL",
   "NEXT_PUBLIC_PORTAL_SECURITY",
   "NEXT_PUBLIC_SUPABASE_URL",
+  "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+  "NEXT_PUBLIC_PUBLISHABLE_KEY",
   "NEXT_PUBLIC_SUPABASE_ANON_KEY",
   "NEXT_PUBLIC_SUPABASE_PUBLIC_BUCKET",
   "NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET",
+  "SUPABASE_SECRET_KEY",
   "SUPABASE_SERVICE_ROLE_KEY",
   "FOUNDER_EMAIL",
   "FOUNDER_PASSWORD",
@@ -194,6 +230,28 @@ export function inspectEnv(env: NodeJS.ProcessEnv = process.env): EnvIssue[] {
     }
   }
 
+  // The browser/Auth client accepts either current publishable-key spelling
+  // and the legacy anon-key spelling. Require one usable value, matching the
+  // central runtime resolver rather than forcing a deprecated alias.
+  if (!SUPABASE_PUBLIC_KEY_NAMES.some(name => Boolean(env[name]?.trim()))) {
+    issues.push({
+      name: "Supabase publishable / anon key",
+      severity: isProd ? "error" : "warn",
+      reason: "one Supabase public key is required in production",
+    });
+  }
+
+  // Supabase supports both its current secret-key name and the legacy
+  // service-role name. Runtime provider selection accepts either, so startup
+  // validation must require at least one rather than incorrectly requiring both.
+  if (!SUPABASE_SERVER_KEY_NAMES.some(name => Boolean(env[name]?.trim()))) {
+    issues.push({
+      name: "SUPABASE_SECRET_KEY / SUPABASE_SERVICE_ROLE_KEY",
+      severity: isProd ? "error" : "warn",
+      reason: "one Supabase server key is required in production",
+    });
+  }
+
   // NEXT_PUBLIC_PORTAL_SECURITY in prod must be exactly "strict".
   if (isProd) {
     const sec = env.NEXT_PUBLIC_PORTAL_SECURITY;
@@ -204,6 +262,17 @@ export function inspectEnv(env: NodeJS.ProcessEnv = process.env): EnvIssue[] {
         reason: `must equal "strict" in production (got "${sec}")`,
       });
     }
+  }
+
+  // Bucket names are security-zone identifiers fixed by the checked-in
+  // migrations. An arbitrary or swapped value can expose private customer
+  // bytes through the public bucket even though the call is server-side.
+  for (const issue of inspectStorageBucketPolicy(env).issues) {
+    issues.push({
+      name: issue.name,
+      severity: isProd ? "error" : "warn",
+      reason: issue.reason,
+    });
   }
 
   // Typo-guard: any portal-namespaced key not on the allowlist warns.

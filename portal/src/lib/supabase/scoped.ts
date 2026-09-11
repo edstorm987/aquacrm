@@ -29,7 +29,7 @@ export async function createScopedSupabaseClient(): Promise<ScopedSupabaseClient
   const client = await createServerSupabaseClient();
   if (!client) {
     throw new Error(
-      "Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+      "Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and a Supabase publishable key (or legacy anon key).",
     );
   }
   const { data, error } = await client.auth.getUser();

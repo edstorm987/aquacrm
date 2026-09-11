@@ -5,6 +5,10 @@
 // Used by the AssetPicker dialog and the asset library admin page.
 
 import type { AgencyId, ClientId } from "./tenancy";
+import {
+  MAX_PUBLIC_MEDIA_BYTES,
+  PUBLIC_MEDIA_MAX_SIZE_LABEL,
+} from "@/lib/shared/publicMediaLimits";
 
 export interface PortalAsset {
   id: string;
@@ -71,6 +75,10 @@ export async function uploadAsset(
   file: File,
   opts?: { alt?: string; uploadedBy?: string },
 ): Promise<PortalAsset | { error: string }> {
+  if (file.size <= 0) return { error: "Choose a non-empty media file." };
+  if (file.size > MAX_PUBLIC_MEDIA_BYTES) {
+    return { error: `Files must be ${PUBLIC_MEDIA_MAX_SIZE_LABEL} or smaller.` };
+  }
   const dataUrl = await readFileAsDataUrl(file);
   const dims = file.type.startsWith("image/") ? await imageDimensions(dataUrl) : null;
   const res = await fetch(BASE, {

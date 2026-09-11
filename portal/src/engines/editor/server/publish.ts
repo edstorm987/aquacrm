@@ -1,5 +1,6 @@
 import "server-only";
 
+import { assertFreshWritesAllowed } from "@/lib/server/auth/securityControl";
 import type { PatchPlan, PatchedFile } from "./patch";
 
 /**
@@ -42,6 +43,8 @@ export interface PublishRequest {
   confirm?: boolean;
   token: string;
   fetchImpl?: typeof fetch;
+  tenantId: string;
+  actor?: string;
 }
 
 export interface PublishOutcome {
@@ -95,7 +98,10 @@ export async function openPullRequest(input: {
   body?: string;
   token: string;
   fetchImpl?: typeof fetch;
+  tenantId: string;
+  actor?: string;
 }): Promise<PullRequestRef> {
+  await assertFreshWritesAllowed("provider.github.editor-publish", { tenantId: input.tenantId, actor: input.actor });
   const fetchImpl = input.fetchImpl ?? fetch;
   const repo = `/repos/${input.repository}`;
   const owner = input.repository.split("/")[0];
@@ -136,10 +142,13 @@ export async function mergePullRequest(input: {
   confirm?: boolean;
   token: string;
   fetchImpl?: typeof fetch;
+  tenantId: string;
+  actor?: string;
 }): Promise<{ merged: boolean; message: string }> {
   if (input.confirm !== true) {
     return { merged: false, message: "Dry run — nothing was merged. Confirm to merge this pull request." };
   }
+  await assertFreshWritesAllowed("provider.github.editor-publish", { tenantId: input.tenantId, actor: input.actor });
   const fetchImpl = input.fetchImpl ?? fetch;
   const result = await githubJson<{ merged?: boolean; message?: string }>(
     fetchImpl, input.token, `/repos/${input.repository}/pulls/${input.number}/merge`,
@@ -203,6 +212,7 @@ export async function publishEdits(request: PublishRequest): Promise<PublishOutc
     return { published: false, branch, files, rejected: plan.rejected, summary: `Dry run · would change ${summary}` };
   }
 
+  await assertFreshWritesAllowed("provider.github.editor-publish", { tenantId: request.tenantId, actor: request.actor });
   const fetchImpl = request.fetchImpl ?? fetch;
   const { token } = request;
   const repo = `/repos/${target.repository}`;

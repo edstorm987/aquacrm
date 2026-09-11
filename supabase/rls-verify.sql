@@ -178,7 +178,9 @@ findings as (
     'editor_ai_reply_claims', 'lead_conversion_operations', 'product_workspace_leases',
     'app_datastore_patch_receipts',
     -- 20260902093000_aqua_tag_submission_delivery.sql (issues #87)
-    'aqua_tag_submissions'
+    'aqua_tag_submissions',
+    -- 20260910130000_durable_write_admission.sql
+    'aqua_write_controls', 'aqua_write_control_events', 'aqua_write_quarantines'
   )
 
   union all
@@ -251,25 +253,98 @@ order by sort_key, subject;
 -- come back — through the dashboard, a later migration or default privileges —
 -- and cross-tenant exposure is live again.
 -- ============================================================================
+-- brand_enquiries joined the fully-sealed set in the corrective migration
+-- 20260908220000 (server-mediated: no browser INSERT either). The privilege
+-- checks cover ALL SEVEN table privileges, and the policy check is ROLE-BASED
+-- (any permissive policy targeting a browser role on a sealed table), so a
+-- renamed or dashboard-created policy is caught even though its name is unknown.
 with sealed_tables(table_name) as (
   values ('public.app_datastores'), ('public.audit_events'),
-         ('public.website_consent_events'), ('public.app_datastore_history')
+         ('public.website_consent_events'), ('public.app_datastore_history'),
+         ('public.brand_enquiries'), ('public.aqua_write_controls'),
+         ('public.aqua_write_control_events'), ('public.aqua_write_quarantines')
 ),
 read_only_tables(table_name) as (
   values ('public.profiles'), ('public.brands'), ('public.shoots'),
          ('public.shoot_photos'), ('public.clients'), ('public.client_portals'),
          ('public.client_portal_members')
 ),
-banned_policies(policy_name) as (
-  values ('Internal users manage app datastores'), ('Internal users manage profiles'),
-         ('Internal users manage brands'), ('Internal users manage clients'),
-         ('Internal users manage portals'), ('Internal users manage portal members'),
-         ('Internal users read audit events'), ('Internal users create audit events'),
-         ('Internal users manage brand enquiries'),
-         ('Internal users manage their agency''s brand enquiries'),
-         ('Internal users manage website consent events'), ('Internal users manage shoots'),
-         ('Internal users manage shoot photos'), ('Internal users manage ecosystem storage'),
-         ('Portal users manage their own upload folder')
+all_privs(priv) as (
+  values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE'),
+         ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')
+),
+storage_objects_relation as (
+  select c.oid, c.relowner, c.relrowsecurity, c.relforcerowsecurity
+  from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'storage'
+    and c.relname = 'objects'
+    and c.relkind in ('r', 'p')
+),
+browser_storage_rls_bypasses as (
+  select browser.role_name,
+         case
+           when role_row.oid is null then 'browser role is missing'
+           when role_row.rolsuper then 'browser role is a superuser'
+           when role_row.rolbypassrls then 'browser role has BYPASSRLS'
+           else 'browser role effectively owns storage.objects while FORCE RLS is disabled'
+         end as reason
+  from (values ('anon'::name), ('authenticated'::name)) as browser(role_name)
+  left join pg_roles role_row on role_row.rolname = browser.role_name
+  where role_row.oid is null
+     or role_row.rolsuper
+     or role_row.rolbypassrls
+     or exists (
+       select 1
+       from storage_objects_relation storage_relation
+       where storage_relation.relforcerowsecurity is false
+         and role_row.oid is not null
+         and pg_has_role(role_row.oid, storage_relation.relowner, 'member')
+     )
+),
+browser_storage_read_policies as (
+  select pol.*
+  from pg_policies pol
+  where pol.schemaname = 'storage'
+    and pol.tablename = 'objects'
+    and pol.cmd in ('SELECT', 'ALL')
+    and exists (
+      select 1
+      from unnest(pol.roles) as policy_role(role_name)
+      left join pg_roles target_role on target_role.rolname = policy_role.role_name
+      where case
+        when policy_role.role_name = 'public'::name then true
+        when target_role.oid is null then false
+        else pg_has_role('anon', target_role.oid, 'member')
+          or pg_has_role('authenticated', target_role.oid, 'member')
+      end
+    )
+),
+canonical_storage_read_policies as (
+  select pol.*
+  from browser_storage_read_policies pol
+  where pol.policyname = 'Public can read public ecosystem assets'
+    and pol.permissive = 'PERMISSIVE'
+    and pol.cmd = 'SELECT'
+    and cardinality(pol.roles) = 2
+    and pol.roles @> array['anon', 'authenticated']::name[]
+    and pol.roles <@ array['anon', 'authenticated']::name[]
+    and regexp_replace(lower(coalesce(pol.qual, '')), '[[:space:]()]', '', 'g') =
+      'bucket_id=anyarray[''aquacrm-public''::text,''aquaoasis-web-public''::text,''milesymedia-public''::text,''zimante-group-public''::text]'
+),
+unexpected_browser_storage_read_policies as (
+  select pol.*
+  from browser_storage_read_policies pol
+  where not (
+    pol.policyname = 'Public can read public ecosystem assets'
+    and pol.permissive = 'PERMISSIVE'
+    and pol.cmd = 'SELECT'
+    and cardinality(pol.roles) = 2
+    and pol.roles @> array['anon', 'authenticated']::name[]
+    and pol.roles <@ array['anon', 'authenticated']::name[]
+    and regexp_replace(lower(coalesce(pol.qual, '')), '[[:space:]()]', '', 'g') =
+      'bucket_id=anyarray[''aquacrm-public''::text,''aquaoasis-web-public''::text,''milesymedia-public''::text,''zimante-group-public''::text]'
+  )
 )
 select * from (
   select 'FAIL' as severity, 'containment-sealed-table-leak' as check_name,
@@ -277,7 +352,7 @@ select * from (
          'A browser role holds a privilege on a sealed (service-role-only) table.' as detail
   from sealed_tables s
   cross join (values ('anon'), ('authenticated')) r(role)
-  cross join (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE')) p(priv)
+  cross join all_privs p
   where has_table_privilege(r.role, s.table_name, p.priv)
   union all
   select 'FAIL', 'containment-readonly-table-write',
@@ -285,37 +360,304 @@ select * from (
          'A browser role holds a WRITE privilege on a read-only surface.'
   from read_only_tables t
   cross join (values ('anon'), ('authenticated')) r(role)
-  cross join (values ('INSERT'), ('UPDATE'), ('DELETE')) p(priv)
+  cross join (values ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')) p(priv)
   where has_table_privilege(r.role, t.table_name, p.priv)
   union all
-  select 'FAIL', 'containment-enquiry-triage-leak',
-         'public.brand_enquiries → ' || r.role || ':' || p.priv,
-         'brand_enquiries must be INSERT-only for browser roles (triage is service-role).'
-  from (values ('anon'), ('authenticated')) r(role)
-  cross join (values ('SELECT'), ('UPDATE'), ('DELETE')) p(priv)
-  where has_table_privilege(r.role, 'public.brand_enquiries', p.priv)
-  union all
-  select 'FAIL', 'containment-banned-policy-returned',
-         pol.schemaname || '.' || pol.tablename || ' → ' || pol.policyname,
-         'A broad pre-containment policy has been recreated.'
+  -- Effective-policy check (allowlist, not name-list): on a SEALED table NO
+  -- policy may target a browser role. Catches renamed / dashboard-created
+  -- permissive policies the old name-list would have missed.
+  select 'FAIL', 'containment-sealed-table-browser-policy',
+         pol.schemaname || '.' || pol.tablename || ' → ' || pol.policyname
+           || ' (' || array_to_string(pol.roles, ',') || ')',
+         'A permissive policy on a sealed table targets a browser role (renamed or dashboard-created).'
   from pg_policies pol
-  join banned_policies b on b.policy_name = pol.policyname
+  join sealed_tables s on s.table_name = pol.schemaname || '.' || pol.tablename
+  where pol.roles && array['anon','authenticated','public']::name[]
   union all
-  select 'FAIL', 'containment-public-form-broken',
-         'public.brand_enquiries → anon:INSERT',
-         'The public contact form lost its INSERT path.'
-  where not has_table_privilege('anon', 'public.brand_enquiries', 'INSERT')
+  -- Sequences owned by sealed-table columns must not be browser-accessible.
+  select 'FAIL', 'containment-sealed-sequence-leak',
+         s.relname || ' → ' || r.role,
+         'A browser role can use a sequence owned by a sealed table.'
+  from pg_class s
+  join pg_depend d on d.objid = s.oid and d.deptype = 'a'
+  join pg_class t on t.oid = d.refobjid
+  join pg_namespace n on n.oid = t.relnamespace
+  join sealed_tables st on st.table_name = 'public.' || t.relname
+  cross join (values ('anon'), ('authenticated')) r(role)
+  where s.relkind = 'S' and n.nspname = 'public'
+    and (has_sequence_privilege(r.role, s.oid, 'USAGE')
+      or has_sequence_privilege(r.role, s.oid, 'SELECT')
+      or has_sequence_privilege(r.role, s.oid, 'UPDATE'))
+  union all
+  select 'FAIL', 'containment-private-storage-public',
+         'aquacrm-uploads',
+         'The private AquaCRM upload bucket is missing or public; customer files may be world-readable.'
+  where not exists (
+    select 1 from storage.buckets
+    where id = 'aquacrm-uploads' and public is false
+  )
+  union all
+  select 'FAIL', 'containment-public-storage-private',
+         'aquacrm-public',
+         'The AquaCRM public-media bucket is missing or not public; the checked-in storage contract has drifted.'
+  where not exists (
+    select 1 from storage.buckets
+    where id = 'aquacrm-public' and public is true
+  )
+  union all
+  select 'FAIL', 'containment-storage-objects-missing',
+         'storage.objects',
+         'The storage.objects table is missing; storage policy containment cannot be verified.'
+  where not exists (
+    select 1
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'storage'
+      and c.relname = 'objects'
+      and c.relkind in ('r', 'p')
+  )
+  union all
+  select 'FAIL', 'containment-storage-objects-rls-disabled',
+         'storage.objects',
+         'RLS is disabled on storage.objects; storage policies are not enforcing the browser boundary.'
+  where exists (
+    select 1
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'storage'
+      and c.relname = 'objects'
+      and c.relkind in ('r', 'p')
+      and c.relrowsecurity is false
+  )
+  union all
+  select 'FAIL', 'containment-storage-browser-role-bypasses-rls',
+         bypass.role_name,
+         bypass.reason || '; storage.objects policy checks cannot provide containment.'
+  from browser_storage_rls_bypasses bypass
+  union all
+  select 'FAIL', 'containment-storage-browser-write-policy',
+         pol.policyname || ' (cmd=' || pol.cmd || ', to=[' || array_to_string(pol.roles, ',') || '])',
+         'A storage.objects policy can authorize anon/authenticated writes directly, through role inheritance or through PUBLIC; AquaCRM storage mutations must remain server-mediated.'
+  from pg_policies pol
+  where pol.schemaname = 'storage'
+    and pol.tablename = 'objects'
+    and pol.cmd in ('INSERT', 'UPDATE', 'DELETE', 'ALL')
+    and exists (
+      select 1
+      from unnest(pol.roles) as policy_role(role_name)
+      left join pg_roles target_role on target_role.rolname = policy_role.role_name
+      where case
+        when policy_role.role_name = 'public'::name then true
+        when target_role.oid is null then false
+        else pg_has_role('anon', target_role.oid, 'member')
+          or pg_has_role('authenticated', target_role.oid, 'member')
+      end
+    )
+  union all
+  select 'FAIL', 'containment-storage-public-read-contract-missing-or-altered',
+         'Public can read public ecosystem assets',
+         'The sole browser SELECT policy for storage.objects is absent or differs from the canonical four-public-bucket contract.'
+  where not exists (select 1 from canonical_storage_read_policies)
+  union all
+  select 'FAIL', 'containment-storage-unexpected-browser-read-policy',
+         pol.policyname || ' (cmd=' || pol.cmd || ', to=[' || array_to_string(pol.roles, ',') || '])',
+         'An additional or altered storage.objects SELECT/ALL policy is reachable by a browser role and may expose private uploads.'
+  from unexpected_browser_storage_read_policies pol
   union all
   select 'INFO', 'containment-verified',
          'assume-breach containment invariants',
-         'All containment invariants hold (sealed tables, read-only surfaces, insert-only enquiries, no banned policies).'
+         'All containment invariants hold (sealed tables incl. brand_enquiries, read-only surfaces, no browser-role policy on any sealed table, no leaked sequences, storage.objects RLS enforced, only the canonical four-public-bucket browser read policy, no browser-role storage writes, AquaCRM private/public bucket flags separated).'
   where not exists (
     select 1 from sealed_tables s
     cross join (values ('anon'), ('authenticated')) r(role)
-    cross join (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE')) p(priv)
+    cross join all_privs p
     where has_table_privilege(r.role, s.table_name, p.priv)
   ) and not exists (
-    select 1 from pg_policies pol join banned_policies b on b.policy_name = pol.policyname
+    select 1 from read_only_tables t
+    cross join (values ('anon'), ('authenticated')) r(role)
+    cross join (values ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')) p(priv)
+    where has_table_privilege(r.role, t.table_name, p.priv)
+  ) and not exists (
+    select 1 from browser_storage_rls_bypasses
+  ) and not exists (
+    select 1 from pg_policies pol
+    join sealed_tables s on s.table_name = pol.schemaname || '.' || pol.tablename
+    where pol.roles && array['anon','authenticated','public']::name[]
+  ) and not exists (
+    select 1 from pg_class s
+    join pg_depend d on d.objid = s.oid and d.deptype = 'a'
+    join pg_class t on t.oid = d.refobjid
+    join pg_namespace n on n.oid = t.relnamespace
+    join sealed_tables st on st.table_name = 'public.' || t.relname
+    cross join (values ('anon'), ('authenticated')) r(role)
+    where s.relkind = 'S' and n.nspname = 'public'
+      and (has_sequence_privilege(r.role, s.oid, 'USAGE')
+        or has_sequence_privilege(r.role, s.oid, 'SELECT')
+        or has_sequence_privilege(r.role, s.oid, 'UPDATE'))
+  ) and exists (
+    select 1 from storage.buckets
+    where id = 'aquacrm-uploads' and public is false
+  ) and exists (
+    select 1 from storage.buckets
+    where id = 'aquacrm-public' and public is true
+  ) and exists (
+    select 1
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'storage'
+      and c.relname = 'objects'
+      and c.relkind in ('r', 'p')
+      and c.relrowsecurity is true
+  ) and not exists (
+    select 1 from pg_policies pol
+    where pol.schemaname = 'storage'
+      and pol.tablename = 'objects'
+      and pol.cmd in ('INSERT', 'UPDATE', 'DELETE', 'ALL')
+      and exists (
+        select 1
+        from unnest(pol.roles) as policy_role(role_name)
+        left join pg_roles target_role on target_role.rolname = policy_role.role_name
+        where case
+          when policy_role.role_name = 'public'::name then true
+          when target_role.oid is null then false
+          else pg_has_role('anon', target_role.oid, 'member')
+            or pg_has_role('authenticated', target_role.oid, 'member')
+        end
+      )
+  ) and exists (
+    select 1 from canonical_storage_read_policies
+  ) and not exists (
+    select 1 from unexpected_browser_storage_read_policies
   )
 ) checks
+order by case severity when 'FAIL' then 0 else 1 end, check_name, subject;
+
+-- ============================================================================
+-- DURABLE WRITE-ADMISSION INVARIANTS (migration 20260910130000)
+--
+-- This is catalog evidence only. It proves that the durable authority objects,
+-- grants and final-fence triggers are installed; it does not replace the
+-- isolated runtime exercise that must prove freeze/thaw/replay semantics.
+-- ============================================================================
+with
+required_tables(table_name) as (
+  values ('aqua_write_controls'), ('aqua_write_control_events'),
+         ('aqua_write_quarantines')
+),
+required_functions(signature, service_role_exec) as (
+  values
+    ('public.read_aqua_write_admission(text,text)', true),
+    ('public.set_aqua_write_control(text,text,text,boolean,text,text,bigint)', true),
+    ('public.aqua_assert_write_admitted(text,text)', false),
+    ('public.record_aqua_write_quarantine(text,text,text,uuid,jsonb,jsonb,text)', true),
+    ('public.list_aqua_write_quarantines(text,text)', true),
+    ('public.resolve_aqua_write_quarantine(text,bigint,text,text,text,bigint)', true),
+    ('public.claim_product_workspace_lease(text,text,text,integer,text)', true),
+    ('public.renew_product_workspace_lease(text,text,text,integer,text)', true),
+    ('public.release_product_workspace_lease(text,text,text)', true)
+),
+required_triggers(trigger_name, table_name) as (
+  values
+    ('aqua_write_admission_app_datastores', 'app_datastores'),
+    ('aqua_write_admission_patch_receipts', 'app_datastore_patch_receipts'),
+    ('aqua_write_admission_brand_enquiries', 'brand_enquiries'),
+    ('aqua_write_admission_website_consent_events', 'website_consent_events'),
+    ('aqua_write_admission_inbox_connections', 'inbox_channel_connections'),
+    ('aqua_write_admission_inbox_identities', 'inbox_contact_identities'),
+    ('aqua_write_admission_inbox_conversations', 'inbox_conversations'),
+    ('aqua_write_admission_inbox_messages', 'inbox_messages'),
+    ('aqua_write_admission_inbox_webhooks', 'inbox_webhook_events'),
+    ('aqua_write_admission_aqua_tag_submissions', 'aqua_tag_submissions'),
+    ('aqua_write_admission_editor_ai_claims', 'editor_ai_reply_claims'),
+    ('aqua_write_admission_lead_conversion', 'lead_conversion_operations')
+),
+write_admission_failures as (
+  select 'FAIL'::text as severity,
+         'write-admission-table-missing'::text as check_name,
+         'public.' || required.table_name as subject,
+         'A required durable write-admission table is absent.'::text as detail
+  from required_tables required
+  where to_regclass('public.' || required.table_name) is null
+
+  union all
+  select 'FAIL', 'write-admission-table-rls-disabled',
+         'public.' || required.table_name,
+         'A durable write-admission table exists without row level security.'
+  from required_tables required
+  join pg_class relation on relation.oid = to_regclass('public.' || required.table_name)
+  where relation.relrowsecurity is false
+
+  union all
+  select 'FAIL', 'write-admission-direct-table-privilege',
+         'public.' || required.table_name || ' → ' || role_name || ':' || privilege,
+         'Durable control rows and quarantine payloads must be reachable only through narrow RPCs.'
+  from required_tables required
+  cross join (values ('anon'), ('authenticated'), ('service_role')) roles(role_name)
+  cross join (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')) privileges(privilege)
+  where has_table_privilege(
+    roles.role_name,
+    to_regclass('public.' || required.table_name),
+    privileges.privilege
+  )
+
+  union all
+  select 'FAIL', 'write-admission-rpc-missing', required.signature,
+         'A required durable write-admission or holder-cleanup RPC is absent.'
+  from required_functions required
+  where to_regprocedure(required.signature) is null
+
+  union all
+  select 'FAIL', 'write-admission-browser-rpc-execute',
+         required.signature || ' → ' || roles.role_name,
+         'A browser role can invoke a privileged durable write-admission RPC.'
+  from required_functions required
+  cross join (values ('anon'), ('authenticated')) roles(role_name)
+  where has_function_privilege(roles.role_name, to_regprocedure(required.signature), 'EXECUTE')
+
+  union all
+  select 'FAIL', 'write-admission-service-rpc-grant-drift', required.signature,
+         case when required.service_role_exec
+           then 'The service role cannot invoke a required narrow admission RPC.'
+           else 'The service role can directly invoke an internal-only admission helper.'
+         end
+  from required_functions required
+  where to_regprocedure(required.signature) is not null
+    and has_function_privilege('service_role', to_regprocedure(required.signature), 'EXECUTE')
+      is distinct from required.service_role_exec
+
+  union all
+  select 'FAIL', 'write-admission-final-fence-trigger-missing',
+         'public.' || required.table_name || ' → ' || required.trigger_name,
+         'A required same-transaction database write fence is absent or disabled.'
+  from required_triggers required
+  where not exists (
+    select 1
+    from pg_trigger trigger_row
+    join pg_class relation on relation.oid = trigger_row.tgrelid
+    join pg_namespace namespace on namespace.oid = relation.relnamespace
+    where namespace.nspname = 'public'
+      and relation.relname = required.table_name
+      and trigger_row.tgname = required.trigger_name
+      and not trigger_row.tgisinternal
+      and trigger_row.tgenabled <> 'D'
+  )
+
+  union all
+  select 'FAIL', 'write-admission-lease-direct-dml',
+         'public.product_workspace_leases → service_role:' || privileges.privilege,
+         'Lease claim/renew must pass through admission RPCs; only holder-checked release is exempt.'
+  from (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')) privileges(privilege)
+  where has_table_privilege(
+    'service_role',
+    to_regclass('public.product_workspace_leases'),
+    privileges.privilege
+  )
+)
+select severity, check_name, subject, detail
+from write_admission_failures
+union all
+select 'INFO', 'write-admission-catalog-verified',
+       'durable control plane, quarantine and lease fences',
+       'Required tables, RLS, narrow RPC grants, final-fence triggers and holder-only lease cleanup are present. Runtime semantics still require an isolated database exercise.'
+where not exists (select 1 from write_admission_failures)
 order by case severity when 'FAIL' then 0 else 1 end, check_name, subject;

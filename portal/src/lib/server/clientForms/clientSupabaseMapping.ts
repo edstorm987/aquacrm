@@ -10,8 +10,8 @@ import "server-only";
 // That function rebuilds the whole config from what it is given, and for any
 // non-secret field it was NOT given it does `delete config[field.id]`. So the
 // obvious "just save the five column fields" call would silently wipe
-// `projectUrl` and `submissionsTable` — the two things without which the
-// connection resolves to nothing and every enquiry stops arriving.
+// `projectUrl` and `formId` — values without which the connection resolves to
+// nothing and every enquiry stops arriving.
 //
 // A narrow mutator cannot make that mistake. It touches five keys by name and
 // is incapable of removing anything else, which is a better guarantee than

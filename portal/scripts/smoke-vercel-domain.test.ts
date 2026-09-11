@@ -21,6 +21,7 @@ interface CapturedCall {
 
 const captured: CapturedCall[] = [];
 const ORIGINAL_FETCH = globalThis.fetch;
+const TEST_WRITE_GUARD = { writeGuard: () => undefined };
 
 function mockFetch(spec: { status: number; body: unknown }): void {
   globalThis.fetch = (async (url: RequestInfo | URL, init?: RequestInit) => {
@@ -101,7 +102,7 @@ test("attachDomain happy path — POST /v10/projects/<id>/domains", async () => 
   });
   try {
     const cfg = { token: "tok", projectId: "prj_test", teamId: "team_xyz" };
-    const result = await mod.attachDomain(cfg, "Example.com");
+    const result = await mod.attachDomain(cfg, "Example.com", TEST_WRITE_GUARD);
 
     const c = captured[0];
     assert.ok(c, "fetch was called");
@@ -131,6 +132,7 @@ test("attachDomain treats 409 already_in_use as success", async () => {
     const result = await mod.attachDomain(
       { token: "tok", projectId: "prj_test" },
       "example.com",
+      TEST_WRITE_GUARD,
     );
     assert.equal(result.ok, true);
   } finally {
@@ -147,6 +149,7 @@ test("attachDomain surfaces non-409 errors", async () => {
     const result = await mod.attachDomain(
       { token: "tok", projectId: "prj_test" },
       "example.com",
+      TEST_WRITE_GUARD,
     );
     assert.equal(result.ok, false);
     assert.equal(result.error, "boom");
@@ -165,6 +168,7 @@ test("attachDomain rejects empty hostname locally (no fetch)", async () => {
     const result = await mod.attachDomain(
       { token: "tok", projectId: "prj_test" },
       "  ",
+      TEST_WRITE_GUARD,
     );
     assert.equal(result.ok, false);
     assert.equal(result.error, "missing-hostname");
@@ -184,6 +188,7 @@ test("verifyDomain — POST /v9/projects/<id>/domains/<host>/verify", async () =
     const result = await mod.verifyDomain(
       { token: "tok", projectId: "prj_test" },
       "example.com",
+      TEST_WRITE_GUARD,
     );
     const c = captured[0];
     assert.ok(c);
@@ -204,6 +209,7 @@ test("removeDomain — DELETE /v9/projects/<id>/domains/<host>", async () => {
     const result = await mod.removeDomain(
       { token: "tok", projectId: "prj_test" },
       "example.com",
+      TEST_WRITE_GUARD,
     );
     const c = captured[0];
     assert.ok(c);
@@ -221,6 +227,7 @@ test("removeDomain treats an already-absent domain as the desired idempotent out
     const result = await mod.removeDomain(
       { token: "tok", projectId: "prj_test" },
       "example.com",
+      TEST_WRITE_GUARD,
     );
     assert.equal(result.ok, true);
     assert.equal(result.hostname, "example.com");
@@ -237,6 +244,7 @@ test("removeDomain returns error message on network failure", async () => {
     const result = await mod.removeDomain(
       { token: "tok", projectId: "prj_test" },
       "example.com",
+      TEST_WRITE_GUARD,
     );
     assert.equal(result.ok, false);
     // The message stopped being a bare `ECONNREFUSED` and became something a

@@ -23,6 +23,7 @@ import test, { beforeEach } from "node:test";
 
 import { assessUploadContent, ContentTrustError, setContentScanner } from "../src/lib/server/security/contentTrust";
 import { storePrivateUpload } from "../src/lib/server/privateUploadStorage";
+import { setWriteAdmissionTestReader, AQUA_WRITE_ADMISSION_APP_KEY } from "../src/lib/server/security/writeAdmission";
 import { clearSecurityEventsForTest, recentSecurityEvents } from "../src/lib/server/security/securityEvents";
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 73, 72, 68, 82]);
@@ -56,7 +57,7 @@ test("genuine media matching its declared type is clean, with a digest identity"
     [ZIP, "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
   ] as const) {
     const result = await assess(bytes, declared);
-    assert.equal(result.verdict, "clean", `${declared} should be clean`);
+    assert.equal(result.verdict, "type-verified", `${declared} should be type-verified (signature match, no scanner)`);
     assert.match(result.digest, /^[0-9a-f]{64}$/);
   }
 });
@@ -120,12 +121,17 @@ test("a connected scanner can block; an unreachable scanner does not take upload
   const caught = await assess(PNG, "image/png");
   assert.equal(caught.verdict, "blocked");
   assert.equal(caught.reason, "scanner-verdict-malicious");
+  assert.equal(caught.scannerStatus, "malicious", "a malicious scanner verdict must not be recorded as cleared");
+
+  const rejectedBeforeScan = await assess(HTML, "image/png");
+  assert.equal(rejectedBeforeScan.verdict, "blocked");
+  assert.equal(rejectedBeforeScan.scannerStatus, "not-run", "a pre-scan byte rejection must not claim the scanner cleared it");
 
   setContentScanner(async () => {
     throw new Error("scanner down");
   });
   const survived = await assess(PNG, "image/png");
-  assert.equal(survived.verdict, "clean");
+  assert.equal(survived.verdict, "type-verified"); // non-production: falls through to the signature verdict
   assert.ok(recentSecurityEvents().some(event => event.kind === "content-trust.scanner-unavailable"));
 });
 
@@ -138,13 +144,14 @@ test("storePrivateUpload refuses a blocked file BEFORE any provider I/O", async 
       contentType: "image/png",
       localDirectory: "content-trust-test",
       localKey,
+      trust: { tenantId: "ag_ct_test", purpose: "content-trust-smoke" },
     }),
     ContentTrustError,
   );
   assert.ok(!existsSync(join(process.cwd(), ".data", "content-trust-test", localKey)), "a blocked upload must never touch disk");
 });
 
-test("storePrivateUpload returns the digest-level trust record for clean files", async () => {
+test("storePrivateUpload returns the digest-level trust record for type-verified files", async () => {
   const localKey = `clean-${Date.now()}.png`;
   const stored = await storePrivateUpload({
     pathname: localKey,
@@ -152,7 +159,97 @@ test("storePrivateUpload returns the digest-level trust record for clean files",
     contentType: "image/png",
     localDirectory: "content-trust-test",
     localKey,
+    trust: { tenantId: "ag_ct_test", purpose: "content-trust-smoke" },
   });
-  assert.equal(stored.contentTrust?.verdict, "clean");
+  assert.equal(stored.contentTrust?.verdict, "type-verified");
   assert.match(stored.contentTrust?.digest ?? "", /^[0-9a-f]{64}$/);
+});
+
+// ─── Item 7: full-stream scan, verdict vocabulary, fail-closed ──────────────
+
+test("a connected scanner that clears the FULL bytes yields malware-cleared", async () => {
+  let sawBytes = 0;
+  setContentScanner(async ({ bytes }) => { sawBytes = bytes.byteLength; return { malicious: false }; });
+  const pdf = await assess(PDF, "application/pdf");
+  assert.equal(pdf.verdict, "malware-cleared", "a real scan that passes is malware-cleared, not merely type-verified");
+  assert.equal(pdf.scannerStatus, "cleared");
+  assert.equal(sawBytes, PDF.byteLength, "the scanner must receive the FULL bytes, not a 512-byte head");
+  setContentScanner(null);
+});
+
+test("a partial scanner input can never clear an oversized artifact", async () => {
+  const oversized = new Uint8Array((25 * 1024 * 1024) + 1);
+  oversized.set(PNG, 0);
+  let scannedBytes = 0;
+  setContentScanner(async ({ bytes }) => {
+    scannedBytes = bytes.byteLength;
+    return { malicious: false };
+  });
+  try {
+    const result = await assess(oversized, "image/png");
+    assert.equal(scannedBytes, 25 * 1024 * 1024, "the in-process scanner seam remains memory-bounded");
+    assert.equal(result.sizeBytes, oversized.byteLength, "the full artifact is still hashed and measured");
+    assert.equal(result.verdict, "quarantined");
+    assert.equal(result.scannerStatus, "incomplete");
+    assert.equal(result.reason, "scanner-input-too-large");
+  } finally {
+    setContentScanner(null);
+  }
+});
+
+test("a signature-valid PDF is NEVER labelled malware-clean without a scan", async () => {
+  const pdf = await assess(PDF, "application/pdf"); // no scanner
+  assert.notEqual(pdf.verdict, "malware-cleared", "no scanner → must not claim malware-clean");
+  assert.equal(pdf.verdict, "type-verified"); // non-production
+  assert.equal(pdf.scannerStatus, "not-configured");
+});
+
+test("PRODUCTION + no scanner: a high-risk type is QUARANTINED (fail closed) and refused at store", async () => {
+  const prior = process.env.NODE_ENV;
+  // Durable write-admission is a SEPARATE fail-closed control that also guards
+  // storePrivateUpload. Satisfy it with an allowing snapshot so this test
+  // exercises the CONTENT-TRUST quarantine refusal specifically, not
+  // write-admission. The reader is test-only, so install it under NODE_ENV=test
+  // before switching to the production scanner behaviour below.
+  process.env.NODE_ENV = "test";
+  setWriteAdmissionTestReader(async () => ({
+    appKey: AQUA_WRITE_ADMISSION_APP_KEY,
+    global: { scope: "global", scopeId: "global", frozen: false, revision: 1, reason: null, actor: null, changedAt: new Date().toISOString() },
+    tenant: null,
+    pendingQuarantines: 0,
+    frozenTenants: 0,
+  }));
+  process.env.NODE_ENV = "production";
+  try {
+    setContentScanner(null);
+    const pdf = await assess(PDF, "application/pdf");
+    assert.equal(pdf.verdict, "quarantined", "prod + no scanner → high-risk quarantined");
+    assert.equal(pdf.quarantined, true);
+    // And storePrivateUpload refuses it (never stored/served).
+    const localKey = `q-${Date.now()}.pdf`;
+    await assert.rejects(
+      storePrivateUpload({ pathname: localKey, file: blob(PDF), contentType: "application/pdf", localDirectory: "content-trust-test", localKey, trust: { tenantId: "ag_ct_test", purpose: "content-trust-smoke" } }),
+      ContentTrustError,
+    );
+    assert.ok(!existsSync(join(process.cwd(), ".data", "content-trust-test", localKey)), "a quarantined upload must never touch disk");
+  } finally {
+    process.env.NODE_ENV = "test";
+    setWriteAdmissionTestReader(null);
+    if (prior === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = prior;
+  }
+});
+
+test("PRODUCTION + scanner outage: fails CLOSED to quarantined (never silently clean)", async () => {
+  const prior = process.env.NODE_ENV;
+  process.env.NODE_ENV = "production";
+  setContentScanner(async () => { throw new Error("scanner unreachable"); });
+  try {
+    const pdf = await assess(PDF, "application/pdf");
+    assert.equal(pdf.verdict, "quarantined");
+    assert.equal(pdf.scannerStatus, "unavailable");
+    assert.equal(pdf.reason, "scanner-unavailable");
+  } finally {
+    setContentScanner(null);
+    if (prior === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = prior;
+  }
 });

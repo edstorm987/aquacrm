@@ -4,7 +4,7 @@ import {
   type RemoteOperationEvent,
 } from "@/lib/server/remoteOperation";
 import { assertLiveProviderAccess } from "@/lib/server/sandbox/providerPolicy";
-import { isAiDisabled } from "@/lib/server/auth/securityControl";
+import { assertFreshWritesAllowed, isAiDisabled } from "@/lib/server/auth/securityControl";
 import { recordSecurityEvent } from "@/lib/server/security/securityEvents";
 
 export const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
@@ -75,8 +75,8 @@ export class OpenAiResponseError extends RemoteOperationDefinitiveError {
 export async function requestOpenAiResponse(input: {
   apiKey: string;
   payload: Record<string, unknown>;
-  /** Tenant scope for the per-tenant quota; untenanted callers share one bucket. */
-  tenantId?: string;
+  /** Trusted tenant scope for admission, quota and incident attribution. */
+  tenantId: string;
   fetchImpl?: typeof fetch;
   signal?: AbortSignal;
   timeoutMs?: number;
@@ -84,13 +84,14 @@ export async function requestOpenAiResponse(input: {
 }): Promise<Record<string, unknown>> {
   // This shared adapter is the final outbound fence. Route/UI checks are not
   // sufficient because assistants and editor workers can call it directly.
+  await assertFreshWritesAllowed("provider.openai.generate", { tenantId: input.tenantId });
   assertLiveProviderAccess("OpenAI response generation");
   // AI KILL SWITCH + per-tenant quota (Phase 3) — enforced at the ONE adapter
   // every AI generation passes through, before any provider I/O. Prompt
   // contents are never logged or evented.
   const disabled = isAiDisabled();
   if (disabled) throw new AiDisabledError(disabled.reason);
-  const quotaScope = input.tenantId ?? "untenanted";
+  const quotaScope = input.tenantId;
   if (!consumeQuota(quotaScope)) {
     recordSecurityEvent({
       kind: "ai.quota-exceeded",

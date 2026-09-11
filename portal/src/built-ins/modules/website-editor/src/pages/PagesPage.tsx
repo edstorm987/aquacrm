@@ -16,6 +16,7 @@ import {
   deletePage,
   publishPage,
   createPage,
+  EditorPagePublishError,
   onPagesChange,
 } from "../lib/editorPages";
 import type { EditorPage } from "../types/editorPage";
@@ -40,14 +41,27 @@ function PagesPageInner() {
   const [siteId, setSiteId] = useState<string>("");
   const [pages, setPages] = useState<EditorPage[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const refresh = useCallback(async (sid: string) => {
-    if (!sid) { setPages([]); setLoading(false); return; }
+  const refresh = useCallback(async (sid: string): Promise<boolean> => {
+    if (!sid) {
+      setPages([]);
+      setLoadError("No active site is selected, so its page list cannot be read.");
+      setLoading(false);
+      return false;
+    }
     setLoading(true);
+    setLoadError(null);
     try {
       const list = await listPages(sid, true);
       setPages(list);
-    } finally { setLoading(false); }
+      return true;
+    } catch {
+      setLoadError("The page list could not be read. Its state is unknown; reload it before creating, publishing, or deleting pages.");
+      return false;
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -60,7 +74,7 @@ function PagesPageInner() {
   }, [refresh]);
 
   async function handleNewPage() {
-    if (!siteId) return;
+    if (!siteId || loadError) return;
     const title = await prompt({
       title: "New page",
       message: "Pick a name. You can change the slug afterwards.",
@@ -88,15 +102,38 @@ function PagesPageInner() {
     const deleted = await deletePage(siteId, page.id);
     if (deleted) {
       notify({ tone: "ok", title: "Page deleted" });
-      await refresh(siteId);
+      if (!(await refresh(siteId))) {
+        notify({
+          tone: "warn",
+          title: "Deleted; list not refreshed",
+          message: "The delete succeeded, but the current page list is unreadable. Reload before taking another action.",
+        });
+      }
     }
   }
 
   async function handlePublish(page: EditorPage) {
-    const updated = await publishPage(siteId, page.id);
-    if (updated) {
-      notify({ tone: "ok", title: "Published", message: `"${updated.title || updated.slug}"` });
-      await refresh(siteId);
+    let updated: EditorPage;
+    try {
+      updated = await publishPage(siteId, page.id);
+    } catch (error) {
+      notify({
+        tone: "error",
+        title: "Page not published",
+        message: error instanceof EditorPagePublishError
+          ? error.message
+          : "The publish request failed safely. No page-publish success was recorded.",
+      });
+      return;
+    }
+
+    notify({ tone: "ok", title: "Published", message: `"${updated.title || updated.slug}"` });
+    if (!(await refresh(siteId))) {
+      notify({
+        tone: "warn",
+        title: "Published; list not refreshed",
+        message: "The publish succeeded, but the current page list is unreadable. Reload before taking another action.",
+      });
     }
   }
 
@@ -114,7 +151,8 @@ function PagesPageInner() {
         </div>
         <button
           onClick={handleNewPage}
-          className="text-xs px-4 py-2 rounded-lg bg-brand-orange hover:bg-brand-orange-light text-white font-semibold"
+          disabled={!siteId || loading || Boolean(loadError)}
+          className="text-xs px-4 py-2 rounded-lg bg-brand-orange hover:bg-brand-orange-light text-white font-semibold disabled:cursor-not-allowed disabled:opacity-40"
         >
           + New page
         </button>
@@ -122,6 +160,18 @@ function PagesPageInner() {
 
       {loading ? (
         <p className="text-brand-cream/45 text-sm py-10 text-center">Loading…</p>
+      ) : loadError ? (
+        <div role="alert" className="rounded-2xl border border-amber-400/25 bg-amber-400/[0.06] px-6 py-8 text-center">
+          <p className="text-amber-100 text-sm font-medium">Pages are currently unreadable</p>
+          <p className="mt-2 text-brand-cream/55 text-xs">{loadError}</p>
+          <button
+            type="button"
+            onClick={() => void refresh(siteId)}
+            className="mt-4 text-xs px-4 py-2 rounded-lg border border-amber-300/25 text-amber-100 hover:bg-amber-300/10"
+          >
+            Try again
+          </button>
+        </div>
       ) : pages.length === 0 ? (
         <div className="rounded-2xl border border-white/8 bg-brand-black-card px-6 py-10 text-center">
           <p className="text-brand-cream/45 text-sm">No pages yet.</p>

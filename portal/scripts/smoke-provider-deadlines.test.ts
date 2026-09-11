@@ -94,7 +94,7 @@ test("Vercel attach exits a never-settling adapter with idempotent recovery guid
     const result = await attachDomain(
       { token: "token", projectId: "project" },
       "example.com",
-      { timeoutMs: 5 },
+      { timeoutMs: 5, writeGuard: () => undefined },
     );
     assert.equal(result.ok, false);
     assert.equal(result.outcomeUnknown, true);
@@ -127,7 +127,7 @@ test("Shopify cart mutation timeout requires reconciliation before retry", async
   globalThis.fetch = (() => new Promise<Response>(() => undefined)) as typeof fetch;
   try {
     const error = await rejectionOf(addLineToShopifyCart(
-      { domain: "store.myshopify.com", storefrontAccessToken: "token" },
+      { domain: "store.myshopify.com", storefrontAccessToken: "token", agencyId: "agency_1" },
       "cart-1",
       "variant-1",
       1,
@@ -160,6 +160,7 @@ test("Stripe POST carries its durable key and exits a late response as same-key 
       idempotencyKey: "commercial-checkout-operation-1",
       outcome: "idempotent-write",
       timeoutMs: 5,
+      tenantId: "agency_1",
     }));
     assert.ok(error instanceof RemoteOperationError);
     assert.equal(error.outcomeUnknown, true);

@@ -3,16 +3,63 @@
 **Branch:** `security/containment-and-recovery`
 **Base (remote main):** `c89e7959f9a46f952adcbfd14c2be7226fb374b7`
 **Worktree:** `/private/tmp/aquacrm-security` (the developer's checkout was never touched)
-**Status:** Phase 0 (immediate exposure) COMPLETE. Phase 1 (control plane +
+**Historical code status:** Phase 0 (immediate exposure) IMPLEMENTED. Phase 1 (control plane +
 lockdown switches), Phase 2 (content trust gateway), Phase 3 (AI containment)
-the first Phase-4 tranche, and the Phase-6 threat centre are COMPLETE — each
+the first Phase-4 tranche, and the Phase-6 threat centre were implemented — each
 with its honest PARTIAL list inline. Phase 5 runbooks are written against the
 REAL shipped controls (`docs/security/incident-runbooks.md`). All six phases
-have landed as enforced, tested controls; what remains is owner-gated (live
-migration, restore drill, AV/MFA/WAF providers). Branch pushed to origin;
-NEVER merged. This document
-is the honest ledger — every item carries VERIFIED / PARTIAL / BLOCKED /
-NOT TESTED / OWNER ACTION.
+landed as source code and local tests on the dated branch; this does **not** mean
+their database/provider portions are enforced live. Owner-gated work remains
+(live migration, restore drill, AV/MFA/WAF providers).
+
+> **STATUS UPDATE (2026-09-09).** This branch was **MERGED to `main` as
+> `08670b62` and is deployed live on Railway** (superseding the earlier "never
+> merged" note above). A follow-up production-gate repair pass then hardened it
+> further on branch `security/production-gate-repair-20260908` — see the
+> canonical, current ledger in **`SECURITY-GATE-REPAIR-REPORT.md`**, which is
+> the single source of truth for findings, dispositions, the live SHA, the
+> (red) readiness verdict, and OWNER ACTIONS. Where this older document and the
+> gate-repair report disagree, the gate-repair report wins.
+
+> **PUBLIC-UPLOAD SCOPE CORRECTION (2026-09-10).** The Phase-2 record below is
+> historical evidence for `storePrivateUpload`; it did not cover the distinct
+> `storePublicUpload` path to the public CDN bucket. A prospective correction is
+> on the local, unmerged and undeployed branch
+> `security/public-upload-byte-inspection-20260910`, based on
+> `72acac904ba6af88cb1a3d84483b4a4359d03747`. It adds byte/type inspection,
+> strict size and tenant-path bounds, recursive media discovery and fail-closed
+> publication errors. Its final adversarial pass also proved the current
+> upload-before-page-commit flow cannot safely create production public objects:
+> shared content-addressed keys and the absence of a durable ownership/refcount
+> ledger make both orphan cleanup and compensating deletion unsafe. The branch
+> therefore refuses every configured **app-server write through
+> `storePublicUpload`** before scanner or provider I/O; the dormant provider
+> implementation has been removed. This does not block direct authenticated,
+> dashboard or other service-role access to Supabase Storage: the containment
+> migration must be applied and verified separately. Local development remains
+> available and existing public URLs can
+> still be published/rendered. Production enablement requires a durable
+> operation-owned publication saga, atomic page-generation commit and an
+> ownership-proven recovery/recall worker. The scanner's audited egress path is
+> also capped at 1 MiB, below the 8 MiB media contract, pending an explicit
+> data-egress decision. Existing public objects and already-published inline
+> payloads require a post-merge inventory, scan and safe republish/removal job.
+> The canonical verdict remains **NOT READY** in
+> `SECURITY-GATE-REPAIR-REPORT.md`.
+
+> **BUCKET-ZONE FOLLOW-ON (2026-09-10).** The same local correction pins the
+> private/public Supabase bucket names to `aquacrm-uploads` and
+> `aquacrm-public`. Startup, readiness and every service-role private Storage
+> operation fail closed if those zones are renamed, swapped or shared. Its
+> forward-only migration
+> `20260910010000_harden_aquacrm_public_media_bucket.sql` is local, unmerged and
+> unapplied; it also rejects every effective browser-role `storage.objects`
+> write policy by command and role rather than trusting policy names. It
+> requires a fresh backup, explicit owner approval and independent live
+> verification after the containment chain.
+
+This document is the historical Phase-0…6 ledger — every item carries VERIFIED /
+PARTIAL / BLOCKED / NOT TESTED / OWNER ACTION.
 
 > This is a security *architecture* programme, not a dashboard. Everything in
 > Phase 0 is an enforceable, tested control. Nothing here says "production
@@ -23,6 +70,10 @@ NOT TESTED / OWNER ACTION.
 ---
 
 ## Verified findings (first-hand + an 8-agent evidence pass, all file:line)
+
+`FIXED` in this historical table means fixed in the named source lane. It does
+not override the current red verdict, prove deployment, or attest that an
+owner-gated migration/provider control is live.
 
 | # | Finding | Verdict | Fixed in |
 |---|---------|---------|----------|
@@ -108,11 +159,19 @@ escape hatch production provably IGNORES.
 
 ## OWNER ACTION — before/at deploy (nothing here was done by the author)
 
-1. **Apply the containment migration to LIVE** after a fresh backup:
-   `supabase db push` then paste `supabase/rls-verify.sql` in the SQL editor and
+1. **Reconcile, then apply the four expected pending migrations to LIVE** only
+   after a fresh backup and explicit owner approval. First run the read-only
+   `supabase migration list --linked` and
+   `supabase db push --linked --dry-run`. The delta must be exactly, in order,
+   `20260903130000`, `20260908210000`, `20260908220000`, and
+   `20260910010000`; abort on any missing, extra, reordered or remote-only
+   version. Only after that preflight, backup and approval may the real
+   `supabase db push --linked` run. Then paste `supabase/rls-verify.sql` in the SQL editor and
    confirm the containment-invariants result set is all-INFO. Do NOT deploy the
-   new app build until the migration is applied — the app is already
-   service-role-only, so the migration only removes attacker surface, but verify.
+   new app build until all four are recorded, the live bucket flags/limits are
+   independently checked, and `rls-verify.sql` proves there is no anon,
+   authenticated or PUBLIC storage write policy. The app is already service-role-only, so the
+   containment chain removes attacker surface, but verify rather than infer.
 2. **Set `PORTAL_SESSION_SECRET`** to a ≥32-char random value in production (the
    boot now REFUSES to start without it — this is intentional). Rotate away from
    any dev value.

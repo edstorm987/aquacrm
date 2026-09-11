@@ -17,7 +17,7 @@ import { dirname, join } from "node:path";
 import test, { beforeEach } from "node:test";
 
 import { clientIpFromHeaders } from "../src/lib/server/rateLimit";
-import { isCrossOriginBrowserMutation } from "../src/proxy";
+import { isCrossOriginBrowserMutation, isOutOfBandWriteFreezeRefusal } from "../src/proxy";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -71,39 +71,75 @@ test("the status code decision is independent of the disclosure gate", () => {
   assert.match(source, /status: ok \? 200 : 503/);
 });
 
-// ─── CSRF origin gate (Phase 4 completion) ──────────────────────────────────
+// ─── CSRF gate: exact-origin + Fetch Metadata (Phase 4 repair) ──────────────
 
-test("a cross-site mutation on a cookie-authed API is refused; same-origin passes", () => {
-  const guarded = { method: "POST", path: "/api/portal/tasks", host: "www.aqua-crm.com" };
-  assert.equal(isCrossOriginBrowserMutation({ ...guarded, origin: "https://evil.example" }), true);
-  assert.equal(isCrossOriginBrowserMutation({ ...guarded, origin: "https://www.aqua-crm.com" }), false);
-  // Case-insensitive host comparison.
-  assert.equal(isCrossOriginBrowserMutation({ ...guarded, origin: "https://WWW.AQUA-CRM.COM" }), false);
+test("a cross-site mutation on every cookie-authed API root is refused; same-origin passes", () => {
+  // /api/tenants/* is cookie-authenticated (requireRoleForClient) — the merge
+  // wrongly exempted it; it MUST be guarded now.
+  for (const path of ["/api/portal/tasks", "/api/auth/password", "/api/tenants/client-files/upload", "/api/tenants/client-notes", "/api/internal/sweep"]) {
+    const guarded = { method: "POST", path, host: "www.aqua-crm.com" };
+    assert.equal(isCrossOriginBrowserMutation({ ...guarded, origin: "https://evil.example" }), true, `${path} cross-site must be refused`);
+    assert.equal(isCrossOriginBrowserMutation({ ...guarded, origin: "https://www.aqua-crm.com" }), false, `${path} same-origin must pass`);
+    assert.equal(isCrossOriginBrowserMutation({ ...guarded, origin: "https://WWW.AQUA-CRM.COM" }), false, `${path} case-insensitive host`);
+  }
 });
 
-test("the gate covers auth APIs, ignores safe methods, and leaves token surfaces alone", () => {
-  assert.equal(
-    isCrossOriginBrowserMutation({ method: "POST", path: "/api/auth/password", origin: "https://evil.example", host: "www.aqua-crm.com" }),
-    true,
-  );
-  // Safe methods carry no CSRF risk.
+test("a malicious SAME-SITE sibling subdomain is refused (exact host, not eTLD+1)", () => {
+  const guarded = { method: "POST", path: "/api/tenants/client-status", host: "www.aqua-crm.com" };
+  // Sibling subdomain via Origin host mismatch.
+  assert.equal(isCrossOriginBrowserMutation({ ...guarded, origin: "https://evil.aqua-crm.com" }), true);
+  // Sibling subdomain via Fetch Metadata alone (Origin stripped).
+  assert.equal(isCrossOriginBrowserMutation({ ...guarded, origin: null, secFetchSite: "same-site" }), true);
+});
+
+test("Fetch Metadata cross-site/same-site is refused; same-origin/none pass", () => {
+  const g = { method: "POST", path: "/api/portal/tasks", host: "www.aqua-crm.com", origin: null };
+  assert.equal(isCrossOriginBrowserMutation({ ...g, secFetchSite: "cross-site" }), true);
+  assert.equal(isCrossOriginBrowserMutation({ ...g, secFetchSite: "same-site" }), true);
+  assert.equal(isCrossOriginBrowserMutation({ ...g, secFetchSite: "same-origin" }), false);
+  assert.equal(isCrossOriginBrowserMutation({ ...g, secFetchSite: "none" }), false);
+});
+
+test("safe methods are never gated, and token/public/webhook surfaces stay exempt", () => {
   assert.equal(
     isCrossOriginBrowserMutation({ method: "GET", path: "/api/portal/tasks", origin: "https://evil.example", host: "www.aqua-crm.com" }),
     false,
   );
-  // Token/public/webhook surfaces are cross-origin BY DESIGN — not gated here.
-  for (const path of ["/api/v1/records", "/api/public/careers", "/api/tenants/client-files/upload", "/api/webhooks/meta"]) {
+  // Verified NON-cookie surfaces: cross-origin BY DESIGN, per-request auth.
+  for (const path of ["/api/v1/records", "/api/public/careers", "/api/public/brand-enquiry", "/api/webhooks/meta", "/api/telemetry/collect"]) {
     assert.equal(
-      isCrossOriginBrowserMutation({ method: "POST", path, origin: "https://client-site.example", host: "www.aqua-crm.com" }),
+      isCrossOriginBrowserMutation({ method: "POST", path, origin: "https://client-site.example", host: "www.aqua-crm.com", secFetchSite: "cross-site" }),
       false,
       `${path} must not be origin-gated`,
     );
   }
 });
 
-test("absent Origin passes (no ambient-cookie CSRF vector); null/malformed Origin is refused", () => {
-  const guarded = { method: "POST", path: "/api/portal/tasks", host: "www.aqua-crm.com" };
+test("absent Origin+metadata passes (non-browser, no ambient cookie); null/malformed Origin refused", () => {
+  const guarded = { method: "POST", path: "/api/tenants/client-notes", host: "www.aqua-crm.com" };
   assert.equal(isCrossOriginBrowserMutation({ ...guarded, origin: null }), false);
   assert.equal(isCrossOriginBrowserMutation({ ...guarded, origin: "null" }), true);
   assert.equal(isCrossOriginBrowserMutation({ ...guarded, origin: "not a url" }), true);
+});
+
+test("the out-of-band freeze refuses HTTP effects before route code but preserves incident control", () => {
+  for (const path of [
+    "/api/portal/website-enquiries/status",
+    "/api/portal/website-enquiries/erase",
+    "/api/portal/website-enquiries/reply",
+    "/api/public/brand-enquiry",
+  ]) {
+    assert.equal(isOutOfBandWriteFreezeRefusal({ frozen: "1", method: "POST", path }), true, path);
+  }
+  assert.equal(isOutOfBandWriteFreezeRefusal({ frozen: "1", method: "GET", path: "/api/cron/radar-probes" }), true);
+  assert.equal(isOutOfBandWriteFreezeRefusal({ frozen: "1", method: "GET", path: "/api/portal/tasks" }), false);
+  for (const path of [
+    "/api/auth/login",
+    "/api/auth/login/browser",
+    "/api/auth/logout",
+    "/api/portal/security/actions",
+  ]) {
+    assert.equal(isOutOfBandWriteFreezeRefusal({ frozen: "1", method: "POST", path }), false, path);
+  }
+  assert.equal(isOutOfBandWriteFreezeRefusal({ frozen: "true", method: "POST", path: "/api/portal/tasks" }), false);
 });

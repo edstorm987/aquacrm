@@ -2,21 +2,21 @@
 
 > Source maps, subsystem dossiers, components, routes, state and built-in module notes.
 >
-> Consolidated 2026-09-08 from **23** source documents / **57,760 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-10 from **23** source documents / **57,952 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
 - [`docs/development/STRUCTURE.md`](#source-docs-development-structure-md) — 932 words · `5e022745dfd7`
-- [`docs/WORKSPACE-FILE-TREE.md`](#source-docs-workspace-file-tree-md) — 1,376 words · `6cd666857aba`
+- [`docs/WORKSPACE-FILE-TREE.md`](#source-docs-workspace-file-tree-md) — 1,414 words · `4124eac3da9a`
 - [`docs/workspace/advisor.md`](#source-docs-workspace-advisor-md) — 1,445 words · `d5b9b4fc79dc`
 - [`docs/workspace/api-and-routes.md`](#source-docs-workspace-api-and-routes-md) — 946 words · `8bbf0d2e9c9f`
 - [`docs/workspace/api-reference.md`](#source-docs-workspace-api-reference-md) — 8,531 words · `7b4eb3ae396a`
 - [`docs/workspace/aqua-tag.md`](#source-docs-workspace-aqua-tag-md) — 3,463 words · `d662b63850cb`
 - [`docs/workspace/components.md`](#source-docs-workspace-components-md) — 1,142 words · `5ef3bf2f75be`
-- [`docs/workspace/database.md`](#source-docs-workspace-database-md) — 2,263 words · `396394473cec`
+- [`docs/workspace/database.md`](#source-docs-workspace-database-md) — 2,380 words · `481810261ad3`
 - [`docs/workspace/env-and-sellability.md`](#source-docs-workspace-env-and-sellability-md) — 3,662 words · `dda5fb28db12`
 - [`docs/workspace/feature-index.md`](#source-docs-workspace-feature-index-md) — 5,346 words · `3091196d10e6`
-- [`docs/workspace/hazards-and-duplication.md`](#source-docs-workspace-hazards-and-duplication-md) — 7,937 words · `16f6a1abda87`
+- [`docs/workspace/hazards-and-duplication.md`](#source-docs-workspace-hazards-and-duplication-md) — 7,974 words · `693cf3848ce4`
 - [`docs/workspace/kpi-intelligence.md`](#source-docs-workspace-kpi-intelligence-md) — 2,283 words · `d641f1291cbc`
 - [`docs/workspace/plugins.md`](#source-docs-workspace-plugins-md) — 2,193 words · `85bf55b735d1`
 - [`docs/workspace/portal-ui.md`](#source-docs-workspace-portal-ui-md) — 4,405 words · `5a18d11726d8`
@@ -144,7 +144,7 @@ Rules:
 
 ## Source document — `docs/WORKSPACE-FILE-TREE.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/WORKSPACE-FILE-TREE.md" sha256="6cd666857abaf954182453083eb059eeed02b1d17de9e2171bf312fc64149514" -->
+<!-- AQUACRM_SOURCE_START path="docs/WORKSPACE-FILE-TREE.md" sha256="4124eac3da9a9e8491f0e5ccb08e930371bf3fae89c7dcefe2409880598d3791" -->
 # Workspace file tree — the contents page
 
 This is the **index** to a full map of the AquaCRM portal: what every part does,
@@ -200,10 +200,14 @@ The owning layer, by kind of change:
 > [live-data hazards](workspace/hazards-and-duplication.md#-live-data-hazards-real-un-sandboxed).
 >
 > **The DDL and the RLS policies are NOT in `portal/`** — they are a normal
-> Supabase CLI project one directory up, at `../supabase/migrations/` (14
-> migrations, 26 policies). An audit scoped to `portal/` will correctly find
+> Supabase CLI project one directory up, at `../supabase/migrations/` (**31
+> ordered migrations** at the 2026-09-10 source checkpoint). Policy counts vary
+> across that history; use the executable coverage check and the
+> [database chapter](workspace/database.md), not a copied total. The last
+> verified live alignment covered 27 migrations; four later versions are not
+> claimed live. An audit scoped to `portal/` will correctly find
 > nothing and incorrectly conclude nothing exists; that happened, and it sent a
-> work lane off on a false premise. See the [database chapter](workspace/database.md).
+> work lane off on a false premise.
 
 ---
 
@@ -1508,7 +1512,7 @@ does not use these; if anything the arrow runs the other way
 
 ## Source document — `docs/workspace/database.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/database.md" sha256="396394473cec1654b5b5fdd1a2900334246d6b94bcca2903e73c39a3c32f72fe" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/database.md" sha256="481810261ad3acbf7c099cbeaf78a74fa81c6c15cd19b347875317237112346e" -->
 # Chapter — Database (Supabase / Postgres) dossier
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
@@ -1530,9 +1534,12 @@ and [current readiness](../development/PRODUCTION-READINESS.md).
 > They live in **[`../../../supabase/migrations/`](../../../supabase/README.md)**
 > — a normal Supabase CLI project sitting beside `portal/`, linked to project
 > ref `dghzbsxbdatskserctgt`, the same ref `NEXT_PUBLIC_SUPABASE_URL` points at.
-> The repository now contains 28 ordered migrations defining the schema,
+> The repository now contains 31 ordered migrations defining the schema,
 > policies, grants, bucket ACLs and database functions. `20260811113000_master_
 > inbox_messaging.sql` is on disk and 173 lines long.
+> The last verified live alignment on 2026-09-03 covered 27 migrations; the four
+> later files (`20260903130000`, `20260908210000`, `20260908220000`, and
+> `20260910010000`) remain owner-gated and are not claimed live by this chapter.
 >
 > The mistake is understandable and worth naming, because it will recur: the
 > portal package is what deploys, so it reads like the whole repo. It is not.
@@ -1677,29 +1684,35 @@ i.e. service-role-only by grant, with **no policies at all**, so any anon or
 authenticated request is denied outright rather than filtered.
 
 ## 3. Storage buckets
-Bucket rows and their `storage.objects` policies are defined in
+Bucket rows and the original `storage.objects` policies are defined in
 `../../../supabase/migrations/20260731134500_ecosystem_storage_buckets.sql`
-(MIME allow-list widened for `aquacrm-uploads` by the `..._expand_aquacrm_private_upload_mimes`
-migration). Three policies: public buckets readable by `anon`+`authenticated`;
-all eight buckets manageable by `is_internal_user()`; and, on the private
-buckets, each user may manage their own folder
-(`storage.foldername(name)[1] = auth.uid()::text`). Supabase forces RLS on
-`storage.objects` itself, so no migration enables it.
+(MIME allow-list widened for `aquacrm-uploads` later). That historical migration
+gave internal authenticated users broad cross-bucket management. The forward
+containment chain beginning at `20260908210000_assume_breach_containment.sql`
+revokes that access, but production application and `rls-verify.sql` attestation
+remain explicit owner gates. Until they are proved, assume direct authenticated
+Supabase Storage access still has the older blast radius. Supabase itself forces
+RLS on `storage.objects`. The local `20260910010000` follow-on and the verifier
+now inspect effective policy commands and roles—not policy names—and refuse any
+browser-role INSERT/UPDATE/DELETE/ALL policy, including renamed, dashboard-created
+or PUBLIC-targeted policies. That remains source evidence until applied and
+rerun live.
 
-Two `.storage.from()` call sites: `privateUploadStorage.ts` (private) and
-`publicUploadStorage.ts` (public media — wired in **public-bucket Phase 1**).
+The current application has one remote `.storage.from()` storage implementation:
+`privateUploadStorage.ts`. `publicUploadStorage.ts` deliberately contains no
+remote upload/remove implementation until the atomic public-media lifecycle is built.
 
 | Bucket | Default | Contents | Access (verified) |
 |---|---|---|---|
 | Private uploads | `aquacrm-uploads` | private files/recordings/pics | **Server-only via service-role.** upload/download/remove; **the app proxies bytes itself** — no signed URLs, no `getPublicUrl`. |
-| Public media | `aquacrm-public` | "approved website media" | **Wired + consumed (public-bucket Phases 1–2)** via `publicUploadStorage.ts` — `storePublicUpload` uploads (`upsert:true` → stable URLs on re-publish) + returns a durable `getPublicUrl` CDN link; `deleteSupabasePublicUpload` for unpublish. **Consumer:** the website-editor `publishPage` promotes inline `data:` media to this bucket on publish, via the new `publicMedia` foundation port (`foundation-adapters/publicMediaAdapter.ts` → `PluginServices.publicMedia`, content-addressed keys under `website-media/<agency>/<client>/<site>/<sha>.<ext>`). Auto-public-on-publish; drafts stay inline. |
+| Public media | `aquacrm-public` | "approved website media" | **Release-blocked.** The website-editor still detects recursively nested block-tree `data:` media through the `publicMedia` port, but a configured remote call stops at `PublicUploadAtomicLifecycleError` before scanner/provider I/O. The old Supabase `upsert/getPublicUrl` branch is absent; `deleteSupabasePublicUpload` is compatibility-only and always raises `PublicUploadOwnershipProofError` after containment/namespace checks. Existing public URLs can render. Safe enablement needs the containment migration plus durable operation-owned intent, immutable object identity, atomic page-generation commit, reference/ownership proof and recovery/recall. |
 
 Private-upload precedence: Supabase bucket → Vercel Blob (`access:private`) →
-hard error in prod → local `.data/` in dev. **Public-upload precedence**
-(`publicUploadStorage.ts`, *no Blob tier* — simpler by design): Supabase
-`aquacrm-public` + `getPublicUrl` → hard error in prod → local
-`public/uploads-public/` in dev (served statically by Next). `createSignedUrl`
-**never called anywhere;** `getPublicUrl` is called **only** by the public helper.
+hard error in prod → local `.data/` in dev. **Public-upload current behavior:**
+unconfigured production fails durable-storage readiness; configured remote
+storage fails the non-bypassable atomic-lifecycle gate; only local development
+may write inspected bytes to `public/uploads-public/`. There is no app-server
+public-bucket upload or delete primitive in the current module.
 
 ## 4. Auth & security
 ### Real Supabase Auth (verified)
@@ -1738,16 +1751,18 @@ appear nowhere in the repo).
 
 ## 5. Env vars (Supabase / DB / storage)
 Prod-required and enforced by `env.ts` (throws in prod):
-`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
-`SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET`,
+`NEXT_PUBLIC_SUPABASE_URL`, one public key (`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
+`NEXT_PUBLIC_PUBLISHABLE_KEY`, or legacy `NEXT_PUBLIC_SUPABASE_ANON_KEY`), one
+server key (`SUPABASE_SECRET_KEY` or legacy `SUPABASE_SERVICE_ROLE_KEY`), `NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET`,
 `NEXT_PUBLIC_SUPABASE_PUBLIC_BUCKET`, `PORTAL_SESSION_SECRET` (≥32 chars).
 Others: `PORTAL_BACKEND`, `PORTAL_STATE_KEY`, `DATABASE_URL` (+ `PORTAL_PG_*`
 pool tuning), `INBOX_STORAGE_BACKEND`, `INBOX_WEBHOOK_RETENTION_DAYS`, Vercel
 Blob fallback (`BLOB_*`), Upstash (`PORTAL_KV_*`, the stub backend).
 
-> The three primary Supabase credentials are prod-required and enforced by the
-> boot self-check. `.env.example` now documents all three as blank/commented
-> placeholders; a real environment must still supply valid values.
+> The URL plus one public-key value and one server-key value are prod-required
+> and enforced by the boot self-check. `.env.example` documents every supported
+> spelling as a blank/commented placeholder; set one alias from each key class,
+> not every alias.
 
 _The enquiry tables here are the live side of the [Aqua Tag](aqua-tag.md)
 ingestion; the blob backend holds everything else described across the
@@ -2338,7 +2353,7 @@ _(For which plugin owns a feature, see the [plugins chapter](plugins.md). For an
 
 ## Source document — `docs/workspace/hazards-and-duplication.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/hazards-and-duplication.md" sha256="16f6a1abda8766e039a3ab45c3eaa3ee06e35b1acce2da86c08825a5c4098ad3" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/hazards-and-duplication.md" sha256="693cf3848ce4abf138b45604aedf99187b97d74a70e7d4173c8a4e02975103a0" -->
 # Chapter — Hazards & duplication (read before editing)
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
@@ -2353,7 +2368,7 @@ data**. If you read one chapter before touching the codebase, read this one.
 
 - **Live Supabase is not sandboxed.** `PORTAL_BACKEND=file` guards the local state file only. The Supabase **admin client reads env directly**, so any code path through `lib/supabase/admin.ts` hits the **real** auth + `brand_enquiries` + Storage project — even in local dev.
 - **The env safety classifier blocks scripts that hard-delete live Supabase rows.** That's why `scripts/cleanup-junk-enquiries.mjs` exists for **Ed to run himself**, not me. Never expect me to run a live hard-delete.
-- **What's live:** see the [API chapter's LIVE callout](api-and-routes.md#-live-supabase-callout-dont-break-real-data). Short version: all auth, all `brand_enquiries` enquiry endpoints, `telemetry/collect`, and all Storage-bucket file uploads.
+- **What's live:** see the [API chapter's LIVE callout](api-and-routes.md#-live-supabase-callout-dont-break-real-data). Short version: all auth, all `brand_enquiries` enquiry endpoints, `telemetry/collect`, and private/business upload paths when their Supabase provider is selected. The app-server public-media writer is deliberately inert before provider I/O until its durable publication/recall lifecycle exists. Direct dashboard or separately credentialed Supabase Storage access is still live and must be contained independently.
 - **Dev/demo inboxes load ZERO enquiries** (`agency/inbox/page.tsx`: `session.isDemo ? []`). The enquiry-delete button and master-tag ingestion only appear in a **real** (non-demo) inbox — don't conclude they're broken from the sandbox.
 
 ### A real person's identity is a SOURCE CONSTANT — erasure cannot reach it (2026-08-31)

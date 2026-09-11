@@ -38,6 +38,7 @@ import {
   mutate,
   replaceDataRealmState,
 } from "../src/server/storage";
+import { enforceSessionSecurity, expireSessionForTest } from "../src/lib/server/auth/securityControl";
 import { rotateUserSession, setUserPassword, updateUser } from "../src/server/users";
 import type { PortalState, ServerUser, SessionPayload } from "../src/server/types";
 
@@ -126,6 +127,24 @@ beforeEach(async () => {
 });
 
 describe("central session revocation — the exploit route (getSessionFromRequest path)", () => {
+  it("a real session is marked registry-required and fails closed if its row disappears", async () => {
+    const parsed = verifyToken(ownerToken());
+    assert.ok(parsed?.sid);
+    assert.equal(parsed.sr, 1);
+    mutate(state => {
+      if (state.securityControl && parsed.sid) delete state.securityControl.sessions[parsed.sid];
+    }, { securityControlPlane: true });
+    assert.deepEqual(enforceSessionSecurity(parsed), { ok: false, reason: "session-unregistered" });
+    assert.equal(await resolveFreshSessionUser(parsed), null);
+  });
+
+  it("an expired required registry row is refused even if the cookie has time left", () => {
+    const parsed = verifyToken(ownerToken());
+    assert.ok(parsed?.sid);
+    expireSessionForTest(parsed.sid);
+    assert.deepEqual(enforceSessionSecurity(parsed), { ok: false, reason: "session-expired" });
+  });
+
   it("a live owner cookie still creates a key (the boundary refuses stale, not valid, sessions)", async () => {
     const response = await externalAiPost(externalAiCreateRequest(ownerToken()));
     assert.equal(response.status, 201);

@@ -5,14 +5,23 @@ import { dirname, join, resolve, sep } from "node:path";
 import { del, put } from "@vercel/blob";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { resolveSupabaseSecretKey } from "@/lib/supabase/keys";
 import { sliceStream, type ByteRange } from "@/lib/server/privateMediaResponse";
 import { assertLiveProviderAccess } from "@/lib/server/sandbox/providerPolicy";
 import { assessUploadContent, ContentTrustError, type ContentTrustAssessment } from "@/lib/server/security/contentTrust";
+import {
+  assertFreshWritesAllowed,
+  type FreshWriteEffectContext,
+} from "@/lib/server/auth/securityControl";
+import {
+  resolvePrivateUploadBucket,
+  StorageBucketConfigurationError,
+} from "@/lib/server/storageBucketPolicy";
 import { isSandboxDataRealm } from "@/server/dataRealm";
 
 export type PrivateUploadStorageProvider = "supabase" | "vercel-blob" | "local";
 
-const DEFAULT_SUPABASE_UPLOAD_BUCKET = "aquacrm-uploads";
+export { resolvePrivateUploadBucket, StorageBucketConfigurationError };
 
 export class PrivateUploadStorageError extends Error {
   readonly code = "durable_private_uploads_required";
@@ -30,7 +39,7 @@ export interface StorePrivateUploadInput {
   localDirectory: string;
   localKey: string;
   /** Lineage for the content-trust judgement's event trail (Phase 2). */
-  trust?: { tenantId?: string; actor?: string; purpose?: string };
+  trust: { tenantId: string; actor?: string; purpose: string };
 }
 
 export interface StoredPrivateUpload {
@@ -44,6 +53,8 @@ export interface StoredPrivateUpload {
   contentTrust?: Pick<ContentTrustAssessment, "verdict" | "digest" | "sniffedType">;
 }
 
+const storedAdmissionContexts = new WeakMap<object, FreshWriteEffectContext>();
+
 /**
  * Predict the exact key a staged upload will own before provider I/O starts.
  * Vercel Blob accepts a pathname as well as a returned URL for deletion, so
@@ -52,6 +63,7 @@ export interface StoredPrivateUpload {
  */
 export function planPrivateUpload(input: Pick<StorePrivateUploadInput, "pathname" | "localKey">): StoredPrivateUpload {
   if (supabasePrivateUploadsConfigured()) {
+    resolvePrivateUploadBucket();
     return { storageProvider: "supabase", storageKey: input.pathname };
   }
   if (privateUploadsConfigured()) {
@@ -84,6 +96,20 @@ export function durablePrivateUploadsRequired(env: NodeJS.ProcessEnv = process.e
 
 export async function storePrivateUpload(input: StorePrivateUploadInput): Promise<StoredPrivateUpload> {
   assertLiveProviderAccess("Private file storage");
+  // Phase 2 write boundary: object storage is a write path mutate() never sees,
+  // so an incident write-freeze must refuse it here too — before content
+  // assessment or any provider I/O, so a frozen upload leaves nothing behind.
+  await assertFreshWritesAllowed("storage.private-upload", {
+    tenantId: input.trust.tenantId,
+    actor: input.trust.actor,
+  });
+  // Resolve the fixed private/public zone contract before inspecting or sending
+  // bytes anywhere. A configured Supabase client always wins provider
+  // precedence, so a bad bucket must fail closed rather than fall through to
+  // another provider or silently write private data to a public bucket.
+  const supabaseBucket = supabasePrivateUploadsConfigured()
+    ? resolvePrivateUploadBucket()
+    : null;
   // CONTENT TRUST GATEWAY (Phase 2): every route stores through this function,
   // so every stored upload is judged by its BYTES here — before any provider
   // I/O. A blocked verdict throws and nothing is written anywhere. See
@@ -92,23 +118,30 @@ export async function storePrivateUpload(input: StorePrivateUploadInput): Promis
   const assessment = await assessUploadContent({
     file: input.file,
     declaredType: input.contentType,
-    purpose: input.trust?.purpose ?? input.localDirectory,
-    tenantId: input.trust?.tenantId,
-    actor: input.trust?.actor,
+    purpose: input.trust.purpose,
+    tenantId: input.trust.tenantId,
+    actor: input.trust.actor,
   });
-  if (assessment.verdict === "blocked") throw new ContentTrustError(assessment);
+  // Blocked = rejected outright. Quarantined = a real verdict is pending (e.g.
+  // production with no scanner, or a scanner outage): fail CLOSED — do not store
+  // or serve it until a scanner clears it (Item 7). Both refuse here.
+  if (assessment.verdict === "blocked" || assessment.verdict === "quarantined") throw new ContentTrustError(assessment);
   const contentTrust = { verdict: assessment.verdict, digest: assessment.digest, sniffedType: assessment.sniffedType };
-  if (supabasePrivateUploadsConfigured()) {
-    const bucket = process.env.NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET?.trim()
-      || DEFAULT_SUPABASE_UPLOAD_BUCKET;
-    const admin = createSupabaseAdminClient();
-    const { error } = await admin.storage.from(bucket).upload(input.pathname, input.file, {
+  if (supabaseBucket) {
+    const admin = createSupabaseAdminClient({
+      tenantId: input.trust.tenantId,
+      surface: "storage.private-upload",
+      actor: input.trust.actor,
+    });
+    const { error } = await admin.storage.from(supabaseBucket).upload(input.pathname, input.file, {
       cacheControl: "3600",
       contentType: input.contentType,
       upsert: false,
     });
     if (error) throw new Error(`Could not store private upload: ${error.message}`);
-    return { storageProvider: "supabase", storageKey: input.pathname, contentTrust };
+    const stored = { storageProvider: "supabase" as const, storageKey: input.pathname, contentTrust };
+    storedAdmissionContexts.set(stored, { tenantId: input.trust.tenantId, actor: input.trust.actor });
+    return stored;
   }
 
   if (privateUploadsConfigured()) {
@@ -117,7 +150,9 @@ export async function storePrivateUpload(input: StorePrivateUploadInput): Promis
       addRandomSuffix: false,
       contentType: input.contentType,
     });
-    return { storageProvider: "vercel-blob", storageKey: blob.url, contentTrust };
+    const stored = { storageProvider: "vercel-blob" as const, storageKey: blob.url, contentTrust };
+    storedAdmissionContexts.set(stored, { tenantId: input.trust.tenantId, actor: input.trust.actor });
+    return stored;
   }
 
   if (durablePrivateUploadsRequired()) throw new PrivateUploadStorageError();
@@ -125,13 +160,14 @@ export async function storePrivateUpload(input: StorePrivateUploadInput): Promis
   const absolutePath = join(process.cwd(), ".data", input.localDirectory, input.localKey);
   await mkdir(dirname(absolutePath), { recursive: true });
   await writeFile(absolutePath, Buffer.from(await input.file.arrayBuffer()));
-  return { storageProvider: "local", storageKey: input.localKey, contentTrust };
+  const stored = { storageProvider: "local" as const, storageKey: input.localKey, contentTrust };
+  storedAdmissionContexts.set(stored, { tenantId: input.trust.tenantId, actor: input.trust.actor });
+  return stored;
 }
 
 export async function readSupabasePrivateUpload(storageKey: string): Promise<Blob | null> {
   if (!supabasePrivateUploadsConfigured() || !storageKey.trim()) return null;
-  const bucket = process.env.NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET?.trim()
-    || DEFAULT_SUPABASE_UPLOAD_BUCKET;
+  const bucket = resolvePrivateUploadBucket();
   const admin = createSupabaseAdminClient();
   const { data, error } = await admin.storage.from(bucket).download(storageKey);
   return error ? null : data;
@@ -153,10 +189,9 @@ export async function readSupabasePrivateUploadRange(
 ): Promise<BodyInit | null> {
   if (!range) return readSupabasePrivateUpload(storageKey);
   if (!supabasePrivateUploadsConfigured() || !storageKey.trim()) return null;
-  const bucket = process.env.NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET?.trim()
-    || DEFAULT_SUPABASE_UPLOAD_BUCKET;
+  const bucket = resolvePrivateUploadBucket();
   const base = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim().replace(/\/+$/, "");
-  const serviceKey = (process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? "").trim();
+  const serviceKey = resolveSupabaseSecretKey() ?? "";
   const path = storageKey.split("/").map(encodeURIComponent).join("/");
   let response: Response;
   try {
@@ -174,22 +209,41 @@ export async function readSupabasePrivateUploadRange(
   return response.status === 206 ? response.body : sliceStream(response.body, range);
 }
 
-async function removeSupabasePrivateUpload(storageKey: string): Promise<void> {
+async function removeSupabasePrivateUpload(
+  storageKey: string,
+  context: FreshWriteEffectContext,
+): Promise<void> {
   assertLiveProviderAccess("Private file deletion");
   if (!supabasePrivateUploadsConfigured()) {
     throw new Error("Supabase private storage is not connected, so the stored file could not be removed.");
   }
-  const bucket = process.env.NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET?.trim()
-    || DEFAULT_SUPABASE_UPLOAD_BUCKET;
-  const admin = createSupabaseAdminClient();
+  const bucket = resolvePrivateUploadBucket();
+  const admin = createSupabaseAdminClient({
+    ...(context.tenantId !== undefined
+      ? { tenantId: context.tenantId }
+      : { platformPurpose: context.platformPurpose }),
+    surface: "storage.private-delete",
+    actor: context.actor,
+  });
   const { error } = await admin.storage.from(bucket).remove([storageKey]);
   if (error) throw new Error(error.message);
 }
 
-export async function deleteSupabasePrivateUpload(storageKey: string): Promise<boolean> {
+export async function deleteSupabasePrivateUpload(
+  storageKey: string,
+  context: FreshWriteEffectContext,
+): Promise<boolean> {
+  // Item 4 write boundary: a global write-freeze stops private-media deletes on
+  // THIS exported path too, mirroring deleteSupabasePublicUpload. Guarded BEFORE
+  // the try/catch so a freeze surfaces as WritesFrozenError to the caller rather
+  // than being swallowed into a silent `false` (which would read as "nothing to
+  // delete"). deletePrivateUpload() guards the other route to removeSupabase-
+  // PrivateUpload separately, so every path to the Supabase remove primitive is
+  // bound by the freeze.
+  await assertFreshWritesAllowed("storage.private-delete", context);
   if (!storageKey.trim()) return false;
   try {
-    await removeSupabasePrivateUpload(storageKey);
+    await removeSupabasePrivateUpload(storageKey, context);
     return true;
   } catch {
     return false;
@@ -216,6 +270,7 @@ export interface DeletePrivateUploadInput {
   storageKey?: string | null;
   /** Directory under `.data` that owns `local` keys for this surface. */
   localDirectory: string;
+  admission: FreshWriteEffectContext;
 }
 
 /**
@@ -252,10 +307,15 @@ export async function deletePrivateUpload(
   const storageKey = (input.storageKey ?? "").trim();
   if (!provider || !storageKey) return { ok: true, outcome: "skipped" };
   if (isSandboxDataRealm()) return { ok: true, outcome: "skipped" };
+  // Phase 2/Item 4 write boundary: a global write-freeze stops destructive
+  // deletes too (an active-incident freeze means "nothing mutates"); remediation
+  // deletes resume after thaw. No tenant context here → global scope only.
+  await assertFreshWritesAllowed("storage.private-delete", input.admission);
 
   try {
     if (provider === "supabase") {
-      await (providers.supabase ?? removeSupabasePrivateUpload)(storageKey);
+      if (providers.supabase) await providers.supabase(storageKey);
+      else await removeSupabasePrivateUpload(storageKey, input.admission);
     } else if (provider === "vercel-blob") {
       await (providers.vercelBlob ?? (async key => { await del(key); }))(storageKey);
     } else if (provider === "local") {
@@ -289,10 +349,15 @@ export async function compensatePrivateUpload(
   stored: StoredPrivateUpload,
   localDirectory: string,
 ): Promise<PrivateUploadDeletion> {
+  const admission = storedAdmissionContexts.get(stored) ?? {
+    platformPurpose: "platform-maintenance" as const,
+    actor: "private-upload-compensation",
+  };
   return deletePrivateUpload({
     storageProvider: stored.storageProvider,
     storageKey: stored.storageKey,
     localDirectory,
+    admission,
   });
 }
 

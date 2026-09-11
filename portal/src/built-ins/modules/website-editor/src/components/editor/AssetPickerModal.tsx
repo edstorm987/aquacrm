@@ -10,6 +10,11 @@
 // upload endpoint, then re-loads.
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  MAX_PUBLIC_MEDIA_BYTES,
+  PUBLIC_MEDIA_FILE_ACCEPT,
+  PUBLIC_MEDIA_MAX_SIZE_LABEL,
+} from "@/lib/shared/publicMediaLimits";
 
 interface Asset {
   id: string;
@@ -94,6 +99,11 @@ export default function AssetPickerModal({ open, onClose, onPick, fetchImpl }: P
   }, [assets, activeTag, query]);
 
   async function uploadFile(file: File): Promise<void> {
+    if (file.size <= 0) { setError("Choose a non-empty media file."); return; }
+    if (file.size > MAX_PUBLIC_MEDIA_BYTES) {
+      setError(`Files must be ${PUBLIC_MEDIA_MAX_SIZE_LABEL} or smaller.`);
+      return;
+    }
     setUploading(true); setError(null);
     try {
       const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -171,7 +181,7 @@ export default function AssetPickerModal({ open, onClose, onPick, fetchImpl }: P
               color: "var(--brand-text, currentColor)",
             }}
           />
-          <input ref={inputRef} type="file" onChange={onFile} style={{ display: "none" }} />
+          <input ref={inputRef} type="file" accept={PUBLIC_MEDIA_FILE_ACCEPT} onChange={onFile} style={{ display: "none" }} />
           <button onClick={() => inputRef.current?.click()} disabled={uploading}
             style={{
               padding: "6px 12px", fontSize: 12,

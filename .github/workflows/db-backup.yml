@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
 
       # psql 17 is used only for the connection preflight and the row-count
       # manifest; the dump itself is done by the Supabase CLI. Non-fatal so a
@@ -42,7 +42,7 @@ jobs:
           sudo apt-get install -y -qq postgresql-client-17
           psql --version
 
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
         with:
           version: 2.111.0
 
@@ -70,7 +70,7 @@ jobs:
 
       - name: Upload encrypted snapshot (redundant copy; ciphertext only)
         if: success()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: aquacrm-backup-${{ github.run_id }}
           path: ops/backup/_out/*.tar.gz.cms

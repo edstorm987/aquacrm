@@ -13,12 +13,13 @@ export type CustomCodeKind = "css" | "head";
 
 export interface ValidationResult {
   ok: boolean;
-  reason?: "too-large" | "script-detected" | "iframe-detected" | "javascript-uri";
+  reason?: "too-large" | "script-detected" | "iframe-detected" | "javascript-uri" | "style-terminator";
   detail?: string;
   sizeBytes: number;
 }
 
 const SCRIPT_RE = /<\s*script\b/i;
+const STYLE_TERMINATOR_RE = /<\s*\/\s*style\b/i;
 const IFRAME_RE = /<\s*iframe\b/i;
 // `javascript:` URI in href/src
 const JS_URI_RE = /\b(?:href|src|action|formaction|onload|onerror|onclick|onfocus)\s*=\s*["']?\s*javascript\s*:/i;
@@ -39,6 +40,9 @@ export function validateCustomCode(value: string, kind: CustomCodeKind): Validat
   // fragment is for `<link>` / `<meta>` / `<style>` only.
   if (SCRIPT_RE.test(value)) {
     return { ok: false, reason: "script-detected", sizeBytes };
+  }
+  if (kind === "css" && STYLE_TERMINATOR_RE.test(value)) {
+    return { ok: false, reason: "style-terminator", sizeBytes };
   }
   if (kind === "head") {
     // The head fragment also rejects iframes + javascript: URIs;

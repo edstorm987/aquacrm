@@ -2,17 +2,17 @@
 
 > The current readiness assessment, one task list, status history, roadmap, goals, decisions and working queue.
 >
-> Consolidated 2026-09-08 from **7** source documents / **57,076 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-10 from **7** source documents / **57,401 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
 - [`docs/CURRENT-IMPLEMENTATION.md`](#source-docs-current-implementation-md) — 4,627 words · `d110c036ab5a`
 - [`docs/development/goals.md`](#source-docs-development-goals-md) — 532 words · `62f18b439951`
 - [`docs/development/notes.md`](#source-docs-development-notes-md) — 1,730 words · `f68ea59936dd`
-- [`docs/development/PRODUCTION-READINESS.md`](#source-docs-development-production-readiness-md) — 2,257 words · `69689073325f`
+- [`docs/development/PRODUCTION-READINESS.md`](#source-docs-development-production-readiness-md) — 2,531 words · `08f1e62e9fb4`
 - [`docs/development/roadmap.md`](#source-docs-development-roadmap-md) — 21,704 words · `f3ef33649d6f`
-- [`docs/development/status.md`](#source-docs-development-status-md) — 22,045 words · `10c744ce76c8`
-- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 4,181 words · `1803d5dd4755`
+- [`docs/development/status.md`](#source-docs-development-status-md) — 21,908 words · `8e7ca03ff564`
+- [`docs/development/TODO.md`](#source-docs-development-todo-md) — 4,369 words · `41b6137c7e6d`
 
 ---
 
@@ -856,7 +856,7 @@ the [file map](../WORKSPACE-FILE-TREE.md); issues/risks live in
 
 ## Source document — `docs/development/PRODUCTION-READINESS.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/PRODUCTION-READINESS.md" sha256="69689073325f254a4639a7af63e847988e74c1cfbbac89dd5e34d0fcfedcb536" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/PRODUCTION-READINESS.md" sha256="08f1e62e9fb4dc4fcb9cf1c77a729d385fc6f4884ad0f58f4e6ac22bb7c8f923" -->
 # Production readiness — current assessment
 
 **Last verified:** 8 September 2026
@@ -868,6 +868,35 @@ not a second task list: [TODO.md](TODO.md) owns remaining work, [issues.md](issu
 owns detailed findings, and [status.md](status.md) retains the verification
 history. Older readiness plans are historical once this file records a newer
 verification.
+
+> **Security readiness lives in its own ledger.** For the production-gate
+> security repair (branch `security/production-gate-repair-20260908`, **not
+> merged**), the single dated source of truth is the repo-root
+> `SECURITY-GATE-REPAIR-REPORT.md` — findings, dispositions, the live SHA, the
+> honest gate ledger (observed / locally-verified / owner-attested / blocked),
+> and OWNER ACTIONS. That report's verdict is **NOT READY / not merge-ready**
+> while owner/live gates remain. This file assesses `main`; it does not claim
+> the security branch's state as merged.
+
+> **CURRENT SECURITY OVERLAY — 10 September 2026.** The 8 September numerical
+> ratings below remain that day's snapshot, not a current launch approval. The
+> local remote-tracking `origin/main` is `08670b626b839a439929b006f0f152712a864a9c`;
+> the corrected gate-repair baseline is
+> `72acac904ba6af88cb1a3d84483b4a4359d03747` and remains unmerged. A separate
+> public-media candidate, `security/public-upload-byte-inspection-20260910`, is
+> also unmerged/undeployed. It makes recursively inspected block-tree data URLs
+> fail closed, removes the dormant remote writer, ownership-blocks public delete,
+> emits security events, returns a safe 503 to the editor and stops GitHub
+> promotion after active-page failure. It deliberately keeps remote public-media
+> publication RED because no atomic page/object lifecycle exists. It is not a
+> Supabase-wide firewall: the containment migration still needs live application
+> and verification. The scanner broker remains capped at 1 MiB against the 8 MiB
+> product contract pending an explicit owner decision. Claude's separate template
+> containment commit `c87e6874cfd5dc762dc8b69c0faf3ce351c28291` is quarantined
+> after adversarial review found remaining stored-XSS, fail-open safe-mode,
+> Shopify secret/timeout/response-cap and preview-isolation defects. **Current
+> combined verdict: NOT READY; do not integrate to `main` until all three lanes
+> are reconciled on a temporary branch and the full release gates are rerun.**
 
 > **UI Wave 9 (2026-09-08, uncommitted on `integration/ui-final-20260908`).** UI gate:
 > **PASS — all ten items closed.** Closed with direct evidence: a harness that
@@ -2566,7 +2595,7 @@ This remains a truthful record of the first pass, **not a current performance cl
 
 ## Source document — `docs/development/status.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/status.md" sha256="10c744ce76c81343595183206c0ca909e9257b1c319a0247fb89be172371414d" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/status.md" sha256="8e7ca03ff5646278b7c105ee40dbb9b70d58e9272a7ca34464284ea76f4a055d" -->
 # Status & verification register
 
 ← Back to [development.md](../development.md) (the law)
@@ -3023,7 +3052,7 @@ and browser evidence.
 | Internal chat → owner "Needs attention" | **Code-complete + logic/end-to-end tested; visual browser walk pending (→ Commander).** Internal team chat now has **read-tracking** (`peopleChannelReads`, marked on view/post) and **@mentions** (`PeopleMessage.mentions`, parsed from the roster on post), and `operationalAlerts` raises one `in-app` **`people:chat-attention`** alert when the owner has unread **direct messages** or unread **@mentions** — so it lands in the Needs-attention tab (auto, no `_MasterInbox` edit) and **clears when the owner opens Team chat** (`?view=chat`). **Verified:** behavioural smoke (direct+mention counting, parsing, plain-message ignored, reading clears, owner-own excluded) **and end-to-end** — the alert actually appears in `listOperationalAlerts` and clears after `markChannelRead`; full suite 1664 green, `tsc` clean. **Pending:** the live look — post a message to the owner and see the alert in the inbox + the "@name to notify" composer hint (needs a second seeded user → Commander on `:3032`). Trigger = direct + mentions (Ed). | `server/people.ts` · `lib/server/operationalAlerts.ts` · `api/portal/team-chat` · [plan](plans/internal-chat-attention.md) |
 | Advisor / Assistant chat | **Needs an OpenAI key configured** — returns 503 `assistant_not_configured` otherwise | [advisor.md](../workspace/advisor.md) |
 | External AI API / MCP | **Needs a token configured** — 503 otherwise | [advisor.md](../workspace/advisor.md) |
-| Public bucket (`aquacrm-public`) | **All phases (2026-08-19): wired end-to-end + runtime-verified in memory; NOT against a live bucket/browser.** (P1) `publicUploadStorage.ts` → durable **`getPublicUrl`** (Supabase → hard-error-in-prod → local `public/uploads-public/`, no Blob tier, `upsert`) + `deleteSupabasePublicUpload`. (P2) `publishPage` **promotes inline `data:` media to the bucket on publish** via the additive `publicMedia` foundation port + a pure fail-open walker; drafts stay inline. (P3) gate = the publish click (nothing private leaks; active unpublish-delete **deferred** — shared content-addressed keys need refcounting). (P4) renderers verified — `ImageBlock` + `renderPageHtml` emit the promoted CDN URL directly. **Runtime-verified (not just green):** an **end-to-end capstone** genuinely runs draft `data:` → `publishPage` → `renderPageHtml` and asserts the rendered `<img>` serves the CDN URL with the `data:` gone; plus walker/adapter/publish behaviours — **17/17**; full suite 0-fail; plugin smoke **49/49**. **Live-server browser check (2026-08-19, in-app browser on `:3032` via `/dev`):** the app + full authenticated portal render cleanly with the additive `publicMedia` foundation port HMR'd in — Journey, Fulfilment (all tabs), Radar, etc. all load with **zero console errors**, confirming the shared-foundation change is **runtime-safe live** (the whole plugin runtime now carries the port). **Gaps to User-reachable (non-code):** (1) the real **Supabase-CDN upload** path is source-shape-pinned, not run against a live bucket; (2) the **full author→publish→inspect-`/uploads-public/` walk was NOT completed** — the shared `:3032` was thrashing on constant recompiles from ~5 concurrent workers (the pane hung), and it needs a website authored from scratch; that exact pipeline is proven by the in-memory end-to-end capstone. Re-attempt the live publish walk on a quiet server. | `publicUploadStorage.ts` · `built-ins/runtime/foundation-adapters/publicMediaAdapter.ts` · `website-editor/src/server/publicMediaPromotion.ts` · [plan](plans/public-bucket.md) |
+| Public bucket (`aquacrm-public`) | **CURRENT SECURITY OVERRIDE 2026-09-10 — release-blocked, unmerged and undeployed.** The old 2026-08-19 functional CDN path is historical evidence only. The corrective branch recursively inspects block-tree data URLs, rejects unsafe/oversized bytes and has no provider-error inline fallback. A configured app-server remote write now returns `PublicUploadAtomicLifecycleError` before scanner/provider I/O; the dormant Supabase upload branch is absent and the compatibility delete helper is ownership-blocked. Existing public URLs can still render and inspected local-development publication remains available. This does not stop direct Supabase access: apply and verify the containment migration separately. Remote enablement requires an owner-approved scanner egress decision plus durable intent, operation-owned immutable object identity, atomic page-generation commit, reference/ownership proof and an idempotent recovery/recall worker. | `publicUploadStorage.ts` · `built-ins/runtime/foundation-adapters/publicMediaAdapter.ts` · `website-editor/src/server/publicMediaPromotion.ts` · [plan](plans/public-bucket.md) |
 | KPI Intelligence — registry + explorer (Phases 1 + 3 + 4 complete) | **Code-complete + logic-tested + suite-green; PARTIALLY browser-verified on `:3032` (2026-08-19).** ✅ Confirmed live (owner session, 3,124-check seed): the executive Command Centre renders with **no regression from the chart migration**, and the KPI trajectory shows the new **"Explore all KPIs"** button + all 5 primary stations with correct live values/statuses (Growth·Learning, Acquisition·Healthy, Finance·Critical, Systems·11/100·Critical, Operations·Warning). ⏳ The explorer's internal click-through (open → line/area/bar → search a commercial + an evidence series) was **interrupted by a browser-pane hang** on the shared server (many workers recompiling) and remains **test-verified only** — hand that final walk to the Commander or retry on a settled `:3032`. **Phase 3a (2026-08-19): the 40 commercial formulas are now registered + plotting** — the whole comparison chart pipeline was migrated from `CommandKpi` to `KpiDescriptor.series` (command output unchanged by construction; the shared format helpers were decoupled to take `format`; `onInspect` was **contained so the battle table is untouched**); commercial formulas plot as single honest points, plan-mode shows "no numeric plan" for them. **Phase 3b (2026-08-19): all ~1,500 radar evidence series** are now lazily loadable into the explorer (new `GET /api/portal/kpi-registry/evidence` + `describeEvidenceSeries`; they carry real trend points; picker render capped at 200 so they can't jank it). 13 registry tests pass. **Route auth path not runtime-driven** (thin wrapper over the tested mapper). **Phase 4 (2026-08-19): server-persisted, layered, versioned targets** — `agencySettings.kpiTargets` + `resolveKpiTarget`/`applyKpiTargetOverride` (effective-from + history) + `GET/POST /api/portal/kpi-registry/targets`; the explorer loads targets on mount and saves on set/reset. **Store roundtrip runtime-tested** (a config override changes the resolved target, versioned/scoped/cleared); the live browser save→reload→persist walk is the Commander's. New **KPI Registry** ([`lib/kpiRegistry.ts`](../../src/lib/performance/kpiRegistry.ts) + server twin) projects each built command KPI into a uniform `KpiDescriptor` — **wraps, never recomputes**. Ed's call was to **repurpose** the existing `KpiComparisonWorkspace` explorer (it already did search / 24h–12m ranges / raw·indexed·%-change / a plan mode with pace+target+forecast / saved views / target overrides): its selector is now **registry-backed** (Phase 3 adds the 40 commercial + evidence series by growing the descriptor list) and its chart gained **line/area/bar** switching; the executive trajectory gained an **"Explore all KPIs"** entry. **Logic-tested (not just green):** 7 real input→output cases in `smoke-kpi-registry.test.ts` (field projection, series-copy, honest nulls, ordering, search, grouping) + a wiring contract. **Not browser-verified:** did **not** start a 2nd `dev:verify` — two file-backend servers clobber the shared `.data/portal-state.json` and would disturb the Commander's `:3032`. **Hand the click-through to the Commander:** executive view → Explore all KPIs → line/area/bar → search the bank. | `lib/kpiRegistry.ts` (+ server) · `_CommandIntelligenceWorkspace.tsx` · `_CommandCentreKpiTrajectory.tsx` · [plan](plans/kpi-intelligence-overhaul.md) |
 | Enquiry features in dev/demo | **Show nothing** — `session.isDemo ? []` loads zero enquiries | [issues #12](issues.md) |
 | Radar watchdog `correlation-engine` | **Hardcoded `pass`** — does no real assertion | [radar.md §12](../workspace/radar.md) |
@@ -3073,7 +3102,7 @@ verified" rather than implying something works._
 
 ## Source document — `docs/development/TODO.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="1803d5dd4755e2a6b66204c831044c9b47f0cee23c471be6b894378c376e525e" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/TODO.md" sha256="41b6137c7e6d896de6bda05594de021f20c652649fd4a95462c8987fe40bd0d0" -->
 # TODO — the one list
 
 > **Current evidence checkpoint: 8 September 2026.** Read
@@ -3098,6 +3127,19 @@ checked that afterwards.
 Detail, evidence and reproduction for every `#N` stays in [`issues.md`](issues.md), which
 remains the backing store. This file is the index over it.
 
+> **10 September 2026 security overlay (current, unmerged/undeployed):** the
+> security gate-repair baseline `72acac90`, the public-media correction and
+> Claude's template-security commit are isolated lanes, not production state.
+> Before any real-client onboarding: (1) correct the remaining template stored
+> XSS/safe-mode/Shopify/preview findings at `c87e6874`; (2) keep public remote
+> writes and delete ownership-blocked until a durable atomic page/object saga and
+> recall ledger exist; (3) resolve the scanner 1 MiB-vs-8 MiB egress/product-limit
+> decision; (4) apply and verify the containment migrations and direct Storage
+> policies; (5) integrate all corrected lanes on a temporary branch and rerun
+> canonical, Website Editor, typecheck, production build, browser/accessibility,
+> migration/RLS, recovery and provider gates. Do not promote any isolated green
+> suite into a production-ready claim.
+
 | | meaning |
 | --- | --- |
 | `[ ]` | not started |
@@ -3117,9 +3159,9 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [ ] Stripe live-account walkthrough  <sub>from checklist.md, no issue number</sub>
 - [ ] Meta Developer app  <sub>from checklist.md, no issue number</sub>
 - [~] Deployment environment verification — read-only live checks on 2026-09-08 prove Railway serves `www`, database/security/uploads report ready, but required email is `needs-setup`, `readyForProduction:false`, deployment `sha:null`, and apex TLS fails; finish configuration and acceptance → [current readiness](PRODUCTION-READINESS.md)
-- [x] Apply the pending Supabase migrations before production rollout — DONE 2026-09-03: all 14 applied live via `supabase db push`, backup confirmed, backfill 52/52 and every row count verified read-only, live `rls-verify.sql` 51 INFO / 0 FAIL → [supabase-alignment-2026-09-03](plans/supabase-alignment-2026-09-03.md) §9  <sub>from checklist.md, no issue number</sub>
+- [~] Apply the pending Supabase migrations before production rollout — the 14 migrations pending on 2026-09-03 were applied and verified live then, but that historical green state does **not** include the later, currently unmerged containment chain `20260908210000` + `20260908220000` or public-bucket hardening `20260910010000`. After a fresh backup and explicit owner approval, apply those forward-only migrations in order and re-run `rls-verify.sql`; none was applied to a remote/shared database by the 2026-09-10 security lanes → [supabase-alignment-2026-09-03](plans/supabase-alignment-2026-09-03.md) §9 · [current security gate](../../../SECURITY-GATE-REPAIR-REPORT.md)  <sub>from checklist.md, no issue number</sub>
 - [ ] Activate and prove recovery — the self-managed encrypted backup/runbook exists and was locally rehearsed, but scheduled activation, durable off-Supabase delivery, one downloaded live-artifact restore, timing and missed-backup alert proof remain; PITR is OFF and should be reconsidered → [current readiness](PRODUCTION-READINESS.md) · [backup evidence](plans/production-readiness-roadmap-2026-09-03.md#5-database-migrations-rls-backup-and-recovery)
-- [ ] Push `20260903130000_ensure_rls_event_trigger` (a no-op on live; records the already-present rls_auto_enable to reach 0 pending) and decide on tightening the inherited over-broad table grants (optional REVOKE)  <sub>added 2026-09-03</sub>
+- [ ] Apply `20260903130000_ensure_rls_event_trigger` as the first of the **four** currently local migrations, then the three security migrations named above. The event-trigger migration was a no-op on the 2026-09-03 live schema, but applying it alone no longer reaches 0 pending. Separately decide whether to tighten inherited over-broad table grants (optional REVOKE).  <sub>added 2026-09-03; corrected 2026-09-10</sub>
 - [ ] Rotate the Supabase database password and the `sbp_` access token (both were pasted into a session transcript on 2026-09-03)  <sub>added 2026-09-03</sub>
 - [ ] Set `PORTAL_BACKEND=file` in `.env.local` for local work — without it the portal promotes itself to the Supabase backend and local servers write the production `app_datastores` row (daily writes visible through 2026-09-02)  <sub>added 2026-09-03</sub>
 - [ ] DPO sign-off  <sub>from checklist.md, no issue number</sub>

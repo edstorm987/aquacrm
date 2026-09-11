@@ -10,6 +10,12 @@ import "server-only";
 import { createHash } from "node:crypto";
 
 import { storePublicUpload } from "@/lib/server/publicUploadStorage";
+import {
+  MAX_PUBLIC_MEDIA_BYTES,
+  PublicMediaDataUrlError,
+  parseDataUrl,
+  type DecodedDataUrl,
+} from "@/lib/server/security/base64DataUrl";
 import type {
   PublicMediaPort,
   PublicMediaStoreInput,
@@ -33,27 +39,35 @@ const EXT_BY_MIME: Record<string, string> = {
 };
 
 const MEDIA_DIR = "website-media";
+export { MAX_PUBLIC_MEDIA_BYTES, PublicMediaDataUrlError, parseDataUrl };
+export type { DecodedDataUrl };
 
-export interface DecodedDataUrl {
-  contentType: string;
-  bytes: Buffer;
+export class PublicMediaIdentityError extends Error {
+  readonly code = "public_media_identity_invalid";
+
+  constructor(readonly field: "agencyId" | "clientId" | "siteId") {
+    super(`Public media ${field} is not a safe storage-path identifier.`);
+    this.name = "PublicMediaIdentityError";
+  }
 }
 
-// Parse `data:<mime>[;base64],<payload>`. Returns null for non-data inputs.
-export function parseDataUrl(dataUrl: string): DecodedDataUrl | null {
-  const match = /^data:([^;,]*)(;base64)?,([\s\S]*)$/.exec(dataUrl);
-  if (!match) return null;
-  const contentType = match[1] || "application/octet-stream";
-  const isBase64 = Boolean(match[2]);
-  const payload = match[3] ?? "";
-  const bytes = isBase64
-    ? Buffer.from(payload, "base64")
-    : Buffer.from(decodeURIComponent(payload), "utf8");
-  return { contentType, bytes };
+const SAFE_PUBLIC_MEDIA_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
+
+function assertSafePublicMediaIdentifier(
+  field: "agencyId" | "clientId" | "siteId",
+  value: string | undefined,
+  required: boolean,
+): void {
+  if (value === undefined && !required) return;
+  if (!value || !SAFE_PUBLIC_MEDIA_IDENTIFIER.test(value)) {
+    throw new PublicMediaIdentityError(field);
+  }
 }
 
-// Content-addressed object key: identical bytes → identical key → a stable
-// public URL across re-publishes (paired with the helper's `upsert:true`).
+// Legacy-compatible content-addressed key used by local development. Remote
+// publication is hard-disabled: shared keys plus upsert cannot prove which
+// operation owns a public object or recall it safely. The durable lifecycle must
+// replace this with operation-owned immutable identity before remote enablement.
 export function publicMediaKey(input: {
   agencyId: string;
   clientId?: string;
@@ -61,6 +75,14 @@ export function publicMediaKey(input: {
   contentType: string;
   bytes: Buffer;
 }): string {
+  // These values become URL path segments on a service-role Supabase write.
+  // Permit only the identifier alphabet used by AquaCRM's generated IDs. Raw
+  // concatenation of slash, backslash, percent, dot-segment, query or fragment
+  // characters would otherwise be normalized by a downstream URL layer after
+  // the tenant-prefix check and could escape the authenticated namespace.
+  assertSafePublicMediaIdentifier("agencyId", input.agencyId, true);
+  assertSafePublicMediaIdentifier("clientId", input.clientId, false);
+  assertSafePublicMediaIdentifier("siteId", input.siteId, false);
   const hash = createHash("sha256").update(input.bytes).digest("hex").slice(0, 32);
   const ext = EXT_BY_MIME[input.contentType.toLowerCase()] ?? "bin";
   return [
@@ -75,7 +97,7 @@ export function publicMediaKey(input: {
 export const publicMediaAdapter: PublicMediaPort = {
   async store(input: PublicMediaStoreInput): Promise<StoredPublicMedia> {
     const decoded = parseDataUrl(input.dataUrl);
-    if (!decoded) throw new Error("publicMedia.store expects a data: URL");
+    if (!decoded) throw new PublicMediaDataUrlError("invalid");
     const pathname = publicMediaKey({
       agencyId: input.agencyId,
       clientId: input.clientId,
@@ -83,15 +105,17 @@ export const publicMediaAdapter: PublicMediaPort = {
       contentType: decoded.contentType,
       bytes: decoded.bytes,
     });
-    // localKey drops the leading MEDIA_DIR segment so the local-dev tree is
-    // `public/uploads-public/website-media/…` (matches the Supabase key).
-    const localKey = pathname.slice(MEDIA_DIR.length + 1);
     const stored = await storePublicUpload({
       pathname,
       file: new Blob([Uint8Array.from(decoded.bytes)], { type: decoded.contentType }),
       contentType: decoded.contentType,
-      localDirectory: MEDIA_DIR,
-      localKey,
+      trust: {
+        tenantId: input.agencyId,
+        clientId: input.clientId,
+        siteId: input.siteId,
+        actor: input.actor,
+        purpose: "website-editor.public-media.publish",
+      },
     });
     return { publicUrl: stored.publicUrl, storageKey: stored.storageKey };
   },

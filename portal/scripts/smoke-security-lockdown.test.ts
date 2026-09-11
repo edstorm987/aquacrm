@@ -16,6 +16,8 @@ import test, { beforeEach } from "node:test";
 
 import { getState, mutate, SecurityLockdownError } from "../src/server/storage";
 import {
+  bumpTenantSecurityEpoch,
+  bumpUserSecurityEpoch,
   clearGlobalReadOnly,
   enforceSessionSecurity,
   isGlobalReadOnly,
@@ -62,7 +64,10 @@ test("global read-only refuses ordinary writes before they apply", () => {
       mutate(state => {
         state.agencies["agency-a"] = { id: "agency-a", name: "After" } as never;
       }),
-    SecurityLockdownError,
+    (error: unknown) => (
+      error instanceof SecurityLockdownError
+      && error.code === "writes_frozen"
+    ),
   );
   // The refused write did not partially apply — reads keep serving the
   // pre-lockdown value.
@@ -180,4 +185,56 @@ test("tenant lockdown exempts the tenant's owners — the locksmith keeps the ke
   );
   unsuspendUser("owner-1", "ic");
   liftTenantLockdown("agency-keys", "ic");
+});
+
+// ─── Sandbox live-anchor (Phase 2) ──────────────────────────────────────────
+
+function sandboxSession(live: { user: string; agency: string }, persona: { user: string; agency: string }): SessionPayload {
+  return session({
+    userId: persona.user,
+    agencyId: persona.agency,
+    activeAgencyId: persona.agency,
+    role: "agency-owner",
+    sandbox: { access: "writable", returnUserId: live.user, returnAgencyId: live.agency, enteredAt: Date.now() },
+  } as Partial<SessionPayload>);
+}
+
+test("a live user suspended WHILE in sandbox loses access on the next request", () => {
+  const s = sandboxSession({ user: "live-op", agency: "live-agency" }, { user: "persona-demo", agency: "demo-agency" });
+  // Fresh: persona not suspended, live not suspended → ok.
+  assert.equal(enforceSessionSecurity(s).ok, true);
+  // Suspend the LIVE operator (not the persona). The sandbox session must fail.
+  suspendUser("live-op", "ic", "compromise found mid-session");
+  assert.deepEqual(enforceSessionSecurity(s), { ok: false, reason: "suspended" });
+  unsuspendUser("live-op", "ic");
+});
+
+test("a locked LIVE tenant blocks a sandbox session anchored to it (persona role is not an escape)", () => {
+  const s = sandboxSession({ user: "live-op", agency: "live-agency" }, { user: "persona-demo", agency: "demo-agency" });
+  lockdownTenant("live-agency", "ic", "tenant compromise");
+  // The owner exemption must NOT apply to a sandbox session.
+  assert.deepEqual(enforceSessionSecurity(s), { ok: false, reason: "tenant-lockdown" });
+  liftTenantLockdown("live-agency", "ic");
+  assert.equal(enforceSessionSecurity(s).ok, true);
+});
+
+test("a user/tenant epoch bump on the LIVE identity invalidates a sandbox session", () => {
+  // A sandbox session born before any bump (se all zeros), anchored to the live
+  // operator/tenant. Bumping the live user's epoch must fail it (user-epoch);
+  // bumping the live tenant's epoch must fail it (tenant-epoch).
+  const s = sandboxSession({ user: "live-op2", agency: "live-agency2" }, { user: "persona-demo2", agency: "demo-agency2" });
+  s.se = { g: 0, t: 0, u: 0 };
+  assert.equal(enforceSessionSecurity(s).ok, true);
+
+  bumpUserSecurityEpoch("live-op2", "ic", "rotate the live operator");
+  assert.deepEqual(enforceSessionSecurity(s), { ok: false, reason: "user-epoch" });
+
+  // A fresh sandbox session (stamped after the bump) is fine again — proves the
+  // check is stamp-matched to the live anchor, not a blanket block.
+  const fresh = sandboxSession({ user: "live-op2", agency: "live-agency2" }, { user: "persona-demo2", agency: "demo-agency2" });
+  fresh.se = { g: 0, t: 0, u: 1 };
+  assert.equal(enforceSessionSecurity(fresh).ok, true);
+
+  bumpTenantSecurityEpoch("live-agency2", "ic", "rotate the live tenant");
+  assert.deepEqual(enforceSessionSecurity(fresh), { ok: false, reason: "tenant-epoch" });
 });

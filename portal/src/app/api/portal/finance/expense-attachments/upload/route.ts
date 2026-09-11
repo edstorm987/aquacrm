@@ -69,6 +69,7 @@ export async function POST(request: NextRequest) {
       contentType: file.type,
       localDirectory: "expense-uploads",
       localKey: relativeKey,
+      trust: { tenantId: session.agencyId, actor: session.userId, purpose: "expense-attachment" },
     });
     await confirmStagedPrivateUpload({ agencyId: session.agencyId, purpose: "expense-attachment", objectId: id, requestHash, stored });
 

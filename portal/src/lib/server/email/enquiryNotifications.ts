@@ -124,6 +124,7 @@ export async function notifyBrandEnquiry(input: EnquiryEmailInput) {
   ];
   const subject = `New ${input.brandName} enquiry from ${input.name}`;
   const result = await sendResendEmail({
+    tenantId: input.agencyId,
     apiKey,
     from,
     to: notifyTo,

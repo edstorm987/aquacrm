@@ -9,6 +9,7 @@ import {
   ensureHydrated,
   getState,
 } from "@/server/storage";
+import { assertWritesAllowed } from "@/lib/server/auth/securityControl";
 import {
   DevTeamWorkspaceConflictError,
   type DevTeamWorkspaceFileCondition,
@@ -279,6 +280,7 @@ export async function replaceDurableDevWorkspaceFiles(
     };
   }));
   try {
+    assertWritesAllowed("database.dev-workspace-files");
     await commitDevTeamWorkspaceFiles(prepared.map(({ input, compared, file }) => ({
       relPath: input.relPath,
       expected: condition(compared),
@@ -316,6 +318,7 @@ export async function deleteDurableDevWorkspaceFile(
   const mtimeMs = Math.max(Date.now(), compared.mtimeMs + 1);
   const file = recordFor(relPath, Buffer.alloc(0), mtimeMs, true);
   try {
+    assertWritesAllowed("database.dev-workspace-files");
     await commitDevTeamWorkspaceFiles([{
       relPath,
       expected: condition(compared),

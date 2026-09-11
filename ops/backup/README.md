@@ -163,7 +163,22 @@ keypair and secrets are still being set up. `workflow_dispatch` (manual) runs
 ## Restoring / proving a backup
 
 Never restore into production. Restore into a local `supabase start` database or
-a disposable branch. The drill refuses live Supabase hosts by default.
+a disposable branch.
+
+**Target safety is DEFAULT-DENY (Phase 5/7 hardening).** The drill runs against a
+loopback target with no extra flags. A **non-local** target is refused unless
+BOTH are true: you pass `--allow-nonlocal-disposable`, AND that database itself
+carries the on-target marker proving it is disposable —
+
+```sql
+ALTER DATABASE <scratch_db> SET aquacrm.restore_drill_disposable = 'yes';
+```
+
+A production database will never carry that marker, so the flag alone can never
+point the drill at prod. A known live Supabase host is refused unconditionally.
+The old `--i-know-this-is-a-branch` bypass has been removed. Any verification gap
+(missing dump-time manifest, a `public.*` row-count mismatch, a missing/failed
+`rls-verify.sql`, or a missing `ensure_rls` trigger) now FAILS the drill non-zero.
 
 ```bash
 # 1. bring up a scratch Postgres (ships auth/storage/roles/extensions)
@@ -172,8 +187,11 @@ supabase start
 # 2. install psql 17 if needed
 brew install libpq && export PATH="/opt/homebrew/opt/libpq/bin:$PATH"
 
-# 3. decrypt + restore + verify (key passphrase prompted)
+# 3. decrypt + restore + verify (key passphrase prompted). Loopback target:
 bash ops/backup/restore-drill.sh /path/to/aquacrm-YYYYMMDD….tar.gz.cms
+
+# For a non-local disposable branch DB (after setting the marker above):
+#   bash ops/backup/restore-drill.sh <snapshot> --target <url> --allow-nonlocal-disposable
 ```
 
 The drill: verifies the sha256, decrypts, strips the ownership/role lines that

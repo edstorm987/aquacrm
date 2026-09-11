@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createEnquiryDataClient } from "@/lib/supabase/enquiryDataClient";
 import { containerFor } from "@aqua/plugin-leads-pipeline/server";
 
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
@@ -7,7 +8,6 @@ import { authErrorResponse } from "@/lib/server/auth/auth";
 import { loadActorWebsiteEnquiry } from "@/lib/server/access/websiteEnquiryAccess";
 import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
-import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
 import { getInstall } from "@/server/pluginInstalls";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { ensureZimanteTradingCompanies } from "@/server/zimanteTradingCompanies";
@@ -42,7 +42,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "Submission ID required." }, { status: 400 });
     }
 
-    const supabase = await createScopedSupabaseClient();
+    const supabase = await createEnquiryDataClient({
+      tenantId: agencyId,
+      actor: session.userId,
+      surface: "database.website-enquiry.lead",
+    });
     const data = await loadActorWebsiteEnquiry<EnquiryRow>(actor, supabase, {
       id: enquiryId,
       required: "use",

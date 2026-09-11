@@ -20,6 +20,7 @@ function memStorage(): PluginStorage {
   return {
     async get<T>(k: string) { return m.get(k) as T | undefined; },
     async set(k, v) { m.set(k, v); },
+    async runExclusive(_key, operation) { return operation(); },
     async del(k) { m.delete(k); },
     async list(prefix = "") { return [...m.keys()].filter(k => k.startsWith(prefix)); },
   };
@@ -99,8 +100,8 @@ const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABAQMAAAAl21bKA
     up1Body.asset.tags.includes("hero") &&
     up1Body.asset.tags.includes("png"));
 
-  // Upload with operator tags (merge order: operator first).
-  const up2 = await handleUploadAsset(new Request("http://x/assets", {
+  // Caller/data/byte MIME confusion is rejected before persistence.
+  const confused = await handleUploadAsset(new Request("http://x/assets", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
@@ -108,12 +109,23 @@ const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABAQMAAAAl21bKA
       tags: ["brand"],
     }),
   }), ctx);
+  expect("SVG declaration over PNG bytes is refused", confused.status === 422);
+
+  // Valid second upload with operator tags (merge order: operator first).
+  const up2 = await handleUploadAsset(new Request("http://x/assets", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      filename: "logo-felicia.png", contentType: "image/png", dataUrl: PNG,
+      tags: ["brand"],
+    }),
+  }), ctx);
   const up2Body = await up2.json() as { asset: { id: string; tags: string[] } };
-  expect("upload with operator tags merges (brand first, then image+logo+svg)",
+  expect("upload with operator tags merges (brand first, then image+logo+png)",
     up2Body.asset.tags[0] === "brand" &&
     up2Body.asset.tags.includes("image") &&
     up2Body.asset.tags.includes("logo") &&
-    up2Body.asset.tags.includes("svg"));
+    up2Body.asset.tags.includes("png"));
 
   // GET list — tagCounts aggregate.
   const lst = await handleListAssets(new Request("http://x/assets"), ctx);

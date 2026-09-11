@@ -71,6 +71,7 @@ function makeStorage(): PluginStorage {
   return {
     async get<T>(k: string): Promise<T | undefined> { return map.get(k) as T | undefined; },
     async set<T>(k: string, v: T): Promise<void> { map.set(k, v); },
+    async runExclusive<T>(_key: string, operation: () => Promise<T>): Promise<T> { return operation(); },
     async del(k: string): Promise<void> { map.delete(k); },
     async list(prefix?: string): Promise<string[]> {
       return [...map.keys()].filter(k => !prefix || k.startsWith(prefix));
@@ -88,7 +89,7 @@ function makeCtx(storage: PluginStorage): PluginCtx {
   };
 }
 
-const tinyDataUrl = "data:image/png;base64," + "iVBORw0KGgo".padEnd(40, "A") + "==";
+const tinyDataUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABAQMAAAAl21bKAAAAA1BMVEUAAACnej3aAAAAAXRSTlMAQObYZgAAAApJREFUCNdjYAAAAAIAAeIhvDMAAAAASUVORK5CYII=";
 
 (async function run() {
   const storage = makeStorage();
@@ -143,6 +144,7 @@ const tinyDataUrl = "data:image/png;base64," + "iVBORw0KGgo".padEnd(40, "A") + "
   console.log("\nasset upload — decodeDataUrlSize");
   expect("data:...,AAA= → ~2 bytes", decodeDataUrlSize("data:image/png;base64,AAA=") === 2);
   expect("data:...,AAAA → 3 bytes", decodeDataUrlSize("data:image/png;base64,AAAA") === 3);
+  expect("malformed padding never produces a negative size", decodeDataUrlSize("data:image/png;base64,====") === 0);
   expect("malformed (no comma) → 0", decodeDataUrlSize("data:image/png;base64") === 0);
 
   console.log("\nLivePreview hook — useLivePreviewOpenState");

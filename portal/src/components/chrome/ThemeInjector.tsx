@@ -36,10 +36,6 @@ export function ThemeInjector({ brand, scope }: Props) {
 
   // Use `data-brand-scope` so devtools can identify which tenant is paint-active.
   return (
-    <style
-      data-brand-scope={scope}
-      // eslint-disable-next-line react/no-danger
-      dangerouslySetInnerHTML={{ __html: css }}
-    />
+    <style data-brand-scope={scope}>{css}</style>
   );
 }

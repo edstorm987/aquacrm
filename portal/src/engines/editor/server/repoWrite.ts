@@ -260,6 +260,7 @@ export async function saveRepoFile(input: SaveRepoFileInput, deps: RepoWriteDeps
       // Passed through, not coerced: `publishEdits` wants exactly `true`.
       confirm: input.confirm,
       token: source.token,
+      tenantId: input.agencyId,
     });
 
     return {
@@ -371,6 +372,7 @@ export async function createRepoPath(input: CreateRepoPathInput, deps: RepoWrite
       message: `Aqua Editor: create ${committedPath}`,
       confirm: input.confirm,
       token: source.token,
+      tenantId: input.agencyId,
     });
 
     return {
@@ -433,6 +435,7 @@ export async function openProjectPullRequest(
       title: `Aqua Editor — ${input.project.name || input.project.id}`,
       body: "Files edited in the Aqua Dev Editor. Each save adds a commit to this branch. Merging is what puts it on the site.",
       token: source.token,
+      tenantId: input.agencyId,
     });
     return { ok: true, branch, repository: source.repository, baseBranch: source.ref, pullRequest };
   } catch (error) {
@@ -506,6 +509,7 @@ export async function mergeProjectPullRequest(
       // because on this deployment the merge IS the deploy.
       confirm: input.confirm,
       token: source.token,
+      tenantId: input.agencyId,
     });
     return {
       ok: true,

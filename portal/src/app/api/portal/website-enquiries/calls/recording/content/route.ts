@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import { createEnquiryDataClient } from "@/lib/supabase/enquiryDataClient";
 
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -12,7 +13,6 @@ import {
   type ByteRange,
 } from "@/lib/server/privateMediaResponse";
 import { readSupabasePrivateUploadRange } from "@/lib/server/privateUploadStorage";
-import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
 import { ensureHydrated } from "@/server/storage";
 
 export const runtime = "nodejs";
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     const enquiryId = request.nextUrl.searchParams.get("enquiryId")?.trim() ?? "";
     const callId = request.nextUrl.searchParams.get("callId")?.trim() ?? "";
     if (!enquiryId || !callId) return NextResponse.json({ ok: false, error: "Recording not found." }, { status: 404 });
-    const supabase = await createScopedSupabaseClient();
+    const supabase = await createEnquiryDataClient();
     // Ownership-guarded so another agency's recording cannot be streamed by id;
     // a foreign enquiry returns null exactly as a missing one.
     const data = await loadActorWebsiteEnquiry(actor, supabase, { id: enquiryId, required: "view" });

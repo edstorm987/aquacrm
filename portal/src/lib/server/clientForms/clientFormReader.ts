@@ -4,54 +4,39 @@ import "server-only";
 //
 // Ed, 2026-08-27: *"inside their portal shows it all."*
 //
-// The notice tells us which row, in which table, through which connection. This
-// goes and gets it at the moment somebody looks, renders it, and forgets it.
+// After the 2026-09 secure-intake redesign this no longer SELECTs the table with
+// the public anon key (which contradicted the INSERT-only/no-access RLS the same
+// key must live under). Instead it calls the client-owned `aqua-form-read` Edge
+// Function server-to-server, authenticated with a per-connection READ secret
+// (distinct from the webhook secret), a fresh timestamp and a single-use nonce.
+// The function returns exactly one row's ALLOWLISTED fields.
 //
 // ── The one rule ─────────────────────────────────────────────────────────
 //
-// **Nothing this returns may be written to our state.** There is no cache, no
-// "denormalised copy for search", no audit record of the values. The moment a
-// submission is persisted here, AquaCRM becomes a controller of every client's
-// customer data and the whole design collapses into the data merge it exists to
-// avoid. If a future feature needs the values to be searchable, that is a
-// conversation about the architecture, not a cache to be added quietly.
-//
-// The same rule is why failures below carry no body: an error string containing
-// the row would defeat it just as surely as a cache, and error strings end up in
-// logs.
+// **Nothing this returns may be written to our state.** No cache, no
+// denormalised copy, no audit of the values, and failures carry no body — an
+// error string containing the row would defeat the design just as a cache would.
 
+import crypto from "node:crypto";
 import { brokeredFetch, OutboundBlockedError } from "@/lib/server/net/outboundBroker";
 import { findClientSupabaseConnection } from "./clientSupabaseConnection";
 import { mapClientFormSubmission, type MappedClientFormSubmission } from "@/lib/enquiries/clientFormMapping";
 import { getState } from "@/server/storage";
 import type { ClientFormNotice } from "@/server/types";
 
-/** How long we will wait on somebody else's database before giving up. */
+/** How long we will wait on somebody else's Edge Function before giving up. */
 const TIMEOUT_MS = 8_000;
-/** Their table could be anything; a submission is not a document store. */
+/** A submission is not a document store. */
 const MAX_FIELDS = 80;
 const MAX_VALUE_LENGTH = 4_000;
 
 export type ClientFormSubmission =
-  | {
-      status: "ok";
-      /** Mapped onto Aqua's own enquiry vocabulary — see clientFormMapping. */
-      mapped: MappedClientFormSubmission;
-    }
-  /** The row is gone from their database. Normal, not an error. */
+  | { status: "ok"; mapped: MappedClientFormSubmission }
   | { status: "missing" }
-  /** The connection was revoked, or its stored values no longer resolve. */
   | { status: "disconnected" }
-  /** Their database refused us, or did not answer in time. */
   | { status: "unavailable"; reason: "refused" | "timeout" | "error" };
 
-/**
- * Flatten one PostgREST row into displayable pairs.
- *
- * Deliberately dumb: no interpretation, no field-name mapping, no guessing
- * which column is "the email". Mapping is a separate, configured concern —
- * doing it here would bury a product decision inside a fetch helper.
- */
+/** Flatten one submission's allowlisted fields into displayable pairs. */
 function toFields(row: Record<string, unknown>): Array<{ key: string; value: string }> {
   return Object.entries(row)
     .slice(0, MAX_FIELDS)
@@ -66,72 +51,63 @@ function toFields(row: Record<string, unknown>): Array<{ key: string; value: str
 }
 
 /**
- * Fetch the submission a notice points at.
- *
- * The caller is responsible for having checked that this session may see this
- * client — this function trusts the notice it is handed. It is not exported to
- * any route directly for that reason; the route gates first.
+ * Fetch the submission a notice points at, through the client's own bounded read
+ * Edge Function. The caller is responsible for having checked the session may see
+ * this client — this function trusts the notice it is handed and is not exported
+ * to any route directly.
  */
 export async function readClientFormSubmission(notice: ClientFormNotice): Promise<ClientFormSubmission> {
   const connection = findClientSupabaseConnection(notice.connectionId);
   if (!connection) return { status: "disconnected" };
-  // The notice and the connection must agree about whose data this is. A notice
-  // whose connection has been re-pointed at another client is not something to
-  // resolve helpfully.
+  // The notice and the connection must agree about whose data this is.
   if (connection.clientId !== notice.clientId || connection.agencyId !== notice.agencyId) {
     return { status: "disconnected" };
   }
 
-  // PostgREST. The table comes from the CONNECTION (what the client authorised),
-  // and the key column from the notice (what the webhook actually matched) —
-  // both ours, neither taken from a request.
-  const url = new URL(`${connection.projectUrl.replace(/\/+$/, "")}/rest/v1/${encodeURIComponent(connection.submissionsTable)}`);
-  url.searchParams.set(notice.rowKey || "id", `eq.${notice.rowId}`);
-  url.searchParams.set("select", "*");
-  url.searchParams.set("limit", "1");
+  const submissionId = (notice.rowId || "").trim();
+  if (!submissionId) return { status: "missing" };
+
+  // Sign (ts.nonce.submissionId) with the READ secret. The nonce is single-use
+  // (the read function refuses a replay) and the timestamp is bounded there.
+  const ts = Date.now().toString();
+  const nonce = `${crypto.randomUUID()}${crypto.randomBytes(12).toString("hex")}`;
+  const signature = crypto.createHmac("sha256", connection.readSecret).update(`${ts}.${nonce}.${submissionId}`).digest("hex");
+  const url = `${connection.projectUrl.replace(/\/+$/, "")}/functions/v1/aqua-form-read`;
+  const body = JSON.stringify({ siteId: connection.siteId, submissionId, ts, nonce, signature });
 
   try {
     // Through the audited egress broker (assume-breach containment): the
-    // client-authorised project URL is stored data and could be re-pointed at
-    // a private/loopback/metadata address to exfiltrate the stored anon key.
-    // The broker rejects unsafe destinations, pins the vetted address against
-    // DNS rebinding, and never forwards the apikey/Authorization headers across
-    // an origin-changing redirect.
+    // client-authorised project URL is stored data; the broker rejects unsafe
+    // destinations and pins the vetted address against DNS rebinding.
     const response = await brokeredFetch({
-      url: url.toString(),
-      headers: {
-        apikey: connection.anonKey,
-        Authorization: `Bearer ${connection.anonKey}`,
-        Accept: "application/json",
-      },
+      url,
+      method: "POST",
+      headers: { "content-type": "application/json", Accept: "application/json" },
+      body,
       timeoutMs: TIMEOUT_MS,
       tenantId: connection.agencyId,
       purpose: "client-form.read",
     });
 
-    // 401/403 means their row-level-security policy no longer lets this key
-    // read the table — which is the client withdrawing access, and is reported
-    // as refused rather than dressed up as an outage.
     if (response.status === 401 || response.status === 403) return { status: "unavailable", reason: "refused" };
     if (response.status < 200 || response.status >= 300) return { status: "unavailable", reason: "error" };
 
-    const rows = JSON.parse(response.bodyText || "null") as unknown;
-    if (!Array.isArray(rows) || rows.length === 0) return { status: "missing" };
-    const row = rows[0];
-    if (!row || typeof row !== "object") return { status: "missing" };
+    const payload = JSON.parse(response.bodyText || "null") as
+      | { ok?: boolean; status?: string; submission?: { fields?: Record<string, unknown> } }
+      | null;
+    if (!payload || payload.ok !== true) return { status: "unavailable", reason: "error" };
+    if (payload.status === "missing" || !payload.submission) return { status: "missing" };
 
-    // Mapped here rather than at the screen, so the API answers in Aqua's
-    // vocabulary and every consumer — portal, inbox, a future automation —
-    // sees the same words the internal path uses.
+    const fields = payload.submission.fields && typeof payload.submission.fields === "object"
+      ? payload.submission.fields as Record<string, unknown>
+      : {};
     return {
       status: "ok",
-      mapped: mapClientFormSubmission(toFields(row as Record<string, unknown>), connection.columns),
+      mapped: mapClientFormSubmission(toFields(fields), connection.columns),
     };
   } catch (error) {
     if (error instanceof OutboundBlockedError) return { status: "unavailable", reason: "refused" };
-    // No body, no message, no row — see the header. A broker timeout is worth
-    // retrying; a malformed response is not.
-    const timedOut = error instanceof OutboundBlockedError ? false : error instanceof Error && /timed out/.test(error.message);
+    const timedOut = error instanceof Error && /timed out/.test(error.message);
     return { status: "unavailable", reason: timedOut ? "timeout" : "error" };
   }
 }

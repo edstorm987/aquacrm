@@ -22,6 +22,19 @@ checked that afterwards.
 Detail, evidence and reproduction for every `#N` stays in [`issues.md`](issues.md), which
 remains the backing store. This file is the index over it.
 
+> **10 September 2026 security overlay (current, unmerged/undeployed):** the
+> security gate-repair baseline `72acac90`, the public-media correction and
+> Claude's template-security commit are isolated lanes, not production state.
+> Before any real-client onboarding: (1) correct the remaining template stored
+> XSS/safe-mode/Shopify/preview findings at `c87e6874`; (2) keep public remote
+> writes and delete ownership-blocked until a durable atomic page/object saga and
+> recall ledger exist; (3) resolve the scanner 1 MiB-vs-8 MiB egress/product-limit
+> decision; (4) apply and verify the containment migrations and direct Storage
+> policies; (5) integrate all corrected lanes on a temporary branch and rerun
+> canonical, Website Editor, typecheck, production build, browser/accessibility,
+> migration/RLS, recovery and provider gates. Do not promote any isolated green
+> suite into a production-ready claim.
+
 | | meaning |
 | --- | --- |
 | `[ ]` | not started |
@@ -41,9 +54,9 @@ behind several of these are [`ED-QUESTIONS.md`](ED-QUESTIONS.md) Q1–Q24.
 - [ ] Stripe live-account walkthrough  <sub>from checklist.md, no issue number</sub>
 - [ ] Meta Developer app  <sub>from checklist.md, no issue number</sub>
 - [~] Deployment environment verification — read-only live checks on 2026-09-08 prove Railway serves `www`, database/security/uploads report ready, but required email is `needs-setup`, `readyForProduction:false`, deployment `sha:null`, and apex TLS fails; finish configuration and acceptance → [current readiness](PRODUCTION-READINESS.md)
-- [x] Apply the pending Supabase migrations before production rollout — DONE 2026-09-03: all 14 applied live via `supabase db push`, backup confirmed, backfill 52/52 and every row count verified read-only, live `rls-verify.sql` 51 INFO / 0 FAIL → [supabase-alignment-2026-09-03](plans/supabase-alignment-2026-09-03.md) §9  <sub>from checklist.md, no issue number</sub>
+- [~] Apply the pending Supabase migrations before production rollout — the 14 migrations pending on 2026-09-03 were applied and verified live then, but that historical green state does **not** include the later, currently unmerged containment chain `20260908210000` + `20260908220000` or public-bucket hardening `20260910010000`. After a fresh backup and explicit owner approval, apply those forward-only migrations in order and re-run `rls-verify.sql`; none was applied to a remote/shared database by the 2026-09-10 security lanes → [supabase-alignment-2026-09-03](plans/supabase-alignment-2026-09-03.md) §9 · [current security gate](../../../SECURITY-GATE-REPAIR-REPORT.md)  <sub>from checklist.md, no issue number</sub>
 - [ ] Activate and prove recovery — the self-managed encrypted backup/runbook exists and was locally rehearsed, but scheduled activation, durable off-Supabase delivery, one downloaded live-artifact restore, timing and missed-backup alert proof remain; PITR is OFF and should be reconsidered → [current readiness](PRODUCTION-READINESS.md) · [backup evidence](plans/production-readiness-roadmap-2026-09-03.md#5-database-migrations-rls-backup-and-recovery)
-- [ ] Push `20260903130000_ensure_rls_event_trigger` (a no-op on live; records the already-present rls_auto_enable to reach 0 pending) and decide on tightening the inherited over-broad table grants (optional REVOKE)  <sub>added 2026-09-03</sub>
+- [ ] Apply `20260903130000_ensure_rls_event_trigger` as the first of the **four** currently local migrations, then the three security migrations named above. The event-trigger migration was a no-op on the 2026-09-03 live schema, but applying it alone no longer reaches 0 pending. Separately decide whether to tighten inherited over-broad table grants (optional REVOKE).  <sub>added 2026-09-03; corrected 2026-09-10</sub>
 - [ ] Rotate the Supabase database password and the `sbp_` access token (both were pasted into a session transcript on 2026-09-03)  <sub>added 2026-09-03</sub>
 - [ ] Set `PORTAL_BACKEND=file` in `.env.local` for local work — without it the portal promotes itself to the Supabase backend and local servers write the production `app_datastores` row (daily writes visible through 2026-09-02)  <sub>added 2026-09-03</sub>
 - [ ] DPO sign-off  <sub>from checklist.md, no issue number</sub>

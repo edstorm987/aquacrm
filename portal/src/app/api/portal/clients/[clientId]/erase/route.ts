@@ -43,7 +43,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       clientId: client.id,
       actorUserId: session.userId,
       actorEmail: session.email,
-      supabase: createSupabaseAdminClient() as unknown as LiveScrubClient,
+      supabase: createSupabaseAdminClient({
+        tenantId: scope.agencyId,
+        actor: session.userId,
+        surface: "client-erasure-live-scrub",
+      }) as unknown as LiveScrubClient,
     });
     if (!result) return NextResponse.json({ ok: false, error: "That client was not found." }, { status: 404 });
 

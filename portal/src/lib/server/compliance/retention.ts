@@ -31,11 +31,12 @@ import "server-only";
 // pack is precisely whether they should ever expire. That is a legal answer,
 // not a default this module may quietly choose.
 
+import { assertWritesAllowed } from "@/lib/server/auth/securityControl";
 import { getState, mutate } from "@/server/storage";
 import type { RetentionPolicy } from "@/server/types";
 
 export interface RetentionCategory {
-  id: keyof RetentionPolicy;
+  id: Exclude<keyof RetentionPolicy, "enforcementEnabled">;
   label: string;
   /** What a period on this category actually deletes. */
   describes: string;
@@ -78,6 +79,10 @@ export interface RetentionSweepResult {
   /** Categories with no period set — reported so "0" is never mistaken for
    * "nothing to delete" when it actually means "no policy". */
   unset: string[];
+  /** Policy activation is separate from entering/previewing periods. */
+  active: boolean;
+  /** True only when this invocation was authorised to apply the result. */
+  applied: boolean;
 }
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -154,7 +159,13 @@ function findExpired(agencyId: string, now: number): ExpiredRecords {
     activityIds,
     requestIds,
     noticeIds,
-    result: { removed, total: activityIds.length + requestIds.length + noticeIds.length, unset },
+    result: {
+      removed,
+      total: activityIds.length + requestIds.length + noticeIds.length,
+      unset,
+      active: policy.enforcementEnabled === true,
+      applied: false,
+    },
   };
 }
 
@@ -166,6 +177,11 @@ export function previewRetentionSweep(agencyId: string, now = Date.now()): Reten
 /** Apply the policy. Deletes exactly what the preview counted; there is no undo. */
 export function runRetentionSweep(agencyId: string, now = Date.now()): RetentionSweepResult {
   const expired = findExpired(agencyId, now);
+  // Periods are safe to enter and preview. They become destructive only after
+  // the owner separately activates enforcement; unset periods always remain
+  // keep-forever even when other categories are active.
+  if (!expired.result.active) return expired.result;
+  assertWritesAllowed("maintenance.retention-sweep", { tenantId: agencyId, actor: "scheduled-retention" });
   if (expired.result.total > 0) {
     const activityIds = new Set(expired.activityIds);
     mutate(draft => {
@@ -174,5 +190,5 @@ export function runRetentionSweep(agencyId: string, now = Date.now()): Retention
       for (const id of expired.noticeIds) delete draft.clientFormNotices[id];
     });
   }
-  return expired.result;
+  return { ...expired.result, applied: true };
 }

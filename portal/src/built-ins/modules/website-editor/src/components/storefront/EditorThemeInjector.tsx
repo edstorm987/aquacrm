@@ -15,5 +15,7 @@ export function EditorThemeInjector({ theme, customCSS }: EditorThemeInjectorPro
   const appearanceCss = appearanceToColorSchemeCss(theme?.appearance);
   const combined = [appearanceCss, tokensCss, customCSS ?? ""].filter(Boolean).join("\n");
   if (!combined) return null;
-  return <style data-editor-theme dangerouslySetInnerHTML={{ __html: combined }} />;
+  // React's style-text serializer neutralises an HTML closing-tag sequence;
+  // raw HTML insertion here would let stored CSS terminate this element.
+  return <style data-editor-theme>{combined}</style>;
 }

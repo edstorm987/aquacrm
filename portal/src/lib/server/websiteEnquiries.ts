@@ -303,9 +303,18 @@ function inboxCalls(metadata: Record<string, unknown>): WebsiteEnquiryCall[] {
   }).sort((a, b) => a.startedAt - b.startedAt);
 }
 
-export async function recordWebsiteEnquiryResponse(enquiryId: string, respondedAt: number, actorUserId: string): Promise<boolean> {
+export async function recordWebsiteEnquiryResponse(
+  agencyId: string,
+  enquiryId: string,
+  respondedAt: number,
+  actorUserId: string,
+): Promise<boolean> {
   if (!enquiryId.trim() || !Number.isFinite(respondedAt)) return false;
-  const supabase = createSupabaseAdminClient();
+  const supabase = createSupabaseAdminClient({
+    tenantId: agencyId,
+    actor: actorUserId,
+    surface: "website-enquiry-response",
+  });
   const { data, error } = await supabase
     .from("brand_enquiries")
     .select("id, metadata")
@@ -397,7 +406,7 @@ export async function synchroniseWebsiteEnquiryIdentities(
     if (attributedClientId) {
       synchroniseWebsiteEnquiryLedgerEvents(agencyId, attributedClientId, next);
       if (enquiry.clientId !== attributedClientId || enquiry.identityStatus !== resolution.status) {
-        await recordWebsiteEnquiryIdentityResolution(enquiry.id, resolution);
+        await recordWebsiteEnquiryIdentityResolution(agencyId, enquiry.id, resolution);
       }
     }
     reconciled.push(next);
@@ -451,8 +460,15 @@ export function synchroniseWebsiteEnquiryLedgerEvents(agencyId: string, clientId
   });
 }
 
-export async function recordWebsiteEnquiryIdentityResolution(enquiryId: string, resolution: IdentityResolutionResult): Promise<boolean> {
-  const supabase = createSupabaseAdminClient();
+export async function recordWebsiteEnquiryIdentityResolution(
+  agencyId: string,
+  enquiryId: string,
+  resolution: IdentityResolutionResult,
+): Promise<boolean> {
+  const supabase = createSupabaseAdminClient({
+    tenantId: agencyId,
+    surface: "website-enquiry-identity-resolution",
+  });
   const { data, error } = await supabase.from("brand_enquiries").select("id, metadata").eq("id", enquiryId).maybeSingle();
   if (error || !data) return false;
   const current = data.metadata && typeof data.metadata === "object" ? data.metadata as Record<string, unknown> : {};

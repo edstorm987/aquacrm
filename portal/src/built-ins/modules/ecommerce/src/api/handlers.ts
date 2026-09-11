@@ -520,6 +520,7 @@ async function executeStripeCheckout(
       expiresAt: operation.expiresAt,
       collectShippingAddress: operation.lines.some(line => !line.digital),
       allowedShippingCountries: operation.shipping.allowedCountries,
+      tenantId: ctx.agencyId,
     });
     const recorded = await c.checkout.recordProviderSession(operation.id, session);
     return json({ ok: true, id: recorded.providerSessionId, url: recorded.providerUrl });
@@ -978,6 +979,7 @@ export async function stripeBillingPortalHandler(req: Request, ctx: PluginCtx): 
       customerId: body.customerId,
       customerEmail: body.customerEmail,
       returnUrl: body.returnUrl ?? getOrigin(req),
+      tenantId: ctx.agencyId,
     });
     return json({ ok: true, ...result });
   } catch (err) {

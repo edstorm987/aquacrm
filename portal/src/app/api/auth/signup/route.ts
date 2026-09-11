@@ -43,7 +43,7 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
-import { issueSession, sessionCookie } from "@/lib/server/auth/auth";
+import { issueSessionForResponse, sessionCookie } from "@/lib/server/auth/auth";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
 import { bootstrapAgency } from "@/server/agencyBootstrap";
 import { createUser, getUser } from "@/server/users";
@@ -412,7 +412,7 @@ async function handleAccountSignup(req: NextRequest) {
   });
 
   // Auto-login (Goal B).
-  const sessionToken = issueSession({
+  const sessionToken = await issueSessionForResponse({
     userId: user.id, email: user.email, role: user.role, agencyId: user.agencyId,
     sessionRev: user.sessionRev ?? 0,
   });

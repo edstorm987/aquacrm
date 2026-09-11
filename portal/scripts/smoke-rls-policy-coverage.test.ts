@@ -201,6 +201,10 @@ const SERVICE_MARKERS = [
   "SUPABASE_SERVICE_ROLE_KEY",
   "SUPABASE_SECRET_KEY",
   "resolveSupabaseSecretKey",
+  // Phase 1: the server-mediated brand_enquiries data client. It wraps
+  // createSupabaseAdminClient, so a route using it is on the service-role path
+  // (RLS does not gate it — tenant ownership is enforced in server code).
+  "createEnquiryDataClient",
 ];
 const ANON_MARKERS = ["createRouteSupabaseClient", "createServerSupabaseClient", "createScopedSupabaseClient"];
 
@@ -443,7 +447,7 @@ describe("brand_enquiries tenant scoping — the agency_id column and its policy
     const formCapture = readFileSync(path.join(SRC_ROOT, "app", "api", "public", "form-capture", "route.ts"), "utf8");
     assert.match(brandEnquiry, /agency_id: agency\.id/, "brand-enquiry inserts must write the agency_id column.");
     assert.match(brandEnquiry, /agencyId: agency\.id/, "brand-enquiry must keep metadata.agencyId for the routing sites and the backfill.");
-    assert.match(formCapture, /agency_id: masterAgencyId \?\? null/, "form-capture inserts must write the agency_id column.");
+    assert.match(formCapture, /agency_id: admissionAgencyId/, "form-capture inserts must write the resolved agency_id column.");
     // Ed applies the migration by hand, so the code must survive the old
     // schema: both paths retry without the column on its exact absence.
     assert.match(brandEnquiry, /isMissingAgencyIdColumn/, "brand-enquiry lost its pre-migration fallback.");

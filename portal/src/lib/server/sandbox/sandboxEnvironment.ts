@@ -3,7 +3,7 @@ import "server-only";
 import crypto from "node:crypto";
 
 import {
-  issueSession,
+  issueSessionForResponse,
   isSessionFresh,
 } from "@/lib/server/auth/auth";
 import {
@@ -277,13 +277,13 @@ async function prepareTarget(
   return prepareDemo(realmId, identity, force, persona);
 }
 
-function mintSandboxSession(
+async function mintSandboxSession(
   target: SandboxTarget,
   identity: LiveIdentity,
   realmId: string,
   dataset: SandboxDataset,
   access: SandboxAccess,
-): SandboxSwitchResult {
+): Promise<SandboxSwitchResult> {
   const environment: SandboxSessionEnvironment = {
     realmId,
     dataset,
@@ -296,7 +296,7 @@ function mintSandboxSession(
     returnAal: identity.returnAal,
     enteredAt: Date.now(),
   };
-  const token = issueSession({
+  const token = await issueSessionForResponse({
     userId: target.user.id,
     email: target.user.email,
     role: target.user.role,
@@ -328,7 +328,7 @@ export async function enterSandboxEnvironment(
   const persona = governedPersona(identity, input);
   const access = governedAccess(identity, input.access);
   const target = await prepareTarget(realmId, input.dataset, identity, input.force === true, persona);
-  return mintSandboxSession(target, identity, realmId, input.dataset, access);
+  return await mintSandboxSession(target, identity, realmId, input.dataset, access);
 }
 
 export async function switchSandboxPersona(
@@ -344,7 +344,7 @@ export async function switchSandboxPersona(
   }
   const governed = governedPersona(identity, { dataset: "demo", persona });
   const target = await prepareDemo(session.sandbox.realmId, identity, false, governed);
-  return mintSandboxSession(target, identity, session.sandbox.realmId, "demo", session.sandbox.access);
+  return await mintSandboxSession(target, identity, session.sandbox.realmId, "demo", session.sandbox.access);
 }
 
 export async function exitSandboxEnvironment(session: SessionPayload): Promise<SandboxSwitchResult> {
@@ -352,7 +352,7 @@ export async function exitSandboxEnvironment(session: SessionPayload): Promise<S
   await flushPendingWrites();
   const identity = await liveIdentityFor(session);
   const environment = session.sandbox;
-  const token = issueSession({
+  const token = await issueSessionForResponse({
     userId: identity.user.id,
     email: identity.user.email,
     role: identity.user.role,

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { authErrorResponse, getSessionFromRequest, issueSession, sessionCookie } from "@/lib/server/auth/auth";
+import { authErrorResponse, getSessionFromRequest, issueSessionForResponse, sessionCookie } from "@/lib/server/auth/auth";
 import { freelancerLoginUserId } from "@/server/freelancerAdmin";
 import { ensureHydrated } from "@/server/storage";
 import { getAgency } from "@/server/tenants";
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       if (!entererAgencyIds.includes(returnAgency.id)) {
         return NextResponse.json({ ok: false, error: "no_return" }, { status: 409 });
       }
-      const token = issueSession({
+      const token = await issueSessionForResponse({
         userId: enterer.id,
         email: enterer.email,
         role: enterer.role,
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
     const freelancer = freelancerUserId ? getUserById(freelancerUserId) : null;
     if (!freelancer) return NextResponse.json({ ok: false, error: "freelancer_not_found" }, { status: 404 });
 
-    const token = issueSession({
+    const token = await issueSessionForResponse({
       userId: freelancer.id,
       email: freelancer.email,
       role: "freelancer",

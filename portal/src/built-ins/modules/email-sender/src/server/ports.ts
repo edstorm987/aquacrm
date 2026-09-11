@@ -133,6 +133,8 @@ export interface DriverContext {
 
 export interface EmailDriver {
   readonly kind: ProviderKind;
+  /** Optional production incident fence, invoked before queued -> sending. */
+  assertSendAllowed?(ctx: DriverContext): void | Promise<void>;
   send(args: { ctx: DriverContext; message: EmailMessage }): Promise<SendResult | SendFailure>;
   // Postmark + others sign their delivery webhooks; the driver knows
   // how to verify. Returns the parsed event, or null when the

@@ -47,7 +47,18 @@ const ALLOWED_PROTOCOLS = new Set(["http:", "https:"]);
 // Ports a legitimate outbound integration uses. Everything else (SSH, SMB,
 // Redis, Postgres, the Docker/Kubelet APIs, etc.) is denied by default.
 const ALLOWED_PORTS = new Set([80, 443, 8080, 8443]);
-const CREDENTIAL_HEADERS = new Set(["authorization", "apikey", "cookie", "x-api-key", "proxy-authorization"]);
+// Every secret-bearing header must be treated as a credential so it is stripped
+// across an origin-changing redirect. Provider-specific token headers are named
+// explicitly (e.g. Shopify's storefront token) alongside the generic ones.
+const CREDENTIAL_HEADERS = new Set([
+  "authorization",
+  "apikey",
+  "cookie",
+  "x-api-key",
+  "proxy-authorization",
+  "x-shopify-storefront-access-token",
+  "x-shopify-access-token",
+]);
 
 export type OutboundDenyReason =
   | "invalid-url"
@@ -168,14 +179,22 @@ async function vet(url: URL, policy: TenantDestinationPolicy | undefined): Promi
   return { url, address: chosen.address, family: (isIP(chosen.address) || 4) as 4 | 6 };
 }
 
-/** An undici Agent that connects ONLY to the pinned, pre-vetted IP. Closes the DNS-rebinding TOCTOU. */
-function pinnedAgent(vetted: Vetted): Agent {
+/**
+ * An undici Agent that connects ONLY to the pinned, pre-vetted IP. Closes the
+ * DNS-rebinding TOCTOU. Exported for the behavioural pin test, which proves the
+ * socket follows the pinned address and not the hostname's resolution.
+ */
+export function pinnedAgent(vetted: Vetted): Agent {
   return new Agent({
     connect: {
       // undici lets us override the resolved address; the TLS SNI/servername
       // still uses the original hostname so certificate verification (and the
-      // provider's virtual host) keep working.
-      lookup: (_hostname, _options, callback) => callback(null, vetted.address, vetted.family),
+      // provider's virtual host) keep working. undici (6.x) calls this with
+      // `{ all: true }`, so the callback MUST return the address-list form
+      // `[{ address, family }]` — the plain `(err, address, family)` form makes
+      // undici read the address as undefined and throw on every brokered
+      // connect, so the pin (and every brokered outbound call) would fail.
+      lookup: (_hostname, _options, callback) => callback(null, [{ address: vetted.address, family: vetted.family }]),
       servername: canonicalHost(vetted.url),
     },
   });
@@ -243,6 +262,26 @@ export async function vetOutboundHost(
     }
   }
   return { addresses: candidates.map(record => record.address) };
+}
+
+/**
+ * Vet a RAW-SOCKET destination (SMTP and other non-HTTP protocols the fetch
+ * broker cannot carry) and return a PINNED connect target that closes the
+ * DNS-rebinding TOCTOU: connect to the exact IP that was vetted, and validate
+ * TLS against the original hostname via SNI/servername. Without this, a caller
+ * that vets `mail.evil.example` and then hands the HOSTNAME to nodemailer lets
+ * the resolver answer differently the second time (rebind to 169.254.169.254).
+ * Throws OutboundBlockedError for an unsafe or unresolvable host.
+ */
+export async function pinnedSocketTarget(
+  host: string,
+  context: { purpose: string; tenantId?: string; env?: NodeJS.ProcessEnv },
+): Promise<{ address: string; servername: string }> {
+  const cleaned = host.trim().toLowerCase().replace(/\.$/, "").replace(/^\[|\]$/g, "");
+  const { addresses } = await vetOutboundHost(host, context);
+  const address = addresses[0];
+  if (!address) throw new OutboundBlockedError("dns-failed", `no safe address for ${cleaned}`);
+  return { address, servername: cleaned };
 }
 
 /**

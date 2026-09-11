@@ -24,8 +24,9 @@ import { PageHeader, Panel, Pill, EmptyState } from "../_ui";
 
 // ---- readiness presentation ------------------------------------------------
 
-const GROUP_ORDER: ReadinessGroup[] = ["core", "communication", "money", "development", "intelligence"];
+const GROUP_ORDER: ReadinessGroup[] = ["security-evidence", "core", "communication", "money", "development", "intelligence"];
 const GROUP_LABEL: Record<ReadinessGroup, string> = {
+  "security-evidence": "Security evidence",
   core: "Core",
   communication: "Communication",
   money: "Money",

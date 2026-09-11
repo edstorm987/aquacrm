@@ -3,14 +3,14 @@ import { containerFor } from "@aqua/plugin-leads-pipeline/server";
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
 import { isTradingBrandSlug, tradingBrandDefinition, type TradingBrandSlug } from "@/lib/brands/tradingBrands";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
-import { FOUNDER_AGENCY_SLUG, FOUNDER_EMAIL, seedFounder } from "@/lib/server/seeds/founderSeed";
+import { FOUNDER_AGENCY_SLUG, FOUNDER_EMAIL } from "@/lib/server/seeds/founderSeed";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { getInstall } from "@/server/pluginInstalls";
 import { logActivity } from "@/server/activity";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { getAgencyBySlug } from "@/server/tenants";
 import { getUser } from "@/server/users";
-import { ensureZimanteTradingCompanies } from "@/server/zimanteTradingCompanies";
+import { listTradingCompanies } from "@/server/tradingCompanies";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isMissingAgencyIdColumn, isMissingAgencyIdColumnRead } from "@/lib/supabase/enquiryAgencyColumn";
 import { notifyBrandEnquiry } from "@/lib/server/email/enquiryNotifications";
@@ -43,6 +43,7 @@ import {
   type BrandEnquiryWork,
   type DeliveryState,
 } from "@/lib/server/enquirySubmissionDelivery";
+import { assertFreshWriteAdmission, isWriteAdmissionDenied } from "@/lib/server/security/writeAdmission";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE = /^[+()\d\s.-]{7,40}$/;
@@ -378,6 +379,7 @@ const brandEnquiryEffects: BrandEnquiryEffectSet = {
       });
       notification = result.sent ? "sent" : "not-configured";
     } catch (notificationError) {
+      if (isWriteAdmissionDenied(notificationError)) throw notificationError;
       notification = "failed";
       console.error("[brand-enquiry] notification failed", notificationError instanceof Error ? notificationError.message : "Unknown error");
     }
@@ -407,6 +409,7 @@ const brandEnquiryEffects: BrandEnquiryEffectSet = {
         : "not-configured";
       await flushPendingWrites();
     } catch (automationError) {
+      if (isWriteAdmissionDenied(automationError)) throw automationError;
       automation = "failed";
       console.error("[brand-enquiry] automation trigger failed", automationError instanceof Error ? automationError.message : "Unknown error");
     }
@@ -419,7 +422,11 @@ const brandEnquiryEffects: BrandEnquiryEffectSet = {
 // documents, handed over by reference rather than called again.
 registerBrandEnquiryDelivery({
   effects: brandEnquiryEffects,
-  adminClient: createSupabaseAdminClient as unknown as () => SubmissionClaimClient,
+  adminClient: () => createSupabaseAdminClient({
+    platformPurpose: "cross-tenant-queue-claim",
+    surface: "database.aqua-tag-delivery-claim",
+    actor: "aqua-tag-delivery-sweep",
+  }) as unknown as SubmissionClaimClient,
 });
 
 export async function POST(req: NextRequest) {
@@ -470,6 +477,9 @@ export async function POST(req: NextRequest) {
   if (suppliedSubmissionId && !submissionId) {
     return response({ ok: false, error: "The submission reference is invalid." }, 400, origin);
   }
+  if (process.env.NODE_ENV === "production" && !submissionId) {
+    return response({ ok: false, error: "A durable submission reference is required." }, 503, origin);
+  }
 
   const publicSite = resolvePublicAquaSite(brand, origin);
   if (requestedOrigin && !publicSite) {
@@ -502,8 +512,7 @@ export async function POST(req: NextRequest) {
 
   return withEnquirySubmissionOperation(submissionId, async () => {
   try {
-    await ensureHydrated();
-    await seedFounder();
+    await ensureHydrated({ fresh: true, forceFreshReload: true });
     ensureLeadsPipelineFoundationRegistered();
 
     const agency = getAgencyBySlug(FOUNDER_AGENCY_SLUG);
@@ -511,14 +520,23 @@ export async function POST(req: NextRequest) {
     if (!agency || !founder) {
       return response({ ok: false, error: "Enquiries are temporarily unavailable." }, 503, origin);
     }
+    await assertFreshWriteAdmission({
+      kind: "tenant",
+      tenantId: agency.id,
+      surface: "database.public-brand-enquiry",
+      actor: `site:${publicSite?.siteKey ?? brand}`,
+    });
 
     const install = getInstall({ agencyId: agency.id }, "leads-pipeline");
     if (!install?.enabled) {
       return response({ ok: false, error: "Enquiries are temporarily unavailable." }, 503, origin);
     }
 
-    const companies = ensureZimanteTradingCompanies(agency.id, founder.id);
-    const company = companies[brand as TradingBrandSlug];
+    const company = listTradingCompanies(agency.id, true)
+      .find(candidate => candidate.slug === brand);
+    if (!company) {
+      return response({ ok: false, error: "Enquiries are temporarily unavailable." }, 503, origin);
+    }
     const brandDefinition = tradingBrandDefinition(brand as TradingBrandSlug);
     const pagePath = sourceUrl ? new URL(sourceUrl).pathname : "/";
     // Where this site's submissions are configured to go. Absent → the agency
@@ -532,7 +550,11 @@ export async function POST(req: NextRequest) {
     const routedClientId = destination.kind === "client" ? destination.clientId : undefined;
     const routedCompanyId = destination.kind === "company" ? destination.companyId : undefined;
     const capturedAt = new Date().toISOString();
-    const supabase = createSupabaseAdminClient();
+    const supabase = createSupabaseAdminClient({
+      tenantId: agency.id,
+      surface: "database.public-brand-enquiry",
+      actor: `site:${publicSite?.siteKey ?? brand}`,
+    });
 
     // Tenant is written twice on purpose: `agency_id` is the real column RLS
     // scopes on once the agency_scope migration is applied; `metadata.agencyId`
@@ -642,6 +664,7 @@ export async function POST(req: NextRequest) {
             const claim = claims?.[0];
             if (claim) delivery = (await runClaimedAquaTagSubmissionWork(supabase, claim, brandEnquiryEffects)).delivery;
           } catch (deliveryError) {
+            if (isWriteAdmissionDenied(deliveryError)) throw deliveryError;
             // The enquiry is already durable and the claim stays leased; the
             // inbox sweep finishes it after the lease expires.
             console.error("[brand-enquiry] downstream delivery interrupted; the claim will be recovered", deliveryError instanceof Error ? deliveryError.message : "Unknown error");
@@ -659,6 +682,9 @@ export async function POST(req: NextRequest) {
       }
       // `unavailable`: the migration is not applied on this database. Fall
       // through to the older path below, which says so in its receipt.
+      if (process.env.NODE_ENV === "production") {
+        throw new Error("aqua_tag_submission_boundary_required_in_production");
+      }
     }
 
     // ── Process-local fallback ─────────────────────────────────────────────

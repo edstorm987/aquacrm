@@ -103,6 +103,16 @@ export async function loadBlob(realmId = "live"): Promise<string | null> {
 export async function saveBlob(content: string, realmId = "live"): Promise<void> {
   const p = getPool();
   const stateKey = stateKeyForRealm(realmId);
+  // NOT lease-fenced. Unlike the Supabase patch RPCs (which validate the writer's
+  // product-workspace lease in the same transaction — see
+  // 20260911120000_lease_fenced_datastore_patch.sql), this whole-blob upsert has
+  // no in-transaction lease check, so a stale holder whose lease was taken over
+  // between renewal and this write could still overwrite the blob. That is
+  // acceptable only because this backend is HELD UNREADY (see the lease helpers
+  // below: `Hosted Postgres is held unready…`). Before Postgres is promoted to a
+  // production backend it MUST gain an equivalent in-transaction fence (validate
+  // the held lease in the same statement/transaction as this upsert).
+  //
   // The blob is opaque-to-postgres but typed JSONB so JSON-aware tooling
   // (psql, BI dashboards) sees structure. We cast string → jsonb in the
   // statement so `pg` doesn't quote the JSON as a string literal.
@@ -241,8 +251,10 @@ export async function claimProductWorkspaceLease(
   workspaceKey: string,
   holderId: string,
   leaseMs: number,
+  tenantId: string,
   realmId = "live",
 ): Promise<unknown> {
+  void tenantId; // Hosted Postgres is held unready until durable admission parity is implemented.
   const result = await getPool().query<{ result: unknown }>(
     "SELECT public.claim_product_workspace_lease($1, $2, $3, $4)::jsonb AS result",
     [stateKeyForRealm(realmId), workspaceKey, holderId, Math.max(1_000, Math.floor(leaseMs))],
@@ -254,8 +266,10 @@ export async function renewProductWorkspaceLease(
   workspaceKey: string,
   holderId: string,
   leaseMs: number,
+  tenantId: string,
   realmId = "live",
 ): Promise<unknown> {
+  void tenantId; // Hosted Postgres is held unready until durable admission parity is implemented.
   const result = await getPool().query<{ result: unknown }>(
     "SELECT public.renew_product_workspace_lease($1, $2, $3, $4)::jsonb AS result",
     [stateKeyForRealm(realmId), workspaceKey, holderId, Math.max(1_000, Math.floor(leaseMs))],

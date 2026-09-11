@@ -275,7 +275,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on:** _No internal imports._
 
-**Used by (3):** [`scripts/smoke-business-radar.test.ts`](scripts.md#file-scripts-smoke-business-radar-test-ts-8b02fea97b) · [`src/engines/data/server/radar/radarSyntheticProbes.ts`](#file-src-engines-data-server-radar-radarsyntheticprobes-ts-9544ca0ec2) · [`src/lib/server/safeSiteFetch.ts`](lib.md#file-src-lib-server-safesitefetch-ts-c5b55f0445)
+**Used by (4):** [`scripts/smoke-business-radar.test.ts`](scripts.md#file-scripts-smoke-business-radar-test-ts-8b02fea97b) · [`src/engines/data/server/radar/radarSyntheticProbes.ts`](#file-src-engines-data-server-radar-radarsyntheticprobes-ts-9544ca0ec2) · [`src/lib/server/net/outboundBroker.ts`](lib.md#file-src-lib-server-net-outboundbroker-ts-1b5e0fb1d0) · [`src/lib/server/safeSiteFetch.ts`](lib.md#file-src-lib-server-safesitefetch-ts-c5b55f0445)
 
 
 ## `src/engines/data/server/kpi/`
@@ -574,11 +574,12 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (4):**
+**Exports (5):**
 
 - `async runAgencySyntheticProbes(agencyId: string, options: { force?: boolean; now?: number } = {}): Promise<RadarSyntheticProbeResult[]>`
 - `listAgencySyntheticProbes(agencyId: string): RadarSyntheticProbeResult[]`
 - `discoverRadarSyntheticTargets(agencyId: string): RadarSyntheticTarget[]`
+- `async fetchWithTimeout(url: URL, pinnedAddress: string, timeoutMs: number): Promise<Response>` — this module always pass the just-vetted address.
 - `interface RadarSyntheticTarget (3 members)`
 
 **Depends on (4):** [`src/engines/data/radar/radarSyntheticSafety.ts`](#file-src-engines-data-radar-radarsyntheticsafety-ts-23a1d10afa) · [`src/lib/clients/clientWorkspace.ts`](lib.md#file-src-lib-clients-clientworkspace-ts-90fa37f756) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)

@@ -6,7 +6,7 @@ import {
   getSessionAgencyIds,
   getSessionFromRequest,
   isSessionFresh,
-  issueSession,
+  issueSessionForResponse,
   sessionCookie,
 } from "@/lib/server/auth/auth";
 import { resolvePostLoginPath } from "@/lib/server/auth/postLoginRedirect";
@@ -301,7 +301,7 @@ export async function POST(request: NextRequest, context: PromoteRouteContext) {
     // id just granted. No demo flag, no return markers, nothing else.
     const nextAgencyIds = allowed.includes(newAgencyId) ? allowed : [...allowed, newAgencyId];
 
-    const token = issueSession({
+    const token = await issueSessionForResponse({
       userId: refreshed.id,
       email: refreshed.email,
       role: refreshed.role,

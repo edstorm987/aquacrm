@@ -12,6 +12,7 @@
 //   - local/dev/preview stay green while still reporting the truth in the body.
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import {
   deployedCommitSha,
@@ -184,6 +185,25 @@ describe("#187 deployment substrate detection", () => {
     it("a down database in production is not ok either", () => {
       const r = resolveFullHealthOk({ env: { RAILWAY_ENVIRONMENT_NAME: "production", NODE_ENV: "production" }, probeOk: false, ready: true });
       assert.equal(r.ok, false);
+    });
+  });
+
+  // Phase 8 — application-state health, not connectivity alone. A PortalState
+  // hydration/parse failure must force 503 in EVERY environment: a SELECT 1 can
+  // pass while the portal cannot read its own state. The route folds
+  // hydrationOk into both probeOk and the final ok, and never swallows it.
+  describe("/healthz/full treats a hydration failure as fatal", () => {
+    const routeSource = readFileSync(
+      new URL("../src/app/healthz/full/route.ts", import.meta.url),
+      "utf8",
+    );
+    it("catches ensureHydrated failure and sets hydrationOk=false (not just a null plugin count)", () => {
+      assert.match(routeSource, /hydrationOk\s*=\s*false/, "a hydration failure must set hydrationOk=false");
+      assert.match(routeSource, /catch\s*\(error\)/, "the hydration catch must capture the error, not swallow it");
+    });
+    it("forces the overall ok false on hydration failure, independent of the readiness decision", () => {
+      assert.match(routeSource, /probeOk:\s*probe\.ok\s*&&\s*hydrationOk/, "hydration must feed the probe signal");
+      assert.match(routeSource, /const ok\s*=\s*decision\.ok\s*&&\s*hydrationOk/, "the final ok must AND in hydrationOk");
     });
   });
 });

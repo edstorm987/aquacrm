@@ -14,6 +14,8 @@
 
 import "server-only";
 
+import { assertFreshWritesAllowed } from "@/lib/server/auth/securityControl";
+
 export interface StripeKeys {
   secretKey: string;
   webhookSecret?: string;
@@ -39,6 +41,7 @@ export interface CheckoutSessionInput {
   expiresAt: number;
   collectShippingAddress?: boolean;
   allowedShippingCountries?: string[];
+  tenantId: string;
 }
 
 export interface CheckoutSessionResult {
@@ -72,6 +75,7 @@ export async function createCheckoutSession(
   keys: StripeKeys,
   input: CheckoutSessionInput,
 ): Promise<CheckoutSessionResult> {
+  await assertFreshWritesAllowed("provider.stripe.ecommerce", { tenantId: input.tenantId });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const stripe = (await getStripe(keys.secretKey)) as any;
 
@@ -139,6 +143,7 @@ export interface BillingPortalInput {
   customerId?: string;
   customerEmail?: string;
   returnUrl: string;
+  tenantId: string;
 }
 
 export interface BillingPortalResult {
@@ -149,6 +154,7 @@ export async function createBillingPortalSession(
   keys: StripeKeys,
   input: BillingPortalInput,
 ): Promise<BillingPortalResult> {
+  await assertFreshWritesAllowed("provider.stripe.ecommerce", { tenantId: input.tenantId });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const stripe = (await getStripe(keys.secretKey)) as any;
 

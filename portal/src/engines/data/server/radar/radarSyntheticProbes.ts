@@ -3,6 +3,7 @@ import "server-only";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { connect as connectTls } from "node:tls";
+import { Agent } from "undici";
 
 import { isReservedSyntheticHostname, isUnsafeSyntheticAddress } from "@/engines/data/radar/radarSyntheticSafety";
 import { getState, mutate } from "@/server/storage";
@@ -104,11 +105,17 @@ async function probeRadarTarget(
   const dnsAddresses = new Set<string>();
   let response: Response | undefined;
   let redirectCount = 0;
+  // The vetted address of the CURRENT hop — reused to pin the TLS probe below so
+  // it cannot re-resolve to a different (private) address after the check.
+  let pinnedAddress = "";
   try {
     for (;;) {
       const addresses = await assertPublicDestination(current);
       for (const address of addresses) dnsAddresses.add(address);
-      response = await fetchWithTimeout(current, REQUEST_TIMEOUT_MS);
+      pinnedAddress = addresses[0]!;
+      // Pin the HTTP connection to the vetted IP (close the DNS-rebinding
+      // TOCTOU): a plain fetch(url) re-resolves the hostname at connect time.
+      response = await fetchWithTimeout(current, pinnedAddress, REQUEST_TIMEOUT_MS);
       if (!isRedirect(response.status)) break;
       const location = response.headers.get("location");
       if (!location) return failed({ ...base, dnsAddresses: [...dnsAddresses], statusCode: response.status }, startedAt, "redirect", "Redirect response did not include a destination.");
@@ -126,7 +133,7 @@ async function probeRadarTarget(
   const html = body.text;
   const finalUrl = current.toString();
   const securityHeaders = inspectSecurityHeaders(response.headers);
-  const tls = current.protocol === "https:" ? await inspectTls(current) : {};
+  const tls = current.protocol === "https:" ? await inspectTls(current, pinnedAddress) : {};
   const statusOk = response.status >= 200 && response.status < 400;
   const htmlOk = Boolean(contentType?.includes("text/html")) && body.bytes > 0;
   const tlsOk = current.protocol !== "https:" || tls.tlsValid === true;
@@ -182,7 +189,11 @@ function normalizeTargetUrl(value: string): URL {
 }
 
 async function assertPublicDestination(url: URL): Promise<string[]> {
-  const hostname = url.hostname.toLowerCase().replace(/\.$/, "");
+  // Strip a trailing dot AND IPv6 literal brackets before the IP check — a
+  // WHATWG URL keeps `[::1]` bracketed, so without this an IPv6-literal
+  // loopback/private target skips the isIP branch and reaches DNS. Canonicalise
+  // so `[::1]`, `[fd00::1]`, `[::ffff:169.254.169.254]` are all caught as IPs.
+  const hostname = url.hostname.toLowerCase().replace(/\.$/, "").replace(/^\[|\]$/g, "");
   if (!hostname || isReservedSyntheticHostname(hostname)) throw unsafeDestination(hostname || "missing hostname");
   if (isIP(hostname)) {
     if (isUnsafeSyntheticAddress(hostname)) throw unsafeDestination(hostname);
@@ -211,9 +222,27 @@ function unsafeDestination(destination: string): Error {
   return error;
 }
 
-async function fetchWithTimeout(url: URL, timeoutMs: number): Promise<Response> {
+// Exported for the behavioural pin test (smoke-radar-probe-ssrf): it proves the
+// socket goes to `pinnedAddress` regardless of what the URL hostname resolves to
+// — i.e. a DNS rebind after the vetting cannot move the connection. Callers in
+// this module always pass the just-vetted address.
+export async function fetchWithTimeout(url: URL, pinnedAddress: string, timeoutMs: number): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  // Pin the connection to the already-vetted IP; TLS SNI/cert validation still
+  // uses the original hostname. Closes the rebind between check and connect.
+  const family = isIP(pinnedAddress);
+  const agent = new Agent({
+    connect: {
+      // undici (6.x) calls this lookup with `{ all: true }`, so the callback MUST
+      // return the address-list form `[{ address, family }]` — the plain
+      // `(err, address, family)` dns.lookup form makes undici read the address as
+      // undefined and throw "Invalid IP address" on EVERY connect. Pin to the one
+      // pre-vetted IP so a rebind after the check cannot move the socket.
+      lookup: (_hostname, _options, callback) => callback(null, [{ address: pinnedAddress, family }]),
+      servername: url.hostname,
+    },
+  });
   try {
     return await fetch(url, {
       method: "GET",
@@ -224,7 +253,9 @@ async function fetchWithTimeout(url: URL, timeoutMs: number): Promise<Response> 
         accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1",
         "user-agent": "AquaCRM-Radar/1.0 (+synthetic-availability-monitor)",
       },
-    });
+      // undici extension; not in the DOM RequestInit type.
+      dispatcher: agent,
+    } as RequestInit);
   } finally {
     clearTimeout(timer);
   }
@@ -267,10 +298,14 @@ function inspectSecurityHeaders(headers: Headers): RadarSyntheticProbeResult["se
   };
 }
 
-function inspectTls(url: URL): Promise<Pick<RadarSyntheticProbeResult, "tlsValid" | "tlsExpiresAt" | "tlsDaysRemaining">> {
+function inspectTls(url: URL, pinnedAddress: string): Promise<Pick<RadarSyntheticProbeResult, "tlsValid" | "tlsExpiresAt" | "tlsDaysRemaining">> {
   return new Promise(resolve => {
+    // Connect to the VETTED IP (not re-resolving the hostname), but keep the
+    // hostname as SNI so certificate verification still validates against it.
+    // rejectUnauthorized stays true; a cert that doesn't match the hostname
+    // fails, exactly as it should. Closes the TLS-path rebind.
     const socket = connectTls({
-      host: url.hostname,
+      host: pinnedAddress || url.hostname,
       port: Number(url.port || 443),
       servername: isIP(url.hostname) ? undefined : url.hostname,
       rejectUnauthorized: true,

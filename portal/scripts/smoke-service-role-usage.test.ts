@@ -8,7 +8,9 @@
  * 2026-08-20 the portal had 23 call sites across 18 files; the website-inbox
  * routes were then moved onto the signed-in user's scoped client
  * (`createScopedSupabaseClient`), leaving the sites pinned below — each of
- * which has a documented reason it must keep the service role.
+ * which has a documented reason it must keep the service role. Subsequent
+ * containment changes moved the count to 14, then removal of the dormant
+ * remote public-media provider reduced the current posture to 12.
  *
  * MEASUREMENT METHOD (keep it identical or the history is meaningless):
  * count occurrences of the literal `createSupabaseAdminClient(` in `src/`,
@@ -43,17 +45,28 @@ const MARKER = "createSupabaseAdminClient(";
 
 /**
  * The pinned posture. 23 sites / 18 files before the 2026-08-20 reduction;
- * 13 sites / 8 files after it. Every entry here must also appear, with its
+ * 12 sites / 8 files now. Every entry here must also appear, with its
  * reason, in the plan's phase-4 "what stays and why" table.
  */
 const EXPECTED_SITES: Record<string, number> = {
+  // Phase 1 (assume-breach) made brand_enquiries SERVER-MEDIATED: the merged
+  // containment migration revokes authenticated SELECT/UPDATE/DELETE, so the
+  // internal enquiry routes can no longer use the scoped RLS client. They now
+  // read/mutate through this ONE centralized service-role factory, with tenant
+  // ownership enforced in server code (loadOwnedEnquiry / loadActorWebsiteEnquiry)
+  // — never by RLS. Centralizing the service role in one documented file (rather
+  // than 11 routes each reaching for the admin client) is the whole point.
+  "src/lib/supabase/enquiryDataClient.ts": 1,
   // GDPR erasure must scrub every row and storage object regardless of what
   // RLS would show the caller; smoke-client-erasure.test.ts pins this wiring.
   "src/app/api/portal/clients/[clientId]/erase/route.ts": 1,
   // Public endpoint, no user session. Anon may only INSERT consented rows by
   // policy; this route also SELECTs for dedupe and UPDATEs metadata — powers
-  // the anon key must never have (an email-probe would leak enquiries).
-  "src/app/api/public/brand-enquiry/route.ts": 1,
+  // the anon key must never have (an email-probe would leak enquiries). The
+  // SECOND site is the durable delivery sweep's admin-client factory
+  // (registerBrandEnquiryDelivery): a background cross-tenant-queue-claim that
+  // runs with no user session and is guarded by assertFreshWriteAdmission(platform).
+  "src/app/api/public/brand-enquiry/route.ts": 2,
   // Public endpoint, no user session; inserts consent:false hold rows the
   // anon insert policy correctly refuses, and attaches to existing rows.
   "src/app/api/public/form-capture/route.ts": 1,
@@ -66,8 +79,6 @@ const EXPECTED_SITES: Record<string, number> = {
   // Private storage buckets deny anon/authenticated by design; app-mediated
   // signed access is the model, so storage ops need the service role.
   "src/lib/server/privateUploadStorage.ts": 3,
-  // Writes to the public-assets bucket; only the service role may write it.
-  "src/lib/server/publicUploadStorage.ts": 2,
   // Shared read/annotate layer used by radar, operational alerts, marketing
   // intelligence and server components — paths that run without a request or
   // user session. Moving it under a user session would make radar evidence
@@ -102,7 +113,7 @@ describe("service-role usage stays measured and documented", () => {
   const foundTotal = Object.values(found).reduce((sum, n) => sum + n, 0);
   const expectedTotal = Object.values(EXPECTED_SITES).reduce((sum, n) => sum + n, 0);
 
-  it("matches the pinned call-site count (13 sites in 8 files as of 2026-08-20)", () => {
+  it("matches the pinned call-site count (12 sites in 8 files; remote public-media provider removed, 2026-09-10)", () => {
     assert.deepEqual(
       found,
       EXPECTED_SITES,

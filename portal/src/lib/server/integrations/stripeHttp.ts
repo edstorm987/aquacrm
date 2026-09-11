@@ -1,4 +1,5 @@
 import { withRemoteOperationDeadline, type RemoteOperationOutcome } from "@/lib/server/remoteOperation";
+import { assertFreshWritesAllowed } from "@/lib/server/auth/securityControl";
 import { assertLiveProviderAccess } from "@/lib/server/sandbox/providerPolicy";
 
 export interface StripeHttpRequest {
@@ -10,6 +11,8 @@ export interface StripeHttpRequest {
   outcome: RemoteOperationOutcome;
   signal?: AbortSignal;
   timeoutMs?: number;
+  /** Tenant lineage for in-app incident containment. */
+  tenantId?: string;
 }
 
 export interface StripeHttpResponse<T> {
@@ -19,9 +22,12 @@ export interface StripeHttpResponse<T> {
 }
 
 /** A bounded Stripe exchange, including response-body delivery. */
-export function stripeHttpRequest<T>(input: StripeHttpRequest): Promise<StripeHttpResponse<T>> {
-  assertLiveProviderAccess("Stripe");
+export async function stripeHttpRequest<T>(input: StripeHttpRequest): Promise<StripeHttpResponse<T>> {
   const method = input.method ?? (input.form ? "POST" : "GET");
+  if (method !== "GET") {
+    await assertFreshWritesAllowed("provider.stripe.write", { tenantId: input.tenantId ?? "" });
+  }
+  assertLiveProviderAccess("Stripe");
   return withRemoteOperationDeadline({
     operation: `Stripe ${method} ${input.path}`,
     budget: method === "GET" ? "providerRead" : "providerWrite",

@@ -23,15 +23,19 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 
 CMS=""; KEY=""; TARGET="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
-EXPECT=""; PASSIN=""; FORCE_REMOTE=0
+EXPECT=""; PASSIN=""; ALLOW_NONLOCAL=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --key) KEY="$2"; shift 2;;
     --passin) PASSIN="$2"; shift 2;;
     --target) TARGET="$2"; shift 2;;
     --expect-sha) EXPECT="$2"; shift 2;;
-    --i-know-this-is-a-branch) FORCE_REMOTE=1; shift;;
-    -h|--help) sed -n '2,26p' "$0"; exit 0;;
+    # A non-local target is DEFAULT-DENIED. This flag is NOT a bypass: it only
+    # says "I intend a non-local target"; the target must STILL prove it is
+    # disposable via the on-target marker check below, so the flag alone can
+    # never point the drill at production.
+    --allow-nonlocal-disposable) ALLOW_NONLOCAL=1; shift;;
+    -h|--help) sed -n '2,30p' "$0"; exit 0;;
     -*) die "unknown flag $1";;
     *) CMS="$1"; shift;;
   esac
@@ -39,35 +43,77 @@ done
 
 [ -n "$CMS" ] && [ -s "$CMS" ] || die "Pass the encrypted snapshot (.tar.gz.cms) as the first argument."
 
-# --- PROD GUARD (before anything else, so a mistaken live target is rejected
-#     immediately regardless of tooling) ---
-host="$(printf '%s' "$TARGET" | sed -E 's#^[a-z]+://[^@]*@?([^:/?]+).*#\1#')"
-case "$host" in
-  127.0.0.1|localhost|::1) : ;;
-  *pooler.supabase.com|*.supabase.co|*.supabase.in)
-    [ "$FORCE_REMOTE" = 1 ] || die "Target host '$host' looks like a LIVE Supabase endpoint. Refusing. Restore only into 'supabase start' or a disposable BRANCH (then pass --i-know-this-is-a-branch).";;
-  *)
-    [ "$FORCE_REMOTE" = 1 ] || log "WARNING: non-local target '$host' (not a recognised Supabase host) — proceeding.";;
-esac
-
-[ -n "$KEY" ] || KEY="$HERE/_local/aquacrm-backup.key.pem"
-[ -s "$KEY" ] || die "Private key not found at $KEY (pass --key). Keep it OFFLINE; this drill reads it locally only."
 command -v openssl >/dev/null 2>&1 || die "openssl not found."
 command -v psql >/dev/null 2>&1 || die "psql not found. Install: brew install libpq && add /opt/homebrew/opt/libpq/bin to PATH."
 
+# --- TARGET SAFETY (default-deny; before anything destructive) ---------------
+# Safety is NOT decided by hostname pattern (a prod host can hide behind a proxy,
+# a pooler, an IP or an SSH tunnel). The rule is:
+#   • a genuinely LOCAL loopback target is allowed (a dev `supabase start`); OR
+#   • ANY other target must (a) be explicitly opted into with
+#     --allow-nonlocal-disposable AND (b) POSITIVELY PROVE it is disposable by
+#     carrying the marker `ALTER DATABASE <db> SET aquacrm.restore_drill_disposable = 'yes'`
+#     in its own configuration, which a production database will never have.
+# Both are required; neither alone suffices. A known live Supabase endpoint is
+# refused outright regardless of flags.
+host="$(printf '%s' "$TARGET" | sed -E 's#^[a-z]+://[^@]*@?([^:/?]+).*#\1#')"
+is_local=0
+case "$host" in
+  127.0.0.1|localhost|::1) is_local=1;;
+esac
+# Known live endpoints are refused outright, whatever the flags.
+case "$host" in
+  *pooler.supabase.com|*.supabase.co|*.supabase.in)
+    die "Target host '$host' is a LIVE Supabase endpoint. Refusing unconditionally — a restore drill must never touch it.";;
+esac
+
+# LOOPBACK IS NOT AUTOMATICALLY TRUSTED (Item 10): a localhost endpoint can be
+# an SSH tunnel or a port-forward to production. EVERY target — loopback
+# included — must POSITIVELY PROVE it is disposable before any destructive
+# command, via a marker set ON the target database itself, and must NOT identify
+# as production. A non-local target additionally requires the explicit opt-in.
+if [ "$is_local" != 1 ] && [ "$ALLOW_NONLOCAL" != 1 ]; then
+  die "Target '$host' is not loopback. A non-local target is DEFAULT-DENIED — pass --allow-nonlocal-disposable AND set the disposable marker on it."
+fi
+marker="$(psql "$TARGET" -Atqc "select current_setting('aquacrm.restore_drill_disposable', true)" 2>/dev/null || true)"
+[ "$marker" = "yes" ] || die "Target '$host' does not carry the disposable marker. Refusing: cannot prove this database is disposable (loopback is NOT trusted on its own — it may tunnel to prod). On a REAL scratch DB run: ALTER DATABASE <db> SET aquacrm.restore_drill_disposable = 'yes'. NEVER set it on production."
+# Explicit denial of a production self-identification and known prod db names.
+appenv="$(psql "$TARGET" -Atqc "select current_setting('aquacrm.environment', true)" 2>/dev/null || true)"
+[ "$appenv" = "production" ] && die "Target identifies as production (aquacrm.environment='production'). Refusing."
+dbid="$(psql "$TARGET" -Atqc "select current_database()" 2>/dev/null || true)"
+case "$dbid" in
+  *prod*|*production*|*live*) die "Target database name '$dbid' looks like production. Refusing.";;
+esac
+log "Target '$host' (db='$dbid') proved disposable (marker present, not production); proceeding."
+
+[ -n "$KEY" ] || KEY="$HERE/_local/aquacrm-backup.key.pem"
+[ -s "$KEY" ] || die "Private key not found at $KEY (pass --key). Keep it OFFLINE; this drill reads it locally only."
+
 WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
 
-# --- Integrity, then decrypt ---
+# --- Integrity (MANDATORY), then decrypt ---
+# The expected digest is REQUIRED (Item 10): a restore you cannot pin to a known
+# artifact is a restore you cannot trust.
+[ -n "$EXPECT" ] || die "Pass --expect-sha <sha256> — the independently-recorded digest of the snapshot. A restore without a verified digest is refused."
 have="$(sha256 "$CMS" | awk '{print $1}')"
 log "snapshot sha256=$have"
-if [ -n "$EXPECT" ] && [ "$EXPECT" != "$have" ]; then
-  die "sha256 mismatch: expected $EXPECT got $have — do NOT trust this file."
-fi
+[ "$EXPECT" = "$have" ] || die "sha256 mismatch: expected $EXPECT got $have — do NOT trust this file."
 
 log "Decrypting"
 openssl cms -decrypt -binary -inform DER -in "$CMS" -inkey "$KEY" ${PASSIN:+-passin "$PASSIN"} -out "$WORK/bundle.tar.gz" \
   || die "Decrypt failed (wrong key or passphrase?)."
-tar -xzf "$WORK/bundle.tar.gz" -C "$WORK"
+
+# SAFE EXTRACTION (Item 10): reject path traversal, absolute paths and symlinks
+# BEFORE extracting — a malicious/backdoored archive must not write outside WORK.
+entries="$(tar -tzf "$WORK/bundle.tar.gz")" || die "Could not read the archive listing."
+if printf '%s\n' "$entries" | grep -qE '(^|/)\.\.(/|$)|^/'; then
+  die "Archive contains a path-traversal or absolute path entry — refusing to extract."
+fi
+# Reject symlink/hardlink/device entries (only regular files + dirs are allowed).
+if tar -tvzf "$WORK/bundle.tar.gz" | grep -qE '^[hlbcp]'; then
+  die "Archive contains a symlink/hardlink/special entry — refusing to extract."
+fi
+tar --no-same-owner -xzf "$WORK/bundle.tar.gz" -C "$WORK"
 for f in roles.sql schema.sql data.sql; do [ -s "$WORK/$f" ] || die "missing $f in snapshot"; done
 
 # --- Deterministic sanitise (official Supabase restore guidance). These lines
@@ -141,30 +187,46 @@ else
     log "ensure_rls event trigger absent (scoped dump) — re-applying from migration"
     psql "$TARGET" -v ON_ERROR_STOP=1 -f "$ETRIG" >/dev/null 2>&1 || true
     et="$(psql "$TARGET" -Atqc "select count(*) from pg_event_trigger where evtname='ensure_rls'" 2>/dev/null || echo 0)"
-    [ "${et:-0}" -gt 0 ] && log "PASS ensure_rls re-applied" || log "WARN ensure_rls still absent — re-apply $ETRIG manually."
+    if [ "${et:-0}" -gt 0 ]; then log "PASS ensure_rls re-applied"; else log "FAIL ensure_rls still absent after re-apply — the RLS defence-in-depth net is missing."; fail=1; fi
   else
-    log "WARN ensure_rls event trigger absent and migration file not found — re-apply it manually."
+    log "FAIL ensure_rls event trigger absent and migration file not found — cannot restore the RLS net."; fail=1
   fi
 fi
 
-if [ -s "$WORK/counts.txt" ] && ! grep -q 'psql-unavailable' "$WORK/counts.txt"; then
+# The dump-time manifest is REQUIRED: without it there is no independent record
+# of what the snapshot should contain, so a silently-truncated restore could
+# pass. A missing/unusable manifest is a FAIL, not a skip.
+if [ ! -s "$WORK/counts.txt" ] || grep -q 'psql-unavailable' "$WORK/counts.txt"; then
+  log "FAIL dump-time row-count manifest (counts.txt) is missing or was not generated — cannot prove the restore is complete."; fail=1
+else
   log "Comparing row counts to the dump-time manifest"
   gen="$(psql "$TARGET" -Atqc "select string_agg(format('select %L as tbl, count(*) as n from %I.%I', schemaname||'.'||tablename, schemaname, tablename), ' union all ') from pg_tables where schemaname in ('public','auth','storage') and (schemaname||'.'||tablename) not in ('auth.schema_migrations','storage.migrations','storage.buckets_vectors','storage.vector_indexes')")"
   psql "$TARGET" -Atqc "$gen" | sort > "$WORK/restored-counts.txt"
   if diff "$WORK/counts.txt" "$WORK/restored-counts.txt" >/dev/null; then
     log "PASS row counts match the dump-time manifest exactly."
   else
-    log "WARN row-count differences (< dump-time, > restored):"
-    diff "$WORK/counts.txt" "$WORK/restored-counts.txt" >&2 || true
-    log "     small auth/* internal diffs can be legitimate; any public.* mismatch is a real problem."
+    # A public.* mismatch is a hard FAIL (real data loss); auth/storage internal
+    # diffs are surfaced but do not by themselves fail the drill.
+    diff "$WORK/counts.txt" "$WORK/restored-counts.txt" > "$WORK/count-diff.txt" 2>&1 || true
+    if grep -qE '^[<>].*[[:space:]]public\.' "$WORK/count-diff.txt"; then
+      log "FAIL public.* row-count mismatch — data was lost or altered in the restore:"; cat "$WORK/count-diff.txt" >&2; fail=1
+    else
+      log "WARN non-public row-count differences (auth/storage internal — usually legitimate):"; cat "$WORK/count-diff.txt" >&2
+    fi
   fi
 fi
 
 RLSV="$REPO/supabase/rls-verify.sql"
-if [ -s "$RLSV" ]; then
+if [ ! -s "$RLSV" ]; then
+  log "FAIL supabase/rls-verify.sql is missing — cannot verify RLS/containment on the restored DB."; fail=1
+else
   log "Running supabase/rls-verify.sql"
-  if psql "$TARGET" -f "$RLSV" 2>/dev/null | grep -iqE '\bFAIL\b'; then
-    log "FAIL rls-verify reported FAIL rows — review RLS on the restored DB."; fail=1
+  # Capture to a file first so a psql failure is unambiguous (a piped psql|grep
+  # would hide psql's own exit status behind grep's).
+  if ! psql "$TARGET" -f "$RLSV" > "$WORK/rls-verify.out" 2>"$WORK/rls-verify.err"; then
+    log "FAIL rls-verify could not run (psql error):"; cat "$WORK/rls-verify.err" >&2; fail=1
+  elif grep -iqE '\bFAIL\b' "$WORK/rls-verify.out"; then
+    log "FAIL rls-verify reported FAIL rows — review RLS on the restored DB:"; grep -iE '\bFAIL\b' "$WORK/rls-verify.out" >&2; fail=1
   else
     log "PASS rls-verify: no FAIL rows."
   fi

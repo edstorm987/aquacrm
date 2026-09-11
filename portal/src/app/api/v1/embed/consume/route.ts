@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyAquaEmbedToken } from "@/lib/server/aquaEmbedToken";
-import { issueSession, sessionCookie } from "@/lib/server/auth/auth";
+import { issueSessionForResponse, sessionCookie } from "@/lib/server/auth/auth";
 import { ensureHydrated } from "@/server/storage";
 import { getClient } from "@/server/tenants";
 import {
@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
     return errorRedirect(request, "No Aqua administrator is configured for this workspace.");
   }
 
-  const session = issueSession({
+  const session = await issueSessionForResponse({
     userId: user.id,
     email: user.email,
     role: user.role,

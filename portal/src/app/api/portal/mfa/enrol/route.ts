@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { createRouteSupabaseClient } from "@/lib/supabase/route";
 import { hasVerifiedFactor, mfaUnavailableResponse } from "@/lib/server/auth/mfa";
+import { assertFreshWritesAllowed } from "@/lib/server/auth/securityControl";
 
 /**
  * Whether this account already has an authenticator.
@@ -57,6 +58,10 @@ export async function POST(request: NextRequest) {
   if (!user?.user) {
     return NextResponse.json({ ok: false, error: "Sign in first." }, { status: 401 });
   }
+  await assertFreshWritesAllowed("identity.mfa-enrollment", {
+    platformPurpose: "identity-lifecycle",
+    actor: user.user.id,
+  });
 
   // An abandoned enrolment leaves an unverified factor behind, and Supabase
   // refuses a second one with the same name. Clearing them first means a

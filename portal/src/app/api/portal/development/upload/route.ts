@@ -40,6 +40,7 @@ export async function POST(request: Request) {
       contentType: file.type,
       localDirectory: "development-uploads",
       localKey: relative,
+      trust: { tenantId: agencyId, actor: session.userId, purpose: "development-resource" },
     });
 
     const kind = String(form?.get("kind") ?? "inspiration-pack") as DevelopmentResourceKind;

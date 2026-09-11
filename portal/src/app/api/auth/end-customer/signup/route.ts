@@ -18,7 +18,7 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { ensureHydrated } from "@/server/storage";
-import { issueSession, sessionCookie } from "@/lib/server/auth/auth";
+import { issueSessionForResponse, sessionCookie } from "@/lib/server/auth/auth";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
 import { getClient } from "@/server/tenants";
 import { createUser, getUser, validatePassword } from "@/server/users";
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
     clientId: client.id,
   });
 
-  const token = issueSession({
+  const token = await issueSessionForResponse({
     userId: user.id,
     email: user.email,
     role: user.role,

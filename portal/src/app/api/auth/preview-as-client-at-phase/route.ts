@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { ensureHydrated } from "@/server/storage";
 import {
   getSessionFromRequest,
-  issueSession,
+  issueSessionForResponse,
   sessionCookie,
   getActiveAgencyId,
 } from "@/lib/server/auth/auth";
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
     // server-side and answered generically, never as a caller mistake.
     if (!demo) throw new Error("preview-as-client: demo client user absent after seedDemoAgency()");
 
-    const token = issueSession({
+    const token = await issueSessionForResponse({
       userId: demo.id,
       email: demo.email,
       role: demo.role,

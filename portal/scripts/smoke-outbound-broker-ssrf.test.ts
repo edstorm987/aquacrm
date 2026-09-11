@@ -13,7 +13,7 @@ import http from "node:http";
 import { AddressInfo } from "node:net";
 import test from "node:test";
 
-import { brokeredFetch, OutboundBlockedError, vetOutboundHost } from "../src/lib/server/net/outboundBroker";
+import { brokeredFetch, OutboundBlockedError, vetOutboundHost, pinnedAgent } from "../src/lib/server/net/outboundBroker";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -134,8 +134,44 @@ test("shopify and SMTP call sites are pinned to the audited egress path", () => 
   assert.ok(!/await fetch\(endpoint/.test(shopify), "the raw fetch to the shop domain must not return");
 
   const email = readFileSync(join(REPO_ROOT, "src/lib/server/email/transactionalEmail.ts"), "utf8");
-  const vetIndex = email.indexOf("vetOutboundHost(smtp.host");
+  // pinnedSocketTarget vets AND pins the vetted IP (closing the DNS-rebinding
+  // TOCTOU) — stronger than the bare vetOutboundHost it wraps. It must run
+  // before the transport, and the transport must connect to the pinned address
+  // with the hostname as TLS servername.
+  const vetIndex = email.indexOf("pinnedSocketTarget(smtp.host");
   const transportIndex = email.indexOf("createTransport");
-  assert.ok(vetIndex > -1, "the SMTP host must be vetted");
+  assert.ok(vetIndex > -1, "the SMTP host must be vetted+pinned via pinnedSocketTarget");
   assert.ok(transportIndex > -1 && vetIndex < transportIndex, "vetting must happen BEFORE the transport is created");
+  assert.match(email, /host:\s*pinned\.address/, "the transport must connect to the pinned IP");
+  assert.match(email, /servername:\s*pinned\.servername/, "TLS must validate against the hostname");
+
+  // The SMTP TEST-CONNECTION path (integrationConnections.testProvider) is the
+  // other tenant-host raw socket — it must vet+pin too, not just the send path.
+  const integrations = readFileSync(join(REPO_ROOT, "src/lib/server/integrations/integrationConnections.ts"), "utf8");
+  const smtpBlock = integrations.slice(integrations.indexOf('provider === "smtp"'));
+  assert.match(smtpBlock.slice(0, 600), /pinnedSocketTarget\(values\.host/, "SMTP test-connection must vet+pin the tenant host");
+});
+
+test("pinnedAgent connects to the pinned IP, ignoring the hostname's resolution (behavioural rebind defeat)", async () => {
+  // The broker vets a host, then pins the connection to that exact IP via
+  // pinnedAgent so a rebind after the check cannot move the socket. This proves
+  // the pin actually connects (an undici array-form regression would throw): a
+  // loopback server answers; the URL hostname is the never-resolving .invalid
+  // TLD, pinned to 127.0.0.1. A plain fetch(url) would fail to resolve.
+  const server = http.createServer((_req, res) => { res.writeHead(200); res.end("brokered-pin-ok"); });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const port = (server.address() as AddressInfo).port;
+    const url = new URL(`http://vetted-target.invalid:${port}/`);
+    const agent = pinnedAgent({ url, address: "127.0.0.1", family: 4 });
+    try {
+      const response = await fetch(url, { method: "GET", redirect: "manual", dispatcher: agent } as RequestInit);
+      assert.equal(response.status, 200, "the pinned connection must reach the loopback server");
+      assert.equal(await response.text(), "brokered-pin-ok");
+    } finally {
+      await agent.close().catch(() => {});
+    }
+  } finally {
+    await new Promise<void>(resolve => server.close(() => resolve()));
+  }
 });

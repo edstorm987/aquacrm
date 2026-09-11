@@ -39,7 +39,7 @@ before(async () => {
   activity = await import("../src/server/activity");
 });
 
-function setPolicy(agencyId: string, policy: Record<string, number | undefined>) {
+function setPolicy(agencyId: string, policy: Record<string, number | boolean | undefined>) {
   storage.mutate(state => {
     const existing = state.agencySettings[agencyId];
     state.agencySettings[agencyId] = { ...(existing ?? { agencyId }), retention: policy } as never;
@@ -77,12 +77,25 @@ test("with no policy set it deletes nothing — the shipping default", () => {
   assert.equal(notices.listClientFormNotices(agencyId, "cli_a").length, 1, "the record survives");
 });
 
+test("a configured period remains preview-only until an owner explicitly activates enforcement", () => {
+  const agencyId = "agency_retention_inactive";
+  seedOldNotice(agencyId, "cli_i", "i_1", 900);
+  setPolicy(agencyId, { clientFormNoticeDays: 30 });
+
+  const preview = retention.previewRetentionSweep(agencyId);
+  assert.equal(preview.total, 1);
+  assert.equal(preview.active, false);
+  const attempted = retention.runRetentionSweep(agencyId);
+  assert.equal(attempted.applied, false);
+  assert.equal(notices.listClientFormNotices(agencyId, "cli_i").length, 1);
+});
+
 test("a period of zero is treated as unset, not as 'delete everything'", () => {
   // A 0 in a settings form is far more likely to be an empty field or a slip
   // than a genuine instruction to wipe the category on the next sweep.
   const agencyId = "agency_retention_zero";
   seedOldNotice(agencyId, "cli_z", "z_1", 900);
-  setPolicy(agencyId, { clientFormNoticeDays: 0 });
+  setPolicy(agencyId, { enforcementEnabled: true, clientFormNoticeDays: 0 });
 
   const result = retention.runRetentionSweep(agencyId);
   assert.equal(result.total, 0);
@@ -94,7 +107,7 @@ test("the preview counts exactly what the sweep removes, and mutates nothing", (
   const agencyId = "agency_retention_preview";
   seedOldNotice(agencyId, "cli_p", "p_old", 400);
   seedOldNotice(agencyId, "cli_p", "p_new", 5);
-  setPolicy(agencyId, { clientFormNoticeDays: 365 });
+  setPolicy(agencyId, { enforcementEnabled: true, clientFormNoticeDays: 365 });
 
   const preview = retention.previewRetentionSweep(agencyId);
   assert.equal(preview.total, 1, "one record is past the period");
@@ -126,7 +139,7 @@ test("an open subject request never expires, however old", () => {
   requests.verifySubjectRequestIdentity(agencyId, closed.id, "owner");
   requests.fulfilSubjectRequest(agencyId, closed.id, "owner", "Exported.");
 
-  setPolicy(agencyId, { subjectRequestDays: 365 });
+  setPolicy(agencyId, { enforcementEnabled: true, subjectRequestDays: 365 });
   const result = retention.runRetentionSweep(agencyId);
 
   assert.equal(result.removed.subjectRequestDays, 1, "only the closed one");
@@ -139,8 +152,8 @@ test("a sweep is scoped to one agency", () => {
   const theirs = "agency_retention_theirs";
   seedOldNotice(mine, "cli_m", "m_1", 900);
   seedOldNotice(theirs, "cli_t", "t_1", 900);
-  setPolicy(mine, { clientFormNoticeDays: 30 });
-  setPolicy(theirs, { clientFormNoticeDays: 30 });
+  setPolicy(mine, { enforcementEnabled: true, clientFormNoticeDays: 30 });
+  setPolicy(theirs, { enforcementEnabled: true, clientFormNoticeDays: 30 });
 
   retention.runRetentionSweep(mine);
   assert.equal(notices.listClientFormNotices(mine, "cli_m").length, 0, "mine expired");
@@ -169,7 +182,7 @@ test("every category the policy offers is actually enforced", () => {
     for (const entry of state.activity) if (entry.agencyId === agencyId) entry.ts = Date.now() - 900 * DAY;
   });
 
-  setPolicy(agencyId, { activityDays: 30, subjectRequestDays: 30, clientFormNoticeDays: 30 });
+  setPolicy(agencyId, { enforcementEnabled: true, activityDays: 30, subjectRequestDays: 30, clientFormNoticeDays: 30 });
   const result = retention.runRetentionSweep(agencyId);
 
   for (const category of retention.RETENTION_CATEGORIES) {
@@ -231,4 +244,13 @@ test("saving periods cannot silently persist nothing", async () => {
   // Saving must never be the thing that deletes.
   assert.match(route, /previewRetentionSweep\(agencyId\)/, "the response must COUNT");
   assert.doesNotMatch(route, /runRetentionSweep/, "saving a period must never run a sweep");
+  assert.match(route, /confirmActivation !== "ACTIVATE RETENTION"/, "activation must require an explicit destructive confirmation");
+});
+
+test("the authenticated cron is the only scheduled retention execution seam", async () => {
+  const { readFileSync } = await import("node:fs");
+  const cron = readFileSync("src/app/api/cron/inbox/route.ts", "utf8");
+  assert.match(cron, /CRON_SECRET/);
+  assert.match(cron, /runRetentionSweep\(agency\.id\)/);
+  assert.match(cron, /listAgencies\(\)\.filter\(item => item\.status === "active"\)/);
 });

@@ -117,7 +117,7 @@ test("the visual builder boot joins the client-themed loader and curtain handove
   const editor = await read("../src/built-ins/modules/website-editor/src/pages/EditorPage.tsx");
 
   assert.match(editor, /className="aqua-viewport-loading"/);
-  assert.match(editor, /data-aqua-viewport-loader=\{booting \? "" : undefined\}/);
+  assert.match(editor, /data-aqua-viewport-loader=\{booting \|\| sitePagesPending \? "" : undefined\}/);
   assert.match(editor, /data-loading-scope="route"/);
   assert.match(editor, /role="status"/);
   assert.match(editor, /aria-live="polite"/);

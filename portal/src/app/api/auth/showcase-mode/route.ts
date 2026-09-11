@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import {
   authErrorResponse,
-  issueSession,
+  issueSessionForResponse,
   requireRole,
   sessionCookie,
 } from "@/lib/server/auth/auth";
@@ -88,7 +88,7 @@ export async function POST(request: Request) {
       if (!returnAgency) {
         return NextResponse.json({ ok: false, error: "No live workspace is attached to this showcase session." }, { status: 409 });
       }
-      const token = issueSession({
+      const token = await issueSessionForResponse({
         userId: user.id,
         email: user.email,
         role: session.role,
@@ -107,7 +107,7 @@ export async function POST(request: Request) {
     const showcaseAgency = await resetAndSeedShowcaseWorkspace();
     const returnAgencyId = session.showcaseReturnAgencyId ?? session.agencyId;
     const agencyIds = [...new Set([...(session.agencyIds ?? [returnAgencyId]), showcaseAgency.id])];
-    const token = issueSession({
+    const token = await issueSessionForResponse({
       userId: user.id,
       email: user.email,
       role: session.role,

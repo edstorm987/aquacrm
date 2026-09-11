@@ -65,7 +65,7 @@ export function membershipsStripeFor(
 ): StripePort | null {
   const keys = membershipsStripeKeysFor(args);
   if (!keys) return null;
-  return makeMembershipsStripePort(keys, injectedClient);
+  return makeMembershipsStripePort(keys, injectedClient, { tenantId: args.agencyId });
 }
 
 let registered = false;

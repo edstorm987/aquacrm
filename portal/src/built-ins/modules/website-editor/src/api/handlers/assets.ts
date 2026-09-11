@@ -6,7 +6,7 @@
 //
 // dataUrl is persisted inline (data:image/...;base64,...). Operators
 // bring CDN-hosted URLs for large media; this path is for the cover
-// imagery the editor toolbar uploads inline. Cap: 8 MiB per file +
+// imagery the editor toolbar uploads inline. Cap: 1 MiB per file +
 // 64 MiB per client. Final CDN-backed pipeline lands when T1 ships
 // the storage adapter — drop-in replacement for the inline dataUrl.
 
@@ -14,6 +14,16 @@ import type { PluginCtx, PluginStorage } from "../../lib/aquaPluginTypes";
 import { fail, ok, readJsonBody, readQuery, requireClientScope } from "../helpers";
 import { assetId as makeAssetId } from "../../lib/ids";
 import { deriveAutoTags, mergeTags } from "../../lib/assetTags";
+import {
+  MAX_PUBLIC_MEDIA_BYTES,
+  PublicMediaDataUrlError,
+  parseDataUrl,
+  sniffPublicMediaContentType,
+} from "@/lib/server/security/base64DataUrl";
+import {
+  normalizePublicUploadContentType,
+  publicUploadContentTypeAllowed,
+} from "@/lib/shared/publicMediaLimits";
 
 export interface PortalAsset {
   id: string;
@@ -33,8 +43,10 @@ export interface PortalAsset {
   tags?: string[];
 }
 
-export const PER_FILE_CAP_BYTES = 8 * 1024 * 1024;
+export const PER_FILE_CAP_BYTES = MAX_PUBLIC_MEDIA_BYTES;
 export const PER_CLIENT_CAP_BYTES = 64 * 1024 * 1024;
+const MAX_FILENAME_CHARS = 255;
+const MAX_ALT_CHARS = 4_096;
 
 const indexKey = (): string => "assets/index";
 const byIdKey  = (id: string): string => `assets/by-id/${id}`;
@@ -59,18 +71,29 @@ async function loadAllAssets(storage: PluginStorage): Promise<PortalAsset[]> {
 }
 
 export function decodeDataUrlSize(dataUrl: string): number {
-  const idx = dataUrl.indexOf(",");
-  if (idx < 0) return 0;
-  const payload = dataUrl.slice(idx + 1);
-  const padding = (payload.match(/=+$/)?.[0]?.length ?? 0);
-  return Math.floor(payload.length * 3 / 4) - padding;
+  try {
+    return parseDataUrl(dataUrl, PER_FILE_CAP_BYTES)?.bytes.byteLength ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+function exactAssetUsage(assets: readonly PortalAsset[]): number | null {
+  let total = 0;
+  for (const asset of assets) {
+    if (!Number.isSafeInteger(asset.size) || asset.size < 0) return null;
+    total += asset.size;
+    if (!Number.isSafeInteger(total)) return null;
+  }
+  return total;
 }
 
 export async function handleListAssets(req: Request, ctx: PluginCtx): Promise<Response> {
   const scope = requireClientScope(ctx);
   if (!scope.ok) return scope.res;
   const all = await loadAllAssets(ctx.storage);
-  const usedBytes = all.reduce((acc, a) => acc + a.size, 0);
+  const exactUsage = exactAssetUsage(all);
+  const usedBytes = exactUsage ?? 0;
 
   // R024 — optional `?tag=` and `?q=` filters.
   const q = readQuery(req);
@@ -93,7 +116,13 @@ export async function handleListAssets(req: Request, ctx: PluginCtx): Promise<Re
     for (const t of a.tags ?? []) tagCounts[t] = (tagCounts[t] ?? 0) + 1;
   }
 
-  return ok({ assets, usedBytes, capBytes: PER_CLIENT_CAP_BYTES, tagCounts });
+  return ok({
+    assets,
+    usedBytes,
+    capBytes: PER_CLIENT_CAP_BYTES,
+    tagCounts,
+    storageIntegrity: exactUsage === null ? "invalid-size-metadata" : "verified",
+  });
 }
 
 interface UploadBody {
@@ -110,45 +139,84 @@ interface UploadBody {
 export async function handleUploadAsset(req: Request, ctx: PluginCtx): Promise<Response> {
   const scope = requireClientScope(ctx);
   if (!scope.ok) return scope.res;
+  const runExclusive = ctx.storage.runExclusive?.bind(ctx.storage);
+  if (!runExclusive) {
+    return fail("asset storage serialization is temporarily unavailable", 503);
+  }
   const body = await readJsonBody<UploadBody>(req);
   if (!body?.dataUrl || !body.filename || !body.contentType) {
     return fail("filename, contentType, dataUrl required", 400);
   }
-  if (!body.dataUrl.startsWith("data:")) {
-    return fail("dataUrl must be a data: URI", 400);
+  const filename = body.filename.trim();
+  if (!filename || filename.length > MAX_FILENAME_CHARS || /[\u0000-\u001f\u007f]/.test(filename)) {
+    return fail("filename is invalid", 400);
   }
-  const size = decodeDataUrlSize(body.dataUrl);
-  if (size > PER_FILE_CAP_BYTES) {
+  if (body.alt !== undefined && (typeof body.alt !== "string" || body.alt.length > MAX_ALT_CHARS)) {
+    return fail("alt is invalid", 400);
+  }
+  if (
+    (body.width !== undefined && (!Number.isFinite(body.width) || body.width <= 0))
+    || (body.height !== undefined && (!Number.isFinite(body.height) || body.height <= 0))
+  ) {
+    return fail("width and height must be positive finite numbers", 400);
+  }
+
+  let decoded;
+  try {
+    decoded = parseDataUrl(body.dataUrl, PER_FILE_CAP_BYTES);
+  } catch (error) {
+    if (error instanceof PublicMediaDataUrlError && error.reason === "too-large") {
+      return fail(`file exceeds ${PER_FILE_CAP_BYTES} byte cap`, 413);
+    }
+    return fail("dataUrl is not a valid non-empty base64 data URL", 400);
+  }
+  if (!decoded) return fail("dataUrl is not a valid non-empty base64 data URL", 400);
+
+  const declaredType = normalizePublicUploadContentType(body.contentType);
+  const embeddedType = normalizePublicUploadContentType(decoded.contentType);
+  const sniffedType = sniffPublicMediaContentType(decoded.bytes);
+  if (
+    !publicUploadContentTypeAllowed(declaredType)
+    || !publicUploadContentTypeAllowed(embeddedType)
+    || declaredType !== embeddedType
+    || sniffedType !== declaredType
+  ) {
+    return fail("media content type is not allowed or does not match its bytes", 422);
+  }
+  const size = decoded.bytes.byteLength;
+  if (size <= 0 || size > PER_FILE_CAP_BYTES) {
     return fail(`file exceeds ${PER_FILE_CAP_BYTES} byte cap`, 413);
-  }
-  const existing = await loadAllAssets(ctx.storage);
-  const usedBytes = existing.reduce((acc, a) => acc + a.size, 0);
-  if (usedBytes + size > PER_CLIENT_CAP_BYTES) {
-    return fail(`client storage cap reached`, 413);
   }
 
   const id = makeAssetId();
-  const auto = deriveAutoTags({ filename: body.filename, mimeType: body.contentType });
+  const auto = deriveAutoTags({ filename, mimeType: declaredType });
   const tags = mergeTags(auto, body.tags);
   const asset: PortalAsset = {
     id,
     agencyId: scope.agencyId,
     clientId: scope.clientId,
-    filename: body.filename,
-    contentType: body.contentType,
+    filename,
+    contentType: declaredType,
     size,
-    dataUrl: body.dataUrl,
+    dataUrl: decoded.dataUrl,
     uploadedAt: Date.now(),
-    uploadedBy: body.uploadedBy,
+    uploadedBy: ctx.actor,
     width: body.width,
     height: body.height,
     alt: body.alt,
     tags,
   };
-  await ctx.storage.set(byIdKey(id), asset);
-  const ids = await loadIndex(ctx.storage);
-  await ctx.storage.set(indexKey(), [id, ...ids]);
-  return ok({ asset });
+  const persist = async (): Promise<Response> => {
+    const existing = await loadAllAssets(ctx.storage);
+    const usedBytes = exactAssetUsage(existing);
+    if (usedBytes === null) return fail("asset storage metadata requires operator repair", 409);
+    if (usedBytes + size > PER_CLIENT_CAP_BYTES) return fail("client storage cap reached", 413);
+    await ctx.storage.set(byIdKey(id), asset);
+    const ids = await loadIndex(ctx.storage);
+    await ctx.storage.set(indexKey(), [id, ...ids]);
+    return ok({ asset });
+  };
+  return runExclusive("website-editor.assets-quota", persist);
 }
 
 // R024 — Bulk tag op. Body { ids: string[], add?: string[], remove?: string[] }.

@@ -1824,7 +1824,7 @@ test("the Stripe adapter maps every StripePort method onto the SDK", async () =>
     },
   };
 
-  const port = makeMembershipsStripePort({ secretKey: "sk_test_x", webhookSecret: "whsec_test" }, fake);
+  const port = makeMembershipsStripePort({ secretKey: "sk_test_x", webhookSecret: "whsec_test" }, fake, { tenantId: "agency_1" });
 
   // Prices — the call `PlanService.create` makes for every paid plan.
   const price = await port.createPrice({

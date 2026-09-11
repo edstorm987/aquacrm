@@ -3,6 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
+import { assertFreshWritesAllowed } from "@/lib/server/auth/securityControl";
 import { isProvisionedClientProjectPath } from "@/lib/server/clients/clientProjectProvisioner";
 import { resolveIntegrationValues } from "@/lib/server/integrations/integrationConnections";
 import { assertLiveProviderAccess } from "@/lib/server/sandbox/providerPolicy";
@@ -115,7 +116,7 @@ async function vercelRequest(
 }
 
 export async function deployProjectPreviewToVercel(input: {
-  agencyId?: string;
+  agencyId: string;
   clientId?: string;
   localPath: string;
   projectSlug: string;
@@ -140,6 +141,10 @@ export async function deployProjectPreviewToVercel(input: {
    */
   onDeploymentCreated?: (deployment: VercelPreviewDeployment) => Promise<void> | void;
 }, dependencies: DeployDependencies = {}): Promise<VercelPreviewDeployment> {
+  // A resumable deploy command may reconcile an existing preview or create a
+  // new one. Treat the command as a provider write and refuse it before any
+  // Vercel request so containment cannot race the reconciliation branch.
+  await assertFreshWritesAllowed("provider.vercel.deploy", { tenantId: input.agencyId });
   assertLiveProviderAccess("Vercel deployment");
   if (!isProvisionedClientProjectPath(input.localPath)) {
     throw new Error("Only projects provisioned inside the Milesymedia client-projects workspace can be deployed.");

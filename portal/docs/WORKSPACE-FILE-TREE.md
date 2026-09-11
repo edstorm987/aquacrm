@@ -53,10 +53,14 @@ The owning layer, by kind of change:
 > [live-data hazards](workspace/hazards-and-duplication.md#-live-data-hazards-real-un-sandboxed).
 >
 > **The DDL and the RLS policies are NOT in `portal/`** — they are a normal
-> Supabase CLI project one directory up, at `../supabase/migrations/` (14
-> migrations, 26 policies). An audit scoped to `portal/` will correctly find
+> Supabase CLI project one directory up, at `../supabase/migrations/` (**31
+> ordered migrations** at the 2026-09-10 source checkpoint). Policy counts vary
+> across that history; use the executable coverage check and the
+> [database chapter](workspace/database.md), not a copied total. The last
+> verified live alignment covered 27 migrations; four later versions are not
+> claimed live. An audit scoped to `portal/` will correctly find
 > nothing and incorrectly conclude nothing exists; that happened, and it sent a
-> work lane off on a false premise. See the [database chapter](workspace/database.md).
+> work lane off on a false premise.
 
 ---
 

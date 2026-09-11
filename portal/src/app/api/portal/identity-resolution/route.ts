@@ -117,7 +117,7 @@ export async function PATCH(request: Request) {
       if (review.sourceType === "website-enquiry") {
         const enquiry = (await listWebsiteEnquiries(session.agencyId, 500)).find(item => item.id === review.sourceId);
         if (enquiry) {
-          await recordWebsiteEnquiryIdentityResolution(enquiry.id, review.resolution);
+          await recordWebsiteEnquiryIdentityResolution(session.agencyId, enquiry.id, review.resolution);
           synchroniseWebsiteEnquiryLedgerEvents(session.agencyId, review.selectedClientId, { ...enquiry, clientId: review.selectedClientId });
         }
       } else if (review.sourceType === "social-inbox") {

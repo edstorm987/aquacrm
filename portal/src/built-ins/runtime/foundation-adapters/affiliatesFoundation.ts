@@ -70,7 +70,7 @@ export function affiliatesStripeConnectFor(
 ): StripeConnectPort | null {
   const keys = affiliatesStripeConnectKeysFor(args);
   if (!keys) return null;
-  return makeAffiliatesStripeConnectPort(keys, injectedClient);
+  return makeAffiliatesStripeConnectPort(keys, injectedClient, { tenantId: args.agencyId });
 }
 
 let registered = false;

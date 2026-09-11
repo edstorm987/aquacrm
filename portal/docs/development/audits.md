@@ -19,6 +19,13 @@
 > Every verdict below is preserved dated evidence, including claims later
 > narrowed or superseded.
 
+> **Public-media correction, 2026-09-10:** old findings below that describe a
+> Supabase `upsert/getPublicUrl` writer or `deleteSupabasePublicUpload` as a ready
+> cleanup hook are superseded. The local corrective branch removes the dormant
+> remote writer and makes that compatibility delete helper ownership-blocked.
+> Remote publication remains red pending the atomic lifecycle, scanner/provider
+> proof and the separately applied/verified containment migration.
+
 > ## 🟡 SUITE effectively green — 2382 pass / 0 fail · `tsc` 0 errors (2026-08-20, commander-verified) — **but one red observed since**
 > **No open 🔴 findings.** The three items that were briefed as
 > "🔴 launch blockers" are all **fixed in source** — freelancer preview escalation

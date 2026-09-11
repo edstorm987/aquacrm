@@ -12,6 +12,7 @@ import {
   withRemoteOperationDeadline,
   type RemoteOperationRetry,
 } from "@/lib/server/remoteOperation";
+import { assertFreshWritesAllowed } from "@/lib/server/auth/securityControl";
 import { assertLiveProviderAccess } from "@/lib/server/sandbox/providerPolicy";
 // Shared, not reimplemented. Inbound caller identification has to agree with
 // what this file dialled — a second copy that drifted would mean a prospect
@@ -175,6 +176,7 @@ export async function sendPhoneMessage(input: {
   timeoutMs?: number;
 }): Promise<SendPhoneMessageResult> {
   if (input.sender.provider !== "twilio") return { delivered: false, via: "unconfigured", reason: "The selected sender is not a messaging number." };
+  await assertFreshWritesAllowed("provider.twilio.message", { tenantId: input.agencyId });
   const values = input.sender.connectionId
     ? valuesForConnection(input.agencyId, input.sender.connectionId, "twilio", input.clientId)
     : resolveIntegrationValues(input.agencyId, "twilio");
@@ -233,6 +235,7 @@ export async function initiatePhoneCall(input: {
 }): Promise<InitiatePhoneCallResult> {
   if (input.sender.provider === "device") return { initiated: false, via: "device" };
   if (input.sender.provider !== "twilio") return { initiated: false, via: "device", reason: "The selected phone identity cannot place calls." };
+  await assertFreshWritesAllowed("provider.twilio.call", { tenantId: input.agencyId });
   const values = input.sender.connectionId
     ? valuesForConnection(input.agencyId, input.sender.connectionId, "twilio", input.clientId)
     : resolveIntegrationValues(input.agencyId, "twilio");

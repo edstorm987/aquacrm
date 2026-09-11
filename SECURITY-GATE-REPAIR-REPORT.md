@@ -1,0 +1,497 @@
+# AquaCRM — Production-Gate Security Repair — FINAL REPORT
+
+**This is the single source of truth.** Where it disagrees with the older
+`SECURITY-CONTAINMENT-PROGRAMME.md` or any other doc, this report wins.
+
+- **Report date:** 2026-09-09
+- **Branch:** `security/production-gate-repair-20260908`
+- **Base (verified live remote main):** `08670b626b839a439929b006f0f152712a864a9c`
+- **Head (this report):** `35fd2864` (see git for full SHA)
+- **Worktree:** `/private/tmp/aquacrm-gate-repair` (isolated; the developer's
+  primary checkout was never reset, stashed or overwritten).
+- **Commits on the branch since base:** 40.
+- **Not merged, not deployed** by this pass. Pushed for independent review only.
+
+> **PUBLIC-UPLOAD CORRECTION / LOCAL FOLLOW-ON (2026-09-10).** Later
+> architecture mapping proved that this report's item 7 generalized the
+> byte-level protection at `storePrivateUpload` to a separate path it did not
+> cover: the separate `storePublicUpload` website-media boundary. The original
+> helper wrote website media to the public CDN bucket; the corrective candidate now exists on
+> `security/public-upload-byte-inspection-20260910`, based on
+> `72acac904ba6af88cb1a3d84483b4a4359d03747`. At the time of this note it is a
+> **local branch candidate only: unmerged and undeployed**. Its prospective
+> public-media boundary verifies declared type against inspected bytes locally,
+> refuses unsafe or oversized content, restricts storage identifiers to canonical
+> path-safe segments, and aborts block-tree data-URL publication on every
+> provider, policy, traversal or content-trust failure; there is no
+> provider-error fallback for those inspected block-tree values. Page/site/theme
+> CSS and head/foot fields are separate stored-code surfaces and are not covered
+> by that media walker.
+>
+> This candidate does **not** create an atomic publication transaction, a
+> durable object/refcount ledger, a durable
+> quarantine/release/rescan/purge store, a durable off-platform security-event
+> drain, a live scanner attestation, or live proof of CDN response headers. A
+> failed multi-object publish could therefore leave an earlier cleared object
+> public but not linked from the page, while shared content-addressed keys make
+> compensating deletion unsafe. The final adversarial correction closes that
+> fresh exposure by refusing every configured app-server write through
+> `storePublicUpload` before scanner or provider I/O and removing the dormant
+> provider branch. That choke point does not replace the database/storage
+> migration: direct authenticated, dashboard or other service-role access must
+> be contained and verified separately. New remote public-media publication remains disabled
+> until an operation-owned durable saga can prove atomic page-generation commit,
+> recovery and recall. The configured scanner's audited egress path also
+> retains its 1 MiB request cap, so the advertised 8 MiB media ceiling cannot be
+> supported when remote publication is later enabled until the owner explicitly
+> approves a larger scanner-data egress cap (or lowers the product limit). Nor
+> does this pass retroactively inspect
+> objects already in the public bucket or inline payloads already published.
+> After merge, deployment and provider connection, those existing artifacts need
+> an inventory + scan + safe republish/removal job before the public-media gate
+> can be called complete. The historical evidence below remains evidence for its
+> 2026-09-09 head only. The current verdict remains **NOT READY**.
+
+> **Adversarial verification (2026-09-09).** After the 12 items were closed, an
+> independent multi-agent adversarial pass re-checked each "FIXED" claim against
+> the actual code AND its test — specifically whether each test proves the
+> boundary *behaviourally* or merely matches source. Result: **7 of 9 crown-jewel
+> claims cleanly confirmed**; 2 flagged. Neither flag was a live vulnerability
+> (production enforcement was intact in both), but both revealed source-regex
+> tests standing in for behavioural proof — and, in item 9, the behavioural test
+> then written exposed a **real correctness defect the source-regex could not
+> see** (the DNS-rebind pin was mis-wired for undici 6 and failed every pinned
+> fetch). All findings are fixed; see the item table and "Adversarial
+> verification findings" below.
+
+## FINAL VERDICT: **NOT READY / NOT MERGE-READY**
+
+Every code-level defect in the 12-item brief is closed and covered by
+behavioural tests. The branch is **not merge-ready** because stop-ship gates
+remain that are **owner/infrastructure-gated and cannot be closed in code**:
+
+- the assume-breach containment chain (base `20260908210000` + corrective
+  `20260908220000`) is **not applied to the live database** (P0) — though its
+  correctness is now locally-verified on a disposable DB (0 FAIL);
+- the follow-on public-bucket hardening migration `20260910010000` is likewise
+  **local, unmerged and unapplied**; its source checks pass, but it has not been
+  exercised or attested against a remote/shared Storage service (P0);
+- the restore path is now locally-verified end-to-end on a disposable DB, but
+  **no operational drill has run against the real backup/key on real
+  infrastructure** — RPO/RTO still unmeasured (P0);
+- **no AV/CDR scanner, authoritative MFA/AAL2, distributed rate limiter,
+  off-platform event drain, or edge WAF** is connected (P0/P1);
+- the least-privilege blast-radius **infra split is not done** — the client
+  portal still holds a full-project service-role key (P1, ADR-001);
+- the apex `aqua-crm.com` **TLS certificate hostname mismatch** is unresolved
+  (P1, DNS/cert — not touched).
+
+No system here is described as "impenetrable" or "production ready." The gate
+stays RED until the owner actions below are attested.
+
+---
+
+## No live state was changed by this pass
+
+Explicitly, this work did **not**:
+
+- merge into `main` or deploy anything;
+- apply any migration to the live or any shared Supabase database (no
+  `db push`, no linkage; the corrective migration is a file only);
+- reset or mutate the shared local Supabase stack;
+- change DNS, Railway, Vercel, WAF, provider accounts, secrets, or any
+  production environment variable;
+- handle or print any secret;
+- run the recovery drill against live or shared infrastructure.
+
+All builds and tests ran in the isolated worktree against local/in-memory
+backends.
+
+---
+
+## Verification gates run for THIS report (HEAD 35fd2864, isolated worktree)
+
+| Command | Result | Evidence class |
+|---|---|---|
+| `npx tsc --noEmit` (portal) | **0 errors (exit 0)** | locally-verified |
+| Focused security suites (13 files, see below) | **116 tests / 0 fail** | locally-verified |
+| `PORTAL_BACKEND=memory` canonical suite | **7012 tests / 7009 pass / 0 fail / 3 skipped (exit 0)** | locally-verified |
+| Website-editor gate | **49/49 files passed** | locally-verified |
+| `npm run build` (portal, webpack, 6 GB cap) | **compiled, exit 0** | locally-verified |
+| `npm run build` (client-portal, webpack) | **compiled, exit 0** | locally-verified |
+| `git diff --check` (working tree + base..HEAD) | **clean** — no whitespace/conflict markers | locally-verified |
+
+(The canonical total rose from 6996 to 7012 as behavioural pin/freeze/
+scanner-adapter and API cross-tenant tests were added during the adversarial and
+API-audit passes.)
+
+The 13 focused security files:
+`smoke-radar-probe-ssrf`, `smoke-security-control-fail-closed`,
+`smoke-write-surface-inventory`, `smoke-session-registry-completeness`,
+`smoke-restore-drill-safety`, `smoke-content-trust`,
+`smoke-production-readiness`, `smoke-threat-centre`,
+`smoke-stored-code-boundary`, `smoke-platform-hardening`,
+`smoke-security-console`, `smoke-service-role-usage`,
+`smoke-read-path-mutations`.
+
+**Now verified on a fresh DISPOSABLE database this session** (see
+"Disposable-DB verification" below): the then-current 30-migration chain (base + the
+corrective containment migration) + `rls-verify.sql` (`containment-verified`,
+0 FAIL), AND an end-to-end backup→restore drill with row-count parity and
+`rls-verify` clean on the restored DB. The shared local Supabase stack
+(`supabase_db_aquacrm`, 54322) was never touched — throwaway containers on
+55432/55433 only, destroyed afterward. The Docker-backed
+`containment-isolation.test.mjs` (41/41 with real JWTs) from earlier in the
+programme was not re-run this session.
+
+---
+
+## The 12 brief items → disposition
+
+| # | Item | Disposition | Evidence (behavioural) |
+|---|---|---|---|
+| 1 | Authoritative cross-realm containment + fail-closed reads | **FIXED** | `readSecurityControlStrict` throws on read failure; `enforceSessionSecurity`/`assertWritesAllowed` fail CLOSED; `smoke-security-control-fail-closed` proves a protected write is refused when the control plane is unreadable |
+| 2 | User-specific platform-operator authority + tenant-scoped actions | **FIXED** | `isPlatformOperator({email})` (founder ∪ `PORTAL_PLATFORM_OPERATOR_EMAILS`) gates operator-only actions; `revokeUserSessionsInTenant` scopes revocation to one agency (no global epoch bump); `smoke-platform-hardening`, `smoke-threat-centre` |
+| 3 | Supabase-authoritative reauth + COMPLETE session registry | **FIXED (registry) / PARTIAL (true AAL2 = OWNER)** | every non-ephemeral mint registers via `issueSession`→`recordIssuedSession` with expiry + pruning; `smoke-session-registry-completeness` proves login/magic/oauth all register and expired records drop out; AAL2 step-up gate present, real MFA ceremony is OWNER |
+| 4 | One write-side-effect boundary + inventory | **FIXED (storage) / TRACKED (breadth)** | `assertWritesAllowed` at private+public upload store/delete boundaries (incl. the exported `deleteSupabasePrivateUpload`, guarded during the adversarial pass so a freeze throws rather than returning a silent `false`); the public-delete compatibility boundary is additionally hard-disabled with `PublicUploadOwnershipProofError` because shared legacy keys lack ownership/refcount proof and contains no provider delete. `smoke-write-surface-inventory` fails the build if any server module performs an object-store write/delete (Supabase storage upload/remove, Vercel Blob put/del) without the boundary, or a surface string is unclassified/stale; all four boundaries have behavioural freeze-refusal proof (`smoke-write-boundary`); remaining non-storage surfaces enumerated (P2) |
+| 5 | Ecosystem-safe enquiry migration incl. client-portal | **FIXED** | corrective migration `20260908220000` (server-mediated, forward-only, self-verifying); client-portal enquiry route uses the server-mediated admin path behind `rateLimit`; `client-portal` CI job builds it |
+| 6 | Reduce shared service-role blast radius | **CODE-PREP + ADR DONE / INFRA = OWNER** | `docs/security/ADR-001`: inventory, target architecture, adversarial model; `smoke-service-role-usage` pins the service-role call-site count; separate project / scoped credential = OWNER |
+| 7 | Malware / quarantine / content-trust | **FIXED (fail-closed) / TRACKED (durable ledger)** | full-stream scan to 25 MB; verdict enum incl. `quarantined`/`blocked`; production + scanner-outage/absent + high-risk type → **quarantined**; `contentScannerAdapter` posts bytes via the SSRF-safe broker; `smoke-content-trust` proves signature-match ≠ clean and the fail-closed path. The real adapter now has its own behavioural suite (`smoke-content-scanner-adapter`): verdict mapping, and fail-closed on non-2xx / unparseable body / egress refusal — a gap found in the adversarial pass, where the adapter shared the broken broker pin (a "wired" scanner would have thrown on every scan) and threw a raw `SyntaxError` on a non-JSON body (now caught) |
+| 8 | Stored-code / XSS boundary | **FIXED (safe-mode default-off) / BLOCKED (AST sanitiser+nonce CSP)** | `mayRenderStoredMarkup()` gates head-injection in `SiteHead` and custom HTML in `staticExport` (held for review by default); `smoke-stored-code-boundary`; full parser/AST sanitiser + nonce CSP is BLOCKED on a dependency decision |
+| 9 | Radar SSRF DNS rebinding | **FIXED (corrected during the adversarial pass)** | connect-time IP pinning via `undici Agent` in the REAL probe path (HTTP + TLS), `safeSiteFetch`, and the outbound broker; IPv6-bracket strip in `assertPublicDestination`. **The behavioural pin test exposed that the pin was mis-wired**: undici 6 calls connect `lookup` with `{all:true}` and needs the address-LIST form `[{address,family}]`; all three sites used the plain `(err,address,family)` form, which threw on every pinned fetch (failed CLOSED — no SSRF — but broke Radar HTTP probes, `safeSiteFetch`, and brokered Shopify/webhook calls). Now fixed on all three and proven behaviourally: each drives the real pinned fetch to a loopback server via a never-resolving `.invalid` hostname pinned to 127.0.0.1 (a regression to the broken form fails the test). `smoke-radar-probe-ssrf` also proves `http://[::1]/` is refused as unsafe-url |
+| 10 | Restore / backup safety | **FIXED (guards) / BLOCKED E2E (OWNER keygen)** | `restore-drill.sh`: no loopback auto-trust, prod-name denylist, mandatory `--expect-sha`, safe-tar rejection of `..`/absolute/symlink/device entries, `--no-same-owner`; `smoke-restore-drill-safety`; a real end-to-end drill needs owner keys/secrets |
+| 11 | Emergency console + mutating GETs + readiness truth | **FIXED** | `security-console.ts` self-re-execs with the right conditions, verifies persistence, exits nonzero on read-back failure; `/api/internal/sweep` GET→POST; CSRF roots include `/api/tenants/` + `/api/internal/`; readiness content-scanner gate requires a wired adapter AND config; `smoke-security-console`, `smoke-read-path-mutations`, `smoke-production-readiness` |
+| 12 | Supply chain / CI / browser / docs | **FIXED (CI/supply-chain) / TRACKED (a11y)** | CI actions pinned by SHA, Supabase CLI pinned, NEW `client-portal` typecheck+build job; `smoke-suite-coverage`; browser a11y coverage for the Security Centre is TRACKED (P2) |
+
+> **Item 7 scope correction (2026-09-10):** at this report's head, the evidence
+> covered the private-upload storage choke point, not the separate public-CDN
+> writer. Use the local follow-on note above for the prospective public path;
+> do not read the historical row as proof of a deployed public-media control.
+
+---
+
+## Disposable-DB verification (2026-09-09)
+
+Run at the owner's request to convert two P0 owner-attestations into
+locally-verified evidence. **Strict isolation:** two throwaway
+`supabase/postgres:17.6.1.156` containers on loopback ports 55432/55433, created
+and destroyed for this drill; the shared local stack (`supabase_db_aquacrm`,
+54322) and `milesymedia-postgres` (54329) were never connected to or mutated. No
+live/remote database was touched. An ephemeral throwaway keypair was generated
+for the encryption step and shredded afterward (no real secret handled).
+
+**P0 #1 — containment migration + rls-verify → PASS.** The then-current 30-migration
+history applied cleanly to a fresh Supabase-shaped DB, including base
+`20260908210000` and corrective `20260908220000`; the corrective migration's own
+embedded privilege self-checks did not raise. `supabase/rls-verify.sql` then
+reported `containment-verified: All containment invariants hold (sealed tables
+incl. brand_enquiries, read-only surfaces, no browser-role policy on any sealed
+table, no leaked sequences)` with **0 FAIL rows**.
+
+**P0 #2 — backup → restore drill → PASS (all gates).** Using the real dump
+tooling (`supabase db dump` for roles/schema/data) and the drill's exact
+crypto/integrity/extraction commands (`openssl cms` encrypt/decrypt, mandatory
+sha256 `--expect-sha` gate, path-traversal + symlink refusal on the archive), a
+snapshot of the source DB was restored into a *second* disposable container that
+positively proved itself disposable (the `aquacrm.restore_drill_disposable=yes`
+marker, not production, non-prod db name). Verifications, all green:
+`auth.users` rows present; `ensure_rls` event-trigger net present (re-applied
+from its migration after the scoped restore, as the drill does); **row counts
+match the dump-time manifest exactly**; and `rls-verify` on the *restored* DB is
+containment-clean (0 FAIL). Because the host has no `psql`/`pg_dump` and no
+Homebrew (and auto-installing Homebrew would be too invasive), the drill's own
+shell scripts were not invoked verbatim — every step they perform was executed
+with the same tools and logic, driving the target via `docker exec psql`. The
+scripts' safety logic is separately unit-tested (`smoke-restore-drill-safety`,
+7/7). What is still OWNER: the operational drill against the real encrypted
+backup with the real key, and RPO/RTO on production-sized data.
+
+## Adversarial verification findings (2026-09-09)
+
+An independent multi-agent pass re-checked each claim against code + test. **7/9
+cleanly confirmed** (items 1, 2, 3, 7, 8, 10, 11 — behavioural, regression-
+catching, no code gap). **2 flagged, both fixed:**
+
+- **Item 9 — the SSRF pin was mis-wired (real defect, now fixed).** Writing the
+  behavioural pin test proved the pin never took effect: undici 6 calls the Agent
+  connect `lookup` with `{all:true}`, so the callback must return
+  `[{address,family}]`; all three sites (`radarSyntheticProbes`, `safeSiteFetch`,
+  `outboundBroker`) used the plain `(err,address,family)` form and threw on every
+  pinned fetch. It failed **closed** (no SSRF exposure) but broke real
+  functionality (Radar HTTP probes, safe site fetch, brokered Shopify/webhook
+  calls). SMTP was unaffected (nodemailer connects to the pinned IP directly).
+  Fixed on all three; each now has a behavioural loopback-pin test that fails if
+  the broken form returns. `0c93f8c6`. **Blast radius:** every brokered HTTP
+  consumer was affected — Shopify sync, webhook automations, aqua-tag detection,
+  website form-schema/client-form fetching, and the content scanner — all threw
+  until the fix; only SMTP was safe (nodemailer connects to the pinned IP via
+  `tls.connect`, not undici).
+- **Item 7 follow-on — the scanner adapter shared the broken broker.** Because
+  `buildEnvContentScanner` POSTs through the broker, a "wired" scanner would have
+  thrown on every scan (→ perpetual quarantine) while the readiness gate showed
+  green, and it had no test. Added a behavioural suite (verdict mapping +
+  fail-closed on non-2xx / unparseable / egress refusal) and hardened a raw
+  `SyntaxError` on a non-JSON body into the clean fail-closed error. `d3bcc079`.
+- **Item 4 — test depth, plus one latent gap closed.** Production enforcement was
+  intact, but (a) the exported `deleteSupabasePrivateUpload` reached the remove
+  primitive without the freeze guard (uncalled today, so not a live bypass) — now
+  guarded, mirroring the public side; and (b) the inventory's storage check was a
+  filename-scoped presence-anywhere source-regex — now a whole-server-tree
+  object-store-primitive net, and all four storage surfaces have behavioural
+  freeze-refusal proof. `8c073d06`.
+
+No live vulnerability was found in either flagged item; both production
+enforcement paths were confirmed intact before the fixes.
+
+## Per-route API authorization audit (2026-09-09)
+
+Run at the owner's request ("are all the APIs secure?"). A 16-way fan-out
+reviewed **all 252 API route files** (coverage reconciled: 252/252) against five
+dimensions — authentication, authorization/role, tenant-scoping (cross-agency /
+cross-client IDOR), input validation, and CSRF/method — each auditor briefed on
+the real auth model (the `requireRole` / `requireRoleForClient` / proxy-CSRF
+contract) so it hunted the genuine cross-tenant class rather than false
+positives. Every medium+ finding was then adversarially verified (concrete
+exploit required, or refuted by naming the guard).
+
+Result: **1 confirmed vulnerability, 1 low (accepted), 0 plausible, 0 refuted.**
+
+- **CONFIRMED (cross-tenant IDOR) — FIXED (`35fd2864`).**
+  `POST /api/portal/freelancer-access` wrote/cleared a per-job override in a
+  store keyed globally by `jobId`; `requireRole` proved the caller was an agency
+  owner/manager but not that the job was theirs, so agency A could tamper with
+  agency B's freelancer-access policy (name B's client to its contractor, reveal
+  the fee, enable upload/message). Fixed with a per-route ownership guard (404 on
+  a non-owned job); `smoke-freelancer-access-tenant-isolation` drives the real
+  handler across the boundary. Severity medium (job ids are 64-bit random with no
+  enumeration primitive found; impact is cross-tenant policy tampering, not
+  direct exfiltration).
+- **LOW (accepted, not changed) — `POST /api/tenants/seed`.** A dev seeder with
+  default credentials ships in the bundle; in production it is gated by
+  `getSession()` non-null. Analysis shows it is **effectively unreachable in
+  production**: with a populated store it returns 409 (agencies exist), and on an
+  empty store no user exists to hold a session → 403. The two guards are mutually
+  exclusive. Not changed here because its prod-with-session path is likely
+  load-bearing for the isolated acceptance lane; recommended hardening (make it
+  strictly dev-only, 403 in production regardless of session) is left as an owner
+  decision.
+
+This audit reviewed authorization logic by reading code; it is not a penetration
+test and did not exercise every route at runtime. No route outside the one fix
+was modified.
+
+## Migrations created but NOT applied
+
+- `supabase/migrations/20260908220000_brand_enquiries_server_mediated.sql`
+  (169 lines). Forward-only, idempotent, transaction-wrapped, ends with a
+  privilege audit that RAISES if any browser-role table/sequence/policy/function
+  privilege survives (all seven table privileges — incl. TRUNCATE/REFERENCES/
+  TRIGGER residue — not CRUD alone). **LOCAL/OWNER-APPLIED ONLY. Not applied to
+  any remote or shared database by this pass.** Order: base `20260908210000`
+  (already in `main`) then this corrective one.
+- `supabase/migrations/20260910010000_harden_aquacrm_public_media_bucket.sql`
+  (local follow-on). It narrows the AquaCRM public bucket's byte/MIME contract
+  and verifies the public/private bucket flags. It also raises on every
+  `storage.objects` INSERT/UPDATE/DELETE/ALL policy targeting anon,
+  authenticated or PUBLIC, independent of policy name. **LOCAL, UNMERGED, UNAPPLIED and
+  not included in the disposable-DB attestation above.** Apply only after the
+  containment chain, a fresh backup and explicit owner approval; then verify the
+  live bucket contract independently.
+
+---
+
+## Files changed by workstream (86 files, +5116 / −396)
+
+**Containment / enquiry server-mediation (items 1, 5):**
+`supabase/migrations/20260908220000_brand_enquiries_server_mediated.sql`,
+`supabase/rls-verify.sql`, `supabase/tests/containment-isolation.test.mjs`,
+`portal/src/lib/supabase/enquiryDataClient.ts`, the 11 `website-enquiries/*`
+routes, `client-portal/app/api/public/brand-enquiry/route.ts`,
+`client-portal/lib/route-security.ts`.
+
+**Security control plane / sessions / operator authority (items 1, 2, 3):**
+`portal/src/lib/server/auth/securityControl.ts`,
+`portal/src/lib/server/auth/auth.ts`,
+`portal/src/lib/server/auth/founderAgency.ts`,
+`portal/src/app/api/auth/login/route.ts`,
+`portal/src/app/api/portal/security/actions/route.ts`,
+`portal/src/app/api/portal/security/overview/route.ts`,
+`portal/src/server/types.ts`.
+
+**Write boundary (item 4):**
+`portal/src/lib/server/privateUploadStorage.ts`,
+`portal/src/lib/server/publicUploadStorage.ts`,
+`portal/src/server/storage.ts`, `portal/scripts/read-path-mutation-inventory.ts`.
+
+**Blast-radius (item 6):**
+`docs/security/ADR-001-least-privilege-blast-radius.md`.
+
+**Content trust / malware (item 7):**
+`portal/src/lib/server/security/contentTrust.ts`,
+`portal/src/lib/server/security/contentScannerAdapter.ts`,
+`portal/src/instrumentation.ts`.
+
+**Stored-code boundary (item 8):**
+`portal/src/built-ins/modules/website-editor/src/components/storefront/SiteHead.tsx`,
+`portal/src/built-ins/modules/website-editor/src/server/staticExport.ts`.
+
+**SSRF / outbound (items 9, 6b):**
+`portal/src/engines/data/server/radar/radarSyntheticProbes.ts`,
+`portal/src/lib/server/safeSiteFetch.ts`,
+`portal/src/lib/server/net/outboundBroker.ts`,
+`portal/src/lib/server/email/transactionalEmail.ts`,
+`portal/src/lib/server/integrations/integrationConnections.ts`,
+`portal/src/built-ins/modules/ecommerce/src/lib/shopify.ts`,
+`portal/src/lib/server/assistants/openaiAssistant.ts`,
+`portal/src/lib/server/access/inboxMediaTargetAccess.ts`.
+
+**Console / mutating GETs / readiness / CSRF (item 11):**
+`portal/scripts/security-console.ts`, `portal/scripts/security-console-impl.ts`,
+`portal/src/app/api/internal/sweep/route.ts`, `portal/src/proxy.ts`,
+`portal/src/lib/server/productionReadiness.ts`,
+`portal/src/app/healthz/full/route.ts`.
+
+**Restore/backup (item 10):**
+`ops/backup/restore-drill.sh`, `ops/backup/README.md`.
+
+**CI / supply chain / env (item 12):**
+`.github/workflows/ci.yml`, `portal/scripts/run-canonical-suite.mjs`,
+`portal/src/lib/server/env.ts`, `portal/.env.example`, `portal/package.json`,
+`client-portal/package-lock.json`.
+
+**Docs:** `SECURITY-GATE-REPAIR-REPORT.md`,
+`SECURITY-CONTAINMENT-PROGRAMME.md`, `docs/security/incident-runbooks.md`,
+`portal/docs/development/PRODUCTION-READINESS.md`,
+`portal/docs/development/TODO.md`, `portal/docs/development/issues.md`,
+`portal/docs/04-DEVELOPMENT-PLANS.md`,
+`portal/docs/development/plans/rls-enable.md`,
+`portal/docs/consolidation-manifest.json`.
+
+**Behavioural test files added/updated (prove boundaries, not function names):**
+`smoke-radar-probe-ssrf`, `smoke-security-control-fail-closed`,
+`smoke-write-surface-inventory`, `smoke-session-registry-completeness`,
+`smoke-service-role-usage`, `smoke-content-trust`,
+`smoke-stored-code-boundary`, `smoke-restore-drill-safety`,
+`smoke-production-readiness`, `smoke-threat-centre`,
+`smoke-platform-hardening`, `smoke-security-console`,
+`smoke-read-path-mutations`, `smoke-safe-site-fetch-toctou`,
+`smoke-outbound-broker-ssrf`, `smoke-ai-tenant-key-isolation`,
+`smoke-enquiry-tenant-isolation`, `smoke-rls-policy-coverage`,
+`smoke-write-boundary`, `smoke-security-lockdown`, `smoke-healthz-readiness`,
+`smoke-suite-coverage`, `smoke-website-editor-runner`.
+
+---
+
+## Commits (37, oldest → newest)
+
+```
+c5da6c46 phase-0  release harness: directory card + deterministic CI discovery
+4e77faf9 phase-0  repoint the two harness meta-tests to the enumerator invariant
+f73f37b7 phase-1  brand_enquiries server-mediated + destructive-privilege residue removed
+414c45fe phase-4  CSRF covers /api/tenants + Fetch Metadata + sibling defense
+6844c3d8 phase-6  SMTP IP-pinning, Shopify hardening, per-tenant AI key isolation
+d75a517d phase-8  hydration 503; readiness requires security evidence
+a5a9c848 phase-5/7 restore-drill fails safe + operator console
+8592f2fc phase-2  session gate binds the LIVE identity through sandbox
+9ea22f33 phase-8/9 .env.example readiness signals; docs reconciled
+e09cf0f3 phase-9  canonical gate-repair report + restore README
+4b83372c docs     record confirmed full-suite result
+dd634107 phase-2  single write boundary the freeze binds across storage
+ae40c782 docs     report the phase-2 storage write boundary
+9f9d884a phase-6  close safeSiteFetch / Radar-probe DNS-rebinding TOCTOU
+148ac25d phase-2  epoch bumps bind sandbox sessions via live-anchor stamping
+84b86e8d phase-3  platform-wide switches require AAL2 (visibly unavailable)
+b58da795 phase-5  out-of-band write freeze that survives a snapshot restore
+88e147e5 docs     record phase 2c/3/5c/6d fixes
+809e0523 docs     final green suite numbers
+fccc7075 item-9   DNS-rebinding TOCTOU closed in the REAL Radar probe path
+03912156 item-1   security-control reads fail CLOSED for protected writes/gate
+5fae9e2d item-11  console works without hidden NODE_OPTIONS; sweep GET→POST
+5f80fff6 item-4   write boundary over object-store deletes + surface inventory
+82b62bd3 item-2   user-specific platform-operator authority + tenant revocation
+9135cbab item-12,5 pin CI supply chain; client-portal enquiry survives migration
+77184428 item-3   complete session registry (every mint) + expiry + pruning
+147c3281 item-10  restore drill: no loopback auto-trust; mandatory digest; safe extraction
+bd4c8164 item-7   content trust scans FULL stream, quarantines, fails closed
+54215db4 item-8   stored-code safe boundary → SiteHead + static export
+8b02318c item-6   ADR + code prep for least-privilege blast-radius reduction
+feb9f085 chore    remove stray productionReadiness.ts.bak committed in error
+e7cae600 docs     reconcile the canonical gate-repair ledger to HEAD feb9f085
+0c93f8c6 item-9   fix the SSRF pin — undici needs the address-list lookup form
+8c073d06 item-4   guard exported private-delete + behavioural + broader inventory net
+36240b7d docs     regenerate authored-doc consolidation after the readiness edit
+aae1ec60 docs     record adversarial-verification results + SSRF pin correction
+d3bcc079 item-7   behavioural test for the real content-scanner adapter + parse hardening
+```
+
+The security commits `0c93f8c6`, `8c073d06` and `d3bcc079` landed from the
+adversarial verification pass; `36240b7d` regenerates the consolidated-doc digest
+the readiness-pointer edit invalidated; `aae1ec60`/(this) update the ledger.
+
+---
+
+## Remaining work — honest ledger
+
+### P0 (stop-ship; OWNER — not fixable in code)
+1. Before any database mutation, run read-only
+   `supabase migration list --linked` and
+   `supabase db push --linked --dry-run`. The expected local-only delta is
+   exactly `20260903130000`, `20260908210000`, `20260908220000`, and
+   `20260910010000`, in that order. Abort on any unexpected local or remote
+   version. After a fresh backup and explicit owner approval, apply that exact
+   set to the live DB. For the containment chain, paste
+   `rls-verify.sql`, confirm `containment-verified` with 0 FAIL; re-check
+   milesymedia login. Then set `PORTAL_CONTAINMENT_MIGRATION_VERIFIED=true`.
+   **Migration correctness is now LOCALLY-VERIFIED** (disposable-DB drill below):
+   the then-current 30-migration chain applies cleanly and `rls-verify` reports
+   `containment-verified` / 0 FAIL. What remains OWNER is *applying it to the
+   live DB* (must not be done from here) and re-running `rls-verify` there.
+   Then, as a separate attested step, apply
+   `20260910010000_harden_aquacrm_public_media_bucket.sql` and verify that
+   `aquacrm-uploads` remains private, `aquacrm-public` remains public, and the
+   public bucket's byte/MIME limits match the migration. `rls-verify.sql` must
+   also report no `containment-storage-browser-write-policy` finding. This newer migration
+   has source-level checks only and was not part of that disposable-DB drill.
+2. Run an owner-approved restore drill and set `PORTAL_LAST_VERIFIED_RESTORE_AT`;
+   enable `BACKUP_ENABLED` + `PORTAL_LAST_BACKUP_AT`. **The restore path is now
+   LOCALLY-VERIFIED** (disposable-DB drill below): a real dump → encrypt → sha
+   integrity-gate → decrypt → safe-extract → single-transaction restore →
+   row-count parity → `rls-verify` clean all passed on throwaway containers. What
+   remains OWNER: the operational drill against the *real* encrypted backup with
+   the real key (`ops/backup/keygen.sh` + `run.sh` + `restore-drill.sh`, which
+   need host `psql`), and RPO/RTO measurement on production-sized data — still
+   UNMEASURED.
+3. Connect an AV/CDR scanner (`PORTAL_AV_SCANNER_URL` + adapter wired) — content
+   uploads fail closed (quarantine) without it in production.
+
+### P1 (OWNER / infra)
+4. Execute ADR-001: give the client portal its own DB identity (separate Supabase
+   project OR scoped gateway/RPC OR non-BYPASSRLS role) and remove its
+   full-project service-role key; independent secret rotation per app.
+5. Authoritative MFA/AAL2 ceremony (Supabase) so high-impact platform actions
+   are truly step-up-gated, not merely refused.
+6. Distributed rate-limit store (`PORTAL_RATE_LIMIT_STORE_URL`) and off-platform
+   event drain (`PORTAL_SECURITY_EVENT_DRAIN_URL`); edge WAF
+   (`PORTAL_EDGE_WAF_ENABLED`).
+7. Resolve apex `aqua-crm.com` TLS mismatch + canonical `www` redirect.
+8. Branch protection on `main`: require `verify`, `containment`, `client-portal`,
+   `browser` CI jobs; set `PORTAL_DEPENDENCY_AUDIT_PASSED=true` on a green audit.
+
+### P2 (code; tracked, not blocking this brief's items)
+9. Extend `assertWritesAllowed` to the remaining mutating surfaces (Supabase
+   RPC, email, AI, webhooks, cron/queues, site-editor filesystem/repo writes)
+   with a full static inventory — storage is done and inventory-enforced.
+10. Item 8: full parser/AST HTML sanitiser + nonce-based CSP (BLOCKED on a
+    dependency decision) to replace the default-off safe-mode hold.
+11. Item 7: durable quarantine ledger + a separate download origin for
+    user-supplied files.
+12. Browser/a11y automated coverage for the Security Centre.
+
+---
+
+## Is GitHub CI green?
+Not observed on this branch yet (owner to run/enable). The CI pipeline itself
+was repaired here (Node 22, SHA-pinned actions, deterministic discovery, new
+required `containment` and `client-portal` jobs). Locally at HEAD 35fd2864:
+typecheck 0, both builds green, canonical suite 7009 pass / 0 fail, focused
+security 116/0, and a full per-route API authorization audit (252/252).

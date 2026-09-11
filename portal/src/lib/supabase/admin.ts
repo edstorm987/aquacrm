@@ -3,6 +3,11 @@ import "server-only";
 import { createClient, type User } from "@supabase/supabase-js";
 
 import { isMissingAgencyIdColumn } from "./enquiryAgencyColumn";
+import {
+  createWriteAdmittedFetch,
+  guardServiceRoleClient,
+  type ServiceRoleEffectContext,
+} from "./guardedServiceRoleClient";
 import { resolveSupabaseSecretKey, resolveSupabaseUrl } from "./keys";
 
 function requireAdminConfig() {
@@ -10,17 +15,27 @@ function requireAdminConfig() {
   const serviceRoleKey = resolveSupabaseSecretKey();
   if (!url || !serviceRoleKey) {
     throw new Error(
-      "Supabase admin access is not configured. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.",
+      "Supabase admin access is not configured. Set the Supabase URL and a server key (SUPABASE_SECRET_KEY or legacy SUPABASE_SERVICE_ROLE_KEY).",
     );
   }
   return { url, serviceRoleKey };
 }
 
-export function createSupabaseAdminClient() {
+export function createSupabaseAdminClient(context: Partial<ServiceRoleEffectContext> = {}) {
   const { url, serviceRoleKey } = requireAdminConfig();
-  return createClient(url, serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  const effectContext: ServiceRoleEffectContext = {
+    surface: context.surface ?? "database.supabase.service-role",
+    tenantId: context.tenantId,
+    platformPurpose: context.platformPurpose,
+    actor: context.actor,
+  };
+  return guardServiceRoleClient(
+    createClient(url, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+      global: { fetch: createWriteAdmittedFetch(effectContext) },
+    }),
+    effectContext,
+  );
 }
 
 export async function findSupabaseUserByEmail(email: string): Promise<User | null> {
@@ -41,15 +56,8 @@ export interface ProvisionIdentityInput {
   password: string;
   name?: string;
   role: "owner" | "staff" | "client";
-  /**
-   * The agency this identity belongs to. Stamped onto `profiles.agency_id` so
-   * `current_profile_agency_id()` is non-null for this user, which is what turns
-   * the null-tolerant `brand_enquiries` policy from "internal users manage
-   * EVERY agency" into real per-tenant scoping. Optional: callers that cannot
-   * determine an agency (e.g. a client whose agency is unknown at setup) omit
-   * it, and the profile is created without the column exactly as before.
-   */
-  agencyId?: string;
+  /** Trusted tenant lineage for the remote identity and profile mutations. */
+  agencyId: string;
   /** Durable local operation that is allowed to adopt this exact remote result. */
   operationId?: string;
 }
@@ -80,7 +88,9 @@ async function upsertSupabaseProfile(
 }
 
 export async function provisionSupabaseIdentity(input: ProvisionIdentityInput) {
-  const admin = createSupabaseAdminClient();
+  const agencyId = input.agencyId.trim();
+  if (!agencyId) throw new Error("Supabase identity provisioning requires an agency id.");
+  const admin = createSupabaseAdminClient({ tenantId: agencyId });
   const email = input.email.trim().toLowerCase();
   const existing = await findSupabaseUserByEmail(email);
   if (existing) {
@@ -139,7 +149,7 @@ export async function provisionOrAdoptSupabaseIdentity(input: ProvisionIdentityI
     throw new Error("A Supabase sign-in already exists for that email and was not created by this provisioning operation.");
   }
 
-  const admin = createSupabaseAdminClient();
+  const admin = createSupabaseAdminClient({ tenantId: input.agencyId });
   const { data, error } = await admin.auth.admin.updateUserById(existing.id, {
     password: input.password,
     email_confirm: true,
@@ -154,7 +164,11 @@ export async function provisionOrAdoptSupabaseIdentity(input: ProvisionIdentityI
 }
 
 export async function updateSupabasePassword(email: string, password: string) {
-  const admin = createSupabaseAdminClient();
+  const admin = createSupabaseAdminClient({
+    platformPurpose: "incident-auth-recovery",
+    surface: "identity.password-recovery",
+    actor: "password-recovery",
+  });
   const user = await findSupabaseUserByEmail(email);
   if (!user) throw new Error("Supabase sign-in not found for this account.");
   const { error } = await admin.auth.admin.updateUserById(user.id, { password });

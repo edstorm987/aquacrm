@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 
 import type { BusinessIssueRadar } from "@/engines/data/radar/businessRadar";
 import type { CommandIntelligenceSnapshot } from "@/lib/intelligence/commandIntelligence";
+import { assertWritesAllowed } from "@/lib/server/auth/securityControl";
 import { getActiveDataRealmId, getBackendInfo } from "@/server/storage";
 import { normaliseDataRealmId } from "@/server/dataRealm";
 import { getUserById } from "@/server/users";
@@ -266,6 +267,10 @@ export function issueCommandScanResult(input: {
   intelligence: CommandIntelligenceSnapshot;
   now?: number;
 }): Promise<CommandScanResult> {
+  assertWritesAllowed("database.command-scan-result", {
+    tenantId: input.principal.agencyId,
+    actor: input.principal.userId,
+  });
   return runtimeRepository.issue(input);
 }
 

@@ -53,6 +53,7 @@ export async function POST(request: NextRequest) {
       contentType: file.type,
       localDirectory: "inbox-media",
       localKey,
+      trust: { tenantId: agencyId, actor: actor.session.userId, purpose: "inbox-media" },
     });
     await confirmStagedPrivateUpload({ agencyId, purpose: "inbox-media", objectId: id, requestHash, stored });
     const kind = attachmentKind(file.type);

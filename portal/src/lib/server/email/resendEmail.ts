@@ -3,6 +3,7 @@ import {
   withRemoteOperationDeadline,
   type RemoteOperationRetry,
 } from "@/lib/server/remoteOperation";
+import { assertFreshWritesAllowed } from "@/lib/server/auth/securityControl";
 import { assertLiveProviderAccess } from "@/lib/server/sandbox/providerPolicy";
 
 type ResendEmailInput = {
@@ -15,6 +16,7 @@ type ResendEmailInput = {
   html: string;
   attachments?: Array<{ filename: string; content: string; contentType?: string }>;
   idempotencyKey?: string;
+  tenantId: string;
   signal?: AbortSignal;
   timeoutMs?: number;
 };
@@ -39,6 +41,10 @@ function failureReason(payload: unknown, status: number): string {
 }
 
 export async function sendResendEmail(input: ResendEmailInput): Promise<ResendEmailResult> {
+  // This is the lowest Resend boundary. Keep it guarded even when a caller
+  // bypasses the higher-level transactional-email service (for example public
+  // enquiry notifications).
+  await assertFreshWritesAllowed("provider.email.resend", { tenantId: input.tenantId });
   const apiKey = input.apiKey?.trim() || process.env.RESEND_API_KEY?.trim();
   if (!apiKey) {
     return { ok: false, reason: "RESEND_API_KEY is required.", unconfigured: true };

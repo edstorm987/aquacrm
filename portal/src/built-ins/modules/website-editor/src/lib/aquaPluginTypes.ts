@@ -69,6 +69,8 @@ export interface PublicMediaStoreInput {
   agencyId: string;
   clientId?: string;
   siteId?: string;
+  /** Authenticated publisher lineage for lockdown and incident evidence. */
+  actor?: string;
   /** A `data:<mime>;base64,<payload>` URI to publish to the public bucket. */
   dataUrl: string;
   filename?: string;
@@ -92,8 +94,8 @@ export interface PluginServices {
   activity: ActivityLogPort;
   events: EventBusPort;
   variants: PortalVariantPort;
-  // Optional + additive: absent where public media isn't wired — callers must
-  // then leave media untouched (never block a publish on a missing port).
+  // Optional + additive: callers may omit it only when no inline media needs
+  // promotion. A publish containing inline media fails closed when it is absent.
   publicMedia?: PublicMediaPort;
 }
 

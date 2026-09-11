@@ -261,7 +261,7 @@ async function generateEditorAiReplyWithClaim(
   input: GenerateEditorAiReplyInput,
   target: { agencyId: string; projectId: string; threadId: string; messageId: string },
 ): Promise<EditorAiReplyResult> {
-  const coordinator = input.replyClaimCoordinator ?? editorAiReplyClaimCoordinator();
+  const coordinator = input.replyClaimCoordinator ?? editorAiReplyClaimCoordinator({ tenantId: target.agencyId });
   const claimKey = editorAiReplyClaimKey(target);
   const holderId = editorAiReplyClaimHolder();
   // Provider timeout + persistence headroom. The database caps this at five

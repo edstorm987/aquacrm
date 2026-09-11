@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
+import { createEnquiryDataClient } from "@/lib/supabase/enquiryDataClient";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
-import { createScopedSupabaseClient } from "@/lib/supabase/scoped";
+import { assertWritesAllowed } from "@/lib/server/auth/securityControl";
 import { loadOwnedEnquiry } from "@/lib/supabase/ownedEnquiry";
 import { ensureHydrated } from "@/server/storage";
 import { logActivity } from "@/server/activity";
@@ -19,11 +20,19 @@ export async function POST(request: Request) {
   try {
     await ensureHydrated({ fresh: true });
     const session = await requireRole("agency-owner");
+    assertWritesAllowed("database.website-enquiry.erase", {
+      tenantId: session.agencyId,
+      actor: session.userId,
+    });
     const body = await request.json().catch(() => null) as { enquiryId?: unknown } | null;
     const enquiryId = typeof body?.enquiryId === "string" ? body.enquiryId.trim() : "";
     if (!enquiryId) return NextResponse.json({ ok: false, error: "An enquiry is required." }, { status: 400 });
 
-    const supabase = await createScopedSupabaseClient();
+    const supabase = await createEnquiryDataClient({
+      tenantId: session.agencyId,
+      actor: session.userId,
+      surface: "database.website-enquiry.erase",
+    });
     // Load first, so a missing one is a clean 404 rather than a silent no-op,
     // and — via the ownership guard — so nothing outside this agency can be
     // reached by id. A foreign enquiry returns null identically to a missing

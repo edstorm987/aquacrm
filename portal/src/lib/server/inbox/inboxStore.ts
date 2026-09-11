@@ -16,6 +16,8 @@ import {
 import { basename, dirname, resolve } from "node:path";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { resolveSupabaseSecretKey, resolveSupabaseUrl } from "@/lib/supabase/keys";
+import { createWriteAdmittedFetch, guardServiceRoleClient } from "@/lib/supabase/guardedServiceRoleClient";
+import { assertWritesAllowed } from "@/lib/server/auth/securityControl";
 
 import type {
   InboxAttachment,
@@ -186,10 +188,21 @@ function db(): SupabaseClient {
   const url = resolveSupabaseUrl();
   const key = resolveSupabaseSecretKey();
   if (!url || !key) throw new Error("inbox_supabase_not_configured");
-  supabase = createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: { "x-aqua-service": "master-inbox" } },
-  });
+  const effectContext = {
+    surface: "database.inbox.service-role",
+    platformPurpose: "cross-tenant-queue-claim" as const,
+    actor: "master-inbox",
+  };
+  supabase = guardServiceRoleClient(
+    createClient(url, key, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: {
+        headers: { "x-aqua-service": "master-inbox" },
+        fetch: createWriteAdmittedFetch(effectContext),
+      },
+    }),
+    effectContext,
+  );
   return supabase;
 }
 
@@ -242,6 +255,10 @@ function cleanupAbandonedLocalTemps(): void {
 }
 
 function writeLocalAtomic(state: LocalInboxState): void {
+  // Local development persistence is still a durable database effect. Keep it
+  // behind the same live-realm containment boundary as the production
+  // service-role client, before a directory/temp file can be created.
+  assertWritesAllowed("database.inbox.local-file");
   const folder = dirname(LOCAL_FILE);
   if (!existsSync(folder)) mkdirSync(folder, { recursive: true });
   const temp = `${LOCAL_FILE}.${process.pid}.${crypto.randomUUID()}.tmp`;

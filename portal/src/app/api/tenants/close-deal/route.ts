@@ -112,6 +112,7 @@ export async function POST(request: Request) {
           description: `Payment for invoice ${invoice.number}`,
           successUrl: `${origin}/portal/agency/agency-finance/invoices/${invoice.id}?paid=1`,
           cancelUrl: `${origin}/portal/agency/agency-finance/invoices/${invoice.id}`,
+          tenantId: session.agencyId,
         });
         return out.url;
       }

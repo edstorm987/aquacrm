@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createRouteSupabaseClient } from "@/lib/supabase/route";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { seedFounder } from "@/lib/server/seeds/founderSeed";
-import { issueSession, sessionCookie } from "@/lib/server/auth/auth";
-import { newSessionId, recordIssuedSession } from "@/lib/server/auth/securityControl";
+import { issueSessionForResponse, sessionCookie } from "@/lib/server/auth/auth";
+import { newSessionId } from "@/lib/server/auth/securityControl";
 import {
   clientIpFromHeaders,
   isLoginLocked,
@@ -447,7 +447,7 @@ async function handleJsonLogin(req: NextRequest) {
   // the durable session registry so THIS device/session can be individually
   // revoked later (epochs cover the coarse scopes).
   const sid = newSessionId();
-  const token = issueSession({
+  const token = await issueSessionForResponse({
     userId: portalUser.id,
     email: portalUser.email,
     role: portalUser.role,
@@ -461,15 +461,13 @@ async function handleJsonLogin(req: NextRequest) {
     // code. Everything else got here on a password alone.
     aal: step.status === "not-required" ? "aal1" : "aal2",
     sid,
+    // Central registration happens inside issueSession (Item 3); pass the flow
+    // label + device metadata. The trusted client IP is the proxy-appended
+    // entry, NOT the spoofable first X-Forwarded-For token.
+    issuedVia: step.status === "not-required" ? "login" : "login+mfa",
+    ip: clientIpFromHeaders(req.headers),
+    userAgent: req.headers.get("user-agent") ?? undefined,
   });
-  recordIssuedSession(
-    { sid, userId: portalUser.id, agencyId: activeAgencyId, role: portalUser.role },
-    {
-      issuedVia: step.status === "not-required" ? "login" : "login+mfa",
-      ip: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || undefined,
-      userAgent: req.headers.get("user-agent") ?? undefined,
-    },
-  );
   const cookie = sessionCookie(token);
   const redirect = resolvePostLoginPath(null, portalUser);
 

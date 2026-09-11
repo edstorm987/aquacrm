@@ -496,6 +496,7 @@ export async function deletePrivateObjectWithRecovery<T>(input: DeletePrivateObj
       storageProvider: record.storageProvider,
       storageKey: record.storageKey,
       localDirectory: record.localDirectory,
+      admission: { tenantId: input.agencyId, actor: `private-object:${input.purpose}` },
     }, input.providers);
     if (!removal.ok) {
       const now = input.now?.() ?? Date.now();
@@ -662,6 +663,7 @@ export async function processPrivateObjectLifecycleSweep(options: {
           storageProvider: latest.storageProvider,
           storageKey: latest.storageKey,
           localDirectory: latest.localDirectory,
+          admission: { tenantId: agencyId, actor: "private-object-lifecycle-sweep" },
         }, options.providers);
         const afterIo = getState().privateObjectLifecycles[latest.id];
         const unchanged = afterIo

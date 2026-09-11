@@ -6,7 +6,8 @@ import {
 } from "@/built-ins/runtime/foundation-adapters/publicFunnelFoundation";
 import { sessionCookie } from "@/lib/server/auth/auth";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
-import { FOUNDER_AGENCY_SLUG, seedFounder } from "@/lib/server/seeds/founderSeed";
+import { FOUNDER_AGENCY_SLUG } from "@/lib/server/seeds/founderSeed";
+import { assertFreshWriteAdmission } from "@/lib/server/security/writeAdmission";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { flushPendingWrites, ensureHydrated } from "@/server/storage";
 import { getInstall } from "@/server/pluginInstalls";
@@ -61,11 +62,16 @@ export async function POST(request: NextRequest) {
 
   try {
     await ensureHydrated({ fresh: true });
-    await seedFounder();
     const agency = getAgencyBySlug(FOUNDER_AGENCY_SLUG);
     if (!agency) {
       return failure(503, "funnel_unavailable", "The Health Check handoff is not configured yet. Please try again.");
     }
+    await assertFreshWriteAdmission({
+      kind: "tenant",
+      tenantId: agency.id,
+      surface: "public-health-check-completion",
+      actor: "public-health-check",
+    });
 
     const install = getInstall({ agencyId: agency.id }, "public-funnel");
     if (!install?.enabled) {

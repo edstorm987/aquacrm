@@ -10,6 +10,7 @@
 // returns no objects (zero matchable schemas + no Organization).
 
 import type { EditorPage } from "../../types/editorPage";
+import { mayRenderStoredMarkup } from "../../lib/customCodeSafeMode";
 import type { Site } from "../../types/site";
 import type { BrandKit } from "../../lib/tenancy";
 import {
@@ -59,7 +60,7 @@ export function SiteHead({ site, page, defaultLocale, defaultDescription, agency
           dangerouslySetInnerHTML={{ __html: body }}
         />
       ))}
-      {publishedPage.headInjection ? (
+      {mayRenderStoredMarkup() && publishedPage.headInjection ? (
         <script
           data-page-head-injection
           dangerouslySetInnerHTML={{ __html: publishedPage.headInjection }}

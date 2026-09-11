@@ -13,6 +13,10 @@ import {
 import { confirm } from "../lib/confirm";
 import AdminTabs from "../components/AdminTabs";
 import { CONTENT_TABS } from "../lib/tabSets";
+import {
+  PUBLIC_MEDIA_FILE_ACCEPT,
+  PUBLIC_MEDIA_MAX_SIZE_LABEL,
+} from "@/lib/shared/publicMediaLimits";
 
 export default function AssetsPage(_props: unknown) {
   const [assets, setAssets] = useState<PortalAsset[]>([]);
@@ -83,7 +87,7 @@ export default function AssetsPage(_props: unknown) {
         <input
           ref={fileInput}
           type="file"
-          accept="image/*,video/*"
+          accept={PUBLIC_MEDIA_FILE_ACCEPT}
           multiple
           className="hidden"
           onChange={e => { if (e.target.files) void handleFiles(e.target.files); }}
@@ -100,7 +104,7 @@ export default function AssetsPage(_props: unknown) {
         <p className="text-[13px] text-brand-cream/65">
           Drop files here or <button onClick={() => fileInput.current?.click()} className="text-brand-orange hover:underline">browse</button>
         </p>
-        <p className="text-[11px] text-brand-cream/40 mt-1">Up to 4 MB per file. Stored as data URIs in cloud state.</p>
+        <p className="text-[11px] text-brand-cream/40 mt-1">Up to {PUBLIC_MEDIA_MAX_SIZE_LABEL} per file. Stored as data URIs in cloud state.</p>
       </div>
 
       {error && <div className="rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3 text-[12px] text-red-400">{error}</div>}

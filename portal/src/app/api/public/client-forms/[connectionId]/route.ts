@@ -7,6 +7,7 @@ import { sendClientFormConfirmation } from "@/lib/server/clientForms/clientFormC
 import { triggerAutomations } from "@/server/automations";
 import { findClientSupabaseConnection } from "@/lib/server/clientForms/clientSupabaseConnection";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
+import { assertFreshWriteAdmission, isWriteAdmissionDenied } from "@/lib/server/security/writeAdmission";
 
 export const runtime = "nodejs";
 
@@ -16,74 +17,57 @@ export const runtime = "nodejs";
  * Ed, 2026-08-27: *"internally we just get a notification to say they got the
  * form so we can track enquiries without merging or breaching data."*
  *
- * The client's website writes submissions into THEIR Supabase project. A
- * Supabase Database Webhook on that table posts here, and we keep only the
- * pointer — which client, which table, which row, when. The customer's name,
- * email and message never arrive at this endpoint's storage, even though the
- * webhook body contains them.
+ * After the 2026-09 secure-intake redesign the customer's submission is written
+ * by the client-owned `aqua-form-submit` Edge Function, which then notifies us
+ * with a SIGNED POINTER — the new submission's id, and nothing else. This
+ * endpoint receives that pointer. The customer's name, email and message never
+ * arrive here at all: the notification body is `{connectionId, rowKey, rowId,
+ * ts}`, so there is no payload to discard and no way for this route to become a
+ * controller of a client's customer data even by accident.
  *
- * ── Why this discards most of its own payload ────────────────────────────
+ * ── Why the signature is verified over the raw bytes ──────────────────────
  *
- * Supabase sends the whole inserted row in `record`. It would be one line to
- * keep it, and that one line would make AquaCRM a controller of every client's
- * customer data instead of a processor of event metadata. So `record` is read
- * for exactly one thing — the primary key — and dropped.
+ * The Edge Function signs `${ts}.${body}` with the connection's webhook secret
+ * (HMAC-SHA256) and sends the signature and timestamp as headers. We recompute
+ * it over the EXACT bytes we received — so the raw body is read before it is
+ * parsed — and compare in constant time on hashes, so an unequal length cannot
+ * throw before the values are compared. A stale timestamp is refused, bounding
+ * replay; the notice itself is idempotent on (connection, row) as a backstop.
  *
- * That is also why there is no "store it just in case" fallback when the row id
- * is missing: a notice we cannot resolve is useless, and a payload we keep
- * because it was convenient is the whole problem.
+ * The webhook secret is DISTINCT from the read secret: this route only ever
+ * VERIFIES a notification with it, and never uses it to read anything back.
  *
- * ── Why the secret is compared in constant time ──────────────────────────
+ * ── Why an unknown/failed webhook answers 202 ─────────────────────────────
  *
- * The header is the only thing standing between this and anybody who learns a
- * connection id. A `===` on a secret leaks its length and, over enough
- * requests, its contents — so `timingSafeEqual`, on hashes so that unequal
- * lengths do not throw before they are compared.
- *
- * ── Why an unknown connection answers 202 ────────────────────────────────
- *
- * Returning 404 for "no such connection" and 401 for "wrong secret" would let
- * somebody map which connection ids exist by reading status codes. Both answer
- * the same, and nothing downstream depends on the difference. A webhook has no
- * human to inform, so there is no cost to being uninformative.
+ * Returning 404 for "no such connection" and 401 for "bad signature" would let
+ * somebody map which connection ids exist by reading status codes. Everything —
+ * unknown connection, bad signature, stale timestamp, wrong shape — answers the
+ * same, and nothing downstream depends on the difference. A webhook has no human
+ * to inform, so there is no cost to being uniformly uninformative.
  */
 
 const MAX_PER_WINDOW = 120;
 const WINDOW_MS = 60 * 1_000;
-const SECRET_HEADER = "x-aqua-webhook-secret";
+const SIGNATURE_HEADER = "x-aqua-signature";
+const TIMESTAMP_HEADER = "x-aqua-timestamp";
+/** How far a notification's timestamp may be from now — bounds replay. */
+const MAX_SKEW_MS = 5 * 60 * 1_000;
+/** A pointer is tiny; anything larger is not one of ours. */
+const MAX_BODY_BYTES = 8_192;
 
-interface SupabaseWebhookBody {
-  type?: unknown;
-  table?: unknown;
-  schema?: unknown;
-  record?: unknown;
+interface PointerWebhookBody {
+  connectionId?: unknown;
+  rowKey?: unknown;
+  rowId?: unknown;
+  ts?: unknown;
 }
 
-/** Equal without revealing how nearly. */
-function secretMatches(supplied: string, expected: string): boolean {
+/** Equal without revealing how nearly — on hashes, so unequal lengths are safe. */
+function constantTimeEqual(supplied: string, expected: string): boolean {
   if (!supplied || !expected) return false;
   const a = crypto.createHash("sha256").update(supplied).digest();
   const b = crypto.createHash("sha256").update(expected).digest();
   return crypto.timingSafeEqual(a, b);
-}
-
-/**
- * The row's primary key, and nothing else.
- *
- * Supabase does not promise the column is called `id`, so the common
- * alternatives are tried — and WHICH one matched is returned alongside the
- * value, because the reader must filter on that same column. Only ever a KEY,
- * never a value that might carry somebody's details.
- */
-function rowIdFrom(record: unknown): { key: string; id: string } | null {
-  if (!record || typeof record !== "object") return null;
-  const row = record as Record<string, unknown>;
-  for (const key of ["id", "uuid", "submission_id", "submissionId"]) {
-    const value = row[key];
-    if (typeof value === "string" && value.trim()) return { key, id: value.trim().slice(0, 200) };
-    if (typeof value === "number" && Number.isFinite(value)) return { key, id: String(value) };
-  }
-  return null;
 }
 
 // Accepted, and deliberately silent about why.
@@ -102,46 +86,81 @@ export async function POST(req: NextRequest, context: { params: Promise<{ connec
   const { connectionId } = await context.params;
   if (!connectionId) return accepted();
 
-  await ensureHydrated();
+  await ensureHydrated({ fresh: true, forceFreshReload: true });
 
   const connection = findClientSupabaseConnection(connectionId);
   if (!connection) return accepted();
 
-  const supplied = req.headers.get(SECRET_HEADER) ?? "";
-  if (!secretMatches(supplied, connection.webhookSecret)) return accepted();
+  // The signed pointer: a fresh timestamp and an HMAC over `${ts}.${rawBody}`
+  // with the webhook secret. Read the RAW bytes BEFORE parsing — the signature
+  // covers exactly what was sent.
+  const tsHeader = req.headers.get(TIMESTAMP_HEADER) ?? "";
+  const signature = req.headers.get(SIGNATURE_HEADER) ?? "";
+  if (!tsHeader || !signature) return accepted();
 
-  const body = await req.json().catch(() => null) as SupabaseWebhookBody | null;
-  if (!body) return accepted();
+  const tsNum = Number(tsHeader);
+  if (!Number.isFinite(tsNum) || Math.abs(Date.now() - tsNum) > MAX_SKEW_MS) return accepted();
 
-  // Inserts only. An update or delete on their side is their business, and
-  // acting on one would mean tracking a lifecycle we deliberately do not hold.
-  if (typeof body.type === "string" && body.type.toUpperCase() !== "INSERT") return accepted();
+  const rawBody = await req.text().catch(() => "");
+  if (!rawBody || rawBody.length > MAX_BODY_BYTES) return accepted();
 
-  // The COLUMN as well as the value: the reader has to name a column to filter
-  // on, and guessing later would turn "we looked in the wrong column" into a
-  // silent "that enquiry no longer exists".
-  const row = rowIdFrom(body.record);
-  if (!row) return accepted();
+  const expected = crypto.createHmac("sha256", connection.webhookSecret).update(`${tsHeader}.${rawBody}`).digest("hex");
+  if (!constantTimeEqual(signature, expected)) return accepted();
 
-  // The table name is taken from OUR stored configuration, not from the
-  // payload — a webhook that claims to be about a different table must not be
-  // able to point a notice somewhere the client never authorised us to read.
+  let body: PointerWebhookBody | null;
+  try { body = JSON.parse(rawBody) as PointerWebhookBody; } catch { return accepted(); }
+  if (!body || typeof body !== "object") return accepted();
+
+  // The signed body names the connection it is about; it must match the path.
+  // The secret is per-connection already, so this is defence in depth against a
+  // signature captured for one connection being aimed at another.
+  if (typeof body.connectionId === "string" && body.connectionId && body.connectionId !== connectionId) {
+    return accepted();
+  }
+
+  // Only a KEY, never a value that might carry somebody's details. It arrives
+  // signed by the client's own Edge Function, but is still bounded and typed.
+  const rowId = typeof body.rowId === "string" && body.rowId.trim()
+    ? body.rowId.trim().slice(0, 200)
+    : typeof body.rowId === "number" && Number.isFinite(body.rowId)
+      ? String(body.rowId)
+      : "";
+  if (!rowId) return accepted();
+  const rowKey = typeof body.rowKey === "string" && body.rowKey.trim() ? body.rowKey.trim().slice(0, 100) : "id";
+
+  await assertFreshWriteAdmission({
+    kind: "tenant",
+    tenantId: connection.agencyId,
+    surface: "database.client-form-notice",
+    actor: `client-form:${connection.connectionId}`,
+  });
+
+  // The label is OUR stored PUBLIC form id, taken from the connection, not from
+  // the payload — the reader maps this connection to a fixed destination
+  // server-side, so a notification cannot point a notice anywhere the client
+  // never authorised us to read.
   const notice = recordClientFormNotice({
     agencyId: connection.agencyId,
     clientId: connection.clientId,
     connectionId: connection.connectionId,
-    table: connection.submissionsTable,
-    rowId: row.id,
-    rowKey: row.key,
+    table: connection.formId,
+    rowId,
+    rowKey,
   });
   await flushPendingWrites();
 
   // AFTER the response, like `webhooks/meta`. Reading their row and then
   // sending are two outbound calls; doing them inline would push this past the
-  // timeout Supabase allows, and a slow webhook is a retried webhook. The
+  // timeout the notifier allows, and a slow webhook is a retried webhook. The
   // confirmation claims the notice before it sends, so a retry that beats us
   // here still cannot produce a second thank-you.
   after(async () => {
+    await assertFreshWriteAdmission({
+      kind: "tenant",
+      tenantId: connection.agencyId,
+      surface: "provider.client-form-confirmation",
+      actor: `client-form:${connection.connectionId}`,
+    });
     await sendClientFormConfirmation(notice.id);
     // …and the general engine gets the same event.
     //
@@ -157,12 +176,24 @@ export async function POST(req: NextRequest, context: { params: Promise<{ connec
     // somebody builds on top of this.
     //
     // Keyed on the notice id, so a retried webhook re-runs nothing.
-    await triggerAutomations(
-      connection.agencyId,
-      "client-form.received",
-      { clientId: connection.clientId, noticeId: notice.id, connectionId: connection.connectionId },
-      { idempotencyKey: `client-form:${notice.id}` },
-    ).catch(() => undefined);
+    await assertFreshWriteAdmission({
+      kind: "tenant",
+      tenantId: connection.agencyId,
+      surface: "provider.client-form-automation",
+      actor: `client-form:${connection.connectionId}`,
+    });
+    try {
+      await triggerAutomations(
+        connection.agencyId,
+        "client-form.received",
+        { clientId: connection.clientId, noticeId: notice.id, connectionId: connection.connectionId },
+        { idempotencyKey: `client-form:${notice.id}` },
+      );
+    } catch (error) {
+      if (isWriteAdmissionDenied(error)) throw error;
+      // Confirmation has its own durable idempotency claim; a non-containment
+      // automation failure remains isolated from webhook acknowledgement.
+    }
   });
 
   return accepted();

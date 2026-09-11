@@ -987,6 +987,19 @@ const SERVICE_DESTINATIONS: Record<ReadinessItemId | "vercelEnvironment", { labe
   assistant: { label: "Open OpenAI API keys", href: "https://platform.openai.com/api-keys", external: true },
   "assistant-api": { label: "Manage external AI access", href: "/portal/agency/settings#launch" },
   monitoring: { label: "Open Sentry projects", href: "https://sentry.io/settings/projects/", external: true },
+  // Security-evidence gates (Phase 8) are platform-scoped (founder-only) and are
+  // set via deployment env vars / owner runbooks; a tenant never sees them (they
+  // are filtered out by scope). Destinations point at the env-var surface.
+  "containment-migration": { label: "Open deployment env variables", href: "https://vercel.com/edstorm987-1130s-projects/aquacrm/settings/environment-variables", external: true },
+  "content-scanner": { label: "Open deployment env variables", href: "https://vercel.com/edstorm987-1130s-projects/aquacrm/settings/environment-variables", external: true },
+  "public-media-lifecycle": { label: "Open production-readiness auditor", href: "/portal/dev-team/auditor" },
+  "security-event-drain": { label: "Open deployment env variables", href: "https://vercel.com/edstorm987-1130s-projects/aquacrm/settings/environment-variables", external: true },
+  "rate-limiting": { label: "Open deployment env variables", href: "https://vercel.com/edstorm987-1130s-projects/aquacrm/settings/environment-variables", external: true },
+  mfa: { label: "Open deployment env variables", href: "https://vercel.com/edstorm987-1130s-projects/aquacrm/settings/environment-variables", external: true },
+  "verified-restore": { label: "Open deployment env variables", href: "https://vercel.com/edstorm987-1130s-projects/aquacrm/settings/environment-variables", external: true },
+  "backup-freshness": { label: "Open deployment env variables", href: "https://vercel.com/edstorm987-1130s-projects/aquacrm/settings/environment-variables", external: true },
+  "supply-chain": { label: "Open deployment env variables", href: "https://vercel.com/edstorm987-1130s-projects/aquacrm/settings/environment-variables", external: true },
+  "edge-waf": { label: "Open deployment env variables", href: "https://vercel.com/edstorm987-1130s-projects/aquacrm/settings/environment-variables", external: true },
   vercelEnvironment: { label: "Open Vercel environment variables", href: "https://vercel.com/edstorm987-1130s-projects/aquacrm/settings/environment-variables", external: true },
 };
 

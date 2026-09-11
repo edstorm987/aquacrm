@@ -516,6 +516,25 @@ export function installRouteStubs(options) {
   stub("../../src/server/zimanteTradingCompanies", {
     ensureZimanteTradingCompanies: () => ({ milesymedia: { id: "company_milesymedia" } }),
   });
+  // The public brand-enquiry route now READS pre-seeded trading companies
+  // (listTradingCompanies) instead of seeding them on an unauthenticated
+  // request; production seeds them via founderSeed. Stub the read the same way
+  // the old ensureZimante* seed was stubbed, so the harness supplies the
+  // milesymedia company without pulling in the real storage getState().
+  stub("../../src/server/tradingCompanies", {
+    listTradingCompanies: () => [
+      {
+        id: "company_milesymedia",
+        agencyId: AGENCY_ID,
+        name: "Milesy Media",
+        slug: "milesymedia",
+        brand: {},
+        status: "active",
+        createdAt: 0,
+        updatedAt: 0,
+      },
+    ],
+  });
   stub("../../src/lib/server/email/enquiryNotifications", {
     notifyBrandEnquiry: async input => {
       if (flags.failNotification) throw new Error("mail provider refused: Bearer sk_live_1234567890abcdef");

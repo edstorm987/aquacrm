@@ -2,7 +2,7 @@
 
 > Every active, completed and archived phased implementation plan and handoff.
 >
-> Consolidated 2026-09-08 from **63** source documents / **130,679 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-10 from **63** source documents / **131,472 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -54,10 +54,10 @@
 - [`docs/development/plans/production-readiness-execution-plan.md`](#source-docs-development-plans-production-readiness-execution-plan-md) — 787 words · `e179a53f5c9c`
 - [`docs/development/plans/production-readiness-roadmap-2026-09-03.md`](#source-docs-development-plans-production-readiness-roadmap-2026-09-03-md) — 2,890 words · `fa1e8f003b8d`
 - [`docs/development/plans/promote-trading-company.md`](#source-docs-development-plans-promote-trading-company-md) — 4,457 words · `2f9dd8a1af32`
-- [`docs/development/plans/public-bucket-HANDOFF.md`](#source-docs-development-plans-public-bucket-handoff-md) — 1,220 words · `773db28850a7`
-- [`docs/development/plans/public-bucket.md`](#source-docs-development-plans-public-bucket-md) — 764 words · `c13e9ce00332`
+- [`docs/development/plans/public-bucket-HANDOFF.md`](#source-docs-development-plans-public-bucket-handoff-md) — 1,133 words · `ec8455489e42`
+- [`docs/development/plans/public-bucket.md`](#source-docs-development-plans-public-bucket-md) — 1,261 words · `a68f2d96f534`
 - [`docs/development/plans/radar-upgrade.md`](#source-docs-development-plans-radar-upgrade-md) — 2,802 words · `76e0c777345b`
-- [`docs/development/plans/rls-enable.md`](#source-docs-development-plans-rls-enable-md) — 1,606 words · `803185e8c9cc`
+- [`docs/development/plans/rls-enable.md`](#source-docs-development-plans-rls-enable-md) — 1,891 words · `2a93b711d549`
 - [`docs/development/plans/runtime-verification.md`](#source-docs-development-plans-runtime-verification-md) — 1,390 words · `53ab85892882`
 - [`docs/development/plans/security-hardening.md`](#source-docs-development-plans-security-hardening-md) — 1,013 words · `072c9fb6aac7`
 - [`docs/development/plans/settings-consolidation.md`](#source-docs-development-plans-settings-consolidation-md) — 561 words · `eb976f93f4af`
@@ -65,7 +65,7 @@
 - [`docs/development/plans/staff-team-system.md`](#source-docs-development-plans-staff-team-system-md) — 2,305 words · `f580c2c43c6e`
 - [`docs/development/plans/storage-and-remaining-build.md`](#source-docs-development-plans-storage-and-remaining-build-md) — 1,535 words · `e64b344f91ca`
 - [`docs/development/plans/storage-architecture-and-2026-09-04-incident.md`](#source-docs-development-plans-storage-architecture-and-2026-09-04-incident-md) — 1,608 words · `931ec0578a74`
-- [`docs/development/plans/supabase-alignment-2026-09-03.md`](#source-docs-development-plans-supabase-alignment-2026-09-03-md) — 3,064 words · `fe76984637fe`
+- [`docs/development/plans/supabase-alignment-2026-09-03.md`](#source-docs-development-plans-supabase-alignment-2026-09-03-md) — 3,162 words · `69f7d40dd7e9`
 - [`docs/development/plans/supabase-cutover-and-policy-drafts.md`](#source-docs-development-plans-supabase-cutover-and-policy-drafts-md) — 2,976 words · `31f7d543ae10`
 - [`docs/development/plans/you-deserve-it-upgrade.md`](#source-docs-development-plans-you-deserve-it-upgrade-md) — 1,191 words · `110d90851c7f`
 - [`public/health-check/DELIVERY-PLAN.md`](#source-public-health-check-delivery-plan-md) — 642 words · `623e142b3266`
@@ -10995,18 +10995,26 @@ deliver what promotion already delivers properly. Not worth it — promote inste
 
 ## Source document — `docs/development/plans/public-bucket-HANDOFF.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/public-bucket-HANDOFF.md" sha256="773db28850a7a39736efd2762619dcea12a09bafa6c43859fd56df509c8d665e" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/public-bucket-HANDOFF.md" sha256="ec8455489e425750c392d58975ba8c306e570e29fa38ae067a6dca91a2ea6f28" -->
 # Handoff — Public bucket (`aquacrm-public`)
 
 > 🗄 **Dated worker debrief — historical, not a current queue.** For the plan's dated state, read [public-bucket.md](public-bucket.md); for the current project, read [PRODUCTION-READINESS.md](../PRODUCTION-READINESS.md) and [TODO.md](../TODO.md); for what changed, use [updates.md](../updates.md). This file preserves the build story only.
 >
 > *It stays in `plans/` rather than moving to [archive/](archive/README.md) for two reasons: `smoke-dev-tasks-parse.test.ts` pins it by name in the set of plans that parse to zero phases, and `archive/README.md` says not to archive a handoff another plan still points at as its brief.*
 
+> **DO NOT EXECUTE THE LIVE-BUCKET STEPS BELOW (security override,
+> 2026-09-10).** They predate the public-media adversarial review. The current
+> local corrective branch deliberately has no remote upload implementation and
+> its delete compatibility helper refuses without ownership/refcount proof.
+> Remote publication remains release-blocked; direct Supabase access requires
+> the separately applied and verified containment migration. Use
+> [public-bucket.md](public-bucket.md) for the current gate and runbook.
+
 ← [plan](public-bucket.md) · [updates.md](../updates.md) · [status.md](../status.md) · [database.md §3](../../workspace/database.md)
 
-**One-liner:** `aquacrm-public` went from *declared-but-dead* → **wired end-to-end**.
-Approved website-editor media is promoted to the public CDN bucket **on publish**
-and the published site renders durable public URLs instead of inline base64.
+**Historical one-liner (2026-08-19):** `aquacrm-public` went from
+*declared-but-dead* to functionally wired in that dated implementation. This is
+not the current security posture: remote app-server publication is now disabled.
 
 **State (2026-08-19):** ✅ **code-complete, all 4 phases; runtime-verified in
 memory (17 behavioural tests incl. an end-to-end capstone).** The **only**
@@ -11015,7 +11023,10 @@ the shared dev-server environment (details below), not by the code.
 
 ---
 
-## What shipped
+## What the 2026-08-19 implementation shipped (superseded)
+
+Every statement in this section describes the dated implementation, not the
+current corrective branch. The security override above is authoritative.
 
 ### Phase 1 — the storage helper (owned)
 - **`src/lib/server/publicUploadStorage.ts`** (new) — mirror of `privateUploadStorage.ts` for the **public** bucket. `storePublicUpload` uploads to `aquacrm-public` and returns a durable **`getPublicUrl`** CDN link (vs. private, which stores a key and proxies bytes). Precedence: **Supabase → hard-error-in-prod → local `public/uploads-public/`** (no Vercel-Blob tier, `upsert:true` for stable URLs). Plus `deleteSupabasePublicUpload` + config predicates + `PublicUploadStorageError`.
@@ -11059,41 +11070,29 @@ Approved media = **editor + brand-kit images** · approval = **auto-public on pu
 
 ---
 
-## The one remaining task: live publish→CDN walk
+## Retired live task — do not execute
 
-Prove the plan's "Done when" on a real server: **publish a website-editor page that
-has an inline `data:` image, then confirm the published `<img src>` is a public
-URL** (and the `data:` blob is gone).
+The dated handoff proposed a live publish-to-CDN walk. That task is retired: the
+current branch intentionally has no remote writer and no routine public-object
+delete path. A live write/delete would bypass the security design and is not
+authorised by this document.
 
 ### Why it wasn't done this session
 1. The shared `:3032` server was **thrashing on constant recompiles** (~5 workers editing simultaneously), then went **fully down** (`ERR_CONNECTION_REFUSED`).
 2. `preview_start` for my own `aquacrm-verify` server is **blocked by a stale folder-lock** — the tooling still tracks the commander chat's dead `aquacrm-portal` server on `:3032` and won't launch a second server in the folder (and can't stop another chat's).
 
-### To do it (whoever has a clean server)
-1. **Get a server up:** restart `:3032` from the chat that owns it, **or** free the stale lock and `preview_start` `aquacrm-verify` (auto-port), **or** `npm run dev:verify` (auto-port) if Bash is sanctioned in that chat.
-2. **Sign in:** navigate to **`/dev`** (zero-cred founder sign-in) → lands in the portal.
-3. **Reach the website editor:** Fulfilment → *Client workspaces* (or a client's *Website* service) → the editor (Editor / Pages / Assets).
-4. **Have an inline image:** add an image via the editor's asset picker/upload (it stores a `data:` URL), or use a draft page that already has one.
-5. **Publish** the page.
-6. **Verify the published render** — inspect the `<img src>`:
-   - **Supabase configured** (the `.env` here has it): `https://<project>.supabase.co/storage/v1/object/public/aquacrm-public/website-media/<agency>/<client>/<site>/<sha>.<ext>`
-   - **Local-only fallback:** `/uploads-public/website-media/…`
-   - …and confirm the giant `data:` URL is **gone**.
-7. **(Optional) confirm the object** exists — Supabase dashboard → `aquacrm-public`, or the local file under `public/uploads-public/`.
+### Current disposition
 
-### ⚠️ Live-bucket note
-This `.env` has Supabase configured, so a real publish **writes the image to the
-live `aquacrm-public` bucket** (there is no local Supabase sandbox — see
-[[aquacrm-local-writes-to-live-supabase]]). That's fine — it's the *strongest*
-verification (it exercises the real Supabase-CDN path, the one gap the tests only
-pin by shape), all data here is Ed's pre-launch test data, and the object is
-deletable (dashboard or `deleteSupabasePublicUpload`). Use an obvious test image
-and **delete it after** if you don't want the artifact.
+Do not restore those steps from history. Future remote verification begins only
+after the durable publication saga, ownership/refcount ledger, recovery/recall
+worker, scanner contract, migration application and owner approval are all in
+place. It must use an authorised non-production object first and must preserve a
+durable incident/recovery checkpoint; routine deletion remains unavailable.
 
 ---
 
 ## Also non-code, for later
-- **Unpublish/erasure cleanup** of public objects (refcount-aware) — deliberately deferred; `deleteSupabasePublicUpload` is the hook.
+- **Unpublish/erasure cleanup** of public objects remains deliberately deferred; the compatibility helper now refuses without ownership proof and is not a usable deletion hook.
 - The **flaky inbox/enquiry suite cluster** + the KPI worker's transient `tsc` errors are **other workers' lanes**, not this plan.
 
 ## File map — what this plan owns
@@ -11112,22 +11111,71 @@ plan in flight._
 
 ## Source document — `docs/development/plans/public-bucket.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/public-bucket.md" sha256="c13e9ce003324e418789701170cb335f2330e5fcbd3886d2cb43167181edcc76" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/public-bucket.md" sha256="a68f2d96f534b107084de8b5c9ba7e4900024a441060b7e1fce20adb62480a0a" -->
 # Plan — Wire the public storage bucket
 
 ← [todo.md](../TODO.md) · [development.md](../../development.md) · reference: [database dossier](../../workspace/database.md) · **[HANDOFF »](public-bucket-HANDOFF.md)** (state + the one remaining live verification)
 
-**Status: ✅ DONE (2026-08-19, all phases; runtime-verified in memory, not yet
-browser/live-bucket).** `aquacrm-public` is wired end-to-end: approved
+> **SECURITY CORRECTION / LOCAL FOLLOW-ON (2026-09-10).** The DONE record below
+> proves the functional publish-to-CDN path, not a complete content-trust
+> boundary. The original public writer trusted the declared MIME type and the
+> promotion walker failed open; Phase-2 byte inspection covered the separate
+> private-upload path only. A corrective candidate on
+> `security/public-upload-byte-inspection-20260910`, based on
+> `72acac904ba6af88cb1a3d84483b4a4359d03747`, is currently **local, unmerged and
+> undeployed**. It adds byte/type agreement, an 8 MiB bound, recursive nested
+> media coverage, strict tenant-path identifiers and fail-closed error handling
+> for block-tree data URLs; there is no provider-error inline fallback for those
+> recursively inspected values. CSS/head/foot stored-code fields remain separate
+> security surfaces.
+>
+> This does not supply an atomic publication transaction, a durable
+> public-object/refcount ledger, a durable
+> quarantine/release/rescan/purge store, durable off-platform event drain, live
+> scanner proof or live CDN response-header proof. Because uploading before the
+> page commit can create an unlinked public object and shared keys make safe
+> compensation impossible, the branch now refuses every configured app-server
+> write through `storePublicUpload` before scanner/provider I/O and contains no
+> dormant remote upload implementation. This does not stop direct authenticated,
+> dashboard or other service-role Supabase access; the containment migration is
+> a separate release gate. Local development and
+> publication of already-public URLs remain available. Remote enablement needs
+> durable intent, operation-owned keys, atomic page-generation commit, exact
+> lineage/refcounts and an idempotent recovery/recall worker. The scanner's
+> audited outbound broker also retains a 1 MiB request cap, so the 8 MiB product
+> limit cannot be supported when remote writes are later enabled without an
+> explicit owner decision to approve larger scanner-data egress or lower the
+> product cap. It is also not retroactive:
+> pre-existing public-bucket objects and already-published inline payloads need a
+> post-merge inventory + scan + safe republish/removal job. Production remains
+> **NOT READY**. Treat the historical
+> "pure fail-open walker" and "not code gaps" statements below as superseded for
+> security readiness, while retaining them as evidence of the 2026-08-19
+> functional milestone.
+>
+> The private/public bucket names are now fixed security-zone identifiers:
+> `aquacrm-uploads` and `aquacrm-public`. Startup, readiness and every
+> service-role private Storage operation fail closed if they are renamed,
+> swapped or shared; a lower-priority Blob credential cannot mask an unsafe
+> Supabase configuration. The forward migration and `rls-verify.sql` also
+> reject any `storage.objects` INSERT/UPDATE/DELETE/ALL policy aimed at anon,
+> authenticated or PUBLIC by effective command and role, so a renamed or
+> dashboard-created write policy cannot hide behind an expected policy name.
+> This code guard does not replace applying and verifying the containment and
+> bucket-hardening migrations against the live project.
+
+**Historical status at 2026-08-19: ✅ DONE (all phases; runtime-verified in
+memory, not then browser/live-bucket). Superseded by the red correction above.**
+At that checkpoint, `aquacrm-public` was wired end-to-end: approved
 website-editor media is promoted to the bucket on publish and the published
 site renders the durable CDN URL. **17 behavioural tests** (8 P1 + 9 P2 incl.
 the end-to-end capstone); full suite 0-fail; plugin smoke 49/49; typecheck-clean.
-- **P1** — [`publicUploadStorage.ts`](../../../src/lib/server/publicUploadStorage.ts): `storePublicUpload` → durable `getPublicUrl` (Supabase → hard-error-in-prod → local `public/`, no Blob tier, `upsert`) + `deleteSupabasePublicUpload`.
-- **P2** — auto-public on publish: the new additive `publicMedia` foundation port ([`publicMediaAdapter.ts`](../../../src/built-ins/runtime/foundation-adapters/publicMediaAdapter.ts)) + a pure fail-open walker ([`publicMediaPromotion.ts`](../../../src/built-ins/modules/website-editor/src/server/publicMediaPromotion.ts)) wired into `publishPage`; brand-kit images ride the same walker.
+- **P1 historical milestone** — the original helper implemented Supabase `getPublicUrl`/`upsert` plus `deleteSupabasePublicUpload`. The current corrective branch removes the dormant remote upload branch and makes the delete helper throw `PublicUploadOwnershipProofError`; only inspected local-development writes remain until the durable lifecycle exists.
+- **P2 historical milestone** — auto-public on publish used the additive `publicMedia` foundation port plus a pure fail-open walker. The current corrective implementation makes recursively inspected block-tree data URLs fail closed and stops the higher-level workflow before GitHub on an active-page failure.
 - **P3 (gate)** — satisfied by design: the **publish click is the deliberate gate** (Ed's "auto-public on publish"); drafts stay inline, private uploads keep their own separate helper → nothing private leaks. **Active unpublish-deletion deferred** (content-addressed keys are shared across pages, so safe deletion needs refcounting; an unlinked orphan at an unguessable key is not a new exposure — the bytes were already public when published).
 - **P4 (renderers)** — verified: both `ImageBlock` (live) and `renderPageHtml` (export) emit `props.src` directly, so the promoted CDN URL flows through with no proxy/placeholder path. The capstone test renders a published page and asserts the CDN URL is served and the `data:` URL is gone.
 - **Decisions (Ed):** approved = editor + brand-kit images · auto-public on publish · defer private→public promotion · the `publicMedia` port is additive and worker-owned.
-- **Remaining (not code gaps):** browser-verify the publish→CDN flow on a live server; exercise the real Supabase-CDN upload against a live bucket (source-shape-pinned today).
+- **Historical remainder (do not execute):** the old note requested a live Supabase-CDN exercise. Remote publication is now deliberately unavailable and must not be re-enabled for a browser check.
 
 ---
 
@@ -11383,22 +11431,23 @@ plan in flight._
 
 ## Source document — `docs/development/plans/rls-enable.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/rls-enable.md" sha256="803185e8c9ccc9a63facaf4dc8f70ef27a8fbf2207262149bc6dbb569391e04e" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/rls-enable.md" sha256="2a93b711d5490bf4deacd5e1f6e226e87eeee991043fda83ab1f996d81e8d7e5" -->
 # Plan — Database Row-Level Security  🟠 mostly done; service-role reduction remains
 
 ← [todo.md](../TODO.md) · [development.md](../../development.md)
 
 **Status: BUILDING — phases 1, 2, 3 and 5 are done; phase 4 remains. The
 2026-09-03 alignment record says the Inbox and `brand_enquiries` migrations
-were applied live and verified, while the captured `rls_auto_enable` definition
-remained one no-op migration to record. The 2026-09-08 review did not
-independently re-probe Supabase.**
+were applied live and verified. Since that checkpoint, four repository
+versions have accumulated beyond the last verified live set: `20260903130000`,
+`20260908210000`, `20260908220000`, and `20260910010000`. They remain
+owner-gated; the current security lanes did not apply or verify them live.**
 
 This plan was written around "RLS is not in the repo". It is. The policies live
 in **[`../../../../supabase/migrations/`](../../../../supabase/README.md)** — a
 standard Supabase CLI project sitting beside `portal/`, linked to project ref
 `dghzbsxbdatskserctgt`, the same ref `NEXT_PUBLIC_SUPABASE_URL` points at.
-The repository now contains 28 ordered migrations defining the schema,
+The repository now contains 31 ordered migrations defining the schema,
 policies, grants, bucket ACLs and database functions.
 
 The reason nobody found them is worth recording, because it will happen again:
@@ -11432,11 +11481,16 @@ tenant isolation, and it must not be sold as such.**
 
 ## The gaps that remain
 
-1. **Record the already-live RLS event trigger migration.** The former
+1. **Reconcile and apply the four owner-gated migrations safely.** The former
    dashboard-only `rls_auto_enable()` definition and trigger are now captured
    in `20260903130000_ensure_rls_event_trigger.sql`. At the 2026-09-03
-   checkpoint it was the sole pending migration and was a no-op on live; it
-   still needs a current drift check before the next approved push.
+   checkpoint it was the sole pending migration and was a no-op on live. It is
+   now the first of four expected local-only versions, followed by the two
+   containment migrations and public-bucket hardening. Before any approved
+   push, run a read-only `supabase migration list --linked` and
+   `supabase db push --linked --dry-run`; abort if the delta is not exactly
+   those four versions. Take a fresh backup and obtain explicit owner approval
+   before the real push.
 
 2. **Reduce service-role reliance and re-prove the live boundary.** Admin
    clients bypass RLS, so their tenant filters remain application controls.
@@ -11480,7 +11534,9 @@ at all. Superseded first-cut model, or unfinished? Decide and record it.
 > does not read — so a plan the Status line calls "mostly done" rendered `0/5`.
 > They carry ✅ leads, and phase 3 is now also marked complete from the verified
 > 2026-09-03 application record. Phase 4 landed only its *first* reduction
-> (23 → 13 service-role call sites), so it is genuinely still open. Verified
+> (23 → 13 service-role call sites), and the 2026-09-10 removal of the dormant
+> remote public-media provider reduced the current posture to 12. It is still
+> genuinely open. Verified
 > 2026-08-31 that phase 5's two halves exist —
 > [`supabase/rls-verify.sql`](../../../../supabase/rls-verify.sql) and
 > `portal/scripts/smoke-rls-policy-coverage.test.ts` — and that phase 4's pin,
@@ -11499,7 +11555,10 @@ at all. Superseded first-cut model, or unfinished? Decide and record it.
 4. **Reduce service-role reliance where feasible** — **first reduction landed
    2026-08-20.** Measured by grep for `createSupabaseAdminClient(` in `src/`,
    excluding its definition file (`src/lib/supabase/admin.ts`): **before 23
-   call sites in 18 files → after 13 call sites in 8 files.** The count is
+   call sites in 18 files → current 12 call sites in 8 files.** The first
+   reduction reached 13; the server-mediated enquiry boundary then added one,
+   and removal of the unsafe dormant remote public-media provider removed two
+   on 2026-09-10. The current count is
    pinned in `scripts/smoke-service-role-usage.test.ts`, which fails on any
    drift and demands the table below stay in step.
 
@@ -11531,18 +11590,34 @@ at all. Superseded first-cut model, or unfinished? Decide and record it.
    through these routes — they get a 401 unless real Supabase cookies are also
    present (Ed's own dev-mode keeps his cookies, so his flows still work).
 
-   **What stays on the service role, and why (13 sites, 8 files):**
+   **What stays on the service role, and why (12 sites, 8 files):**
+
+   > **2026-09-08 (assume-breach Phase 1).** `brand_enquiries` became fully
+   > server-mediated: the containment migration
+   > (`20260908210000` + corrective `20260908220000`) revokes authenticated
+   > SELECT/UPDATE/DELETE, so the internal enquiry routes can no longer use the
+   > scoped RLS client. They were converted to `createEnquiryDataClient()` — one
+   > centralized service-role factory — with tenant ownership enforced in server
+   > code (`loadOwnedEnquiry` / `loadActorWebsiteEnquiry`), never by RLS. Net: +1
+   > *centralized* service-role site (the factory below), −11 scoped-client call
+   > sites in the routes. This is a deliberate, documented increase in the
+   > service-role count in exchange for closing the null-fail-open RLS policy.
 
    | Site | Why it must keep the service role |
    |---|---|
+   | `src/lib/supabase/enquiryDataClient.ts` (1) | The single server-mediated `brand_enquiries` data client. authenticated has no SELECT/UPDATE/DELETE after the containment migration; the 11 internal enquiry routes read/mutate through this factory, and tenant ownership is enforced in server code (`loadOwnedEnquiry`/`loadActorWebsiteEnquiry`) against the caller's session `agencyId`. Centralizing here (vs each route calling the admin client) keeps the ownership contract in one place. |
    | `src/app/api/public/brand-enquiry/route.ts` (1) | Public endpoint, no session. Anon may only INSERT consented rows; this route also SELECTs for dedupe and UPDATEs metadata — an anon SELECT power here would let anyone probe enquiries by email. |
    | `src/app/api/public/form-capture/route.ts` (1) | Public endpoint, no session; inserts `consent:false` hold rows the anon insert policy correctly refuses, and attaches captures to existing rows. |
    | `src/app/api/telemetry/collect/route.ts` (1) | Public endpoint, no session; `website_consent_events` deliberately has no anon policy — consent rows are written server-side after validation/redaction. |
    | `src/app/api/portal/clients/[clientId]/erase/route.ts` (1) | GDPR erasure must scrub rows and storage objects regardless of what RLS would show the caller; `smoke-client-erasure.test.ts` pins this wiring. |
    | `src/lib/server/websiteEnquiries.ts` (3) | Shared read/annotate layer for radar, operational alerts, marketing intelligence and server components — paths with no request/user context. **The remaining phase-4 candidate**: converting it means deciding those engines run as somebody. |
    | `src/lib/server/privateUploadStorage.ts` (3) | Private buckets deny anon/authenticated by design; the app proxies bytes itself. |
-   | `src/lib/server/publicUploadStorage.ts` (2) | Public-assets bucket is service-role-writable only. |
    | `src/lib/server/databaseStorageHealth.ts` (1) | Diagnostics must count ALL rows to report truthfully; runs without a user session. |
+
+   The former two `src/lib/server/publicUploadStorage.ts` call sites are no
+   longer present. AquaCRM now refuses remote public-media publication until
+   an operation-owned, recoverable publish/recall lifecycle exists; there is
+   no dormant service-role provider implementation waiting behind a toggle.
 
    (`src/lib/supabase/admin.ts` is outside the count as the definition file;
    its three internal call sites are `auth.admin.*` operations that exist only
@@ -12635,7 +12710,7 @@ exists — rehearsed, one cluster at a time, moving data never deleting it.
 
 ## Source document — `docs/development/plans/supabase-alignment-2026-09-03.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/supabase-alignment-2026-09-03.md" sha256="fe76984637fe9bc3da8c8f717aebddf0b85e35f6f309db77c33312e488a4edda" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/supabase-alignment-2026-09-03.md" sha256="69f7d40dd7e92a944deb67d5ae7fefed0c482585f664282bb80f92b95fd1345b" -->
 # Supabase alignment — drift register, rehearsal evidence and recovery runbook (3 September 2026)
 
 **Status:** **APPLIED TO LIVE AND VERIFIED — 3 September 2026.** With Ed's database password and
@@ -12646,6 +12721,13 @@ isolated rehearsal (below) preceded it and were entirely read-only. Live result 
 migrations recorded, 0 pending; the `brand_enquiries.agency_id` backfill stamped 52/52 rows
 `milesymedia` with every table's row count preserved; `rls-verify.sql` on live returns 51 INFO /
 0 FAIL / 0 WARN; the drift tool reports 0 missing objects.
+
+> **Current correction — 10 September 2026:** the status above is a frozen
+> record of the 3 September operation, not today's migration state. The repo now
+> contains 31 migrations and the last verified live alignment covered 27.
+> Exactly four later versions are expected to be local-only: `20260903130000`,
+> `20260908210000`, `20260908220000`, and `20260910010000`. Nothing in this
+> historical record authorises a new push or claims those four are live.
 
 ← [production-readiness-roadmap-2026-09-03.md](production-readiness-roadmap-2026-09-03.md) ·
 [`../../../supabase/README.md`](../../../../supabase/README.md) · [ED-QUESTIONS Q7, Q8, Q11](../ED-QUESTIONS.md)
@@ -12770,8 +12852,11 @@ authorisation, not routed around the gate.
 
 ### Remaining, after the live apply
 
-- **`20260903130000`** is 1 no-op pending migration on live (records the already-present
-  `rls_auto_enable`); push it on the next `db push` to reach 0 pending.
+- **At this 2026-09-03 checkpoint, `20260903130000`** was the one no-op pending
+  migration on live (recording the already-present `rls_auto_enable`). That is
+  historical evidence only. As of 2026-09-10 it is the first of four expected
+  local-only versions; follow the current security gate's read-only preflight,
+  backup and explicit-approval procedure rather than this dated record.
 - **Inherited over-broad grants.** The older tables carry the cloud default `GRANT ALL` to
   anon/authenticated (e.g. `audit_events` UPDATE/DELETE), **inert under RLS** (no permissive policy,
   so every such row is denied — the live audit is 0 FAIL). The new grants migration codifies

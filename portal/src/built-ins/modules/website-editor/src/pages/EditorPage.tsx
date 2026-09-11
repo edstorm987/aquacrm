@@ -50,6 +50,12 @@ import {
 import { promoteSiteToGitHub, type PromoteResult } from "../lib/promote";
 import { getState as getContentState, publish as publishContent } from "../lib/content";
 import {
+  partitionPublishPreviewPages,
+  runSitePublishWorkflow,
+  sitePublishSuccessMessage,
+  SitePublishWorkflowError,
+} from "../lib/publishWorkflow";
+import {
   type Funnel, listFunnels, refreshFunnels, createFunnel, onFunnelsChange,
 } from "../lib/funnels";
 import {
@@ -110,6 +116,7 @@ function VisualEditorPageInner({ enabledPluginIds }: { enabledPluginIds: readonl
   const [sites, setSites] = useState<Site[]>([]);
   const [site, setSite] = useState<Site | null>(null);
   const [pages, setPages] = useState<PageEntry[]>([]);
+  const [pagesSiteId, setPagesSiteId] = useState<string | null>(null);
   const [funnels, setFunnels] = useState<Funnel[]>([]);
   const [target, setTarget] = useState<EditorTarget>({ kind: "page", id: "_home" });
   const [mode, setMode] = useState<EditorMode>(() => getEditorComplexity() === "simple" ? "live" : "block");
@@ -208,6 +215,7 @@ function VisualEditorPageInner({ enabledPluginIds }: { enabledPluginIds: readonl
       if (cancelled) return;
 
       setPages(pageEntries);
+      setPagesSiteId(active.id);
       setFunnels(_funnels);
       const requested = deepLinkPageId.current;
       const startId = requested && pageEntries.some(p => p.id === requested)
@@ -236,12 +244,28 @@ function VisualEditorPageInner({ enabledPluginIds }: { enabledPluginIds: readonl
       return;
     }
     let cancelled = false;
-    setActiveSiteId(site.id);
-    void loadPages(site.id).then(pageEntries => {
-      if (cancelled) return;
-      setPages(pageEntries);
-      setTarget({ kind: "page", id: pageEntries[0]?.id ?? "_home" });
-    });
+    setBooting(true);
+    setBootError(null);
+    setPagesSiteId(null);
+    setPages([]);
+    setTarget({ kind: "page", id: "_home" });
+    setPageSettingsId(null);
+    setPublishOpen(false);
+    void loadPages(site.id)
+      .then(pageEntries => {
+        if (cancelled) return;
+        setActiveSiteId(site.id);
+        setPages(pageEntries);
+        setPagesSiteId(site.id);
+        setTarget({ kind: "page", id: pageEntries[0]?.id ?? "_home" });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setBootError("The selected site's pages could not be read. No page from the previous site is being shown; reload or return to the website workspace.");
+      })
+      .finally(() => {
+        if (!cancelled) setBooting(false);
+      });
     return () => { cancelled = true; };
   }, [site?.id, loadPages]);
 
@@ -462,11 +486,12 @@ function VisualEditorPageInner({ enabledPluginIds }: { enabledPluginIds: readonl
     pushDeepLink(created.id, currentVariant);
   }
 
-  if (booting || bootError) {
+  const sitePagesPending = Boolean(site && pagesSiteId !== site.id);
+  if (booting || bootError || sitePagesPending) {
     return (
       <main
         className="aqua-viewport-loading"
-        data-aqua-viewport-loader={booting ? "" : undefined}
+        data-aqua-viewport-loader={booting || sitePagesPending ? "" : undefined}
         data-loading-scope="route"
         data-loading-state={bootError ? "error" : "loading"}
         role="status"
@@ -983,7 +1008,7 @@ function CodeStage({
 // One-click "ship to GitHub". Three steps run in sequence:
 //   1. POST /api/portal/website-editor/content/publish — drafts → published
 //   2. POST /api/portal/website-editor/pages/publish   — current editor page
-//      (best-effort; ignored if no draft exists)
+//      (skipped only when there is no active editor page; any failure stops)
 //   3. POST /api/portal/website-editor/promote          — bundles published
 //      overrides + pages + per-site config into a GitHub PR
 //
@@ -1023,6 +1048,9 @@ function PublishModal({
   const [result, setResult] = useState<PromoteResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<PublishPreview | null>(null);
+  const pagePreview = preview
+    ? partitionPublishPreviewPages(preview.changedPages, activePageId)
+    : null;
 
   // Esc closes — but only when we're not mid-flight (don't strand the user
   // wondering whether the publish actually went through).
@@ -1087,36 +1115,37 @@ function PublishModal({
   async function run() {
     setPhase("running");
     setError(null);
-
-    // 1. Publish content drafts. An empty draft is not an error — the handler
-    //    republishes the current state and clears the draft bucket.
-    setStep("Publishing content drafts…");
     try {
-      await publishContent(site.id, message || undefined);
-    } catch (e) {
-      setError(`Content publish failed: ${e instanceof Error ? e.message : String(e)}`);
-      setPhase("error");
-      return;
-    }
-
-    // 2. Publish active editor page if one is selected. Best effort.
-    if (activePageId) {
-      setStep("Publishing active page…");
-      try {
-        await publishEditorPage(site.id, activePageId);
-      } catch { /* ignore — promote will still pick up published state */ }
-    }
-
-    // 3. Ask the promote endpoint to bundle the published state into a GitHub
-    //    PR. Still the Round-1 stub, so the answer may be `pending`.
-    setStep("Requesting GitHub promote…");
-    try {
-      const out = await promoteSiteToGitHub(site.id, { message });
+      const out = await runSitePublishWorkflow({
+        // An empty content draft is not an error: the handler republishes the
+        // current state and clears the draft bucket.
+        publishContent: async () => {
+          await publishContent(site.id, message || undefined);
+        },
+        publishActivePage: activePageId
+          ? async () => { await publishEditorPage(site.id, activePageId); }
+          : undefined,
+        // This remains the Round-1 stub and may return `{ pending: true }`.
+        promoteToGitHub: () => promoteSiteToGitHub(site.id, { message }),
+        onStep: stage => {
+          setStep(
+            stage === "content"
+              ? "Publishing content drafts…"
+              : stage === "active-page"
+                ? "Publishing active page…"
+                : "Requesting GitHub promote…",
+          );
+        },
+      });
       setResult(out);
       setPhase(out.ok ? "done" : "error");
       if (!out.ok) setError(out.error ?? "Unknown promote error");
-    } catch (e) {
-      setError(`Promote failed: ${e instanceof Error ? e.message : String(e)}`);
+    } catch (error) {
+      setError(
+        error instanceof SitePublishWorkflowError
+          ? error.message
+          : "Publishing stopped safely after an unexpected error. Check Aqua's published state before retrying.",
+      );
       setPhase("error");
     }
   }
@@ -1150,32 +1179,44 @@ function PublishModal({
                 </div>
               )
             ) : (
-              <div className="rounded-lg border border-cyan-400/15 bg-cyan-500/5 p-3 space-y-2">
-                <p className="text-[11px] tracking-wider uppercase text-cyan-300">Will publish</p>
-                {preview.changedContentKeys.length > 0 && (
-                  <details className="text-[12px] text-brand-cream/85">
-                    <summary className="cursor-pointer hover:text-brand-cream">
-                      {preview.changedContentKeys.length} content edit{preview.changedContentKeys.length === 1 ? "" : "s"}
-                    </summary>
-                    <ul className="mt-1 ml-3 space-y-0.5 font-mono text-[10px] text-brand-cream/65 max-h-32 overflow-y-auto">
-                      {preview.changedContentKeys.slice(0, 50).map(k => <li key={k}>· {k}</li>)}
-                      {preview.changedContentKeys.length > 50 && <li>… +{preview.changedContentKeys.length - 50} more</li>}
-                    </ul>
-                  </details>
+              <>
+                {(preview.changedContentKeys.length > 0 || pagePreview?.activePage) && (
+                  <div className="rounded-lg border border-cyan-400/15 bg-cyan-500/5 p-3 space-y-2">
+                    <p className="text-[11px] tracking-wider uppercase text-cyan-300">Will publish</p>
+                    {preview.changedContentKeys.length > 0 && (
+                      <details className="text-[12px] text-brand-cream/85">
+                        <summary className="cursor-pointer hover:text-brand-cream">
+                          {preview.changedContentKeys.length} content edit{preview.changedContentKeys.length === 1 ? "" : "s"}
+                        </summary>
+                        <ul className="mt-1 ml-3 space-y-0.5 font-mono text-[10px] text-brand-cream/65 max-h-32 overflow-y-auto">
+                          {preview.changedContentKeys.slice(0, 50).map(k => <li key={k}>· {k}</li>)}
+                          {preview.changedContentKeys.length > 50 && <li>… +{preview.changedContentKeys.length - 50} more</li>}
+                        </ul>
+                      </details>
+                    )}
+                    {pagePreview?.activePage && (
+                      <div className="text-[12px] text-brand-cream/85">
+                        Active page with new blocks: <span className="text-brand-cream">{pagePreview.activePage.title}</span>{" "}
+                        <span className="font-mono text-[10px] text-brand-cream/45">{pagePreview.activePage.slug}</span>
+                      </div>
+                    )}
+                  </div>
                 )}
-                {preview.changedPages.length > 0 && (
-                  <details className="text-[12px] text-brand-cream/85">
-                    <summary className="cursor-pointer hover:text-brand-cream">
-                      {preview.changedPages.length} page{preview.changedPages.length === 1 ? "" : "s"} with new blocks
-                    </summary>
-                    <ul className="mt-1 ml-3 space-y-0.5 text-[11px] text-brand-cream/65">
-                      {preview.changedPages.map(p => (
-                        <li key={p.id}>· <span className="text-brand-cream/85">{p.title}</span> <span className="font-mono text-brand-cream/45">{p.slug}</span></li>
+                {pagePreview && pagePreview.deferredPages.length > 0 && (
+                  <div className="rounded-lg border border-amber-300/20 bg-amber-400/[0.06] p-3 space-y-2">
+                    <p className="text-[11px] tracking-wider uppercase text-amber-200">Not included in this action</p>
+                    <p className="text-[11px] text-brand-cream/70 leading-relaxed">
+                      {pagePreview.deferredPages.length} other changed page{pagePreview.deferredPages.length === 1 ? " is" : "s are"} deferred.
+                      Open and publish {pagePreview.deferredPages.length === 1 ? "it" : "each one"} separately.
+                    </p>
+                    <ul className="space-y-0.5 text-[11px] text-brand-cream/65">
+                      {pagePreview.deferredPages.map(page => (
+                        <li key={page.id}>· <span className="text-brand-cream/85">{page.title}</span> <span className="font-mono text-brand-cream/45">{page.slug}</span></li>
                       ))}
                     </ul>
-                  </details>
+                  </div>
                 )}
-              </div>
+              </>
             )}
 
             {preview !== null && preview.unreadable.length > 0 && (
@@ -1183,13 +1224,13 @@ function PublishModal({
               <p className="text-[11px] text-amber-200/90 leading-relaxed">
                 Could not read {preview.unreadable.join(" or ")}, so this preview is incomplete —
                 there may be pending changes it does not show, and its silence is not a clean
-                tree. Publishing still works; it publishes whatever is actually pending on the
-                server.
+                tree. This action publishes content drafts and the selected active page only.
               </p>
             )}
 
             <p className="text-[11px] text-brand-cream/55 leading-relaxed">
-              Publishes your drafts inside Aqua. Bundling{" "}
+              Publishes content drafts and, when selected, the active editor page inside Aqua.
+              Other changed pages must be opened and published separately. Bundling{" "}
               <code className="font-mono text-brand-cream/85">portal.overrides.json</code>,{" "}
               <code className="font-mono text-brand-cream/85">portal.pages.json</code> and{" "}
               <code className="font-mono text-brand-cream/85">portal.site.json</code> into a
@@ -1254,8 +1295,7 @@ function PublishModal({
                  that answer is a claim of delivery that did not happen — the
                  operator would go looking for a PR that does not exist. */
               <p className="text-[12px] text-amber-200/90 leading-relaxed">
-                Your content and page changes were published inside Aqua and are live on the
-                portal. Shipping them to GitHub is not built yet — the promote endpoint accepts
+                {sitePublishSuccessMessage(activePageId)} Shipping this state to GitHub is not built yet — the promote endpoint accepts
                 the request and opens no pull request, so nothing has reached your repository
                 and there is nothing to merge.
                 {result.note ? <span className="block mt-1 text-brand-cream/45 text-[11px]">{result.note}</span> : null}

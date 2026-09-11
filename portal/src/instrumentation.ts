@@ -121,6 +121,12 @@ export async function register(): Promise<void> {
     const { runStartupEnvCheck } = await import("@/lib/server/env");
     runStartupEnvCheck();
 
+    // Wire the AV/CDR content scanner from config (Item 7). No-op unless
+    // PORTAL_AV_SCANNER_URL is set; when unset, hasContentScanner() stays false,
+    // the readiness gate stays red, and production high-risk uploads fail closed.
+    const { wireContentScannerFromEnv } = await import("@/lib/server/security/contentScannerAdapter");
+    wireContentScannerFromEnv();
+
     const { inspectObservabilityCapability } = await import("@/lib/server/observabilityCapability");
     const capability = inspectObservabilityCapability();
     if (capability.dsnConfigured && !capability.capturing && process.env.NODE_ENV !== "test") {

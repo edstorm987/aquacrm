@@ -158,6 +158,23 @@ before(() => {
   stub("../src/server/zimanteTradingCompanies", {
     ensureZimanteTradingCompanies: () => ({ milesymedia: { id: "company_milesymedia" } }),
   });
+  // The public brand-enquiry route now reads pre-seeded trading companies
+  // instead of seeding them on an unauthenticated request; stub the read so the
+  // harness supplies the milesymedia company without the real storage getState().
+  stub("../src/server/tradingCompanies", {
+    listTradingCompanies: () => [
+      {
+        id: "company_milesymedia",
+        agencyId: AGENCY_ID,
+        name: "Milesy Media",
+        slug: "milesymedia",
+        brand: {},
+        status: "active",
+        createdAt: 0,
+        updatedAt: 0,
+      },
+    ],
+  });
   stub("../src/lib/server/email/enquiryNotifications", {
     notifyBrandEnquiry: async () => { effects.notification += 1; return { attempted: true, sent: true }; },
   });

@@ -148,6 +148,13 @@ const OPS_GROUPS: OpsGroup[] = [
         action: "Open governance",
         icon: ShieldCheck,
       },
+      {
+        href: "/portal/agency/security",
+        label: "Security Centre",
+        detail: "Contain a live incident: freeze writes, lock a tenant, revoke sessions, suspend a user, kill AI — with a durable record.",
+        action: "Open Security Centre",
+        icon: Lock,
+      },
     ],
   },
   {

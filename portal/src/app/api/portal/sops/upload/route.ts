@@ -103,6 +103,7 @@ export async function POST(request: NextRequest) {
       contentType: file.type,
       localDirectory: "sop-uploads",
       localKey: relativeKey,
+      trust: { tenantId: session.agencyId, actor: session.userId, purpose: "sop-document" },
     });
 
     const title = typeof form?.get("title") === "string" && String(form.get("title")).trim()

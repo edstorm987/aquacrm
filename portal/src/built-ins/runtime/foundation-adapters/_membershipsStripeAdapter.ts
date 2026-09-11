@@ -31,6 +31,7 @@ import type {
   StripeSubscriptionInput,
   StripeWebhookEvent,
 } from "@aqua/plugin-memberships/server";
+import { assertFreshWritesAllowed } from "@/lib/server/auth/securityControl";
 
 export interface MembershipsStripeKeys {
   secretKey: string;
@@ -176,11 +177,17 @@ function subscriptionFromRaw(raw: RawStripeSubscription): StripeSubscription {
 export function makeMembershipsStripePort(
   keys: MembershipsStripeKeys,
   injected?: StripeClientLike,
+  context: { tenantId?: string; actor?: string } = {},
 ): StripePort {
   const client = (): Promise<StripeClientLike> => getMembershipsStripeClient(keys.secretKey, injected);
+  const assertStripeWriteAllowed = () => assertFreshWritesAllowed("provider.stripe.memberships", {
+    tenantId: context.tenantId ?? "",
+    actor: context.actor,
+  });
 
   return {
     async createCustomer(input: StripeCustomerInput): Promise<StripeCustomer> {
+      await assertStripeWriteAllowed();
       const stripe = await client();
       const customer = await stripe.customers.create(
         { email: input.email, name: input.name, metadata: input.metadata },
@@ -197,6 +204,7 @@ export function makeMembershipsStripePort(
     },
 
     async createSubscription(input: StripeSubscriptionInput): Promise<StripeSubscription> {
+      await assertStripeWriteAllowed();
       const stripe = await client();
       const raw = await stripe.subscriptions.create({
         customer: input.customerId,
@@ -212,6 +220,7 @@ export function makeMembershipsStripePort(
       atPeriodEnd: boolean,
       idempotencyKey?: string,
     ): Promise<StripeSubscription> {
+      await assertStripeWriteAllowed();
       const stripe = await client();
       const options = idempotencyKey ? { idempotencyKey } : undefined;
       const raw = atPeriodEnd
@@ -227,6 +236,7 @@ export function makeMembershipsStripePort(
     },
 
     async pauseSubscription(id: string): Promise<StripeSubscription> {
+      await assertStripeWriteAllowed();
       const stripe = await client();
       const raw = await stripe.subscriptions.update(id, {
         pause_collection: { behavior: "void" },
@@ -235,6 +245,7 @@ export function makeMembershipsStripePort(
     },
 
     async resumeSubscription(id: string): Promise<StripeSubscription> {
+      await assertStripeWriteAllowed();
       const stripe = await client();
       // Resume both meanings exposed by the service: paused collection and a
       // period-end cancellation the member chose to undo.
@@ -251,6 +262,7 @@ export function makeMembershipsStripePort(
       metadata: Record<string, string>;
       idempotencyKey?: string;
     }): Promise<StripeSubscription> {
+      await assertStripeWriteAllowed();
       const stripe = await client();
       const current = await stripe.subscriptions.retrieve(args.id);
       if (!current) throw new Error(`Stripe subscription ${args.id} not found.`);
@@ -269,6 +281,7 @@ export function makeMembershipsStripePort(
     },
 
     async createCheckoutSession(input: StripeCheckoutSessionInput): Promise<StripeCheckoutSession> {
+      await assertStripeWriteAllowed();
       const stripe = await client();
       const session = await stripe.checkout.sessions.create(
         {
@@ -298,6 +311,7 @@ export function makeMembershipsStripePort(
     async createBillingPortalSession(
       input: StripeBillingPortalInput,
     ): Promise<StripeBillingPortalSession> {
+      await assertStripeWriteAllowed();
       const stripe = await client();
       const session = await stripe.billingPortal.sessions.create({
         customer: input.customerId,
@@ -307,6 +321,7 @@ export function makeMembershipsStripePort(
     },
 
     async createPrice(input: StripePriceInput): Promise<StripePrice> {
+      await assertStripeWriteAllowed();
       const stripe = await client();
       const productParams =
         typeof input.product === "string"

@@ -153,6 +153,58 @@ describe("Env secrets — inspectEnv issues (R029)", () => {
     assert.equal(e!.severity, "error");
   });
 
+  it("rejects renamed, swapped, or shared private/public storage zones", () => {
+    for (const env of [
+      { ...PROD_REQUIRED_ENV, NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET: "aquacrm-public" },
+      { ...PROD_REQUIRED_ENV, NEXT_PUBLIC_SUPABASE_PUBLIC_BUCKET: "aquacrm-uploads" },
+      {
+        ...PROD_REQUIRED_ENV,
+        NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET: "shared-bucket",
+        NEXT_PUBLIC_SUPABASE_PUBLIC_BUCKET: "shared-bucket",
+      },
+      { ...PROD_REQUIRED_ENV, NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET: " aquacrm-uploads " },
+    ]) {
+      const bucketIssues = inspectEnv(env).filter(issue => (
+        issue.name === "NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET"
+        || issue.name === "NEXT_PUBLIC_SUPABASE_PUBLIC_BUCKET"
+      ));
+      assert.ok(bucketIssues.length > 0);
+      assert.ok(bucketIssues.every(issue => issue.severity === "error"));
+    }
+  });
+
+  it("accepts every supported Supabase key scheme but fails when an entire key class is absent", () => {
+    assert.deepEqual(inspectEnv(PROD_REQUIRED_ENV), []);
+
+    const modernKeyEnv: NodeJS.ProcessEnv = { ...PROD_REQUIRED_ENV };
+    delete modernKeyEnv.SUPABASE_SERVICE_ROLE_KEY;
+    delete modernKeyEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    modernKeyEnv.SUPABASE_SECRET_KEY = "modern-secret-test-key";
+    modernKeyEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "modern-publishable-test-key";
+    assert.deepEqual(inspectEnv(modernKeyEnv), []);
+
+    const shortPublishableAlias: NodeJS.ProcessEnv = { ...modernKeyEnv };
+    delete shortPublishableAlias.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    shortPublishableAlias.NEXT_PUBLIC_PUBLISHABLE_KEY = "alternate-publishable-test-key";
+    assert.deepEqual(inspectEnv(shortPublishableAlias), []);
+
+    const noServerKeyEnv: NodeJS.ProcessEnv = { ...PROD_REQUIRED_ENV };
+    delete noServerKeyEnv.SUPABASE_SERVICE_ROLE_KEY;
+    const missingKeyIssue = inspectEnv(noServerKeyEnv).find(
+      issue => issue.name === "SUPABASE_SECRET_KEY / SUPABASE_SERVICE_ROLE_KEY",
+    );
+    assert.ok(missingKeyIssue);
+    assert.equal(missingKeyIssue.severity, "error");
+
+    const noPublicKeyEnv: NodeJS.ProcessEnv = { ...PROD_REQUIRED_ENV };
+    delete noPublicKeyEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const missingPublicIssue = inspectEnv(noPublicKeyEnv).find(
+      issue => issue.name === "Supabase publishable / anon key",
+    );
+    assert.ok(missingPublicIssue);
+    assert.equal(missingPublicIssue.severity, "error");
+  });
+
   it("dev mode downgrades missing-required errors to warns", () => {
     const env = { NODE_ENV: "development" } as NodeJS.ProcessEnv;
     const issues = inspectEnv(env);
@@ -198,7 +250,12 @@ describe("Env secrets — ENV_ALLOWLIST (R029)", () => {
       "NEXT_PUBLIC_PORTAL_BASE_URL",
       "NEXT_PUBLIC_PORTAL_SECURITY",
       "NEXT_PUBLIC_SUPABASE_URL",
+      "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+      "NEXT_PUBLIC_PUBLISHABLE_KEY",
       "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+      "NEXT_PUBLIC_SUPABASE_PUBLIC_BUCKET",
+      "NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET",
+      "SUPABASE_SECRET_KEY",
       "SUPABASE_SERVICE_ROLE_KEY",
       "FOUNDER_EMAIL",
       "FOUNDER_PASSWORD",

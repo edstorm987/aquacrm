@@ -12,6 +12,7 @@ import {
   atomicReplaceDevFile,
   withDevFileTransaction,
 } from "@/lib/server/dev/devFileTransaction";
+import { assertWritesAllowed } from "@/lib/server/auth/securityControl";
 
 const DEFAULT_LEASE_MS = 5 * 60_000;
 const DEFAULT_WAIT_MS = 12_000;
@@ -288,7 +289,29 @@ function normaliseRemoteClaim(value: unknown): LeadConversionClaim {
 const memoryCoordinator = createMemoryLeadConversionCoordinator();
 let fileCoordinator: { path: string; coordinator: LeadConversionCoordinator } | null = null;
 
-export function leadConversionCoordinator(): LeadConversionCoordinator {
+function guardLeadConversionCoordinator(
+  coordinator: LeadConversionCoordinator,
+  context: { tenantId?: string; actor?: string },
+): LeadConversionCoordinator {
+  return {
+    async claim(input) {
+      assertWritesAllowed("database.lead-conversion-coordination", context);
+      return coordinator.claim(input);
+    },
+    async complete(input) {
+      assertWritesAllowed("database.lead-conversion-coordination", context);
+      return coordinator.complete(input);
+    },
+    async fail(input) {
+      assertWritesAllowed("database.lead-conversion-coordination", context);
+      return coordinator.fail(input);
+    },
+  };
+}
+
+export function leadConversionCoordinator(
+  context: { tenantId?: string; actor?: string } = {},
+): LeadConversionCoordinator {
   const backend = getBackendInfo().kind;
   const realmId = getActiveDataRealmId();
   if (backend === "file") {
@@ -298,10 +321,10 @@ export function leadConversionCoordinator(): LeadConversionCoordinator {
     if (!fileCoordinator || fileCoordinator.path !== path) {
       fileCoordinator = { path, coordinator: createFileLeadConversionCoordinator(path) };
     }
-    return fileCoordinator.coordinator;
+    return guardLeadConversionCoordinator(fileCoordinator.coordinator, context);
   }
   if (backend === "supabase" || backend === "postgres") {
-    return {
+    return guardLeadConversionCoordinator({
       async claim(input) {
         if (backend === "supabase") {
           const storage = await import("./storageSupabase");
@@ -342,7 +365,7 @@ export function leadConversionCoordinator(): LeadConversionCoordinator {
           input.claimKey, input.requestHash, input.holderId, input.error, realmId,
         );
       },
-    };
+    }, context);
   }
   return memoryCoordinator;
 }

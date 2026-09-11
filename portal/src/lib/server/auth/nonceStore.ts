@@ -95,6 +95,20 @@ CREATE TABLE IF NOT EXISTS nonces (
 CREATE INDEX IF NOT EXISTS nonces_expires_at_idx ON nonces (expires_at);
 `;
 
+/**
+ * Async, dependency-safe boundary for the raw Postgres nonce table. Keeping the
+ * security-control import lazy avoids pulling the PortalState/storage graph
+ * into the memory-only test adapter, while every durable SQL mutation awaits
+ * the live-realm write decision before table DDL or DML can execute.
+ */
+export async function assertDurableNonceWriteAllowed(): Promise<void> {
+  const { assertFreshWritesAllowed } = await import("@/lib/server/auth/securityControl");
+  await assertFreshWritesAllowed("database.auth-nonce", {
+    platformPurpose: "identity-lifecycle",
+    actor: "auth-nonce-store",
+  });
+}
+
 function createPostgresAdapter(): NonceStore {
   let ensured = false;
   async function ensureTable(): Promise<void> {
@@ -112,6 +126,7 @@ function createPostgresAdapter(): NonceStore {
     async consumeNonce(token, kind, ttlMs) {
       const now = Date.now();
       if (ttlMs <= 0) return false;
+      await assertDurableNonceWriteAllowed();
       await ensureTable();
       const pool = await getQuery();
       const result = await pool.query(
@@ -124,11 +139,13 @@ function createPostgresAdapter(): NonceStore {
       return result.rowCount === 1;
     },
     async releaseNonce(token, kind) {
+      await assertDurableNonceWriteAllowed();
       await ensureTable();
       const pool = await getQuery();
       await pool.query("DELETE FROM nonces WHERE token = $1 AND kind = $2", [token, kind]);
     },
     async gcExpiredNonces(now = Date.now()) {
+      await assertDurableNonceWriteAllowed();
       await ensureTable();
       const pool = await getQuery();
       const result = await pool.query(
@@ -138,6 +155,7 @@ function createPostgresAdapter(): NonceStore {
       return result.rowCount ?? 0;
     },
     async _resetForTests() {
+      // Deliberate test-only reset seam; never resolved by production code.
       await ensureTable();
       const pool = await getQuery();
       await pool.query("TRUNCATE nonces");

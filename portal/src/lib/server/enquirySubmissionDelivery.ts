@@ -12,6 +12,10 @@ import {
   type AquaTagWorkStatus,
   type SubmissionClaimClient,
 } from "@/lib/supabase/enquirySubmissionClaims";
+import {
+  assertFreshWriteAdmission,
+  isWriteAdmissionDenied,
+} from "@/lib/server/security/writeAdmission";
 
 /**
  * Downstream delivery for one accepted brand enquiry, orchestrated against the
@@ -213,6 +217,12 @@ export async function runBrandEnquiryEffectsInline(
 ): Promise<EffectRecords> {
   const records: EffectRecords = {};
   for (const name of BRAND_ENQUIRY_EFFECT_ORDER) {
+    await assertFreshWriteAdmission({
+      kind: "tenant",
+      tenantId: context.work.agencyId,
+      surface: `background.brand-enquiry.${name}`,
+      actor: "brand-enquiry-inline",
+    });
     records[name] = { ...(await effects[name]({ ...context, effects: records })), status: "done" };
   }
   return records;
@@ -239,8 +249,23 @@ export async function runClaimedAquaTagSubmissionWork(
   effects: BrandEnquiryEffectSet,
 ): Promise<ClaimedWorkResult> {
   const work = brandEnquiryWorkFrom(claim.brand);
+  await assertFreshWriteAdmission({
+    kind: "tenant",
+    tenantId: claim.tenantScope,
+    surface: "background.brand-enquiry.delivery",
+    actor: claim.owner,
+  });
   if (!work || !claim.enquiryId) {
     const error = !claim.enquiryId ? "The submission has no canonical enquiry to deliver." : "The stored work payload is malformed.";
+    const settled = await settleAquaTagSubmissionWork(client, claim, {
+      outcome: "dead",
+      error,
+      metadataPatch: { ingestionState: "failed", deliveryState: "dead-letter", deliveryError: error },
+    });
+    return settled.settled ? { outcome: "dead", delivery: "failed", error } : { outcome: "lease-lost", delivery: "pending" };
+  }
+  if (work.agencyId !== claim.tenantScope) {
+    const error = "The stored work payload does not match its claimed tenant.";
     const settled = await settleAquaTagSubmissionWork(client, claim, {
       outcome: "dead",
       error,
@@ -253,6 +278,17 @@ export async function runClaimedAquaTagSubmissionWork(
   for (const name of BRAND_ENQUIRY_EFFECT_ORDER) {
     const existing = records[name];
     if (existing?.status === "done" || existing?.status === "unknown") continue;
+
+    // A claim can outlive the control snapshot that admitted the sweep. Check
+    // again immediately before every external/database effect; a freeze leaves
+    // the claim leased for a later authorised recovery instead of progressing
+    // on a stale worker.
+    await assertFreshWriteAdmission({
+      kind: "tenant",
+      tenantId: work.agencyId,
+      surface: `background.brand-enquiry.${name}`,
+      actor: claim.owner,
+    });
 
     if (NON_IDEMPOTENT_EFFECTS.has(name)) {
       if (existing?.status === "attempted") {
@@ -276,6 +312,7 @@ export async function runClaimedAquaTagSubmissionWork(
     try {
       outcome = await effects[name]({ work, enquiryId: claim.enquiryId, effects: records });
     } catch (cause) {
+      if (isWriteAdmissionDenied(cause)) throw cause;
       const error = `${name}: ${safeDeliveryError(cause)}`;
       // This claim already spent its last attempt: the settle is terminal and
       // the canonical row must say so in the same transaction, never "pending".
@@ -343,6 +380,13 @@ export async function processAquaTagSubmissionDeliveries(
     client = registration.adminClient();
   }
 
+  await assertFreshWriteAdmission({
+    kind: "platform",
+    purpose: "cross-tenant-queue-claim",
+    surface: "background.brand-enquiry.claim",
+    actor: deliveryOwnerId(),
+  });
+
   const claims = await claimAquaTagSubmissionWork(client, {
     owner: deliveryOwnerId(),
     leaseMs: options.leaseMs ?? 90_000,
@@ -359,6 +403,7 @@ export async function processAquaTagSubmissionDeliveries(
       else if (run.outcome === "dead") { result.dead += 1; result.errors.push(run.error); }
       else result.leaseLost += 1;
     } catch (cause) {
+      if (isWriteAdmissionDenied(cause)) throw cause;
       // The claim stays leased; the next sweep after expiry recovers it.
       result.errors.push(`${claim.submissionId}: ${safeDeliveryError(cause)}`);
     }

@@ -61,6 +61,22 @@ export class DeliveryService {
       };
     }
 
+    // Production drivers install the incident fence here, before the durable
+    // queued -> sending transition. The driver repeats the check immediately
+    // before network I/O to close the time-of-check/time-of-use window.
+    const driver = this.drivers.get(cfg.provider);
+    let ctx: DriverContext | undefined;
+    if (driver) {
+      const apiKey = await this.provider._readApiKey();
+      ctx = {
+        apiKey,
+        webhookSecret: cfg.webhookSecret,
+        agencyId: this.agencyId,
+        ...(cfg.smtp ? { smtp: cfg.smtp } : {}),
+      };
+      await driver.assertSendAllowed?.(ctx);
+    }
+
     // Flip queued → sending so concurrent delivery attempts don't double-fire.
     const sending = await this.emails.markSending(messageId);
     if (!sending || sending.status !== "sending") {
@@ -74,20 +90,12 @@ export class DeliveryService {
       };
     }
 
-    const driver = this.drivers.get(cfg.provider);
     if (!driver) {
       const reason = `No driver registered for provider ${cfg.provider}.`;
       await this.emails.markFailed(messageId, reason);
       return { ok: false, code: "delivery_unavailable", reason };
     }
-    const apiKey = await this.provider._readApiKey();
-    const ctx: DriverContext = {
-      apiKey,
-      webhookSecret: cfg.webhookSecret,
-      agencyId: this.agencyId,
-      ...(cfg.smtp ? { smtp: cfg.smtp } : {}),
-    };
-    const result = await driver.send({ ctx, message: sending });
+    const result = await driver.send({ ctx: ctx!, message: sending });
     if (result.ok) {
       await this.emails.markSent(messageId, result.externalRef);
       await this.provider.markActive();

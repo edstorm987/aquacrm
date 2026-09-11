@@ -57,3 +57,28 @@ export function mayUseEnvironmentCredentials(agencyId: string | undefined): bool
   const founder = founderAgencyId();
   return Boolean(founder && founder === agencyId);
 }
+
+/**
+ * PLATFORM-OPERATOR authority (Item 2) — USER-specific, and stored OUTSIDE
+ * ordinary tenant membership. Platform-global actions (global write-freeze,
+ * global sign-out, AI kill) belong to designated operator people, NOT to
+ * "anyone who happens to be an owner in the founder agency". An ordinary owner
+ * seeded into the founder agency is therefore refused.
+ *
+ * The allowlist is configuration (env `PORTAL_PLATFORM_OPERATOR_EMAILS`,
+ * comma-separated), unioned with the founder account's own email — never a
+ * tenant-membership lookup. Compared by the session's own email/identity.
+ */
+export function platformOperatorEmails(): Set<string> {
+  const configured = (process.env.PORTAL_PLATFORM_OPERATOR_EMAILS ?? "")
+    .split(",")
+    .map(entry => entry.trim().toLowerCase())
+    .filter(Boolean);
+  return new Set<string>([founderEmail(), ...configured]);
+}
+
+export function isPlatformOperator(identity: { email?: string | null } | null | undefined): boolean {
+  const email = identity?.email?.trim().toLowerCase();
+  if (!email) return false;
+  return platformOperatorEmails().has(email);
+}

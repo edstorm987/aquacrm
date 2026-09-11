@@ -105,6 +105,9 @@ export async function POST(req: NextRequest) {
     if (existing) {
       await updateSupabasePassword(user.email, newPassword);
     } else {
+      if (!user.agencyId?.trim()) {
+        throw new Error("The account has no tenant assignment for identity provisioning.");
+      }
       await provisionSupabaseIdentity({
         email: user.email,
         password: newPassword,
@@ -114,7 +117,7 @@ export async function POST(req: NextRequest) {
         // following `server/staffProvisioning.ts:353`; everyone customer-shaped
         // is a client; the remaining agency roles are staff.
         role: supabaseProfileRole(user.role),
-        agencyId: user.agencyId || undefined,
+        agencyId: user.agencyId,
       });
     }
   } catch (error) {

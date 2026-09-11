@@ -2,6 +2,7 @@ import "server-only";
 
 import crypto from "node:crypto";
 
+import { assertFreshWritesAllowed } from "@/lib/server/auth/securityControl";
 import { decryptCalendarSecret, encryptCalendarSecret } from "@/lib/server/calendarVault";
 import { verifyIdToken } from "@/lib/server/integrations/oauthGoogle";
 import { assertLiveProviderAccess } from "@/lib/server/sandbox/providerPolicy";
@@ -140,6 +141,7 @@ export async function connectGoogleCalendarAccount(input: {
   config: GoogleCalendarConfig;
   fetchImpl?: typeof fetch;
 }): Promise<CommandCalendarIntegrationSnapshot> {
+  await assertFreshWritesAllowed("provider.google-calendar.connect", { tenantId: input.agencyId, actor: input.ownerUserId });
   assertLiveProviderAccess("Google Calendar connection");
   const fetchImpl = input.fetchImpl ?? fetch;
   const response = await fetchImpl(GOOGLE_TOKEN, {
@@ -185,6 +187,9 @@ export async function connectGoogleCalendarAccount(input: {
 }
 
 export async function syncGoogleCalendars(agencyId: string, ownerUserId: string, connectionId?: string): Promise<CommandCalendarIntegrationSnapshot> {
+  // Synchronisation refreshes grants and persists source/event state; it is a
+  // background write command even though its calendar API reads are GETs.
+  await assertFreshWritesAllowed("provider.google-calendar.sync", { tenantId: agencyId, actor: ownerUserId });
   assertLiveProviderAccess("Google Calendar sync");
   const config = readGoogleCalendarConfig();
   if (!config) throw new Error("Google Calendar OAuth is not configured.");
@@ -215,6 +220,7 @@ export async function createGoogleCalendarEvent(input: {
   flushImpl?: typeof flushPendingWrites;
   logActivityImpl?: typeof logActivity;
 }): Promise<GoogleCalendarEventCreateResult> {
+  await assertFreshWritesAllowed("provider.google-calendar.event-create", { tenantId: input.agencyId, actor: input.ownerUserId });
   assertLiveProviderAccess("Google Calendar event creation");
   const config = readGoogleCalendarConfig();
   if (!config) throw new Error("Google Calendar OAuth is not configured.");
@@ -417,6 +423,9 @@ export async function syncGoogleCalendarConnection(
   connectionId: string,
   deps: { config: GoogleCalendarConfig; fetchImpl?: typeof fetch },
 ): Promise<void> {
+  // Exported for the scheduler and therefore guarded independently of the
+  // higher-level sync command.
+  await assertFreshWritesAllowed("provider.google-calendar.sync", { tenantId: agencyId, actor: ownerUserId });
   assertLiveProviderAccess("Google Calendar sync");
   const fetchImpl = deps.fetchImpl ?? fetch;
   const original = getState().commandCalendarConnections[connectionId];

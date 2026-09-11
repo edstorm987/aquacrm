@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 
 import crypto from "node:crypto";
-import { readdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join, relative } from "node:path";
+import { execFile } from "node:child_process";
+import { readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { promisify } from "node:util";
 
 const ROOT = process.cwd();
+const execFileAsync = promisify(execFile);
 
 export const AUTHORED_VOLUMES = [
   {
@@ -55,36 +58,23 @@ export const AUTHORED_VOLUMES = [
 ];
 
 const VOLUME_PATHS = new Set(AUTHORED_VOLUMES.map(volume => volume.path));
-const IGNORED_DIRECTORIES = new Set([
-  ".git",
-  ".data",
-  ".cache",
-  ".claude",
-  "node_modules",
-  "coverage",
-  "dist",
-  "build",
-]);
-
-function posix(path) {
-  return path.split("\\").join("/");
-}
-
-function ignoredDirectory(name) {
-  return IGNORED_DIRECTORIES.has(name) || name.startsWith(".next");
-}
-
-async function walk(directory, out = []) {
-  for (const entry of await readdir(directory, { withFileTypes: true })) {
-    if (entry.isDirectory()) {
-      if (!ignoredDirectory(entry.name)) await walk(join(directory, entry.name), out);
-      continue;
-    }
-    if (!entry.isFile() || !entry.name.toLowerCase().endsWith(".md")) continue;
-    const relPath = posix(relative(ROOT, join(directory, entry.name)));
-    if (!VOLUME_PATHS.has(relPath)) out.push(relPath);
-  }
-  return out;
+/**
+ * Consolidation is a release artifact, so its inputs must be reproducible from
+ * the commit alone. Walking the working directory previously pulled ignored
+ * local evidence into the manifest; a clean checkout could not read it. Git's
+ * tracked-file index is the authority. Modified tracked files remain included,
+ * while local evidence can enter only after deliberate promotion.
+ */
+async function trackedMarkdownPaths() {
+  const { stdout } = await execFileAsync(
+    "git",
+    ["ls-files", "-z", "--", "*.md"],
+    { cwd: ROOT, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 },
+  );
+  return stdout
+    .split("\0")
+    .filter(Boolean)
+    .filter(path => !VOLUME_PATHS.has(path));
 }
 
 function volumeFor(path) {
@@ -185,7 +175,7 @@ function renderVolume(volume, sources) {
   return output;
 }
 
-const markdownPaths = (await walk(ROOT)).sort((left, right) => left.localeCompare(right));
+const markdownPaths = (await trackedMarkdownPaths()).sort((left, right) => left.localeCompare(right));
 const sourcePaths = markdownPaths.filter(path => !path.startsWith("docs/reference/"));
 const sourceRecords = await Promise.all(sourcePaths.map(async path => {
   const content = await readFile(join(ROOT, path), "utf8");
