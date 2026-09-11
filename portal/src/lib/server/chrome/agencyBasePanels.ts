@@ -106,6 +106,14 @@ export async function assembleAgencyBasePanels(session: SessionPayload): Promise
       ...panel,
       items: panel.items.filter(item => {
         if (item.id === "inbox") return allows("workspace.inbox") || allows("workspace.actions");
+        // Scouting is an interactive command surface rather than a read-only
+        // report. Keep its navigation aligned with the page/API `use` floor.
+        if (item.id === "scouting") {
+          return workspaceElementAtLeast(
+            workspaceElementLevel(growthAccess, "growth.outreach"),
+            "use",
+          );
+        }
         const key = navElementKey(item.id);
         return key ? allows(key) : true;
       }).map(item => item.id === "inbox" && !allows("workspace.inbox")

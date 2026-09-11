@@ -1,5 +1,4 @@
 import { agencyProductsForRead, listAgencyProducts } from "@/server/agencyProducts";
-import { scoutingQuotaProgress } from "@/lib/server/intelligence/scoutingQuota";
 import { installPlugin, setPluginEnabled } from "@/built-ins/runtime/_runtime";
 import { resolvePortalProductAssignment } from "@/lib/products/productAssignments";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
@@ -13,7 +12,13 @@ import { getPortalFormFields } from "@/server/portalEditor";
 
 import { LeadsPipelineWorkspace } from "./_LeadsPipelineWorkspace";
 
-export async function LeadsPipelineWorkspaceServer({ agencyId, userId }: { agencyId: string; userId: string }) {
+export async function LeadsPipelineWorkspaceServer({
+  agencyId,
+  userId,
+}: {
+  agencyId: string;
+  userId: string;
+}) {
   const pipeline = getPipelineBySlug(agencyId, "leads");
   if (!pipeline || pipeline.kind !== "leads") return <JourneyUnavailable detail="The Journey pipeline has not been initialised for this workspace." />;
 
@@ -30,15 +35,14 @@ export async function LeadsPipelineWorkspaceServer({ agencyId, userId }: { agenc
   }
   if (!install?.enabled) return <JourneyUnavailable detail="The Journey data module could not be enabled." />;
 
+  const storage = makePluginStorage(install.id);
+  const container = leadsContainerFor({ agencyId, storage: storage as never });
   agencyProductsForRead(agencyId);
   const productCatalogue = listAgencyProducts(agencyId, true);
   const products = productCatalogue.filter(product => product.active);
   const brands = listTradingCompanies(agencyId).filter(company => company.status !== "archived");
-  const storage = makePluginStorage(install.id);
-  const container = leadsContainerFor({ agencyId, storage: storage as never });
-  const [leadList, prospectList, archivedList] = await Promise.all([
+  const [leadList, archivedList] = await Promise.all([
     container.leads.list(),
-    container.prospects.list(),
     // Their own view, and only their own view — see the note in page.tsx.
     container.leads.list({ archived: "only" }),
   ]);
@@ -81,41 +85,7 @@ export async function LeadsPipelineWorkspaceServer({ agencyId, userId }: { agenc
         archivedAt: lead.archivedAt,
       }))}
       columns={pipeline.columns.map(column => ({ id: column.id, label: column.label, color: column.color }))}
-      scoutingQuota={scoutingQuotaProgress(agencyId, userId)}
-      prospects={prospectList.filter(prospect => prospect.status === "scouting").map(prospect => ({
-        id: prospect.id,
-        name: prospect.name,
-        company: prospect.company,
-        email: prospect.email,
-        phone: prospect.phone,
-        website: prospect.website,
-        address: prospect.address,
-        googleMapsUrl: prospect.googleMapsUrl,
-        instagramUrl: prospect.instagramUrl,
-        facebookUrl: prospect.facebookUrl,
-        linkedinUrl: prospect.linkedinUrl,
-        niche: prospect.niche,
-        tags: prospect.tags,
-        source: prospect.source,
-        foundAt: prospect.foundAt,
-        opportunity: prospect.opportunity,
-        researchNotes: prospect.researchNotes,
-        nextStep: prospect.nextStep,
-        qualificationState: prospect.qualificationState,
-        fitScore: prospect.fitScore,
-        preferredChannel: prospect.preferredChannel,
-        doNotContact: prospect.doNotContact,
-        nextContactAt: prospect.nextContactAt,
-        nextContactReason: prospect.nextContactReason,
-        lastContactedAt: prospect.lastContactedAt,
-        inspectionChecks: prospect.inspectionChecks,
-        inspectedAt: prospect.inspectedAt,
-        followUps: prospect.followUps,
-        outreachAttempts: prospect.outreachAttempts,
-        notes: prospect.notes,
-        capturedAt: prospect.capturedAt,
-        updatedAt: prospect.updatedAt,
-      }))}
+      prospects={[]}
       leads={journeyLeadList.map(lead => {
         const client = clients.find(candidate => {
           const sameLead = candidate.metadata?.leadId === lead.id;

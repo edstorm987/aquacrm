@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CallButton, CallLinePicker } from "@/components/telephony/CallControls";
 import { EmailButton, EmailLinePicker } from "@/components/telephony/EmailControls";
 import type { ReactNode } from "react";
@@ -48,6 +48,8 @@ export interface ScoutingProspectView {
   phone?: string;
   website?: string;
   address?: string;
+  /** Durable Google identifier; Google profile content itself is not cached in the dossier. */
+  googlePlaceId?: string;
   googleMapsUrl?: string;
   instagramUrl?: string;
   facebookUrl?: string;
@@ -151,27 +153,41 @@ export interface ScoutingQuotaViewModel {
 
 export function ScoutingCommand({
   prospects,
+  focusedProspectId,
   referenceNow,
   quota,
+  quotaWritable,
+  canManage,
+  canQualify,
   onNew,
   onEdit,
   onQualify,
   onDismiss,
 }: {
   prospects: ScoutingProspectView[];
+  /** A just-created record to reveal after the refreshed server list arrives. */
+  focusedProspectId?: string;
   referenceNow: number;
   /** Self-set targets with server-derived progress. Absent = none set yet. */
   quota?: ScoutingQuotaViewModel;
+  quotaWritable: boolean;
+  canManage: boolean;
+  canQualify: boolean;
   onNew: () => void;
   onEdit: (prospect: ScoutingProspectView) => void;
   onQualify: (prospect: ScoutingProspectView) => void;
   onDismiss: (prospect: ScoutingProspectView) => void;
 }) {
   const router = useRouter();
-  const [queue, setQueue] = useState<Queue>("due");
+  const [queue, setQueue] = useState<Queue>("research");
   const [view, setView] = useState<ScoutingView>("command");
   const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState(prospects[0]?.id ?? "");
+  const [selectedId, setSelectedId] = useState(
+    prospects.find(item => !item.doNotContact && ["unreviewed", "researching", "ready"].includes(item.qualificationState))?.id
+      ?? prospects.find(item => !item.doNotContact)?.id
+      ?? prospects[0]?.id
+      ?? "",
+  );
   const [channel, setChannel] = useState<ProspectOutreachChannel>("call");
   const [outcome, setOutcome] = useState<ProspectOutreachOutcome>("attempted");
   const [attemptNote, setAttemptNote] = useState("");
@@ -182,6 +198,8 @@ export function ScoutingCommand({
   const [importing, setImporting] = useState(false);
   const [busy, setBusy] = useState<"outreach" | "note" | "follow-up" | "inspection" | "resolve" | null>(null);
   const [notice, setNotice] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const dossierRef = useRef<HTMLDivElement>(null);
+  const appliedFocusId = useRef("");
 
   const now = referenceNow;
   const dueCount = prospects.filter(item => !item.doNotContact && item.nextContactAt !== undefined && item.nextContactAt <= now).length;
@@ -228,9 +246,23 @@ export function ScoutingCommand({
   const selected = visibleProspects.find(item => item.id === selectedId) ?? visibleProspects[0];
 
   useEffect(() => {
+    if (visibleProspects.length && !visibleProspects.some(item => item.id === selectedId)) {
+      setSelectedId(visibleProspects[0]!.id);
+    }
+  }, [selectedId, visibleProspects]);
+
+  useEffect(() => {
     setInspectionChecks(selected?.inspectionChecks ?? []);
     setFollowUpReason(selected?.nextContactReason ?? "");
   }, [selected?.id, selected?.inspectionChecks, selected?.nextContactReason]);
+
+  useEffect(() => {
+    setAttemptNote("");
+    setFollowUpAt("");
+    setFieldNote("");
+    setOutcome("attempted");
+    setNotice(null);
+  }, [selected?.id]);
 
   async function post(
     path: string,
@@ -264,6 +296,43 @@ export function ScoutingCommand({
   // checks; the buttons use it so they can explain themselves instead of
   // letting the log call 4xx silently after the call was already made.
   const selectedInspected = selected ? inspectionComplete(selected) : false;
+  const qualificationBlockReason = !canQualify
+    ? "You need Leads use access to qualify this prospect into Journey."
+    : selected?.doNotContact
+    ? "Remove the do-not-contact status before moving this prospect into Journey."
+    : selected && !selected.email && !selected.phone
+      ? "Add and verify an email address or phone number before moving this prospect into Journey."
+      : selected && !selectedInspected
+        ? "Complete the three required inspection checks before moving this prospect into Journey."
+        : null;
+
+  function selectProspect(prospectId: string) {
+    setSelectedId(prospectId);
+    if (!window.matchMedia("(min-width: 1024px)").matches) {
+      window.requestAnimationFrame(() => {
+        const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        dossierRef.current?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+        dossierRef.current?.focus({ preventScroll: true });
+      });
+    }
+  }
+
+  useEffect(() => {
+    if (!focusedProspectId || appliedFocusId.current === focusedProspectId) return;
+    const prospect = prospects.find(item => item.id === focusedProspectId);
+    if (!prospect) return;
+    appliedFocusId.current = focusedProspectId;
+    setQuery("");
+    setView("command");
+    setQueue(
+      prospect.doNotContact || prospect.qualificationState === "not-now"
+        ? "parked"
+        : ["unreviewed", "researching", "ready"].includes(prospect.qualificationState)
+          ? "research"
+          : "all",
+    );
+    selectProspect(prospect.id);
+  }, [focusedProspectId, prospects]);
 
   /**
    * Ed: *"if i want to cold call a bunch of people i can go press call button
@@ -385,15 +454,15 @@ export function ScoutingCommand({
           <div className="flex min-w-0 items-center gap-3">
             <span className="grid size-10 shrink-0 place-items-center rounded-md bg-[#72d5ca]/15 text-[#72d5ca]"><Binoculars size={19} aria-hidden="true" /></span>
             <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#72d5ca]">Prospect intelligence</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#72d5ca]">Prospect intelligence</p>
               <h2 className="truncate text-lg font-semibold">Cold scouting command</h2>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-md border border-white/20 px-4 text-sm font-semibold text-white hover:bg-white/10" title="Import CSV, TSV, or XLSX from a Maps or prospecting export">
+            {canManage ? <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-md border border-white/20 px-4 text-sm font-semibold text-white hover:bg-white/10 focus-within:outline-none focus-within:ring-2 focus-within:ring-[#72d5ca] focus-within:ring-offset-2 focus-within:ring-offset-[#102f31]" title="Import CSV, TSV, or XLSX from a Maps or prospecting export">
               <Upload size={15} aria-hidden="true" />{importing ? "Importing..." : "Import scouting list"}
               <input type="file" accept=".csv,.tsv,.xlsx,text/csv,text/tab-separated-values,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={importing} className="sr-only" onChange={event => { const file = event.target.files?.[0]; if (file) void importScoutingFile(file); event.currentTarget.value = ""; }} />
-            </label>
+            </label> : null}
             <button type="button" onClick={onNew} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-[#72d5ca] px-4 text-sm font-semibold text-[#082022] hover:bg-[#8be2d8]">
               <Plus size={16} aria-hidden="true" /> Scout prospect
             </button>
@@ -404,7 +473,7 @@ export function ScoutingCommand({
       {/* Ed: "quotas ... set myself a target ... make it super cool". Rings
           with DERIVED progress — the counters come from the outreach records
           themselves, so this can never disagree with the timeline below it. */}
-      <ScoutingQuotaStrip quota={quota} />
+      <ScoutingQuotaStrip quota={quota} writable={quotaWritable} />
 
       {/* Which line calls go out on, and which address emails send from.
           Mounted once for the whole scouting queue — the buttons on each
@@ -426,25 +495,25 @@ export function ScoutingCommand({
       <nav className="flex flex-wrap items-center justify-between gap-2 border-b border-black/10 bg-white px-3 py-2" aria-label="Scouting queues">
         <div className="flex min-w-0 gap-1 overflow-x-auto">
           {QUEUES.map(item => (
-            <button key={item.id} type="button" onClick={() => { setQueue(item.id); setView("command"); }} className={`shrink-0 rounded-md px-3 py-2 text-xs font-semibold ${queue === item.id && view === "command" ? "bg-[#102f31] text-white" : "text-black/55 hover:bg-black/[0.04]"}`}>
-              {item.label} <span className={queue === item.id && view === "command" ? "text-white/55" : "text-black/35"}>{queueCounts[item.id]}</span>
+            <button key={item.id} type="button" aria-pressed={queue === item.id && view === "command"} onClick={() => { setQueue(item.id); setView("command"); }} className={`shrink-0 rounded-md px-3 py-2 text-xs font-semibold ${queue === item.id && view === "command" ? "bg-[#102f31] text-white" : "text-black/65 hover:bg-black/[0.04]"}`}>
+              {item.label} <span className={queue === item.id && view === "command" ? "text-white/70" : "text-black/60"}>{queueCounts[item.id]}</span>
             </button>
           ))}
         </div>
         <div className="inline-flex shrink-0 rounded-md border border-black/10 bg-[#fbfaf8] p-1" aria-label="Scouting view">
-          <button type="button" onClick={() => setView("command")} className={`inline-flex min-h-8 items-center gap-2 rounded px-3 text-xs font-semibold ${view === "command" ? "bg-white text-black shadow-sm" : "text-black/45"}`}><ClipboardList size={13} /> Command</button>
-          <button type="button" onClick={() => setView("pipeline")} className={`inline-flex min-h-8 items-center gap-2 rounded px-3 text-xs font-semibold ${view === "pipeline" ? "bg-[#102f31] text-white shadow-sm" : "text-black/45"}`}><Columns3 size={13} /> Pipeline</button>
+          <button type="button" aria-pressed={view === "command"} onClick={() => setView("command")} className={`inline-flex min-h-8 items-center gap-2 rounded px-3 text-xs font-semibold ${view === "command" ? "bg-white text-black shadow-sm" : "text-black/65"}`}><ClipboardList size={13} /> Command</button>
+          <button type="button" aria-pressed={view === "pipeline"} onClick={() => setView("pipeline")} className={`inline-flex min-h-8 items-center gap-2 rounded px-3 text-xs font-semibold ${view === "pipeline" ? "bg-[#102f31] text-white shadow-sm" : "text-black/65"}`}><Columns3 size={13} /> Pipeline</button>
         </div>
       </nav>
 
-      {notice ? <div className={`border-b px-4 py-3 text-sm sm:px-6 ${notice.tone === "error" ? "border-red-200 bg-red-50 text-red-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>{notice.text}</div> : null}
+      {notice ? <div role={notice.tone === "error" ? "alert" : "status"} className={`border-b px-4 py-3 text-sm sm:px-6 ${notice.tone === "error" ? "border-red-200 bg-red-50 text-red-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>{notice.text}</div> : null}
 
       {view === "pipeline" ? (
         <ScoutingPipeline
           prospects={prospects}
           now={now}
           onOpen={prospect => {
-            setSelectedId(prospect.id);
+            selectProspect(prospect.id);
             setQueue(prospect.doNotContact || prospect.qualificationState === "not-now" ? "parked" : "all");
             setView("command");
           }}
@@ -464,41 +533,44 @@ export function ScoutingCommand({
               const due = prospect.nextContactAt !== undefined && prospect.nextContactAt <= now && !prospect.doNotContact;
               const active = selected?.id === prospect.id;
               return (
-                <button key={prospect.id} type="button" onClick={() => setSelectedId(prospect.id)} className={`block w-full border-b border-black/[0.07] px-4 py-4 text-left transition ${active ? "bg-[#e9f5f2] shadow-[inset_3px_0_0_#16877f]" : "hover:bg-black/[0.025]"}`}>
+                <button key={prospect.id} type="button" onClick={() => selectProspect(prospect.id)} aria-pressed={active} className={`block w-full border-b border-black/[0.07] px-4 py-4 text-left transition ${active ? "bg-[#e9f5f2] shadow-[inset_3px_0_0_#16877f]" : "hover:bg-black/[0.025]"}`}>
                   <span className="flex items-start justify-between gap-3">
                     <span className="min-w-0">
                       <strong className="block truncate text-sm font-semibold text-black/85">{prospect.company || prospect.name || prospect.website || "Unnamed prospect"}</strong>
-                      <span className="mt-1 block truncate text-xs text-black/45">{[prospect.niche, sourceLabel(prospect.source)].filter(Boolean).join(" · ")}</span>
+                      <span className="mt-1 block truncate text-xs text-black/65">{[prospect.niche, sourceLabel(prospect.source)].filter(Boolean).join(" · ")}</span>
                     </span>
                     {prospect.fitScore !== undefined ? <span className="shrink-0 text-xs font-semibold tabular-nums text-black/55">{prospect.fitScore}%</span> : null}
                   </span>
                   <span className="mt-3 flex items-center justify-between gap-3 text-[11px]">
-                    <span className={`font-semibold uppercase ${due ? "text-red-700" : prospect.doNotContact ? "text-black/35" : "text-[#16776f]"}`}>{due ? "Follow-up due" : qualificationLabel(prospect)}</span>
-                    <span className="text-black/35">{prospect.outreachAttempts.length} attempt{prospect.outreachAttempts.length === 1 ? "" : "s"}</span>
+                    <span className={`font-semibold uppercase ${due ? "text-red-700" : prospect.doNotContact ? "text-black/60" : "text-[#16776f]"}`}>{due ? "Follow-up due" : qualificationLabel(prospect)}</span>
+                    <span className="text-black/60">{prospect.outreachAttempts.length} attempt{prospect.outreachAttempts.length === 1 ? "" : "s"}</span>
                   </span>
                 </button>
               );
             })}
-            {!visibleProspects.length ? <div className="p-8 text-center text-sm text-black/40">No prospects in this queue.</div> : null}
+            {!visibleProspects.length ? <div className="p-8 text-center text-sm text-black/60">No prospects in this queue.</div> : null}
           </div>
         </aside>
 
         {selected ? (
-          <div className="min-w-0">
+          <div ref={dossierRef} tabIndex={-1} role="region" aria-label="Selected prospect dossier" className="min-w-0 scroll-mt-4 focus:outline focus:outline-2 focus:outline-offset-[-2px] focus:outline-[#16877f]">
             <div className="flex flex-wrap items-start justify-between gap-4 border-b border-black/10 px-4 py-5 sm:px-6">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-xl font-semibold text-black/90">{selected.company || selected.name || selected.website || "Unnamed prospect"}</h3>
-                  <span className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase ${qualificationTone(selected)}`}>{qualificationLabel(selected)}</span>
-                  {selected.doNotContact ? <span className="rounded-full bg-red-100 px-2 py-1 text-[10px] font-semibold uppercase text-red-700">Do not contact</span> : null}
+                  <span className={`rounded-full px-2 py-1 text-xs font-semibold uppercase ${qualificationTone(selected)}`}>{qualificationLabel(selected)}</span>
+                  {selected.doNotContact ? <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-semibold uppercase text-red-700">Do not contact</span> : null}
                 </div>
-                <p className="mt-1 text-sm text-black/45">Scouted {formatElapsed(now - selected.capturedAt)} ago{selected.address ? ` · ${selected.address}` : ""}</p>
+                <p className="mt-1 text-sm text-black/65">Scouted {formatElapsed(now - selected.capturedAt)} ago{selected.address ? ` · ${selected.address}` : ""}</p>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex max-w-sm flex-col items-start gap-2 sm:items-end">
+                <div className="flex flex-wrap gap-2">
                 <button type="button" onClick={() => onEdit(selected)} className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-black/65 hover:bg-black/[0.03]">Edit dossier</button>
-                <button type="button" onClick={() => onQualify(selected)} title={!inspectionComplete(selected) ? "Complete the required inspection checks first" : undefined} disabled={selected.doNotContact || (!selected.email && !selected.phone) || !inspectionComplete(selected)} className="inline-flex items-center gap-2 rounded-md bg-black px-3 py-2 text-xs font-semibold text-white hover:bg-black/85 disabled:cursor-not-allowed disabled:opacity-35">
+                <button type="button" onClick={() => { if (!qualificationBlockReason) onQualify(selected); }} aria-disabled={Boolean(qualificationBlockReason)} aria-describedby={qualificationBlockReason ? `qualify-block-${selected.id}` : undefined} className={`inline-flex items-center gap-2 rounded-md bg-black px-3 py-2 text-xs font-semibold text-white ${qualificationBlockReason ? "cursor-not-allowed opacity-45" : "hover:bg-black/85"}`}>
                   Qualify to Journey <ArrowRight size={13} aria-hidden="true" />
                 </button>
+                </div>
+                {qualificationBlockReason ? <p id={`qualify-block-${selected.id}`} className="text-xs leading-5 text-black/65">{qualificationBlockReason}</p> : null}
               </div>
             </div>
 
@@ -517,7 +589,7 @@ export function ScoutingCommand({
                 </section>
 
                 <section className="border-b border-black/10 px-4 py-5 sm:px-6">
-                  <h4 className="text-xs font-semibold uppercase tracking-wide text-black/45">Contact routes</h4>
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-black/65">Contact routes</h4>
                   {selected.doNotContact ? (
                     <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-800">
                       This prospect has opted out of contact. The call and email
@@ -570,8 +642,8 @@ export function ScoutingCommand({
 
                 <section className="px-4 py-5 sm:px-6">
                   <div className="flex items-center justify-between gap-3">
-                    <h4 className="text-xs font-semibold uppercase tracking-wide text-black/45">Contact and research history</h4>
-                    <span className="text-xs text-black/35">{selected.outreachAttempts.length + selected.notes.length + selected.followUps.length} records</span>
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-black/65">Contact and research history</h4>
+                    <span className="text-xs text-black/60">{selected.outreachAttempts.length + selected.notes.length + selected.followUps.length} records</span>
                   </div>
                   <div className="mt-4 divide-y divide-black/[0.07] border-y border-black/[0.07]">
                     {timeline(selected).map(item => (
@@ -580,14 +652,14 @@ export function ScoutingCommand({
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <strong className="text-xs font-semibold text-black/75">{item.title}</strong>
-                            <time className="text-[10px] text-black/35">{formatDateTime(item.at)}</time>
+                            <time className="text-xs text-black/60">{formatDateTime(item.at)}</time>
                           </div>
                           {item.body ? <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-black/55">{item.body}</p> : null}
                           {item.followUpAt ? <p className="mt-1 text-[11px] font-medium text-amber-700">Recontact {formatDateTime(item.followUpAt)}{item.followUpReason ? ` · ${item.followUpReason}` : ""}</p> : null}
                         </div>
                       </div>
                     ))}
-                    {!selected.outreachAttempts.length && !selected.notes.length && !selected.followUps.length ? <p className="py-6 text-center text-sm text-black/35">No contact, follow-up, or field notes recorded yet.</p> : null}
+                    {!selected.outreachAttempts.length && !selected.notes.length && !selected.followUps.length ? <p className="py-6 text-center text-sm text-black/60">No contact, follow-up, or field notes recorded yet.</p> : null}
                   </div>
                 </section>
               </div>
@@ -616,7 +688,7 @@ export function ScoutingCommand({
                     {selected.followUps.filter(item => item.status === "scheduled").sort((a, b) => a.dueAt - b.dueAt).map(item => (
                       <div key={item.id} className={`border-l-2 px-3 py-2 ${item.dueAt <= now ? "border-red-500 bg-red-50" : "border-amber-400 bg-amber-50/70"}`}>
                         <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0"><strong className="block text-xs text-black/75">{item.reason}</strong><span className="mt-0.5 block text-[11px] text-black/45">{item.channel ? CHANNEL_LABELS[item.channel] : "Any channel"} · {formatDateTime(item.dueAt)}</span></div>
+                          <div className="min-w-0"><strong className="block text-xs text-black/75">{item.reason}</strong><span className="mt-0.5 block text-xs text-black/65">{item.channel ? CHANNEL_LABELS[item.channel] : "Any channel"} · {formatDateTime(item.dueAt)}</span></div>
                           <div className="flex shrink-0 gap-1">
                             <button type="button" onClick={() => void resolveFollowUp(item.id, "completed")} disabled={busy !== null} className="grid size-7 place-items-center rounded border border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50" title="Mark completed" aria-label="Mark follow-up completed"><CircleCheck size={13} /></button>
                             <button type="button" onClick={() => void resolveFollowUp(item.id, "skipped")} disabled={busy !== null} className="grid size-7 place-items-center rounded border border-black/10 bg-white text-black/45 hover:bg-black/[0.03]" title="Skip follow-up" aria-label="Skip follow-up"><SkipForward size={13} /></button>
@@ -624,7 +696,7 @@ export function ScoutingCommand({
                         </div>
                       </div>
                     ))}
-                    {!selected.followUps.some(item => item.status === "scheduled") ? <p className="rounded-md border border-dashed border-black/10 px-3 py-3 text-center text-xs text-black/40">No open follow-up. Set the next responsible contact below.</p> : null}
+                    {!selected.followUps.some(item => item.status === "scheduled") ? <p className="rounded-md border border-dashed border-black/10 px-3 py-3 text-center text-xs text-black/60">No open follow-up. Set the next responsible contact below.</p> : null}
                   </div>
                   <label className="mt-3 block text-xs font-medium text-black/55">Reason<input value={followUpReason} onChange={event => setFollowUpReason(event.target.value)} className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm" placeholder="Timing, decision maker, next opening..." /></label>
                   <div className="mt-3 grid grid-cols-2 gap-2">
@@ -640,23 +712,23 @@ export function ScoutingCommand({
                 </section>
 
                 <form onSubmit={addNote} className="border-b border-black/10 px-4 py-5 sm:px-5">
-                  <h4 className="text-sm font-semibold text-black/80">Field note</h4>
-                  <textarea value={fieldNote} onChange={event => setFieldNote(event.target.value)} rows={3} className="mt-3 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-[#16877f]" placeholder="Research, in-person observation, owner detail..." />
+                  <label htmlFor="scouting-field-note" className="text-sm font-semibold text-black/80">Field note</label>
+                  <textarea id="scouting-field-note" value={fieldNote} onChange={event => setFieldNote(event.target.value)} rows={3} className="mt-3 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-[#16877f]" placeholder="Research, in-person observation, owner detail..." />
                   <button type="submit" disabled={busy !== null || !fieldNote.trim()} className="mt-2 inline-flex items-center gap-2 rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-black/65 hover:bg-black/[0.03] disabled:opacity-40"><Plus size={13} />{busy === "note" ? "Adding..." : "Add note"}</button>
                 </form>
 
                 <section className="px-4 py-5 sm:px-5">
                   <div className="flex items-start justify-between gap-3">
-                    <div><p className="text-[10px] font-semibold uppercase text-[#16776f]">Quality gate</p><h4 className="mt-1 text-sm font-semibold text-black/80">Inspect before outreach</h4></div>
+                    <div><p className="text-xs font-semibold uppercase text-[#16776f]">Quality gate</p><h4 className="mt-1 text-sm font-semibold text-black/80">Inspect before outreach</h4></div>
                     <span className={`grid size-9 place-items-center rounded-md ${REQUIRED_INSPECTION_CHECKS.every(check => inspectionChecks.includes(check)) ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}><ShieldCheck size={17} /></span>
                   </div>
-                  <p className="mt-2 text-xs leading-5 text-black/45">Confirm why this business is worth a thoughtful approach. Required checks protect Journey from unqualified volume.</p>
+                  <p className="mt-2 text-xs leading-5 text-black/65">Confirm why this business is worth a thoughtful approach. Required checks protect Journey from unqualified volume.</p>
                   <div className="mt-3 space-y-2">
                     {(Object.entries(INSPECTION_LABELS) as Array<[ProspectInspectionCheck, { label: string; detail: string }]>).map(([check, copy]) => {
                       const required = REQUIRED_INSPECTION_CHECKS.includes(check);
                       return <label key={check} className="flex cursor-pointer items-start gap-3 rounded-md border border-black/[0.08] bg-white p-3 hover:border-[#16877f]/30">
                         <input type="checkbox" checked={inspectionChecks.includes(check)} onChange={event => setInspectionChecks(current => event.target.checked ? [...new Set([...current, check])] : current.filter(item => item !== check))} className="mt-0.5 size-4 accent-[#16877f]" />
-                        <span className="min-w-0"><span className="block text-xs font-semibold text-black/70">{copy.label}{required ? <span className="ml-1 text-red-600">*</span> : null}</span><span className="mt-0.5 block text-[10px] leading-4 text-black/40">{copy.detail}</span></span>
+                        <span className="min-w-0"><span className="block text-xs font-semibold text-black/70">{copy.label}{required ? <span className="ml-1 text-red-600">*</span> : null}</span><span className="mt-0.5 block text-xs leading-5 text-black/60">{copy.detail}</span></span>
                       </label>;
                     })}
                   </div>
@@ -666,13 +738,13 @@ export function ScoutingCommand({
                     <DossierRow label="Contact identity" value={selected.email || selected.phone ? "Ready" : "Missing"} />
                     <DossierRow label="Last attempt" value={selected.lastContactedAt ? formatDateTime(selected.lastContactedAt) : "Never"} />
                   </dl>
-                  <button type="button" onClick={() => onDismiss(selected)} className="mt-4 text-xs font-medium text-red-700 hover:underline">Mark as not a fit</button>
+                  {canManage ? <button type="button" onClick={() => onDismiss(selected)} className="mt-4 text-xs font-medium text-red-700 hover:underline">Mark as not a fit</button> : null}
                 </section>
               </aside>
             </div>
           </div>
         ) : (
-          <div className="grid min-h-[420px] place-items-center p-8 text-center"><div><Binoculars size={28} className="mx-auto text-black/25" /><p className="mt-3 text-sm text-black/45">Scout the first business to begin.</p></div></div>
+          <div className="grid min-h-[420px] place-items-center p-8 text-center"><div><Binoculars size={28} className="mx-auto text-black/40" /><p className="mt-3 text-sm text-black/65">Scout the first business to begin.</p></div></div>
         )}
       </div>
     </section>
@@ -705,8 +777,8 @@ function ScoutingPipeline({ prospects, now, onOpen }: { prospects: ScoutingProsp
     </header>
     <div className="px-4 py-5 sm:px-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div><p className="text-[10px] font-semibold uppercase tracking-wide text-[#16776f]">Cold outreach flow</p><h3 className="mt-1 text-xl font-semibold text-black/85">From observation to qualified conversation</h3></div>
-        <p className="max-w-md text-xs leading-5 text-black/45">Open any prospect to inspect the evidence, choose the contact route, schedule follow-ups, and retain every outcome.</p>
+        <div><p className="text-xs font-semibold uppercase tracking-wide text-[#16776f]">Cold outreach flow</p><h3 className="mt-1 text-xl font-semibold text-black/85">From observation to qualified conversation</h3></div>
+        <p className="max-w-md text-xs leading-5 text-black/65">Open any prospect to inspect the evidence, choose the contact route, schedule follow-ups, and retain every outcome.</p>
       </div>
       <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         {PIPELINE_STAGES.map(stage => {
@@ -715,19 +787,19 @@ function ScoutingPipeline({ prospects, now, onOpen }: { prospects: ScoutingProsp
             .sort((a, b) => scoutingPriority(a, now) - scoutingPriority(b, now));
           return <section key={stage.id} className="min-w-0 border border-black/10 bg-white">
             <header className="border-b border-black/10 px-3 py-3">
-              <div className="flex items-center justify-between gap-2"><h4 className="text-xs font-semibold text-black/75">{stage.label}</h4><span className="rounded-full bg-black/[0.05] px-2 py-0.5 text-[10px] font-semibold tabular-nums text-black/45">{rows.length}</span></div>
-              <p className="mt-1 text-[10px] text-black/40">{stage.detail}</p>
+              <div className="flex items-center justify-between gap-2"><h4 className="text-xs font-semibold text-black/75">{stage.label}</h4><span className="rounded-full bg-black/[0.05] px-2 py-0.5 text-xs font-semibold tabular-nums text-black/65">{rows.length}</span></div>
+              <p className="mt-1 text-xs text-black/60">{stage.detail}</p>
             </header>
             <div className="min-h-36 divide-y divide-black/[0.07]">
               {rows.map(prospect => {
                 const isDue = prospect.nextContactAt !== undefined && prospect.nextContactAt <= now && !prospect.doNotContact;
                 return <button key={prospect.id} type="button" onClick={() => onOpen(prospect)} className="block w-full px-3 py-3 text-left hover:bg-[#e9f5f2]">
-                  <span className="flex items-start justify-between gap-2"><strong className="min-w-0 truncate text-xs text-black/75">{prospect.company || prospect.name || prospect.website || "Unnamed prospect"}</strong>{prospect.fitScore !== undefined ? <span className="shrink-0 text-[10px] font-semibold tabular-nums text-black/40">{prospect.fitScore}%</span> : null}</span>
-                  <span className="mt-1 block truncate text-[10px] text-black/40">{[prospect.niche, sourceLabel(prospect.source)].filter(Boolean).join(" · ") || "Unclassified"}</span>
-                  <span className="mt-2 flex items-center justify-between gap-2 text-[10px]"><span className={isDue ? "font-semibold text-red-700" : "text-black/40"}>{isDue ? "Follow-up due" : `${prospect.outreachAttempts.length} attempts`}</span><span className={inspectionComplete(prospect) ? "text-emerald-700" : "text-amber-700"}>{inspectionComplete(prospect) ? "Inspected" : "Inspect"}</span></span>
+                  <span className="flex items-start justify-between gap-2"><strong className="min-w-0 truncate text-xs text-black/75">{prospect.company || prospect.name || prospect.website || "Unnamed prospect"}</strong>{prospect.fitScore !== undefined ? <span className="shrink-0 text-xs font-semibold tabular-nums text-black/60">{prospect.fitScore}%</span> : null}</span>
+                  <span className="mt-1 block truncate text-xs text-black/60">{[prospect.niche, sourceLabel(prospect.source)].filter(Boolean).join(" · ") || "Unclassified"}</span>
+                  <span className="mt-2 flex items-center justify-between gap-2 text-xs"><span className={isDue ? "font-semibold text-red-700" : "text-black/60"}>{isDue ? "Follow-up due" : `${prospect.outreachAttempts.length} attempts`}</span><span className={inspectionComplete(prospect) ? "text-emerald-700" : "text-amber-700"}>{inspectionComplete(prospect) ? "Inspected" : "Inspect"}</span></span>
                 </button>;
               })}
-              {!rows.length ? <p className="px-3 py-8 text-center text-[11px] text-black/30">Nothing here</p> : null}
+              {!rows.length ? <p className="px-3 py-8 text-center text-xs text-black/60">Nothing here</p> : null}
             </div>
           </section>;
         })}
@@ -738,9 +810,9 @@ function ScoutingPipeline({ prospects, now, onOpen }: { prospects: ScoutingProsp
 
 function PipelineMetric({ label, value, detail, tone = "neutral" }: { label: string; value: string | number; detail: string; tone?: "critical" | "calm" | "neutral" }) {
   return <div className="border-b border-black/10 px-5 py-4 sm:border-r lg:border-b-0">
-    <span className="text-[10px] font-semibold uppercase text-black/40">{label}</span>
+    <span className="text-xs font-semibold uppercase text-black/60">{label}</span>
     <strong className={`mt-1 block text-2xl font-semibold tabular-nums ${tone === "critical" ? "text-red-700" : tone === "calm" ? "text-emerald-700" : "text-black/80"}`}>{value}</strong>
-    <span className="mt-1 block text-[10px] text-black/35">{detail}</span>
+    <span className="mt-1 block text-xs text-black/60">{detail}</span>
   </div>;
 }
 
@@ -749,16 +821,16 @@ const CONTACT_ROUTE_CLASS = "inline-flex min-h-9 items-center gap-2 rounded-md b
 function CommandMetric({ icon, label, value, detail, tone, onClick }: { icon: ReactNode; label: string; value: number; detail: string; tone: "critical" | "warning" | "calm" | "neutral"; onClick: () => void }) {
   const colors = tone === "critical" ? "text-red-700" : tone === "warning" ? "text-amber-700" : tone === "calm" ? "text-emerald-700" : "text-black/55";
   return <button type="button" onClick={onClick} className="flex min-h-24 items-center gap-3 border-b border-black/10 px-4 py-3 text-left last:border-b-0 hover:bg-black/[0.025] sm:border-r lg:border-b-0">
-    <span className={`grid size-8 shrink-0 place-items-center rounded-md bg-black/[0.04] ${colors}`}>{icon}</span><span><span className="block text-[10px] font-semibold uppercase text-black/40">{label}</span><strong className={`mt-0.5 block text-2xl font-semibold tabular-nums ${colors}`}>{value}</strong><span className="block text-[10px] text-black/35">{detail}</span></span>
+    <span className={`grid size-8 shrink-0 place-items-center rounded-md bg-black/[0.04] ${colors}`}>{icon}</span><span><span className="block text-xs font-semibold uppercase text-black/60">{label}</span><strong className={`mt-0.5 block text-2xl font-semibold tabular-nums ${colors}`}>{value}</strong><span className="block text-xs text-black/60">{detail}</span></span>
   </button>;
 }
 
 function DossierField({ label, value }: { label: string; value?: string }) {
-  return <div><dt className="text-[10px] font-semibold uppercase text-black/40">{label}</dt><dd className="mt-1 whitespace-pre-wrap text-sm leading-6 text-black/65">{value || "Not recorded"}</dd></div>;
+  return <div><dt className="text-xs font-semibold uppercase text-black/60">{label}</dt><dd className="mt-1 whitespace-pre-wrap text-sm leading-6 text-black/65">{value || "Not recorded"}</dd></div>;
 }
 
 function DossierRow({ label, value }: { label: string; value: string }) {
-  return <div className="flex items-center justify-between gap-3 py-2.5"><dt className="text-black/45">{label}</dt><dd className="font-semibold text-black/70">{value}</dd></div>;
+  return <div className="flex items-center justify-between gap-3 py-2.5"><dt className="text-black/65">{label}</dt><dd className="font-semibold text-black/70">{value}</dd></div>;
 }
 
 function SelectField({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: Array<[string, string]> }) {
@@ -825,7 +897,7 @@ const QUOTA_METRIC_LABELS: Record<ScoutingQuotaViewModel["quotas"][number]["metr
   "clients-converted": "clients converted (whole workspace)",
 };
 
-function ScoutingQuotaStrip({ quota }: { quota?: ScoutingQuotaViewModel }) {
+function ScoutingQuotaStrip({ quota, writable }: { quota?: ScoutingQuotaViewModel; writable: boolean }) {
   const [creating, setCreating] = useState(false);
   const [metric, setMetric] = useState<ScoutingQuotaViewModel["quotas"][number]["metric"]>("calls-made");
   const [recurrence, setRecurrence] = useState<"daily" | "weekly">("daily");
@@ -869,6 +941,8 @@ function ScoutingQuotaStrip({ quota }: { quota?: ScoutingQuotaViewModel }) {
     }
   }
 
+  if (!quota && !writable) return null;
+
   return (
     <div className="flex flex-wrap items-center gap-3 border-b border-black/10 bg-white px-4 py-2.5 sm:px-5">
       {(quota?.quotas ?? []).map(item => <QuotaRing key={item.entryId} quota={item} />)}
@@ -877,7 +951,7 @@ function ScoutingQuotaStrip({ quota }: { quota?: ScoutingQuotaViewModel }) {
           <Flame size={13} aria-hidden /> {quota.streakDays}-day streak
         </span>
       ) : null}
-      {creating ? (
+      {writable && creating ? (
         <form onSubmit={createQuota} className="flex flex-wrap items-center gap-2 text-xs">
           <input value={target} onChange={event => setTarget(event.target.value)} inputMode="numeric" className="w-16 rounded-md border border-black/15 px-2 py-1.5 text-sm" aria-label="Target number" />
           <select value={metric} onChange={event => setMetric(event.target.value as typeof metric)} className="rounded-md border border-black/15 px-2 py-1.5 text-sm" aria-label="What to count">
@@ -888,14 +962,14 @@ function ScoutingQuotaStrip({ quota }: { quota?: ScoutingQuotaViewModel }) {
             <option value="weekly">a week</option>
           </select>
           <button type="submit" disabled={saving} className="rounded-md bg-black/85 px-2.5 py-1.5 font-semibold text-white hover:bg-black disabled:opacity-50">{saving ? "Saving…" : "Set"}</button>
-          <button type="button" onClick={() => { setCreating(false); setNote(null); }} className="text-black/50 hover:text-black/75">Cancel</button>
+          <button type="button" onClick={() => { setCreating(false); setNote(null); }} className="text-black/65 hover:text-black/80">Cancel</button>
           {note ? <span role="alert" className="text-red-700">{note}</span> : null}
         </form>
-      ) : (
+      ) : writable ? (
         <button type="button" onClick={() => setCreating(true)} className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-black/25 px-2.5 py-1.5 text-xs font-medium text-black/55 hover:border-black/45 hover:text-black/80">
           <Target size={13} aria-hidden /> Set a target
         </button>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -932,7 +1006,7 @@ function QuotaRing({ quota }: { quota: ScoutingQuotaViewModel["quotas"][number] 
         <strong className="block font-semibold text-black/80">
           {done ? "Target hit!" : `${quota.current}/${quota.target}`}
         </strong>
-        <span className="text-black/45">
+        <span className="text-black/65">
           {QUOTA_METRIC_LABELS[quota.metric]} {quota.recurrence === "daily" ? "today" : "this week"}
           {done && quota.recurrence === "weekly" ? (
             <> · <a href="/portal/agency/you-deserve-it" className="font-medium text-brand hover:underline">Pick something from You deserve it →</a></>

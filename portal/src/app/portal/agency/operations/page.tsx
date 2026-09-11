@@ -2,10 +2,12 @@ import type { CSSProperties } from "react";
 import Link from "next/link";
 import { requireRole } from "@/lib/server/auth/auth";
 import { performanceModePreference } from "@/lib/server/performanceMode";
+import { assembleAgencyBasePanels } from "@/lib/server/chrome/agencyBasePanels";
 import { AGENCY_ROLES } from "@/server/types";
 import {
   Activity,
   Banknote,
+  Binoculars,
   BookOpen,
   ChevronRight,
   Gift,
@@ -92,6 +94,13 @@ const OPS_GROUPS: OpsGroup[] = [
     title: "Grow",
     caption: "Bring in the next customer.",
     functions: [
+      {
+        href: "/portal/agency/scouting",
+        label: "Scouting",
+        detail: "Find local businesses, research and qualify prospects, then move the right opportunities into Journey.",
+        action: "Open scouting",
+        icon: Binoculars,
+      },
       {
         href: "/portal/agency/marketing",
         label: "Marketing",
@@ -265,7 +274,6 @@ const OPS_GROUPS: OpsGroup[] = [
   },
 ];
 
-const OPS_COUNT = OPS_GROUPS.reduce((total, group) => total + group.functions.length, 0);
 const PUBLIC_SHOWCASE_OPERATION_PATHS = new Set([
   "/portal/clients?view=journey",
   "/portal/agency/fulfilment",
@@ -278,16 +286,20 @@ export default async function OperationsPage() {
   // Performance mode vetoes the belt animation even when cinematic mode is on.
   // Performance wins — that is what the switch is for.
   const perfMode = await performanceModePreference();
+  const entitledPanels = await assembleAgencyBasePanels(session);
+  const canOpenScouting = entitledPanels.some(panel =>
+    panel.items.some(item => item.id === "scouting" && item.href === "/portal/agency/scouting"));
   // Staff and freelancers can see these two crates but cannot open them; the
   // sidebar gates the same pair. Labelling them is honest; HIDING them would be
   // a permissions change smuggled into a visual redesign, so it is not done here.
   const ownerOnly = session.role !== "agency-owner" && session.role !== "agency-manager";
-  const operationGroups = session.publicShowcase
-    ? OPS_GROUPS.map(group => ({ ...group, functions: group.functions.filter(item => PUBLIC_SHOWCASE_OPERATION_PATHS.has(item.href)) })).filter(group => group.functions.length > 0)
-    : OPS_GROUPS;
-  const operationCount = session.publicShowcase
-    ? operationGroups.reduce((total, group) => total + group.functions.length, 0)
-    : OPS_COUNT;
+  const operationGroups = OPS_GROUPS.map(group => ({
+    ...group,
+    functions: group.functions.filter(item =>
+      (!session.publicShowcase || PUBLIC_SHOWCASE_OPERATION_PATHS.has(item.href))
+      && (item.href !== "/portal/agency/scouting" || canOpenScouting)),
+  })).filter(group => group.functions.length > 0);
+  const operationCount = operationGroups.reduce((total, group) => total + group.functions.length, 0);
   return (
     <div className="w-full space-y-6">
       <header className="border-b border-black/10 pb-5">

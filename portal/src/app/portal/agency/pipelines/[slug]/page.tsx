@@ -10,7 +10,6 @@
 import Link from "next/link";
 import { CustomBoardWorkspace } from "./_CustomBoardWorkspace";
 import { currentWorkspaceElementAccess, workspaceElementLevel } from "@/lib/server/access/workspaceElementAccess";
-import { scoutingQuotaProgress } from "@/lib/server/intelligence/scoutingQuota";
 import { notFound, redirect } from "next/navigation";
 import { ensureHydrated } from "@/server/storage";
 import { requireRole } from "@/lib/server/auth/auth";
@@ -95,10 +94,9 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
     }
     if (install?.enabled) {
       const storage = makePluginStorage(install.id);
-      const { leads, prospects } = leadsContainerFor({ agencyId: agency.id, storage: storage as never });
-      const [leadList, prospectList, archivedList] = await Promise.all([
+      const { leads } = leadsContainerFor({ agencyId: agency.id, storage: storage as never });
+      const [leadList, archivedList] = await Promise.all([
         leads.list(),
-        prospects.list(),
         // Archived leads are fetched separately and stay out of every count and
         // column on this screen — they belong to one view (issue #62).
         leads.list({ archived: "only" }),
@@ -123,41 +121,7 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
           focusedLeadId={query.lead}
           referenceNow={Date.now()}
           columns={pipeline.columns.map(col => ({ id: col.id, label: col.label, color: col.color }))}
-          scoutingQuota={scoutingQuotaProgress(agency.id, session.userId)}
-          prospects={prospectList.filter(prospect => prospect.status === "scouting").map(prospect => ({
-            id: prospect.id,
-            name: prospect.name,
-            company: prospect.company,
-            email: prospect.email,
-            phone: prospect.phone,
-            website: prospect.website,
-            address: prospect.address,
-            googleMapsUrl: prospect.googleMapsUrl,
-            instagramUrl: prospect.instagramUrl,
-            facebookUrl: prospect.facebookUrl,
-            linkedinUrl: prospect.linkedinUrl,
-            niche: prospect.niche,
-            tags: prospect.tags,
-            source: prospect.source,
-            foundAt: prospect.foundAt,
-            opportunity: prospect.opportunity,
-            researchNotes: prospect.researchNotes,
-            nextStep: prospect.nextStep,
-            qualificationState: prospect.qualificationState,
-            fitScore: prospect.fitScore,
-            preferredChannel: prospect.preferredChannel,
-            doNotContact: prospect.doNotContact,
-            nextContactAt: prospect.nextContactAt,
-            nextContactReason: prospect.nextContactReason,
-            lastContactedAt: prospect.lastContactedAt,
-            inspectionChecks: prospect.inspectionChecks,
-            inspectedAt: prospect.inspectedAt,
-            followUps: prospect.followUps,
-            outreachAttempts: prospect.outreachAttempts,
-            notes: prospect.notes,
-            capturedAt: prospect.capturedAt,
-            updatedAt: prospect.updatedAt,
-          }))}
+          prospects={[]}
           archivedLeads={archivedList.map(lead => ({
             id: lead.id,
             email: lead.email,

@@ -312,6 +312,19 @@ export type ProspectInspectionCheck =
   | "timing-understood";
 export type ProspectFollowUpStatus = "scheduled" | "completed" | "skipped";
 
+/**
+ * Google Place IDs are opaque textual identifiers. Do not invent a character
+ * set or maximum length that Google does not publish: the surrounding HTTP
+ * boundaries already cap request and provider-response size. Keep only the identifier:
+ * unlike the surrounding scouting fields, it is explicitly safe to retain
+ * long-term and lets the UI refresh attributed provider content on demand.
+ */
+export function normalizeGooglePlaceId(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const cleaned = value.trim();
+  return cleaned || undefined;
+}
+
 export interface ProspectOutreachAttempt {
   id: string;
   at: number;
@@ -351,6 +364,7 @@ export interface Prospect {
   phone?: string;
   website?: string;
   address?: string;
+  googlePlaceId?: string;
   googleMapsUrl?: string;
   instagramUrl?: string;
   facebookUrl?: string;
@@ -387,6 +401,7 @@ export interface CreateProspectInput {
   phone?: string;
   website?: string;
   address?: string;
+  googlePlaceId?: string;
   googleMapsUrl?: string;
   instagramUrl?: string;
   facebookUrl?: string;
@@ -415,6 +430,7 @@ export interface UpdateProspectPatch {
   phone?: string;
   website?: string;
   address?: string;
+  googlePlaceId?: string;
   googleMapsUrl?: string;
   instagramUrl?: string;
   facebookUrl?: string;

@@ -578,7 +578,10 @@ describe("plugin API routes — surface invariants no manifest can break", () =>
     // block's dead call to a `newsletter` module that never existed. Neither
     // declares a separate role list, so undeclared rises 144 → 146 and public
     // rises 16 → 17. Counts re-enumerated from the shipped registry, not added.
-    assert.equal(total, 344, `the registry now ships ${total} API routes, not 344 — re-run the enumeration`);
+    // 2026-09-11: 344 → 345. Leads Pipeline adds one private, owner/manager
+    // Google Places search adapter for Scouting. It declares agency-admin roles,
+    // so the undeclared and public counts remain unchanged.
+    assert.equal(total, 345, `the registry now ships ${total} API routes, not 345 — re-run the enumeration`);
     assert.equal(undeclared, 146, `${undeclared} routes declare no roles, not 146 — re-run the enumeration`);
     assert.equal(publicRoutes, 17, `${publicRoutes} routes are public, not 17`);
 

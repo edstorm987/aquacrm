@@ -30,6 +30,7 @@ import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { logActivity } from "@/server/activity";
 import { routeTenantScope } from "@/lib/server/portal/apiTenantScope";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 import { outboundCommunicationReadiness, resolveCommunicationSender } from "@/lib/server/email/outboundCommunications";
 import { sendTransactionalEmail } from "@/lib/server/email/transactionalEmail";
 import { resolveCaller, resolveEmailRecipient } from "@/lib/server/telephony/resolveCaller";
@@ -83,6 +84,10 @@ export async function POST(request: NextRequest) {
     if (!message) return NextResponse.json({ ok: false, error: "There is nothing to send." }, { status: 400 });
     if (!senderId) return NextResponse.json({ ok: false, error: "Choose which address to send from." }, { status: 400 });
 
+    if (prospectId) {
+      await requireCurrentWorkspaceElementAccess("growth", "growth.outreach", "use");
+    }
+
     const tenant = routeTenantScope(session, clientId ? { clientId } : {});
     if (clientId && !tenant.client) {
       return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
@@ -100,15 +105,20 @@ export async function POST(request: NextRequest) {
     // up by the address this route is actually about to send to; the optional
     // phone stays as a second net for records that carry a number but no
     // email.
-    if (prospectId) {
-      try {
-        await assertProspectContactable(tenant.agencyId, prospectId, session.userId);
-      } catch (gate) {
-        return NextResponse.json({
-          ok: false,
-          error: gate instanceof Error ? gate.message : "This prospect cannot be contacted.",
-        }, { status: 409 });
-      }
+    let resolvedProspectId: string | undefined;
+    try {
+      resolvedProspectId = await assertProspectContactable(tenant.agencyId, session.userId, {
+        ...(prospectId ? { prospectId } : {}),
+        email: to,
+      });
+    } catch (gate) {
+      return NextResponse.json({
+        ok: false,
+        error: gate instanceof Error ? gate.message : "This prospect cannot be contacted.",
+      }, { status: 409 });
+    }
+    if (resolvedProspectId && !prospectId) {
+      await requireCurrentWorkspaceElementAccess("growth", "growth.outreach", "use");
     }
 
     const recipient = await resolveEmailRecipient(tenant.agencyId, to, session.userId);
@@ -149,8 +159,8 @@ export async function POST(request: NextRequest) {
 
     // Delivered and remembered in the same request — a lost follow-up POST can
     // no longer lose the history or the quota tick (Ed's finding, 2026-08-30).
-    if (prospectId) {
-      await recordProspectOutreach(tenant.agencyId, prospectId, "email", "sent", session.userId);
+    if (resolvedProspectId) {
+      await recordProspectOutreach(tenant.agencyId, resolvedProspectId, "email", "sent", session.userId);
     }
 
     logActivity({

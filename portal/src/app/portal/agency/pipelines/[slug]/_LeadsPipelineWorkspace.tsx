@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { Archive, ArrowLeft, BarChart3, Binoculars, Building2, ChevronDown, Clock3, ExternalLink, Globe2, GripVertical, History, Mail, MessageCircle, MoreHorizontal, Phone, Plus, Presentation, Search, TimerReset, Trash2, UserRoundCheck, X } from "lucide-react";
 import { WorkflowSteps } from "@/app/portal/agency/leads-pipeline/_WorkflowSteps";
@@ -11,6 +12,7 @@ import { formatUkDateTime, localDateTimeInputValue, timestampFromValue } from "@
 import { averageElapsed, formatElapsed, leadTimingSnapshot, type LeadTimingSnapshot } from "@/lib/enquiries/leadTiming";
 import { BoardSwitcher } from "./_PipelineBoard";
 import { ScoutingCommand, type ScoutingProspectView } from "./_ScoutingCommand";
+import type { GoogleBusinessPlace } from "./_GoogleBusinessScout";
 import {
   WEBSITE_ENQUIRY_CLASSIFICATIONS,
   WEBSITE_ENQUIRY_CLASSIFICATION_LABELS,
@@ -35,6 +37,14 @@ import type {
   SalesPresentation,
 } from "./_leadTypes";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
+import { GoogleMapsAttribution } from "@/components/attribution/GoogleMapsAttribution";
+
+// Discovery is a Scouting-only surface. Keep the Maps/Places UI out of the
+// normal Journey client chunk instead of making every sales visit download it.
+const GoogleBusinessScout = dynamic(
+  () => import("./_GoogleBusinessScout").then(module => module.GoogleBusinessScout),
+  { loading: () => <div className="min-h-64 animate-pulse rounded-lg border border-black/10 bg-black/[0.025]" aria-label="Loading Google business scout" /> },
+);
 // Re-exported so the server component and page keep importing these from here.
 export type {
   AgencyProductOption, AttemptChannel, AttemptOutcome, ClientConversionPackage,
@@ -70,8 +80,20 @@ export interface ScoutingQuotaSnapshot {
 }
 
 interface LeadsPipelineWorkspaceProps {
+  /** A dedicated Scouting shell reuses this journey engine without creating a second prospect model. */
+  workspaceMode?: "journey" | "scouting";
+  /** Browser-visible by design; restrict this key to Maps Embed API + exact site referrers. */
+  googleMapsEmbedApiKey?: string;
+  /** The server-only Places key never crosses this boundary; only readiness does. */
+  googlePlacesConfigured?: boolean;
   /** Self-set outreach quotas with derived progress — see scoutingQuota.ts. */
   scoutingQuota?: ScoutingQuotaSnapshot;
+  /** Bulk import and dismissal are administrative Scouting actions. */
+  scoutingCanManage?: boolean;
+  /** Moving a prospect into Journey also needs the Leads leaf. */
+  scoutingCanQualify?: boolean;
+  /** Quotas live in the personal Calendar store and follow its write grant. */
+  scoutingQuotaWritable?: boolean;
   focusedLeadId?: string;
   referenceNow: number;
   columns: PipelineColumnView[];
@@ -91,6 +113,14 @@ interface LeadsPipelineWorkspaceProps {
   brands: Array<{ id: string; name: string }>;
   products: AgencyProductOption[];
   customFields: PortalFormFieldDefinition[];
+}
+
+function googleMapsSearchUrl(placeId: string, operatorQuery: string): string {
+  const id = placeId.trim();
+  const query = operatorQuery.trim();
+  if (!id || !query) return "";
+  const params = new URLSearchParams({ api: "1", query, query_place_id: id });
+  return `https://www.google.com/maps/search/?${params.toString()}`;
 }
 
 
@@ -116,6 +146,7 @@ const EMPTY_PROSPECT = {
   phone: "",
   website: "",
   address: "",
+  googlePlaceId: "",
   googleMapsUrl: "",
   instagramUrl: "",
   facebookUrl: "",
@@ -234,7 +265,7 @@ function CloseLeadDealModal({ target, onClose, onClosed }: { target: { clientId:
   );
 }
 
-export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, prospects, leads, archivedLeads, importHref, campaignsHref, boards, brands, products, customFields, scoutingQuota }: LeadsPipelineWorkspaceProps) {
+export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEmbedApiKey = "", googlePlacesConfigured = false, scoutingCanManage = false, scoutingCanQualify = false, scoutingQuotaWritable = false, focusedLeadId, referenceNow, columns, prospects, leads, archivedLeads, importHref, campaignsHref, boards, brands, products, customFields, scoutingQuota }: LeadsPipelineWorkspaceProps) {
   const router = useRouter();
   const [clock, setClock] = useState(referenceNow);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -250,7 +281,7 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
   const [nicheFilter, setNicheFilter] = useState("");
   const [brandFilter, setBrandFilter] = useState("");
   const [serviceFilter, setServiceFilter] = useState("");
-  const [workFilter, setWorkFilter] = useState<WorkFilter>("all");
+  const [workFilter, setWorkFilter] = useState<WorkFilter>(workspaceMode === "scouting" ? "scouting" : "all");
   const [conversionLead, setConversionLead] = useState<LeadView | null>(null);
   const [showLeadForm, setShowLeadForm] = useState(false);
   const [showProspectForm, setShowProspectForm] = useState(false);
@@ -259,9 +290,11 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
   useFocusTrap(leadFormRef, showLeadForm, { onEscape: () => setShowLeadForm(false) });
   // Modal keyboard contract: focus enters the prospect form, Tab stays inside it, Escape backs out, focus returns to the button that opened it.
   const prospectFormRef = useRef<HTMLFormElement>(null);
-  useFocusTrap(prospectFormRef, showProspectForm, { onEscape: () => setShowProspectForm(false) });
+  useFocusTrap(prospectFormRef, showProspectForm, { onEscape: closeProspectForm });
   const [prospectForm, setProspectForm] = useState(EMPTY_PROSPECT);
   const [editingProspect, setEditingProspect] = useState<ProspectView | null>(null);
+  const [googlePlacePreview, setGooglePlacePreview] = useState<GoogleBusinessPlace | null>(null);
+  const [focusedProspectId, setFocusedProspectId] = useState<string>();
   const [columnOverrides, setColumnOverrides] = useState<Record<string, string>>({});
   const [draggedLeadId, setDraggedLeadId] = useState("");
   const [dropColumnId, setDropColumnId] = useState("");
@@ -273,12 +306,14 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
 
   useEffect(() => {
     const syncHash = () => {
-      if (window.location.hash === "#scouting") setWorkFilter("scouting");
+      if (workspaceMode === "journey" && window.location.hash === "#scouting") {
+        router.replace("/portal/agency/scouting");
+      }
     };
     syncHash();
     window.addEventListener("hashchange", syncHash);
     return () => window.removeEventListener("hashchange", syncHash);
-  }, []);
+  }, [router, workspaceMode]);
 
   const availableTags = useMemo(() => {
     const tags = new Set<string>();
@@ -458,8 +493,21 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
     }
   }
 
-  function openProspectForm(prospect?: ProspectView) {
+  function closeProspectForm() {
+    setShowProspectForm(false);
+    setEditingProspect(null);
+    setGooglePlacePreview(null);
+  }
+
+  function openProspectForm(
+    prospect?: ProspectView,
+    seed?: Partial<typeof EMPTY_PROSPECT>,
+    googlePreview?: GoogleBusinessPlace,
+  ) {
+    setError(null);
+    setSuccess(null);
     setEditingProspect(prospect ?? null);
+    setGooglePlacePreview(googlePreview ?? null);
     setProspectForm(prospect ? {
       name: prospect.name ?? "",
       company: prospect.company ?? "",
@@ -467,6 +515,7 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
       phone: prospect.phone ?? "",
       website: prospect.website ?? "",
       address: prospect.address ?? "",
+      googlePlaceId: prospect.googlePlaceId ?? "",
       googleMapsUrl: prospect.googleMapsUrl ?? "",
       instagramUrl: prospect.instagramUrl ?? "",
       facebookUrl: prospect.facebookUrl ?? "",
@@ -484,8 +533,18 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
       doNotContact: Boolean(prospect.doNotContact),
       nextContactAt: localDateTimeInputValue(prospect.nextContactAt),
       nextContactReason: prospect.nextContactReason ?? "",
-    } : EMPTY_PROSPECT);
+    } : { ...EMPTY_PROSPECT, ...seed });
     setShowProspectForm(true);
+  }
+
+  function openGoogleProspect(place: GoogleBusinessPlace) {
+    openProspectForm(undefined, {
+      googlePlaceId: place.placeId,
+      source: "google-maps",
+      foundAt: "Google Maps",
+      qualificationState: "researching",
+      tags: "google-maps",
+    }, place);
   }
 
   async function saveProspect(e: React.FormEvent<HTMLFormElement>) {
@@ -494,13 +553,20 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
     setError(null);
     setSuccess(null);
     try {
+      if (!prospectForm.company.trim() && !prospectForm.name.trim() && !prospectForm.website.trim()) {
+        throw new Error("Add a business name, person, or website before saving this prospect.");
+      }
       const { nextContactAt, nextContactReason, ...dossierForm } = prospectForm;
+      const operatorGoogleQuery = prospectForm.company || prospectForm.address || prospectForm.name;
+      const googleMapsUrl = prospectForm.googleMapsUrl.trim()
+        || googleMapsSearchUrl(prospectForm.googlePlaceId, operatorGoogleQuery);
       const suffix = editingProspect ? `?id=${encodeURIComponent(editingProspect.id)}` : "";
       const res = await fetch(`/api/portal/leads-pipeline/prospects${suffix}`, {
         method: editingProspect ? "PATCH" : "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           ...dossierForm,
+          googleMapsUrl: googleMapsUrl || undefined,
           tags: splitTags(prospectForm.tags),
           fitScore: prospectForm.fitScore.trim() ? Number(prospectForm.fitScore) : undefined,
           preferredChannel: prospectForm.preferredChannel || undefined,
@@ -510,9 +576,10 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
           } : {}),
         }),
       });
-      const data = await res.json() as { ok: boolean; error?: string };
+      const data = await res.json() as { ok: boolean; error?: string; prospect?: { id?: string } };
       if (!data.ok) throw new Error(data.error ?? "Could not save this prospect.");
-      setShowProspectForm(false);
+      if (!editingProspect && data.prospect?.id) setFocusedProspectId(data.prospect.id);
+      closeProspectForm();
       setEditingProspect(null);
       setProspectForm(EMPTY_PROSPECT);
       setSuccess(editingProspect ? "Scouting record updated." : "Prospect added to Scouting.");
@@ -819,16 +886,28 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
   }
 
   return (
-    <div className="flex flex-col gap-5" data-testid="leads-workspace">
+    <div className="flex flex-col gap-5" data-testid={workspaceMode === "scouting" ? "scouting-workspace" : "leads-workspace"}>
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-brand">Growth pipeline</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-black/90">Scouting & sales</h1>
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand">{workspaceMode === "scouting" ? "Sales · discovery" : "Growth pipeline"}</p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-black/90">{workspaceMode === "scouting" ? "Scouting" : "Sales journey"}</h1>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-black/60">
-            Capture businesses worth researching, qualify the right ones, then move every real opportunity to a clear yes or no.
+            {workspaceMode === "scouting"
+              ? "Find businesses, research the fit, choose a contact route, and qualify only the opportunities ready to enter Journey."
+              : "Move every qualified opportunity through contact, meeting, proposal, payment, conversion, and fulfilment."}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {workspaceMode === "scouting" ? (
+            <>
+              <button type="button" onClick={() => openProspectForm()} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85">
+                <Plus size={14} aria-hidden="true" /> Scout manually
+              </button>
+              <Link href="/portal/clients?view=journey" className="inline-flex min-h-10 items-center rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/65 hover:bg-black/[0.03]">
+                Open Journey
+              </Link>
+            </>
+          ) : <>
           <BoardSwitcher boards={boards} activeSlug="leads" />
           <details className="group relative">
             <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-md bg-black px-3 py-2 text-xs font-semibold text-white hover:bg-black/85">
@@ -836,13 +915,12 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
               Add
             </summary>
             <div className="absolute right-0 top-full z-30 mt-2 w-48 overflow-hidden rounded-md border border-black/10 bg-white p-1.5 shadow-xl">
-              <button
-                type="button"
-                onClick={() => openProspectForm()}
+              <Link
+                href="/portal/agency/scouting"
                 className="block w-full rounded px-3 py-2 text-left text-sm text-black/70 hover:bg-black/[0.04]"
               >
                 Scout a prospect
-              </button>
+              </Link>
               <button
                 type="button"
                 onClick={() => setShowLeadForm(true)}
@@ -870,9 +948,11 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
               <Link href={campaignsHref} className="block rounded px-3 py-2 text-sm text-black/70 hover:bg-black/[0.04]">Campaigns</Link>
             </div>
           </details>
+          </>}
         </div>
       </header>
 
+      {workspaceMode === "journey" ? <>
       <JourneyOverviewDashboard
         prospects={prospects.length}
         leads={leads.length}
@@ -898,7 +978,7 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
             detail: timingAttentionLabel(row.lead, row.timing),
             tone: row.timing.tone,
           }))}
-        onScout={() => openProspectForm()}
+        onScout={() => router.push("/portal/agency/scouting")}
         onLead={() => setShowLeadForm(true)}
         onShowWaiting={() => setWorkFilter("waiting")}
       />
@@ -932,13 +1012,10 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
         </div>
       </details>
 
-      {/* Ed, 2026-08-30: *"the whole scouting thing needs its own tab as its
-          very important."* It was one of ten stage filters buried inside the
-          board card — the cold-outreach engine of the business, rendered as a
-          peer of "Archived". Now the workspace has two modes, and the stage
-          filters only appear in board mode. The #scouting hash and every
-          existing deep link keep working: the hash effect below sets the same
-          state this tab sets. */}
+      {/* Scouting now has its own route and sidebar entry. This peer link keeps
+          the Sales journey connected to its upstream work without rendering a
+          second copy of the Scouting workspace inside the board. Legacy
+          #scouting links are redirected by the effect above. */}
       <div className="flex gap-6 border-b border-black/10" role="group" aria-label="Pipeline mode">
         <button
           type="button"
@@ -949,17 +1026,22 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
           Journey board
           {workFilter !== "scouting" ? <span className="absolute inset-x-0 bottom-0 h-0.5 bg-black" /> : null}
         </button>
-        <button
-          type="button"
-          aria-current={workFilter === "scouting" ? "true" : undefined}
-          onClick={() => setWorkFilter("scouting")}
-          className={`relative min-h-11 py-3 text-sm font-medium ${workFilter === "scouting" ? "text-black" : "text-black/45 hover:text-black/70"}`}
+        <Link
+          href="/portal/agency/scouting"
+          className="relative inline-flex min-h-11 items-center py-3 text-sm font-medium text-black/45 hover:text-black/70"
         >
           Scouting
           {prospects.length ? <span className="ml-1.5 rounded-full bg-black/[0.08] px-1.5 text-[11px] font-semibold text-black/60">{prospects.length}</span> : null}
-          {workFilter === "scouting" ? <span className="absolute inset-x-0 bottom-0 h-0.5 bg-black" /> : null}
-        </button>
+        </Link>
       </div>
+      </> : (
+        <GoogleBusinessScout
+          embedApiKey={googleMapsEmbedApiKey}
+          placesConfigured={googlePlacesConfigured}
+          onScoutManually={() => openProspectForm()}
+          onStartScouting={openGoogleProspect}
+        />
+      )}
 
       {/* Stage filters filter LEADS; scouting shows prospects, so in scouting
           mode the whole strip card is only a way to leave by accident. */}
@@ -1048,7 +1130,7 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
         </div>
       </section> : null}
 
-      {(error || success) && (
+      {(error || success) && !showProspectForm && (
         <div className={`rounded-lg border px-4 py-3 text-sm ${error ? "border-red-200 bg-red-50 text-red-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span>{error ?? success}</span>
@@ -1093,7 +1175,11 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
         <div id="scouting" className="scroll-mt-24">
           <ScoutingCommand
             quota={scoutingQuota}
+            quotaWritable={scoutingQuotaWritable}
+            canManage={scoutingCanManage}
+            canQualify={scoutingCanQualify}
             prospects={filteredProspects}
+            focusedProspectId={focusedProspectId}
             referenceNow={clock}
             onNew={() => openProspectForm()}
             onEdit={prospect => openProspectForm(prospect)}
@@ -1328,23 +1414,59 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
             role="dialog"
             ref={prospectFormRef} aria-modal="true"
             aria-labelledby="scout-prospect-title"
+            aria-describedby={error ? "scout-prospect-description scout-prospect-error" : "scout-prospect-description"}
             className="max-h-[calc(100vh-32px)] w-full max-w-3xl overflow-y-auto rounded-md bg-[#fbfaf8] shadow-2xl"
           >
             <header className="flex items-start justify-between gap-4 border-b border-black/10 px-5 py-5 sm:px-6">
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-brand">Before the lead</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-brand">Before the lead</p>
                 <h2 id="scout-prospect-title" className="mt-1 text-xl font-semibold text-black/90">
                   {editingProspect ? "Update scouting record" : "Scout a prospect"}
                 </h2>
-                <p className="mt-1 max-w-xl text-sm leading-6 text-black/50">
+                <p id="scout-prospect-description" className="mt-1 max-w-xl text-sm leading-6 text-black/65">
                   Save what caught your eye, research whether AquaOasis-Web can genuinely help, and only qualify them when they are worth contacting.
                 </p>
               </div>
-              <button type="button" onClick={() => setShowProspectForm(false)} className="grid size-9 shrink-0 place-items-center rounded-md border border-black/10 text-black/50 hover:bg-black/[0.03]" aria-label="Close">
+              <button type="button" onClick={closeProspectForm} className="grid size-9 shrink-0 place-items-center rounded-md border border-black/10 text-black/50 hover:bg-black/[0.03]" aria-label="Close">
                 <X size={16} aria-hidden="true" />
               </button>
             </header>
             <div className="grid gap-4 px-5 py-5 sm:grid-cols-2 sm:px-6">
+              {googlePlacePreview ? (
+                <section className="rounded-md border border-[#16877f]/25 bg-[#e9f5f2] p-4 sm:col-span-2" aria-labelledby="google-profile-reference">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div id="google-profile-reference"><GoogleMapsAttribution className="-ml-2.5 -mt-2.5" /></div>
+                      <h3 className="mt-1 break-words text-sm font-semibold text-black/80">{googlePlacePreview.displayName}</h3>
+                      {googlePlacePreview.formattedAddress ? <p className="mt-1 break-words text-xs leading-5 text-black/55">{googlePlacePreview.formattedAddress}</p> : null}
+                      {googlePlacePreview.phone ? <p className="mt-1 text-xs text-black/55">{googlePlacePreview.phone}</p> : null}
+                      {googlePlacePreview.attributions?.length ? (
+                        <p className="mt-2 flex flex-wrap gap-x-1 text-xs font-normal tracking-normal text-[#5e5e5e]">
+                          <span>Data:</span>
+                          {googlePlacePreview.attributions.map((attribution, index) => (
+                            <span key={`${attribution.provider}:${index}`}>
+                              {index ? " · " : ""}
+                              {attribution.providerUri ? (
+                                <a href={attribution.providerUri} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+                                  {attribution.provider}
+                                </a>
+                              ) : attribution.provider}
+                            </span>
+                          ))}
+                        </p>
+                      ) : null}
+                    </div>
+                    {googlePlacePreview.googleMapsUri ? (
+                      <a href={googlePlacePreview.googleMapsUri} target="_blank" rel="noreferrer" className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-md border border-[#16877f]/25 bg-white px-3 text-xs font-semibold text-[#166a64]">
+                        Keep profile open <ExternalLink size={12} aria-hidden="true" />
+                      </a>
+                    ) : null}
+                  </div>
+                  <p className="mt-3 border-t border-[#16877f]/15 pt-3 text-xs leading-5 text-[#166a64]">
+                    Aqua linked the durable Place ID, but has not copied Google profile fields into your CRM. Verify and enter the business, contact, website, and research facts you want to keep.
+                  </p>
+                </section>
+              ) : null}
               <Field label="Business name" value={prospectForm.company} onChange={company => setProspectForm(current => ({ ...current, company }))} placeholder="Business or organisation" />
               <Field label="Person, if known" value={prospectForm.name} onChange={name => setProspectForm(current => ({ ...current, name }))} placeholder="Name on the card or advert" />
               <Field label="Niche" value={prospectForm.niche} onChange={niche => setProspectForm(current => ({ ...current, niche }))} placeholder="Plumber, clinic, restaurant..." />
@@ -1416,13 +1538,20 @@ export function LeadsPipelineWorkspace({ focusedLeadId, referenceNow, columns, p
                 Do not contact
               </label>
             </div>
-            <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-black/10 px-5 py-4 sm:px-6">
-              <p className="text-xs text-black/45">A phone number or email is needed only when this moves into Journey.</p>
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setShowProspectForm(false)} className="rounded-md border border-black/10 bg-white px-4 py-2 text-sm font-medium text-black/65">Cancel</button>
-                <button type="submit" disabled={busy === "prospect:add" || busy === `prospect:${editingProspect?.id}`} className="rounded-md bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-black/85 disabled:opacity-50">
-                  {busy?.startsWith("prospect:") ? "Saving..." : editingProspect ? "Save changes" : "Add to Scouting"}
-                </button>
+            <footer className="sticky bottom-0 border-t border-black/10 bg-[#fbfaf8] shadow-[0_-8px_20px_rgba(0,0,0,0.06)]">
+              {error ? (
+                <p id="scout-prospect-error" role="alert" className="border-b border-red-200 bg-red-50 px-5 py-3 text-sm text-red-800 sm:px-6">
+                  {error}
+                </p>
+              ) : null}
+              <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-6">
+                <p className="text-xs text-black/65">A phone number or email is needed only when this moves into Journey.</p>
+                <div className="flex gap-2">
+                  <button type="button" onClick={closeProspectForm} className="rounded-md border border-black/10 bg-white px-4 py-2 text-sm font-medium text-black/65">Cancel</button>
+                  <button type="submit" disabled={busy === "prospect:add" || busy === `prospect:${editingProspect?.id}`} className="rounded-md bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-black/85 disabled:opacity-50">
+                    {busy?.startsWith("prospect:") ? "Saving..." : editingProspect ? "Save changes" : "Add to Scouting"}
+                  </button>
+                </div>
               </div>
             </footer>
           </form>
@@ -2055,4 +2184,3 @@ function matchesQuery(lead: LeadView, query: string): boolean {
     lead.tags.join(" "),
   ].some(value => (value ?? "").toLowerCase().includes(q));
 }
-

@@ -10,9 +10,9 @@
 
 import { redirect } from "next/navigation";
 import { ShieldAlert } from "lucide-react";
+import { SecurityCentrePanel } from "@/components/security/SecurityCentrePanel";
 import { ensureHydrated } from "@/server/storage";
 import { requireRole } from "@/lib/server/auth/auth";
-import { SecurityCentrePanel } from "./SecurityCentrePanel";
 
 export const dynamic = "force-dynamic";
 

@@ -106,6 +106,7 @@ export async function Topbar({ title, subtitle, role, email, name, avatarUrl, pa
     "/portal/agency/my-radar",
     "/portal/agency/radar",
     "/portal/agency/radar/workload",
+    "/portal/agency/scouting",
   ]);
   const provenDestinationHrefs = new Set(capabilitySearchHrefs);
   const searchItems = [

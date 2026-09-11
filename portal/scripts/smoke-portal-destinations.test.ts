@@ -93,9 +93,16 @@ describe("the topbar actually uses it", () => {
   it("tells roles apart in the registry half", async () => {
     const { destinationSearchItemsFor } = await import("../src/lib/chrome/destinations");
     const owner = destinationSearchItemsFor("agency-owner", true);
+    const tenantOwner = destinationSearchItemsFor("agency-owner", false);
+    const manager = destinationSearchItemsFor("agency-manager", false);
     const staff = destinationSearchItemsFor("agency-staff", false);
     const freelancer = destinationSearchItemsFor("freelancer", false);
     assert.ok(owner.some(item => item.href.startsWith("/portal/agency/")), "owners lost their own surfaces");
+    assert.ok(owner.some(item => item.href === "/portal/dev-team/security"), "the founder lost Security in App Dev Mode");
+    assert.ok(!owner.some(item => item.href === "/portal/agency/security"), "the founder sees duplicate Security search results");
+    assert.ok(tenantOwner.some(item => item.href === "/portal/agency/security"), "an ordinary tenant owner lost their Security console");
+    assert.ok(!manager.some(item => item.href === "/portal/agency/security"), "managers are told an owner-only Security route exists");
+    assert.ok(manager.some(item => item.href === "/portal/agency/scouting"), "sales managers lost the Scouting workspace");
     assert.ok(!staff.some(item => item.href.startsWith("/portal/agency/settings")),
       "delegated staff are offered the agency settings door again");
     assert.ok(!staff.some(item => item.label.includes("· Dev Team")),
@@ -111,5 +118,10 @@ describe("the topbar actually uses it", () => {
     // Nav rows carry the person's own labels and plugin-contributed entries;
     // a page in both must appear once, not twice.
     assert.match(source, /navHrefs\.has\(item\.href\)/);
+    assert.match(source, /"\/portal\/agency\/scouting"/,
+      "Scouting registry results are not bound to the caller's capability-proven sidebar");
+    const layout = readFileSync("src/app/portal/agency/layout.tsx", "utf8");
+    assert.match(layout, /panelHrefs\.has\("\/portal\/agency\/scouting"\)/,
+      "the agency shell does not prove Scouting access before offering it in search");
   });
 });

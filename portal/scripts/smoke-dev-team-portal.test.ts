@@ -2,8 +2,8 @@
 //
 // Phase 1 (icons) contract: the shared <SidebarNavLink> renders `item.icon` and
 // falls back to a generic dot (`navIcon()` → `Circle`) for ids it doesn't know.
-// The Dev Team ids (working, library, auditor, profiles, editor, updates,
-// exit-dev-team) are NOT in that shared map, so an item without its own `icon`
+// The Dev Team ids (roadmap, findings, library, tools, editor, security and
+// notes) are NOT in that shared map, so an item without its own `icon`
 // renders as a bare dot — which is exactly what this portal used to do.
 //
 // Proves:
@@ -48,7 +48,7 @@ function pageHeaderIcon(source: string): string | null {
 
 describe("dev team portal — sidebar icons", () => {
   it("gives every nav item its own icon, matching that section's page header", async () => {
-    const [layout, home, roadmap, findings, library, tools, notes, notepad, navLink] =
+    const [layout, home, roadmap, findings, library, tools, security, notes, notepad, navLink] =
       await Promise.all([
         read("src/app/portal/dev-team/layout.tsx"),
         read("src/app/portal/dev-team/page.tsx"),
@@ -57,6 +57,7 @@ describe("dev team portal — sidebar icons", () => {
         read("src/app/portal/dev-team/findings/_Section.tsx"),
         read("src/app/portal/dev-team/library/_LibraryIndex.tsx"),
         read("src/app/portal/dev-team/tools/page.tsx"),
+        read("src/app/portal/dev-team/security/page.tsx"),
         read("src/app/portal/dev-team/notes/page.tsx"),
         read("src/app/portal/agency/notepad/_NotepadWorkspace.tsx"),
         read("src/components/chrome/SidebarNavLink.tsx"),
@@ -70,7 +71,7 @@ describe("dev team portal — sidebar icons", () => {
       // Editor + Team chat are now first-class sidebar items; the old
       // "exit-dev-team" item was removed (the topbar's role-dependent "Back to
       // home" is the single way out now).
-      ["home", "roadmap", "findings", "library", "tools", "editor", "notes", "account"],
+      ["home", "roadmap", "findings", "library", "tools", "editor", "security", "notes", "account"],
       "the Dev Team sidebar sections changed — update this contract deliberately",
     );
     for (const [id, icon] of nav) {
@@ -83,6 +84,7 @@ describe("dev team portal — sidebar icons", () => {
       roadmap: pageHeaderIcon(roadmap),
       findings: pageHeaderIcon(findings),
       library: pageHeaderIcon(library),
+      security: pageHeaderIcon(security),
     };
     for (const [id, headerIcon] of Object.entries(headerIcons)) {
       assert.ok(headerIcon, `${id}/page has no PageHeader icon to match the sidebar against`);

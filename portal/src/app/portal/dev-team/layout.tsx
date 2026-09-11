@@ -8,6 +8,7 @@ import {
   Library,
   NotebookPen,
   Route,
+  ShieldAlert,
   SquarePen,
   UserRound,
 } from "lucide-react";
@@ -156,6 +157,7 @@ export default async function DevTeamLayout({ children }: { children: ReactNode 
       // app-config edit→preview→publish loop is a different, smaller thing and
       // still lives at Tools → Editor (`editor/_Section.tsx`).
       { id: "editor", label: "Editor", href: "/portal/dev-team/editor", icon: ico(SquarePen, "editor"), panelId: "main" as const, order: 40 },
+      { id: "security", label: "Security", href: "/portal/dev-team/security", icon: ico(ShieldAlert, "auditor"), panelId: "main" as const, order: 60 },
       { id: "notes", label: "Notes", href: "/portal/dev-team/notes", icon: ico(NotebookPen, "notes"), panelId: "main" as const, order: 70 },
       // The way OUT is now the topbar's role-dependent "Back to home" (it lands
       // on the operator's own portal, unlike the old hardcoded /portal/agency

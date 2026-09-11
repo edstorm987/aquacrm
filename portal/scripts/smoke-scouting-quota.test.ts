@@ -421,7 +421,7 @@ describe("the scouting header renders the game", () => {
   const scouting = read("src/app/portal/agency/pipelines/[slug]/_ScoutingCommand.tsx");
 
   it("shows rings, the streak, and a set-a-target affordance", () => {
-    assert.match(scouting, /<ScoutingQuotaStrip quota=\{quota\} \/>/);
+    assert.match(scouting, /<ScoutingQuotaStrip quota=\{quota\} writable=\{quotaWritable\} \/>/);
     assert.match(scouting, /strokeDasharray=/, "the progress ring is gone");
     assert.match(scouting, /-day streak/, "the streak flame is gone");
     assert.match(scouting, /Set a target/, "there is no way to create a quota");

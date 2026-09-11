@@ -127,6 +127,9 @@ export const ENV_ALLOWLIST: readonly string[] = [
   "GOOGLE_CALENDAR_OAUTH_CLIENT_ID",
   "GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET",
   "GOOGLE_CALENDAR_OAUTH_REDIRECT_URI",
+  "GOOGLE_PLACES_API_KEY",
+  "GOOGLE_PLACES_SEARCHES_PER_TENANT_DAY",
+  "NEXT_PUBLIC_GOOGLE_MAPS_EMBED_API_KEY",
   "STRIPE_SECRET_KEY",
   "STRIPE_WEBHOOK_SECRET",
   "OPENAI_API_KEY",
@@ -135,7 +138,7 @@ export const ENV_ALLOWLIST: readonly string[] = [
   "AQUA_EMBED_SIGNING_SECRET",
 ] as const;
 
-const PORTAL_KEY_PATTERN = /^(PORTAL_|FOUNDER_|GITHUB_|NEXT_PUBLIC_PORTAL_|NEXT_PUBLIC_SUPABASE_|SUPABASE_|NEXT_PUBLIC_SENTRY|SENTRY_|VERCEL_|GOOGLE_OAUTH_|RESEND_|SMTP_|TWILIO_|ENQUIRY_|MILESYMEDIA_|AQUACRM_|BLOB_|STRIPE_|OPENAI_)/;
+const PORTAL_KEY_PATTERN = /^(PORTAL_|FOUNDER_|GITHUB_|NEXT_PUBLIC_PORTAL_|NEXT_PUBLIC_SUPABASE_|NEXT_PUBLIC_GOOGLE_MAPS_|SUPABASE_|NEXT_PUBLIC_SENTRY|SENTRY_|VERCEL_|GOOGLE_OAUTH_|GOOGLE_PLACES_|RESEND_|SMTP_|TWILIO_|ENQUIRY_|MILESYMEDIA_|AQUACRM_|BLOB_|STRIPE_|OPENAI_)/;
 
 interface RequireOpts {
   // When true, also throws in dev (caller treats this var as
@@ -204,6 +207,27 @@ export function inspectEnv(env: NodeJS.ProcessEnv = process.env): EnvIssue[] {
         reason: `must equal "strict" in production (got "${sec}")`,
       });
     }
+  }
+
+  // The Places key is a server secret; the Embed key is intentionally public.
+  // Reusing one value would publish the server credential in the iframe URL.
+  const placesKey = env.GOOGLE_PLACES_API_KEY?.trim();
+  const embedKey = env.NEXT_PUBLIC_GOOGLE_MAPS_EMBED_API_KEY?.trim();
+  if (placesKey && embedKey && placesKey === embedKey) {
+    issues.push({
+      name: "GOOGLE_PLACES_API_KEY",
+      severity: isProd ? "error" : "warn",
+      reason: "must differ from NEXT_PUBLIC_GOOGLE_MAPS_EMBED_API_KEY so the server credential is never published",
+    });
+  }
+
+  const placesDailyQuota = env.GOOGLE_PLACES_SEARCHES_PER_TENANT_DAY?.trim();
+  if (placesDailyQuota && !/^(?:[1-9]\d{0,3}|10000)$/.test(placesDailyQuota)) {
+    issues.push({
+      name: "GOOGLE_PLACES_SEARCHES_PER_TENANT_DAY",
+      severity: isProd ? "error" : "warn",
+      reason: "must be a whole number from 1 to 10000",
+    });
   }
 
   // Typo-guard: any portal-namespaced key not on the allowlist warns.

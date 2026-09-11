@@ -7,9 +7,9 @@
 //
 // Tenant scope is decided by `resolveApiTenantScope` — see
 // `@/lib/server/portal/apiTenantScope`, which carries the whole argument:
-//   • A signed-in caller is scoped by their SESSION. `?agencyId=` may only
-//     name an agency inside their own membership; naming anyone else is a 403,
-//     not a change of scope.
+//   • A signed-in caller is scoped by the SESSION'S ACTIVE agency. Membership
+//     authorises `/api/auth/switch-agency`; it does not let `?agencyId=` switch
+//     this request without the target tenant's freshly minted epoch stamp.
 //   • `?clientId=` selects the install within that agency. Client-side roles
 //     are pinned to their own client; agency-side roles may only name a client
 //     their agency owns.
@@ -29,7 +29,14 @@ import { resolveApiTenantScope, tenantScopeSession } from "@/lib/server/portal/a
 import { getClient } from "@/server/tenants";
 import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
 import { clientElementForModule, clientElementLevelForMethod } from "@/lib/server/portal/pluginClientElement";
-import { accessErrorResponse } from "@/server/accessControl";
+import {
+  assertWorkspaceElementAccess,
+  resolveActorWorkspaceElementAccess,
+  type GovernedWorkspaceId,
+  type WorkspaceElementAccess,
+} from "@/lib/server/access/workspaceElementAccess";
+import { agencyPluginApiAccessRequirements } from "@/lib/server/portal/pluginAgencyRouteAccess";
+import { accessErrorResponse, requireCurrentAccessActor } from "@/server/accessControl";
 
 interface RouteParams {
   params: Promise<{ module: string; rest: string[] }>;
@@ -110,6 +117,43 @@ async function dispatch(req: NextRequest, params: RouteParams["params"], method:
   // Feature gate.
   if (route.requiresFeature && !install.features[route.requiresFeature]) {
     return NextResponse.json({ ok: false, error: "feature_disabled" }, { status: 404 });
+  }
+
+  // AGENCY WORKSPACE ELEMENT. A role says which broad portal surface a person
+  // may enter; an element grant says which part of that surface they may
+  // actually use. Scouting is agency-scoped and therefore never reaches the
+  // client-element gate below. Its prospect routes are classified separately
+  // so a contacts-only or leads-view-only manager cannot call outreach APIs by
+  // typing the endpoint directly.
+  //
+  // Resolve the signed actor once and each workspace once. Qualification
+  // deliberately requires both growth.outreach.use and growth.leads.use, but
+  // they share the same resolved access graph and therefore do not pay two
+  // actor/storage reads.
+  //
+  // Authenticated private calls were pinned to the signed active agency by
+  // `resolveApiTenantScope` above. A different membership tenant must first use
+  // `/api/auth/switch-agency`, which re-mints its active tenant and epoch stamp,
+  // so this access actor is already the correct one and must not be re-scoped
+  // from request input.
+  if (session) {
+    const requirements = agencyPluginApiAccessRequirements(moduleId, rest, method);
+    if (requirements.length) {
+      const accessByWorkspace = new Map<GovernedWorkspaceId, WorkspaceElementAccess>();
+      try {
+        const actor = await requireCurrentAccessActor();
+        for (const requirement of requirements) {
+          let access = accessByWorkspace.get(requirement.workspace);
+          if (!access) {
+            access = resolveActorWorkspaceElementAccess(actor, requirement.workspace);
+            accessByWorkspace.set(requirement.workspace, access);
+          }
+          assertWorkspaceElementAccess(access, requirement.element, requirement.level);
+        }
+      } catch (error) {
+        return accessErrorResponse(error);
+      }
+    }
   }
 
   // CLIENT ELEMENT. The gap this catch-all carried: tenant, role and feature

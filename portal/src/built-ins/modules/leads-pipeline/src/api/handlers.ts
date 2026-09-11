@@ -69,7 +69,7 @@ import type {
 } from "../lib/domain";
 import { LeadIdentityConflictError } from "../server/leads";
 import { CommercialPaymentConflictError } from "../server/commercial";
-import { installmentAllocation, isLeadRelationshipCategory } from "../lib/domain";
+import { installmentAllocation, isLeadRelationshipCategory, normalizeGooglePlaceId } from "../lib/domain";
 import { REQUIRED_PROSPECT_INSPECTION_CHECKS } from "../server/prospects";
 import { getPortalFormFields, validatePortalEntityFields } from "@/server/portalEditor";
 import { validatePortalFormValues } from "@/lib/forms/portalFormValues";
@@ -103,6 +103,11 @@ const CUSTOM_TAGS_KEY = "contacts/custom-tags";
 const CUSTOM_FIELD_TYPES = new Set<CustomFieldType>(["text", "number", "date", "url", "select", "multi-select", "checkbox"]);
 const PROSPECT_OUTREACH_CHANNELS = new Set<ProspectOutreachChannel>(["call", "email", "sms", "whatsapp", "dm", "in-person"]);
 const PROSPECT_OUTREACH_OUTCOMES = new Set<ProspectOutreachOutcome>(["attempted", "no-answer", "left-message", "sent", "replied", "interested", "not-now", "not-fit", "wrong-contact", "meeting-booked"]);
+
+function validOptionalGooglePlaceId(value: unknown): boolean {
+  return value === undefined
+    || (typeof value === "string" && (value.trim() === "" || normalizeGooglePlaceId(value) !== undefined));
+}
 
 const buildContainer = (ctx: PluginCtx) =>
   containerFor({ agencyId: ctx.agencyId, storage: ctx.storage, settings: readLeadsPipelineSettings(ctx.install.config) });
@@ -146,6 +151,35 @@ function cleanSalesPresentations(value: unknown): SalesPresentation[] | null {
 
 // ─── Scouting prospects ─────────────────────────────────────────────────
 
+const EDITABLE_PROSPECT_PATCH_KEYS = [
+  "name", "company", "email", "phone", "website", "address",
+  "googlePlaceId", "googleMapsUrl", "instagramUrl", "facebookUrl", "linkedinUrl",
+  "niche", "tags", "source", "foundAt", "opportunity", "researchNotes", "nextStep",
+  "qualificationState", "fitScore", "preferredChannel", "doNotContact",
+] as const satisfies readonly (keyof UpdateProspectPatch)[];
+const EDITABLE_PROSPECT_CREATE_KEYS = [
+  ...EDITABLE_PROSPECT_PATCH_KEYS,
+  "nextContactAt", "nextContactReason",
+] as const satisfies readonly (keyof CreateProspectInput)[];
+
+function editableProspectPatch(body: UpdateProspectPatch): UpdateProspectPatch {
+  const input = body as Record<string, unknown>;
+  const patch: Record<string, unknown> = {};
+  for (const key of EDITABLE_PROSPECT_PATCH_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(input, key)) patch[key] = input[key];
+  }
+  return patch as UpdateProspectPatch;
+}
+
+function editableProspectCreate(body: CreateProspectInput): CreateProspectInput {
+  const input = body as unknown as Record<string, unknown>;
+  const create: Record<string, unknown> = {};
+  for (const key of EDITABLE_PROSPECT_CREATE_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(input, key)) create[key] = input[key];
+  }
+  return create as unknown as CreateProspectInput;
+}
+
 export async function prospectsHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   const c = buildContainer(ctx);
   if (req.method === "GET") {
@@ -154,8 +188,12 @@ export async function prospectsHandler(req: Request, ctx: PluginCtx): Promise<Re
   if (req.method === "POST") {
     const body = await safeJson<CreateProspectInput>(req);
     if (!body?.source) return badRequest("source required.");
+    const input = editableProspectCreate(body);
+    if (!validOptionalGooglePlaceId((input as { googlePlaceId?: unknown }).googlePlaceId)) {
+      return badRequest("googlePlaceId invalid.");
+    }
     try {
-      const prospect = await c.prospects.create(body, ctx.actor);
+      const prospect = await c.prospects.create(input, ctx.actor);
       return json({ ok: true, prospect }, 201);
     } catch (err) {
       return unprocessable(err instanceof Error ? err.message : String(err));
@@ -166,7 +204,12 @@ export async function prospectsHandler(req: Request, ctx: PluginCtx): Promise<Re
     if (!id) return badRequest("id required.");
     const body = await safeJson<UpdateProspectPatch>(req);
     if (!body) return badRequest("body required.");
-    const prospect = await c.prospects.update(id, body, ctx.actor);
+    if (!validOptionalGooglePlaceId((body as { googlePlaceId?: unknown }).googlePlaceId)) {
+      return badRequest("googlePlaceId invalid.");
+    }
+    const patch = editableProspectPatch(body);
+    if (!Object.keys(patch).length) return badRequest("No editable prospect fields supplied.");
+    const prospect = await c.prospects.update(id, patch, ctx.actor);
     return prospect ? json({ ok: true, prospect }) : notFound("prospect_not_found");
   }
   return json({ ok: false, error: "method_not_allowed" }, 405);
@@ -230,12 +273,13 @@ export async function importProspectsHandler(req: Request, ctx: PluginCtx): Prom
   });
 }
 
-function prospectFingerprints(prospect: Pick<CreateProspectInput, "company" | "name" | "email" | "phone" | "website" | "address" | "googleMapsUrl">): string[] {
+function prospectFingerprints(prospect: Pick<CreateProspectInput, "company" | "name" | "email" | "phone" | "website" | "address" | "googlePlaceId" | "googleMapsUrl">): string[] {
   const normalized = (value?: string) => value?.trim().toLowerCase().replace(/\/$/, "");
   return [
     prospect.email ? `email:${normalized(prospect.email)}` : "",
     prospect.phone ? `phone:${prospect.phone.replace(/[^0-9+]/g, "")}` : "",
     prospect.website ? `website:${normalized(prospect.website)}` : "",
+    prospect.googlePlaceId ? `google-place:${prospect.googlePlaceId.trim()}` : "",
     prospect.googleMapsUrl ? `maps:${normalized(prospect.googleMapsUrl)}` : "",
     prospect.company && prospect.address ? `place:${normalized(prospect.company)}:${normalized(prospect.address)}` : "",
     !prospect.company && prospect.name && prospect.address ? `person:${normalized(prospect.name)}:${normalized(prospect.address)}` : "",
@@ -323,6 +367,7 @@ export async function qualifyProspectHandler(req: Request, ctx: PluginCtx): Prom
         ...(prospect.nextStep ? { "scouting-next-step": prospect.nextStep } : {}),
         ...(prospect.website ? { website: prospect.website } : {}),
         ...(prospect.address ? { "scouting-address": prospect.address } : {}),
+        ...(prospect.googlePlaceId ? { "scouting-google-place-id": prospect.googlePlaceId } : {}),
         ...(prospect.googleMapsUrl ? { "scouting-google-maps": prospect.googleMapsUrl } : {}),
         ...(prospect.instagramUrl ? { "scouting-instagram": prospect.instagramUrl } : {}),
         ...(prospect.facebookUrl ? { "scouting-facebook": prospect.facebookUrl } : {}),

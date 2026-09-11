@@ -1,6 +1,7 @@
 // API route table — mounted at `/api/portal/leads-pipeline/...` by T1.
 
 import type { PluginApiRoute } from "../lib/aquaPluginTypes";
+import { googlePlacesSearchHandler } from "./googlePlaces";
 import {
   addContactToBoardHandler,
   archiveLeadHandler,
@@ -49,6 +50,7 @@ const AGENCY_ALL = ["agency-owner", "agency-manager", "agency-staff"] as const;
 export const ROUTES: PluginApiRoute[] = [
   // Scouting
   { path: "prospects", methods: ["GET", "POST", "PATCH"], handler: prospectsHandler, visibleToRoles: [...AGENCY_ALL] },
+  { path: "google-places/search", methods: ["POST"], handler: googlePlacesSearchHandler, visibleToRoles: [...AGENCY_ADMIN] },
   { path: "prospects/import", methods: ["POST"], handler: importProspectsHandler, visibleToRoles: [...AGENCY_ADMIN] },
   { path: "prospects/outreach", methods: ["POST"], handler: prospectOutreachHandler, visibleToRoles: [...AGENCY_ALL] },
   { path: "prospects/follow-ups", methods: ["POST", "PATCH"], handler: prospectFollowUpsHandler, visibleToRoles: [...AGENCY_ALL] },

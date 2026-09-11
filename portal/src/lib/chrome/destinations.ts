@@ -85,6 +85,7 @@ export const PORTAL_DESTINATIONS: readonly PortalDestination[] = [
   { href: "/portal/agency/products", label: "Products", area: "Agency" },
   { href: "/portal/agency/radar", label: "Radar", area: "Agency" },
   { href: "/portal/agency/radar/workload", label: "Department workload (Business Radar)", area: "Agency" },
+  { href: "/portal/agency/scouting", label: "Scouting", area: "Agency" },
   { href: "/portal/agency/security", label: "Security", area: "Agency" },
   { href: "/portal/agency/settings", label: "Settings", area: "Agency" },
   { href: "/portal/agency/sop-library", label: "Sop library", area: "Agency" },
@@ -112,6 +113,7 @@ export const PORTAL_DESTINATIONS: readonly PortalDestination[] = [
   { href: "/portal/dev-team/notes", label: "Notes", area: "Dev Team" },
   { href: "/portal/dev-team/plans/new", label: "New (Plans)", area: "Dev Team" },
   { href: "/portal/dev-team/roadmap", label: "Roadmap", area: "Dev Team" },
+  { href: "/portal/dev-team/security", label: "Security", area: "Dev Team" },
   { href: "/portal/dev-team/tasks", label: "Tasks", area: "Dev Team" },
   { href: "/portal/dev-team/tools", label: "Tools", area: "Dev Team" },
   { href: "/portal/dev-team/updates", label: "Updates", area: "Dev Team" },
@@ -158,7 +160,16 @@ export function destinationSearchItemsFor(
   // "Customer" is deliberately in nobody's set here: those are the client's
   // customers' surfaces, reached through the customer portal's own chrome.
   return PORTAL_DESTINATIONS
-    .filter(destination => areas.has(destination.area))
+    .filter(destination => {
+      if (!areas.has(destination.area)) return false;
+      // One Security destination per authorised operator. The founder uses the
+      // platform shell in Dev Team; an ordinary tenant owner keeps the agency
+      // console; managers must not be told an owner-only route exists.
+      if (destination.href === "/portal/agency/security") {
+        return role === "agency-owner" && !devTeamVisible;
+      }
+      return true;
+    })
     .map(destination => ({
       label: `${destination.label} · ${destination.area}`,
       href: destination.href,

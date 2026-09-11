@@ -1,6 +1,6 @@
 "use client";
 
-// Threat centre client panel (Phase 6).
+// Route-neutral Threat Centre client panel (Phase 6).
 //
 // Presentation + intent only. Every action round-trips to
 // /api/portal/security/actions, which enforces owner role, fresh password

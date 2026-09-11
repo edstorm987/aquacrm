@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { cache, Suspense, type ReactNode } from "react";
 import {
   CalendarClock, CircleDot, Hammer, Library as LibraryIcon, MessageSquare,
-  NotebookPen, Route, ScanEye, Wrench,
+  NotebookPen, Route, ScanEye, ShieldAlert, Wrench,
 } from "lucide-react";
 
 import { requireRole } from "@/lib/server/auth/auth";
@@ -29,6 +29,7 @@ const SECTIONS: { href: string; label: string; hint: string; icon: ReactNode; ac
   { href: "/portal/dev-team/findings", label: "Findings", hint: "What I spotted · what the auditor spotted", icon: <ScanEye size={18} />, accent: "findings" },
   { href: "/portal/dev-team/library", label: "Library", hint: "Docs · logs · updates", icon: <LibraryIcon size={18} />, accent: "library" },
   { href: "/portal/dev-team/tools", label: "Tools", hint: "Inspector · editor · API & MCP", icon: <Wrench size={18} />, accent: "tools" },
+  { href: "/portal/dev-team/security", label: "Security", hint: "Threat posture · containment controls · permanent record", icon: <ShieldAlert size={18} />, accent: "auditor" },
   { href: "/portal/dev-team/notes", label: "Notes", hint: "Working notes and scratch", icon: <NotebookPen size={18} />, accent: "notes" },
 ];
 

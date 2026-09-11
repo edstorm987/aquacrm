@@ -42,6 +42,10 @@ const linksTo = (page: string, href: string) => page.includes(`href: "${href}"`)
 
 // The Tools page itself — never needs a card pointing at itself.
 const SELF_HREF = "/portal/agency/tools";
+// Security is role/contextual: founders use App Dev Mode Security while an
+// ordinary tenant owner keeps the agency Security route. A static owner-only
+// Operations card would be a dead/misleading door for one of them.
+const CONTEXTUAL_DESTINATIONS = ["/portal/agency/security"];
 
 describe("every workspace kept a door when the directory moved", () => {
   it("Operations lists every reachable sidebar destination the agency owner sees", () => {
@@ -57,7 +61,11 @@ describe("every workspace kept a door when the directory moved", () => {
     const OPS_SELF = "/portal/agency/operations";
     const toolsPage = read(TOOLS_PAGE);
     const missing = hrefs.filter(href =>
-      href !== SELF_HREF && href !== OPS_SELF && !KEPT_IN_TOOLS.includes(href) && !linksTo(page, href));
+      href !== SELF_HREF
+      && href !== OPS_SELF
+      && !KEPT_IN_TOOLS.includes(href)
+      && !CONTEXTUAL_DESTINATIONS.includes(href)
+      && !linksTo(page, href));
     assert.deepEqual(
       missing,
       [],

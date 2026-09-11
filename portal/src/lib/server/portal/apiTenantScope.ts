@@ -34,10 +34,11 @@
 // Two deliberate seams in that rule, both pinned by
 // `scripts/smoke-plugin-api-tenancy.test.ts`:
 //
-//   1. R025 multi-agency. A master user's session carries `agencyIds[]`. A
-//      query naming one of THEIR OWN agencies is honoured — that is the Topbar
-//      agency switcher, not an escalation. Anything outside the membership is
-//      refused.
+//   1. R025 multi-agency. Membership says which agency the user MAY switch to;
+//      it does not change which tenant THIS cookie is scoped to. The Topbar
+//      switcher re-mints the cookie with the selected `activeAgencyId` and that
+//      tenant's security-epoch stamp. Until then, even another agency in
+//      `agencyIds[]` is refused here so its lockdown/epoch cannot be bypassed.
 //   2. Public routes are not re-gated by a session that happens to be present.
 //      A public route answers anonymous callers by definition: refusing the
 //      same call because the caller also holds an unrelated cookie protects
@@ -61,6 +62,7 @@ import type { Role, SessionPayload } from "@/server/types";
 export interface TenantScopeSession {
   role: Role;
   agencyId: string;
+  activeAgencyId?: string;
   agencyIds?: string[];
   clientId?: string;
 }
@@ -94,10 +96,9 @@ function isClientSideRole(role: Role): boolean {
   return role.startsWith("client-") || role === "freelancer" || role === "end-customer";
 }
 
-/** The agencies this session may act in. Falls back to the legacy single id. */
-function membership(session: TenantScopeSession): string[] {
-  if (session.agencyIds && session.agencyIds.length > 0) return session.agencyIds;
-  return session.agencyId ? [session.agencyId] : [];
+/** The one tenant this signed cookie is currently scoped to. */
+function signedActiveAgency(session: TenantScopeSession): string {
+  return session.activeAgencyId ?? session.agencyId;
 }
 
 export function resolveApiTenantScope(input: ApiTenantScopeInput): ApiTenantScope {
@@ -117,13 +118,16 @@ export function resolveApiTenantScope(input: ApiTenantScopeInput): ApiTenantScop
   //
   // Left query-authoritative on purpose — see seam 2 in the header comment.
   if (isPublic) {
-    return { ok: true, agencyId: queryAgencyId ?? session.agencyId, clientId: queryClientId };
+    return { ok: true, agencyId: queryAgencyId ?? signedActiveAgency(session), clientId: queryClientId };
   }
 
   // ── The tenant ──────────────────────────────────────────────────────────
-  const mine = membership(session);
-  if (queryAgencyId && !mine.includes(queryAgencyId)) return REFUSE_AGENCY;
-  const agencyId = queryAgencyId && mine.includes(queryAgencyId) ? queryAgencyId : session.agencyId;
+  // A different membership tenant requires `/api/auth/switch-agency`, which
+  // re-mints the cookie with that tenant as active and stamps its current
+  // security epoch. Accepting it directly here would validate lockdown/epoch
+  // against the old active tenant and then execute against the new one.
+  const agencyId = signedActiveAgency(session);
+  if (queryAgencyId && queryAgencyId !== agencyId) return REFUSE_AGENCY;
 
   // ── The client ──────────────────────────────────────────────────────────
   if (isClientSideRole(session.role)) {
@@ -159,6 +163,7 @@ export function tenantScopeSession(session: SessionPayload): TenantScopeSession 
   return {
     role: session.role,
     agencyId: session.agencyId,
+    activeAgencyId: session.activeAgencyId,
     agencyIds: session.agencyIds,
     clientId: session.clientId,
   };
@@ -181,10 +186,10 @@ export function tenantScopeSession(session: SessionPayload): TenantScopeSession 
 // `routeTenantScope` is that rule as one call. It answers the two questions a
 // route must not answer for itself:
 //
-//   1. WHICH AGENCY am I acting in?  The signed session decides. A request may
-//      NAME an agency, but only one inside the session's own membership — the
-//      Topbar switcher — and naming anyone else is a 403, never a change of
-//      scope.
+//   1. WHICH AGENCY am I acting in?  The signed session's ACTIVE agency
+//      decides. Membership only authorises the Topbar switch operation; a
+//      request naming a different membership tenant is a 403 until that switch
+//      re-mints the cookie and target tenant security-epoch stamp.
 //   2. MAY THIS CALLER NAME THIS CLIENT?  A client-side role is pinned to its
 //      own `session.clientId`. An agency-side role may name any client ITS OWN
 //      agency owns. A client that resolves to another agency is refused.
@@ -212,7 +217,7 @@ export function tenantScopeSession(session: SessionPayload): TenantScopeSession 
 // go through this helper fails by name, and the exemptions are an explicit,
 // commented list rather than an implicit habit.
 
-import { AuthError, getActiveAgencyId, getSessionAgencyIds } from "@/lib/server/auth/auth";
+import { AuthError } from "@/lib/server/auth/auth";
 import { getClient, getClientForAgency } from "@/server/tenants";
 import type { Client } from "@/server/types";
 
@@ -257,27 +262,19 @@ export function routeTenantScope(
   const namedAgency = requestId(request.agencyId);
   const namedClient = requestId(request.clientId);
 
-  // ── The tenant ────────────────────────────────────────────────────────
-  // `getActiveAgencyId` reads the signed cookie, not the request, so it is not
-  // the thing being defended against; a REQUEST-named agency is, and it only
-  // passes inside the session's membership.
-  const mine = getSessionAgencyIds(session);
-  if (namedAgency && !mine.includes(namedAgency)) {
-    throw new AuthError(403, "tenant_scope_mismatch");
-  }
-  const agencyId = namedAgency ?? getActiveAgencyId(session);
-
-  // ── The client ────────────────────────────────────────────────────────
-  // Delegated to the same pure rule the plugin dispatcher runs, with the
-  // resolved agency substituted so a master user viewing their second agency
-  // is judged against the agency they are actually in.
+  // ── The tenant + client ───────────────────────────────────────────────
+  // Delegate both decisions to the same pure rule as the plugin dispatcher.
+  // In particular, another membership tenant is not usable until the signed
+  // active agency has been switched and re-stamped.
   const decision = resolveApiTenantScope({
-    session: { ...tenantScopeSession(session), agencyId },
+    session: tenantScopeSession(session),
+    queryAgencyId: namedAgency,
     queryClientId: namedClient,
     isPublic: false,
     clientOwner: clientId => getClient(clientId)?.agencyId ?? null,
   });
   if (!decision.ok) throw new AuthError(403, decision.error);
+  const agencyId = decision.agencyId;
 
   // No implicit fallback to `session.clientId`: a route that named no client
   // gets no client. The dispatcher's fallback exists to pick a plugin INSTALL;

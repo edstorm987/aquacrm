@@ -29,6 +29,7 @@ import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { logActivity } from "@/server/activity";
 import { routeTenantScope } from "@/lib/server/portal/apiTenantScope";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 import {
   initiatePhoneCall, outboundCommunicationReadiness, resolveCommunicationSender,
 } from "@/lib/server/email/outboundCommunications";
@@ -95,6 +96,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: "That is not a phone number this can dial." }, { status: 400 });
     }
 
+    if (prospectId) {
+      await requireCurrentWorkspaceElementAccess("growth", "growth.outreach", "use");
+    }
+
     const tenant = routeTenantScope(session, clientId ? { clientId } : {});
     if (clientId && !tenant.client) {
       return NextResponse.json({ ok: false, error: "client not found" }, { status: 404 });
@@ -114,15 +119,20 @@ export async function POST(request: NextRequest) {
     // The scouting fence, enforced where it cannot be walked around: an
     // opted-out or uninspected prospect is refused HERE, whatever the UI
     // rendered (Ed's finding, 2026-08-30).
-    if (prospectId) {
-      try {
-        await assertProspectContactable(tenant.agencyId, prospectId, session.userId);
-      } catch (gate) {
-        return NextResponse.json({
-          ok: false,
-          error: gate instanceof Error ? gate.message : "This prospect cannot be contacted.",
-        }, { status: 409 });
-      }
+    let resolvedProspectId: string | undefined;
+    try {
+      resolvedProspectId = await assertProspectContactable(tenant.agencyId, session.userId, {
+        ...(prospectId ? { prospectId } : {}),
+        phone,
+      });
+    } catch (gate) {
+      return NextResponse.json({
+        ok: false,
+        error: gate instanceof Error ? gate.message : "This prospect cannot be contacted.",
+      }, { status: 409 });
+    }
+    if (resolvedProspectId && !prospectId) {
+      await requireCurrentWorkspaceElementAccess("growth", "growth.outreach", "use");
     }
 
     const sender = resolveCommunicationSender(tenant.agencyId, senderId, "call", tenant.clientId);
@@ -143,8 +153,8 @@ export async function POST(request: NextRequest) {
       // attempt is recorded HERE, because the client's tel: handoff has no
       // callback that ever fires — device calls were the outreach that never
       // counted (Ed's finding, 2026-08-30).
-      if (result.via === "device" && prospectId) {
-        await recordProspectOutreach(tenant.agencyId, prospectId, "call", "attempted", session.userId);
+      if (result.via === "device" && resolvedProspectId) {
+        await recordProspectOutreach(tenant.agencyId, resolvedProspectId, "call", "attempted", session.userId);
       }
       return NextResponse.json({
         ok: result.via === "device",
@@ -156,8 +166,8 @@ export async function POST(request: NextRequest) {
 
     // Delivery and the journey ledger in ONE request: a navigation or network
     // failure after this point cannot lose the history or the quota tick.
-    if (prospectId) {
-      await recordProspectOutreach(tenant.agencyId, prospectId, "call", "attempted", session.userId);
+    if (resolvedProspectId) {
+      await recordProspectOutreach(tenant.agencyId, resolvedProspectId, "call", "attempted", session.userId);
     }
 
     logActivity({

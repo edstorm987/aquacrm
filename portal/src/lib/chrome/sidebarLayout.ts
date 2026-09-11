@@ -108,6 +108,11 @@ function defaultMainItems(input: BuildSidebarInput): NavItem[] {
       // are the only rendered rows on "main". Routes are UNCHANGED. See
       // docs/development/plans/information-architecture-v2.md.
       items.push({ id: "operations-home", label: "Operations",     href: "/portal/agency/operations",      panelId: "main", order: -8 });
+      // Scouting is the front of Sales: a visible daily workspace, not a stage
+      // hidden inside Journey or an Operations directory card.
+      if (input.role === "agency-owner" || input.role === "agency-manager") {
+        items.push({ id: "scouting", label: "Scouting", href: "/portal/agency/scouting", panelId: "main", order: -7.75 });
+      }
       // My Radar — the signed-in person's actions, goals, wellbeing and work
       // pace. Department capacity and baselines live in Business Radar, even
       // when the signed-in person owns and operates the whole company.
@@ -216,7 +221,7 @@ export function buildSidebar(input: BuildSidebarInput): NavPanel[] {
     // The threat centre (Phase 6): owner-only, sits with the other settings-tier
     // controls. Owner-gated here to match the route's own requireRole so the
     // link never dangles to a 403 for managers/staff.
-    if (!input.publicShowcase && input.role === "agency-owner") {
+    if (!input.publicShowcase && input.role === "agency-owner" && !(input.isFounder && input.devTeamAvailable)) {
       appendIntoPanel(itemsByPanel, { id: "agency-security", label: "Security", href: "/portal/agency/security", panelId: "settings", order: 101 });
     }
   } else if (input.scope === "client" && input.currentClient && (isAgencyRole(input.role) || isClientRole(input.role))) {
@@ -275,7 +280,7 @@ export function buildSidebar(input: BuildSidebarInput): NavPanel[] {
     // and Tools all render as flat rows on "main" (no nested group headers).
     // Ed: Operations AND Tools should each be a plain sidebar item, not a nested
     // word. The functions/utilities live as cards on their hubs.
-    const commandCentreIds = ["home", "inbox", "operations-home", "my-radar", "tools"];
+    const commandCentreIds = ["home", "inbox", "scouting", "operations-home", "my-radar", "tools"];
     // Operations functions — the business functions, in delegation order. These
     // render as cards on the Operations hub (not as sidebar rows); they live in
     // a hidden, search-only panel so quick-search still reaches them.

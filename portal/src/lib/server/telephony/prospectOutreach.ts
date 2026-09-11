@@ -19,6 +19,10 @@ import { _containerFromCtx } from "@/built-ins/modules/leads-pipeline/src/server
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { getInstall } from "@/server/pluginInstalls";
 import { LEADS_PIPELINE_PLUGIN_ID } from "@/lib/server/plugins/ensureLeadsPipelineInstall";
+import {
+  resolveContactableScoutingProspect,
+  type ProspectContactTarget,
+} from "@/lib/telephony/prospectOutreachPolicy";
 
 function prospectService(agencyId: string, actor: string) {
   const install = getInstall({ agencyId }, LEADS_PIPELINE_PLUGIN_ID);
@@ -34,25 +38,25 @@ function prospectService(agencyId: string, actor: string) {
 /**
  * The gate, as a question. Throws with the service's own person-readable
  * message when the prospect cannot be contacted (opted out, uninspected, or
- * no longer scouting); resolves quietly when contact is allowed or when the
- * id resolves to nothing (an unknown id is not this fence's business — the
- * phone/email suppression resolver still applies).
+ * no longer scouting). The actual phone/email recipient is authoritative:
+ * a browser cannot pair Alice's recipient with Bob's inspected id, and
+ * omitting the id still finds an active Scouting dossier when one owns the
+ * recipient. The resolved id is returned so delivery is logged to the same
+ * dossier the gate inspected.
  */
 export async function assertProspectContactable(
   agencyId: string,
-  prospectId: string,
   actor: string,
-): Promise<void> {
+  target: ProspectContactTarget,
+): Promise<string | undefined> {
   const prospects = prospectService(agencyId, actor);
-  if (!prospects) return;
-  const prospect = await prospects.get(prospectId);
-  if (!prospect) return;
-  if (prospect.status !== "scouting") throw new Error("Only active scouting prospects can be contacted.");
-  if (prospect.doNotContact) throw new Error(`${prospect.name || prospect.company || "This prospect"} has opted out of contact.`);
-  const required = ["business-verified", "contact-route-verified", "opportunity-confirmed"];
-  if (!prospect.inspectedAt || !required.every(check => (prospect.inspectionChecks as string[]).includes(check))) {
-    throw new Error("Complete the required scouting inspection before reaching out.");
+  if (!prospects) {
+    if (target.prospectId) throw new Error("The scouting prospect is not available.");
+    return undefined;
   }
+
+  const prospect = resolveContactableScoutingProspect(await prospects.list(), target);
+  return prospect?.id;
 }
 
 /**

@@ -12,6 +12,7 @@
 
 import {
   Bell,
+  Binoculars,
   BookOpen,
   Boxes,
   Building2,
@@ -73,6 +74,7 @@ export const NAV_ICONS: Record<string, typeof Circle> = {
   fulfilment: FolderKanban,
   "you-deserve-it": Gift,
   pipelines: Ship,
+  scouting: Binoculars,
   products: Package,
   development: Code2,
   marketing: Megaphone,

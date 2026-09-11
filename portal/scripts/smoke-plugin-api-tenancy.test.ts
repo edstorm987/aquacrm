@@ -35,7 +35,7 @@
 //   ARM 3  Reads never see B — with B's data seeded so a leak would show.
 //   ARM 4  The public routes the peek exists for, still working.
 //   ARM 5  The same shape on clientId.
-//   ARM 6  R025 multi-agency: naming your OWN other agency still works.
+//   ARM 6  R025 multi-agency: another membership requires a signed switch.
 //   ARM 7  Mutation checks — the guard watched failing.
 
 import { describe, it, before } from "node:test";
@@ -46,14 +46,14 @@ import { withRequestScope, withSession } from "./dev-console-request-scope";
 
 process.env.PORTAL_BACKEND ??= "memory";
 
-import { issueSession } from "../src/lib/server/auth/auth";
+import { issueSession, verifyToken } from "../src/lib/server/auth/auth";
 import { ensureHydrated } from "../src/server/storage";
 import { createAgency, createClient } from "../src/server/tenants";
-import { createUser } from "../src/server/users";
+import { createUser, updateUser } from "../src/server/users";
 import { upsertInstall } from "../src/server/pluginInstalls";
 import { listPlugins, registerPlugin } from "../src/built-ins/runtime/_registry";
 import { resolvePluginApiRoute } from "../src/built-ins/runtime/_routeResolver";
-import { resolveApiTenantScope } from "../src/lib/server/portal/apiTenantScope";
+import { resolveApiTenantScope, routeTenantScope } from "../src/lib/server/portal/apiTenantScope";
 import type { AquaPlugin, PluginCtx } from "../src/built-ins/runtime/_types";
 import { ALL_ROLES, CLIENT_ROLES, LEAD_AGENCY_ID, type Role } from "../src/server/types";
 
@@ -74,6 +74,8 @@ const tokensA = new Map<Role, string>();
 let ownerB = "";
 /** An R025 master user whose membership is [A, B]. */
 let masterAB = "";
+/** The same user after the real switch flow re-mints an agency-B cookie. */
+let masterABAtB = "";
 /** A client-owner in A attached to `clientA`. */
 let clientOwnerA = "";
 
@@ -178,10 +180,17 @@ before(async () => {
     email: "master@tenancy.test", name: "master", role: "agency-owner",
     agencyId: agencyA, password: "tenancy-guard-pass-phrase",
   });
+  const multiAgencyMaster = updateUser(master.email, { agencyIds: [agencyA, agencyB] });
+  assert.ok(multiAgencyMaster, "the multi-agency fixture user was not updated");
   masterAB = issueSession({
-    userId: master.id, email: master.email, role: "agency-owner",
+    userId: multiAgencyMaster.id, email: multiAgencyMaster.email, role: "agency-owner",
     agencyId: agencyA, agencyIds: [agencyA, agencyB], activeAgencyId: agencyA,
-    sessionRev: master.sessionRev ?? 0,
+    sessionRev: multiAgencyMaster.sessionRev ?? 0,
+  });
+  masterABAtB = issueSession({
+    userId: multiAgencyMaster.id, email: multiAgencyMaster.email, role: "agency-owner",
+    agencyId: agencyB, agencyIds: [agencyA, agencyB], activeAgencyId: agencyB,
+    sessionRev: multiAgencyMaster.sessionRev ?? 0,
   });
 });
 
@@ -666,16 +675,40 @@ describe("clientId cannot name a client that is not yours", () => {
 
 // ─── ARM 6: R025 multi-agency ─────────────────────────────────────────────
 
-describe("a master user's own agencies are still their own", () => {
-  it("naming agency B works when B is in the session's membership", async () => {
+describe("a multi-agency user must switch the signed active tenant", () => {
+  it("an A-active cookie refuses agency B even though B is in its membership", async () => {
+    // `se.t` is minted for active agency A and the central session gate checks
+    // A's lockdown/epoch. Letting this request jump to B would therefore bypass
+    // B's tenant containment. Membership authorises the switch endpoint; it is
+    // not a second active tenant on the current cookie.
     const reply = await call({
       plugin: PROBE, rest: ["probe"], method: "POST", token: masterAB, query: { agencyId: agencyB },
     });
-    assert.equal(reply.status, 200, `the agency switcher broke (HTTP ${reply.status})`);
+    assert.equal(reply.status, 403, `the A-active cookie reached agency B (HTTP ${reply.status})`);
+    assert.equal(reply.json?.error, "tenant_scope_mismatch");
+    assert.equal(reply.json?.sawAgencyId, undefined);
+  });
+
+  it("the same user reaches B after switch-agency has re-minted a B-active cookie", async () => {
+    const reply = await call({
+      plugin: PROBE, rest: ["probe"], method: "POST", token: masterABAtB, query: { agencyId: agencyB },
+    });
+    assert.equal(reply.status, 200, `the switched B-active cookie was refused (HTTP ${reply.status})`);
     assert.equal(reply.json?.sawAgencyId, agencyB);
   });
 
-  it("…and an agency outside the membership is still refused", async () => {
+  it("routeTenantScope applies the same active-cookie pin", () => {
+    const activeA = verifyToken(masterAB);
+    const activeB = verifyToken(masterABAtB);
+    assert.ok(activeA && activeB, "the signed multi-agency fixtures did not verify");
+    assert.throws(
+      () => routeTenantScope(activeA, { agencyId: agencyB }),
+      /tenant_scope_mismatch/,
+    );
+    assert.equal(routeTenantScope(activeB, { agencyId: agencyB }).agencyId, agencyB);
+  });
+
+  it("an agency outside the membership is still refused", async () => {
     const outsider = createAgency({ name: "Tenancy C", slug: `tenancy-c-${Date.now()}` });
     upsertInstall({ pluginId: PROBE, scope: { agencyId: outsider.id }, enabled: true, config: {}, features: {} });
     const reply = await call({
@@ -685,7 +718,7 @@ describe("a master user's own agencies are still their own", () => {
     assert.equal(reply.json?.sawAgencyId, undefined);
   });
 
-  it("a single-agency session's membership is its one agency, not 'anything with an install'", () => {
+  it("membership never overrides the signed active agency", () => {
     assert.deepEqual(
       resolveApiTenantScope({
         session: { role: "agency-owner", agencyId: agencyA },
@@ -696,7 +729,25 @@ describe("a master user's own agencies are still their own", () => {
     );
     assert.deepEqual(
       resolveApiTenantScope({
-        session: { role: "agency-owner", agencyId: agencyA, agencyIds: [agencyA, agencyB] },
+        session: {
+          role: "agency-owner",
+          agencyId: agencyA,
+          activeAgencyId: agencyA,
+          agencyIds: [agencyA, agencyB],
+        },
+        queryAgencyId: agencyB,
+        isPublic: false,
+      }),
+      { ok: false, status: 403, error: "tenant_scope_mismatch" },
+    );
+    assert.deepEqual(
+      resolveApiTenantScope({
+        session: {
+          role: "agency-owner",
+          agencyId: agencyB,
+          activeAgencyId: agencyB,
+          agencyIds: [agencyA, agencyB],
+        },
         queryAgencyId: agencyB,
         isPublic: false,
       }),

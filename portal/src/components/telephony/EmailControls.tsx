@@ -168,9 +168,10 @@ export function EmailButton({
   // selection moved (Ed's finding, 2026-08-30). When the recipient changes,
   // the composer closes and the draft dies with it — an unsent draft to the
   // wrong person is worse than a lost draft.
-  const [draftFor, setDraftFor] = useState(email);
-  if (draftFor !== email) {
-    setDraftFor(email);
+  const draftKey = JSON.stringify([prospectId ?? "", email ?? ""]);
+  const [draftFor, setDraftFor] = useState(draftKey);
+  if (draftFor !== draftKey) {
+    setDraftFor(draftKey);
     setOpen(false);
     setSubject("");
     setBody("");
@@ -202,7 +203,7 @@ export function EmailButton({
     } finally {
       setBusy(false);
     }
-  }, [busy, email, subject, body, senderId, catalogueState, phone, contactId, onSent]);
+  }, [busy, email, subject, body, senderId, catalogueState, phone, contactId, prospectId, onSent]);
 
   if (!email) return null;
 

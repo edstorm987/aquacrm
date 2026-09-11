@@ -1,6 +1,7 @@
 import { makeId } from "../lib/ids";
 import { now } from "../lib/time";
 import type { AgencyId, UserId } from "../lib/tenancy";
+import { normalizeGooglePlaceId } from "../lib/domain";
 import type {
   CreateProspectInput,
   Prospect,
@@ -36,6 +37,64 @@ function clean(value?: string): string | undefined {
   return value?.trim() || undefined;
 }
 
+const GOOGLE_MAPS_DIRECT_HOSTS = new Set([
+  "maps.google.com",
+  "maps.google.co.uk",
+  "maps.app.goo.gl",
+]);
+const GOOGLE_MAPS_PATH_HOSTS = new Set([
+  "google.com",
+  "www.google.com",
+  "google.co.uk",
+  "www.google.co.uk",
+]);
+
+function isGoogleMapsUrl(url: URL): boolean {
+  const host = url.hostname.toLowerCase().replace(/\.$/, "");
+  if (GOOGLE_MAPS_DIRECT_HOSTS.has(host)) return true;
+  if (GOOGLE_MAPS_PATH_HOSTS.has(host)) {
+    return url.pathname === "/maps" || url.pathname.startsWith("/maps/");
+  }
+  return host === "goo.gl" && (url.pathname === "/maps" || url.pathname.startsWith("/maps/"));
+}
+
+/**
+ * Canonical browser-link boundary for prospect data. These values are later
+ * rendered as hrefs, so HTML input types and React escaping are not the
+ * security control: the stored value itself must be an allowed URL.
+ */
+function canonicalProspectHref(value: unknown, googleMapsOnly = false): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const cleaned = value.trim();
+  if (!cleaned || cleaned.length > 2_048) return undefined;
+  try {
+    const parsed = new URL(cleaned);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return undefined;
+    if (parsed.username || parsed.password) return undefined;
+    if (googleMapsOnly && !isGoogleMapsUrl(parsed)) return undefined;
+    return parsed.toString();
+  } catch {
+    return undefined;
+  }
+}
+
+function cleanProspectHrefInput(
+  value: unknown,
+  label: string,
+  googleMapsOnly = false,
+): string | undefined {
+  if (value === undefined || (typeof value === "string" && value.trim() === "")) return undefined;
+  const canonical = canonicalProspectHref(value, googleMapsOnly);
+  if (!canonical) {
+    throw new Error(
+      googleMapsOnly
+        ? `${label} must be a safe Google Maps http(s) URL without embedded credentials.`
+        : `${label} must be a safe http(s) URL without embedded credentials.`,
+    );
+  }
+  return canonical;
+}
+
 function cleanTags(values?: string[]): string[] {
   return [...new Set((values ?? []).map(value => value.trim().toLowerCase()).filter(Boolean))];
 }
@@ -47,6 +106,13 @@ function cleanFitScore(value?: number): number | undefined {
 
 function cleanTimestamp(value?: number | null): number | undefined {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+function cleanGooglePlaceIdInput(value: unknown): string | undefined {
+  if (value === undefined || (typeof value === "string" && value.trim() === "")) return undefined;
+  const normalized = normalizeGooglePlaceId(value);
+  if (!normalized) throw new Error("Google Place ID is invalid.");
+  return normalized;
 }
 
 function cleanInspectionChecks(values?: ProspectInspectionCheck[]): ProspectInspectionCheck[] {
@@ -99,6 +165,12 @@ function normalizeProspect(row: Prospect): Prospect {
   const next = nextFollowUp(followUps);
   return {
     ...row,
+    website: canonicalProspectHref(row.website),
+    googlePlaceId: normalizeGooglePlaceId(row.googlePlaceId),
+    googleMapsUrl: canonicalProspectHref(row.googleMapsUrl, true),
+    instagramUrl: canonicalProspectHref(row.instagramUrl),
+    facebookUrl: canonicalProspectHref(row.facebookUrl),
+    linkedinUrl: canonicalProspectHref(row.linkedinUrl),
     tags: cleanTags(row.tags),
     qualificationState: row.qualificationState ?? (row.researchNotes ? "researching" : "unreviewed"),
     fitScore: cleanFitScore(row.fitScore),
@@ -147,9 +219,10 @@ export class ProspectService {
   async create(input: CreateProspectInput, actor: UserId): Promise<Prospect> {
     const company = clean(input.company);
     const name = clean(input.name);
-    const website = clean(input.website);
+    const website = cleanProspectHrefInput(input.website, "Website");
+    const googlePlaceId = cleanGooglePlaceIdInput(input.googlePlaceId);
     if (!company && !name && !website) {
-      throw new Error("Add a business name, person, or website.");
+      throw new Error("Add a business name, person, or website before saving this prospect.");
     }
     const stamp = now();
     const prospect: Prospect = {
@@ -161,10 +234,11 @@ export class ProspectService {
       phone: clean(input.phone),
       website,
       address: clean(input.address),
-      googleMapsUrl: clean(input.googleMapsUrl),
-      instagramUrl: clean(input.instagramUrl),
-      facebookUrl: clean(input.facebookUrl),
-      linkedinUrl: clean(input.linkedinUrl),
+      googlePlaceId,
+      googleMapsUrl: cleanProspectHrefInput(input.googleMapsUrl, "Google Maps listing", true),
+      instagramUrl: cleanProspectHrefInput(input.instagramUrl, "Instagram link"),
+      facebookUrl: cleanProspectHrefInput(input.facebookUrl, "Facebook link"),
+      linkedinUrl: cleanProspectHrefInput(input.linkedinUrl, "LinkedIn link"),
       niche: clean(input.niche),
       tags: cleanTags(input.tags),
       source: clean(input.source) ?? "other",
@@ -243,12 +317,13 @@ export class ProspectService {
       company: patch.company === undefined ? existing.company : clean(patch.company),
       email: patch.email === undefined ? existing.email : clean(patch.email)?.toLowerCase(),
       phone: patch.phone === undefined ? existing.phone : clean(patch.phone),
-      website: patch.website === undefined ? existing.website : clean(patch.website),
+      website: patch.website === undefined ? existing.website : cleanProspectHrefInput(patch.website, "Website"),
       address: patch.address === undefined ? existing.address : clean(patch.address),
-      googleMapsUrl: patch.googleMapsUrl === undefined ? existing.googleMapsUrl : clean(patch.googleMapsUrl),
-      instagramUrl: patch.instagramUrl === undefined ? existing.instagramUrl : clean(patch.instagramUrl),
-      facebookUrl: patch.facebookUrl === undefined ? existing.facebookUrl : clean(patch.facebookUrl),
-      linkedinUrl: patch.linkedinUrl === undefined ? existing.linkedinUrl : clean(patch.linkedinUrl),
+      googlePlaceId: patch.googlePlaceId === undefined ? existing.googlePlaceId : cleanGooglePlaceIdInput(patch.googlePlaceId),
+      googleMapsUrl: patch.googleMapsUrl === undefined ? existing.googleMapsUrl : cleanProspectHrefInput(patch.googleMapsUrl, "Google Maps listing", true),
+      instagramUrl: patch.instagramUrl === undefined ? existing.instagramUrl : cleanProspectHrefInput(patch.instagramUrl, "Instagram link"),
+      facebookUrl: patch.facebookUrl === undefined ? existing.facebookUrl : cleanProspectHrefInput(patch.facebookUrl, "Facebook link"),
+      linkedinUrl: patch.linkedinUrl === undefined ? existing.linkedinUrl : cleanProspectHrefInput(patch.linkedinUrl, "LinkedIn link"),
       niche: patch.niche === undefined ? existing.niche : clean(patch.niche),
       tags: patch.tags === undefined ? existing.tags : cleanTags(patch.tags),
       source: patch.source === undefined ? existing.source : clean(patch.source) ?? "other",
