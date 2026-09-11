@@ -7,7 +7,7 @@ import {
   type RemoteOperationBudget,
   type RemoteOperationOutcome,
 } from "@/lib/server/remoteOperation";
-import type { StoragePatchOperation } from "./storagePatch";
+import type { StoragePatchOperation, WriteLeaseFence } from "./storagePatch";
 import type { DevTeamWorkspaceFileMutation } from "./devTeamWorkspacePersistence";
 import { resolveSupabaseSecretKey, resolveSupabaseUrl } from "@/lib/supabase/keys";
 import { WriteAdmissionDeniedError } from "@/lib/server/security/writeAdmission";
@@ -317,6 +317,7 @@ export async function applyPatch(
   operations: StoragePatchOperation[],
   options: SupabaseStorageRequestOptions = {},
   realmId = "live",
+  leaseFences: WriteLeaseFence[] = [],
 ): Promise<string> {
   const { url, serviceRoleKey } = getConfig();
   const stateKey = stateKeyForRealm(realmId);
@@ -333,6 +334,8 @@ export async function applyPatch(
         p_app_key: stateKey,
         p_operation_id: operationId,
         p_operations: operations,
+        // Lease fences the writer holds; the RPC validates them in-transaction.
+        p_lease_fences: leaseFences,
       }),
     },
     options,
@@ -355,6 +358,7 @@ export async function applyPatchWithSidecars(
   sidecars: Array<{ slug: string; key: string; operations: StoragePatchOperation[] }>,
   options: SupabaseStorageRequestOptions = {},
   realmId = "live",
+  leaseFences: WriteLeaseFence[] = [],
 ): Promise<{ mainBlob: string; sidecarBlobs: Record<string, string> }> {
   const { url, serviceRoleKey } = getConfig();
   const operationId = options.operationId ?? randomUUID();
@@ -371,6 +375,8 @@ export async function applyPatchWithSidecars(
         p_operation_id: operationId,
         p_main_operations: operations,
         p_sidecar_patches: sidecars,
+        // Lease fences the writer holds; the RPC validates them in-transaction.
+        p_lease_fences: leaseFences,
       }),
     },
     options,

@@ -15,6 +15,7 @@ import {
   getActiveDataRealmId,
   getBackendInfo,
   getFileBackendDataPath,
+  runWithWriteFences,
   withAtomicPortalStateMutation,
 } from "./storage";
 
@@ -183,6 +184,11 @@ async function withRemoteLock<T>(
   key: string,
   admission: WriteAdmissionContext,
   operation: () => Promise<T>,
+  // A durable state write under this lease must be fenced to it IN the write
+  // transaction. Provider leases (which coordinate remote I/O, not a PortalState
+  // write) pass false so a nested state write is fenced only to its own state
+  // lease, never spuriously to the provider lane's lease.
+  governsStateWrite = false,
 ): Promise<T> {
   const realmId = getActiveDataRealmId();
   const lockIdentity = JSON.stringify([backend, realmId, key]);
@@ -315,8 +321,15 @@ async function withRemoteLock<T>(
 
   const nextHeldLocks = new Map(inheritedLocks);
   nextHeldLocks.set(lockIdentity, scope);
+  // A state-write lease adds its fence so the durable flush inside `operation`
+  // validates it in the same transaction as the write. `key` is the lease's
+  // workspace_key and `holder` its holder_id; the datastore app_key is the same
+  // stateKeyForRealm the lease was claimed under, so the fence needs only these.
+  const runOperation = governsStateWrite
+    ? () => runWithWriteFences([{ workspaceKey: key, holderId: holder }], operation)
+    : operation;
   try {
-    const result = await heldRemoteLocks.run(nextHeldLocks, operation);
+    const result = await heldRemoteLocks.run(nextHeldLocks, runOperation);
     assertRemoteLeaseScope(scope);
     return result;
   } finally {
@@ -474,6 +487,7 @@ export function withPortalStateTransaction<T>(
       "portal-state-coordinated-write",
       transactionAdmission(admission, "database.product-workspace-lease"),
       run,
+      true,
     );
   }
   if (backend === "supabase") {
@@ -482,6 +496,7 @@ export function withPortalStateTransaction<T>(
       key,
       transactionAdmission(admission, "database.product-workspace-lease"),
       run,
+      true,
     );
   }
   return withMemoryLock(key, run);

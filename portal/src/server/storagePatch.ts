@@ -4,6 +4,18 @@ export type StoragePatchOperation =
   | { op: "merge_object"; path: string[]; value: Record<string, unknown> }
   | { op: "append_unique"; path: string[]; value: unknown };
 
+/**
+ * A product-workspace lease the current write transaction holds. The datastore
+ * patch RPCs validate each fence in the SAME transaction as the write (against
+ * an unexpired, still-owned lease row), so a stale owner cannot commit after
+ * expiry or after a successor acquired the lease. `workspaceKey`+`holderId`
+ * identify the lease; its `app_key` is the datastore key already being written.
+ */
+export interface WriteLeaseFence {
+  workspaceKey: string;
+  holderId: string;
+}
+
 type JsonObject = Record<string, unknown>;
 
 // PostgreSQL applies each jsonb_set against the complete datastore value. A

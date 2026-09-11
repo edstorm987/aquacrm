@@ -197,14 +197,26 @@ test("remote lease loss and expiry fence state commit, effects and release", asy
         state.assistant.boundaryConcurrentWrite = { persisted: true };
       });
     };
+    const boundaryStartedAt = Date.now();
     await withPortalStateTransaction("boundary-interleave", async () => {
       storage.mutate(state => {
         state.assistant.boundaryTransactionWrite = { persisted: true };
       });
     });
+    const boundaryElapsedMs = Date.now() - boundaryStartedAt;
     boundaryMutation = null;
     assert.equal(claimCalls, 1);
-    assert.equal(renewCalls, 1);
+    // The boundary renewal (ensureActiveRemoteLeasesForBoundary) is REQUIRED
+    // here — this mode claims a 1s lease, so at commit it has < the 30s sync-
+    // renew threshold remaining and must renew once. But the refresh window is
+    // pinned at 10ms (env, top of file), so a transaction that outlives it under
+    // load legitimately fires an extra periodic renewal too. Same load guard as
+    // the healthy case: exact when fast, bounded (≥1) when the window is exceeded.
+    if (boundaryElapsedMs < 10) {
+      assert.equal(renewCalls, 1, "a boundary commit renews exactly once when it finishes inside the refresh window");
+    } else {
+      assert.ok(renewCalls >= 1, `a boundary commit renews at least once, plus any periodic refresh when it outlives the 10ms window (took ${boundaryElapsedMs}ms, renewed ${renewCalls}×)`);
+    }
     assert.deepEqual(storage.getState().assistant.boundaryConcurrentWrite, { persisted: true });
     assert.deepEqual(storage.getState().assistant.boundaryTransactionWrite, { persisted: true });
     assert.deepEqual(

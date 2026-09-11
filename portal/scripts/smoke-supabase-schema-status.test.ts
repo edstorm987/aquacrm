@@ -30,8 +30,9 @@ test("every table the migrations create is expected, and the one they drop is no
 test("every callable function is expected with its migration; trigger functions are not RPCs", () => {
   const { rpcs } = expectedObjects();
   assert.ok(rpcs.size >= 26, `expected at least 26 callable functions, saw ${rpcs.size}`);
-  assert.deepEqual(rpcs.get("apply_app_datastore_patch")?.params, ["p_app_key", "p_operation_id", "p_operations"]);
-  assert.equal(rpcs.get("apply_app_datastore_patch")?.file, "20260902090000_merge_app_datastore_patch_objects.sql");
+  // 20260911120000 lease-fences the write in-transaction, adding p_lease_fences.
+  assert.deepEqual(rpcs.get("apply_app_datastore_patch")?.params, ["p_app_key", "p_operation_id", "p_operations", "p_lease_fences"]);
+  assert.equal(rpcs.get("apply_app_datastore_patch")?.file, "20260911120000_lease_fenced_datastore_patch.sql");
   for (const name of ["apply_app_datastore_patch_with_sidecars", "load_app_datastore_with_sidecars", "renew_product_workspace_lease", "ingest_aqua_tag_submission", "claim_aqua_tag_submission_work", "settle_aqua_tag_submission_work", "current_profile_agency_id", "claim_inbox_webhook_events", "claim_lead_conversion", "claim_product_workspace_lease", "claim_editor_ai_reply", "read_aqua_write_admission", "set_aqua_write_control", "aqua_assert_write_admitted", "record_aqua_write_quarantine", "list_aqua_write_quarantines", "resolve_aqua_write_quarantine"]) {
     assert.ok(rpcs.has(name), `expected rpc ${name}`);
   }

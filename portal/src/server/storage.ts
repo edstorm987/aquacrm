@@ -52,6 +52,7 @@ import {
   applyStoragePatch,
   diffStorageValue,
   type StoragePatchOperation,
+  type WriteLeaseFence,
 } from "./storagePatch";
 import { isRemoteOperationError } from "@/lib/server/remoteOperation";
 import {
@@ -187,12 +188,13 @@ interface Backend {
     realmId: string,
   ): Promise<{ mainBlob: string; sidecarBlobs: Record<string, string> }>;
   saveBlob(content: string, realmId: string): Promise<void>;
-  applyPatch?(operations: StoragePatchOperation[], operationId: string, realmId: string): Promise<string>;
+  applyPatch?(operations: StoragePatchOperation[], operationId: string, realmId: string, leaseFences: WriteLeaseFence[]): Promise<string>;
   applyPatchWithSidecars?(
     operations: StoragePatchOperation[],
     sidecars: Array<{ slug: string; key: string; operations: StoragePatchOperation[] }>,
     operationId: string,
     realmId: string,
+    leaseFences: WriteLeaseFence[],
   ): Promise<{ mainBlob: string; sidecarBlobs: Record<string, string> }>;
   quarantinePatch?(
     operations: StoragePatchOperation[],
@@ -333,13 +335,13 @@ const supabaseBackend: Backend = {
     const { saveBlob } = await import("./storageSupabase");
     return saveBlob(content, {}, realmId);
   },
-  async applyPatch(operations, operationId, realmId) {
+  async applyPatch(operations, operationId, realmId, leaseFences) {
     const { applyPatch } = await import("./storageSupabase");
-    return applyPatch(operations, { operationId }, realmId);
+    return applyPatch(operations, { operationId }, realmId, leaseFences);
   },
-  async applyPatchWithSidecars(operations, sidecars, operationId, realmId) {
+  async applyPatchWithSidecars(operations, sidecars, operationId, realmId, leaseFences) {
     const { applyPatchWithSidecars } = await import("./storageSupabase");
-    return applyPatchWithSidecars(operations, sidecars, { operationId }, realmId);
+    return applyPatchWithSidecars(operations, sidecars, { operationId }, realmId, leaseFences);
   },
   async quarantinePatch(operations, sidecars, operationId, realmId) {
     const { quarantinePatch } = await import("./storageSupabase");
@@ -583,6 +585,8 @@ interface RealmReconciliationPlan {
     operationId: string;
     /** Exact in-memory operations covered by this receipt; identity is intentional. */
     capturedPendingOperations: StoragePatchOperation[];
+    /** Lease fences held when this write was attempted; a reapply re-validates them. */
+    leaseFences: WriteLeaseFence[];
   } | null;
 }
 
@@ -632,6 +636,47 @@ interface PortalStateMutationTransaction {
 // deliberately request-scoped: nested domain calls share the same working
 // tree, while unrelated requests cannot observe half-written row/index sets.
 const portalStateMutationTransactions = new AsyncLocalStorage<PortalStateMutationTransaction>();
+
+// The product-workspace lease fences the currently-running coordinated write
+// holds. The product-workspace coordinator populates this around a lease-held
+// operation; the durable flush reads it and hands the fences to the datastore
+// patch RPC, which validates them in the SAME transaction as the write. Empty
+// (an uncoordinated flush holding no lease) means no fence — the write proceeds
+// exactly as before. `portalStateMutationTransactions.exit()` (used around the
+// flush) exits only its own store, so this one stays visible through the flush.
+const writeFenceStore = new AsyncLocalStorage<readonly WriteLeaseFence[]>();
+
+/**
+ * Run `operation` with `fences` added to the active write-fence set. Nested
+ * lease scopes accumulate, so a flush at any depth fences against every lease
+ * the transaction currently holds. Called by the product-workspace coordinator.
+ */
+export function runWithWriteFences<T>(fences: readonly WriteLeaseFence[], operation: () => T): T {
+  const inherited = writeFenceStore.getStore() ?? [];
+  const seen = new Set(inherited.map(fence => `${fence.workspaceKey} ${fence.holderId}`));
+  const merged = [...inherited];
+  for (const fence of fences) {
+    const id = `${fence.workspaceKey} ${fence.holderId}`;
+    if (!seen.has(id)) { seen.add(id); merged.push(fence); }
+  }
+  return writeFenceStore.run(merged, operation);
+}
+
+/** The lease fences the current durable write must validate in-transaction. */
+function currentWriteFences(): WriteLeaseFence[] {
+  return [...(writeFenceStore.getStore() ?? [])];
+}
+
+/**
+ * A datastore patch rejected because a lease the writer held was lost (expired
+ * or acquired by a successor) before the fenced write could commit. The RPC
+ * raises `product_workspace_lease_lost`; this recognises it wherever the error
+ * surfaces so recovery can abandon the stale write rather than reapply it.
+ */
+export function isProductWorkspaceLeaseLostError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return message.includes("product_workspace_lease_lost");
+}
 
 const realmRuntimes = new Map<string, RealmRuntime>();
 
@@ -766,21 +811,42 @@ async function reconcileRealm(runtime: RealmRuntime, realmId: string): Promise<v
   if (!plan) return;
 
   if (plan.mainPatch) {
-    if (plan.mainPatch.sidecars.length > 0) {
-      if (!backend.applyPatchWithSidecars) {
-        throw new Error("[portal] cannot reconcile an unknown atomic sidecar patch on this storage backend.");
+    // Re-validate the same lease fences the original write held. If the write
+    // already committed, the durable receipt makes this an idempotent no-apply
+    // that does NOT fence; only a genuinely-uncommitted reapply is fenced, and
+    // by reconcile time its lease is normally gone — so a lost lease here means
+    // the write is stale and must be ABANDONED, never reapplied over a successor.
+    const fences = plan.mainPatch.leaseFences ?? [];
+    try {
+      if (plan.mainPatch.sidecars.length > 0) {
+        if (!backend.applyPatchWithSidecars) {
+          throw new Error("[portal] cannot reconcile an unknown atomic sidecar patch on this storage backend.");
+        }
+        await backend.applyPatchWithSidecars(
+          plan.mainPatch.operations,
+          plan.mainPatch.sidecars,
+          plan.mainPatch.operationId,
+          realmId,
+          fences,
+        );
+      } else {
+        if (!backend.applyPatch) {
+          throw new Error("[portal] cannot reconcile an unknown main patch on this storage backend.");
+        }
+        await backend.applyPatch(plan.mainPatch.operations, plan.mainPatch.operationId, realmId, fences);
       }
-      await backend.applyPatchWithSidecars(
-        plan.mainPatch.operations,
-        plan.mainPatch.sidecars,
-        plan.mainPatch.operationId,
-        realmId,
-      );
-    } else {
-      if (!backend.applyPatch) {
-        throw new Error("[portal] cannot reconcile an unknown main patch on this storage backend.");
+    } catch (error) {
+      if (isProductWorkspaceLeaseLostError(error)) {
+        // The uncommitted write lost its lease before its outcome was known.
+        // Reapplying it now would be exactly the stale-writer commit the fence
+        // exists to prevent. Drop its operations instead of retrying forever;
+        // the caller already saw a lease-lost failure at its commit boundary.
+        const abandoned = new Set(plan.mainPatch.capturedPendingOperations);
+        runtime.pendingPatchOperations = runtime.pendingPatchOperations.filter(operation => !abandoned.has(operation));
+        console.warn("[portal] abandoned a lease-lost unknown-outcome patch during reconciliation.");
+        return;
       }
-      await backend.applyPatch(plan.mainPatch.operations, plan.mainPatch.operationId, realmId);
+      throw error;
     }
     // The receipt has now confirmed these exact operations durable. Remove
     // only their original queue objects; operations appended by another
@@ -1359,6 +1425,17 @@ async function flushRealm(
   }
   const operationId = randomUUID();
   const dataFile = dataFileForRealm(realmId);
+  // Captured synchronously, in the coordinator's async context: the lease
+  // fences this write must validate in-transaction. Empty for an uncoordinated
+  // flush that holds no lease (the write then proceeds exactly as before).
+  //
+  // Assumes the fence and this write target the same realm: the fence's
+  // implied app_key and the write's `p_app_key` are both this `realmId`'s
+  // `stateKeyForRealm`. A coordinated transaction never switches realm between
+  // claiming its lease and flushing, so they always agree; if realm-switching
+  // mid-transaction were ever introduced, the fence would have to be rebound to
+  // the write's realm or a legitimate write could be spuriously rejected.
+  const leaseFences = currentWriteFences();
   runtime.flushInFlight = (async () => {
     let mainWriteUnresolved = false;
     let requiresReconciliation = false;
@@ -1376,12 +1453,12 @@ async function flushRealm(
       });
       const writeMain = async (): Promise<{ mainBlob: string | null; sidecarBlobs: Record<string, string> }> => {
         if (ownedSidecarPatches.length > 0 && backend.applyPatchWithSidecars) {
-          const saved = await backend.applyPatchWithSidecars(operations, ownedSidecarPatches, operationId, realmId);
+          const saved = await backend.applyPatchWithSidecars(operations, ownedSidecarPatches, operationId, realmId, leaseFences);
           return saved;
         }
         if (backend.applyPatch) {
           if (operations.length === 0) return { mainBlob: null, sidecarBlobs: {} };
-          return { mainBlob: await backend.applyPatch(operations, operationId, realmId), sidecarBlobs: {} };
+          return { mainBlob: await backend.applyPatch(operations, operationId, realmId, leaseFences), sidecarBlobs: {} };
         }
         await backend.saveBlob(snapshot, realmId);
         return { mainBlob: null, sidecarBlobs: {} };
@@ -1526,6 +1603,7 @@ async function flushRealm(
                   sidecars: structuredClone(ownedSidecarPatches),
                   operationId,
                   capturedPendingOperations: capturedOperations.slice(),
+                  leaseFences: structuredClone(leaseFences),
                 }
               : null,
         };

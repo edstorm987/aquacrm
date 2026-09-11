@@ -248,8 +248,8 @@ test("a backend with no sidecar keeps the files in the main document", async () 
   // Ordering. The main write is what CLEARS the collection from the portal
   // document, so a sidecar that is written after it would lose everything on a
   // network blip between the two.
-  assert.match(source, /backend\.applyPatchWithSidecars\(operations, ownedSidecarPatches, operationId, realmId\)/,
-    "owned sidecars and main must use one database transaction");
+  assert.match(source, /backend\.applyPatchWithSidecars\(operations, ownedSidecarPatches, operationId, realmId, leaseFences\)/,
+    "owned sidecars and main must use one database transaction (now lease-fenced in that same transaction)");
   assert.match(source, /if \(backend\.applyPatch\) \{\s*if \(operations\.length === 0\) return \{ mainBlob: null, sidecarBlobs: \{\} \};/,
     "a sidecar-only flush must never fall through to full main saveBlob");
   assert.match(source, /runtime\.pendingPatchOperations\.splice\(0, operationCount\)/,
