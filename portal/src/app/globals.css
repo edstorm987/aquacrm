@@ -2645,60 +2645,67 @@ aside[aria-label="Primary navigation"][data-workspace="growth"]    [data-workspa
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  /* Allow the page to grow taller than the viewport (200% zoom / short screens)
+     without ever scrolling sideways. */
+  overflow-x: hidden;
   padding: 48px 20px;
-  background: #E9DED2;
+  /* LOGIN-UX-001: a calm, premium, CSS-only field — deep teal easing to aqua
+     with a soft sand horizon. No photo, no glass, no external asset. Brand
+     variants retint via these tokens below; the default is the AquaCRM teal. */
+  --auth-bg-top: #10565C;
+  --auth-bg-mid: #0B3C41;
+  --auth-bg-base: #082A2D;
+  --auth-bg-sand: rgba(226, 210, 182, 0.12);
+  background:
+    radial-gradient(1100px 720px at 50% -14%, var(--auth-bg-top), transparent 72%),
+    radial-gradient(820px 560px at 92% 116%, var(--auth-bg-sand), transparent 60%),
+    linear-gradient(165deg, var(--auth-bg-mid), var(--auth-bg-base));
 }
 .mm-auth-shell::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(circle at 16% 18%, rgba(255, 255, 255, 0.38), transparent 30%),
-    radial-gradient(circle at 84% 82%, rgba(112, 177, 170, 0.18), transparent 34%);
-  pointer-events: none;
+  /* The old dual-radial sheen is retired with the two-panel treatment. */
+  display: none;
 }
+/* Tenant retints of the CSS-only field (no images). The mark + name in the card
+   carry brand identity; the background stays calm and on-palette per brand. */
 .mm-auth-shell[data-auth-brand="aqua"] {
   --auth-accent: #1B8585;
-  background: #DCEBE8;
+  --auth-bg-top: #12666C;
+  --auth-bg-mid: #0C464B;
+  --auth-bg-base: #082F33;
 }
 .mm-auth-shell[data-auth-brand="aquacrm"] {
   --auth-accent: #12646A;
-  background: #071818 url("/aquacrm-site/assets/aquacrm-workspace.png") center / cover no-repeat;
-}
-.mm-auth-shell[data-auth-brand="aquacrm"]::before {
-  background: rgba(2, 18, 18, 0.78);
 }
 .mm-auth-shell[data-auth-brand="zimante"] {
-  --auth-accent: #D7A85D;
-  background: #E6E0D4;
+  --auth-accent: #B07E3C;
+  --auth-bg-top: #2B2B22;
+  --auth-bg-mid: #20201A;
+  --auth-bg-base: #171712;
+  --auth-bg-sand: rgba(215, 168, 93, 0.14);
 }
+/* LOGIN-UX-001: the two-panel split is retired. `login` renders the card
+   directly in the shell; the recovery pages (forgot/reset) still wrap their card
+   in `.mm-auth-split`, so this collapses it to a single centred column with no
+   glass, panel or desktop two-column split — keeping the whole auth flow
+   consistent without editing those pages. */
 .mm-auth-split {
   position: relative;
   z-index: 1;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 28px;
+  display: block;
   width: 100%;
-  max-width: 1180px;
-  align-items: stretch;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.54);
-  padding: 18px;
-  box-shadow: 0 38px 120px rgba(20, 18, 14, 0.18);
-  backdrop-filter: blur(18px);
+  max-width: 560px;
+  margin: 0 auto;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 .mm-auth-shell[data-auth-brand="aquacrm"] .mm-auth-split {
-  border-color: rgba(255, 255, 255, 0.16);
-  background: rgba(4, 24, 24, 0.82);
-  box-shadow: 0 38px 120px rgba(0, 0, 0, 0.34);
-}
-@media (min-width: 880px) {
-  .mm-auth-split {
-    grid-template-columns: 1.12fr .88fr;
-    gap: 28px;
-  }
+  background: transparent;
+  border: 0;
+  box-shadow: none;
 }
 .mm-auth-brand-panel {
   display: none;
@@ -2781,13 +2788,9 @@ aside[aria-label="Primary navigation"][data-workspace="growth"]    [data-workspa
 .mm-auth-shell[data-auth-brand="zimante"] .mm-btn-primary:hover:not(:disabled) {
   background: #263733;
 }
-@media (min-width: 880px) {
-  .mm-auth-brand-panel {
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-  }
-}
+/* LOGIN-UX-001: the marketing panel is retired on every auth page and never
+   re-appears at desktop widths. */
+.mm-auth-brand-panel { display: none; }
 .mm-auth-brand-mark {
   display: flex;
   align-items: center;
@@ -2871,26 +2874,91 @@ aside[aria-label="Primary navigation"][data-workspace="growth"]    [data-workspa
 }
 .mm-auth-card {
   width: 100%;
-  max-width: 480px;
-  background: #FFF;
-  border: 1px solid rgba(89, 64, 48, 0.16);
-  border-radius: 8px;
-  padding: 40px 36px 30px;
+  max-width: 560px;
+  background: #FDFCFA;
+  border: 1px solid rgba(12, 60, 65, 0.12);
+  border-radius: 16px;
+  padding: 44px 44px 34px;
   box-shadow:
-    0 1px 2px rgba(20, 18, 14, 0.04),
-    0 24px 64px -16px rgba(20, 18, 14, 0.14);
+    0 1px 2px rgba(8, 42, 45, 0.06),
+    0 30px 70px -28px rgba(8, 42, 45, 0.45);
   margin: 0 auto;
+}
+/* LOGIN-UX-001 — concise in-card brand lockup (replaces the retired marketing
+   panel). Tenant mark + name, quiet and centred. */
+.mm-auth-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+.mm-auth-logo-mark {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  background: var(--auth-accent, #12646A);
+  color: #FFF;
+  font-size: 15px;
+  font-weight: 800;
+}
+.mm-auth-logo-name {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #16302E;
+}
+/* Support + policies row under the form. */
+.mm-auth-support {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(12, 60, 65, 0.10);
+  text-align: center;
+}
+.mm-auth-links {
+  margin: 14px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 13px;
+}
+/* A dot separator that belongs to the first link's box, so it can never wrap
+   onto a line by itself; when the row is too narrow the two links stack cleanly
+   instead. */
+.mm-auth-links a:not(:last-child)::after {
+  content: "·";
+  margin-left: 10px;
+  color: #9AA7A6;
 }
 .mm-auth-home-link {
   display: inline-flex;
-  margin-bottom: 22px;
-  color: #70452F;
+  color: #16302E;
   font-size: 13px;
   font-weight: 650;
   text-decoration: none;
 }
 .mm-auth-home-link:hover {
-  color: #14120E;
+  color: #0B3C41;
+  text-decoration: underline;
+}
+/* LOGIN-UX-001 — comfortable touch targets (>=44px) on the sign-in surface and
+   card padding that holds from 320px up to 1440px and at 200% zoom. The card is
+   already `max-width: 560px; width: 100%`, so it never forces horizontal
+   overflow; this only tightens interior spacing on the narrowest screens. */
+.mm-auth-shell .mm-input,
+.mm-auth-shell .mm-btn-primary,
+.mm-auth-shell .mm-btn-google {
+  min-height: 44px;
+}
+@media (max-width: 400px) {
+  .mm-auth-card {
+    padding: 26px 18px 22px;
+    border-radius: 14px;
+  }
 }
 .mm-auth-card-head {
   text-align: center;

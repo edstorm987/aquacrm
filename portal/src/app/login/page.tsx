@@ -81,61 +81,44 @@ export default async function LoginPage({
     redirect(resolvePostLoginPath(null, existing));
   }
 
+  // LOGIN-UX-001 (approved direction): one calm, centred card — no marketing
+  // panel, oversized slogan, photo/glass background or vague filler. Tenant
+  // branding (mark + name + accent) is preserved via `data-auth-brand`, and
+  // every auth action (password, MFA, OAuth, recovery, CAPTCHA) lives in the
+  // unchanged LoginForm below. Useful support/recovery and the single
+  // `Privacy & cookies` Policies link are kept.
   return (
     <main className="mm-auth-shell" data-auth-brand={brand.id}>
-      <div className="mm-auth-split">
-        <aside className="mm-auth-brand-panel" aria-hidden="true">
-          <div className="mm-auth-brand-mark">
-            <span>{brand.mark}</span>
-            <strong>{brand.name}</strong>
-          </div>
-          <span className="mm-auth-brand-eyebrow">{brand.eyebrow}</span>
-          <h2 className="mm-auth-brand-headline">
-            {brand.headline}
-          </h2>
-          <p className="mm-auth-brand-tagline">
-            {brand.tagline}
-          </p>
-          <ul className="mm-auth-brand-points">
-            {brand.points.map((point) => <li key={point}>{point}</li>)}
-          </ul>
-          <span className="mm-auth-brand-foot">
-            Secure access issued by AquaCRM
-          </span>
-        </aside>
-
-        <div className="mm-auth-card">
-          <Link href={brand.homeUrl} className="mm-auth-home-link">
-            ← Back to {brand.name}
-          </Link>
-          <div className="mm-auth-card-head">
-            <h1>Welcome back</h1>
-            <p>{brand.id === "aquacrm" ? "Sign in with the access issued to you." : `Sign in to your ${brand.name} workspace.`}</p>
-          </div>
-          <LoginForm
-            googleEnabled={isGoogleOAuthConfigured()}
-            captchaSiteKey={botChallenge.siteKey}
-            captchaRequired={botChallenge.required}
-          />
-          <div className="mm-auth-foot">
-            <span>One account</span>
-            <span>Secure access</span>
-          </div>
+      <section className="mm-auth-card" aria-labelledby="mm-auth-heading">
+        <div className="mm-auth-logo">
+          <span className="mm-auth-logo-mark" aria-hidden="true">{brand.mark}</span>
+          <span className="mm-auth-logo-name">{brand.name}</span>
+        </div>
+        <div className="mm-auth-card-head">
+          <h1 id="mm-auth-heading">Welcome back</h1>
+          <p>{brand.id === "aquacrm" ? "Sign in with the access issued to you." : `Sign in to your ${brand.name} workspace.`}</p>
+        </div>
+        <LoginForm
+          googleEnabled={isGoogleOAuthConfigured()}
+          captchaSiteKey={botChallenge.siteKey}
+          captchaRequired={botChallenge.required}
+        />
+        <div className="mm-auth-support">
           <p className="mm-auth-lead-link">
             Not a client yet? <Link href={contactHref}>Let&apos;s get in touch</Link>.
           </p>
-          {/* AUTH-001 / DECISIONS #16: one Policies link to the canonical,
-              always-served AquaCRM privacy & cookies notice (`/privacy` is a
+          {/* One canonical, always-served Policies destination (`/privacy` is a
               static rewrite in next.config.ts, smoke-tested by
-              smoke-privacy-notice-truth). A plain anchor, not next/link, because
-              the destination is a rewrite outside the app router. There is no
-              always-served canonical Terms route yet (only the demo-gated
-              `(website)/terms`); see QUESTIONS-FOR-CODEX. */}
-          <p className="mm-auth-policies">
+              smoke-privacy-notice-truth) alongside the return-to-site link. A
+              plain anchor for /privacy because it is a rewrite outside the app
+              router. Canonical Terms route is still pending — see
+              QUESTIONS-FOR-CODEX. */}
+          <p className="mm-auth-links">
+            <Link href={brand.homeUrl} className="mm-auth-home-link">Back to {brand.name}</Link>
             <a href="/privacy">Privacy &amp; cookies</a>
           </p>
         </div>
-      </div>
+      </section>
     </main>
   );
 }
