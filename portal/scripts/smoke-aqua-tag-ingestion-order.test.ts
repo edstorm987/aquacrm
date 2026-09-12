@@ -124,6 +124,8 @@ before(() => {
   stub("../src/lib/server/rateLimit", {
     clientIpFromHeaders: () => "127.0.0.1",
     rateLimit: () => ({ allowed: true, remaining: 100, retryAfterSec: 0 }),
+    rateLimitBatch: () => ({ allowed: true, remaining: 100, resetAt: Date.now() + 60_000, retryAfterSec: 0, charges: [] }),
+    refundRateLimitBatch: () => undefined,
   });
   stub("../src/server/websiteSources", {
     resolveAgencyByMasterSiteKey: () => AGENCY_ID,
@@ -221,6 +223,8 @@ function captureRequest() {
     agencyId: AGENCY_ID,
     siteKey: body.siteKey,
     host: "milesymedia.com",
+    keyClass: "public",
+    siteId: `public:${body.siteKey}`,
     propertyId: body.propertyId,
     submissionId: body.submissionId,
     formName: body.formName,
@@ -268,19 +272,19 @@ function assertOneCompleteEnquiry() {
   assert.ok(rows[0].metadata.formCapture, "the complete row lost the tag's richer field capture");
 }
 
-describe("the real public handlers reconcile one Aqua submission (process-local fallback)", () => {
-  it("promotes a tag-first row and runs downstream effects once, and says which boundary held it", async () => {
+describe("the real public handlers fail closed when the capture-claim migration is absent", () => {
+  it("does not fall back to an unclassified tag mutation", async () => {
     const captured = await formCapturePost(captureRequest());
-    assert.equal(captured.status, 200);
-    assert.equal((await captured.json() as { boundary?: string }).boundary, "process-local",
-      "without the migration the receipt must name the weaker guarantee");
+    assert.equal(captured.status, 503);
+    assert.equal(rows.length, 0, "a missing claim RPC still mutated an enquiry");
     const accepted = await brandEnquiryPost(brandRequest());
     assert.equal(accepted.status, 200);
     const acceptedBody = await accepted.json() as { boundary?: string; delivery?: string; submissionId?: string };
     assert.equal(acceptedBody.boundary, "process-local");
     assert.equal(acceptedBody.delivery, "complete");
     assert.equal(acceptedBody.submissionId, SUBMISSION_ID, "the receipt must name the exact id the tag sent");
-    assertOneCompleteEnquiry();
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].metadata.formCapture, undefined);
 
     const replay = await brandEnquiryPost(brandRequest());
     assert.equal(replay.status, 200);
@@ -299,44 +303,33 @@ describe("the real public handlers reconcile one Aqua submission (process-local 
     assert.equal(identity.clientId, null, "public identity guessing must not be the client-link source");
   });
 
-  it("attaches a later tag capture without replacing the completed enquiry", async () => {
+  it("does not attach a later tag capture through the retired fallback", async () => {
     assert.equal((await brandEnquiryPost(brandRequest())).status, 200);
-    assert.equal((await formCapturePost(captureRequest())).status, 200);
-    assertOneCompleteEnquiry();
+    assert.equal((await formCapturePost(captureRequest())).status, 503);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].metadata.formCapture, undefined);
     assert.deepEqual(effects, { lead: 1, identity: 1, activity: 1, notification: 1, automation: 1 });
   });
 
-  it("serialises simultaneous delivery by the shared submission id", async () => {
+  it("keeps the host submission available while an unready tag path fails", async () => {
     const responses = await Promise.all([
       formCapturePost(captureRequest()),
       brandEnquiryPost(brandRequest()),
     ]);
-    assert.deepEqual(responses.map(response => response.status), [200, 200]);
-    assertOneCompleteEnquiry();
+    assert.deepEqual(responses.map(response => response.status), [503, 200]);
+    assert.equal(rows.length, 1);
     assert.deepEqual(effects, { lead: 1, identity: 1, activity: 1, notification: 1, automation: 1 });
   });
 
-  it("reports an insert failure as retryable and recovers with the same id", async () => {
-    failNextInsert = true;
+  it("stays fail-closed across retries until the additive boundary exists", async () => {
     const failed = await formCapturePost(captureRequest());
     assert.equal(failed.status, 503);
     assert.equal((await failed.json() as { ok?: boolean }).ok, false);
     assert.equal(rows.length, 0);
 
     const recovered = await formCapturePost(captureRequest());
-    assert.equal(recovered.status, 200);
-    assert.equal(rows.length, 1);
-    assert.equal(rows[0].metadata.submissionId, SUBMISSION_ID);
+    assert.equal(recovered.status, 503);
+    assert.equal(rows.length, 0);
   });
 
-  it("does not acknowledge a failed promotion and can resume it", async () => {
-    assert.equal((await formCapturePost(captureRequest())).status, 200);
-    failNextUpdate = true;
-    const failed = await brandEnquiryPost(brandRequest());
-    assert.equal(failed.status, 503);
-    assert.equal(rows[0].consent, false, "the failed update must not look promoted");
-
-    assert.equal((await brandEnquiryPost(brandRequest())).status, 200);
-    assertOneCompleteEnquiry();
-  });
 });

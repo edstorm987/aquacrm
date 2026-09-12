@@ -441,12 +441,16 @@ describe("brand_enquiries tenant scoping — the agency_id column and its policy
   it("stamps the tenant on both public insert paths", () => {
     const brandEnquiry = readFileSync(path.join(SRC_ROOT, "app", "api", "public", "brand-enquiry", "route.ts"), "utf8");
     const formCapture = readFileSync(path.join(SRC_ROOT, "app", "api", "public", "form-capture", "route.ts"), "utf8");
+    const captureClaims = readFileSync(path.join(MIGRATIONS_DIR, "20260912140000_aqua_tag_capture_admission_claims.sql"), "utf8");
     assert.match(brandEnquiry, /agency_id: agency\.id/, "brand-enquiry inserts must write the agency_id column.");
     assert.match(brandEnquiry, /agencyId: agency\.id/, "brand-enquiry must keep metadata.agencyId for the routing sites and the backfill.");
     assert.match(formCapture, /agency_id: masterAgencyId \?\? null/, "form-capture inserts must write the agency_id column.");
-    // Ed applies the migration by hand, so the code must survive the old
-    // schema: both paths retry without the column on its exact absence.
+    assert.match(captureClaims, /ingest_aqua_tag_submission\(/, "the capture completion RPC must use the tenant-stamped ingestion boundary.");
+    // The host submission retains its explicit old-schema compatibility. The
+    // browser-public tag capture now requires the additive claim migration and
+    // fails closed rather than falling back to a weaker direct insert.
     assert.match(brandEnquiry, /isMissingAgencyIdColumn/, "brand-enquiry lost its pre-migration fallback.");
-    assert.match(formCapture, /isMissingAgencyIdColumn/, "form-capture lost its pre-migration fallback.");
+    assert.match(formCapture, /claim\.kind === "unavailable"/);
+    assert.doesNotMatch(formCapture, /isMissingAgencyIdColumn/);
   });
 });

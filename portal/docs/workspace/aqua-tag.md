@@ -30,11 +30,20 @@ planned.
 - Keyed by a **`data-site-key`** on the script tag — that key is what ties a submission back to an agency or client.
 
 ## 2. Keys & routing model  (`src/server/websiteSources.ts`)
-Two kinds of site key, one routing registry:
+Four browser-emitted key classes, one authoritative resolver and one routing
+registry:
 
 - **Per-client key** — `newTelemetrySiteKey()` (`src/lib/server/…`), stored as `telemetrySiteKey` on the client. Identifies a specific client's site.
 - **Agency master key** — `ensureAgencyMasterSiteKey(agencyId)`: one stable key per agency, generated on first ask and **kept forever** (the tag lives in people's sites — it must never rotate). The reverse lookup on the ingestion path is `resolveAgencyByMasterSiteKey(siteKey)`. The paste-in snippet is `masterTagSnippet(origin, siteKey)`. Stored in `agencyMasterTagKeys` on `PortalState`.
+- **Hardcoded public-project key** — a first-party Aqua property in
+  `publicSites`; accepted only on that property's fixed origin allowlist.
+- **Agency-website key** — the key on `agencyWebsites`; accepted only on that
+  project's production host (and its preview host outside production).
 - **The routing registry** — `websiteSources` (state), a list of `WebsiteSource {host → destinationClientId? | destinationCompanyId?}`. Functions: `listWebsiteSources`, `addWebsiteSource`, `updateWebsiteSourceRouting`, `removeWebsiteSource`, and the resolver `resolveWebsiteSourceRouting(agencyId, host)` → a **`WebsiteSourceDestination`** discriminated union (`{kind:"inbox"} | {kind:"client",clientId} | {kind:"company",companyId}`; defined in `server/types.ts`). `normalizeHost()` reduces a URL to the shared form (`https://www.Cedar-Dental.com/contact` → `cedar-dental.com`) so both a submission and its routing rule match. A site has **one home**: a client, or a company, or the inbox — `add`/`updateWebsiteSourceRouting` enforce client-XOR-company and validate a company via agency-scoped `getTradingCompany`.
+
+`resolveAquaTagAdmissionScope` is the one public request resolver for all four
+classes. It requires one unambiguous key owner plus the exact registered host;
+key collisions or an unregistered host fail closed.
 
 **The rule:** master tag → agency inbox by default; a `websiteSources` entry for that host **overrides** it to a **client** (their inbox) or a **company** (one of Ed's own brands, since 2026-08-19). A company-routed enquiry is recorded on the enquiry (`routedCompanyId` in metadata) and — per "the configured route wins" — is *not* also filed onto a client.
 
@@ -121,16 +130,23 @@ The step-2/3 logic is real, not stubbed:
 
 ## 5. Ingestion & telemetry
 - **`POST /api/public/aqua-tag-admission`** — resolves the browser-public site
-  key plus exact registered Origin to a tenant/site/host scope and mints a
-  two-minute HMAC admission bound to action, site, host, form metadata,
+  key plus exact registered Origin to a tenant/site/host scope, then verifies a
+  managed Turnstile token for exact action `aqua-tag-form-capture`, that
+  registered hostname and tenant before minting anything. Only caller-IP and
+  provider pressure valves run before proof. The resulting two-minute HMAC
+  admission is bound to action, tenant, key class, site id, host, form metadata,
   submission id and a digest of every captured answer. Its signed claim payload
-  is decodable but carries no plaintext answers, and the route stores none.
+  is decodable but carries no plaintext answers or challenge token, and the
+  route stores neither.
 - **`POST /api/public/form-capture`** *(LIVE Supabase)* — verifies that exact
-  signed admission before any address/site/IP budget or persistence, then
-  applies host routing and writes/reconciles the enquiry. The site key remains
-  public discovery metadata; it is not mutation authority by itself. Stable
-  submission identity plus `aqua_tag_submissions` makes same-fact replay/races
-  one logical database operation when the durable migration is present.
+  signed admission before persistence, then atomically classifies the durable
+  submission id as new/replay/conflict. Exact replay returns the original
+  receipt and changed facts return 409; only the first new transition spends
+  IP, one-way address-digest, install/site and tenant budgets or mutates the
+  enquiry. The additive `20260912140000_aqua_tag_capture_admission_claims.sql`
+  migration supplies that claim/complete/release boundary; without it this
+  public mutation fails closed with 503. The site key remains discovery
+  metadata, never mutation authority by itself.
 - **`POST /api/public/brand-enquiry`** *(LIVE `brand_enquiries`)* — website enquiry submission; carries the same routing + a 2-minute **dedupe guard**.
 - **`POST /api/telemetry/collect`** *(LIVE `website_consent_events`)* — page telemetry + consent events, CORS + consent-gated.
 - **`src/server/agencyWebsite.ts`** — records/summarises agency-site telemetry (`recordAgencyWebsiteTelemetry`, `resetAgencyWebsiteTelemetryKey`, `summarizeAgencyWebsite`). Client telemetry mirrors this via `/api/tenants/client-telemetry` + `lib/…/clientTelemetry`.
@@ -151,7 +167,7 @@ a visitor straight into their portal.
 | `GET, POST /api/portal/website-injections` | Manage a site's injected tools (list/add/update/remove) + provider catalogue | |
 | `GET, POST /api/portal/website` | Agency site config + telemetry key | |
 | `GET, POST /api/tenants/client-telemetry` | Per-client telemetry key manage/reset | |
-| `POST /api/public/aqua-tag-admission` | Mint short-lived exact host/form/action admission | |
+| `POST /api/public/aqua-tag-admission` | Verify exact managed proof; mint short-lived host/form/action admission | |
 | `POST /api/public/form-capture` | Tag form-capture + master-tag routing | **LIVE** |
 | `POST /api/public/brand-enquiry` | Enquiry submit + dedupe + routing | **LIVE** |
 | `POST /api/telemetry/collect` | Telemetry + consent events | **LIVE** |
@@ -160,7 +176,10 @@ a visitor straight into their portal.
 `agencyMasterTagKeys` (agency → master key), `websiteSources` (routing rules),
 `websiteSiteConfigs` (per-site injection config — see `server/websiteInjections`),
 `telemetrySiteKey` on each `Client`, agency-site telemetry on `agencyWebsites`,
-and — live in Supabase — `website_consent_events`.
+and — live in Supabase — `website_consent_events` plus
+`aqua_tag_submissions`. The latter's additive tag-capture columns hold the
+immutable capture digest, fenced claim lease and original completion receipt;
+table access and claim/complete/release RPCs are service-role only.
 
 ## 9. Consent model & the tag-manager (foundation built — Phase 4)
 The tag already reads `aqua-cookie-preferences` and gates analytics on it
@@ -242,7 +261,7 @@ serves the same body with `deprecation: true` + `sunset` headers.
 | Performance (`load`) | on `load` | Yes | telemetry |
 | JS error / promise rejection | window handlers | Yes | telemetry |
 | Form-submit *event* (count only) | capturing `submit` | Yes | telemetry |
-| **Form CONTENT admission + capture (field values)** | same `submit` | **NO — always runs** | `/api/public/aqua-tag-admission` → `/api/public/form-capture` |
+| **Form CONTENT admission + capture (field values)** | same `submit`, after dedicated managed proof | **NO cookie-consent gate** | `/api/public/aqua-tag-admission` → `/api/public/form-capture` |
 | Conversion | click `[data-aqua-conversion]` | **Yes** (marketing) | telemetry |
 | Consent event | `aqua:consent-updated` | No — always | telemetry |
 | Custom `Aqua.track()` | public API | depends on category | telemetry |
@@ -252,11 +271,15 @@ serves the same body with `deprecation: true` + `sunset` headers.
 `[data-aqua-ignore]`; capture if `data-aqua-form`/`data-aqua-capture`; **never**
 if it has a password input; else capture iff it asks for email/phone. Per field
 (`captureableField`): rejects password/hidden/file/search, names matching
-`/(pass|pwd|secret|token|csrf|otp|cvv|card|iban|ssn|nino)/i`, and `cc-`/
-`*-password` autocomplete — **cannot be switched off by config**. Caps: ≤60
+`/(pass|pwd|secret|token|csrf|nonce|otp|captcha|turnstile|cvv|card|iban|ssn|nino)/i`,
+challenge fields/descendants and `cc-`/`*-password` autocomplete — **cannot be
+switched off by config**. The server repeats the secret/challenge-field filter
+for callers that bypass the tag. Caps: ≤60
 fields, values ≤2000, keys ≤120; same-name fields merged. One stable submission
-id and one exact payload are sent first for a short-lived signed admission, then
-to capture with that admission. Capture retries reuse both for idempotence.
+id and one exact payload are sent with a WeakMap-held challenge token only to
+admission, then to capture with only the signed admission. Challenge proof never
+becomes a form field, telemetry property or log value. Capture retries reuse the
+same id and payload for durable idempotence.
 
 **Consent model:** `localStorage["aqua-cookie-preferences"]`, event
 `aqua:consent-updated`. `normalizePreferences` returns *no consent* unless
@@ -296,11 +319,12 @@ issues a real session → redirects into the portal. Reverse direction
   (telemetry caps at 32KiB); both parsers rely on field-count and per-value
   length caps.
 - **D. Honest abuse-limit scope:** Aqua Tag admission and capture currently add
-  process-local IP/address/site pressure valves only. Durable atomic global
-  limits across multiple app instances remain owned by `ABUSE-BASE-001`.
-  The signed admission prevents scope/payload stamping but is not a human
-  challenge: a non-browser client can supply an Origin header. Telemetry beacons
-  deliberately do not request a CAPTCHA.
+  process-local caller-IP/provider and post-proof IP/address-digest/site/tenant
+  pressure valves. Capture replay/mutation classification is durable and atomic,
+  but globally durable quota counters across multiple app instances remain
+  owned by `ABUSE-BASE-001`. The signed admission is backed by exact managed
+  human proof; telemetry beacons deliberately do not request a CAPTCHA and are
+  instead limited to the exact registered key/host mapping plus consent gates.
 
 ### Network throttling (added 2026-08-22 — the Dev editor's wifi control)
 The tag can throttle **what the page's scripts request** on the editor's

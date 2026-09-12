@@ -331,8 +331,8 @@ not live.
 | `/api/public/brand-enquiry` | OPTIONS, POST | Website enquiry submission → leads pipeline + Supabase (dedupe guard) | public (CORS, rate-limited) | **LIVE (admin + brand_enquiries)** |
 | `/api/public/careers` | POST | Public job application w/ CV upload (multipart) | public (origin + rate-limited) | **LIVE (Storage)** |
 | `/api/public/contact` | POST | Public contact form → leads pipeline + website telemetry | public (origin-checked) | |
-| `/api/public/aqua-tag-admission` | OPTIONS, POST | Mint a short-lived signed admission bound to the registered tenant/site/host and exact form capture facts | public (registered Origin + local rate limit) | |
-| `/api/public/form-capture` | OPTIONS, POST | Verify Aqua-Tag admission, then form-capture enrichment + master-tag routing → Supabase | public (signed admission + CORS + local rate limits) | **LIVE (admin)** |
+| `/api/public/aqua-tag-admission` | OPTIONS, POST | Verify managed proof for exact `aqua-tag-form-capture` action/tenant/registered host, then mint a short-lived admission bound to tenant/key-class/site/host and exact form facts | public (managed proof + exact key/host resolver + caller-IP/provider limits) | |
+| `/api/public/form-capture` | OPTIONS, POST | Verify Aqua-Tag admission, atomically classify new/replay/conflict, then form-capture enrichment + master-tag routing → Supabase | public (signed admission + durable claim; post-proof local quotas); **503 until additive claim migration exists** | **LIVE (admin)** |
 | `/api/public/proposals/[token]` | POST | Accept a commercial proposal by public token | public (token) | |
 | `/api/public/aqua-tag-config` | GET, OPTIONS | Serve a site's enabled injections by key+host (cached, CORS) — tag-manager delivery seam | public (CORS) | |
 | `/api/public/demo-interest` | POST | AquaCRM demo gate — records name/contact + consent {timestamp, terms version} in the `website-demo` data realm, never the live one | public (same-origin, honeypot, rate-limited); **404 unless `WEBSITE_DEMO_ENABLED`** | |

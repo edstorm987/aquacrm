@@ -44,6 +44,20 @@ export interface CapturedField {
   type?: string;
 }
 
+/**
+ * Field names that must never cross the public form-capture boundary.
+ *
+ * The browser tag applies the same policy before serialising a form, but the
+ * server repeats it because a public caller can bypass that script entirely.
+ * In particular, a managed-challenge response is mutation proof, not an
+ * enquiry answer, and must never be signed into an admission or persisted.
+ */
+const NON_CAPTURE_FIELD_KEY = /(?:pass|pwd|secret|token|csrf|nonce|otp|captcha|turnstile|cvv|cvc|card|iban|sortcode|sort_code|account_number|ssn|nino)/i;
+
+export function isSafeCapturedFieldKey(value: unknown): value is string {
+  return typeof value === "string" && Boolean(value.trim()) && !NON_CAPTURE_FIELD_KEY.test(value);
+}
+
 export interface FormIdentity {
   /** `data-aqua-form`, the form's `name`, or its `id` — whatever it has. */
   formName?: string;

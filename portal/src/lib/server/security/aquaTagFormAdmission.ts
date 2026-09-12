@@ -9,6 +9,7 @@ import {
   publicAquaSite,
 } from "@/lib/public/publicSites";
 import { FOUNDER_AGENCY_SLUG } from "@/lib/server/seeds/founderSeed";
+import { getState } from "@/server/storage";
 import { getAgencyBySlug } from "@/server/tenants";
 import {
   listWebsiteSources,
@@ -16,6 +17,7 @@ import {
 } from "@/server/websiteSources";
 
 const VERSION = 1;
+export const AQUA_TAG_FORM_CAPTURE_ACTION = "aqua-tag-form-capture";
 const ACTION = "form-capture";
 const MAX_AGE_MS = 2 * 60_000;
 const MAX_CLOCK_SKEW_MS = 30_000;
@@ -24,6 +26,9 @@ export interface AquaTagAdmissionScope {
   agencyId: string;
   siteKey: string;
   host: string;
+  keyClass: "public" | "agency-master" | "client-telemetry" | "agency-website";
+  siteId: string;
+  clientId?: string;
   propertyId?: string;
 }
 
@@ -44,6 +49,9 @@ interface AquaTagFormAdmissionClaims {
   agencyId: string;
   siteKey: string;
   host: string;
+  keyClass: AquaTagAdmissionScope["keyClass"];
+  siteId: string;
+  clientId?: string;
   propertyId?: string;
   submissionId: string;
   formName?: string;
@@ -157,23 +165,64 @@ export function resolveAquaTagAdmissionScope(siteKeyValue: unknown, originValue:
       agencyId,
       siteKey,
       host,
+      keyClass: "public",
+      siteId: `public:${siteKey}`,
       propertyId: publicAquaPropertyId(siteKey, publicSite.propertyId) ?? publicSite.propertyId,
     };
   }
 
-  const agencyId = resolveAgencyByMasterSiteKey(siteKey);
-  if (!agencyId) return null;
-  if (
-    process.env.NODE_ENV === "production"
-    && !listWebsiteSources(agencyId).some(source => source.host === host)
-  ) return null;
-  if (
-    process.env.NODE_ENV !== "production"
-    && host !== "localhost"
-    && host !== "127.0.0.1"
-    && !listWebsiteSources(agencyId).some(source => source.host === host)
-  ) return null;
-  return { agencyId, siteKey, host };
+  const candidates: AquaTagAdmissionScope[] = [];
+  const masterAgencyId = resolveAgencyByMasterSiteKey(siteKey);
+  if (masterAgencyId) {
+    const source = listWebsiteSources(masterAgencyId).find(entry => entry.host === host);
+    if (source) {
+      candidates.push({
+        agencyId: masterAgencyId,
+        siteKey,
+        host,
+        keyClass: "agency-master",
+        siteId: source.id,
+        ...(source.destinationClientId ? { clientId: source.destinationClientId } : {}),
+      });
+    }
+  }
+
+  const state = getState();
+  for (const client of Object.values(state.clients)) {
+    if (client.metadata?.telemetrySiteKey !== siteKey) continue;
+    const directHost = normalizeHost(client.websiteUrl ?? "");
+    const source = listWebsiteSources(client.agencyId).find(entry =>
+      entry.destinationClientId === client.id && entry.host === host
+    );
+    if (directHost !== host && !source) continue;
+    candidates.push({
+      agencyId: client.agencyId,
+      clientId: client.id,
+      siteKey,
+      host,
+      keyClass: "client-telemetry",
+      siteId: source?.id ?? `client:${client.id}`,
+    });
+  }
+
+  for (const website of Object.values(state.agencyWebsites)) {
+    if (website.telemetrySiteKey !== siteKey) continue;
+    const productionHost = normalizeHost(website.productionUrl);
+    const previewHost = process.env.NODE_ENV === "production" ? "" : normalizeHost(website.previewUrl);
+    if (host !== productionHost && host !== previewHost) continue;
+    candidates.push({
+      agencyId: website.agencyId,
+      siteKey,
+      host,
+      keyClass: "agency-website",
+      siteId: `agency-website:${website.agencyId}`,
+    });
+  }
+
+  // A browser-public key is accepted only when exactly one current owner also
+  // registers this exact hostname. Ambiguous/colliding registry state fails
+  // closed rather than letting discovery material choose a tenant.
+  return candidates.length === 1 ? candidates[0]! : null;
 }
 
 export function issueAquaTagFormAdmission(
@@ -189,6 +238,9 @@ export function issueAquaTagFormAdmission(
     agencyId: scope.agencyId,
     siteKey: scope.siteKey,
     host: scope.host,
+    keyClass: scope.keyClass,
+    siteId: scope.siteId,
+    ...(scope.clientId ? { clientId: scope.clientId } : {}),
     ...(facts.propertyId ? { propertyId: facts.propertyId } : {}),
     submissionId: facts.submissionId,
     ...(facts.formName ? { formName: facts.formName } : {}),
@@ -209,7 +261,7 @@ function parseClaims(value: unknown): AquaTagFormAdmissionClaims | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
   const keys = new Set([
-    "v", "action", "agencyId", "siteKey", "host", "propertyId", "submissionId",
+    "v", "action", "agencyId", "siteKey", "host", "keyClass", "siteId", "clientId", "propertyId", "submissionId",
     "formName", "formId", "purpose", "pageUrl", "pagePath", "captureDigest",
     "nonce", "iat", "exp",
   ]);
@@ -218,6 +270,8 @@ function parseClaims(value: unknown): AquaTagFormAdmissionClaims | null {
   const agencyId = clean(row.agencyId, 120);
   const siteKey = clean(row.siteKey, 80);
   const host = normalizeHost(clean(row.host, 255));
+  const keyClass = clean(row.keyClass, 30) as AquaTagAdmissionScope["keyClass"];
+  const siteId = clean(row.siteId, 160);
   const submissionId = clean(row.submissionId, 120);
   const pagePath = clean(row.pagePath, 300) || "/";
   const captureDigest = clean(row.captureDigest, 64);
@@ -225,7 +279,8 @@ function parseClaims(value: unknown): AquaTagFormAdmissionClaims | null {
   const iat = Number(row.iat);
   const exp = Number(row.exp);
   if (
-    !agencyId || !siteKey || !host
+    !agencyId || !siteKey || !host || !siteId
+    || !["public", "agency-master", "client-telemetry", "agency-website"].includes(keyClass)
     || !/^aqua_sub_[a-z0-9]{12,100}$/.test(submissionId)
     || !/^[a-f0-9]{64}$/.test(captureDigest)
     || !/^[a-f0-9]{32}$/.test(nonce)
@@ -237,6 +292,9 @@ function parseClaims(value: unknown): AquaTagFormAdmissionClaims | null {
     agencyId,
     siteKey,
     host,
+    keyClass,
+    siteId,
+    ...(clean(row.clientId, 120) ? { clientId: clean(row.clientId, 120) } : {}),
     ...(clean(row.propertyId, 120) ? { propertyId: clean(row.propertyId, 120) } : {}),
     submissionId,
     ...(clean(row.formName, 160) ? { formName: clean(row.formName, 160) } : {}),
@@ -280,6 +338,9 @@ export function verifyAquaTagFormAdmission(input: {
     || claims.agencyId !== input.scope.agencyId
     || claims.siteKey !== input.scope.siteKey
     || claims.host !== input.scope.host
+    || claims.keyClass !== input.scope.keyClass
+    || claims.siteId !== input.scope.siteId
+    || (claims.clientId ?? "") !== (input.scope.clientId ?? "")
     || (claims.propertyId ?? "") !== (input.facts.propertyId ?? "")
     || claims.submissionId !== input.facts.submissionId
     || (claims.formName ?? "") !== (input.facts.formName ?? "")

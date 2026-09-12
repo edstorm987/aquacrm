@@ -41,6 +41,8 @@ function runTag(form: Record<string, unknown>, options: {
   receiptIds?: Array<string | null>;
   admissionOk?: boolean;
   admissionId?: string;
+  captchaToken?: string;
+  onAdmission?: (payload: Record<string, unknown>) => void;
 } = {}) {
   const captures: Array<Record<string, unknown>> = [];
   let captureAttempt = 0;
@@ -52,6 +54,14 @@ function runTag(form: Record<string, unknown>, options: {
     __aquaTagLoaded: false,
     addEventListener: () => {},
     dispatchEvent: () => true,
+    turnstile: {
+      render: (_element: unknown, config: { action?: string; callback?: (token: string) => void }) => {
+        assert.equal(config.action, "aqua-tag-form-capture");
+        config.callback?.(options.captchaToken ?? "captcha-proof-token");
+        return "widget-form-capture";
+      },
+      reset: () => {},
+    },
   } as Record<string, unknown>;
 
   vm.runInNewContext(AQUA_TAG_SOURCE, {
@@ -61,7 +71,7 @@ function runTag(form: Record<string, unknown>, options: {
       title: "AquaCRM", referrer: "", readyState: "complete",
       createElement: () => ({ dataset: {}, textContent: "", setAttribute() {} }),
       head: { appendChild() {} },
-      querySelectorAll: () => [],
+      querySelectorAll: (selector: string) => selector === "form" ? [form] : [],
       querySelector: () => null,
       addEventListener: (type: string, callback: (event: unknown) => void) => {
         documentListeners.set(type, [...(documentListeners.get(type) ?? []), callback]);
@@ -77,6 +87,7 @@ function runTag(form: Record<string, unknown>, options: {
     fetch: (url: string, request: { body: string }) => {
       if (String(url).includes("aqua-tag-admission")) {
         const sent = JSON.parse(request.body) as Record<string, unknown>;
+        options.onAdmission?.(sent);
         const ok = options.admissionOk ?? true;
         return Promise.resolve({
           ok,
@@ -85,6 +96,12 @@ function runTag(form: Record<string, unknown>, options: {
             admission: "signed-form-admission",
             submissionId: options.admissionId ?? sent.submissionId,
           }),
+        });
+      }
+      if (String(url).includes("bot-challenge/config")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ enabled: true, required: true, siteKey: "turnstile-public-key" }),
         });
       }
       if (String(url).includes("form-capture")) {
@@ -111,7 +128,11 @@ function runTag(form: Record<string, unknown>, options: {
   });
 
   Object.setPrototypeOf(form, FakeForm.prototype);
-  for (const callback of documentListeners.get("submit") ?? []) callback({ target: form });
+  const submit = () => {
+    for (const callback of documentListeners.get("submit") ?? []) callback({ target: form });
+  };
+  const afterChallenge = (remaining: number) => queueMicrotask(() => remaining > 0 ? afterChallenge(remaining - 1) : submit());
+  afterChallenge(10);
   return captures;
 }
 
@@ -126,6 +147,7 @@ const enquiryForm = (extra: Record<string, unknown> = {}) => ({
   getAttribute: () => null,
   closest: () => null,
   querySelector: () => null,
+  appendChild: () => {},
   elements: [
     field({ name: "name", value: "Tom Innes" }),
     field({ name: "email", type: "email", value: "tom@example.com" }),
@@ -150,8 +172,8 @@ test("captures every answer the form actually collected", async () => {
 test("stamps the same submission id into the host form before its handler runs", async () => {
   let hidden: Record<string, unknown> | null = null;
   const form = enquiryForm({
-    querySelector: (selector: string) => selector.includes("aquaSubmissionId") ? hidden : null,
-    appendChild: (input: Record<string, unknown>) => { hidden = input; },
+    querySelector: (selector: string) => selector.includes("aquaSubmissionId") && hidden?.name === "aquaSubmissionId" ? hidden : null,
+    appendChild: (input: Record<string, unknown>) => { if (input.name === "aquaSubmissionId") hidden = input; },
   });
   const captures = runTag(form);
   await settle();
@@ -192,6 +214,7 @@ test("a refused or mismatched signed admission never reaches the mutation endpoi
 });
 
 test("never sends a password, payment or token field", async () => {
+  let admission: Record<string, unknown> | null = null;
   const captures = runTag(enquiryForm({
     elements: [
       field({ name: "email", type: "email", value: "tom@example.com" }),
@@ -199,12 +222,16 @@ test("never sends a password, payment or token field", async () => {
       field({ name: "csrf_token", type: "hidden", value: "SECRET" }),
       field({ name: "cc-number", autocomplete: "cc-number", value: "4111111111111111" }),
       field({ name: "card_cvv", value: "123" }),
+      field({ name: "cf-turnstile-response", value: "must-not-be-captured" }),
     ],
-  }));
+  }), { captchaToken: "managed-proof-only", onAdmission: payload => { admission = payload; } });
   await settle();
   const [capture] = captures;
   const keys = (capture.fields as Array<{ key: string }>).map(f => f.key);
   assert.deepEqual(keys, ["email"], `sensitive fields leaked: ${keys.join(", ")}`);
+  assert.equal(admission?.captchaToken, "managed-proof-only", "proof did not reach the admission exchange");
+  assert.equal(Object.hasOwn(capture, "captchaToken"), false, "proof leaked from admission into the persisted capture");
+  assert.doesNotMatch(JSON.stringify(capture), /managed-proof-only|must-not-be-captured/);
 });
 
 test("leaves a login form alone entirely", () => {

@@ -255,7 +255,7 @@ describe("form-capture honours the master tag", () => {
   });
 
   it("surfaces a routed master submission on the client's record", () => {
-    assert.match(src, /if \(masterAgencyId && routedClientId && inserted\?\.id\)/);
+    assert.match(src, /if \(completed\.ingestion\.created\) \{\s+try \{ surfaceOnRoutedClient\(completed\.ingestion\.enquiryId\); \}/);
     assert.match(src, /upsertClientRecordLedgerEvent\(masterAgencyId, routedClientId/);
   });
 

@@ -1,23 +1,28 @@
-import { createHash } from "node:crypto";
+import { createHmac } from "node:crypto";
 
 import { NextResponse, type NextRequest } from "next/server";
 
-import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
+import { clientIpFromHeaders, rateLimitBatch, refundRateLimitBatch } from "@/lib/server/rateLimit";
 import { PUBLIC_AQUA_SITES, publicAquaPropertyId, publicAquaSiteName } from "@/lib/public/publicSites";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { isMissingAgencyIdColumn, isMissingAgencyIdColumnRead } from "@/lib/supabase/enquiryAgencyColumn";
-import { pickTenantOwnedEnquiry } from "@/lib/supabase/ownedEnquiry";
 import { resolveWebsiteSourceRouting } from "@/server/websiteSources";
 import { getAgencyBySlug } from "@/server/tenants";
 import { FOUNDER_AGENCY_SLUG } from "@/lib/server/seeds/founderSeed";
 import { upsertClientRecordLedgerEvent } from "@/lib/server/clients/clientRecordLedger";
 import { withEnquirySubmissionOperation } from "@/lib/server/enquirySubmissionOperation";
 import {
-  additionalFields, derivePurpose, describeForm, type CapturedField,
+  additionalFields, derivePurpose, describeForm, isSafeCapturedFieldKey, type CapturedField,
 } from "@/lib/enquiries/formCapture";
-import { enquirySubmissionId, normaliseAquaSubmissionId } from "@/lib/enquiries/submissionIdentity";
-import { aquaTagTenantScope, ingestAquaTagSubmission } from "@/lib/supabase/enquirySubmissionClaims";
+import { normaliseAquaSubmissionId } from "@/lib/enquiries/submissionIdentity";
 import {
+  AquaTagCaptureCompletionError,
+  aquaTagTenantScope,
+  claimAquaTagCapture,
+  completeAquaTagCapture,
+  releaseAquaTagCapture,
+} from "@/lib/supabase/enquirySubmissionClaims";
+import {
+  aquaTagCaptureDigest,
   resolveAquaTagAdmissionScope,
   verifyAquaTagFormAdmission,
   type AquaTagFormFacts,
@@ -39,15 +44,6 @@ import { ensureHydrated } from "@/server/storage";
  */
 
 const MAX_FIELDS = 60;
-/**
- * How long after a submission the site's own POST is still the same event.
- *
- * The two requests race — the tag fires on submit, the site's fetch resolves
- * whenever it resolves — so matching cannot rely on order. Two minutes is
- * comfortably longer than any form round-trip and far shorter than somebody
- * filling the same form in twice.
- */
-const MATCH_WINDOW_MS = 2 * 60 * 1_000;
 
 function corsHeaders(origin: string | null): HeadersInit {
   return {
@@ -87,7 +83,7 @@ function readFields(value: unknown): CapturedField[] {
         type: clean(field?.type, 30) || undefined,
       };
     })
-    .filter(field => field.key && field.value)
+    .filter(field => isSafeCapturedFieldKey(field.key) && field.value)
     .slice(0, MAX_FIELDS);
 }
 
@@ -103,13 +99,6 @@ function findAnswer(fields: CapturedField[], pattern: RegExp): string {
  */
 function founderAgencyId(): string {
   return getAgencyBySlug(FOUNDER_AGENCY_SLUG)?.id ?? FOUNDER_AGENCY_SLUG;
-}
-
-/** What makes two tag captures the same submission, independent of timing. */
-function captureFingerprint(formId: string | undefined, pagePath: string, fields: CapturedField[]): string {
-  return createHash("sha256")
-    .update(JSON.stringify([formId ?? "", pagePath, fields.map(field => [field.key, field.value])]))
-    .digest("hex");
 }
 
 export async function POST(req: NextRequest) {
@@ -200,25 +189,6 @@ export async function POST(req: NextRequest) {
   }
   origin = requested;
 
-  // ABUSE-003: process-local pressure valves only. The admission is checked
-  // before any address/site/IP bucket or persistence. ABUSE-BASE-001 remains
-  // the release gate for a shared multi-instance atomic limiter.
-  const ip = clientIpFromHeaders(req.headers);
-  const address = findAnswer(fields, /e-?mail|phone|mobile|tel/i).toLowerCase();
-  const addressDigest = createHash("sha256").update(address || "none").digest("hex");
-  const limits = [
-    rateLimit({ key: `form-capture-ip:${ip}`, max: 20, windowMs: 60 * 60 * 1_000 }),
-    rateLimit({ key: `form-capture-address:${addressDigest}`, max: 6, windowMs: 60 * 60 * 1_000 }),
-    rateLimit({ key: `form-capture-site:${admission.claims.agencyId}:${admission.claims.siteKey}`, max: 240, windowMs: 60 * 60 * 1_000 }),
-  ];
-  const refusedLimit = limits.find(limit => !limit.allowed);
-  if (refusedLimit) {
-    return NextResponse.json(
-      { ok: false },
-      { status: 429, headers: { ...corsHeaders(origin), "retry-after": String(refusedLimit.retryAfterSec) } },
-    );
-  }
-
   const { purpose, purposeSource } = derivePurpose({
     declared: declaredPurpose,
     fields,
@@ -262,7 +232,8 @@ export async function POST(req: NextRequest) {
   // One home per site: a client's inbox, one of Ed's own companies, or the
   // agency inbox. A company route is recorded on the enquiry but does not fire
   // the client ledger below — a company is not a client.
-  const routedClientId = destination.kind === "client" ? destination.clientId : undefined;
+  const routedClientId = admission.claims.clientId
+    ?? (destination.kind === "client" ? destination.clientId : undefined);
   const routedCompanyId = destination.kind === "company" ? destination.companyId : undefined;
 
   // Nothing to attach to yet. Held rather than dropped: the site may post
@@ -323,153 +294,116 @@ export async function POST(req: NextRequest) {
   };
 
   return withEnquirySubmissionOperation(submissionId, async () => {
-  try {
+    try {
     const supabase = createSupabaseAdminClient();
-
-    // ── The durable boundary (issues #87) ──────────────────────────────────
-    //
-    // With a stable id the capture is recorded against ONE database identity,
-    // (tenant scope, submission id), in the same transaction as the hold row
-    // it creates or the existing row it attaches to. Whichever half of the
-    // submission arrives first, the other finds it. A retry with the same
-    // answers is a no-op; the same id re-used for different answers is refused.
-    if (submissionId) {
-      const tenantScope = aquaTagTenantScope(
-        masterAgencyId ?? (isHardcodedPublicSite ? founderAgencyId() : undefined),
+    const tenantScope = aquaTagTenantScope(
+      masterAgencyId ?? (isHardcodedPublicSite ? founderAgencyId() : undefined),
+      siteKey,
+    );
+    const captureDigest = aquaTagCaptureDigest(admissionFacts);
+    let claim = await claimAquaTagCapture(supabase, {
+      tenantScope,
+      submissionId,
+      siteKey,
+      captureDigest,
+    });
+    // A simultaneous exact retry waits briefly for the winning transaction's
+    // receipt. It never spends quotas while another owner holds the claim.
+    for (let attempt = 0; claim.kind === "pending" && attempt < 20; attempt += 1) {
+      const retryAfterMs = claim.retryAfterMs;
+      await new Promise(resolve => setTimeout(resolve, Math.min(retryAfterMs, 50)));
+      claim = await claimAquaTagCapture(supabase, {
+        tenantScope,
+        submissionId,
         siteKey,
+        captureDigest,
+      });
+    }
+    if (claim.kind === "conflict") {
+      return NextResponse.json({ ok: false, error: claim.message }, { status: 409, headers: corsHeaders(origin) });
+    }
+    if (claim.kind === "unavailable") {
+      // Deliberately no legacy write fallback: deploying code before the
+      // additive claim migration produces a visible retryable outage, not a
+      // silently weaker public mutation boundary.
+      return NextResponse.json(
+        { ok: false, error: "The form capture safety boundary is not ready yet." },
+        { status: 503, headers: { ...corsHeaders(origin), "retry-after": "5" } },
       );
-      const ingest = await ingestAquaTagSubmission(supabase, {
+    }
+    if (claim.kind === "replay") {
+      return NextResponse.json(claim.receipt, { headers: corsHeaders(origin) });
+    }
+    if (claim.kind === "pending") {
+      return NextResponse.json(
+        { ok: false, error: "This form capture is still being saved. Please retry." },
+        { status: 409, headers: { ...corsHeaders(origin), "retry-after": "1" } },
+      );
+    }
+
+    // The database has classified this as the one NEW transition. Only now do
+    // victim-derived and tenant/install budgets move. These counters remain
+    // process-local until ABUSE-BASE-001 supplies a shared durable primitive.
+    const ip = clientIpFromHeaders(req.headers);
+    const rawAddress = findAnswer(fields, /e-?mail|phone|mobile|tel/i).trim().toLowerCase();
+    const address = rawAddress.includes("@") ? rawAddress : rawAddress.replace(/\D/g, "");
+    const digestSecret = (process.env.AQUA_TAG_ADMISSION_SECRET ?? process.env.PORTAL_SESSION_SECRET ?? "").trim();
+    const addressDigest = createHmac("sha256", `aqua-tag-address:v1\u0000${digestSecret}`)
+      .update(address || "none")
+      .digest("hex");
+    const budget = rateLimitBatch([
+      { key: `form-capture-ip:${ip}`, max: 20, windowMs: 60 * 60 * 1_000 },
+      { key: `form-capture-address:${admission.claims.agencyId}:${addressDigest}`, max: 6, windowMs: 60 * 60 * 1_000 },
+      { key: `form-capture-install:${admission.claims.agencyId}:${admission.claims.siteId}`, max: 240, windowMs: 60 * 60 * 1_000 },
+      { key: `form-capture-tenant:${admission.claims.agencyId}`, max: 600, windowMs: 60 * 60 * 1_000 },
+    ]);
+    if (!budget.allowed) {
+      await releaseAquaTagCapture(supabase, { tenantScope, submissionId, claimToken: claim.claimToken });
+      return NextResponse.json(
+        { ok: false },
+        { status: 429, headers: { ...corsHeaders(origin), "retry-after": String(budget.retryAfterSec) } },
+      );
+    }
+
+    let completed;
+    try {
+      completed = await completeAquaTagCapture(supabase, {
         tenantScope,
         submissionId,
         siteKey,
         arrival: "tag",
-        facts: { captureFingerprint: captureFingerprint(identity.formId, pagePath, fields), pagePath },
+        claimToken: claim.claimToken,
+        facts: { captureDigest, pagePath },
         capture,
         enquiryRow,
       });
-      if (ingest.kind === "conflict") {
-        return NextResponse.json(
-          { ok: false, error: ingest.message },
-          { status: 409, headers: corsHeaders(origin) },
-        );
+    } catch (cause) {
+      // Only a PostgreSQL error response proves the completion transaction
+      // rolled back. A dropped transport or malformed success body is
+      // ambiguous; refunding then could undercharge a mutation that committed.
+      if (cause instanceof AquaTagCaptureCompletionError && cause.rollbackConfirmed) {
+        refundRateLimitBatch(budget.charges);
+        await releaseAquaTagCapture(supabase, { tenantScope, submissionId, claimToken: claim.claimToken }).catch(() => undefined);
       }
-      if (ingest.kind === "ingested") {
-        if (ingest.receipt.created) surfaceOnRoutedClient(ingest.receipt.enquiryId);
-        return NextResponse.json(
-          {
-            ok: true,
-            attached: !ingest.receipt.created,
-            submissionId,
-            enquiryId: ingest.receipt.enquiryId,
-            boundary: "database",
-          },
-          { headers: corsHeaders(origin) },
-        );
-      }
-      // `unavailable`: the migration is not applied here yet — the older path
-      // below still holds the capture, with its weaker process-local guarantee.
+      throw cause;
     }
-
-    // ── Process-local fallback ─────────────────────────────────────────────
-    const since = new Date(Date.now() - MATCH_WINDOW_MS).toISOString();
-    // Match on whichever contact detail the form actually collected. A form
-    // that asked for neither cannot be tied to an enquiry, and is kept on its
-    // own rather than guessed onto somebody else's record.
-    //
-    // TENANT SCOPING (multi-tenant isolation). The admin client bypasses RLS,
-    // so a bare newest-by-email match would attach this submission to whichever
-    // agency happened to have the most recent row for that address — enriching,
-    // or overwriting metadata on, a STRANGER'S enquiry. So a match is accepted
-    // only when its tenancy equals the submission's own resolved agency
-    // (`masterAgencyId`): candidates are fetched newest-first and the first one
-    // that belongs to this agency is taken; a newer cross-tenant row can never
-    // shadow it. With no resolved agency there is nothing to scope to, so the
-    // capture is held on its own rather than risking a cross-tenant attach.
-    type EnquiryRow = { id: string; agency_id?: string | null; metadata: Record<string, unknown> | null };
-    let match: EnquiryRow | null = null;
-    if (submissionId || (masterAgencyId && (email || phone))) {
-      const runQuery = (withAgencyColumn: boolean, bySubmissionId: boolean) => {
-        const query = supabase
-          .from("brand_enquiries")
-          .select(withAgencyColumn ? "id, agency_id, metadata" : "id, metadata")
-          .gte("created_at", since)
-          .order("created_at", { ascending: false })
-          .limit(bySubmissionId ? 5 : 10);
-        if (bySubmissionId) return query.eq("metadata->>submissionId", submissionId);
-        return email ? query.eq("email", email) : query.eq("phone", phone);
-      };
-      // Select agency_id when it exists; before the hand-applied migration the
-      // column is absent, so retry without it and let metadata.agencyId decide.
-      let { data, error } = await runQuery(true, Boolean(submissionId));
-      if (error && isMissingAgencyIdColumnRead(error)) {
-        ({ data, error } = await runQuery(false, Boolean(submissionId)));
-      }
-      if (error) throw new Error(`Could not match form capture: ${error.message}`);
-      const queriedRows = (data ?? []) as unknown as EnquiryRow[];
-      match = masterAgencyId
-        ? pickTenantOwnedEnquiry(queriedRows, masterAgencyId)
-        : queriedRows.find(row => enquirySubmissionId(row.metadata) === submissionId
-          && row.metadata?.siteKey === siteKey) ?? null;
-
-      // Compatibility for host forms that do not yet forward the hidden Aqua
-      // id: attach to a recent tenant-owned legacy row, but never merge onto a
-      // row carrying a DIFFERENT stable id.
-      if (!match && submissionId && (email || phone)) {
-        ({ data, error } = await runQuery(true, false));
-        if (error && isMissingAgencyIdColumnRead(error)) {
-          ({ data, error } = await runQuery(false, false));
-        }
-        if (error) throw new Error(`Could not match legacy form capture: ${error.message}`);
-        const legacyRows = ((data ?? []) as unknown as EnquiryRow[])
-          .filter(row => !enquirySubmissionId(row.metadata));
-        match = masterAgencyId
-          ? pickTenantOwnedEnquiry(legacyRows, masterAgencyId)
-          : legacyRows.find(row => row.metadata?.siteKey === siteKey) ?? null;
-      }
+    // The database transaction and its receipt are already committed here.
+    // A derived in-app projection must never refund admission quotas or make
+    // the public caller repeat the mutation if that projection has a bug.
+    if (completed.ingestion.created) {
+      try { surfaceOnRoutedClient(completed.ingestion.enquiryId); }
+      catch (cause) { console.error("[form-capture] failed to surface routed capture", cause); }
     }
+    return NextResponse.json(completed.receipt, { headers: corsHeaders(origin) });
 
-    if (match) {
-      const { error: attachError } = await supabase
-        .from("brand_enquiries")
-        .update({ metadata: {
-          ...(match.metadata ?? {}),
-          ...(submissionId ? { submissionId } : {}),
-          formCapture: capture,
-        } })
-        .eq("id", match.id);
-      if (attachError) throw new Error(`Could not attach form capture: ${attachError.message}`);
+    } catch (cause) {
+      // The tag keeps this response away from the host form, but it needs a
+      // truthful retryable failure so the tag can safely retry the same id.
+      console.error("[form-capture] failed to persist capture", cause);
       return NextResponse.json(
-        { ok: true, attached: true, submissionId: submissionId || match.id, boundary: "process-local" },
-        { headers: corsHeaders(origin) },
+        { ok: false, error: "The form capture could not be saved yet. Please retry." },
+        { status: 503, headers: { ...corsHeaders(origin), "retry-after": "2" } },
       );
     }
-
-    let { data: inserted, error: insertError } = await supabase
-      .from("brand_enquiries").insert(enquiryRow).select("id").single();
-    if (insertError && isMissingAgencyIdColumn(insertError)) {
-      // agency_id migration not applied yet (Ed runs it by hand) — a capture
-      // must not be dropped while the schema catches up.
-      const { agency_id: _pendingMigration, ...legacyRow } = enquiryRow;
-      ({ data: inserted, error: insertError } = await supabase
-        .from("brand_enquiries").insert(legacyRow).select("id").single());
-    }
-    if (insertError || !inserted?.id) {
-      throw new Error(`Could not persist form capture: ${insertError?.message || "no record returned"}`);
-    }
-
-    if (masterAgencyId && routedClientId && inserted?.id) surfaceOnRoutedClient(inserted.id);
-    return NextResponse.json(
-      { ok: true, attached: false, submissionId: submissionId || inserted.id, boundary: "process-local" },
-      { headers: corsHeaders(origin) },
-    );
-  } catch (cause) {
-    // The tag keeps this response away from the host form, but it needs a
-    // truthful retryable failure so the tag can safely retry the same id.
-    console.error("[form-capture] failed to persist capture", cause);
-    return NextResponse.json(
-      { ok: false, error: "The form capture could not be saved yet. Please retry." },
-      { status: 503, headers: { ...corsHeaders(origin), "retry-after": "2" } },
-    );
-  }
   });
 }

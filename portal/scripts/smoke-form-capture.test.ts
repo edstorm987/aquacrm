@@ -100,14 +100,13 @@ describe("the answers that used to be thrown away", () => {
 });
 
 describe("a capture attaches to the enquiry rather than duplicating it", () => {
-  it("matches within a window rather than relying on which arrived first", () => {
-    // The tag fires on submit and the site's own POST resolves whenever it
-    // resolves, so order cannot be assumed. A second enquiry per submission
-    // would double every count in the inbox.
+  it("uses one durable submission identity rather than timing or contact guesses", () => {
     const route = require("node:fs").readFileSync(
       require("node:path").join(__dirname, "..", "src", "app", "api", "public", "form-capture", "route.ts"), "utf-8");
-    assert.match(route, /MATCH_WINDOW_MS/);
-    assert.match(route, /attached: true/);
+    assert.match(route, /claimAquaTagCapture\(/);
+    assert.match(route, /completeAquaTagCapture\(/);
+    assert.match(route, /claim\.kind === "replay"/);
+    assert.doesNotMatch(route, /MATCH_WINDOW_MS|\.eq\("email"|\.eq\("phone"/);
   });
 
   it("holds a capture it cannot match rather than dropping it", () => {

@@ -3,8 +3,9 @@ import { recordClientTelemetry } from "@/lib/server/clients/clientTelemetryServi
 import { recordAgencyWebsiteTelemetry } from "@/server/agencyWebsite";
 import { ensureHydrated } from "@/server/storage";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { isAllowedPublicSiteOrigin, publicAquaPropertyId, publicAquaSite } from "@/lib/public/publicSites";
+import { publicAquaPropertyId, publicAquaSite } from "@/lib/public/publicSites";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
+import { resolveAquaTagAdmissionScope } from "@/lib/server/security/aquaTagFormAdmission";
 
 function corsHeaders(origin: string | null): HeadersInit {
   return {
@@ -89,15 +90,18 @@ export async function POST(req: NextRequest) {
 
   const siteKey = clean(body.siteKey, 160);
   if (!siteKey) return json({ ok: false, error: "siteKey required" }, 400, requestedOrigin);
-  const publicSite = publicAquaSite(siteKey);
-  if (publicSite && !isAllowedPublicSiteOrigin(siteKey, requestedOrigin)) {
+  await ensureHydrated({ fresh: true });
+  if (!resolveAquaTagAdmissionScope(siteKey, requestedOrigin)) {
     return json({ ok: false, error: "origin is not registered for this site" }, 403, null);
   }
+  const publicSite = publicAquaSite(siteKey);
   if (!eventIsConsented(body)) {
     return json({ ok: false, error: "event is not covered by the saved consent choice" }, 403, requestedOrigin);
   }
 
-  const telemetry = publicSite ? sanitizePublicTelemetry(body) : body;
+  // Every Aqua Tag key is browser-public. Keep proof material and any other
+  // caller-supplied extras out of all telemetry sinks, not only fixed sites.
+  const telemetry = sanitizePublicTelemetry(body);
   if (publicSite) telemetry.propertyId = publicAquaPropertyId(siteKey, body.propertyId);
 
   const limit = rateLimit({
@@ -109,7 +113,6 @@ export async function POST(req: NextRequest) {
     return json({ ok: false, error: "signal limit reached" }, 429, requestedOrigin, limit.retryAfterSec);
   }
 
-  await ensureHydrated();
   const userAgent = req.headers.get("user-agent") ?? undefined;
   const recorded = recordClientTelemetry(siteKey, telemetry, userAgent)
     ?? recordAgencyWebsiteTelemetry(siteKey, telemetry, userAgent);

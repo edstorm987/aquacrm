@@ -1,10 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import type { CapturedField } from "@/lib/enquiries/formCapture";
+import { isSafeCapturedFieldKey, type CapturedField } from "@/lib/enquiries/formCapture";
 import { normaliseAquaSubmissionId } from "@/lib/enquiries/submissionIdentity";
 import { publicAquaPropertyId } from "@/lib/public/publicSites";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
+import { verifyBotChallenge } from "@/lib/server/security/botChallenge";
 import {
+  AQUA_TAG_FORM_CAPTURE_ACTION,
   issueAquaTagFormAdmission,
   resolveAquaTagAdmissionScope,
   type AquaTagFormFacts,
@@ -14,7 +16,7 @@ import { ensureHydrated } from "@/server/storage";
 const MAX_FIELDS = 60;
 const ALLOWED_KEYS = new Set([
   "siteKey", "propertyId", "formName", "formId", "purpose", "pageUrl",
-  "pagePath", "submittedAt", "submissionId", "fields",
+  "pagePath", "submittedAt", "submissionId", "fields", "captchaToken",
 ]);
 
 function clean(value: unknown, max: number): string {
@@ -33,7 +35,7 @@ function fields(value: unknown): CapturedField[] {
       value: clean(field.value, 2_000),
       ...(clean(field.type, 30) ? { type: clean(field.type, 30) } : {}),
     };
-  }).filter(field => field.key && field.value).slice(0, MAX_FIELDS);
+  }).filter(field => isSafeCapturedFieldKey(field.key) && field.value).slice(0, MAX_FIELDS);
 }
 
 function cors(origin: string | null): HeadersInit {
@@ -97,14 +99,35 @@ export async function POST(req: NextRequest) {
     fields: capturedFields,
   };
 
-  // This is a cheap, process-local pressure valve only. The signed token is
-  // the scope boundary; ABUSE-BASE-001 still owns multi-instance durability.
+  // Only caller-IP/provider pressure valves run before proof. Address, tenant
+  // and install quotas live at the capture transition, after exact managed
+  // proof and replay classification, so an attacker cannot spend a victim's
+  // budget by naming their email address here.
   const ip = clientIpFromHeaders(req.headers);
   const limit = rateLimit({ key: `aqua-tag-admission:${ip}`, max: 60, windowMs: 60 * 60 * 1_000 });
   if (!limit.allowed) {
     return NextResponse.json(
       { ok: false, error: "Too many form submissions. Please try again later." },
       { status: 429, headers: { ...cors(origin), "retry-after": String(limit.retryAfterSec) } },
+    );
+  }
+  const challenge = await verifyBotChallenge({
+    action: AQUA_TAG_FORM_CAPTURE_ACTION,
+    token: body.captchaToken,
+    remoteIp: ip,
+    hostname: scope.host,
+    tenantId: scope.agencyId,
+  });
+  if (!challenge.ok) {
+    return NextResponse.json(
+      { ok: false, error: challenge.message || "This form capture could not be verified." },
+      {
+        status: challenge.reason === "rate-limited" ? 429 : 403,
+        headers: {
+          ...cors(null),
+          ...(challenge.retryAfterSec ? { "retry-after": String(challenge.retryAfterSec) } : {}),
+        },
+      },
     );
   }
   const admission = issueAquaTagFormAdmission(scope, facts);

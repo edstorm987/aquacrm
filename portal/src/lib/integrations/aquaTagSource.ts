@@ -8,6 +8,7 @@ export const AQUA_TAG_SOURCE = String.raw`(() => {
   if (!siteKey || !script || !script.src) return;
 
   const endpoint = new URL("/api/telemetry/collect", script.src).toString();
+  const challengeConfigEndpoint = new URL("/api/public/bot-challenge/config", script.src).toString();
   const captureAdmissionEndpoint = new URL("/api/public/aqua-tag-admission", script.src).toString();
   const captureEndpoint = new URL("/api/public/form-capture", script.src).toString();
   const preferenceKey = "aqua-cookie-preferences";
@@ -684,8 +685,9 @@ export const AQUA_TAG_SOURCE = String.raw`(() => {
     const type = (field.type || "text").toLowerCase();
     if (type === "password" || type === "hidden" || type === "file" || type === "search") return false;
     if (sensitiveName.test(field.name)) return false;
+    if (/^(?:cf-turnstile-response|g-recaptcha-response|h-captcha-response)$/i.test(field.name)) return false;
     if (/^(cc-|current-password|new-password)/i.test(field.autocomplete || "")) return false;
-    if (typeof field.closest === "function" && field.closest("[data-aqua-ignore]")) return false;
+    if (typeof field.closest === "function" && (field.closest("[data-aqua-ignore]") || field.closest("[data-aqua-captcha]"))) return false;
     return true;
   };
 
@@ -714,6 +716,101 @@ export const AQUA_TAG_SOURCE = String.raw`(() => {
     if (find('input[type="password"]')) return false;
     return Boolean(find('input[type="email"], input[type="tel"], input[name*="email" i], input[name*="phone" i]'));
   };
+
+  // ── Human proof for form-content capture ───────────────────────────────
+  // The site key above is deliberately browser-public discovery material. A
+  // capturable form therefore gets its own managed Turnstile proof, bound by
+  // the provider to this hostname and the exact admission action. Tokens stay
+  // in a WeakMap: they never become form fields, telemetry, storage or logs.
+  const formCaptureChallengeAction = "aqua-tag-form-capture";
+  const challengeTokens = new WeakMap();
+  const challengeWidgets = new WeakMap();
+  const challengeMounted = new WeakSet();
+  let challengeConfigPromise = null;
+  let turnstileScriptPromise = null;
+  const challengeConfig = () => {
+    if (challengeConfigPromise) return challengeConfigPromise;
+    challengeConfigPromise = fetch(challengeConfigEndpoint, {
+      cache: "no-store",
+      mode: "cors",
+      credentials: "omit",
+    }).then(response => {
+      if (!response || response.ok !== true || typeof response.json !== "function") throw new Error("challenge config rejected");
+      return response.json();
+    }).then(value => ({
+      siteKey: value && typeof value.siteKey === "string" ? value.siteKey.trim() : "",
+      enabled: Boolean(value && value.enabled === true),
+    })).catch(() => ({ siteKey: "", enabled: false }));
+    return challengeConfigPromise;
+  };
+  const loadTurnstile = () => {
+    if (window.turnstile && typeof window.turnstile.render === "function") return Promise.resolve(window.turnstile);
+    if (turnstileScriptPromise) return turnstileScriptPromise;
+    turnstileScriptPromise = new Promise((resolve, reject) => {
+      const element = document.createElement("script");
+      element.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+      element.async = true;
+      element.defer = true;
+      element.setAttribute("data-aqua-turnstile", "");
+      element.onload = () => window.turnstile && typeof window.turnstile.render === "function"
+        ? resolve(window.turnstile)
+        : reject(new Error("challenge api missing"));
+      element.onerror = () => reject(new Error("challenge script failed"));
+      (document.head || document.documentElement).appendChild(element);
+    }).catch(error => {
+      turnstileScriptPromise = null;
+      throw error;
+    });
+    return turnstileScriptPromise;
+  };
+  const ensureFormChallenge = form => {
+    if (!capturableForm(form) || challengeMounted.has(form) || typeof form.appendChild !== "function") return;
+    challengeMounted.add(form);
+    const container = document.createElement("div");
+    container.setAttribute("data-aqua-captcha", "");
+    container.setAttribute("data-aqua-ignore", "");
+    container.setAttribute("aria-label", "Human verification");
+    form.appendChild(container);
+    challengeConfig().then(config => {
+      if (!config.enabled || !config.siteKey) return null;
+      return loadTurnstile().then(api => {
+        const widgetId = api.render(container, {
+          sitekey: config.siteKey,
+          action: formCaptureChallengeAction,
+          theme: "auto",
+          retry: "auto",
+          "refresh-expired": "auto",
+          callback: token => challengeTokens.set(form, typeof token === "string" ? token : ""),
+          "error-callback": () => challengeTokens.delete(form),
+          "expired-callback": () => challengeTokens.delete(form),
+          "timeout-callback": () => challengeTokens.delete(form),
+        });
+        challengeWidgets.set(form, widgetId);
+        return null;
+      });
+    }).catch(() => challengeTokens.delete(form));
+  };
+  const resetFormChallenge = form => {
+    challengeTokens.delete(form);
+    const widgetId = challengeWidgets.get(form);
+    try {
+      if (window.turnstile && typeof window.turnstile.reset === "function" && widgetId !== undefined) {
+        window.turnstile.reset(widgetId);
+      }
+    } catch {}
+  };
+  const scanFormChallenges = () => {
+    if (typeof document.querySelectorAll !== "function") return;
+    for (const form of Array.from(document.querySelectorAll("form"))) ensureFormChallenge(form);
+  };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", scanFormChallenges, { once: true });
+  else scanFormChallenges();
+  if (typeof MutationObserver === "function") {
+    try {
+      const observer = new MutationObserver(scanFormChallenges);
+      observer.observe(document.documentElement, { childList: true, subtree: true });
+    } catch {}
+  }
 
   const readField = field => {
     const type = (field.type || field.tagName.toLowerCase()).toLowerCase();
@@ -807,6 +904,9 @@ export const AQUA_TAG_SOURCE = String.raw`(() => {
     // where the assumptions are.
     try {
       if (!capturableForm(form)) return;
+      ensureFormChallenge(form);
+      const captchaToken = challengeTokens.get(form);
+      if (typeof captchaToken !== "string" || !captchaToken) return;
       const submissionId = stampSubmissionId(form);
       const fields = captureSubmission(form);
       if (!fields.length) return;
@@ -834,7 +934,7 @@ export const AQUA_TAG_SOURCE = String.raw`(() => {
       const admissionPromise = fetch(captureAdmissionEndpoint, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...payload, captchaToken }),
         keepalive: true,
         mode: "cors",
         credentials: "omit",
@@ -848,7 +948,11 @@ export const AQUA_TAG_SOURCE = String.raw`(() => {
           throw new Error("capture admission missing");
         }
         if (result.submissionId !== submissionId) throw new Error("capture admission mismatch");
+        resetFormChallenge(form);
         return result.admission;
+      }, error => {
+        resetFormChallenge(form);
+        throw error;
       });
       const postCapture = attempt => {
         admissionPromise.then(admission => fetch(captureEndpoint, {

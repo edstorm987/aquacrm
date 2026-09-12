@@ -15,12 +15,18 @@ import { after, before, beforeEach, describe, it } from "node:test";
 import { NextRequest } from "next/server";
 
 import { POST as issueAdmission } from "../src/app/api/public/aqua-tag-admission/route";
+import { POST as collectTelemetry } from "../src/app/api/telemetry/collect/route";
 import {
   aquaTagCaptureDigest,
   issueAquaTagFormAdmission,
+  resolveAquaTagAdmissionScope,
   verifyAquaTagFormAdmission,
   type AquaTagFormFacts,
 } from "../src/lib/server/security/aquaTagFormAdmission";
+import { ensureClientTelemetry } from "../src/lib/server/clients/clientTelemetryService";
+import { ensureAgencyWebsite } from "../src/server/agencyWebsite";
+import { createAgency, createClient } from "../src/server/tenants";
+import { addWebsiteSource, ensureAgencyMasterSiteKey } from "../src/server/websiteSources";
 import {
   __resetBotChallengeForTest,
 } from "../src/lib/server/security/botChallenge";
@@ -152,10 +158,17 @@ before(() => {
   globalThis.fetch = (async (_input, init) => {
     const params = new URLSearchParams(String(init?.body ?? ""));
     const token = params.get("response") ?? "";
-    const action = token.startsWith("wrong-action")
+    const action = token.startsWith("tag-wrong-action")
+      ? "website-contact"
+      : token.startsWith("tag-") || token.startsWith("tag@")
+        ? "aqua-tag-form-capture"
+        : token.startsWith("wrong-action")
       ? "website-newsletter"
       : token.startsWith("newsletter") ? "website-newsletter" : "website-contact";
-    const hostname = token.startsWith("wrong-host") ? "attacker.example" : "portal.example.test";
+    const hostname = token.startsWith("wrong-host") || token.startsWith("tag-wrong-host")
+      ? "attacker.example"
+      : token.startsWith("tag@") ? token.slice(4)
+        : token.startsWith("tag-") ? "milesymedia.com" : "portal.example.test";
     return new Response(JSON.stringify({
       success: !token.startsWith("invalid"),
       action,
@@ -287,6 +300,8 @@ describe("Aqua Tag signed form admission", { concurrency: false }, () => {
     agencyId: "agency_scope",
     siteKey: "site_scope",
     host: "site.example.test",
+    keyClass: "agency-master" as const,
+    siteId: "site_scope_id",
     propertyId: "property_scope",
   };
   const facts: AquaTagFormFacts = {
@@ -336,7 +351,13 @@ describe("Aqua Tag signed form admission", { concurrency: false }, () => {
       pageUrl: "https://milesymedia.com/contact",
       pagePath: "/contact",
       formName: "Website enquiry",
-      fields: [{ key: "email", value: "visitor@example.test" }],
+      captchaToken: "tag-valid-admission",
+      fields: [
+        { key: "email", value: "visitor@example.test" },
+        // A hostile caller can bypass the browser tag and try to copy proof
+        // into captured answers. The issuer must discard it server-side.
+        { key: "cf-turnstile-response", value: "tag-valid-admission" },
+      ],
     };
     const post = (origin: string, body: unknown) => issueAdmission(new NextRequest(
       "http://localhost/api/public/aqua-tag-admission",
@@ -349,10 +370,112 @@ describe("Aqua Tag signed form admission", { concurrency: false }, () => {
     assert.equal((await post("https://attacker.example", base)).status, 403);
     assert.equal((await post("https://milesymedia.com", { ...base, pageUrl: "https://attacker.example/contact" })).status, 403);
     assert.equal((await post("https://milesymedia.com", { ...base, agencyId: "agency_attacker" })).status, 400);
+    assert.equal((await post("https://milesymedia.com", { ...base, captchaToken: undefined })).status, 403,
+      "a spoofed allowed Origin without managed proof became a signing oracle");
+    assert.equal((await post("https://milesymedia.com", { ...base, captchaToken: "tag-wrong-action" })).status, 403);
+    assert.equal((await post("https://milesymedia.com", { ...base, captchaToken: "tag-wrong-host" })).status, 403);
+    __resetBotChallengeForTest();
     const accepted = await post("https://milesymedia.com", base);
     assert.equal(accepted.status, 201);
     const body = await accepted.json() as Record<string, unknown>;
     assert.deepEqual(Object.keys(body).sort(), ["admission", "expiresAt", "ok", "submissionId"]);
     assert.equal(body.submissionId, base.submissionId);
+    const publicScope = resolveAquaTagAdmissionScope(base.siteKey, "https://milesymedia.com");
+    assert.ok(publicScope);
+    assert.equal(verifyAquaTagFormAdmission({
+      token: body.admission,
+      scope: publicScope,
+      facts: {
+        submissionId: base.submissionId,
+        formName: base.formName,
+        pageUrl: base.pageUrl,
+        pagePath: base.pagePath,
+        propertyId: base.propertyId,
+        fields: [{ key: "email", value: "visitor@example.test" }],
+      },
+    }).ok, true, "challenge proof leaked into the admission's captured-field digest");
+  });
+
+  it("routes every emitted key class through one exact tenant/site/registered-host mapping", async () => {
+    const publicScope = resolveAquaTagAdmissionScope("aqua_public_milesymedia_v1", "https://milesymedia.com");
+    assert.equal(publicScope?.keyClass, "public");
+    assert.equal(resolveAquaTagAdmissionScope("aqua_public_milesymedia_v1", "https://attacker.example"), null);
+
+    const agency = createAgency({ name: "ABUSE 003 registry", slug: `abuse-003-registry-${Date.now()}` });
+    const client = createClient(agency.id, { name: "Registry client", websiteUrl: "https://client-registry.example" });
+    const clientKey = ensureClientTelemetry(agency.id, client.id)?.siteKey;
+    assert.ok(clientKey);
+    const source = addWebsiteSource({
+      agencyId: agency.id,
+      host: "master-registry.example",
+      destinationClientId: client.id,
+      createdBy: "owner",
+    });
+    const masterKey = ensureAgencyMasterSiteKey(agency.id);
+    const masterScope = resolveAquaTagAdmissionScope(masterKey, "https://master-registry.example");
+    assert.deepEqual(
+      { keyClass: masterScope?.keyClass, siteId: masterScope?.siteId, clientId: masterScope?.clientId },
+      { keyClass: "agency-master", siteId: source.id, clientId: client.id },
+    );
+    assert.equal(resolveAquaTagAdmissionScope(masterKey, "https://client-registry.example"), null,
+      "a master key was accepted on an unregistered host");
+
+    const clientScope = resolveAquaTagAdmissionScope(clientKey!, "https://client-registry.example");
+    assert.equal(clientScope?.keyClass, "client-telemetry");
+    assert.equal(clientScope?.agencyId, agency.id);
+    assert.equal(clientScope?.clientId, client.id);
+    assert.equal(resolveAquaTagAdmissionScope(clientKey!, "https://attacker.example"), null);
+
+    const website = ensureAgencyWebsite(agency.id);
+    const websiteScope = resolveAquaTagAdmissionScope(website.telemetrySiteKey, website.productionUrl);
+    assert.equal(websiteScope?.keyClass, "agency-website");
+    assert.equal(websiteScope?.agencyId, agency.id);
+    assert.equal(resolveAquaTagAdmissionScope(website.telemetrySiteKey, "https://attacker.example"), null);
+
+    const issueFor = async (siteKey: string, rawOrigin: string, sequence: number) => {
+      const origin = new URL(rawOrigin).origin;
+      const hostname = new URL(origin).hostname;
+      const response = await issueAdmission(new NextRequest("http://localhost/api/public/aqua-tag-admission", {
+        method: "POST",
+        headers: { origin, "content-type": "application/json", "x-forwarded-for": `198.51.100.${70 + sequence}` },
+        body: JSON.stringify({
+          siteKey,
+          submissionId: `aqua_sub_keyclass0000000${sequence}`,
+          pageUrl: `${origin}/contact`,
+          pagePath: "/contact",
+          formName: "Contact",
+          captchaToken: `tag@${hostname}`,
+          fields: [{ key: "email", value: "visitor@example.test" }],
+        }),
+      }));
+      assert.equal(response.status, 201, `${siteKey} did not mint an exact host-bound admission`);
+    };
+    await issueFor(masterKey, "https://master-registry.example", 1);
+    await issueFor(clientKey!, "https://client-registry.example", 2);
+    await issueFor(website.telemetrySiteKey, website.productionUrl, 3);
+  });
+
+  it("host-validates non-hardcoded telemetry without adding CAPTCHA to beacons", async () => {
+    const agency = createAgency({ name: "ABUSE 003 telemetry", slug: `abuse-003-telemetry-${Date.now()}` });
+    const client = createClient(agency.id, { name: "Telemetry client", websiteUrl: "https://telemetry-client.example" });
+    const clientKey = ensureClientTelemetry(agency.id, client.id)?.siteKey;
+    assert.ok(clientKey);
+    const body = {
+      siteKey: clientKey,
+      type: "pageview",
+      category: "analytics",
+      consentNecessary: true,
+      consentAnalytics: true,
+      occurredAt: Date.now(),
+      path: "/",
+    };
+    const post = (origin: string) => collectTelemetry(new NextRequest("http://localhost/api/telemetry/collect", {
+      method: "POST",
+      headers: { origin, "content-type": "application/json", "x-forwarded-for": "203.0.113.80" },
+      body: JSON.stringify(body),
+    }));
+    assert.equal((await post("https://attacker.example")).status, 403);
+    assert.equal((await post("https://telemetry-client.example")).status, 202);
+    assert.equal(Object.hasOwn(body, "captchaToken"), false, "telemetry was coupled to a human challenge");
   });
 });
