@@ -7,6 +7,11 @@
 // claim either.
 
 import { useId, useRef, useState } from "react";
+import {
+  BotChallenge,
+  type BotChallengeHandle,
+  usePublicBotChallengeConfig,
+} from "@/components/security/BotChallenge";
 import type { BlockRenderProps } from "../blockRegistry";
 import { blockStylesToCss } from "../blockStyles";
 import { parseVisitorNewsletterReceipt } from "../../lib/visitorNewsletterReceipt";
@@ -41,6 +46,9 @@ export default function NewsletterSignupBlock({ block, context, editorMode }: Bl
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const challenge = usePublicBotChallengeConfig();
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const captchaRef = useRef<BotChallengeHandle>(null);
   // One operation id per attempt. It survives a refusal so retrying the same
   // details replays the same operation instead of minting a second one, and
   // it is released only once a success receipt has actually been parsed.
@@ -87,6 +95,7 @@ export default function NewsletterSignupBlock({ block, context, editorMode }: Bl
             version: consentVersion,
             statementDigest: consentStatementDigest,
           },
+          ...(captchaToken ? { captchaToken } : {}),
           honeypot: String(fd.get("website") ?? ""),
         }),
       });
@@ -107,6 +116,7 @@ export default function NewsletterSignupBlock({ block, context, editorMode }: Bl
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
+      captchaRef.current?.reset();
       setBusy(false);
     }
   }
@@ -151,7 +161,13 @@ export default function NewsletterSignupBlock({ block, context, editorMode }: Bl
               />
               <button
                 type="submit"
-                disabled={busy || !connected}
+                disabled={
+                  busy
+                  || !connected
+                  || challenge.loading
+                  || ((challenge.required || challenge.error) && !challenge.siteKey)
+                  || (Boolean(challenge.siteKey) && !captchaToken)
+                }
                 style={{
                   padding: "10px 18px",
                   borderRadius: 10,
@@ -184,6 +200,15 @@ export default function NewsletterSignupBlock({ block, context, editorMode }: Bl
             {/* Honeypot */}
             <input type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true"
               style={{ position: "absolute", left: -9999, opacity: 0, height: 0, width: 0 }} />
+            {connected ? (
+              <BotChallenge
+                ref={captchaRef}
+                siteKey={challenge.siteKey}
+                action="website-newsletter"
+                onToken={setCaptchaToken}
+                required={challenge.required || challenge.error}
+              />
+            ) : null}
             {error && <p role="alert" id={errorId} style={{ fontSize: 12, color: "#ef4444", margin: 0 }}>{error}</p>}
           </form>
         )}

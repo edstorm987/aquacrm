@@ -44,8 +44,8 @@ import { MasterTagPanel, type MasterTagView } from "./_MasterTagPanel";
 // ship. Three of them, each with its own credential:
 //   1. managed `aqa_` keys → the MCP server (`/api/mcp`) + REST (`/api/v1`)
 //   2. the encrypted provider vault (outbound credentials we hold)
-//   3. the master Aqua Tag → a permanent site key living on other people's
-//      websites, calling three public endpoints inbound.
+//   3. the master Aqua Tag → a permanent public routing key living on other people's
+//      websites, calling four public endpoints inbound.
 //
 // Nothing here is a second implementation. The two working panels are mounted
 // straight from `agency/settings/` (IntegrationConnectionsPanel is already
@@ -114,8 +114,9 @@ export async function ApiSection({ tabs, searchParams }: { tabs?: ReactNode; sea
   }
 
   // The master tag. `ensureAgencyMasterSiteKey` is idempotent — it mints the
-  // key on first ask and then returns it forever (it must never rotate: the
-  // tag is already deployed inside other people's sites).
+  // public routing key on first ask and then returns it forever (it must never
+  // rotate: the tag is already deployed inside other people's sites). Form
+  // mutation separately requires a short-lived signed admission.
   const tagKey = ensureAgencyMasterSiteKey(session.agencyId);
   await flushPendingWritesForRender();
   const tagOrigin = connectionLinkOrigin(origin);
@@ -124,6 +125,7 @@ export async function ApiSection({ tabs, searchParams }: { tabs?: ReactNode; sea
     snippet: masterTagSnippet(tagOrigin, tagKey),
     scriptUrl: `${tagOrigin.replace(/\/+$/, "")}/aqua-tag.js`,
     configUrl: `${tagOrigin.replace(/\/+$/, "")}/api/public/aqua-tag-config`,
+    formAdmissionUrl: `${tagOrigin.replace(/\/+$/, "")}/api/public/aqua-tag-admission`,
     formCaptureUrl: `${tagOrigin.replace(/\/+$/, "")}/api/public/form-capture`,
     telemetryUrl: `${tagOrigin.replace(/\/+$/, "")}/api/telemetry/collect`,
     origin: tagOrigin,

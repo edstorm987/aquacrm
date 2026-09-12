@@ -96,8 +96,9 @@ over a period. ⚠ This overlaps the Aqua Tags Command Centre screen conceptuall
 **Read-only, and deliberately not a fifth workflow.** The tag seen as what it is
 alongside the API keys and the vault: a machine surface with a permanent
 credential. Shows the site key, the paste snippet (`masterTagSnippet`), the
-**three endpoints the tag actually calls** (`/api/public/aqua-tag-config`,
-`/api/public/form-capture`, `/api/telemetry/collect`) and the injectable
+  **four endpoints the tag actually calls** (`/api/public/aqua-tag-config`,
+  `/api/public/aqua-tag-admission`, `/api/public/form-capture`,
+  `/api/telemetry/collect`) and the injectable
 allow-list — all **derived** from `AQUA_TAG_SOURCE` / `INJECTION_PROVIDERS`,
 never retyped. Detection, routing and injection *config* are NOT duplicated: it
 links to §3a. Deployment-founder only; local Dev Mode fixtures also pass.
@@ -119,7 +120,17 @@ The step-2/3 logic is real, not stubbed:
 - Endpoint: **`POST /api/portal/aqua-tags/detect`** (agency-scoped).
 
 ## 5. Ingestion & telemetry
-- **`POST /api/public/form-capture`** *(LIVE Supabase)* — the Aqua-Tag form-capture path: resolves the agency by master key, applies host→client routing, writes a real enquiry.
+- **`POST /api/public/aqua-tag-admission`** — resolves the browser-public site
+  key plus exact registered Origin to a tenant/site/host scope and mints a
+  two-minute HMAC admission bound to action, site, host, form metadata,
+  submission id and a digest of every captured answer. Its signed claim payload
+  is decodable but carries no plaintext answers, and the route stores none.
+- **`POST /api/public/form-capture`** *(LIVE Supabase)* — verifies that exact
+  signed admission before any address/site/IP budget or persistence, then
+  applies host routing and writes/reconciles the enquiry. The site key remains
+  public discovery metadata; it is not mutation authority by itself. Stable
+  submission identity plus `aqua_tag_submissions` makes same-fact replay/races
+  one logical database operation when the durable migration is present.
 - **`POST /api/public/brand-enquiry`** *(LIVE `brand_enquiries`)* — website enquiry submission; carries the same routing + a 2-minute **dedupe guard**.
 - **`POST /api/telemetry/collect`** *(LIVE `website_consent_events`)* — page telemetry + consent events, CORS + consent-gated.
 - **`src/server/agencyWebsite.ts`** — records/summarises agency-site telemetry (`recordAgencyWebsiteTelemetry`, `resetAgencyWebsiteTelemetryKey`, `summarizeAgencyWebsite`). Client telemetry mirrors this via `/api/tenants/client-telemetry` + `lib/…/clientTelemetry`.
@@ -140,6 +151,7 @@ a visitor straight into their portal.
 | `GET, POST /api/portal/website-injections` | Manage a site's injected tools (list/add/update/remove) + provider catalogue | |
 | `GET, POST /api/portal/website` | Agency site config + telemetry key | |
 | `GET, POST /api/tenants/client-telemetry` | Per-client telemetry key manage/reset | |
+| `POST /api/public/aqua-tag-admission` | Mint short-lived exact host/form/action admission | |
 | `POST /api/public/form-capture` | Tag form-capture + master-tag routing | **LIVE** |
 | `POST /api/public/brand-enquiry` | Enquiry submit + dedupe + routing | **LIVE** |
 | `POST /api/telemetry/collect` | Telemetry + consent events | **LIVE** |
@@ -230,7 +242,7 @@ serves the same body with `deprecation: true` + `sunset` headers.
 | Performance (`load`) | on `load` | Yes | telemetry |
 | JS error / promise rejection | window handlers | Yes | telemetry |
 | Form-submit *event* (count only) | capturing `submit` | Yes | telemetry |
-| **Form CONTENT capture (field values)** | same `submit` | **NO — always runs** | `/api/public/form-capture` |
+| **Form CONTENT admission + capture (field values)** | same `submit` | **NO — always runs** | `/api/public/aqua-tag-admission` → `/api/public/form-capture` |
 | Conversion | click `[data-aqua-conversion]` | **Yes** (marketing) | telemetry |
 | Consent event | `aqua:consent-updated` | No — always | telemetry |
 | Custom `Aqua.track()` | public API | depends on category | telemetry |
@@ -242,7 +254,9 @@ if it has a password input; else capture iff it asks for email/phone. Per field
 (`captureableField`): rejects password/hidden/file/search, names matching
 `/(pass|pwd|secret|token|csrf|otp|cvv|card|iban|ssn|nino)/i`, and `cc-`/
 `*-password` autocomplete — **cannot be switched off by config**. Caps: ≤60
-fields, values ≤2000, keys ≤120; same-name fields merged.
+fields, values ≤2000, keys ≤120; same-name fields merged. One stable submission
+id and one exact payload are sent first for a short-lived signed admission, then
+to capture with that admission. Capture retries reuse both for idempotence.
 
 **Consent model:** `localStorage["aqua-cookie-preferences"]`, event
 `aqua:consent-updated`. `normalizePreferences` returns *no consent* unless
@@ -278,7 +292,15 @@ issues a real session → redirects into the portal. Reverse direction
 ### ⚠ Security findings (verified — worth your attention)
 - **A. Form-content capture is NOT client-side consent-gated.** The field-value POST to `/api/public/form-capture` runs regardless of the cookie choice (subject to the `capturableForm`/field filters), and the server route has **no** consent check. Telemetry, by contrast, is double-gated (client `permitted()` + server `eventIsConsented`). Worth a deliberate decision: is capturing enquiry fields from a visitor who declined analytics/marketing intended? (It's arguably legitimate-interest for a form they submitted, but it's an asymmetry to be aware of.)
 - **B. Consent flags are self-reported.** The server trusts the `consent*` booleans the tag puts in the body — no server-side source of truth ties them to the stored preference.
-- **C. `/api/public/form-capture` has no body-size cap** (telemetry caps at 32KiB); it relies on field-count/length caps only.
+- **C. The form admission/capture pair has no transport body-size cap**
+  (telemetry caps at 32KiB); both parsers rely on field-count and per-value
+  length caps.
+- **D. Honest abuse-limit scope:** Aqua Tag admission and capture currently add
+  process-local IP/address/site pressure valves only. Durable atomic global
+  limits across multiple app instances remain owned by `ABUSE-BASE-001`.
+  The signed admission prevents scope/payload stamping but is not a human
+  challenge: a non-browser client can supply an Origin header. Telemetry beacons
+  deliberately do not request a CAPTCHA.
 
 ### Network throttling (added 2026-08-22 — the Dev editor's wifi control)
 The tag can throttle **what the page's scripts request** on the editor's

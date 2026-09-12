@@ -73,7 +73,10 @@ beforeEach(() => {
 function post(handler: typeof formCapturePost, url: string, body: Record<string, unknown>) {
   return handler(new NextRequest(url, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      ...(url.includes("form-capture") ? { origin: "https://milesymedia.com" } : {}),
+    },
     body: JSON.stringify(body),
   }));
 }

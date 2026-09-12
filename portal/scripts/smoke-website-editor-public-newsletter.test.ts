@@ -611,11 +611,11 @@ test("hashed rate limits throttle one caller and never store the address or IP",
   assert.doesNotMatch(JSON.stringify(buckets), /203\.0\.113\.|@/, "the durable rate-limit ledger retained a plaintext identity");
   assert.deepEqual(
     [...new Set(Object.keys(buckets ?? {}).map(key => key.split(":")[0]))].sort(),
-    ["newsletter-install", "newsletter-ip"],
-    "the facade needs both caller and install-wide durable ceilings",
+    ["newsletter-address", "newsletter-install", "newsletter-ip"],
+    "the facade needs caller, victim-address and install-wide durable ceilings",
   );
   assert.ok(
-    Object.keys(buckets ?? {}).every(key => /^(?:newsletter-ip|newsletter-install):[a-f0-9]{64}$/.test(key)),
+    Object.keys(buckets ?? {}).every(key => /^(?:newsletter-ip|newsletter-address|newsletter-install):[a-f0-9]{64}$/.test(key)),
     "rate-limit buckets must use one-way identity digests",
   );
 });
@@ -784,7 +784,8 @@ test("newsletter block activates only on a published mount, shows its consent, a
   assert.match(code, /new URLSearchParams\(\{\s*agencyId:\s*context\.agencyId,\s*clientId:\s*context\.clientId,?\s*\}\)/s);
   assert.match(code, /fetch\(`\/api\/portal\/website-editor\/visitor\/newsletter\?\$\{params\.toString\(\)\}`/);
   assert.match(code, /siteId:\s*context\.siteId,\s*pageId:\s*context\.pageId,\s*blockId:\s*block\.id,/s);
-  assert.match(code, /disabled=\{busy \|\| !connected\}/);
+  assert.match(code, /action="website-newsletter"/);
+  assert.match(code, /Boolean\(challenge\.siteKey\)\s*&&\s*!captchaToken/);
   assert.match(code, /"Available when published"/);
 
   // Visible consent bound to the exact published wording and version.

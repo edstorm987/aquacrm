@@ -324,14 +324,15 @@ not live.
 | `/api/tenants/product-workspaces` | GET, POST | Client product internal workspaces read/save | agency + client roles | |
 | `/api/tenants/seed` | POST | Dev-only seed (agency+owner+client+users) when store empty | dev / prod requires any session | |
 
-## `api/public/*` (7 listed; 10 route files on disk)
+## `api/public/*` (8 listed; route-file count may include compatibility paths)
 
 | Path | Methods | Purpose | Scope/auth | Live? |
 |---|---|---|---|---|
 | `/api/public/brand-enquiry` | OPTIONS, POST | Website enquiry submission → leads pipeline + Supabase (dedupe guard) | public (CORS, rate-limited) | **LIVE (admin + brand_enquiries)** |
 | `/api/public/careers` | POST | Public job application w/ CV upload (multipart) | public (origin + rate-limited) | **LIVE (Storage)** |
 | `/api/public/contact` | POST | Public contact form → leads pipeline + website telemetry | public (origin-checked) | |
-| `/api/public/form-capture` | OPTIONS, POST | Aqua-Tag form-capture enrichment + master-tag routing → Supabase | public (CORS) | **LIVE (admin)** |
+| `/api/public/aqua-tag-admission` | OPTIONS, POST | Mint a short-lived signed admission bound to the registered tenant/site/host and exact form capture facts | public (registered Origin + local rate limit) | |
+| `/api/public/form-capture` | OPTIONS, POST | Verify Aqua-Tag admission, then form-capture enrichment + master-tag routing → Supabase | public (signed admission + CORS + local rate limits) | **LIVE (admin)** |
 | `/api/public/proposals/[token]` | POST | Accept a commercial proposal by public token | public (token) | |
 | `/api/public/aqua-tag-config` | GET, OPTIONS | Serve a site's enabled injections by key+host (cached, CORS) — tag-manager delivery seam | public (CORS) | |
 | `/api/public/demo-interest` | POST | AquaCRM demo gate — records name/contact + consent {timestamp, terms version} in the `website-demo` data realm, never the live one | public (same-origin, honeypot, rate-limited); **404 unless `WEBSITE_DEMO_ENABLED`** | |

@@ -3,11 +3,11 @@ import { createHash } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
-import { PUBLIC_AQUA_SITES, publicAquaSiteName } from "@/lib/public/publicSites";
+import { PUBLIC_AQUA_SITES, publicAquaPropertyId, publicAquaSiteName } from "@/lib/public/publicSites";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { isMissingAgencyIdColumn, isMissingAgencyIdColumnRead } from "@/lib/supabase/enquiryAgencyColumn";
 import { pickTenantOwnedEnquiry } from "@/lib/supabase/ownedEnquiry";
-import { resolveAgencyByMasterSiteKey, resolveWebsiteSourceRouting } from "@/server/websiteSources";
+import { resolveWebsiteSourceRouting } from "@/server/websiteSources";
 import { getAgencyBySlug } from "@/server/tenants";
 import { FOUNDER_AGENCY_SLUG } from "@/lib/server/seeds/founderSeed";
 import { upsertClientRecordLedgerEvent } from "@/lib/server/clients/clientRecordLedger";
@@ -17,6 +17,12 @@ import {
 } from "@/lib/enquiries/formCapture";
 import { enquirySubmissionId, normaliseAquaSubmissionId } from "@/lib/enquiries/submissionIdentity";
 import { aquaTagTenantScope, ingestAquaTagSubmission } from "@/lib/supabase/enquirySubmissionClaims";
+import {
+  resolveAquaTagAdmissionScope,
+  verifyAquaTagFormAdmission,
+  type AquaTagFormFacts,
+} from "@/lib/server/security/aquaTagFormAdmission";
+import { ensureHydrated } from "@/server/storage";
 
 /**
  * What a website form actually contained, sent by the Aqua Tag.
@@ -43,26 +49,6 @@ const MAX_FIELDS = 60;
  */
 const MATCH_WINDOW_MS = 2 * 60 * 1_000;
 
-function configuredOrigins(): Set<string> {
-  return new Set([
-    ...Object.values(PUBLIC_AQUA_SITES).flatMap(site => [...site.origins]),
-    ...(process.env.PUBLIC_BRAND_ORIGINS ?? "").split(",").map(origin => origin.trim().replace(/\/$/, "")).filter(Boolean),
-  ]);
-}
-
-function allowedOrigin(req: NextRequest): string | null {
-  const origin = req.headers.get("origin");
-  if (!origin) return null;
-  if (origin === req.nextUrl.origin) return origin;
-  try {
-    const parsed = new URL(origin);
-    if (process.env.NODE_ENV !== "production" && (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1")) {
-      return origin;
-    }
-  } catch { return null; }
-  return configuredOrigins().has(origin.replace(/\/$/, "")) ? origin : null;
-}
-
 function corsHeaders(origin: string | null): HeadersInit {
   return {
     ...(origin ? { "access-control-allow-origin": origin } : {}),
@@ -74,16 +60,14 @@ function corsHeaders(origin: string | null): HeadersInit {
 }
 
 export function OPTIONS(req: NextRequest) {
-  // A preflight carries no body, so it cannot know the site key — and the site
-  // key is what authorises a submission. Refusing here on the origin allowlist
-  // meant a company's own registered website was blocked before the POST that
-  // would have accepted it ever ran.
+  // A preflight carries no body, so it cannot present the signed admission.
+  // Refusing here on the first-party origin allowlist meant a company's own
+  // registered website was blocked before the POST could resolve its host.
   //
   // Answering the preflight is not an authorisation decision: it only tells the
-  // browser a POST is permitted to be attempted. The POST then requires a site
-  // key that resolves to an agency, and anyone holding a site key can post from
-  // anywhere with curl regardless of CORS — so the key was always the boundary,
-  // never the preflight. Same shape as `api/telemetry/collect`.
+  // browser a POST is permitted to be attempted. The POST requires an exact
+  // tenant/site/host/form/action admission minted moments earlier; CORS and the
+  // browser-public site key are not mutation authority.
   return new NextResponse(null, { status: 204, headers: corsHeaders(req.headers.get("origin")) });
 }
 
@@ -130,9 +114,9 @@ function captureFingerprint(formId: string | undefined, pagePath: string, fields
 
 export async function POST(req: NextRequest) {
   const requested = req.headers.get("origin");
-  let origin = allowedOrigin(req);
+  let origin: string | null = null;
 
-  // The origin check cannot be made before the site key is read.
+  // The origin check cannot be made before the browser-public site key is read.
   //
   // `configuredOrigins()` is five hardcoded sites plus one env var, so it can
   // only ever describe ED'S OWN properties. A company that registers its site
@@ -140,72 +124,115 @@ export async function POST(req: NextRequest) {
   // dropped while the tag's `.catch(() => {})` swallowed the 403 and "prove
   // it's live" still showed green. Silent data loss on a customer's website.
   //
-  // So the decision moves below, next to the key: the SITE KEY is the
-  // credential. For one of Ed's hardcoded public sites the origin allowlist
-  // still applies exactly as before (that is what stops another site posting
-  // under `aqua_public_milesymedia_v1`). For an app-registered master key the
-  // key authorises itself, which is the shape `api/telemetry/collect` already
-  // uses. An unrecognised key still resolves to no agency and is rejected below.
+  // So the decision moves below, where site key + Origin resolve a registered
+  // scope and the short-lived signed admission proves the exact capture facts.
+  // An unrecognised key/host or a token minted for different facts is rejected
+  // before any quota or mutation.
   let body: Record<string, unknown>;
   try { body = await req.json() as Record<string, unknown>; }
   catch { return NextResponse.json({ ok: false }, { status: 400, headers: corsHeaders(origin) }); }
+
+  const allowedBodyKeys = new Set([
+    "admission", "siteKey", "propertyId", "formName", "formId", "purpose",
+    "pageUrl", "pagePath", "submittedAt", "submissionId", "fields",
+  ]);
+  if (Object.keys(body).some(key => !allowedBodyKeys.has(key))) {
+    return NextResponse.json({ ok: false }, { status: 400, headers: corsHeaders(origin) });
+  }
 
   const siteKey = clean(body.siteKey, 80);
   const fields = readFields(body.fields);
   const suppliedSubmissionId = clean(body.submissionId, 120);
   const submissionId = normaliseAquaSubmissionId(suppliedSubmissionId);
-  if (!siteKey || !fields.length) {
+  if (!siteKey) {
     return NextResponse.json({ ok: false }, { status: 400, headers: corsHeaders(origin) });
   }
-  if (suppliedSubmissionId && !submissionId) {
-    return NextResponse.json(
-      { ok: false, error: "The submission reference is invalid." },
-      { status: 400, headers: corsHeaders(origin) },
-    );
-  }
 
-  const isHardcodedPublicSite = Boolean(
-    (PUBLIC_AQUA_SITES as Record<string, unknown>)[siteKey],
-  );
-  if (requested && !origin) {
-    if (isHardcodedPublicSite || !resolveAgencyByMasterSiteKey(siteKey)) {
-      return NextResponse.json(
-        { ok: false, error: "This request could not be verified." },
-        { status: 403, headers: corsHeaders(null) },
-      );
-    }
-    // An app-registered site posting from its own domain: echo the origin back
-    // so the browser accepts the response it just authorised by site key.
-    origin = requested;
-  }
-
-  const ip = clientIpFromHeaders(req.headers);
-  const limit = rateLimit({ key: `form-capture:${ip}`, max: 20, windowMs: 60 * 60 * 1_000 });
-  if (!limit.allowed) {
-    return NextResponse.json({ ok: false }, { status: 429, headers: corsHeaders(origin) });
-  }
-
-  // Keyed by site key, so the entry is a lookup rather than a search — and a
-  // key nobody configured resolves to nothing rather than to the first site
-  // that happens to match, which would file one site's enquiries under another.
+  // The hardcoded entry supplies first-party metadata only; scope and mutation
+  // authority come from the verified admission below.
   const site = (PUBLIC_AQUA_SITES as Record<string, { propertyId: string } | undefined>)[siteKey];
   const siteName = publicAquaSiteName(siteKey) ?? siteKey;
   const formName = clean(body.formName, 160) || undefined;
   const pagePath = clean(body.pagePath, 300) || "/";
+  const formId = clean(body.formId, 120) || undefined;
+  const declaredPurpose = clean(body.purpose, 40) || undefined;
+  const pageUrl = clean(body.pageUrl, 500) || undefined;
+  await ensureHydrated({ fresh: true });
+  const admissionScope = resolveAquaTagAdmissionScope(siteKey, requested);
+  if (!admissionScope) {
+    return NextResponse.json(
+      { ok: false, error: "This form capture could not be verified." },
+      { status: 403, headers: corsHeaders(null) },
+    );
+  }
+  const requestedPropertyId = clean(body.propertyId, 120);
+  const propertyId = (
+    publicAquaPropertyId(siteKey, requestedPropertyId)
+    ?? admissionScope.propertyId
+    ?? requestedPropertyId
+  ) || undefined;
+  if (!fields.length || !submissionId) {
+    return NextResponse.json(
+      { ok: false, error: suppliedSubmissionId ? "The submission reference is invalid." : undefined },
+      { status: 400, headers: corsHeaders(requested) },
+    );
+  }
+  const admissionFacts: AquaTagFormFacts = {
+    submissionId,
+    ...(formName ? { formName } : {}),
+    ...(formId ? { formId } : {}),
+    ...(declaredPurpose ? { purpose: declaredPurpose } : {}),
+    ...(pageUrl ? { pageUrl } : {}),
+    pagePath,
+    ...(propertyId ? { propertyId } : {}),
+    fields,
+  };
+  const admission = verifyAquaTagFormAdmission({
+    token: body.admission,
+    scope: admissionScope,
+    facts: admissionFacts,
+  });
+  if (!admission.ok) {
+    return NextResponse.json(
+      { ok: false, error: "This form capture could not be verified." },
+      { status: 403, headers: corsHeaders(null) },
+    );
+  }
+  origin = requested;
+
+  // ABUSE-003: process-local pressure valves only. The admission is checked
+  // before any address/site/IP bucket or persistence. ABUSE-BASE-001 remains
+  // the release gate for a shared multi-instance atomic limiter.
+  const ip = clientIpFromHeaders(req.headers);
+  const address = findAnswer(fields, /e-?mail|phone|mobile|tel/i).toLowerCase();
+  const addressDigest = createHash("sha256").update(address || "none").digest("hex");
+  const limits = [
+    rateLimit({ key: `form-capture-ip:${ip}`, max: 20, windowMs: 60 * 60 * 1_000 }),
+    rateLimit({ key: `form-capture-address:${addressDigest}`, max: 6, windowMs: 60 * 60 * 1_000 }),
+    rateLimit({ key: `form-capture-site:${admission.claims.agencyId}:${admission.claims.siteKey}`, max: 240, windowMs: 60 * 60 * 1_000 }),
+  ];
+  const refusedLimit = limits.find(limit => !limit.allowed);
+  if (refusedLimit) {
+    return NextResponse.json(
+      { ok: false },
+      { status: 429, headers: { ...corsHeaders(origin), "retry-after": String(refusedLimit.retryAfterSec) } },
+    );
+  }
+
   const { purpose, purposeSource } = derivePurpose({
-    declared: clean(body.purpose, 40),
+    declared: declaredPurpose,
     fields,
     formName,
     pagePath,
   });
 
-  const identity = { formName, formId: clean(body.formId, 120) || undefined, pagePath, purpose, purposeSource };
+  const identity = { formName, formId, pagePath, purpose, purposeSource };
   const capture = {
     capturedAt: new Date().toISOString(),
     submissionId: submissionId || null,
     siteKey,
-    propertyId: clean(body.propertyId, 120) || site?.propertyId || null,
-    pageUrl: clean(body.pageUrl, 500) || null,
+    propertyId: propertyId || site?.propertyId || null,
+    pageUrl: pageUrl || null,
     form: identity,
     formLabel: describeForm(identity),
     // Every answer, as asked. This is the part that used to be thrown away.
@@ -221,7 +248,12 @@ export async function POST(req: NextRequest) {
   // A master-tag submission (Ed's own site) belongs to that agency's inbox.
   // If the submitting host is registered to a client, it routes to them
   // instead — the master key is the default, not a bypass.
-  const masterAgencyId = resolveAgencyByMasterSiteKey(siteKey);
+  const isHardcodedPublicSite = Boolean(
+    (PUBLIC_AQUA_SITES as Record<string, unknown>)[siteKey],
+  );
+  // Hardcoded first-party captures retain their existing capture-only/brand
+  // reconciliation semantics. Registered master tags use the signed tenant.
+  const masterAgencyId = isHardcodedPublicSite ? undefined : admission.claims.agencyId;
   const submissionHost = (() => {
     try { return capture.pageUrl ? new URL(capture.pageUrl).host : undefined; }
     catch { return undefined; }

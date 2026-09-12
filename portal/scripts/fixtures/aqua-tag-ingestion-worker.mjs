@@ -25,7 +25,7 @@
 //   AQUA_TEST_INPUT='{"action":"brand", "coordinatorUrl":"http://127.0.0.1:NNN", ...}'
 //     node --conditions=react-server --import tsx scripts/fixtures/aqua-tag-ingestion-worker.mjs
 
-import { randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 import { access, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
@@ -542,8 +542,9 @@ export function installRouteStubs(options) {
 }
 
 export function captureBody(submissionId, overrides = {}) {
-  return {
+  const body = {
     siteKey: SITE_KEY,
+    propertyId: "milesymedia",
     submissionId,
     pageUrl: "https://milesymedia.com/contact",
     pagePath: "/contact",
@@ -555,6 +556,42 @@ export function captureBody(submissionId, overrides = {}) {
     ],
     ...overrides,
   };
+  const facts = {
+    submissionId: body.submissionId,
+    formName: body.formName ?? "",
+    formId: body.formId ?? "",
+    purpose: body.purpose ?? "",
+    pageUrl: body.pageUrl ?? "",
+    pagePath: body.pagePath || "/",
+    propertyId: body.propertyId ?? "",
+    fields: body.fields.map(field => ({
+      key: field.key,
+      label: field.label ?? "",
+      value: field.value,
+      type: field.type ?? "",
+    })),
+  };
+  const now = Date.now();
+  const claims = {
+    v: 1,
+    action: "form-capture",
+    agencyId: AGENCY_ID,
+    siteKey: SITE_KEY,
+    host: "milesymedia.com",
+    propertyId: "milesymedia",
+    submissionId: body.submissionId,
+    formName: body.formName,
+    pageUrl: body.pageUrl,
+    pagePath: body.pagePath,
+    captureDigest: createHash("sha256").update(JSON.stringify(facts)).digest("hex"),
+    nonce: randomUUID().replaceAll("-", ""),
+    iat: now,
+    exp: now + 120_000,
+  };
+  const payload = Buffer.from(JSON.stringify(claims)).toString("base64url");
+  const key = `aqua-tag-form-admission:v1\u0000${process.env.AQUA_TAG_ADMISSION_SECRET ?? process.env.PORTAL_SESSION_SECRET ?? ""}`;
+  body.admission = `${payload}.${createHmac("sha256", key).update(payload).digest("base64url")}`;
+  return body;
 }
 
 export function brandBody(submissionId, overrides = {}) {
@@ -613,7 +650,10 @@ async function runWorker() {
   const post = async (handler, url, body) => {
     const response = await handler(new NextRequest(url, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        ...(url.includes("form-capture") ? { origin: "https://milesymedia.com" } : {}),
+      },
       body: JSON.stringify(body),
     }));
     const text = await response.text();

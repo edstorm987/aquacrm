@@ -244,7 +244,9 @@ describe("form-capture honours the master tag", () => {
     require("node:path").join(__dirname, "..", "src", "app", "api", "public", "form-capture", "route.ts"), "utf-8") as string);
 
   it("attributes a master-tag submission to its agency and applies host routing", () => {
-    assert.match(src, /resolveAgencyByMasterSiteKey\(siteKey\)/);
+    assert.match(src, /resolveAquaTagAdmissionScope\(siteKey, requested\)/);
+    assert.match(src, /verifyAquaTagFormAdmission\(/);
+    assert.match(src, /admission\.claims\.agencyId/);
     assert.match(src, /masterAgencyId \? resolveWebsiteSourceRouting\(masterAgencyId, submissionHost\)/);
   });
 

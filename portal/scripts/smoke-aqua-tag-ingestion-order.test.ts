@@ -2,6 +2,7 @@ process.env.PORTAL_BACKEND ??= "memory";
 process.env.PORTAL_SESSION_SECRET ??= "aqua-tag-ingestion-order-secret";
 
 import assert from "node:assert/strict";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 import { before, beforeEach, describe, it } from "node:test";
 import { createRequire } from "node:module";
 
@@ -190,21 +191,53 @@ beforeEach(() => {
 });
 
 function captureRequest() {
+  const body = {
+    siteKey: "aqua_public_milesymedia_v1",
+    propertyId: "milesymedia",
+    submissionId: SUBMISSION_ID,
+    pageUrl: "https://milesymedia.com/contact",
+    pagePath: "/contact",
+    formName: "Website enquiry",
+    fields: [
+      { key: "name", value: "Taylor" },
+      { key: "email", value: "taylor@example.test" },
+      { key: "budget", value: "£5,000" },
+    ],
+  };
+  const facts = {
+    submissionId: body.submissionId,
+    formName: body.formName,
+    formId: "",
+    purpose: "",
+    pageUrl: body.pageUrl,
+    pagePath: body.pagePath,
+    propertyId: body.propertyId,
+    fields: body.fields.map(field => ({ key: field.key, label: "", value: field.value, type: "" })),
+  };
+  const now = Date.now();
+  const claims = {
+    v: 1,
+    action: "form-capture",
+    agencyId: AGENCY_ID,
+    siteKey: body.siteKey,
+    host: "milesymedia.com",
+    propertyId: body.propertyId,
+    submissionId: body.submissionId,
+    formName: body.formName,
+    pageUrl: body.pageUrl,
+    pagePath: body.pagePath,
+    captureDigest: createHash("sha256").update(JSON.stringify(facts)).digest("hex"),
+    nonce: randomUUID().replaceAll("-", ""),
+    iat: now,
+    exp: now + 120_000,
+  };
+  const payload = Buffer.from(JSON.stringify(claims)).toString("base64url");
+  const key = `aqua-tag-form-admission:v1\u0000${process.env.PORTAL_SESSION_SECRET}`;
+  const admission = `${payload}.${createHmac("sha256", key).update(payload).digest("base64url")}`;
   return new NextRequest("http://localhost/api/public/form-capture", {
     method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      siteKey: "aqua_public_milesymedia_v1",
-      submissionId: SUBMISSION_ID,
-      pageUrl: "https://milesymedia.com/contact",
-      pagePath: "/contact",
-      formName: "Website enquiry",
-      fields: [
-        { key: "name", value: "Taylor" },
-        { key: "email", value: "taylor@example.test" },
-        { key: "budget", value: "£5,000" },
-      ],
-    }),
+    headers: { "content-type": "application/json", origin: "https://milesymedia.com" },
+    body: JSON.stringify({ ...body, admission }),
   });
 }
 

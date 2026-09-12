@@ -238,6 +238,7 @@ describe("the master tag as surfaced on the Dev Team API page", () => {
     // What the deployed tag really talks to, read out of the tag's own source.
     const called = [...new Set([...AQUA_TAG_SOURCE.matchAll(/\/api\/[a-zA-Z0-9/_-]+/g)].map(m => m[0]))].sort();
     assert.deepEqual(called, [
+      "/api/public/aqua-tag-admission",
       "/api/public/aqua-tag-config",
       "/api/public/form-capture",
       "/api/telemetry/collect",

@@ -5,6 +5,11 @@
 // operator route remains session-gated.
 
 import { useRef, useState } from "react";
+import {
+  BotChallenge,
+  type BotChallengeHandle,
+  usePublicBotChallengeConfig,
+} from "@/components/security/BotChallenge";
 import type { BlockRenderProps } from "../blockRegistry";
 import { blockStylesToCss } from "../blockStyles";
 import { parseVisitorContactReceipt } from "../../lib/visitorContactReceipt";
@@ -35,6 +40,9 @@ export default function ContactFormBlock({ block, context, editorMode }: BlockRe
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const operationId = useRef<string | null>(null);
+  const challenge = usePublicBotChallengeConfig();
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const captchaRef = useRef<BotChallengeHandle>(null);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -77,6 +85,7 @@ export default function ContactFormBlock({ block, context, editorMode }: BlockRe
             version: consentVersion,
             statementDigest: consentStatementDigest,
           },
+          ...(captchaToken ? { captchaToken } : {}),
           website: fd.get("website"),
         }),
       });
@@ -92,6 +101,7 @@ export default function ContactFormBlock({ block, context, editorMode }: BlockRe
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
+      captchaRef.current?.reset();
       setBusy(false);
     }
   }
@@ -137,10 +147,25 @@ export default function ContactFormBlock({ block, context, editorMode }: BlockRe
           {/* Honeypot */}
           <input type="text" name="website" tabIndex={-1} autoComplete="off"
             style={{ position: "absolute", left: -9999, opacity: 0, height: 0, width: 0 }} />
+          {connected ? (
+            <BotChallenge
+              ref={captchaRef}
+              siteKey={challenge.siteKey}
+              action="website-contact"
+              onToken={setCaptchaToken}
+              required={challenge.required || challenge.error}
+            />
+          ) : null}
           {error && <p role="alert" style={{ fontSize: 12, color: "#ef4444" }}>{error}</p>}
           <button
             type="submit"
-            disabled={busy || !connected}
+            disabled={
+              busy
+              || !connected
+              || challenge.loading
+              || ((challenge.required || challenge.error) && !challenge.siteKey)
+              || (Boolean(challenge.siteKey) && !captchaToken)
+            }
             style={{
               padding: "12px 20px",
               borderRadius: 10,

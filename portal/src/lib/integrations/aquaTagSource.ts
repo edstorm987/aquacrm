@@ -8,6 +8,7 @@ export const AQUA_TAG_SOURCE = String.raw`(() => {
   if (!siteKey || !script || !script.src) return;
 
   const endpoint = new URL("/api/telemetry/collect", script.src).toString();
+  const captureAdmissionEndpoint = new URL("/api/public/aqua-tag-admission", script.src).toString();
   const captureEndpoint = new URL("/api/public/form-capture", script.src).toString();
   const preferenceKey = "aqua-cookie-preferences";
   const consentEvent = "aqua:consent-updated";
@@ -824,15 +825,40 @@ export const AQUA_TAG_SOURCE = String.raw`(() => {
       // keepalive so the record survives navigation. Persistence failures are
       // retried with the SAME id; they stay invisible to the host form but are
       // no longer mistaken for accepted data.
+      //
+      // The static browser-visible site key is discovery material, not write
+      // authority. Exchange the exact host/form/submission/field facts for a
+      // short-lived server-signed admission, then present that admission to the
+      // mutation endpoint. The signed digest means a token cannot be replayed
+      // with different answers, form identity, site or tenant scope.
+      const admissionPromise = fetch(captureAdmissionEndpoint, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+        keepalive: true,
+        mode: "cors",
+        credentials: "omit",
+      }).then(response => {
+        if (!response || response.ok !== true || typeof response.json !== "function") {
+          throw new Error("capture admission rejected");
+        }
+        return response.json();
+      }).then(result => {
+        if (!result || result.ok !== true || typeof result.admission !== "string") {
+          throw new Error("capture admission missing");
+        }
+        if (result.submissionId !== submissionId) throw new Error("capture admission mismatch");
+        return result.admission;
+      });
       const postCapture = attempt => {
-        fetch(captureEndpoint, {
+        admissionPromise.then(admission => fetch(captureEndpoint, {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({ ...payload, admission }),
           keepalive: true,
           mode: "cors",
           credentials: "omit",
-        }).then(response => {
+        })).then(response => {
           if (!response || response.ok !== true) throw new Error("capture rejected");
           if (typeof response.json !== "function") return true;
           return response.json().then(result => {

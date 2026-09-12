@@ -46,7 +46,7 @@ layers (state → logic → API → UI). Edit these; don't duplicate them.
 ## Enquiries, routing & the Aqua Tag
 | Concern | Owns it |
 | --- | --- |
-| **Website enquiries (ingestion + inbox)** | `lib/server/websiteEnquiries.ts` (reads live Supabase), `app/api/public/brand-enquiry/` (create + dedupe), `app/api/public/form-capture/` (tag capture + master routing) |
+| **Website enquiries (ingestion + inbox)** | `lib/server/websiteEnquiries.ts` (reads live Supabase), `app/api/public/brand-enquiry/` (create + dedupe), `app/api/public/aqua-tag-admission/` (short-lived exact host/form/action admission), `app/api/public/form-capture/` (verified tag capture + master routing) |
 | **Website → inbox routing / master tags** | `server/websiteSources.ts`, `app/api/portal/website-sources/`, `inbox/_WebsiteSourcesConfig.tsx`, `clients/[clientId]/_ClientTagWorkspace.tsx`, `agency/aqua-tags/` |
 | **The Aqua Tag script** | `lib/aquaTagSource.ts`, `app/aqua-tag.js/route.ts` — full feature map in [aqua-tag.md](aqua-tag.md) |
 | **Tag detect / scan a site (built, steps 1–3)** | `lib/server/aquaTagDetection.ts`, `lib/server/safeSiteFetch.ts` (SSRF-safe), `app/api/portal/aqua-tags/detect/`, UI in `agency/aqua-tags/_AquaTagsWorkspace.tsx` |

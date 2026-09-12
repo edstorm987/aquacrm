@@ -66,6 +66,25 @@ import type { PortalRole } from "@aqua/plugin-website-editor/types";
 
 This is a one-line refactor T2 owns post-merge.
 
+## Published visitor write boundary
+
+The mounted contact and newsletter blocks are real anonymous write surfaces,
+not editor-only examples. Their handlers accept one exact DTO and re-resolve the
+tenant-owned active site plus the exact published page/block before writing.
+The browser components obtain a managed challenge for the exact actions
+`website-contact` and `website-newsletter`; the server verifies that action and
+the registered visitor hostname before any address/install quota or mutation.
+Editor previews remain inert and do not render a challenge.
+
+Rate limits are atomically updated through the plugin storage boundary for the
+visitor IP, a one-way address digest, and the plugin install. Contact defaults
+are 8/IP, 10/address and 120/install per hour; newsletter defaults are 6/IP,
+10/address and 200/install per hour. Operation receipts make same-payload
+replays idempotent, while reuse of an operation id for different facts is a
+conflict. Production still requires configured managed-challenge keys and the
+provider-side hostname allowlist; the handler fails closed when they are absent
+or invalid.
+
 ## Folder layout
 
 ```
