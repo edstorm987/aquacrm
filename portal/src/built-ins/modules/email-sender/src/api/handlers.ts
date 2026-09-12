@@ -78,8 +78,14 @@ export async function createIdentityHandler(req: Request, ctx: PluginCtx): Promi
   if (guard) return guard;
   const body = await safeJson<CreateIdentityInput>(req);
   if (!body || !body.name || !body.email) return badRequest("name + email required.");
+  // PLUGIN-LINEAGE-001: a sender identity's client lineage is stamped
+  // server-side, never taken from an authenticated caller's body. Naming a
+  // `clientId` here would let an admin bind a from-address to another client's
+  // scope. Strip it; the identity is created at agency scope, and any
+  // client binding must come from a server-side path, not this request.
+  const { clientId: _clientId, ...safe } = body;
   try {
-    const identity = await buildContainer(ctx).identities.create(body, ctx.actor);
+    const identity = await buildContainer(ctx).identities.create(safe, ctx.actor);
     return json({ ok: true, identity }, 201);
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));
