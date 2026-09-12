@@ -23,9 +23,9 @@ import { makePluginStorage } from "../src/lib/server/pluginStorage";
 import { __resetBotChallengeForTest } from "../src/lib/server/security/botChallenge";
 import { _resetFounderSeedForTests, seedFounder } from "../src/lib/server/seeds/founderSeed";
 import { getInstall, upsertInstall } from "../src/server/pluginInstalls";
-import { reset } from "../src/server/storage";
+import { getState, reset } from "../src/server/storage";
 import { createAgency, getAgencyBySlug } from "../src/server/tenants";
-import { getUser } from "../src/server/users";
+import { createUser, getUser } from "../src/server/users";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const URL = "http://localhost:3030/api/public/health-check/complete";
@@ -118,7 +118,7 @@ after(() => {
 });
 
 describe("mounted Health Check managed-challenge admission", () => {
-  it("requires proof without spending a victim address budget", async () => {
+  it("requires proof without spending a victim budget or preclaiming signup identity", async () => {
     const victim = "hc-abuse-victim@example.com";
     for (let attempt = 0; attempt < 7; attempt += 1) {
       const denied = await POST(request(
@@ -135,7 +135,26 @@ describe("mounted Health Check managed-challenge admission", () => {
     ));
     assert.notEqual(allowed.status, 429, "tokenless attempts must not spend the victim address budget");
     assert.equal(allowed.status, 200);
-    assert.ok(getUser(victim));
+    assert.equal(allowed.headers.get("set-cookie"), null);
+    assert.equal(getUser(victim), null, "anonymous Health Check created a global authenticatable User");
+
+    const canonicalRepeat = await POST(request(
+      body("  HC-ABUSE-VICTIM@EXAMPLE.COM ", "hc_abuse_victim_repeat", "valid-victim-repeat"),
+      "42.0.0.100",
+    ));
+    assert.equal(canonicalRepeat.status, 400, "canonical address repeat appended a second capture");
+    assert.equal(getUser(victim), null);
+
+    // The verified signup boundary must remain able to claim this address.
+    const agency = createAgency({ name: "Victim signup succeeds", slug: "victim-signup-succeeds" });
+    const signedUp = createUser({
+      email: victim,
+      password: "VictimSignupSecret42!",
+      role: "agency-owner",
+      agencyId: agency.id,
+    });
+    assert.equal(signedUp.email, victim);
+    assert.equal(getUser(victim)?.id, signedUp.id);
   });
 
   it("rejects tokens minted for another action or hostname before capture", async () => {
@@ -243,7 +262,44 @@ describe("mounted Health Check managed-challenge admission", () => {
       "42.0.4.2",
     ));
     assert.equal(retry.status, 200);
-    assert.ok(getUser(email));
+    assert.equal(getUser(email), null, "successful retry minted a global User");
+  });
+
+  it("erases an exact pending capture without auth residue or collateral rows", async () => {
+    const email = "hc-exact-pending-erasure@example.com";
+    const response = await POST(request(
+      body(email, "hc_exact_pending_erasure_01", "valid-exact-erasure"),
+      "42.0.5.1",
+    ));
+    assert.equal(response.status, 200);
+
+    const founder = getAgencyBySlug("milesymedia");
+    assert.ok(founder);
+    const install = getInstall({ agencyId: founder.id }, "public-funnel");
+    assert.ok(install);
+    const store = makePluginStorage(install.id);
+    const funnel = publicFunnelContainerFor({ agencyId: founder.id, install, storage: store }).funnel;
+    const rows = await funnel.listByEmail(email);
+    assert.equal(rows.length, 1);
+    const capture = rows[0]!;
+    assert.ok(capture.pendingLeadId);
+    assert.equal(capture.leadUserId, undefined);
+    const clientId = "client_hc_exact_pending_erasure";
+    await store.set(`captures/by-id/${capture.id}`, { ...capture, clientId });
+
+    const erased = await funnel.eraseForClient({
+      clientId,
+      personShared: false,
+      emails: [email],
+      sharedEmails: [],
+    });
+    assert.equal(erased.erased, 1);
+    assert.deepEqual(erased.reviewRequired, { legacyUnscoped: 0, sharedIdentity: 0 });
+    assert.equal((await funnel.listByEmail(email)).length, 0);
+    assert.equal(getUser(email), null);
+    assert.equal(getState().activity.some(entry =>
+      (entry.metadata as { captureId?: string } | undefined)?.captureId === capture.id), false,
+    "exact capture activity survived erasure");
   });
 });
 

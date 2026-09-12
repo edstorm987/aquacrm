@@ -1,9 +1,10 @@
 // Health Check -> Public Funnel -> Business OS journey.
 //
 // Drives the real public route handlers in-process against the memory backend.
-// This proves that an anonymous completion is capture-only: it can register a
-// brand-new lead, but cannot mint/reissue a session or attach to an existing
-// identity. Mailbox-verified BOS continuation is a separate future flow.
+// This proves that an anonymous completion is capture-only: it stores an
+// opaque pending lead outside the global User namespace and cannot mint/reissue
+// a session or attach to an existing identity. Mailbox-verified continuation
+// is a separate future promotion flow.
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
@@ -43,7 +44,7 @@ function completionRequest(
 }
 
 describe("Health Check public-funnel journey", () => {
-  it("persists a new lead once without returning identity or authentication", async () => {
+  it("persists a pending lead once without creating or returning authentication", async () => {
     const [
       { NextRequest },
       completeRoute,
@@ -81,15 +82,22 @@ describe("Health Check public-funnel journey", () => {
     assert.ok(founderAgency);
     const funnelInstall = getInstall({ agencyId: founderAgency.id }, "public-funnel");
     assert.ok(funnelInstall);
-    const lead = getUser(completionBody.email);
-    assert.ok(lead);
-    assert.equal(lead.role, "lead");
-    const directContext = await publicFunnelContainerFor({
+    assert.equal(getUser(completionBody.email), null,
+      "anonymous capture must not reserve the global login namespace");
+    const rows = await publicFunnelContainerFor({
       agencyId: founderAgency.id,
       install: funnelInstall,
       storage: makePluginStorage(funnelInstall.id),
-    }).funnel.meContext(lead.id);
-    assert.ok(directContext?.hcSlot, "the authoritative funnel row must retain its Health Check slot");
+    }).funnel.listByEmail(completionBody.email);
+    assert.equal(rows.length, 1);
+    assert.ok(rows[0]?.pendingLeadId, "the authoritative row must retain an opaque pending id");
+    assert.equal(rows[0]?.leadUserId, undefined, "pending capture was attached to an auth identity");
+    assert.equal(await publicFunnelContainerFor({
+      agencyId: founderAgency.id,
+      install: funnelInstall,
+      storage: makePluginStorage(funnelInstall.id),
+    }).funnel.meContext(rows[0]!.pendingLeadId!), null,
+    "pending capture became addressable through me-context");
 
     const secondResponse = await completeRoute.POST(completionRequest(NextRequest));
     assert.equal(secondResponse.status, 400);
@@ -154,7 +162,7 @@ describe("Health Check public-funnel journey", () => {
       users.createUser({ email: "hc-manager@example.com", password: "RegressionSecret42!", role: "agency-manager", agencyId: agency.id }),
       users.createUser({ email: "hc-staff@example.com", password: "RegressionSecret42!", role: "agency-staff", agencyId: agency.id }),
       users.createUser({ email: "hc-client-owner@example.com", password: "RegressionSecret42!", role: "client-owner", agencyId: agency.id, clientId: client.id }),
-      users.getUser(completionBody.email),
+      users.createUser({ email: "hc-existing-lead@example.com", password: "RegressionSecret42!", role: "lead" }),
     ];
     assert.ok(protectedUsers.every(Boolean));
 

@@ -10,6 +10,7 @@ let activity: typeof import("../src/server/activity");
 let erasure: typeof import("../src/server/clientErasure");
 let pluginInstalls: typeof import("../src/server/pluginInstalls");
 let outboundReplay: typeof import("../src/lib/server/telephony/outboundCommunicationReplay");
+let serverUsers: typeof import("../src/server/users");
 
 before(async () => {
   process.env.PORTAL_BACKEND = "memory";
@@ -21,6 +22,7 @@ before(async () => {
   erasure = await import("../src/server/clientErasure");
   pluginInstalls = await import("../src/server/pluginInstalls");
   outboundReplay = await import("../src/lib/server/telephony/outboundCommunicationReplay");
+  serverUsers = await import("../src/server/users");
 });
 
 // A minimal fake Supabase client for the live-table scrub: chainable + thenable,
@@ -1427,8 +1429,8 @@ describe("erasing a client reaches the plugins that captured them before they we
     funnel.registerFunnelFoundation({
       activity: ports.activityPort,
       events: ports.eventBusPort,
-      // Use the real local-only adapter: an exact capture deletion must prove
-      // that its generated ServerUser and auth residue are removed too.
+      // Use the real local-only adapter: pending captures create no User, while
+      // exact erasure must still clean pre-migration capture-created Users.
       leadUsers: leadFunnelPorts.leadUserPort,
     } as never);
     marketing.registerAgencyMarketingFoundation({
@@ -1456,11 +1458,11 @@ describe("erasing a client reaches the plugins that captured them before they we
     assert.deepEqual(result?.reviewRequired, [{
       system: "public-funnel",
       reason: "legacy-unscoped",
-      records: 2,
+      records: 1,
     }]);
   });
 
-  it("public-funnel: exact A capture and generated user delete while B and legacy identities survive", async () => {
+  it("public-funnel: exact legacy A capture and user delete while B and unscoped identities survive", async () => {
     const suffix = process.hrtime.bigint();
     const EMAIL_A = `funnel-a-${suffix}@example.com`;
     const EMAIL_B = `funnel-b-${suffix}@example.com`;
@@ -1496,32 +1498,47 @@ describe("erasing a client reaches the plugins that captured them before they we
 
     const keyA = `captures/by-id/${captureA.capture.id}`;
     const keyB = `captures/by-id/${captureB.capture.id}`;
-    await store.set(keyA, { ...(await store.get(keyA) as object), clientId: clientA.id, personId: personA.id });
-    await store.set(keyB, { ...(await store.get(keyB) as object), clientId: clientB.id, personId: personB.id });
+    const keyLegacy = `captures/by-id/${captureLegacy.capture.id}`;
+    // Model rows written before pending identities landed. Anonymous capture no
+    // longer creates these Users; cleanup support remains for stored legacy data.
+    const legacyUserA = serverUsers.createUser({ email: EMAIL_A, password: "LegacyCaptureSecret42!", role: "lead" });
+    const legacyUserB = serverUsers.createUser({ email: EMAIL_B, password: "LegacyCaptureSecret42!", role: "lead" });
+    const legacyUserUnscoped = serverUsers.createUser({ email: EMAIL_LEGACY, password: "LegacyCaptureSecret42!", role: "lead" });
+    await store.set(keyA, {
+      ...(await store.get(keyA) as object), clientId: clientA.id, personId: personA.id,
+      leadUserId: legacyUserA.id,
+    });
+    await store.set(keyB, {
+      ...(await store.get(keyB) as object), clientId: clientB.id, personId: personB.id,
+      leadUserId: legacyUserB.id,
+    });
+    await store.set(keyLegacy, {
+      ...(await store.get(keyLegacy) as object), leadUserId: legacyUserUnscoped.id,
+    });
     await store.set("captures/index", [captureA.capture.id, captureB.capture.id, captureLegacy.capture.id]);
     await store.set(`captures/by-email/${EMAIL_A.toLowerCase()}`, [captureA.capture.id]);
     await store.set(`captures/by-email/${EMAIL_B.toLowerCase()}`, [captureB.capture.id]);
     await store.set(`captures/by-email/${EMAIL_LEGACY.toLowerCase()}`, [captureLegacy.capture.id]);
-    assert.ok(Object.values(storage.getState().users).some(user => user.id === captureA.leadUserId), "A lead user not seeded");
-    assert.ok(Object.values(storage.getState().users).some(user => user.id === captureB.leadUserId), "B lead user not seeded");
+    assert.ok(Object.values(storage.getState().users).some(user => user.id === legacyUserA.id), "A legacy lead user not seeded");
+    assert.ok(Object.values(storage.getState().users).some(user => user.id === legacyUserB.id), "B legacy lead user not seeded");
     const signupOutboxIds = (userId: string) => Object.entries(storage.getState().outbox ?? {})
       .filter(([, event]) => event.name === "user.signed_up" && event.payload.userId === userId)
       .map(([id]) => id);
-    assert.ok(signupOutboxIds(captureA.leadUserId).length > 0, "A signup outbox receipt not seeded");
-    assert.ok(signupOutboxIds(captureB.leadUserId).length > 0, "B signup outbox receipt not seeded");
+    assert.ok(signupOutboxIds(legacyUserA.id).length > 0, "A signup outbox receipt not seeded");
+    assert.ok(signupOutboxIds(legacyUserB.id).length > 0, "B signup outbox receipt not seeded");
     storage.mutate(state => {
       state.securityControl ??= {
         globalEpoch: 0, tenantEpochs: {}, userEpochs: {}, suspendedUsers: {}, sessions: {},
       };
-      state.securityControl.userEpochs[captureA.leadUserId] = 2;
-      state.securityControl.userEpochs[captureB.leadUserId] = 3;
-      state.securityControl.suspendedUsers[captureA.leadUserId] = { reason: "legacy-a", at: Date.now(), actor: "test" };
-      state.securityControl.suspendedUsers[captureB.leadUserId] = { reason: "legacy-b", at: Date.now(), actor: "test" };
+      state.securityControl.userEpochs[legacyUserA.id] = 2;
+      state.securityControl.userEpochs[legacyUserB.id] = 3;
+      state.securityControl.suspendedUsers[legacyUserA.id] = { reason: "legacy-a", at: Date.now(), actor: "test" };
+      state.securityControl.suspendedUsers[legacyUserB.id] = { reason: "legacy-b", at: Date.now(), actor: "test" };
       state.securityControl.sessions["sid-funnel-a"] = {
-        sid: "sid-funnel-a", userId: captureA.leadUserId, role: "lead", issuedAt: Date.now(), issuedVia: "legacy-test",
+        sid: "sid-funnel-a", userId: legacyUserA.id, role: "lead", issuedAt: Date.now(), issuedVia: "legacy-test",
       };
       state.securityControl.sessions["sid-funnel-b"] = {
-        sid: "sid-funnel-b", userId: captureB.leadUserId, role: "lead", issuedAt: Date.now(), issuedVia: "legacy-test",
+        sid: "sid-funnel-b", userId: legacyUserB.id, role: "lead", issuedAt: Date.now(), issuedVia: "legacy-test",
       };
     });
 
@@ -1537,23 +1554,23 @@ describe("erasing a client reaches the plugins that captured them before they we
     assert.equal(await store.get(`captures/by-email/${EMAIL_A.toLowerCase()}`), undefined, "A legacy email index survived");
     assert.ok(await store.get(`captures/by-email/${EMAIL_B.toLowerCase()}`), "B email index was removed");
     assert.ok(await store.get(`captures/by-email/${EMAIL_LEGACY.toLowerCase()}`), "legacy email index was removed");
-    assert.equal(Object.values(storage.getState().users).some(user => user.id === captureA.leadUserId), false,
+    assert.equal(Object.values(storage.getState().users).some(user => user.id === legacyUserA.id), false,
       "A generated lead identity survived exact capture erasure");
-    assert.ok(Object.values(storage.getState().users).some(user => user.id === captureB.leadUserId),
+    assert.ok(Object.values(storage.getState().users).some(user => user.id === legacyUserB.id),
       "B generated lead identity was collateral damage");
-    assert.ok(Object.values(storage.getState().users).some(user => user.id === captureLegacy.leadUserId),
+    assert.ok(Object.values(storage.getState().users).some(user => user.id === legacyUserUnscoped.id),
       "legacy generated lead identity was collateral damage");
     const control = storage.getState().securityControl!;
-    assert.equal(Object.prototype.hasOwnProperty.call(control.userEpochs, captureA.leadUserId), false,
+    assert.equal(Object.prototype.hasOwnProperty.call(control.userEpochs, legacyUserA.id), false,
       "A user security epoch survived");
-    assert.equal(Object.prototype.hasOwnProperty.call(control.suspendedUsers, captureA.leadUserId), false,
+    assert.equal(Object.prototype.hasOwnProperty.call(control.suspendedUsers, legacyUserA.id), false,
       "A user suspension survived");
     assert.equal(control.sessions["sid-funnel-a"], undefined, "A legacy session registry row survived");
-    assert.equal(signupOutboxIds(captureA.leadUserId).length, 0, "A signup outbox receipt survived");
-    assert.equal(control.userEpochs[captureB.leadUserId], 3, "B user security epoch was collateral damage");
-    assert.ok(control.suspendedUsers[captureB.leadUserId], "B user suspension was collateral damage");
+    assert.equal(signupOutboxIds(legacyUserA.id).length, 0, "A signup outbox receipt survived");
+    assert.equal(control.userEpochs[legacyUserB.id], 3, "B user security epoch was collateral damage");
+    assert.ok(control.suspendedUsers[legacyUserB.id], "B user suspension was collateral damage");
     assert.ok(control.sessions["sid-funnel-b"], "B legacy session registry row was collateral damage");
-    assert.ok(signupOutboxIds(captureB.leadUserId).length > 0, "B signup outbox receipt was collateral damage");
+    assert.ok(signupOutboxIds(legacyUserB.id).length > 0, "B signup outbox receipt was collateral damage");
     assert.equal(storage.getState().activity.some(entry =>
       entry.agencyId === agency.id && (entry.metadata as { captureId?: string } | undefined)?.captureId === captureA.capture.id), false,
     "A exact capture activity survived");
@@ -1625,8 +1642,8 @@ describe("erasing a client reaches the plugins that captured them before they we
     await erasure.eraseClientCompletely({ agencyId: agencyA.id, clientId: clientA.id, actorUserId: "ed" });
 
     assert.ok(await storeB.get(captureKey), "agency B capture was deleted through a colliding completion id");
-    assert.ok(Object.values(storage.getState().users).some(user => user.id === captureB.leadUserId),
-      "agency B lead user was deleted through a colliding completion id");
+    assert.equal((await storeB.get<{ pendingLeadId?: string }>(captureKey))?.pendingLeadId, captureB.pendingLeadId,
+      "agency B pending identity was altered through a colliding completion id");
     assert.ok(storage.getState().activity.some(entry =>
       entry.agencyId === agencyB.id
       && (entry.metadata as { captureId?: string } | undefined)?.captureId === captureB.capture.id),
@@ -1657,13 +1674,19 @@ describe("erasing a client reaches the plugins that captured them before they we
     tenants.updateClient(agency.id, clientA.id, { personId: personA.id });
     const keyA = `captures/by-id/${captureA.capture.id}`;
     const keyB = `captures/by-id/${captureB.capture.id}`;
+    const legacyUser = serverUsers.createUser({
+      email: captureA.capture.email,
+      password: "SharedLegacyCapture42!",
+      role: "lead",
+    });
     await store.set(keyA, {
       ...(await store.get(keyA) as object), clientId: clientA.id, personId: personA.id,
+      leadUserId: legacyUser.id,
     });
     // Reproduce legacy/corrupt shared ownership that the real adapter must
     // preserve: B still references A's generated lead identity.
     await store.set(keyB, {
-      ...(await store.get(keyB) as object), leadUserId: captureA.leadUserId,
+      ...(await store.get(keyB) as object), leadUserId: legacyUser.id,
     });
 
     const result = await erasure.eraseClientCompletely({
@@ -1672,9 +1695,9 @@ describe("erasing a client reaches the plugins that captured them before they we
 
     assert.equal(result?.completed, true);
     assert.equal(await store.get(keyA), undefined, "A exact capture survived");
-    assert.equal((await store.get<{ leadUserId: string }>(keyB))?.leadUserId, captureA.leadUserId,
+    assert.equal((await store.get<{ leadUserId: string }>(keyB))?.leadUserId, legacyUser.id,
       "B's surviving shared-user capture was altered");
-    assert.ok(Object.values(storage.getState().users).some(user => user.id === captureA.leadUserId),
+    assert.ok(Object.values(storage.getState().users).some(user => user.id === legacyUser.id),
       "real lead-user adapter deleted an identity still referenced by capture B");
     assert.ok(result!.reviewRequired.some(item =>
       item.system === "public-funnel" && item.reason === "shared-identity" && item.records >= 1),
@@ -1685,12 +1708,11 @@ describe("erasing a client reaches the plugins that captured them before they we
     const suffix = process.hrtime.bigint();
     const realIdentityEmail = `real-generated-${suffix}@example.com`;
     const corruptCaptureEmail = `corrupt-capture-${suffix}@example.com`;
-    const registration = await leadFunnelPorts.leadUserPort.withNewLeadByEmail(
-      realIdentityEmail,
-      async createLead => createLead(),
-    );
-    assert.equal(registration.created, true);
-    if (!registration.created) throw new Error("test lead creation was refused");
+    const realIdentity = serverUsers.createUser({
+      email: realIdentityEmail,
+      password: "CorruptLegacyCapture42!",
+      role: "lead",
+    });
     const agency = tenants.createAgency({ name: "Corrupt Funnel Co", slug: `corrupt-funnel-${suffix}` });
     const install = pluginInstalls.upsertInstall({
       scope: { agencyId: agency.id }, pluginId: "public-funnel", installedBy: "ed",
@@ -1708,7 +1730,7 @@ describe("erasing a client reaches the plugins that captured them before they we
     await store.set(`captures/by-id/${captureId}`, {
       id: captureId,
       source: "hc",
-      leadUserId: registration.value.id,
+      leadUserId: realIdentity.id,
       email: corruptCaptureEmail,
       capturedAt: Date.now(),
       sourceMeta: {},
@@ -1723,7 +1745,7 @@ describe("erasing a client reaches the plugins that captured them before they we
     assert.equal(result?.completed, true);
     assert.equal(await store.get(`captures/by-id/${captureId}`), undefined, "exact corrupt capture survived");
     assert.ok(Object.values(storage.getState().users).some(user =>
-      user.id === registration.value.id && user.email === realIdentityEmail),
+      user.id === realIdentity.id && user.email === realIdentityEmail),
     "capture email mismatch deleted a different generated lead user");
     assert.ok(result!.reviewRequired.some(item =>
       item.system === "public-funnel" && item.reason === "shared-identity" && item.records >= 1),
@@ -2088,7 +2110,7 @@ describe("CAPSTONE: erasing a client who has everything", () => {
     assert.ok(await mktC.leads.getByEmail(EMAIL), "pre-client marketing lead was deleted by address");
     assert.equal((await mailC.emails.list()).length, 1, "pre-client email was deleted by recipient address");
     for (const system of ["email-sender", "public-funnel", "agency-marketing"]) {
-      const expectedRecords = system === "public-funnel" ? 2 : 1;
+      const expectedRecords = 1;
       assert.ok(result!.reviewRequired.some(item => item.system === system && item.records === expectedRecords),
         `${system} did not surface its preserved record for review`);
     }

@@ -31,8 +31,14 @@ export interface LeadCapture {
   /** Exact erasure lineage. Historical/pre-client captures omit both fields. */
   clientId?: string;
   personId?: string;
-  // The lead user's id. Set after the user is created by the LeadUserPort.
-  leadUserId: UserId;
+  /**
+   * Anonymous captures are deliberately outside the authenticatable User
+   * namespace. A mailbox-proof promotion flow may later attach a real user;
+   * legacy rows can already contain this field.
+   */
+  leadUserId?: UserId;
+  /** Opaque, non-authenticatable identity local to this capture. */
+  pendingLeadId?: string;
   email: string;
   capturedAt: number;
   // Source-specific payload. For `hc` this carries the HCSlot; for
@@ -61,9 +67,9 @@ export interface CaptureToolInput {
 
 export interface CaptureResult {
   capture: LeadCapture;
-  leadUserId: UserId;
-  // Anonymous completion can only register a brand-new lead. Existing
-  // identities and replayed completion ids fail closed before this result.
+  pendingLeadId: string;
+  // Anonymous completion can only register a brand-new pending capture.
+  // Existing identities and replayed completion ids fail closed first.
   created: boolean;
 }
 
@@ -89,8 +95,8 @@ export function bucketHcSlot(slot?: HCSlot): HcScoreBucket | undefined {
   return "scaling";
 }
 
-// Email canonicalisation — trim + lowercase. Used to reuse lead identity;
-// capture retry identity comes from the optional stable completion id.
+// Email canonicalisation — trim + lowercase. Anonymous capture never reuses
+// an identity; the canonical form makes repeat refusal deterministic.
 export function canonEmail(raw: string): string {
   return raw.trim().toLowerCase();
 }

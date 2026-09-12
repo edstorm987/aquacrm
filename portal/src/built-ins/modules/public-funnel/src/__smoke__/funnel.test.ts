@@ -3,7 +3,7 @@
 import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
 
-import type { ActivityEntry, AgencyId, UserId, UserProfile } from "../lib/tenancy";
+import type { ActivityEntry, AgencyId } from "../lib/tenancy";
 import type { PluginStorage } from "../lib/aquaPluginTypes";
 import type {
   ActivityLogPort, EventBusPort, LeadUserPort,
@@ -28,8 +28,7 @@ interface World {
   inspect: {
     activityLog: ActivityEntry[];
     events: { name: string; payload: unknown }[];
-    leadCreations: string[];   // emails of newly created leads (vs reused)
-    hasLeadUser(userId: string): boolean;
+    pendingLeadCreations: string[];
   };
 }
 
@@ -37,9 +36,8 @@ function buildWorld(): World {
   const data = new Map<string, unknown>();
   const activityLog: ActivityEntry[] = [];
   const events: { name: string; payload: unknown }[] = [];
-  const leadCreations: string[] = [];
-  const leadStore = new Map<string, UserProfile>();
-  let userSeq = 1;
+  const pendingLeadCreations: string[] = [];
+  let pendingSeq = 1;
   let identityTail = Promise.resolve();
   const locks = new Map<string, Promise<void>>();
   const storage: PluginStorage = {
@@ -84,7 +82,7 @@ function buildWorld(): World {
     emit(_scope, name, payload) { events.push({ name, payload }); },
   };
   const leadUsers: LeadUserPort = {
-    async withNewLeadByEmail(email, operation) {
+    async withPendingLeadByEmail(email, operation) {
       const previous = identityTail;
       let release!: () => void;
       const gate = new Promise<void>(resolve => { release = resolve; });
@@ -92,37 +90,34 @@ function buildWorld(): World {
       await previous;
       const k = email.toLowerCase();
       try {
-        if (leadStore.has(k)) return { created: false };
-        let user: UserProfile | null = null;
-        const createLead = () => {
-          if (user) return user;
-          user = {
-            id: `user_lead_${String(userSeq++).padStart(4, "0")}`,
-            email: k,
-            agencyId: "lead-tenant",
-          };
-          leadStore.set(k, user);
-          leadCreations.push(k);
-          return user;
+        let pending: { id: string } | null = null;
+        const createPendingLead = () => {
+          if (pending) return pending;
+          pending = { id: `pending_lead_${String(pendingSeq++).padStart(4, "0")}` };
+          return pending;
         };
-        const value = await operation(createLead);
-        assert.ok(user, "capture operation must create the lead before returning");
+        const value = await operation(createPendingLead);
+        assert.ok(pending, "capture operation must allocate the pending lead before returning");
+        pendingLeadCreations.push(k);
         return { value, created: true as const };
       } finally {
         release();
       }
     },
-    async eraseIfUnreferenced({ userId }) {
-      const match = [...leadStore.entries()].find(([, user]) => user.id === userId);
-      if (!match) return { status: "missing", recordsErased: 0 };
-      const referenced = [...data.values()].some(value =>
-        Boolean(value && typeof value === "object" && (value as { leadUserId?: string }).leadUserId === userId),
-      );
-      if (referenced) {
-        return { status: "preserved", recordsErased: 0, reason: "still-referenced" };
+    async eraseCaptureArtifacts({ agencyId, captureIds }) {
+      const wanted = new Set(captureIds);
+      let recordsErased = 0;
+      for (let index = activityLog.length - 1; index >= 0; index -= 1) {
+        const entry = activityLog[index]!;
+        const captureId = (entry.metadata as { captureId?: string } | undefined)?.captureId;
+        if (entry.agencyId !== agencyId || !captureId || !wanted.has(captureId)) continue;
+        activityLog.splice(index, 1);
+        recordsErased += 1;
       }
-      leadStore.delete(match[0]);
-      return { status: "deleted", recordsErased: 1 };
+      return { recordsErased };
+    },
+    async eraseIfUnreferenced({ userId }) {
+      return { status: "missing", recordsErased: 0 };
     },
   };
   return {
@@ -130,8 +125,7 @@ function buildWorld(): World {
     inspect: {
       activityLog,
       events,
-      leadCreations,
-      hasLeadUser: userId => [...leadStore.values()].some(user => user.id === userId),
+      pendingLeadCreations,
     },
   };
 }
@@ -145,7 +139,7 @@ function container(world: World) {
 }
 
 describe("@aqua/plugin-public-funnel smoke", () => {
-  test("1. captureHcCompletion creates a new lead + capture without authentication", async () => {
+  test("1. captureHcCompletion creates a pending capture outside authentication", async () => {
     setClock(() => T0);
     const w = buildWorld();
     const c = container(w);
@@ -158,7 +152,9 @@ describe("@aqua/plugin-public-funnel smoke", () => {
     assert.equal(r.capture.email, "ed@example.com");
     assert.equal(r.capture.hcSlot?.slot, 3);
     assert.equal("session" in r, false);
-    assert.equal(w.inspect.leadCreations.length, 1);
+    assert.equal(w.inspect.pendingLeadCreations.length, 1);
+    assert.equal(r.capture.pendingLeadId, r.pendingLeadId);
+    assert.match(r.pendingLeadId, /^pending_lead_/);
     resetClock();
   });
 
@@ -190,7 +186,7 @@ describe("@aqua/plugin-public-funnel smoke", () => {
       () => c.funnel.captureHcCompletion({ email: "ED@Example.com", slot: { slot: 5 } }),
       (error: unknown) => error instanceof FunnelInputError && error.message === "identity_unavailable",
     );
-    assert.equal(w.inspect.leadCreations.length, 1);
+    assert.equal(w.inspect.pendingLeadCreations.length, 1);
     assert.equal((await c.funnel.list()).length, 1);
     resetClock();
   });
@@ -260,12 +256,17 @@ describe("@aqua/plugin-public-funnel smoke", () => {
     resetClock();
   });
 
-  test("9. meContext returns the new lead's own Health Check capture", async () => {
+  test("9. pending captures are not me-context identities; legacy promoted rows still resolve", async () => {
     setClock(() => T0);
     const w = buildWorld();
     const c = container(w);
     const a = await c.funnel.captureHcCompletion({ email: "ed@example.com", slot: { slot: 2 } });
-    const ctx = await c.funnel.meContext(a.leadUserId);
+    assert.equal(await c.funnel.meContext(a.pendingLeadId), null);
+    await w.storage.set(`captures/by-id/${a.capture.id}`, {
+      ...a.capture,
+      leadUserId: "user_mailbox_proven",
+    });
+    const ctx = await c.funnel.meContext("user_mailbox_proven");
     assert.ok(ctx);
     assert.equal(ctx?.captures.length, 1);
     assert.equal(ctx?.hcSlot?.slot, 2);
@@ -293,7 +294,7 @@ describe("@aqua/plugin-public-funnel smoke", () => {
       () => c.funnel.captureHcCompletion({ email: "ed@example.com", slot: { slot: 3, blob: "x".repeat(70_000) } }),
       (error: unknown) => error instanceof FunnelInputError && error.message === "invalid_hc_slot",
     );
-    assert.equal(w.inspect.leadCreations.length, 0);
+    assert.equal(w.inspect.pendingLeadCreations.length, 0);
     resetClock();
   });
 
@@ -343,8 +344,8 @@ describe("@aqua/plugin-public-funnel smoke", () => {
   test("15. an existing identity is rejected before a capture is persisted", async () => {
     setClock(() => T0);
     const w = buildWorld();
-    const original = w.leadUsers.withNewLeadByEmail;
-    w.leadUsers.withNewLeadByEmail = async () => ({ created: false });
+    const original = w.leadUsers.withPendingLeadByEmail;
+    w.leadUsers.withPendingLeadByEmail = async () => ({ created: false });
     const c = container(w);
     const input = {
       email: "existing@example.com",
@@ -357,7 +358,7 @@ describe("@aqua/plugin-public-funnel smoke", () => {
     );
     assert.equal((await c.funnel.list()).length, 0);
     assert.equal(w.inspect.events.length, 0);
-    w.leadUsers.withNewLeadByEmail = original;
+    w.leadUsers.withPendingLeadByEmail = original;
     resetClock();
   });
 
@@ -402,7 +403,7 @@ describe("@aqua/plugin-public-funnel smoke", () => {
     assert.equal(ROUTES.some(route => route.public === true), false);
   });
 
-  test("19. exact erasure cleans indexes and retries while a shared lead identity is preserved", async () => {
+  test("19. exact pending-capture erasure cleans indexes and preserves a shared pending row", async () => {
     setClock(() => T0);
     const w = buildWorld();
     const c = container(w);
@@ -437,10 +438,36 @@ describe("@aqua/plugin-public-funnel smoke", () => {
     assert.deepEqual(await w.storage.get("captures/index"), ["lc_hc_shared_erasure_b"]);
     assert.ok(await w.storage.get("captures/by-email/shared-erasure@example.com"),
       "shared address pointer was deleted while a capture remains");
-    assert.equal(first.reviewRequired.sharedIdentity, 2,
-      "the preserved capture and its shared generated user must both be review work");
-    assert.equal(w.inspect.hasLeadUser(captured.leadUserId), true,
-      "shared generated user was deleted while another capture still references it");
+    assert.equal(first.reviewRequired.sharedIdentity, 1,
+      "the preserved capture must remain review work");
+    assert.equal((await w.storage.get<{ pendingLeadId?: string }>("captures/by-id/lc_hc_shared_erasure_b"))?.pendingLeadId,
+      captured.pendingLeadId, "the surviving capture's pending id was altered");
+    resetClock();
+  });
+
+  test("20. concurrent canonical spellings create only one pending capture", async () => {
+    setClock(() => T0);
+    const w = buildWorld();
+    const c = container(w);
+    const settled = await Promise.allSettled([
+      c.funnel.captureHcCompletion({
+        email: "canonical-race@example.com",
+        completionId: "canonical_race_first",
+        slot: { slot: 2 },
+      }),
+      c.funnel.captureHcCompletion({
+        email: "  CANONICAL-RACE@EXAMPLE.COM ",
+        completionId: "canonical_race_second",
+        slot: { slot: 4 },
+      }),
+    ]);
+    assert.equal(settled.filter(result => result.status === "fulfilled").length, 1);
+    const refusal = settled.find(result => result.status === "rejected");
+    assert.ok(refusal?.status === "rejected");
+    assert.ok(refusal.reason instanceof FunnelInputError);
+    assert.equal(refusal.reason.message, "identity_unavailable");
+    assert.equal((await c.funnel.listByEmail("canonical-race@example.com")).length, 1);
+    assert.equal(w.inspect.pendingLeadCreations.length, 1);
     resetClock();
   });
 });

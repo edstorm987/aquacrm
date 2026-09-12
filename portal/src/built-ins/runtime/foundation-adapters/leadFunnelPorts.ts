@@ -4,12 +4,10 @@ import "server-only";
 //
 // Two ports, from chapters #132 + #137:
 //
-//   - LeadUserPort.withNewLeadByEmail(email, operation)
-//       Create-only. Anonymous capture must never resolve or reuse an existing
-//       account of any role; returning an existing user here was an account-
-//       takeover primitive when the old SessionPort minted its session.
-//       Emits no activity here — the plugin layers its own log entry
-//       via the ActivityLogPort.
+//   - LeadUserPort.withPendingLeadByEmail(email, operation)
+//       Anonymous capture must never create, resolve or reuse an authenticatable
+//       account. It allocates only an opaque pending id after refusing every
+//       existing User; mailbox proof is the future promotion boundary.
 //
 //   - FunnelMePort.getMeContextByUserId(userId)
 //       BOS gate's `me` endpoint reads this to populate `hcSlot` +
@@ -22,7 +20,6 @@ import "server-only";
 import crypto from "node:crypto";
 import { withPortalStateTransaction } from "@/server/productWorkspaceCoordinator";
 import { getState, mutate } from "@/server/storage";
-import { createUser } from "@/server/users";
 import { LEAD_AGENCY_ID } from "@/server/types";
 import type { ServerUser } from "@/server/types";
 
@@ -49,9 +46,9 @@ const LEAD_USER_REFERENCE_FIELDS = new Set(["leadUserId"]);
 const CAPTURE_REFERENCE_FIELDS = new Set(["captureId", "captureIds"]);
 
 export const leadUserPort = {
-  async withNewLeadByEmail<T>(
+  async withPendingLeadByEmail<T>(
     email: string,
-    operation: (createLead: () => ReturnType<typeof toProfile>) => Promise<T>,
+    operation: (createPendingLead: () => { id: string }) => Promise<T>,
   ): Promise<{ value: T; created: true } | { created: false }> {
     const norm = email.trim().toLowerCase();
     // One global lane is deliberate: the transaction covers both the shared
@@ -63,47 +60,25 @@ export const leadUserPort = {
       const existing = Object.values(getState().users).some(user => user.email.trim().toLowerCase() === norm);
       if (existing) return { created: false };
 
-      // Random password keeps password auth unavailable. Mailbox-verified
-      // continuation is a separate future flow and is the only place that may
-      // authenticate this lead.
-      let createdUser: ReturnType<typeof toProfile> | null = null;
-      const createLead = () => {
-        if (createdUser) return createdUser;
-        const password = crypto.randomBytes(24).toString("base64url");
-        createdUser = toProfile(createUser({
-          email: norm,
-          password,
-          role: "lead",
-          agencyId: LEAD_AGENCY_ID,
-          name: norm.split("@")[0] ?? norm,
-        }));
-        return createdUser;
+      let pendingLead: { id: string } | null = null;
+      const createPendingLead = () => {
+        if (pendingLead) return pendingLead;
+        pendingLead = { id: `pending_lead_${crypto.randomBytes(16).toString("hex")}` };
+        return pendingLead;
       };
-      const value = await operation(createLead);
-      if (!createdUser) throw new Error("public_funnel_lead_not_created");
+      const value = await operation(createPendingLead);
+      if (!pendingLead) throw new Error("public_funnel_pending_lead_not_created");
       return { value, created: true };
     });
   },
 
-  async eraseIfUnreferenced(input: { agencyId: string; userId: string; email: string; captureIds: string[] }): Promise<{
-    status: "deleted" | "missing" | "preserved";
+  async eraseCaptureArtifacts(input: { agencyId: string; captureIds: string[] }): Promise<{
     recordsErased: number;
-    reason?: "still-referenced" | "ambiguous-user" | "non-capture-lead";
   }> {
     const captureIds = new Set(input.captureIds.filter(Boolean));
-    let result: {
-      status: "deleted" | "missing" | "preserved";
-      recordsErased: number;
-      reason?: "still-referenced" | "ambiguous-user" | "non-capture-lead";
-    } = { status: "missing", recordsErased: 0 };
-
+    let recordsErased = 0;
     mutate(state => {
-      let recordsErased = 0;
       const removedActivityIds = new Set<string>();
-
-      // A capture's exact id is authoritative even when its lead account is
-      // shared with a surviving capture. Remove only that capture's own audit
-      // rows before deciding whether the global identity may also go.
       state.activity = state.activity.filter(entry => {
         const exactCaptureActivity = entry.agencyId === input.agencyId
           && entry.category === "public-funnel"
@@ -119,7 +94,23 @@ export const leadUserPort = {
           recordsErased += 1;
         }
       }
+    });
+    return { recordsErased };
+  },
 
+  async eraseIfUnreferenced(input: { userId: string; email: string }): Promise<{
+    status: "deleted" | "missing" | "preserved";
+    recordsErased: number;
+    reason?: "still-referenced" | "ambiguous-user" | "non-capture-lead";
+  }> {
+    let result: {
+      status: "deleted" | "missing" | "preserved";
+      recordsErased: number;
+      reason?: "still-referenced" | "ambiguous-user" | "non-capture-lead";
+    } = { status: "missing", recordsErased: 0 };
+
+    mutate(state => {
+      let recordsErased = 0;
       const userIds = new Set([input.userId]);
       const stillReferenced = Object.values(state.pluginData).some(installData =>
         Object.values(installData).some(value =>
@@ -158,6 +149,7 @@ export const leadUserPort = {
       // Once the exact capture identity is gone, remove its unscoped derived
       // references. Lead capture never authenticates, but legacy registries
       // are scrubbed defensively so a stale cookie cannot retain a pointer.
+      const removedActivityIds = new Set<string>();
       state.activity = state.activity.filter(entry => {
         const matchesUser = entry.actorUserId === input.userId
           || hasExactFieldReference(entry.metadata, LEAD_USER_REFERENCE_FIELDS, userIds);
@@ -279,8 +271,4 @@ function getUserById(userId: string): ServerUser | null {
     if (u.id === userId) return u;
   }
   return null;
-}
-
-function toProfile(u: ServerUser) {
-  return { id: u.id, email: u.email, name: u.name, role: u.role };
 }

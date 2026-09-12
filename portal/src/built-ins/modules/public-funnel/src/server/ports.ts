@@ -51,32 +51,32 @@ export interface EventBusPort {
   ): void;
 }
 
-// Foundation lead-user port. T1 R023 added the `lead` role + the
-// `LEAD_AGENCY_ID` sentinel; this port wraps the foundation
-// `createUser` path so the plugin doesn't depend on the foundation's
-// internal user store directly.
+// Foundation identity-admission port. The historical name is retained for API
+// compatibility, but anonymous capture must never create a global User.
 export interface LeadUserPort {
-  // Anonymous capture is registration, never authentication. The adapter must
-  // create a brand-new lead only when the canonical address belongs to no
-  // existing identity of any role. `created:false` is a fail-closed refusal.
-  // The foundation owns the transaction because identity and plugin capture
-  // must commit together. `createLead` is lazy: the callback first checks the
-  // completion id, then creates the identity immediately before persistence.
-  withNewLeadByEmail<T>(
+  // The adapter refuses any address already owned by a real identity, then
+  // allocates an opaque pending id inside the same transaction as plugin
+  // persistence. The id has no password, session, membership or provider
+  // identity. Only a future mailbox-proof promotion may create/attach a User.
+  withPendingLeadByEmail<T>(
     email: string,
-    operation: (createLead: () => UserProfile) => Promise<T>,
+    operation: (createPendingLead: () => { id: string }) => Promise<T>,
   ): Promise<{ value: T; created: true } | { created: false }>;
+
+  /** Remove audit/ledger artifacts owned by exact captures of any identity kind. */
+  eraseCaptureArtifacts(input: {
+    agencyId: AgencyId;
+    captureIds: string[];
+  }): Promise<{ recordsErased: number }>;
 
   /**
    * Erasure-only cleanup. Exact capture ids may always lose their own audit
-   * trail, but the generated lead account is deleted only when no plugin
-   * capture anywhere still owns it.
+   * trail. This removes only legacy capture-created User rows after proving no
+   * plugin capture anywhere still owns them. New pending captures have no User.
    */
   eraseIfUnreferenced(input: {
-    agencyId: AgencyId;
     userId: UserId;
     email: string;
-    captureIds: string[];
   }): Promise<{
     status: "deleted" | "missing" | "preserved";
     recordsErased: number;
