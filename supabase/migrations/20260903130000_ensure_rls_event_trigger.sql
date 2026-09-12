@@ -39,6 +39,7 @@ begin
       exception
         when others then
           raise log 'rls_auto_enable: failed to enable RLS on %', cmd.object_identity;
+          raise;
       end;
     else
       raise log 'rls_auto_enable: skip % (system schema or not enforced: %.)', cmd.object_identity, cmd.schema_name;
@@ -59,34 +60,60 @@ do $$
 declare
   current_role_is_superuser boolean;
 begin
-  if exists (
+  if not exists (
     select 1
     from pg_event_trigger
     where evtname = 'ensure_rls'
   ) then
-    return;
+    select rolsuper
+      into current_role_is_superuser
+    from pg_roles
+    where rolname = current_user;
+
+    if not coalesce(current_role_is_superuser, false) then
+      raise exception using
+        errcode = '42501',
+        message = 'ensure_rls is absent and must be provisioned by a Supabase superuser',
+        hint = 'Run this migration as supabase_admin; do not bypass the RLS event-trigger control.';
+    end if;
+
+    execute format(
+      'alter function public.rls_auto_enable() owner to %I',
+      current_user
+    );
+    execute $create_trigger$
+      create event trigger ensure_rls
+        on ddl_command_end
+        when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')
+        execute function public.rls_auto_enable()
+    $create_trigger$;
   end if;
 
-  select rolsuper
-    into current_role_is_superuser
-  from pg_roles
-  where rolname = current_user;
-
-  if not coalesce(current_role_is_superuser, false) then
-    raise exception using
-      errcode = '42501',
-      message = 'ensure_rls is absent and must be provisioned by a Supabase superuser',
-      hint = 'Run this migration as supabase_admin; do not bypass the RLS event-trigger control.';
+  -- A same-name trigger is not enough. Bind the recorded safety control to its
+  -- exact event, tags and hardened SECURITY DEFINER function, and require the
+  -- managed owner pair to remain the same. Supabase's hosted `postgres` role
+  -- is accepted because that is the dashboard-provisioned live owner; fresh
+  -- rebuilds use the superuser path above.
+  if not exists (
+    select 1
+    from pg_event_trigger e
+    join pg_proc p on p.oid = e.evtfoid
+    join pg_roles function_owner on function_owner.oid = p.proowner
+    join pg_language l on l.oid = p.prolang
+    where e.evtname = 'ensure_rls'
+      and e.evtevent = 'ddl_command_end'
+      and e.evtenabled = 'O'
+      and e.evttags @> array['CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO']::text[]
+      and cardinality(e.evttags) = 3
+      and e.evtfoid = 'public.rls_auto_enable()'::regprocedure
+      and e.evtowner = p.proowner
+      and (function_owner.rolsuper or function_owner.rolname = 'postgres')
+      and p.prosecdef
+      and p.prorettype = 'event_trigger'::regtype
+      and l.lanname = 'plpgsql'
+      and p.proconfig @> array['search_path=pg_catalog']::text[]
+      and cardinality(p.proconfig) = 1
+  ) then
+    raise exception 'ensure_rls event trigger does not match the recorded fail-closed control';
   end if;
-
-  execute format(
-    'alter function public.rls_auto_enable() owner to %I',
-    current_user
-  );
-  execute $create_trigger$
-    create event trigger ensure_rls
-      on ddl_command_end
-      when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')
-      execute function public.rls_auto_enable()
-  $create_trigger$;
 end $$;

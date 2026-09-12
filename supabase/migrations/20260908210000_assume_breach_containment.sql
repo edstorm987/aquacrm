@@ -250,6 +250,20 @@ begin
     ) owners
     where role_name is not null
   loop
+    -- Global defaults are additive and apply in public as well. Revoke them
+    -- separately; a schema-specific REVOKE cannot cancel a global GRANT.
+    execute format(
+      'alter default privileges for role %I revoke all privileges on tables from public, anon, authenticated',
+      owner_role
+    );
+    execute format(
+      'alter default privileges for role %I revoke all privileges on sequences from public, anon, authenticated',
+      owner_role
+    );
+    execute format(
+      'alter default privileges for role %I revoke execute on functions from public, anon, authenticated',
+      owner_role
+    );
     execute format(
       'alter default privileges for role %I in schema public revoke all privileges on tables from public, anon, authenticated',
       owner_role
@@ -488,10 +502,10 @@ begin
     )
     into offending
   from pg_default_acl d
-  join pg_namespace n on n.oid = d.defaclnamespace
+  left join pg_namespace n on n.oid = d.defaclnamespace
   cross join lateral aclexplode(d.defaclacl) acl
   left join pg_roles grantee on grantee.oid = acl.grantee
-  where n.nspname = 'public'
+  where (d.defaclnamespace = 0 or n.nspname = 'public')
     and (acl.grantee = 0 or grantee.rolname in ('anon', 'authenticated'));
   if offending is not null then
     raise exception 'assume-breach containment failed: unsafe public default ACL survived: %', offending;
