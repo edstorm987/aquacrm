@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { containerFor } from "@aqua/plugin-leads-pipeline/server";
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
+import { verifyBotChallenge } from "@/lib/server/security/botChallenge";
 import { FOUNDER_AGENCY_SLUG, FOUNDER_EMAIL, seedFounder } from "@/lib/server/seeds/founderSeed";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { getInstall } from "@/server/pluginInstalls";
@@ -21,6 +22,8 @@ interface ContactBody {
   contactMethod?: unknown;
   note?: unknown;
   website?: unknown;
+  // AUTH-001: managed bot-challenge (Turnstile) token, verified server-side.
+  captchaToken?: unknown;
 }
 
 function clean(value: unknown, max: number): string {
@@ -73,6 +76,22 @@ export async function POST(req: NextRequest) {
   const emailLimit = rateLimit({ key: `public-contact-email:${email}`, max: 3, windowMs: 60 * 60 * 1_000 });
   if (!emailLimit.allowed) {
     return error("We already have your recent messages. Please give us a little time to reply.", 429, emailLimit.retryAfterSec);
+  }
+
+  // AUTH-001 / DECISIONS #13: managed bot-challenge, verified server-side before
+  // any lead is created. The honeypot above is a cheap first layer; this is the
+  // managed challenge. Fail-closed when configured; a no-op outside production
+  // when it is not (so local dev and the suite are unaffected), fail-closed in
+  // production (readiness blocker). Same-origin form, so the request host is the
+  // binding host.
+  const challenge = await verifyBotChallenge({
+    action: "public-contact",
+    token: body.captchaToken,
+    remoteIp: ip,
+    hostname: req.nextUrl.hostname,
+  });
+  if (!challenge.ok) {
+    return error(challenge.message, challenge.reason === "rate-limited" ? 429 : 403, challenge.retryAfterSec);
   }
 
   try {

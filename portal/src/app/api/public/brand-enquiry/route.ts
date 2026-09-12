@@ -3,6 +3,7 @@ import { containerFor } from "@aqua/plugin-leads-pipeline/server";
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
 import { isTradingBrandSlug, tradingBrandDefinition, type TradingBrandSlug } from "@/lib/brands/tradingBrands";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
+import { verifyBotChallenge } from "@/lib/server/security/botChallenge";
 import { FOUNDER_AGENCY_SLUG, FOUNDER_EMAIL, seedFounder } from "@/lib/server/seeds/founderSeed";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { getInstall } from "@/server/pluginInstalls";
@@ -78,6 +79,8 @@ interface BrandEnquiryBody {
   consent?: unknown;
   website?: unknown;
   submissionId?: unknown;
+  // AUTH-001: managed bot-challenge (Turnstile) token, verified server-side.
+  captchaToken?: unknown;
 }
 
 type EnquiryChannel = "form" | "chatbot" | "support";
@@ -497,6 +500,30 @@ export async function POST(req: NextRequest) {
       429,
       origin,
       contactLimit.retryAfterSec,
+    );
+  }
+
+  // AUTH-001 / DECISIONS #13: managed bot-challenge, verified server-side before
+  // an enquiry is captured. This admission is cross-origin — the token is solved
+  // on the SUBMITTING site, so it is bound to that origin's host, not the
+  // portal's. Fail-closed when configured; a no-op outside production when it is
+  // not; fail-closed in production (readiness blocker).
+  const challengeHost = (() => {
+    if (!origin) return req.nextUrl.hostname;
+    try { return new URL(origin).hostname; } catch { return req.nextUrl.hostname; }
+  })();
+  const challenge = await verifyBotChallenge({
+    action: "brand-enquiry",
+    token: body.captchaToken,
+    remoteIp: ip,
+    hostname: challengeHost,
+  });
+  if (!challenge.ok) {
+    return response(
+      { ok: false, error: challenge.message },
+      challenge.reason === "rate-limited" ? 429 : 403,
+      origin,
+      challenge.retryAfterSec,
     );
   }
 
