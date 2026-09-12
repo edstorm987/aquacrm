@@ -2,9 +2,8 @@
 
 Status: **independently accepted locally** under `PUBLIC-PLUGIN-TENANT-001`.
 This remains a source/local-test inventory, not provider, deployed or production
-acceptance. The per-row `VERIFY`/`REVIEW` labels below are the historical labels
-used while the matrix was assembled; the current roll-up truth is the accepted
-queue row and its evidence.
+acceptance. Every mounted row below is `ACCEPTED-LOCAL`; real provider and
+deployed-origin checks remain separate release gates.
 
 Boundary: no network, deployed service, provider, database, secret, push, merge, migration apply, or production data was touched.
 
@@ -24,23 +23,23 @@ There are 15 `public: true` plugin routes in seven modules.
 
 | Module | Route | Data class | Current local authority | Gate |
 | --- | --- | --- | --- | --- |
-| affiliates | `webhooks/stripe` | provider write | bounded body/signature-first; Affiliates owns a separate vault-backed Connect endpoint secret and discards Ecommerce's endpoint secret; account/transfer application resolves only exact install-owned provider ids | VERIFY |
-| agency-finance | `stripe/webhook` | provider write | bounded raw body and signature-before-body; checkout stamps exact agency/client scope and webhook plus reconciliation require the same signed scope before mutation | VERIFY |
-| memberships | `stripe/webhook` | provider write | bounded raw body and signature-before-body; existing service asserts exact signed agency/client scope before applying provider state | VERIFY |
-| ecommerce | `stripe/webhook` | provider write | bounded raw body and signature-before-body; completed/expired events require exact signed agency/client scope before delivery-ledger or order mutation | VERIFY |
-| leads-pipeline | `commercial/stripe-webhook` | provider write | bounded raw body and signature-before-config/body; an existing mismatched signed agency is refused before provider lookup and exact agency is required before mutation | VERIFY |
-| email-sender | `public/webhook/postmark` | provider write | query credentials rejected; bounded body after exact Basic/header capability; constant-time compare; exact local MessageID ownership precedes a durable atomic idempotency claim so shared-secret replay cannot mutate or poison another install | VERIFY |
-| ecommerce | `storefront/products` | published read | exact registered storefront Origin or same-origin Referer before durable rate limit; published allowlisted DTO only | VERIFY |
-| ecommerce | `storefront/products/get` | published read | exact registered storefront Origin or same-origin Referer before durable rate limit; published allowlisted DTO only | VERIFY |
-| ecommerce | `storefront/checkout/quote` | public compute/read | exact registered storefront Origin before rate limit and authoritative quote work | VERIFY |
-| ecommerce | `storefront/stripe/checkout` | provider write | exact registered Origin, paid/free action proof, authoritative quote class and atomic multidimensional budgets implemented locally | VERIFY |
-| ecommerce | `storefront/orders/by-session` | receipt read with customer email | exact registered storefront Origin or same-origin Referer before rate limit plus opaque provider session and narrow receipt DTO | VERIFY |
-| website-editor | `visitor/contact` | PII write | exact active site, exact allowed Origin hostname, published block/consent, exact-action proof and transactional limits | VERIFY |
-| website-editor | `visitor/newsletter` | PII write | exact active site, exact allowed Origin hostname, published block/consent, exact-action proof and transactional limits | VERIFY |
-| website-editor | `public/blog/posts` | published read | exact site within caller-selected install and published-only DTO; direct public access is intentional, but tenant-routing semantics need explicit acceptance | REVIEW |
-| website-editor | `public/blog/posts/by-slug` | published read | exact site within caller-selected install and published-only DTO; direct public access is intentional, but tenant-routing semantics need explicit acceptance | REVIEW |
+| affiliates | `webhooks/stripe` | provider write | bounded body/signature-first; Affiliates owns a separate vault-backed Connect endpoint secret and discards Ecommerce's endpoint secret; account/transfer application resolves only exact install-owned provider ids | ACCEPTED-LOCAL |
+| agency-finance | `stripe/webhook` | provider write | bounded raw body and signature-before-body; checkout stamps exact agency/client scope and webhook plus reconciliation require the same signed scope before mutation | ACCEPTED-LOCAL |
+| memberships | `stripe/webhook` | provider write | bounded raw body and signature-before-body; existing service asserts exact signed agency/client scope before applying provider state | ACCEPTED-LOCAL |
+| ecommerce | `stripe/webhook` | provider write | bounded raw body and signature-before-body; completed/expired events require exact signed agency/client scope before delivery-ledger or order mutation | ACCEPTED-LOCAL |
+| leads-pipeline | `commercial/stripe-webhook` | provider write | bounded raw body and signature-before-config/body; an existing mismatched signed agency is refused before provider lookup and exact agency is required before mutation | ACCEPTED-LOCAL |
+| email-sender | `public/webhook/postmark` | provider write | query credentials rejected; bounded body after exact Basic/header capability; constant-time compare; exact local MessageID ownership precedes a durable atomic idempotency claim so shared-secret replay cannot mutate or poison another install | ACCEPTED-LOCAL |
+| ecommerce | `storefront/products` | published read | exact registered storefront Origin or same-origin Referer before durable rate limit; published allowlisted DTO only | ACCEPTED-LOCAL |
+| ecommerce | `storefront/products/get` | published read | exact registered storefront Origin or same-origin Referer before durable rate limit; published allowlisted DTO only | ACCEPTED-LOCAL |
+| ecommerce | `storefront/checkout/quote` | public compute/read | exact registered storefront Origin before rate limit and authoritative quote work | ACCEPTED-LOCAL |
+| ecommerce | `storefront/stripe/checkout` | provider write | exact registered Origin, paid/free action proof, authoritative quote class and atomic multidimensional budgets implemented locally | ACCEPTED-LOCAL |
+| ecommerce | `storefront/orders/by-session` | receipt read with customer email | exact registered storefront Origin or same-origin Referer before rate limit plus opaque provider session and narrow receipt DTO | ACCEPTED-LOCAL |
+| website-editor | `visitor/contact` | PII write | exact active site, exact allowed Origin hostname, published block/consent, exact-action proof and transactional limits | ACCEPTED-LOCAL |
+| website-editor | `visitor/newsletter` | PII write | exact active site, exact allowed Origin hostname, published block/consent, exact-action proof and transactional limits | ACCEPTED-LOCAL |
+| website-editor | `public/blog/posts` | published read | exact site within caller-selected install and published-only DTO; independently accepted as intentional direct public content access with tenant routing kept as a routing hint, not authority | ACCEPTED-LOCAL |
+| website-editor | `public/blog/posts/by-slug` | published read | exact site within caller-selected install and published-only DTO; independently accepted as intentional direct public content access with tenant routing kept as a routing hint, not authority | ACCEPTED-LOCAL |
 
-## Acceptance tests required
+## Locally accepted test contract
 
 - Inventory test fails if any new `public: true` route lacks a declared authority class.
 - Same signed provider event cannot mutate a different install even when two installs deliberately share a webhook secret.

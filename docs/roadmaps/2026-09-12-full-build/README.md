@@ -1,6 +1,6 @@
 # AquaCRM full-build overnight coordination
 
-This external directory is the mutable canonical coordination surface for the 12 September 2026 run. The copy under `docs/roadmaps/2026-09-12-full-build` on GitHub is a dated preservation snapshot, not a second writable queue. Workers must read and update only this external canonical directory while the run is active.
+`<WORKSPACE>/aquaCRM-orchestration/2026-09-12-full-build` is the mutable canonical coordination surface for the 12 September 2026 run. The copy under `docs/roadmaps/2026-09-12-full-build` on GitHub is a dated preservation snapshot, not a second writable queue. Workers must read and update only that external canonical directory while the run is active.
 
 Portable snapshot note: `<WORKSPACE>` means the local Personal EcoSystem
 workspace and `<TMP>` means the host's temporary directory. The external
