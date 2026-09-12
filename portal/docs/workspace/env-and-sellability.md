@@ -206,7 +206,7 @@ them to a tenant (§3).
 | `CRON_SECRET` | `api/cron/inbox`, `api/cron/radar-probes` | Vercel Cron. Correct. |
 | `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_TRACES_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_DSN` | `instrumentation.ts`, `observability.ts` | Operator-owned configuration is the correct tier. Next's request-error hook is mounted and readiness now checks both a DSN and an installed SDK; without the optional SDK the honest capability is deployment logs only. Installing the chosen sink and proving live delivery remain in [issue #132](../development/issues.md). |
 | `PORTAL_HANDOFF_SECRET`, `SESSION_SECRET` | `portalHandoff.ts` | Correct. **Neither is on `ENV_ALLOWLIST`** — see §5. |
-| `AQUA_EMBED_SIGNING_SECRET`, `AQUA_EMBED_API_TOKEN` | `aquaEmbedToken.ts` | Correct. |
+| `AQUA_EMBED_SIGNING_SECRET` | `aquaEmbedToken.ts` | Deployment signing key. Embed caller credentials are per-agency/client encrypted vault records managed in Settings, not env authority. |
 | `PORTAL_PREVIEW_SECRET` | `built-ins/modules/website-editor/.../content.ts` | Correct, but defaults to the literal `"round-1-default-secret"` with no production guard. |
 | `INBOX_STORAGE_BACKEND`, `INBOX_LOCAL_DATA_FILE`, `INBOX_WEBHOOK_RETENTION_DAYS` | `inboxStore.ts`, `api/cron/inbox` | Storage selection + retention. Retention is arguably a per-company policy later; not day one. |
 | `PORTAL_DEV_MODE`, `PORTAL_DEV_AGENCY` | `devMode.ts` | Dev-only demo-persona switch, refuses on Vercel. Correct. It no longer controls production Dev Team availability. |

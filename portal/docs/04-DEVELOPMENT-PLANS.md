@@ -7029,9 +7029,8 @@ saving never sweeps.
 
 ### 5. Two smaller decisions, whenever
 
-- **Embed token** — one deployment-wide token can currently mint an admin embed
-  session for *any* tenant's client. Fine while only you hold it; a problem the
-  day you hand it to a partner. Three options in D9b.
+- **Embed credentials** — completed 2026-09-12: owner/manager-created encrypted
+  per-agency or per-client credentials replaced the deployment-wide bearer.
 - **DSAR intake channel** — a form, a monitored mailbox, or something else. The
   register is built and will receive from whichever you pick.
 
@@ -8996,38 +8995,17 @@ different route:
 | `portal/dev/projects` | `routeTenantScope(actor.session, …)` |
 | `auth/magic/request` | public by design; resolves the client, must not reveal account existence |
 | `auth/end-customer/signup` | public by design; resolves clientId → Client, 404 if archived |
-| `v1/embed/sessions` | bearer token — **but no agency scoping; see below** |
+| `v1/embed/sessions` | encrypted per-agency/client vault credential; exact tenant/client and maximum mode are enforced |
 
-##### 🟠 A DECISION FOR ED — the embed API token is deployment-wide
+##### ✅ EMBED-SEC-001 — scoped embed authority (completed 2026-09-12)
 
-`v1/embed/sessions` is properly gated: the bearer check is the first statement
-in the handler (so it cannot leak whether a client exists to an unauthenticated
-caller), the comparison is `timingSafeEqual`, and an unset
-`AQUA_EMBED_API_TOKEN` in production resolves to `""` and **denies everyone**
-rather than admitting them — the local dev fallback is explicitly gated on not
-being production.
-
-**What it does not do is scope to an agency.** There is one token for the whole
-deployment. Its holder can call `getClient(anyClientId)` across every tenant,
-choose `mode: "admin"` from the request body, and receive that client's name.
-
-For a single-operator deployment that is coherent — you hold the token. The risk
-is what the feature is *for*: an embed token is the thing you hand to whoever
-embeds a portal in their own site. **Hand it to one partner and they can mint an
-admin embed session for every other tenant's clients.**
-
-Not changed unilaterally, because the right answer depends on how you intend to
-distribute it. The options, cheapest first:
-
-1. **Keep it operator-only.** Never give the token to a client or partner; embed
-   only from surfaces you run. No code change.
-2. **Scope by env.** An optional `AQUA_EMBED_AGENCY_ID` that, when set, refuses
-   clients outside it. Additive, off by default, ~10 lines.
-3. **Per-agency tokens.** Move the embed token into the credential vault
-   alongside the other per-agency secrets. Correct long-term, largest change.
-
-The current shape is pinned by `smoke-route-auth-coverage` so it cannot drift
-without the decision being re-made.
+Owners and managers create encrypted Aqua embed credentials in Settings. Each
+credential is bound to one agency and optionally one client, has an immutable
+maximum-mode ceiling and may require one exact HTTPS origin. Minted tokens carry
+agency and credential lineage. Consumption revalidates the live credential and
+scope, applies durable budgets, and atomically consumes the nonce before issuing
+a tokenless session-backed destination. Duplicate, revoked, missing or legacy
+deployment credentials fail closed; the generated secret is revealed once only.
 
 9. The security posture sweep: every public route ✅, every mutating route ✅,
    the access matrix re-run against the live backend rather than memory.

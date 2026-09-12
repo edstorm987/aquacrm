@@ -4924,6 +4924,8 @@ export interface SecurityControlState {
   suspendedUsers: Record<string, { reason: string; at: number; actor: string }>;
   /** sid → registry record. Individual device/session revocation. */
   sessions: Record<string, SecuritySessionRecord>;
+  /** Opaque-keyed, atomic embed issue/consume budgets. No token, IP or PII is stored. */
+  embedBudgets?: Record<string, { count: number; resetAt: number }>;
   /**
    * KILL SWITCH: while set, `mutate()` refuses every write except the security
    * control plane's own (so the switch can be lifted and sessions revoked while

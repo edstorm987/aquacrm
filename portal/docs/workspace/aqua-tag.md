@@ -270,8 +270,10 @@ and private/reserved IP ranges (10/8, 127/8, 169.254 incl. cloud metadata,
 
 **Embed token** (`aquaEmbedToken.ts`): `base64url(payload).base64url(HMAC-SHA256)`;
 TTL clamped 30–300s; HMAC from `AQUA_EMBED_SIGNING_SECRET` (throws in prod if
-unset); mint API bearer-gated by `AQUA_EMBED_API_TOKEN`. `consume` verifies →
-issues a real session → redirects into the portal. Reverse direction
+unset). Mint authority is an encrypted per-agency or per-client vault credential
+with a maximum-mode ceiling and optional exact origin. `consume` revalidates the
+live credential and scope, atomically burns the durable nonce, issues a session,
+then redirects without putting the token on the destination URL. Reverse direction
 (`embedAllowResolver.ts`): an empty/unknown allow-list ⇒ `frame-ancestors 'none'`
 (default-deny).
 

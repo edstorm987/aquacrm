@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import { AlertCircle, ArrowUpRight, CheckCircle2, CreditCard, FileText, LifeBuoy, ShieldCheck } from "lucide-react";
 import { ensureHydrated } from "@/server/storage";
-import { getClient } from "@/server/tenants";
-import { verifyAquaEmbedToken } from "@/lib/server/aquaEmbedToken";
+import { getClientForAgency } from "@/server/tenants";
+import { requireRole } from "@/lib/server/auth/auth";
 import { loadCustomerPortalData } from "@/app/portal/customer/_portalData";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
 import { resolveClientPortalProvider } from "@/lib/server/clients/clientPortalProvider";
@@ -34,32 +33,13 @@ function ErrorState({ message }: { message: string }) {
   );
 }
 
-function originMatchesReferer(expectedOrigin: string | undefined, referer: string | null) {
-  if (!expectedOrigin) return true;
-  if (!referer) return process.env.NODE_ENV !== "production";
-  try {
-    return new URL(referer).origin === expectedOrigin;
-  } catch {
-    return false;
-  }
-}
-
-export default async function AquaAccountEmbed({
-  searchParams,
-}: {
-  searchParams: Promise<{ token?: string }>;
-}) {
-  const { token = "" } = await searchParams;
-  const payload = verifyAquaEmbedToken(token);
-  if (!payload) return <ErrorState message="This secure view has expired. Refresh it from your portal." />;
-  const requestHeaders = await headers();
-  if (!originMatchesReferer(payload.origin, requestHeaders.get("referer"))) {
-    return <ErrorState message="This secure view belongs to a different portal." />;
-  }
-
+export default async function AquaAccountEmbed() {
   await ensureHydrated();
-  const client = getClient(payload.clientId);
-  if (!client || client.status === "archived") {
+  const session = await requireRole(["end-customer"]).catch(() => null);
+  const client = session?.clientId
+    ? getClientForAgency(session.agencyId, session.clientId)
+    : null;
+  if (!session || !client || client.status === "archived") {
     return <ErrorState message="The linked Aqua client record is no longer available." />;
   }
 
@@ -81,7 +61,7 @@ export default async function AquaAccountEmbed({
             <p className="mt-1 text-sm text-[#637270]">Plans, billing and your service relationship in one place.</p>
           </div>
           <span className="w-fit border border-[#b9cecb] bg-white px-3 py-2 text-xs font-medium text-[#48615f]">
-            {payload.mode === "admin" ? "Admin view" : "Client view"}
+            Client view
           </span>
         </header>
 

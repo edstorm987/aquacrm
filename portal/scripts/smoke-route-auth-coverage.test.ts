@@ -83,6 +83,7 @@ const PUBLIC: Record<string, string> = {
 
   // Genuinely public surfaces.
   "public/contact": "the public contact form",
+  "public/bot-challenge/config": "serves only the public managed-challenge site key and required/enabled flags; no secret or tenant data",
   "public/demo-interest": "the AquaCRM demo gate — same-origin, honeypotted, rate-limited per caller AND per contact, 404s entirely unless WEBSITE_DEMO_ENABLED is set, and writes only into the website-demo realm: no lead, client or user is created",
   "public/brand-enquiry": "the public enquiry form",
   "public/careers": "the public careers application form",
@@ -94,8 +95,8 @@ const PUBLIC: Record<string, string> = {
 
   // Machine callers that authenticate by something other than a session.
   "v1/openapi.json": "the API's own published specification",
-  "v1/embed/sessions": "mints an embed session; the embed key is checked inside",
-  "v1/embed/consume": "redeems an embed session token",
+  "v1/embed/sessions": "mints an embed token only for a matching scoped vault credential; the handler owns the gate",
+  "v1/embed/consume": "atomically redeems a scoped, live-credential embed token once",
   "telemetry/collect": "anonymous client telemetry collector; rate-limited",
   "webhooks/meta": "Meta's webhook — HMAC-signed, verified against the raw body",
   "webhooks/twilio/voice": "Twilio's inbound-call webhook — HMAC-SHA1 signed; the `To` number selects the connection whose auth token verifies it, and an unrecognised `To` is refused before any secret is read",
@@ -158,51 +159,32 @@ describe("api route auth coverage", () => {
   });
 });
 
-describe("the embed API token", () => {
-  // Found in the D9 mutating-route sweep. The route is correctly gated, but
-  // the SHAPE of the gate is worth pinning, because the parts that are real
-  // guarantees and the part that is a deployment decision look alike from
-  // inside the handler.
+describe("the scoped embed credential boundary", () => {
+  // These are routing/architecture tripwires. Adversarial behavior is exercised
+  // separately by smoke-embed-security.test.ts.
   const tokenSource = readFileSync(join(ROOT, "src/lib/server/aquaEmbedToken.ts"), "utf8");
   const route = readFileSync(join(ROOT, "src/app/api/v1/embed/sessions/route.ts"), "utf8");
+  const handler = readFileSync(join(ROOT, "src/lib/server/embedSessionHandlers.ts"), "utf8");
+  const authority = readFileSync(join(ROOT, "src/lib/server/embedCredentialAuthority.ts"), "utf8");
 
-  it("cannot fail open in production", () => {
-    // Unset in production resolves to "" and `matchesEmbedApiToken` refuses any
-    // candidate against an empty expectation — so a deploy that forgets the
-    // variable denies everyone rather than admitting everyone. The local
-    // fallback is explicitly gated on NOT being production.
-    assert.match(tokenSource, /if \(configured\) return configured;/, "a configured token must win");
-    assert.match(tokenSource, /return isProduction\(\) \? "" : LOCAL_API_TOKEN;/, "production must fall back to no token, never to the local one");
-    assert.match(tokenSource, /if \(!candidate \|\| !expected\) return false;/, "an empty expectation must deny, not admit");
-    assert.match(tokenSource, /left\.length === right\.length && timingSafeEqual\(left, right\)/, "the comparison must be timing-safe");
+  it("does not retain deployment-wide credential authority", () => {
+    assert.doesNotMatch(tokenSource, /AQUA_EMBED_API_TOKEN|matchesEmbedApiToken|expectedEmbedApiToken/);
+    assert.doesNotMatch(route, /AQUA_EMBED_API_TOKEN|matchesEmbedApiToken|getClient\(/);
+    assert.doesNotMatch(handler, /AQUA_EMBED_API_TOKEN/);
+    assert.match(authority, /EMBED_CREDENTIAL_PROVIDER = "aqua-embed"/);
   });
 
-  it("is checked before the handler does anything else", () => {
-    // The 401 must be the first statement in the handler: a token check that
-    // happens after a lookup is a token check that leaks whether a record
-    // exists to an unauthenticated caller.
-    const body = /export async function POST\(req: NextRequest\) \{([\s\S]{0,220})/.exec(route);
-    assert.ok(body, "the embed session handler must still be a POST");
-    assert.match(body[1], /^\s*if \(!matchesEmbedApiToken\(bearerToken\(req\)\)\) \{/, "the bearer check must come first");
+  it("keeps the public route thin and delegates to the reviewed handler", () => {
+    assert.match(route, /return handleEmbedSessionMint\(request\)/);
+    assert.match(handler, /resolveEmbedBearer\(bearerFromRequest\(request\), clientId\)/);
+    assert.match(handler, /embedCredentialAllows\(credential, client, mode\)/);
   });
 
-  it("is deployment-wide, and that is recorded rather than assumed", () => {
-    // ── A DECISION FOR ED, not a defect ──────────────────────────────────
-    //
-    // There is ONE `AQUA_EMBED_API_TOKEN` for the whole deployment, and this
-    // route applies NO agency scoping: `getClient(clientId)` finds any client
-    // in any agency, `mode` is taken from the request body (so the caller may
-    // choose "admin"), and the response returns that client's name.
-    //
-    // For a single-operator deployment that is coherent — Ed holds the token.
-    // The risk is what the feature is FOR: an embed token is the thing you hand
-    // to whoever embeds a portal in their own site. Hand it to one partner and
-    // they can mint an admin embed session for every other tenant's clients.
-    //
-    // This test does not change that. It fails if the shape changes, so the
-    // decision has to be re-made deliberately instead of drifting.
-    assert.match(route, /const client = getClient\(clientId\);/, "still resolves a client with no agency scope");
-    assert.doesNotMatch(route, /getClientForAgency/, "if this gains agency scoping, revisit the note in this test");
-    assert.match(route, /body\.mode === "admin" \? "admin" : "client"/, "mode still comes from the request body");
+  it("carries immutable credential lineage and revalidates it on consumption", () => {
+    assert.match(tokenSource, /agencyId: string/);
+    assert.match(tokenSource, /credentialId: string/);
+    assert.match(tokenSource, /credentialVersion: string/);
+    assert.match(handler, /revalidateEmbedCredential\(payload\)/);
+    assert.match(handler, /nonceStore\.consumeNonce\(payload\.nonce, "aqua-embed"/);
   });
 });

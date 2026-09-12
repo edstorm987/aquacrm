@@ -27,6 +27,7 @@ import {
 } from "@/lib/projects/releases";
 import { PortalViewportLoading } from "@/components/ui/PortalViewportLoading";
 import { IntegrationConnectionsPanel } from "./IntegrationConnectionsPanel";
+import { EmbedCredentialsPanel } from "./EmbedCredentialsPanel";
 import { FreelancerAccessConfigPanel, type JobRow as FreelancerJobRow } from "../freelancer-access/_FreelancerAccessConfigPanel";
 import { PluginSettingsPanel, type PluginSettingsView } from "@/components/workspaces/PluginSettingsPanel";
 import { CLIENT_SCOPED_SETTINGS_MODULES } from "@/lib/chrome/settingsModules";
@@ -379,7 +380,10 @@ export function SettingsTabs({ ctx }: { ctx: SettingsContext }) {
                 rather than taking us out of settings."* Company → Connections
                 still works and still renders the SAME panel — four doors onto
                 one editor, which is the rule; a second copy would not be. */}
-            <IntegrationConnectionsPanel clients={ctx.clients} canManage={ctx.capabilities.manageSettings} />
+            <div className="space-y-6">
+              <EmbedCredentialsPanel clients={ctx.clients} canManage={ctx.capabilities.manageSettings} />
+              <IntegrationConnectionsPanel clients={ctx.clients} canManage={ctx.capabilities.manageSettings} />
+            </div>
           </Section>
         )}
         {active === "api" && (

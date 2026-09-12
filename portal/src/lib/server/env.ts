@@ -134,7 +134,6 @@ export const ENV_ALLOWLIST: readonly string[] = [
   "STRIPE_WEBHOOK_SECRET",
   "OPENAI_API_KEY",
   "OPENAI_ASSISTANT_MODEL",
-  "AQUA_EMBED_API_TOKEN",
   "AQUA_EMBED_SIGNING_SECRET",
 ] as const;
 

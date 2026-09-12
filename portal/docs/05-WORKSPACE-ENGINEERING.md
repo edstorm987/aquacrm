@@ -939,15 +939,15 @@ not live.
 | `/api/public/aqua-tag-config` | GET, OPTIONS | Serve a site's enabled injections by key+host (cached, CORS) — tag-manager delivery seam | public (CORS) | |
 | `/api/public/demo-interest` | POST | AquaCRM demo gate — records name/contact + consent {timestamp, terms version} in the `website-demo` data realm, never the live one | public (same-origin, honeypot, rate-limited); **404 unless `WEBSITE_DEMO_ENABLED`** | |
 
-## `api/v1/*` (10) — external assistant API (bearer-token)
+## `api/v1/*` (10) — external assistant API and scoped embed exchange
 
 | Path | Methods | Purpose | Scope/auth | Live? |
 |---|---|---|---|---|
 | `/api/v1/actions/proposals` | GET, POST | List / submit external-assistant action proposals | external token (proposal access) | |
 | `/api/v1/advisor/context` | GET | External advisor-grade business context | external token (`advisor:read`) | |
 | `/api/v1/assistant/context` | GET | External assistant workspace context | external token (`context:read`) | |
-| `/api/v1/embed/consume` | GET | Consume Aqua embed token → end-customer session, redirect | public (embed token) | |
-| `/api/v1/embed/sessions` | POST | Mint an Aqua embed token for a client | embed API bearer token | |
+| `/api/v1/embed/consume` | GET | Atomically exchange a single-use Aqua embed token for a session, then redirect | public (signed token + live scoped credential + nonce) | |
+| `/api/v1/embed/sessions` | POST | Mint an Aqua embed token for a client | per-agency/client vault credential with mode ceiling | |
 | `/api/v1/export` | GET | Export tenant records (json/csv) | external token (`export:read`) | |
 | `/api/v1/openapi.json` | GET | Serve the OpenAPI 3.1 spec for the v1 API | public | |
 | `/api/v1/records/[recordId]` | GET | Fetch a single tenant record by id + module | external token (`records:read`) | |
@@ -1300,8 +1300,10 @@ and private/reserved IP ranges (10/8, 127/8, 169.254 incl. cloud metadata,
 
 **Embed token** (`aquaEmbedToken.ts`): `base64url(payload).base64url(HMAC-SHA256)`;
 TTL clamped 30–300s; HMAC from `AQUA_EMBED_SIGNING_SECRET` (throws in prod if
-unset); mint API bearer-gated by `AQUA_EMBED_API_TOKEN`. `consume` verifies →
-issues a real session → redirects into the portal. Reverse direction
+unset). Mint authority is an encrypted per-agency or per-client vault credential
+with a maximum-mode ceiling and optional exact origin. `consume` revalidates the
+live credential and scope, atomically burns the durable nonce, issues a session,
+then redirects without putting the token on the destination URL. Reverse direction
 (`embedAllowResolver.ts`): an empty/unknown allow-list ⇒ `frame-ancestors 'none'`
 (default-deny).
 
@@ -1969,7 +1971,7 @@ them to a tenant (§3).
 | `CRON_SECRET` | `api/cron/inbox`, `api/cron/radar-probes` | Vercel Cron. Correct. |
 | `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_TRACES_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_DSN` | `instrumentation.ts`, `observability.ts` | Operator-owned configuration is the correct tier. Next's request-error hook is mounted and readiness now checks both a DSN and an installed SDK; without the optional SDK the honest capability is deployment logs only. Installing the chosen sink and proving live delivery remain in [issue #132](../development/issues.md). |
 | `PORTAL_HANDOFF_SECRET`, `SESSION_SECRET` | `portalHandoff.ts` | Correct. **Neither is on `ENV_ALLOWLIST`** — see §5. |
-| `AQUA_EMBED_SIGNING_SECRET`, `AQUA_EMBED_API_TOKEN` | `aquaEmbedToken.ts` | Correct. |
+| `AQUA_EMBED_SIGNING_SECRET` | `aquaEmbedToken.ts` | Deployment signing key. Embed caller credentials are per-agency/client encrypted vault records managed in Settings, not env authority. |
 | `PORTAL_PREVIEW_SECRET` | `built-ins/modules/website-editor/.../content.ts` | Correct, but defaults to the literal `"round-1-default-secret"` with no production guard. |
 | `INBOX_STORAGE_BACKEND`, `INBOX_LOCAL_DATA_FILE`, `INBOX_WEBHOOK_RETENTION_DAYS` | `inboxStore.ts`, `api/cron/inbox` | Storage selection + retention. Retention is arguably a per-company policy later; not day one. |
 | `PORTAL_DEV_MODE`, `PORTAL_DEV_AGENCY` | `devMode.ts` | Dev-only demo-persona switch, refuses on Vercel. Correct. It no longer controls production Dev Team availability. |

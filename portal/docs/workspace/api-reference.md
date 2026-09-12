@@ -336,15 +336,15 @@ not live.
 | `/api/public/aqua-tag-config` | GET, OPTIONS | Serve a site's enabled injections by key+host (cached, CORS) — tag-manager delivery seam | public (CORS) | |
 | `/api/public/demo-interest` | POST | AquaCRM demo gate — records name/contact + consent {timestamp, terms version} in the `website-demo` data realm, never the live one | public (same-origin, honeypot, rate-limited); **404 unless `WEBSITE_DEMO_ENABLED`** | |
 
-## `api/v1/*` (10) — external assistant API (bearer-token)
+## `api/v1/*` (10) — external assistant API and scoped embed exchange
 
 | Path | Methods | Purpose | Scope/auth | Live? |
 |---|---|---|---|---|
 | `/api/v1/actions/proposals` | GET, POST | List / submit external-assistant action proposals | external token (proposal access) | |
 | `/api/v1/advisor/context` | GET | External advisor-grade business context | external token (`advisor:read`) | |
 | `/api/v1/assistant/context` | GET | External assistant workspace context | external token (`context:read`) | |
-| `/api/v1/embed/consume` | GET | Consume Aqua embed token → end-customer session, redirect | public (embed token) | |
-| `/api/v1/embed/sessions` | POST | Mint an Aqua embed token for a client | embed API bearer token | |
+| `/api/v1/embed/consume` | GET | Atomically exchange a single-use Aqua embed token for a session, then redirect | public (signed token + live scoped credential + nonce) | |
+| `/api/v1/embed/sessions` | POST | Mint an Aqua embed token for a client | per-agency/client vault credential with mode ceiling | |
 | `/api/v1/export` | GET | Export tenant records (json/csv) | external token (`export:read`) | |
 | `/api/v1/openapi.json` | GET | Serve the OpenAPI 3.1 spec for the v1 API | public | |
 | `/api/v1/records/[recordId]` | GET | Fetch a single tenant record by id + module | external token (`records:read`) | |
