@@ -24,6 +24,20 @@ const css = readFileSync("src/app/globals.css", "utf8");
 const browserGate = readFileSync("scripts/browser-login-ux-acceptance.mjs", "utf8");
 const challengeFrameCss = /\.mm-captcha-frame \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
 
+function relativeLuminance(hex: string): number {
+  const channels = hex.match(/[0-9a-f]{2}/gi)?.map(value => Number.parseInt(value, 16) / 255) ?? [];
+  assert.equal(channels.length, 3, `expected a six-digit hex colour, received ${hex}`);
+  const [red, green, blue] = channels.map(value => value <= 0.04045
+    ? value / 12.92
+    : ((value + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+}
+
+function contrastRatio(foreground: string, background: string): number {
+  const values = [relativeLuminance(foreground), relativeLuminance(background)].sort((a, b) => b - a);
+  return (values[0] + 0.05) / (values[1] + 0.05);
+}
+
 test("LOGIN-UX-001: tenancy + the canonical Policies destination are preserved", () => {
   assert.match(page, /data-auth-brand=\{brand\.id\}/, "the shell stays brand-scoped (tenant-safe theming)");
   assert.match(page, /resolveAuthBrand/, "brand resolution (with neutral fallback) is preserved");
@@ -58,6 +72,18 @@ test("LOGIN-UX-001: the sign-in surface honours prefers-reduced-motion", () => {
     /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.mm-auth-shell \.mm-btn-primary:hover:not\(:disabled\) \{\s*transform: none;/,
     "reduced motion must neutralise the sign-in button's hover movement",
   );
+});
+
+test("LOGIN-UX-001: OAuth separator and Aqua support link retain AA contrast", () => {
+  const aquaAccent = /\.mm-auth-shell\[data-auth-brand="aqua"\] \{[\s\S]*?--auth-accent:\s*(#[0-9a-f]{6})/i.exec(css)?.[1];
+  const divider = /\.mm-or-divider \{[\s\S]*?color:\s*(#[0-9a-f]{6})/i.exec(css)?.[1];
+  assert.ok(aquaAccent, "the Aqua accent must be a measurable six-digit colour");
+  assert.ok(divider, "the OAuth separator must use a measurable six-digit foreground");
+  for (const [label, foreground] of [["Aqua support link", aquaAccent], ["OAuth separator", divider]] as const) {
+    for (const background of ["#FFFFFF", "#FDFCFA"]) {
+      assert.ok(contrastRatio(foreground, background) >= 4.5, `${label} must meet WCAG AA on ${background}`);
+    }
+  }
 });
 
 // ─── Approved re-skin (ORCHESTRATOR-FEEDBACK 2026-09-12) ──────────────────
