@@ -15,6 +15,8 @@
 // - every malformed/error authority response and invalid request fails closed;
 // - local counter cardinality and cleanup work are hard-bounded; cache
 //   saturation is neutral for untracked keys when durable authority exists; and
+// - ordinary durable calls use the database clock, responses bind reset time to
+//   that observation, and counters cannot move back to an older window; and
 // - counters carry their own expiry, so one policy window cannot expire another.
 //
 // Deliberately omits `server-only` so the pure adapters can be driven by the
@@ -312,7 +314,10 @@ export function createDurableAdmissionStore(
           p_key_hash: prepared.keyHash,
           p_max: req.max,
           p_window_ms: req.windowMs,
-          p_now_ms: prepared.now,
+          // Ordinary production calls use the database clock. `now` is an
+          // explicit deterministic-test seam only; app-instance clock skew
+          // must not choose a durable fixed window.
+          p_now_ms: req.now === undefined ? null : prepared.now,
         });
         if (error || !Array.isArray(data) || data.length !== 1) return malformedAuthority(prepared);
         const row = data[0];
@@ -320,13 +325,16 @@ export function createDurableAdmissionStore(
         const allowed = Reflect.get(row, "allowed");
         const hits = Reflect.get(row, "hits");
         const resetAt = Reflect.get(row, "reset_at");
+        const observedAt = Reflect.get(row, "observed_at");
         if (typeof allowed !== "boolean"
           || !Number.isSafeInteger(hits) || (hits as number) < 1
-          || !Number.isSafeInteger(resetAt) || resetAt !== prepared.resetAt
+          || !Number.isSafeInteger(resetAt)
+          || !Number.isSafeInteger(observedAt) || (observedAt as number) < 0
+          || resetAt !== windowStartMs(observedAt as number, req.windowMs) + req.windowMs
           || allowed !== ((hits as number) <= req.max)) {
           return malformedAuthority(prepared);
         }
-        return decide(hits as number, req.max, resetAt as number, prepared.now, "durable");
+        return decide(hits as number, req.max, resetAt as number, observedAt as number, "durable");
       } catch {
         return denyFailClosed(
           prepared.resetAt,

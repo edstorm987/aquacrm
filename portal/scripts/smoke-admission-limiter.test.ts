@@ -66,6 +66,10 @@ function fakeClient(
   };
 }
 
+function authorityRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return { allowed: true, hits: 1, reset_at: NOW + 60_000, observed_at: NOW, ...overrides };
+}
+
 test("memory adapter counts atomically within one fixed window and resets later", async () => {
   const store = createMemoryAdmissionStore();
   const req = { dimension: "ip" as const, key: "203.0.113.5", max: 3, windowMs: 60_000, now: NOW };
@@ -146,7 +150,7 @@ test("distinct-key floods hit a hard local cap and remain linear at 100,000 atte
 
 test("durable adapter HMACs canonical keys and never sends raw IP or identifiers", async () => {
   const { client, calls } = fakeClient((_fn, args) => ({
-    data: [{ allowed: true, hits: 1, reset_at: NOW + 60_000 }],
+    data: [authorityRow()],
     error: null,
   }));
   const store = createDurableAdmissionStore(async () => client);
@@ -160,6 +164,26 @@ test("durable adapter HMACs canonical keys and never sends raw IP or identifiers
   assert.equal(firstHash, calls[1]?.args.p_key_hash, "equivalent IPv6 forms must share one canonical bucket");
   assert.notEqual(firstHash, "2001:db8::1");
   assert.equal("p_key" in calls[0].args, false);
+  assert.equal(calls[0]?.args.p_now_ms, NOW, "the explicit test clock remains deterministic");
+});
+
+test("ordinary durable admission delegates fixed-window time to the database", async () => {
+  const databaseNow = NOW + 125_000;
+  const windowMs = 60_000;
+  const resetAt = Math.floor(databaseNow / windowMs) * windowMs + windowMs;
+  const { client, calls } = fakeClient((_fn, args) => {
+    assert.equal(args.p_now_ms, null, "an ordinary app instance must not choose the durable window");
+    return {
+      data: [{ allowed: true, hits: 1, reset_at: resetAt, observed_at: databaseNow }],
+      error: null,
+    };
+  });
+  const store = createDurableAdmissionStore(async () => client);
+  const decision = await store.admit({ dimension: "subject", key: "database-clock", max: 3, windowMs });
+  assert.equal(decision.allowed, true);
+  assert.equal(decision.backend, "durable");
+  assert.equal(decision.resetAt, resetAt);
+  assert.equal(calls.length, 1);
 });
 
 test("durable adapter rejects every malformed or coercible authority row", async () => {
@@ -167,22 +191,25 @@ test("durable adapter rejects every malformed or coercible authority row", async
   const malformed: unknown[] = [
     null,
     {},
-    { allowed: true, hits: null, reset_at: NOW + 60_000 },
-    { allowed: true, hits: "1", reset_at: NOW + 60_000 },
-    { allowed: true, hits: -1, reset_at: NOW + 60_000 },
-    { allowed: true, hits: 1.5, reset_at: NOW + 60_000 },
-    { allowed: "true", hits: 1, reset_at: NOW + 60_000 },
-    { allowed: false, hits: 1, reset_at: NOW + 60_000 },
-    { allowed: true, hits: 1, reset_at: String(NOW + 60_000) },
-    { allowed: true, hits: 1, reset_at: NOW + 120_000 },
+    authorityRow({ hits: null }),
+    authorityRow({ hits: "1" }),
+    authorityRow({ hits: -1 }),
+    authorityRow({ hits: 1.5 }),
+    authorityRow({ allowed: "true" }),
+    authorityRow({ allowed: false }),
+    authorityRow({ reset_at: String(NOW + 60_000) }),
+    authorityRow({ reset_at: NOW + 120_000 }),
+    authorityRow({ observed_at: undefined }),
+    authorityRow({ observed_at: "now" }),
+    authorityRow({ observed_at: -1 }),
   ];
   const responseShapes: unknown[] = [
     ...malformed.map((row) => [row]),
-    { allowed: true, hits: 1, reset_at: NOW + 60_000 },
+    authorityRow(),
     [],
     [
-      { allowed: true, hits: 1, reset_at: NOW + 60_000 },
-      { allowed: true, hits: 1, reset_at: NOW + 60_000 },
+      authorityRow(),
+      authorityRow(),
     ],
   ];
   for (const data of responseShapes) {
@@ -209,7 +236,7 @@ test("invalid, oversized, and secretless inputs deny before any RPC", async () =
   const store = createDurableAdmissionStore(async () => ({
     async rpc() {
       calls += 1;
-      return { data: [{ allowed: true, hits: 1, reset_at: NOW + 60_000 }], error: null };
+      return { data: [authorityRow()], error: null };
     },
   }));
   const cases = [
@@ -233,7 +260,7 @@ test("invalid, oversized, and secretless inputs deny before any RPC", async () =
 
 test("fast pre-filter can deny but never grant around the durable authority", async () => {
   const { client, calls } = fakeClient(() => ({
-    data: [{ allowed: true, hits: 1, reset_at: NOW + 60_000 }], error: null,
+    data: [authorityRow()], error: null,
   }));
   await _swapAdmissionStoreForTests(createDurableAdmissionStore(async () => client));
   for (let i = 0; i < 7; i += 1) {
@@ -251,6 +278,7 @@ test("a saturated fast pre-filter defers untracked dimensions to durable authori
         allowed: true,
         hits: 1,
         reset_at: Math.floor(now / windowMs) * windowMs + windowMs,
+        observed_at: now,
       }],
       error: null,
     };
@@ -360,11 +388,17 @@ test("migration enforces hashed bounded keys, per-row expiry, atomic capacity, R
   assert.match(sql, /bucket_key_hash char\(64\)/);
   assert.match(sql, /CHECK \(bucket_key_hash ~ '\^\[0-9a-f\]\{64\}\$'\)/);
   assert.match(sql, /expires_at\s+bigint/);
+  assert.match(sql, /CHECK \(expires_at = window_start \+ window_ms\)/);
   assert.match(sql, /active_counters BETWEEN 0 AND 100000/);
   assert.match(sql, /FOR UPDATE;/);
   assert.match(sql, /ON CONFLICT \(singleton\) DO NOTHING/);
-  assert.match(sql, /ON CONFLICT \(dimension, bucket_key_hash, window_ms\)[\s\S]*?DO UPDATE SET/);
+  assert.doesNotMatch(sql, /ON CONFLICT \(dimension, bucket_key_hash, window_ms\)/);
   assert.match(sql, /DELETE FROM public\.abuse_admission_counters WHERE expires_at <= v_now/);
+  assert.match(sql, /RETURNS TABLE\(allowed boolean, hits integer, reset_at bigint, observed_at bigint\)/);
+  assert.match(sql, /v_now\s+bigint := COALESCE\(p_now_ms, \(EXTRACT\(EPOCH FROM clock_timestamp\(\)\)/);
+  assert.match(sql, /IF v_existing_start > v_window_start THEN[\s\S]*?allowed := FALSE;[\s\S]*?RETURN;/);
+  assert.match(sql, /IF v_existing_start < v_window_start THEN[\s\S]*?SET window_start = v_window_start,[\s\S]*?hits = 1/);
+  assert.match(sql, /INSERT INTO public\.abuse_admission_counters[\s\S]*?RETURNING public\.abuse_admission_counters\.hits INTO v_hits;[\s\S]*?SET active_counters = v_active \+ 1/);
   assert.match(sql, /CREATE OR REPLACE FUNCTION public\.gc_abuse_admission_counters/);
   assert.doesNotMatch(sql, /window_start < v_now - GREATEST/);
   assert.doesNotMatch(sql, /bucket_key\s+text/);

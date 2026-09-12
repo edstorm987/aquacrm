@@ -169,7 +169,13 @@ tenant/install and provider-budget identifiers do not enter the schema. Rows
 carry their exact policy window and expiry, expired rows are removed during
 new-window allocation, and an atomic 100,000-row capacity ledger fails closed
 instead of accepting unbounded distinct-key cardinality. Production memory is
-forbidden. Canonical Supabase authority is required; the separate PostgreSQL
+forbidden. Ordinary production admission delegates time to the database rather
+than selecting a window from an app-instance clock. The RPC also refuses a late
+older-window transition after a newer row exists, only advances rows
+monotonically, and increments the capacity ledger only after a serialized new
+row insert. Its `observed_at` result binds `reset_at` validation to the same
+database/test clock that made the decision. Canonical Supabase authority is
+required; the separate PostgreSQL
 portal backend has no limiter adapter and reports that configuration exactly.
 The same migration exposes service-role-only `gc_abuse_admission_counters` for
 deterministic scheduled expiry; like admission itself, scheduler wiring remains

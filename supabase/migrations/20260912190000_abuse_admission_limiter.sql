@@ -5,6 +5,9 @@
 -- (dimension, digest, policy-window) carries its own expiry. A service-role-only
 -- singleton ledger serializes NEW-key allocation so the active table cannot
 -- exceed its hard cap without making the existing hot-key increment path global.
+-- Ordinary app calls pass no time override: the database selects the window.
+-- The explicit time parameter is retained only for deterministic acceptance and
+-- is guarded against moving an already-committed row to an older window.
 
 CREATE TABLE IF NOT EXISTS public.abuse_admission_counters (
   dimension       text    NOT NULL
@@ -13,9 +16,10 @@ CREATE TABLE IF NOT EXISTS public.abuse_admission_counters (
     CHECK (bucket_key_hash ~ '^[0-9a-f]{64}$'),
   window_ms       bigint  NOT NULL
     CHECK (window_ms BETWEEN 1000 AND 2592000000),
-  window_start    bigint  NOT NULL,
+  window_start    bigint  NOT NULL CHECK (window_start >= 0),
   expires_at      bigint  NOT NULL,
   hits            integer NOT NULL DEFAULT 0 CHECK (hits >= 0),
+  CHECK (expires_at = window_start + window_ms),
   PRIMARY KEY (dimension, bucket_key_hash, window_ms)
 );
 
@@ -46,7 +50,7 @@ CREATE OR REPLACE FUNCTION public.abuse_admission_check(
   p_window_ms bigint,
   p_now_ms    bigint DEFAULT NULL
 )
-RETURNS TABLE(allowed boolean, hits integer, reset_at bigint)
+RETURNS TABLE(allowed boolean, hits integer, reset_at bigint, observed_at bigint)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   v_now            bigint := COALESCE(p_now_ms, (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint);
@@ -55,6 +59,8 @@ DECLARE
   v_hits           integer;
   v_active         integer;
   v_deleted        integer;
+  v_existing_start bigint;
+  v_existing_expiry bigint;
   v_capacity_limit constant integer := 100000;
 BEGIN
   IF p_dimension IS NULL OR p_dimension NOT IN ('ip', 'subject', 'tenant-install', 'provider-budget') THEN
@@ -73,6 +79,7 @@ BEGIN
 
   v_window_start := (v_now / p_window_ms) * p_window_ms;
   v_reset_at := v_window_start + p_window_ms;
+  observed_at := v_now;
 
   -- Existing live keys never take the global new-key allocation lock. This
   -- update is row-atomic and the fixed window/expiry predicate prevents an old
@@ -127,6 +134,57 @@ BEGIN
     RETURN;
   END IF;
 
+  -- The key exists but belongs to another fixed window. This can only be a
+  -- late/stale explicit-clock call after a newer window has already committed,
+  -- or an older row that survived unusual clock movement. The singleton lock
+  -- is already held: never move a row backwards and never count an update as
+  -- an insert.
+  SELECT window_start, expires_at
+  INTO v_existing_start, v_existing_expiry
+  FROM public.abuse_admission_counters
+  WHERE dimension = p_dimension
+    AND bucket_key_hash = p_key_hash
+    AND window_ms = p_window_ms
+  FOR UPDATE;
+
+  IF FOUND THEN
+    UPDATE public.abuse_admission_capacity
+    SET active_counters = v_active
+    WHERE singleton = TRUE;
+
+    IF v_existing_start > v_window_start THEN
+      -- A stale request must not rewind or spend a newer window. Deny it
+      -- deterministically without mutating the counter or the row ledger.
+      allowed := FALSE;
+      hits := p_max + 1;
+      reset_at := v_reset_at;
+      RETURN NEXT;
+      RETURN;
+    END IF;
+
+    IF v_existing_start < v_window_start THEN
+      -- Monotonic forward repair for a non-expired older row. Cardinality is
+      -- unchanged, so the capacity ledger remains v_active.
+      UPDATE public.abuse_admission_counters
+      SET window_start = v_window_start,
+          expires_at = v_reset_at,
+          hits = 1
+      WHERE dimension = p_dimension
+        AND bucket_key_hash = p_key_hash
+        AND window_ms = p_window_ms
+      RETURNING public.abuse_admission_counters.hits INTO v_hits;
+      allowed := v_hits <= p_max;
+      hits := v_hits;
+      reset_at := v_reset_at;
+      RETURN NEXT;
+      RETURN;
+    END IF;
+
+    -- Equal starts with a different expiry violates the table invariant. The
+    -- exception rolls back cleanup/ledger changes and the adapter fails closed.
+    RAISE EXCEPTION 'counter window state is inconsistent: %', v_existing_expiry;
+  END IF;
+
   IF v_active >= v_capacity_limit THEN
     UPDATE public.abuse_admission_capacity SET active_counters = v_active WHERE singleton = TRUE;
     allowed := FALSE;
@@ -141,12 +199,10 @@ BEGIN
   ) VALUES (
     p_dimension, p_key_hash, p_window_ms, v_window_start, v_reset_at, 1
   )
-  ON CONFLICT (dimension, bucket_key_hash, window_ms)
-  DO UPDATE SET
-    window_start = EXCLUDED.window_start,
-    expires_at = EXCLUDED.expires_at,
-    hits = public.abuse_admission_counters.hits + 1
   RETURNING public.abuse_admission_counters.hits INTO v_hits;
+  -- New-key allocation is serialized by the singleton row. With every
+  -- existing primary-key row handled above, reaching this point means the
+  -- INSERT succeeded and cardinality increased by exactly one.
   UPDATE public.abuse_admission_capacity
   SET active_counters = v_active + 1
   WHERE singleton = TRUE;
@@ -196,6 +252,6 @@ REVOKE ALL ON FUNCTION public.gc_abuse_admission_counters(bigint)
 GRANT EXECUTE ON FUNCTION public.gc_abuse_admission_counters(bigint)
   TO service_role;
 COMMENT ON FUNCTION public.abuse_admission_check(text, text, integer, bigint, bigint) IS
-  'ABUSE-BASE: bounded atomic admission counter over server-HMACed IP/subject/tenant-install/provider-budget keys. Service-role only.';
+  'ABUSE-BASE: bounded monotonic fixed-window admission over server-HMACed keys; database-clock by default, explicit clock only for deterministic acceptance. Service-role only.';
 COMMENT ON FUNCTION public.gc_abuse_admission_counters(bigint) IS
   'ABUSE-BASE: delete expired pseudonymous admission counters and reconcile the bounded capacity ledger. Service-role only; scheduler wiring is a separate reviewed lane.';
