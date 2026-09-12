@@ -17,9 +17,13 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { DashboardWorkActivityMode, DashboardWorkSession } from "@/server/types";
+import {
+  CLOCK_OUT_REVIEW_SNOOZE_MS,
+  REMIND_LATER_MS,
+  shouldPromptLocalIdle,
+} from "./workSessionCheckIn";
 
 const HEARTBEAT_MS = 60_000;
-const LOCAL_IDLE_PROMPT_MS = 10 * 60_000;
 
 interface PlanningPayload {
   today: string;
@@ -128,7 +132,7 @@ export function SmartWorkSessionMonitor({ userName, initialSession, initialNow }
       const stamp = Date.now();
       setNow(stamp);
       const active = sessionRef.current;
-      if (active?.currentMode === "aqua" && stamp - lastInteractionRef.current >= LOCAL_IDLE_PROMPT_MS && stamp >= snoozedUntil) {
+      if (shouldPromptLocalIdle({ currentMode: active?.currentMode, now: stamp, lastInteractionAt: lastInteractionRef.current, snoozedUntil })) {
         setOpen(true);
       }
       void heartbeat();
@@ -194,7 +198,7 @@ export function SmartWorkSessionMonitor({ userName, initialSession, initialNow }
   }
 
   function requestClockOutReview() {
-    setSnoozedUntil(Date.now() + 10 * 60_000);
+    setSnoozedUntil(Date.now() + CLOCK_OUT_REVIEW_SNOOZE_MS);
     setOpen(false);
     if (window.location.pathname === "/portal/agency" || window.location.pathname === "/portal/agency/command-center") {
       window.dispatchEvent(new Event("aqua-work-session:clock-out-review"));
@@ -204,7 +208,7 @@ export function SmartWorkSessionMonitor({ userName, initialSession, initialNow }
   }
 
   function remindLater() {
-    setSnoozedUntil(Date.now() + 5 * 60_000);
+    setSnoozedUntil(Date.now() + REMIND_LATER_MS);
     setOpen(false);
   }
 
