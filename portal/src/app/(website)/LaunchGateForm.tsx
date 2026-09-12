@@ -1,6 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import {
+  BotChallenge,
+  type BotChallengeHandle,
+  usePublicBotChallengeConfig,
+} from "@/components/security/BotChallenge";
 
 const defaultServices = [
   "Business & events",
@@ -21,6 +26,9 @@ export function LaunchGateForm({
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const challenge = usePublicBotChallengeConfig();
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const captchaRef = useRef<BotChallengeHandle>(null);
 
   return (
     <form
@@ -50,6 +58,7 @@ export function LaunchGateForm({
               submissionId: values.get("aquaSubmissionId"),
               consent: values.get("consent") === "yes",
               website: values.get("website"),
+              ...(captchaToken ? { captchaToken } : {}),
             }),
           });
           const payload = await response.json() as { ok?: boolean; error?: string };
@@ -61,6 +70,7 @@ export function LaunchGateForm({
         } catch (cause) {
           setError(cause instanceof Error ? cause.message : "We could not send your message.");
         } finally {
+          captchaRef.current?.reset();
           setBusy(false);
         }
       }}
@@ -166,9 +176,23 @@ export function LaunchGateForm({
           centrally by Zimante Group for the selected specialist.
         </span>
       </label>
+      <div className="sm:col-span-2">
+        <BotChallenge
+          ref={captchaRef}
+          siteKey={challenge.siteKey}
+          action="brand-enquiry"
+          onToken={setCaptchaToken}
+          required={challenge.required || challenge.error}
+        />
+      </div>
       <button
         type="submit"
-        disabled={busy}
+        disabled={
+          busy
+          || challenge.loading
+          || ((challenge.required || challenge.error) && !challenge.siteKey)
+          || (Boolean(challenge.siteKey) && !captchaToken)
+        }
         className="h-12 w-full rounded-md bg-[#6F452F] px-5 text-base font-semibold text-white transition hover:bg-[#593623] disabled:cursor-wait disabled:opacity-65 sm:col-span-2"
       >
         {busy ? "Sending..." : "Send message"}

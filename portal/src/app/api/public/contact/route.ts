@@ -73,11 +73,6 @@ export async function POST(req: NextRequest) {
   if (!ipLimit.allowed) {
     return error("Too many messages have been sent. Please try again later.", 429, ipLimit.retryAfterSec);
   }
-  const emailLimit = rateLimit({ key: `public-contact-email:${email}`, max: 3, windowMs: 60 * 60 * 1_000 });
-  if (!emailLimit.allowed) {
-    return error("We already have your recent messages. Please give us a little time to reply.", 429, emailLimit.retryAfterSec);
-  }
-
   // AUTH-001 / DECISIONS #13: managed bot-challenge, verified server-side before
   // any lead is created. The honeypot above is a cheap first layer; this is the
   // managed challenge. Fail-closed when configured; a no-op outside production
@@ -92,6 +87,14 @@ export async function POST(req: NextRequest) {
   });
   if (!challenge.ok) {
     return error(challenge.message, challenge.reason === "rate-limited" ? 429 : 403, challenge.retryAfterSec);
+  }
+
+  // Only a human-verified request may spend another person's email quota.
+  // Keeping this before the challenge let a bot lock a victim out by naming
+  // their address repeatedly without ever solving the challenge.
+  const emailLimit = rateLimit({ key: `public-contact-email:${email}`, max: 3, windowMs: 60 * 60 * 1_000 });
+  if (!emailLimit.allowed) {
+    return error("We already have your recent messages. Please give us a little time to reply.", 429, emailLimit.retryAfterSec);
   }
 
   try {

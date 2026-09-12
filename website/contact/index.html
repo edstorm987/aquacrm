@@ -72,7 +72,7 @@
           </div>
         </div>
 
-        <form class="enquiry-form" id="enquiry-form" data-aqua-form="AquaCRM contact page enquiry">
+        <form class="enquiry-form" id="enquiry-form" data-aqua-form="AquaCRM contact page enquiry" data-aqua-challenge-action="brand-enquiry">
           <input class="form-trap" name="website" tabindex="-1" autocomplete="off" />
           <div class="form-pair">
             <label>Name<input required name="name" autocomplete="name" /></label>
@@ -118,6 +118,10 @@
 
     <script>
       const aquaOrigin = location.hostname === "localhost" || location.hostname === "127.0.0.1" ? "http://localhost:3032" : "https://aqua-crm.com";
+      const challengeScript = document.createElement("script");
+      challengeScript.src = `${aquaOrigin}/aqua-bot-challenge.js`;
+      challengeScript.defer = true;
+      document.head.appendChild(challengeScript);
       const menuButton = document.querySelector(".menu-button");
       const mainNavigation = document.querySelector("#main-navigation");
       const closeMobileNavigation = () => {
@@ -170,6 +174,7 @@
               campaign: new URLSearchParams(window.location.search).get("utm_campaign") || "",
               consent: data.get("consent") === "yes",
               website: data.get("website"),
+              captchaToken: data.get("captchaToken"),
             }),
           });
           const result = await response.json();
@@ -181,6 +186,7 @@
           status.textContent = error instanceof Error ? error.message : "Unable to send your enquiry.";
           status.classList.add("is-error");
         } finally {
+          window.AquaBotChallenge?.reset(form);
           submit.disabled = false;
           submit.innerHTML = 'Start the conversation <span aria-hidden="true">→</span>';
         }

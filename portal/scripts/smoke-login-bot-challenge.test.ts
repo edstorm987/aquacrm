@@ -27,6 +27,7 @@ import { NextRequest } from "next/server";
 process.env.PORTAL_BACKEND ??= "memory";
 
 import { POST } from "../src/app/api/auth/login/route";
+import { POST as browserPOST } from "../src/app/api/auth/login/browser/route";
 import { ensureHydrated } from "../src/server/storage";
 import { createAgency } from "../src/server/tenants";
 import { createUser } from "../src/server/users";
@@ -48,6 +49,7 @@ let sbCalls: string[] = [];
 let realFetch: typeof fetch;
 let savedEnv: Record<string, string | undefined> = {};
 let supabaseReachable = false;
+const EXTERNAL_LOGIN_ORIGIN = "https://portal.aquaoasis.test";
 
 // The canned Turnstile answer for a "valid" token. Bound to action=login and
 // the request host (localhost) so the server's strict binding is satisfied.
@@ -142,6 +144,22 @@ function formRequest(fields: Record<string, string>, ip: string, referer?: strin
   return new NextRequest(LOGIN_URL, { method: "POST", headers, body: new URLSearchParams(fields).toString() });
 }
 
+function browserFormRequest(
+  fields: Record<string, string>,
+  ip: string,
+  origin: string,
+): NextRequest {
+  return new NextRequest(`${LOGIN_URL}/browser`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      "x-forwarded-for": ip,
+      origin,
+    },
+    body: new URLSearchParams(fields).toString(),
+  });
+}
+
 function cookieValue(res: Response, name: string): string | undefined {
   const hit = res.headers.getSetCookie().find((c) => c.startsWith(`${name}=`));
   if (!hit) return undefined;
@@ -156,6 +174,7 @@ before(async () => {
     site: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
     secret: process.env.TURNSTILE_SECRET_KEY,
     node: process.env.NODE_ENV,
+    aquaOasis: process.env.NEXT_PUBLIC_AQUAOASIS_URL,
   };
   installFetchInterceptor();
   const base = await startStubSupabase();
@@ -163,6 +182,7 @@ before(async () => {
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "stub-anon-key";
   process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = SITE_KEY;
   process.env.TURNSTILE_SECRET_KEY = SECRET_KEY;
+  process.env.NEXT_PUBLIC_AQUAOASIS_URL = EXTERNAL_LOGIN_ORIGIN;
   __resetBotChallengeForTest();
 
   await ensureHydrated();
@@ -184,6 +204,7 @@ after(() => {
   restore("NEXT_PUBLIC_TURNSTILE_SITE_KEY", savedEnv.site);
   restore("TURNSTILE_SECRET_KEY", savedEnv.secret);
   restore("NODE_ENV", savedEnv.node);
+  restore("NEXT_PUBLIC_AQUAOASIS_URL", savedEnv.aquaOasis);
   sbServer?.close();
 });
 
@@ -227,6 +248,94 @@ describe("Login is gated by the managed bot-challenge (configured)", () => {
     const location = res.headers.get("location")!;
     assert.ok(!location.toLowerCase().includes("challenge"), "the challenge message must not leak into the URL");
     assert.match(cookieValue(res, ERROR_COOKIE) ?? "", /verification challenge/i);
+  });
+});
+
+describe("Branded browser login preserves the external challenge hostname", () => {
+  const common = {
+    email: MEMBER_EMAIL,
+    password: GOOD_PASSWORD,
+    brand: "aquaoasis-web",
+  };
+
+  it("rejects an Origin that does not exactly match the selected brand", async () => {
+    const before = sbCalls.length;
+    const res = await browserPOST(browserFormRequest(
+      { ...common, captchaToken: "external-wrong-origin" },
+      "20.0.2.1",
+      "https://evil.example",
+    ));
+    assert.equal(res.status, 303);
+    assert.match(res.headers.get("location") ?? "", /error=/);
+    assert.equal(
+      sbCalls.slice(before).filter((call) => call === "POST /auth/v1/token").length,
+      0,
+      "an untrusted Origin must be rejected before credential work",
+    );
+  });
+
+  it("denies the right external Origin when no challenge token is supplied", async () => {
+    const before = sbCalls.length;
+    const res = await browserPOST(browserFormRequest(
+      common,
+      "20.0.2.2",
+      EXTERNAL_LOGIN_ORIGIN,
+    ));
+    assert.equal(res.status, 303);
+    const error = new URL(res.headers.get("location") ?? ORIGIN).searchParams.get("error") ?? "";
+    assert.match(error, /verification challenge/i);
+    assert.equal(
+      sbCalls.slice(before).filter((call) => call === "POST /auth/v1/token").length,
+      0,
+    );
+  });
+
+  it("denies a provider token minted for the portal host on an external login", async () => {
+    turnstileVerdict = () => ({
+      success: true,
+      action: "login",
+      hostname: "localhost",
+      challenge_ts: new Date().toISOString(),
+    });
+    const before = sbCalls.length;
+    const res = await browserPOST(browserFormRequest(
+      { ...common, captchaToken: "external-wrong-host" },
+      "20.0.2.4",
+      EXTERNAL_LOGIN_ORIGIN,
+    ));
+    assert.equal(res.status, 303);
+    const error = new URL(res.headers.get("location") ?? ORIGIN).searchParams.get("error") ?? "";
+    assert.match(error, /verification challenge/i);
+    assert.equal(
+      sbCalls.slice(before).filter((call) => call === "POST /auth/v1/token").length,
+      0,
+      "hostname mismatch must fail before password verification",
+    );
+  });
+
+  it("accepts a token bound to the trusted external hostname", async () => {
+    turnstileVerdict = (token) => ({
+      success: token === "external-good-token",
+      action: "login",
+      hostname: "portal.aquaoasis.test",
+      challenge_ts: new Date().toISOString(),
+    });
+    const res = await browserPOST(browserFormRequest(
+      { ...common, captchaToken: "external-good-token" },
+      "20.0.2.3",
+      EXTERNAL_LOGIN_ORIGIN,
+    ));
+    assert.equal(res.status, 303);
+    assert.ok(
+      res.headers.getSetCookie().some((cookie) => cookie.startsWith(`${SESSION_COOKIE_NAME}=`)),
+      "a correctly host-bound branded login receives the session cookie",
+    );
+    turnstileVerdict = () => ({
+      success: true,
+      action: "login",
+      hostname: "localhost",
+      challenge_ts: new Date().toISOString(),
+    });
   });
 });
 

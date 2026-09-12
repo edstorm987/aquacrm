@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  BotChallenge,
+  usePublicBotChallengeConfig,
+} from "@/components/security/BotChallenge";
 import type { BlockRenderProps } from "../blockRegistry";
 import { blockStylesToCss } from "../blockStyles";
 
@@ -42,6 +46,9 @@ export default function LoginFormBlock({ block, editorMode }: BlockRenderProps) 
   const forgotHref   = (block.props.forgotHref as string | undefined)   ?? "/account/forgot-password";
   const signupHref   = (block.props.signupHref as string | undefined)   ?? "/signup";
   const showSignupLink = block.props.showSignupLink !== false;
+  const protectedLogin = action.trim() === "/api/auth/login";
+  const challenge = usePublicBotChallengeConfig();
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
   // Read-once: only overwrite state when a message is actually present, so
   // React 19 Strict Mode's second effect pass (which finds the cookie already
@@ -116,7 +123,27 @@ export default function LoginFormBlock({ block, editorMode }: BlockRenderProps) 
           ) : <span />}
           {showForgot && <a href={forgotHref} style={{ color: "var(--theme-primary, #ff6b35)", textDecoration: "none" }}>Forgot password?</a>}
         </div>
-        <button type="submit" disabled={editorMode} style={{ marginTop: 4, padding: "12px 20px", borderRadius: "var(--theme-radius, 12px)", border: "none", background: "var(--theme-primary, #ff6b35)", color: "#fff", fontSize: 14, fontWeight: 600, cursor: editorMode ? "default" : "pointer" }}>
+        {protectedLogin && !editorMode ? (
+          <>
+            <input type="hidden" name="captchaToken" value={captchaToken ?? ""} />
+            <BotChallenge
+              siteKey={challenge.siteKey}
+              action="login"
+              onToken={setCaptchaToken}
+              required={challenge.required || challenge.error}
+            />
+          </>
+        ) : null}
+        <button
+          type="submit"
+          disabled={
+            editorMode
+            || (protectedLogin && challenge.loading)
+            || (protectedLogin && (challenge.required || challenge.error) && !challenge.siteKey)
+            || (protectedLogin && Boolean(challenge.siteKey) && !captchaToken)
+          }
+          style={{ marginTop: 4, padding: "12px 20px", borderRadius: "var(--theme-radius, 12px)", border: "none", background: "var(--theme-primary, #ff6b35)", color: "#fff", fontSize: 14, fontWeight: 600, cursor: editorMode ? "default" : "pointer" }}
+        >
           {submitLabel}
         </button>
       </form>

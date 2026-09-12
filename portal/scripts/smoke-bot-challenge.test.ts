@@ -52,6 +52,16 @@ function fetchThrowing(abort: boolean): typeof fetch {
   }) as unknown as typeof fetch;
 }
 
+function fetchHangingUntilAbort(): typeof fetch {
+  return (async (_input, init) => new Promise<Response>((_resolve, reject) => {
+    init?.signal?.addEventListener("abort", () => {
+      const error = new Error("The operation was aborted");
+      error.name = "AbortError";
+      reject(error);
+    }, { once: true });
+  })) as typeof fetch;
+}
+
 const ORIGINAL_ENV = {
   site: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
   secret: process.env.TURNSTILE_SECRET_KEY,
@@ -163,9 +173,11 @@ describe("bot-challenge — provider outcomes fail closed", () => {
   });
 
   it("denies (fail closed) on a provider timeout", async () => {
-    const decision = await verify({ fetchImpl: fetchThrowing(true) });
+    const startedAt = Date.now();
+    const decision = await verify({ fetchImpl: fetchHangingUntilAbort() });
     assert.equal(decision.ok, false);
     assert.equal(decision.reason, "provider-timeout");
+    assert.ok(Date.now() - startedAt >= 4_500, "the real AbortController timeout must fire");
   });
 
   it("denies (fail closed) on a provider network error", async () => {
@@ -176,6 +188,17 @@ describe("bot-challenge — provider outcomes fail closed", () => {
 
   it("denies (fail closed) on a non-200 provider response", async () => {
     const decision = await verify({ fetchImpl: fetchReturning({}, false, 502) });
+    assert.equal(decision.ok, false);
+    assert.equal(decision.reason, "provider-error");
+  });
+
+  it("denies (fail closed) when the provider returns invalid JSON", async () => {
+    const invalidJson = (async () => ({
+      ok: true,
+      status: 200,
+      json: async () => { throw new SyntaxError("invalid json"); },
+    })) as unknown as typeof fetch;
+    const decision = await verify({ fetchImpl: invalidJson });
     assert.equal(decision.ok, false);
     assert.equal(decision.reason, "provider-error");
   });
@@ -205,6 +228,15 @@ describe("bot-challenge — action + hostname + age binding", () => {
       fetchImpl: fetchReturning(happyBody),
     });
     assert.equal(ok.ok, true);
+  });
+
+  it("does not let a process-wide hostname override an exact request host", async () => {
+    process.env.CAPTCHA_EXPECTED_HOSTNAMES = "other.aquacrm.test";
+    const decision = await verify({
+      hostname: "portal.aquacrm.test",
+      fetchImpl: fetchReturning({ ...happyBody, hostname: "other.aquacrm.test" }),
+    });
+    assert.equal(decision.reason, "hostname-mismatch");
   });
 
   it("refuses a token older than the max age", async () => {
@@ -256,6 +288,17 @@ describe("bot-challenge — action + hostname + age binding", () => {
     });
     assert.equal(decision.ok, false);
     assert.equal(decision.reason, "invalid-timestamp");
+  });
+
+  it("REQUIRES a trusted expected hostname in production", async () => {
+    process.env.NODE_ENV = "production";
+    const decision = await verify({
+      hostname: undefined,
+      expectedHostnames: [],
+      fetchImpl: fetchReturning(happyBody),
+    });
+    assert.equal(decision.ok, false);
+    assert.equal(decision.reason, "hostname-mismatch");
   });
 });
 

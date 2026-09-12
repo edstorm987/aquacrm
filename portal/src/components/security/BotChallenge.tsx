@@ -10,9 +10,10 @@
 //   - No new dependency. The project's node_modules is frozen (symlinked to the
 //     integration tree), so the vanilla explicit-render API is used directly
 //     rather than a React wrapper package.
-//   - Fail-open ONLY at render time: with no site key the component renders
-//     nothing and the form still submits. The SERVER decides enforcement — in
-//     production an unconfigured challenge fails closed there, not here.
+//   - With no site key local/test callers may remain unblocked, while a caller
+//     marked `required` gets an explicit outage and a disabled submit control.
+//     The SERVER remains the enforcement authority and fails closed in
+//     production even if client code is bypassed.
 //   - Accessible: the widget itself is keyboard- and screen-reader-navigable
 //     inside its iframe; on load/verify failure we surface a real, focusable
 //     "Try again" control and an assertive live region, never a dead end.
@@ -63,23 +64,42 @@ function loadTurnstileScript(): Promise<void> {
   if (scriptPromise) return scriptPromise;
   scriptPromise = new Promise<void>((resolve, reject) => {
     const existing = document.querySelector<HTMLScriptElement>(`script[${SCRIPT_MARKER}]`);
-    if (existing) {
-      if (window.turnstile) return resolve();
-      existing.addEventListener("load", () => resolve(), { once: true });
-      existing.addEventListener("error", () => reject(new Error("turnstile-script-failed")), { once: true });
-      return;
+    const script = existing ?? document.createElement("script");
+    let settled = false;
+    const timeout = window.setTimeout(() => fail("turnstile-script-timeout"), 12_000);
+    function cleanup() {
+      window.clearTimeout(timeout);
+      script.removeEventListener("load", loaded);
+      script.removeEventListener("error", failed);
     }
-    const script = document.createElement("script");
-    script.src = SCRIPT_SRC;
-    script.async = true;
-    script.defer = true;
-    script.setAttribute(SCRIPT_MARKER, "");
-    script.addEventListener("load", () => resolve(), { once: true });
-    script.addEventListener("error", () => {
+    function fail(reason: string) {
+      if (settled) return;
+      settled = true;
+      cleanup();
       scriptPromise = null;
-      reject(new Error("turnstile-script-failed"));
-    }, { once: true });
-    document.head.appendChild(script);
+      script.remove();
+      reject(new Error(reason));
+    }
+    function failed() { fail("turnstile-script-failed"); }
+    function loaded() {
+      if (!window.turnstile) {
+        fail("turnstile-api-missing");
+        return;
+      }
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve();
+    }
+    script.addEventListener("load", loaded, { once: true });
+    script.addEventListener("error", failed, { once: true });
+    if (!existing) {
+      script.src = SCRIPT_SRC;
+      script.async = true;
+      script.defer = true;
+      script.setAttribute(SCRIPT_MARKER, "");
+      document.head.appendChild(script);
+    }
   });
   return scriptPromise;
 }
@@ -87,6 +107,59 @@ function loadTurnstileScript(): Promise<void> {
 export interface BotChallengeHandle {
   /** Discard the current token and re-issue a fresh one (single-use tokens). */
   reset: () => void;
+}
+
+export interface PublicBotChallengeConfig {
+  siteKey: string | null;
+  required: boolean;
+  loading: boolean;
+  error: boolean;
+}
+
+/** Runtime configuration for client-rendered website/editor form blocks. */
+export function usePublicBotChallengeConfig(): PublicBotChallengeConfig {
+  const [config, setConfig] = useState<PublicBotChallengeConfig>({
+    siteKey: null,
+    required: false,
+    loading: true,
+    error: false,
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/public/bot-challenge/config", {
+      cache: "no-store",
+      credentials: "omit",
+    })
+      .then(async response => {
+        if (!response.ok) throw new Error("challenge-config-unavailable");
+        return response.json() as Promise<{
+          siteKey?: unknown;
+          enabled?: unknown;
+          required?: unknown;
+        }>;
+      })
+      .then(payload => {
+        if (cancelled) return;
+        const siteKey = typeof payload.siteKey === "string" && payload.siteKey.trim()
+          ? payload.siteKey.trim()
+          : null;
+        setConfig({
+          siteKey,
+          required: payload.required === true,
+          loading: false,
+          error: payload.enabled === true && !siteKey,
+        });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setConfig({ siteKey: null, required: true, loading: false, error: true });
+        }
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  return config;
 }
 
 interface Props {
@@ -97,10 +170,12 @@ interface Props {
   /** Called with a fresh token, or null when it expires / errors / is reset. */
   onToken: (token: string | null) => void;
   className?: string;
+  /** Production pages use this to expose a missing-key outage before submit. */
+  required?: boolean;
 }
 
 export const BotChallenge = forwardRef<BotChallengeHandle, Props>(function BotChallenge(
-  { siteKey, action, onToken, className },
+  { siteKey, action, onToken, className, required = false },
   ref,
 ) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -119,8 +194,8 @@ export const BotChallenge = forwardRef<BotChallengeHandle, Props>(function BotCh
         const api = window.turnstile;
         if (api && widgetIdRef.current != null) {
           api.reset(widgetIdRef.current);
-          onTokenRef.current(null);
         }
+        onTokenRef.current(null);
       },
     }),
     [],
@@ -158,15 +233,24 @@ export const BotChallenge = forwardRef<BotChallengeHandle, Props>(function BotCh
             onTokenRef.current(null);
           },
           "expired-callback": () => {
-            if (!cancelled) onTokenRef.current(null);
+            if (!cancelled) {
+              setStatus("loading");
+              onTokenRef.current(null);
+            }
           },
           "timeout-callback": () => {
-            if (!cancelled) onTokenRef.current(null);
+            if (!cancelled) {
+              setStatus("error");
+              onTokenRef.current(null);
+            }
           },
         });
       })
       .catch(() => {
-        if (!cancelled) setStatus("error");
+        if (!cancelled) {
+          setStatus("error");
+          onTokenRef.current(null);
+        }
       });
     return () => {
       cancelled = true;
@@ -184,15 +268,30 @@ export const BotChallenge = forwardRef<BotChallengeHandle, Props>(function BotCh
   }, [siteKey, action, attempt]);
 
   const retry = useCallback(() => {
+    const api = window.turnstile;
+    if (api && widgetIdRef.current != null) {
+      try {
+        api.remove(widgetIdRef.current);
+      } catch {
+        /* widget already gone */
+      }
+    }
     widgetIdRef.current = null;
     onTokenRef.current(null);
     setStatus("loading");
     setAttempt((n) => n + 1);
   }, []);
 
-  // Nothing to show when the challenge is not configured. The form still works;
-  // the server decides whether an unconfigured challenge is allowed.
-  if (!siteKey) return null;
+  // Outside production an absent key deliberately leaves local development and
+  // tests unchanged. In production, surface the configuration outage rather
+  // than leaving a user with a form that the fail-closed server must reject.
+  if (!siteKey) {
+    return required ? (
+      <p role="alert" className={className ?? "mm-form-error"}>
+        Verification is temporarily unavailable. Please try again later.
+      </p>
+    ) : null;
+  }
 
   return (
     <div className={className}>

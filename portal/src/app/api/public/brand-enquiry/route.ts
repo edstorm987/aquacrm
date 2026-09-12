@@ -489,20 +489,6 @@ export async function POST(req: NextRequest) {
       ipLimit.retryAfterSec,
     );
   }
-  const contactLimit = rateLimit({
-    key: `brand-enquiry-contact:${hasEmail ? email : phone.replace(/\D/g, "")}`,
-    max: 4,
-    windowMs: 60 * 60 * 1_000,
-  });
-  if (!contactLimit.allowed) {
-    return response(
-      { ok: false, error: "We already have your recent messages. Please give us a little time to reply." },
-      429,
-      origin,
-      contactLimit.retryAfterSec,
-    );
-  }
-
   // AUTH-001 / DECISIONS #13: managed bot-challenge, verified server-side before
   // an enquiry is captured. This admission is cross-origin — the token is solved
   // on the SUBMITTING site, so it is bound to that origin's host, not the
@@ -524,6 +510,23 @@ export async function POST(req: NextRequest) {
       challenge.reason === "rate-limited" ? 429 : 403,
       origin,
       challenge.retryAfterSec,
+    );
+  }
+
+  // Spend the email/phone quota only after a human proof succeeds. Otherwise a
+  // bot can deny service to a real prospect by repeatedly naming their contact
+  // details without ever solving the managed challenge.
+  const contactLimit = rateLimit({
+    key: `brand-enquiry-contact:${hasEmail ? email : phone.replace(/\D/g, "")}`,
+    max: 4,
+    windowMs: 60 * 60 * 1_000,
+  });
+  if (!contactLimit.allowed) {
+    return response(
+      { ok: false, error: "We already have your recent messages. Please give us a little time to reply." },
+      429,
+      origin,
+      contactLimit.retryAfterSec,
     );
   }
 

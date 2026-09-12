@@ -216,7 +216,22 @@ export async function POST(req: NextRequest) {
   return handleJsonLogin(req);
 }
 
-async function handleJsonLogin(req: NextRequest) {
+/**
+ * Server-internal entrypoint for the separately validated cross-origin browser
+ * form wrapper. The trusted hostname is a function argument, never a request
+ * header or body field a public caller can spoof.
+ */
+export async function loginWithTrustedChallengeHostname(
+  req: NextRequest,
+  trustedChallengeHostname: string,
+) {
+  return handleJsonLogin(req, trustedChallengeHostname);
+}
+
+async function handleJsonLogin(
+  req: NextRequest,
+  trustedChallengeHostname = req.nextUrl.hostname,
+) {
   const ip = clientIpFromHeaders(req.headers);
   const limit = rateLimit({ key: `login:${ip}`, max: 10, windowMs: 60_000 });
   if (!limit.allowed) {
@@ -261,7 +276,7 @@ async function handleJsonLogin(req: NextRequest) {
     action: "login",
     token: body.captchaToken,
     remoteIp: ip,
-    hostname: req.nextUrl.hostname,
+    hostname: trustedChallengeHostname,
   });
   if (!challenge.ok) {
     return NextResponse.json(

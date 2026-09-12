@@ -54,6 +54,7 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ brand?: string; next?: string }>;
 }) {
+  const botChallenge = botChallengeClientConfig();
   const params = await searchParams;
   const brand = await brandFor(params.brand);
   const contactHref = brand.id === "aquacrm"
@@ -113,7 +114,8 @@ export default async function LoginPage({
           </div>
           <LoginForm
             googleEnabled={isGoogleOAuthConfigured()}
-            captchaSiteKey={botChallengeClientConfig().siteKey}
+            captchaSiteKey={botChallenge.siteKey}
+            captchaRequired={botChallenge.required}
           />
           <div className="mm-auth-foot">
             <span>One account</span>

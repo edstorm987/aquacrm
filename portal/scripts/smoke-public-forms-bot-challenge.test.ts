@@ -23,6 +23,7 @@ const SITE_KEY = "1x00000000000000000000AA";
 const SECRET_KEY = "1x0000000000000000000000000000000AA";
 
 let saved: Record<string, string | undefined> = {};
+let realFetch: typeof fetch;
 
 function jsonReq(url: string, body: unknown, ip: string): NextRequest {
   // No Origin header → treated as same-origin, so the cross-origin guards are
@@ -41,10 +42,30 @@ before(() => {
   };
   process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = SITE_KEY;
   process.env.TURNSTILE_SECRET_KEY = SECRET_KEY;
+  realFetch = globalThis.fetch;
+  globalThis.fetch = (async (input, init) => {
+    const url = typeof input === "string"
+      ? input
+      : input instanceof URL
+        ? input.toString()
+        : input.url;
+    if (url.includes("challenges.cloudflare.com/turnstile")) {
+      const params = new URLSearchParams(typeof init?.body === "string" ? init.body : "");
+      const token = params.get("response") ?? "";
+      return new Response(JSON.stringify({
+        success: token.startsWith("valid-"),
+        action: token.startsWith("valid-brand-") ? "brand-enquiry" : "public-contact",
+        hostname: "localhost",
+        challenge_ts: new Date().toISOString(),
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    return realFetch(input, init);
+  }) as typeof fetch;
   __resetBotChallengeForTest();
 });
 
 after(() => {
+  globalThis.fetch = realFetch;
   const restore = (k: string, v: string | undefined) => { if (v === undefined) delete process.env[k]; else process.env[k] = v; };
   restore("NEXT_PUBLIC_TURNSTILE_SITE_KEY", saved.site);
   restore("TURNSTILE_SECRET_KEY", saved.secret);
@@ -76,6 +97,33 @@ describe("public /api/public/contact — bot-challenge gate", () => {
     assert.equal(res.status, 200);
     assert.deepEqual(await res.json(), { ok: true });
   });
+
+  it("tokenless bots cannot burn a victim email quota before a verified request", async () => {
+    const victim = "quota-victim@example.com";
+    for (let i = 0; i < 4; i += 1) {
+      const denied = await contactPOST(jsonReq(URL, {
+        name: "Quota Victim",
+        email: victim,
+        contactMethod: "email",
+        note: "Bot attempt",
+      }, `30.0.2.${i + 1}`));
+      assert.equal(denied.status, 403);
+    }
+
+    const allowed = await contactPOST(jsonReq(URL, {
+      name: "Quota Victim",
+      email: victim,
+      contactMethod: "email",
+      note: "Real verified enquiry",
+      captchaToken: "valid-victim-token",
+    }, "30.0.2.99"));
+    assert.notEqual(allowed.status, 429, "unverified attempts must not spend the victim's quota");
+    const payload = (await allowed.json()) as { error?: string };
+    assert.ok(
+      allowed.status === 200 || allowed.status === 503,
+      `verified request should reach normal capture readiness, got ${allowed.status}: ${payload.error ?? ""}`,
+    );
+  });
 });
 
 describe("public /api/public/brand-enquiry — bot-challenge gate", () => {
@@ -94,5 +142,29 @@ describe("public /api/public/brand-enquiry — bot-challenge gate", () => {
     const body = (await res.json()) as { ok: boolean; error: string };
     assert.equal(body.ok, false);
     assert.match(body.error, /verification challenge/i);
+  });
+
+  it("tokenless bots cannot burn a victim contact quota before a verified request", async () => {
+    const payload = {
+      brand: "milesymedia",
+      name: "Quota Victim",
+      email: "brand-quota-victim@example.com",
+      contactMethod: "email",
+      consent: true,
+      message: "A real enquiry",
+    };
+    for (let i = 0; i < 5; i += 1) {
+      const denied = await brandPOST(jsonReq(URL, payload, `30.0.3.${i + 1}`));
+      assert.equal(denied.status, 403);
+    }
+    const allowed = await brandPOST(jsonReq(URL, {
+      ...payload,
+      captchaToken: "valid-brand-victim-token",
+    }, "30.0.3.99"));
+    assert.notEqual(allowed.status, 429, "unverified attempts must not spend the victim's quota");
+    assert.ok(
+      allowed.status === 200 || allowed.status === 503,
+      `verified request should reach normal capture readiness, got ${allowed.status}`,
+    );
   });
 });

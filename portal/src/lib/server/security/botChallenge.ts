@@ -167,6 +167,7 @@ export interface BotChallengeClientConfig {
   provider: CaptchaProvider;
   siteKey: string | null;
   enabled: boolean;
+  required: boolean;
 }
 
 export function botChallengeClientConfig(): BotChallengeClientConfig {
@@ -177,19 +178,29 @@ export function botChallengeClientConfig(): BotChallengeClientConfig {
     // The widget is only meaningful when a site key exists. Enforcement itself
     // is decided server-side in verifyBotChallenge; this only drives rendering.
     enabled: Boolean(siteKey),
+    required: isProduction(),
   };
 }
 
 function resolveExpectedHostnames(input: VerifyBotChallengeInput): string[] {
+  // A hostname derived from the trusted request/origin decision is the exact
+  // boundary for this submission. Never union it with a global list: doing so
+  // would let a token minted for another configured site satisfy this route.
+  const host = input.hostname?.trim().toLowerCase();
+  if (host) return [host];
+
+  // Explicit caller allowlists are the next-best boundary for callers that do
+  // not have one exact host. The process-wide list is a final fallback only.
+  const explicit = (input.expectedHostnames ?? [])
+    .map((h) => h.trim().toLowerCase())
+    .filter(Boolean);
+  if (explicit.length > 0) return [...new Set(explicit)];
+
   const fromEnv = (process.env.CAPTCHA_EXPECTED_HOSTNAMES ?? "")
     .split(",")
     .map((h) => h.trim().toLowerCase())
     .filter(Boolean);
-  const explicit = (input.expectedHostnames ?? [])
-    .map((h) => h.trim().toLowerCase())
-    .filter(Boolean);
-  const host = input.hostname?.trim().toLowerCase();
-  return [...new Set([...(host ? [host] : []), ...explicit, ...fromEnv])];
+  return [...new Set(fromEnv)];
 }
 
 // ─── Local single-use / replay guard (module-private, not the nonce store) ──
@@ -436,6 +447,13 @@ export async function verifyBotChallenge(
 
   // Hostname binding — a token minted on another site is refused.
   const allowedHosts = resolveExpectedHostnames(input);
+  if (allowedHosts.length === 0 && strict) {
+    return deny("hostname-mismatch", MESSAGE_CHALLENGE, {
+      action,
+      tenantId: input.tenantId,
+      detail: { cause: "expected-host-missing" },
+    });
+  }
   if (allowedHosts.length > 0) {
     if (typeof data.hostname === "string" && data.hostname.length > 0) {
       if (!allowedHosts.includes(data.hostname.toLowerCase())) {

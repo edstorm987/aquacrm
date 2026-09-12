@@ -24,6 +24,7 @@ interface Props {
   // AUTH-001: public Turnstile site key. Null → the widget renders nothing and
   // the server decides enforcement (fail-closed in production when unset).
   captchaSiteKey?: string | null;
+  captchaRequired?: boolean;
 }
 
 type Mode = "signin" | "signup" | "magic";
@@ -31,7 +32,7 @@ type Mode = "signin" | "signup" | "magic";
 export function LoginForm({
   embedded = false, clientId, allowSignup = false,
   googleEnabled = false, magicLinkEnabled = false,
-  captchaSiteKey = null,
+  captchaSiteKey = null, captchaRequired = false,
 }: Props) {
   const router = useRouter();
   const params = useSearchParams();
@@ -141,6 +142,10 @@ export function LoginForm({
         ok: boolean; error?: string; returnUrl?: string; redirect?: string;
         mfaRequired?: boolean; recoveryCodes?: string[];
       };
+      // Any password-login request may have consumed the single-use token,
+      // including a response whose body says the credentials or MFA code were
+      // wrong. Reset before branching so every retry starts with fresh proof.
+      if (mode === "signin") captchaRef.current?.reset();
       if (!res.ok || !data.ok) {
         if (data.mfaRequired) {
           // Ask for the code and keep the password in state so the retry is one
@@ -149,10 +154,6 @@ export function LoginForm({
           setMfaRequired(true);
           setCode("");
         }
-        // AUTH-001: the challenge token was single-use and is now spent (or the
-        // attempt failed before it could be). Re-issue a fresh one so the next
-        // submit — a retry, or the MFA code re-post — carries a valid token.
-        captchaRef.current?.reset();
         setError(data.error ?? `${mode === "signup" ? "Sign-up" : "Sign-in"} failed.`);
         setBusy(false);
         return;
@@ -171,6 +172,7 @@ export function LoginForm({
       }
       navigate(destination);
     } catch {
+      if (mode === "signin") captchaRef.current?.reset();
       setError("Network error. Try again.");
       setBusy(false);
     }
@@ -310,6 +312,7 @@ export function LoginForm({
           action="login"
           onToken={setCaptchaToken}
           className="mm-auth-captcha"
+          required={captchaRequired}
         />
       )}
       {error && <p role="alert" className="mm-form-error">{error}</p>}
@@ -323,7 +326,11 @@ export function LoginForm({
       )}
       <button
         type="submit"
-        disabled={busy}
+        disabled={
+          busy
+          || (mode === "signin" && Boolean(captchaSiteKey) && !captchaToken)
+          || (mode === "signin" && captchaRequired && !captchaSiteKey)
+        }
         className="mm-btn-primary"
       >
         {isMagic ? (busy ? "Sending…" : "Email me a magic link") : submitLabel}
