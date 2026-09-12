@@ -37,7 +37,7 @@ export default async function SettingsPage(props: PluginPageProps) {
       <SettingsClient
         provider={redactProviderConfig(provider)}
         identities={identities}
-        webhookUrl="/api/portal/email-sender/public/webhook/postmark?secret=…"
+        webhookUrl="/api/portal/email-sender/public/webhook/postmark"
       />
 
       <p className="email-sender-meta">

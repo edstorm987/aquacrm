@@ -174,6 +174,7 @@ export interface PluginApiRoute {
   // endpoint — Stripe signs the body, the handler verifies via
   // StripePort.verifyWebhookSignature; no Aqua session cookie needed.
   public?: boolean;
+  publicAuthority?: "provider-webhook" | "published-site-write" | "published-site-read" | "storefront-read" | "storefront-checkout";
 }
 
 // ─── Settings schema ───────────────────────────────────────────────────────

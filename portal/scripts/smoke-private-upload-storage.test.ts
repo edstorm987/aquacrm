@@ -161,18 +161,24 @@ test("every upload that is final in one request compensates a failed owner write
   }
 });
 
-test("state-backed final uploads flush and roll back inside the shared attach boundary", () => {
+test("state-backed final uploads durably commit and roll back inside the shared attach boundary", () => {
   for (const route of [
     "src/app/api/portal/company/legal/upload/route.ts",
     "src/app/api/portal/sops/upload/route.ts",
     "src/app/api/portal/development/upload/route.ts",
     "src/app/api/portal/freelancer/work/route.ts",
-    "src/app/api/public/careers/route.ts",
   ]) {
     const source = read(route);
     assert.match(source, /persist: flushPendingWrites/, `${route} must flush before acknowledging the binary`);
     assert.match(source, /rollbackOwner:/, `${route} must remove the owner row before compensating a refused flush`);
   }
+
+  const careers = read("src/app/api/public/careers/route.ts");
+  const attach = careers.indexOf("await attachStoredPrivateUpload");
+  const transaction = careers.indexOf("withPortalStateTransaction", attach);
+  const owner = careers.indexOf("createPeopleApplication", transaction);
+  assert.ok(attach >= 0 && transaction > attach && owner > transaction,
+    "careers must create its owner inside the durable state transaction nested in the compensating attach boundary");
 });
 
 test("client upload correctness is rechecked after storage inside a fresh per-client transaction", () => {

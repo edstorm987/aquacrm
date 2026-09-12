@@ -271,7 +271,7 @@ export default function SettingsClient(props: {
               onChange={event => setWebhookSecret(event.target.value)}
             />
             <small>
-              Paste the same value into the provider&rsquo;s webhook URL as <code>?secret=…</code>.
+              Configure Postmark HTTP Basic auth with username <code>aqua</code> and this value as the password. Never put it in the URL query string.
               Events arriving without it are rejected. It is never shown back here, because it is
               what proves an event really came from the provider. Webhook URL:{" "}
               <code>{props.webhookUrl}</code>

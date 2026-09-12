@@ -66,6 +66,34 @@ import type { PortalRole } from "@aqua/plugin-website-editor/types";
 
 This is a one-line refactor T2 owns post-merge.
 
+## Published visitor write boundary
+
+The mounted contact and newsletter blocks are real anonymous write surfaces,
+not editor-only examples. Their handlers accept one exact DTO and re-resolve the
+tenant-owned active site plus the exact published page/block before writing.
+The browser components obtain a managed challenge for the exact actions
+`website-contact` and `website-newsletter`; the server verifies that action and
+the registered visitor hostname before any address/install quota or mutation.
+Editor previews remain inert and do not render a challenge.
+
+Rate limits are atomically updated through the plugin storage boundary for the
+visitor IP, a one-way address digest, and the plugin install. Contact defaults
+are 8/IP, 10/address and 120/install per hour; newsletter defaults are 6/IP,
+10/address and 200/install per hour. Operation receipts make same-payload
+replays idempotent, while reuse of an operation id for different facts is a
+conflict. Production still requires configured managed-challenge keys and the
+provider-side hostname allowlist; the handler fails closed when they are absent
+or invalid.
+
+The published payment button follows the same boundary. Only a renderer whose
+resolved tree is actually published receives the public-storefront marker;
+preview and draft fallback renders cannot silently rewrite authenticated calls
+onto the anonymous facade. The button obtains an authoritative quote, selects
+the paid or zero-value challenge action, and will not start checkout until the
+required proof is present. The ecommerce server independently re-resolves the
+registered host, total class, tenant/client and durable abuse dimensions, so
+the DOM marker and browser-supplied scope are routing hints rather than trust.
+
 ## Folder layout
 
 ```

@@ -251,10 +251,10 @@ export const apiRoutes: PluginApiRoute[] = [
   // contact and newsletter each accept one strict consent-bearing DTO; blog
   // feed/detail return allowlisted published data only. The dispatcher still
   // requires the exact enabled agency/client install named in the request scope.
-  { path: "visitor/contact", methods: ["POST"], handler: handleVisitorContact, public: true },
-  { path: "visitor/newsletter", methods: ["POST"], handler: handleVisitorNewsletter, public: true },
-  { path: "public/blog/posts", methods: ["GET"], handler: handleVisitorBlogPosts, public: true },
-  { path: "public/blog/posts/by-slug", methods: ["GET"], handler: handleVisitorBlogPost, public: true },
+  { path: "visitor/contact", methods: ["POST"], handler: handleVisitorContact, public: true, publicAuthority: "published-site-write" },
+  { path: "visitor/newsletter", methods: ["POST"], handler: handleVisitorNewsletter, public: true, publicAuthority: "published-site-write" },
+  { path: "public/blog/posts", methods: ["GET"], handler: handleVisitorBlogPosts, public: true, publicAuthority: "published-site-read" },
+  { path: "public/blog/posts/by-slug", methods: ["GET"], handler: handleVisitorBlogPost, public: true, publicAuthority: "published-site-read" },
 
   // Page versions (R022) — auto-save + named checkpoints.
   { path: "/pages/versions", methods: ["GET"], handler: handleListVersions },

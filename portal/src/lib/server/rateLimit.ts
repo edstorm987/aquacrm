@@ -27,6 +27,15 @@ export interface RateLimitResult {
   retryAfterSec: number;
 }
 
+export interface RateLimitCharge {
+  key: string;
+  resetAt: number;
+}
+
+export interface RateLimitBatchResult extends RateLimitResult {
+  charges: RateLimitCharge[];
+}
+
 export function rateLimit({ key, max, windowMs }: RateLimitOpts): RateLimitResult {
   const now = Date.now();
   gc(now);
@@ -46,6 +55,59 @@ export function rateLimit({ key, max, windowMs }: RateLimitOpts): RateLimitResul
   }
   existing.count += 1;
   return { allowed: true, remaining: max - existing.count, resetAt: existing.resetAt, retryAfterSec: 0 };
+}
+
+/**
+ * Consume several related budgets as one process-local decision. A refused
+ * batch changes none of them, and the returned charge handles let a caller
+ * roll back when the protected mutation fails before commit.
+ */
+export function rateLimitBatch(options: RateLimitOpts[]): RateLimitBatchResult {
+  const now = Date.now();
+  gc(now);
+  const unique = [...new Map(options.map(option => [option.key, option])).values()];
+  let retryAfterSec = 0;
+  for (const option of unique) {
+    const existing = buckets.get(option.key);
+    if (existing && existing.resetAt >= now && existing.count >= option.max) {
+      retryAfterSec = Math.max(retryAfterSec, Math.max(1, Math.ceil((existing.resetAt - now) / 1000)));
+    }
+  }
+  if (retryAfterSec > 0) {
+    return { allowed: false, remaining: 0, resetAt: now, retryAfterSec, charges: [] };
+  }
+
+  const charges: RateLimitCharge[] = [];
+  let remaining = Number.POSITIVE_INFINITY;
+  let resetAt = now;
+  for (const option of unique) {
+    const existing = buckets.get(option.key);
+    const bucket = !existing || existing.resetAt < now
+      ? { count: 0, resetAt: now + option.windowMs }
+      : existing;
+    bucket.count += 1;
+    buckets.set(option.key, bucket);
+    charges.push({ key: option.key, resetAt: bucket.resetAt });
+    remaining = Math.min(remaining, option.max - bucket.count);
+    resetAt = Math.max(resetAt, bucket.resetAt);
+  }
+  return {
+    allowed: true,
+    remaining: Number.isFinite(remaining) ? remaining : 0,
+    resetAt,
+    retryAfterSec: 0,
+    charges,
+  };
+}
+
+/** Roll back only the exact live bucket generation returned by rateLimitBatch. */
+export function refundRateLimitBatch(charges: RateLimitCharge[]): void {
+  for (const charge of charges) {
+    const bucket = buckets.get(charge.key);
+    if (!bucket || bucket.resetAt !== charge.resetAt) continue;
+    bucket.count = Math.max(0, bucket.count - 1);
+    if (bucket.count === 0) buckets.delete(charge.key);
+  }
 }
 
 // ─── Login lockout — R021 ───────────────────────────────────────────────

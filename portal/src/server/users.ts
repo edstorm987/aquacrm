@@ -16,7 +16,7 @@ import crypto from "crypto";
 import { getState, mutate } from "./storage";
 import { drainOutbox, recordOutboxEvent } from "./outbox";
 import type { Role, ServerUser } from "./types";
-import { LEAD_AGENCY_ID } from "./types";
+import { CUSTOMER_PORTAL_ROLES, LEAD_AGENCY_ID } from "./types";
 
 const SCRYPT_N = 16384;
 const SCRYPT_R = 8;
@@ -205,6 +205,25 @@ export function getUserById(userId: string): ServerUser | null {
 }
 
 /**
+ * Resolve a forgotten-password subject without the legacy scoped-to-unscoped
+ * fallback. A client audience is immutable authority, not a lookup hint. Any
+ * duplicate/corrupt match fails closed so a shared mailbox cannot select a
+ * more privileged account by enumeration order.
+ */
+export function getExactPasswordResetUser(email: string, clientId?: string): ServerUser | null {
+  const wantedEmail = normEmail(email);
+  const wantedClient = clientId?.trim();
+  const matches = Object.values(getState().users).filter(user => {
+    if (normEmail(user.email) !== wantedEmail) return false;
+    if (wantedClient) {
+      return user.clientId === wantedClient && CUSTOMER_PORTAL_ROLES.includes(user.role);
+    }
+    return !user.clientId && !CUSTOMER_PORTAL_ROLES.includes(user.role);
+  });
+  return matches.length === 1 ? matches[0]! : null;
+}
+
+/**
  * Resolve an exact Supabase Auth subject binding.
  *
  * Corrupt duplicate bindings deliberately resolve to null rather than picking
@@ -289,6 +308,38 @@ export function setUserPassword(
     ok = true;
   });
   return ok;
+}
+
+/**
+ * Reset one immutable local subject only when its per-user epoch is unchanged.
+ * This is the completion-side compare-and-swap for password-reset links: the
+ * first successful sibling increments sessionRev, so every other link minted
+ * at the old revision fails without mutating a same-email account.
+ */
+export function setUserPasswordById(
+  userId: string,
+  password: string,
+  expectedSessionRev: number,
+): ServerUser | null {
+  const check = validatePassword(password);
+  if (!check.ok) throw new Error(check.error ?? "Invalid password");
+  let saved: ServerUser | null = null;
+  mutate(state => {
+    for (const [key, stored] of Object.entries(state.users)) {
+      if (stored.id !== userId || (stored.sessionRev ?? 0) !== expectedSessionRev) continue;
+      const next: ServerUser = {
+        ...stored,
+        passwordHash: hashPassword(password),
+        mustChangePassword: false,
+        sessionRev: expectedSessionRev + 1,
+        updatedAt: Date.now(),
+      };
+      state.users[key] = next;
+      saved = next;
+      return;
+    }
+  });
+  return saved;
 }
 
 export interface UpdateUserPatch {

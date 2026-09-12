@@ -854,7 +854,7 @@ export const BLOCK_REGISTRY: Record<string, BlockDefinition> = {
     defaultProps: {
       title: "Sign in", action: "/api/auth/login", submitLabel: "Sign in",
       showRemember: true, showForgot: true, showSignupLink: true,
-      signupHref: "/signup", forgotHref: "/account/forgot-password",
+      signupHref: "", forgotHref: "/account/forgot-password",
     },
     fields: [
       { key: "title", label: "Title", type: "text", default: "Sign in" },
@@ -865,23 +865,22 @@ export const BLOCK_REGISTRY: Record<string, BlockDefinition> = {
       { key: "showForgot", label: "Show forgot link", type: "boolean", default: true },
       { key: "forgotHref", label: "Forgot URL", type: "url", default: "/account/forgot-password" },
       { key: "showSignupLink", label: "Show sign-up link", type: "boolean", default: true },
-      { key: "signupHref", label: "Sign-up URL", type: "url", default: "/signup" },
+      { key: "signupHref", label: "Custom sign-up URL", type: "url", default: "" },
     ],
   },
   "signup-form": {
-    type: "signup-form", label: "Sign-up form", icon: "✏", category: "auth", isContainer: false,
+    type: "signup-form", label: "Website lead form", icon: "✏", category: "auth", isContainer: false,
     Component: SignupFormBlock,
     defaultProps: {
-      title: "Create your account", action: "/api/auth/signup", submitLabel: "Create account",
-      showName: true, requireTerms: false, termsHref: "/terms",
+      title: "Get started", action: "/api/auth/signup", submitLabel: "Send my details",
+      showName: true, termsHref: "/terms",
       showLoginLink: true, loginHref: "/login",
     },
     fields: [
-      { key: "title", label: "Title", type: "text", default: "Create your account" },
+      { key: "title", label: "Title", type: "text", default: "Get started" },
       { key: "action", label: "Submit URL", type: "url", default: "/api/auth/signup" },
-      { key: "submitLabel", label: "Submit label", type: "text", default: "Create account" },
+      { key: "submitLabel", label: "Submit label", type: "text", default: "Send my details" },
       { key: "showName", label: "Show name field", type: "boolean", default: true },
-      { key: "requireTerms", label: "Require terms checkbox", type: "boolean", default: false },
       { key: "termsHref", label: "Terms URL", type: "url", default: "/terms" },
       { key: "showLoginLink", label: "Show login link", type: "boolean", default: true },
       { key: "loginHref", label: "Login URL", type: "url", default: "/login" },

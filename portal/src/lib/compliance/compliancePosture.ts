@@ -521,6 +521,7 @@ function buildGdprControls(input: ComplianceEvidenceInput): ComplianceControl[] 
       "One extension is allowed, requires a written reason, and runs from the ORIGINAL deadline — extending from today would reward answering late.",
       "`subjectRequestClock` reports open / overdue / due-within-7-days / awaiting-identity. Pinned by smoke-subject-requests.",
       "Surfaced on the Governance workspace under Subject requests: the clock, every request with its due date, and overdue ones marked — so a deadline is visible without going looking for it.",
+      "The subject-access route will act only on an existing open access/portability request for the exact same agency and person after identity verification; successful export evidence and fulfilment commit together.",
     ],
     gap: "The register, its clock and the screen that surfaces them all exist. What is still missing is INTAKE: requests arrive by email and are logged by hand, so the register is only as complete as somebody's diligence. Choosing an intake channel — a form, a monitored address — is the remaining half.",
     evidenceLimit: "",
@@ -535,13 +536,15 @@ function buildGdprControls(input: ComplianceEvidenceInput): ComplianceControl[] 
     conferredBy: "app",
     status: "partial",
     evidence: [
-      "POST /api/portal/governance/subject-access exports everything held about one person, as JSON (Art. 20 asks for a structured, machine-readable format).",
-      "It searches EVERY collection in state rather than a maintained list, so a collection added later cannot be silently absent from an export — pinned by smoke-subject-access-export.",
-      "Only the caller's own agency's records are included; matches that carry no agencyId are reported as unattributable rather than dropped or leaked.",
-      "Each fulfilment is written to the activity log, naming the subject by id only so no address enters the audit trail.",
+      "POST /api/portal/governance/subject-access prepares the automatic safe portion of one verified access/portability request as structured JSON; it does not claim that review-only or external data has been handed over.",
+      "It walks EVERY collection in hydrated PortalState rather than a maintained list. Exact Person, reciprocal client/facet/relationship lineage and exclusive typed contact identifiers can establish ownership; free-text ids/emails/phones and actor/assignee references cannot.",
+      "Only same-agency rows are eligible. Unscoped, unclassified and conflicting/shared ownership is withheld into value-free review counts rather than silently omitted or released.",
+      "Attributable rows have deterministic third-party name, postal address/postcode, email and phone fields redacted. Rows with free text or content beyond the inspection depth are withheld for review so co-mingled personal data is not automatically released.",
+      "The route accepts a bounded requestId/personId body and requires an exact open, identity-verified request of access/portability kind. JSON preparation, id-only activity evidence and request fulfilment share one transaction; failures leave the request open.",
+      "The export states its scope as hydrated PortalState only and states that a point-in-time export neither deletes source data nor changes configured retention.",
     ],
-    gap: "The export exists and is complete; what is still missing around it is the REQUEST side — no identity-verification step before releasing someone's data, and no response clock against the one-month deadline. Fulfilment is evidenced; receipt is not.",
-    evidenceLimit: "",
+    gap: "The safe automatic portion exists, but a complete response still requires explicit human review of every reported count and separate collection from client-owned databases, connected providers and other systems outside hydrated PortalState. The app does not evidence final identity-channel delivery or receipt by the subject, and retention periods remain a policy decision.",
+    evidenceLimit: "The tests prove local classification, redaction, tenant/request gates and rollback. They do not prove a live external-system search, reviewer disposition, lawful scope, or final handover to the verified subject.",
   });
 
   // ── Processors & incidents ──

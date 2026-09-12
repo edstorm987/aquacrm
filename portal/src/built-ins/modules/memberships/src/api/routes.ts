@@ -46,7 +46,7 @@ export const ROUTES: PluginApiRoute[] = [
   { path: "subscribers/cancel", methods: ["POST"], handler: adminCancelSubscriberHandler, visibleToRoles: [...ADMIN_ROLES] },
 
   // Stripe webhook (public — Stripe signs)
-  { path: "stripe/webhook", methods: ["POST"], handler: stripeWebhookHandler, public: true },
+  { path: "stripe/webhook", methods: ["POST"], handler: stripeWebhookHandler, public: true, publicAuthority: "provider-webhook" },
 
   // Customer-facing
   { path: "me", methods: ["GET"], handler: meHandler, visibleToRoles: [...END_CUSTOMER] },

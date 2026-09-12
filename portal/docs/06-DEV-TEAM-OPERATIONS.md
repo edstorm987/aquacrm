@@ -2,7 +2,7 @@
 
 > Commander/worker briefs, orchestration guidance, compatibility state and operational handoffs; individual sources identify whether they are current or historical.
 >
-> Consolidated 2026-09-08 from **7** source documents / **18,648 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-12 from **7** source documents / **18,648 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 

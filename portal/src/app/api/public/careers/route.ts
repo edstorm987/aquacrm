@@ -1,18 +1,24 @@
 import crypto from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { FOUNDER_AGENCY_SLUG, seedFounder } from "@/lib/server/seeds/founderSeed";
+import { FOUNDER_AGENCY_SLUG } from "@/lib/server/seeds/founderSeed";
 import { attachStoredPrivateUpload, storePrivateUpload, PrivateUploadStorageError } from "@/lib/server/privateUploadStorage";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
-import { createPeopleApplication, rollbackPeopleApplicationUpload } from "@/server/people";
-import { ensureHydrated, flushPendingWrites } from "@/server/storage";
+import { createPeopleApplication } from "@/server/people";
+import { ensureHydrated } from "@/server/storage";
 import { getAgencyBySlug } from "@/server/tenants";
+import { withPortalStateTransaction } from "@/server/productWorkspaceCoordinator";
 import type { PeopleEmploymentType } from "@/server/types";
 import { careerApplicationFailurePayload } from "@/lib/public/careerApplicationFailure";
+import { verifyBotChallenge } from "@/lib/server/security/botChallenge";
+import { contentTrustObjectVersion } from "@/lib/server/security/contentTrust";
 
 export const runtime = "nodejs";
 
 const MAX_CV_BYTES = 8 * 1024 * 1024;
+const MAX_MULTIPART_BYTES = MAX_CV_BYTES + 512 * 1024;
+const PROOF_HEADER = "x-aqua-bot-token";
+const FILE_SIZE_HEADER = "x-aqua-upload-size";
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const EMPLOYMENT_TYPES = new Set<PeopleEmploymentType>(["full-time", "part-time", "contractor", "freelancer", "intern", "volunteer"]);
 const FILE_TYPES = new Set([
@@ -31,6 +37,34 @@ function responseError(error: string, status: number, retryAfter?: number) {
     status,
     headers: retryAfter ? { "retry-after": String(retryAfter) } : undefined,
   });
+}
+
+async function cancelUnreadBody(req: NextRequest): Promise<void> {
+  if (!req.body || req.body.locked) return;
+  await req.body.cancel().catch(() => undefined);
+}
+
+function declaredUploadSize(req: NextRequest): number | null {
+  const raw = req.headers.get(FILE_SIZE_HEADER)?.trim() ?? "";
+  if (!/^[1-9]\d{0,7}$/.test(raw)) return null;
+  const value = Number(raw);
+  return Number.isSafeInteger(value) && value <= MAX_CV_BYTES ? value : null;
+}
+
+function requestBodyWithinCeiling(req: NextRequest): boolean {
+  const raw = req.headers.get("content-length")?.trim();
+  // The Fetch/FormData API offers no bounded streaming multipart parser here.
+  // Refuse indeterminate/chunked bodies before proof verification or parsing;
+  // a trusted proxy must supply the exact wire length for this upload route.
+  if (!raw) return false;
+  if (!/^\d{1,9}$/.test(raw)) return false;
+  const value = Number(raw);
+  return Number.isSafeInteger(value) && value > 0 && value <= MAX_MULTIPART_BYTES;
+}
+
+function cvOwnerLane(agencyId: string, storageKey: string): string {
+  const keyDigest = crypto.createHash("sha256").update(storageKey).digest("hex");
+  return `people-cv:${agencyId}:${keyDigest}`;
 }
 
 function privateFailure(
@@ -57,11 +91,42 @@ function privateFailure(
 
 export async function POST(req: NextRequest) {
   const origin = req.headers.get("origin");
-  if (origin && origin !== req.nextUrl.origin) return responseError("This request could not be verified.", 403);
+  if (origin && origin !== req.nextUrl.origin) {
+    await cancelUnreadBody(req);
+    return responseError("This request could not be verified.", 403);
+  }
+
+  // The managed proof and cheap, bounded size metadata live outside the
+  // multipart body. They are checked before `formData()` can allocate or drain
+  // an attacker-controlled stream. `x-aqua-upload-size` is repeated against
+  // the parsed File below; it is an admission bound, not trusted file truth.
+  const admittedFileSize = declaredUploadSize(req);
+  if (admittedFileSize === null || !requestBodyWithinCeiling(req)) {
+    await cancelUnreadBody(req);
+    return responseError("Attach a PDF, DOC or DOCX CV no larger than 8 MB.", 413);
+  }
 
   const ip = clientIpFromHeaders(req.headers);
   const ipLimit = rateLimit({ key: `people-application:${ip}`, max: 5, windowMs: 60 * 60 * 1_000 });
-  if (!ipLimit.allowed) return responseError("Too many applications were submitted. Please try again later.", 429, ipLimit.retryAfterSec);
+  if (!ipLimit.allowed) {
+    await cancelUnreadBody(req);
+    return responseError("Too many applications were submitted. Please try again later.", 429, ipLimit.retryAfterSec);
+  }
+
+  const challenge = await verifyBotChallenge({
+    action: "careers-application",
+    token: req.headers.get(PROOF_HEADER),
+    remoteIp: ip,
+    hostname: req.nextUrl.hostname,
+  });
+  if (!challenge.ok) {
+    await cancelUnreadBody(req);
+    return responseError(
+      challenge.message,
+      challenge.reason === "rate-limited" ? 429 : 403,
+      challenge.retryAfterSec,
+    );
+  }
 
   let form: FormData;
   try {
@@ -80,7 +145,7 @@ export async function POST(req: NextRequest) {
   if (name.length < 2 || !EMAIL.test(email) || !roleInterest) {
     return responseError("Add your name, a valid email and the kind of work you are interested in.", 400);
   }
-  if (!(cv instanceof File) || cv.size < 1 || cv.size > MAX_CV_BYTES || !FILE_TYPES.has(cv.type)) {
+  if (!(cv instanceof File) || cv.size !== admittedFileSize || cv.size > MAX_CV_BYTES || !FILE_TYPES.has(cv.type)) {
     return responseError("Attach a PDF, DOC or DOCX CV no larger than 8 MB.", 400);
   }
 
@@ -89,7 +154,6 @@ export async function POST(req: NextRequest) {
 
   try {
     await ensureHydrated();
-    await seedFounder();
     const agency = getAgencyBySlug(FOUNDER_AGENCY_SLUG);
     if (!agency) return privateFailure("agency_lookup", new Error("founder agency missing"), 503);
 
@@ -101,10 +165,24 @@ export async function POST(req: NextRequest) {
       contentType: cv.type,
       localDirectory: "people-cvs",
       localKey: `${fileKey}.${extension}`,
+      trust: { tenantId: agency.id, purpose: "careers.cv" },
     });
+    const assessedAt = Date.now();
+    const digest = stored.contentTrust?.digest ?? "";
+    const version = contentTrustObjectVersion(stored.storageProvider, stored.storageKey, digest);
+    const scannerVerdict = stored.contentTrust?.scannerVerdict === "clean"
+      ? "clean"
+      : stored.contentTrust?.scannerVerdict === "unavailable"
+        ? "unavailable"
+        : stored.contentTrust?.scannerVerdict === "not-configured"
+          ? "not-configured"
+          : "not-run";
+    const signatureVerdict = stored.contentTrust?.verdict === "clean" ? "clean" : "unverified";
+    const quarantineStatus = scannerVerdict === "clean" ? "released" : "quarantined";
+    const scanId = crypto.randomUUID();
     const employment = field(form, "employmentPreference", 40) as PeopleEmploymentType;
-    const attached = await attachStoredPrivateUpload(stored, "people-cvs", () => {
-      return createPeopleApplication({
+    const attached = await attachStoredPrivateUpload(stored, "people-cvs", () =>
+      withPortalStateTransaction(cvOwnerLane(agency.id, stored.storageKey), () => createPeopleApplication({
         agencyId: agency.id,
         name,
         email,
@@ -122,16 +200,32 @@ export async function POST(req: NextRequest) {
           size: cv.size,
           storageProvider: stored.storageProvider,
           storageKey: stored.storageKey,
+          contentTrust: {
+            digest,
+            objectVersion: version,
+            signatureVerdict,
+            ...(stored.contentTrust?.sniffedType ? { sniffedType: stored.contentTrust.sniffedType } : {}),
+            scannerVerdict,
+            quarantineStatus,
+            assessedAt,
+          },
+          securityAudit: [{
+            scanId,
+            event: "initial-assessment",
+            actorRef: "system:public-careers-admission",
+            objectVersion: version,
+            digest,
+            signatureVerdict,
+            scannerVerdict,
+            quarantineStatus,
+            at: assessedAt,
+          }],
         },
-      });
-    }, {
-      persist: flushPendingWrites,
-      rollbackOwner: () => { rollbackPeopleApplicationUpload(agency.id, stored.storageKey); },
-    });
+      })),
+    );
     if (!attached.ok) {
       return privateFailure("attach_owner", new Error(attached.detail ?? attached.message), 500, {
         compensated: attached.compensated,
-        storageKey: attached.storageKey,
       });
     }
     const { application, statusToken } = attached.value;

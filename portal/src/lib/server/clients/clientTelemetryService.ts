@@ -191,15 +191,59 @@ export function clearClientTelemetry(
   return { ...snapshot, events: [], lastSeenAt: undefined, connected: false };
 }
 
+export interface ClientTelemetryWriteScope {
+  agencyId: string;
+  clientId: string;
+  siteKey: string;
+  siteId: string;
+  host: string;
+  keyClass: "client-telemetry";
+}
+
+function canonicalHost(value: string | undefined): string {
+  if (!value) return "";
+  try { return new URL(value).hostname.toLowerCase().replace(/^www\./, ""); }
+  catch { return value.trim().toLowerCase().replace(/^www\./, ""); }
+}
+
+function clientMatchesResolvedScope(
+  state: ReturnType<typeof getState>,
+  scope: ClientTelemetryWriteScope,
+): boolean {
+  const client = state.clients[scope.clientId];
+  if (
+    !client
+    || client.agencyId !== scope.agencyId
+    || client.metadata?.telemetrySiteKey !== scope.siteKey
+    || scope.keyClass !== "client-telemetry"
+  ) return false;
+  if (scope.siteId === `client:${client.id}`) {
+    return canonicalHost(client.websiteUrl) === scope.host;
+  }
+  const source = state.websiteSources?.[scope.siteId];
+  return Boolean(
+    source
+    && source.agencyId === scope.agencyId
+    && source.destinationClientId === scope.clientId
+    && source.host === scope.host,
+  );
+}
+
 export function recordClientTelemetry(
   siteKey: string,
   input: Record<string, unknown>,
   userAgent?: string,
+  resolvedScope?: ClientTelemetryWriteScope,
 ): { status: "recorded"; clientId: string; event: ClientTelemetryEvent; deduplicated?: true } | { status: "rate-limited" } | null {
   const state = getState();
-  const client = Object.values(state.clients).find(candidate =>
+  const matchingClients = Object.values(state.clients).filter(candidate =>
     candidate.metadata?.telemetrySiteKey === siteKey
   );
+  const client = resolvedScope
+    ? resolvedScope.siteKey === siteKey && clientMatchesResolvedScope(state, resolvedScope)
+      ? state.clients[resolvedScope.clientId]
+      : undefined
+    : matchingClients.length === 1 ? matchingClients[0] : undefined;
   if (!client) return null;
   const existingEvents = Array.isArray(client.metadata?.telemetryEvents)
     ? client.metadata.telemetryEvents as ClientTelemetryEvent[]
@@ -268,9 +312,15 @@ export function recordClientTelemetry(
   let connectedPropertyId = "";
   let connectedPropertyLabel = "";
   let duplicateInMutate = false;
+  let writeAccepted = false;
   mutate(current => {
     const stored = current.clients[client.id];
-    if (!stored || stored.metadata?.telemetrySiteKey !== siteKey) return;
+    if (
+      !stored
+      || stored.metadata?.telemetrySiteKey !== siteKey
+      || (resolvedScope && !clientMatchesResolvedScope(current, resolvedScope))
+    ) return;
+    writeAccepted = true;
     const previous = Array.isArray(stored.metadata.telemetryEvents)
       ? stored.metadata.telemetryEvents as ClientTelemetryEvent[]
       : [];
@@ -330,6 +380,7 @@ export function recordClientTelemetry(
     stored.updatedAt = now;
   });
 
+  if (!writeAccepted) return null;
   if (duplicateInMutate) {
     return { status: "recorded", clientId: client.id, event, deduplicated: true };
   }

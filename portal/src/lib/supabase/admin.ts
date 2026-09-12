@@ -83,6 +83,16 @@ function clientPortalAppMetadata(binding: ClientPortalIdentityBinding) {
   };
 }
 
+function provisioningAppMetadata(input: ProvisionIdentityInput) {
+  if (!input.operationId) return {};
+  return {
+    aqua_subject_kind: input.role === "owner" ? "agency-owner" : "agency-staff",
+    aqua_provisioning_operation_id: input.operationId,
+    aqua_agency_id: input.agencyId?.trim() || null,
+    aqua_profile_role: input.role,
+  };
+}
+
 async function upsertSupabaseProfile(
   admin: ReturnType<typeof createSupabaseAdminClient>,
   userId: string,
@@ -122,12 +132,8 @@ export async function provisionSupabaseIdentity(input: ProvisionIdentityInput) {
     email_confirm: true,
     user_metadata: {
       full_name: input.name?.trim() || email.split("@")[0],
-      ...(input.operationId ? {
-        aqua_provisioning_operation_id: input.operationId,
-        aqua_agency_id: input.agencyId?.trim() || null,
-        aqua_profile_role: input.role,
-      } : {}),
     },
+    app_metadata: provisioningAppMetadata(input),
   });
   if (error || !data.user) {
     throw new Error(error?.message ?? "Could not create the Supabase sign-in.");
@@ -146,26 +152,50 @@ export async function provisionSupabaseIdentity(input: ProvisionIdentityInput) {
 /**
  * Create a new Supabase subject for one exact, verified client-portal member.
  *
- * Deliberately does not search by email or adopt an existing result. A global
- * email match may be an agency owner (or another tenant's user), so the only
- * safe outcomes are a newly-created subject returned by this call or a hard
- * refusal from Supabase's unique-email constraint.
+ * A first attempt deliberately does not search by email or adopt an existing
+ * result. When a durable reset operation is resumed after an ambiguous provider
+ * response, it may adopt only a subject bearing both the exact immutable client
+ * binding and that operation's private marker. A global email match alone is
+ * never authority because it may belong to another tenant or account role.
  */
 export async function provisionBoundClientPortalIdentity(input: {
   email: string;
   password: string;
   name?: string;
   binding: ClientPortalIdentityBinding;
+  /** Stable durable operation allowed to adopt only its own lost response. */
+  operationId?: string;
+  operationKind?: "password-reset" | "client-setup";
 }) {
   const admin = createSupabaseAdminClient();
   const email = input.email.trim().toLowerCase();
   const binding = normaliseClientPortalBinding(input.binding);
+  const operationMarker = input.operationKind === "client-setup"
+    ? "aqua_client_setup_operation_id"
+    : "aqua_password_reset_operation_id";
+  if (input.operationId) {
+    const existing = await findSupabaseUserByEmail(email);
+    if (existing) {
+      const expected = clientPortalAppMetadata(binding);
+      const metadata = existing.app_metadata ?? {};
+      const exactBinding = Object.entries(expected).every(([key, value]) => metadata[key] === value);
+      if (!exactBinding || metadata[operationMarker] !== input.operationId) {
+        throw new Error("An unrelated Supabase sign-in already exists for this email.");
+      }
+      const { data, error } = await admin.auth.admin.updateUserById(existing.id, { password: input.password });
+      if (error || !data.user) throw new Error(error?.message ?? "Could not resume the client portal sign-in reset.");
+      return data.user;
+    }
+  }
   const { data, error } = await admin.auth.admin.createUser({
     email,
     password: input.password,
     email_confirm: true,
     user_metadata: { full_name: input.name?.trim() || email.split("@")[0] },
-    app_metadata: clientPortalAppMetadata(binding),
+    app_metadata: {
+      ...clientPortalAppMetadata(binding),
+      ...(input.operationId ? { [operationMarker]: input.operationId } : {}),
+    },
   });
   if (error || !data.user) {
     throw new Error(error?.message ?? "Could not create the client portal sign-in.");
@@ -219,6 +249,27 @@ export async function updateBoundClientPortalPassword(input: {
   return data.user;
 }
 
+/** Update one immutable non-client Supabase subject; never search by email. */
+export async function updateSupabasePasswordById(input: {
+  authUserId: string;
+  email: string;
+  password: string;
+}) {
+  const admin = createSupabaseAdminClient();
+  const authUserId = input.authUserId.trim();
+  const email = input.email.trim().toLowerCase();
+  if (!authUserId) throw new Error("The Supabase sign-in is not bound.");
+  const { data: found, error: findError } = await admin.auth.admin.getUserById(authUserId);
+  if (findError || !found.user || found.user.id !== authUserId || found.user.email?.trim().toLowerCase() !== email) {
+    throw new Error(findError?.message ?? "The bound Supabase sign-in could not be verified.");
+  }
+  const { data, error } = await admin.auth.admin.updateUserById(authUserId, { password: input.password });
+  if (error || !data.user || data.user.id !== authUserId) {
+    throw new Error(error?.message ?? "Could not update the bound Supabase password.");
+  }
+  return data.user;
+}
+
 /** Roll back a just-created subject if its local write-once binding fails. */
 export async function deleteSupabaseIdentityById(authUserId: string): Promise<void> {
   const id = authUserId.trim();
@@ -244,12 +295,12 @@ export async function provisionOrAdoptSupabaseIdentity(input: ProvisionIdentityI
     return { user: await provisionSupabaseIdentity(input), adopted: false };
   }
 
-  const metadata = existing.user_metadata ?? {};
-  if (
-    metadata.aqua_provisioning_operation_id !== input.operationId
-    || metadata.aqua_agency_id !== (input.agencyId?.trim() || null)
-    || metadata.aqua_profile_role !== input.role
-  ) {
+  // Recovery provenance is admin-only authority. Supabase users may edit
+  // `user_metadata` themselves, so matching subject-supplied fields here would
+  // let an unrelated account adopt an agency signup/staff/reset operation.
+  const metadata = existing.app_metadata ?? {};
+  const expected = provisioningAppMetadata(input);
+  if (!Object.entries(expected).every(([key, value]) => metadata[key] === value)) {
     throw new Error("A Supabase sign-in already exists for that email and was not created by this provisioning operation.");
   }
 
@@ -258,7 +309,7 @@ export async function provisionOrAdoptSupabaseIdentity(input: ProvisionIdentityI
     password: input.password,
     email_confirm: true,
     user_metadata: {
-      ...metadata,
+      ...(existing.user_metadata ?? {}),
       full_name: input.name?.trim() || email.split("@")[0],
     },
   });

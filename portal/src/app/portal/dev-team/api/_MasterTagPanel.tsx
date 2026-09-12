@@ -5,8 +5,8 @@ import { ArrowUpRight, Check, Clipboard, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 
 // The master Aqua Tag, seen as what it is on this page: a THIRD machine-facing
-// surface with its own permanent credential. One script on someone else's
-// website, one site key, three public endpoints.
+// surface with its own permanent public routing identifier. One script on someone else's
+// website, one site key, four public endpoints.
 //
 // Everything here is derived — the snippet from `masterTagSnippet()`, the
 // provider list from `INJECTION_PROVIDERS` — so it cannot drift from the tag.
@@ -26,6 +26,8 @@ export interface MasterTagView {
   snippet: string;
   scriptUrl: string;
   configUrl: string;
+  botChallengeConfigUrl: string;
+  formAdmissionUrl: string;
   formCaptureUrl: string;
   telemetryUrl: string;
   origin: string;
@@ -56,8 +58,8 @@ export function MasterTagPanel({ view }: { view: MasterTagView }) {
         <p className="max-w-2xl text-sm leading-6 text-[color:var(--dt-muted)]">
           One script, pasted into a site&apos;s HTML, identified by a permanent agency site key. It captures forms,
           sends consent-gated telemetry, and acts as a tag manager for an allow-listed set of third-party tools.
-          Unlike an API key this credential is <strong className="text-[color:var(--dt-ink)]">never rotated</strong> — it lives in
-          other people&apos;s deployed sites.
+          Unlike an API key this public routing identifier is <strong className="text-[color:var(--dt-ink)]">never rotated</strong> — it lives in
+          other people&apos;s deployed sites. A form write still needs a short-lived signed admission.
         </p>
         <Link
           href="/portal/agency/fulfilment?view=tags"
@@ -97,10 +99,12 @@ export function MasterTagPanel({ view }: { view: MasterTagView }) {
       ) : null}
 
       <div className="mt-4 grid gap-x-4 gap-y-3 sm:grid-cols-2">
-        <Value label="Agency site key" value={view.siteKey} hint="Permanent — generated once, never rotated" onCopy={() => copy(view.siteKey, "key")} copied={copied === "key"} />
+        <Value label="Agency site key" value={view.siteKey} hint="Public routing id · permanent · not mutation authority" onCopy={() => copy(view.siteKey, "key")} copied={copied === "key"} />
         <Value label="Tag script" value={view.scriptUrl} hint="Public · served to any site" />
         <Value label="Config endpoint" value={view.configUrl} hint="GET/OPTIONS · which tools to inject, by key + host" />
-        <Value label="Form capture" value={view.formCaptureUrl} hint="POST · captured forms → enquiries (live Supabase)" />
+        <Value label="Challenge config" value={view.botChallengeConfigUrl} hint="GET · public site key + fail-closed requirement only" />
+        <Value label="Form admission" value={view.formAdmissionUrl} hint="POST · short-lived exact host + form authority" />
+        <Value label="Form capture" value={view.formCaptureUrl} hint="POST · signed admission → enquiries (live Supabase)" />
         <Value label="Telemetry + consent" value={view.telemetryUrl} hint="POST · page/consent events (live Supabase)" />
         <Value label="Routed sites" value={`${view.taggedSiteCount} tagged site${view.taggedSiteCount === 1 ? "" : "s"} configured`} hint="Host overrides for where enquiries land" />
       </div>

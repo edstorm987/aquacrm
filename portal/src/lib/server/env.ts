@@ -16,6 +16,8 @@
 // No `server-only` shim so the smoke can drive every branch under
 // tsx --test.
 
+import { isPubliclyReachableOrigin } from "@/lib/public/publicOrigin";
+
 export interface EnvIssue {
   name: string;
   severity: "error" | "warn";
@@ -31,6 +33,9 @@ const PRODUCTION_REQUIRED = [
   "NEXT_PUBLIC_SUPABASE_PUBLIC_BUCKET",
   "NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET",
   "SUPABASE_SERVICE_ROLE_KEY",
+  "CONTENT_SCANNER_URL",
+  "CONTENT_SCANNER_ALLOWED_ORIGINS",
+  "CONTENT_SCANNER_BEARER_TOKEN",
   "FOUNDER_EMAIL",
   "FOUNDER_PASSWORD",
 ] as const;
@@ -38,6 +43,7 @@ const PRODUCTION_REQUIRED = [
 const MIN_LENGTHS: Record<string, number> = {
   PORTAL_SESSION_SECRET: 32,
   FOUNDER_PASSWORD: 12,
+  CONTENT_SCANNER_BEARER_TOKEN: 24,
 };
 
 // Sentinel values we ship in `.env.example`. If any of these survive
@@ -75,6 +81,9 @@ export const ENV_ALLOWLIST: readonly string[] = [
   "NEXT_PUBLIC_SUPABASE_PUBLIC_BUCKET",
   "NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET",
   "SUPABASE_SERVICE_ROLE_KEY",
+  "CONTENT_SCANNER_URL",
+  "CONTENT_SCANNER_ALLOWED_ORIGINS",
+  "CONTENT_SCANNER_BEARER_TOKEN",
   "FOUNDER_EMAIL",
   "FOUNDER_PASSWORD",
   "FOUNDER_AGENCY_NAME",
@@ -134,11 +143,10 @@ export const ENV_ALLOWLIST: readonly string[] = [
   "STRIPE_WEBHOOK_SECRET",
   "OPENAI_API_KEY",
   "OPENAI_ASSISTANT_MODEL",
-  "AQUA_EMBED_API_TOKEN",
   "AQUA_EMBED_SIGNING_SECRET",
 ] as const;
 
-const PORTAL_KEY_PATTERN = /^(PORTAL_|FOUNDER_|GITHUB_|NEXT_PUBLIC_PORTAL_|NEXT_PUBLIC_SUPABASE_|NEXT_PUBLIC_GOOGLE_MAPS_|SUPABASE_|NEXT_PUBLIC_SENTRY|SENTRY_|VERCEL_|GOOGLE_OAUTH_|GOOGLE_PLACES_|RESEND_|SMTP_|TWILIO_|ENQUIRY_|MILESYMEDIA_|AQUACRM_|BLOB_|STRIPE_|OPENAI_)/;
+const PORTAL_KEY_PATTERN = /^(PORTAL_|FOUNDER_|CONTENT_SCANNER_|GITHUB_|NEXT_PUBLIC_PORTAL_|NEXT_PUBLIC_SUPABASE_|NEXT_PUBLIC_GOOGLE_MAPS_|SUPABASE_|NEXT_PUBLIC_SENTRY|SENTRY_|VERCEL_|GOOGLE_OAUTH_|GOOGLE_PLACES_|RESEND_|SMTP_|TWILIO_|ENQUIRY_|MILESYMEDIA_|AQUACRM_|BLOB_|STRIPE_|OPENAI_)/;
 
 interface RequireOpts {
   // When true, also throws in dev (caller treats this var as
@@ -228,6 +236,65 @@ export function inspectEnv(env: NodeJS.ProcessEnv = process.env): EnvIssue[] {
       severity: isProd ? "error" : "warn",
       reason: "must be a whole number from 1 to 10000",
     });
+  }
+
+  const scannerUrl = env.CONTENT_SCANNER_URL?.trim();
+  const scannerAllowedRaw = env.CONTENT_SCANNER_ALLOWED_ORIGINS?.trim();
+  const scannerAllowedOrigins = new Set<string>();
+  let scannerAllowlistInvalid = false;
+  for (const raw of (scannerAllowedRaw ?? "").split(",")) {
+    const value = raw.trim();
+    if (!value) continue;
+    try {
+      const parsed = new URL(value);
+      if (parsed.username || parsed.password || parsed.search || parsed.hash || parsed.pathname !== "/"
+        || !["http:", "https:"].includes(parsed.protocol) || (isProd && parsed.protocol !== "https:")) {
+        scannerAllowlistInvalid = true;
+      } else {
+        scannerAllowedOrigins.add(parsed.origin);
+      }
+    } catch {
+      scannerAllowlistInvalid = true;
+    }
+  }
+  if (scannerAllowlistInvalid) {
+    issues.push({
+      name: "CONTENT_SCANNER_ALLOWED_ORIGINS",
+      severity: isProd ? "error" : "warn",
+      reason: "must contain only comma-separated credential-free origins (no path, query or fragment; HTTPS in production)",
+    });
+  }
+  if (scannerUrl) {
+    try {
+      const parsed = new URL(scannerUrl);
+      if (
+        parsed.username
+        || parsed.password
+        || parsed.search
+        || parsed.hash
+        || !["http:", "https:"].includes(parsed.protocol)
+        || (isProd && (parsed.protocol !== "https:" || !isPubliclyReachableOrigin(parsed.origin)))
+      ) {
+        issues.push({
+          name: "CONTENT_SCANNER_URL",
+          severity: isProd ? "error" : "warn",
+          reason: "must be a credential-free HTTPS endpoint on a publicly reachable host in production",
+        });
+      }
+      if (!scannerAllowedOrigins.has(parsed.origin)) {
+        issues.push({
+          name: "CONTENT_SCANNER_ALLOWED_ORIGINS",
+          severity: isProd ? "error" : "warn",
+          reason: "must explicitly include the exact origin of CONTENT_SCANNER_URL",
+        });
+      }
+    } catch {
+      issues.push({
+        name: "CONTENT_SCANNER_URL",
+        severity: isProd ? "error" : "warn",
+        reason: "must be a valid absolute AV/CDR endpoint URL",
+      });
+    }
   }
 
   // Typo-guard: any portal-namespaced key not on the allowlist warns.

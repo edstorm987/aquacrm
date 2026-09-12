@@ -23,7 +23,7 @@
 // host app that wants to inject a server-rendered cart snapshot.
 
 import { useEffect, useState } from "react";
-import { ecommerceApiUrl } from "./storefrontCommerceScope";
+import { ecommerceApiUrl, ecommerceStorefrontScope } from "./storefrontCommerceScope";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -327,6 +327,9 @@ export interface StripeCheckoutInput {
   // Optional discount/referral metadata (T2 R5 hooks).
   referralCodeId?: string;
   discountCode?: string;
+  /** Public storefront only: exact managed proof and its quoted total class. */
+  captchaToken?: string;
+  checkoutKind?: "paid" | "free";
 }
 
 export interface StripeCheckoutResult {
@@ -376,8 +379,9 @@ export async function goToStripeCheckout(input: StripeCheckoutInput = {}): Promi
   }));
   const cartFingerprint = JSON.stringify(lineItems);
   const operationId = input.operationId ?? checkoutOperationId(cartFingerprint);
+  const storefrontScope = ecommerceStorefrontScope();
   try {
-    const res = await fetch(ecommerceApiUrl("/api/portal/ecommerce/stripe/checkout"), {
+    const res = await fetch(ecommerceApiUrl("/api/portal/ecommerce/stripe/checkout", storefrontScope), {
       method: "POST",
       headers: { "content-type": "application/json" },
       credentials: "include",
@@ -389,6 +393,9 @@ export async function goToStripeCheckout(input: StripeCheckoutInput = {}): Promi
         cancelPath: input.cancelUrl ?? `${window.location.pathname}${window.location.search}`,
         referralCodeId: input.referralCodeId,
         discountCode: input.discountCode,
+        ...(storefrontScope
+          ? { captchaToken: input.captchaToken ?? "", checkoutKind: input.checkoutKind }
+          : {}),
       }),
     });
     if (!res.ok) {

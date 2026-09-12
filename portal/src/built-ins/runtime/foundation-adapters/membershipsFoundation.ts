@@ -81,6 +81,9 @@ export function ensureMembershipsFoundationRegistered(): void {
     stripeFor(args: { agencyId: string; clientId: string }) {
       return membershipsStripeFor(args);
     },
+    stripeWebhookAvailable(args: { agencyId: string; clientId: string }) {
+      return Boolean(membershipsStripeKeysFor(args)?.webhookSecret);
+    },
   } as unknown as Parameters<typeof registerMembershipsFoundation>[0]);
   registered = true;
 }

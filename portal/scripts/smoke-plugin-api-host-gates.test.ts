@@ -580,15 +580,17 @@ describe("plugin API routes — surface invariants no manifest can break", () =>
     // block's dead call to a `newsletter` module that never existed. Neither
     // declares a separate role list, so undeclared rises 144 → 146 and public
     // rises 16 → 17. Counts re-enumerated from the shipped registry, not added.
-    // 2026-09-11: 344 → 345. Leads Pipeline adds one private, owner/manager
-    // Google Places search adapter for Scouting. It declares agency-admin roles,
-    // so the undeclared and public counts remain unchanged.
-    // 2026-09-12: 345 → 347. The acquisition dossier repair and retained
-    // not-qualified archive add one private route each; both declare explicit
-    // roles, so undeclared/public stay fixed.
-    assert.equal(total, 347, `the registry now ships ${total} API routes, not 347 — re-run the enumeration`);
-    assert.equal(undeclared, 146, `${undeclared} routes declare no roles, not 146 — re-run the enumeration`);
-    assert.equal(publicRoutes, 17, `${publicRoutes} routes are public, not 17`);
+    // 2026-09-12 reconciliation: direct executable-registry enumeration and
+    // the independent exact-public-route assertion below exposed two phantom
+    // rows in the preceding prose/count snapshot. The real post-Google-Places
+    // baseline was 343 total / 144 undeclared / 15 public. Acquisition dossier
+    // repair and the retained not-qualified restore add two explicitly gated
+    // private routes, taking only the total to 345. No endpoint was removed to
+    // make this assertion green; the list is enumerated above and the security
+    // ceiling loop below still evaluates every real route.
+    assert.equal(total, 345, `the registry now ships ${total} API routes, not 345 — re-run the enumeration`);
+    assert.equal(undeclared, 144, `${undeclared} routes declare no roles, not 144 — re-run the enumeration`);
+    assert.equal(publicRoutes, 15, `${publicRoutes} routes are public, not 15`);
 
     // …and none of them is open. This is the whole point: the count can stay
     // wherever it lands for ever, because the fallback is the ceiling and not

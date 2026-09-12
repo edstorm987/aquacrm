@@ -120,7 +120,16 @@ export async function sendTransactionalEmail(
       idempotencyKey: input.externalRef,
       signal: input.signal,
     });
-    if (!result.ok) return { delivered: false, via: "resend", reason: result.reason };
+    if (!result.ok) {
+      return {
+        delivered: false,
+        via: "resend",
+        reason: result.reason,
+        ...(result.code ? { code: result.code } : {}),
+        ...(result.outcomeUnknown !== undefined ? { outcomeUnknown: result.outcomeUnknown } : {}),
+        ...(result.retry ? { retry: result.retry } : {}),
+      };
+    }
     return { delivered: true, via: "resend" };
   }
 

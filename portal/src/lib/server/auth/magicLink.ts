@@ -5,9 +5,8 @@
 //
 // Token shape:    base64url(JSON({purpose, email, clientId, agencyId, exp, nonce})) "." HMAC
 // TTL:            15 minutes
-// Single-use:     nonce stored in an in-memory Set with TTL expiry. Replay
-//                 = "already used" reject. (v1 limitation: single-process —
-//                 prod multi-instance needs shared storage; documented.)
+// Single-use:     nonce is atomically consumed through the shared durable
+//                 nonce store. Replay = "already used" reject.
 //
 // Email delivery: T2 R10's email-sender plugin owns the actual SMTP.
 // Foundation calls a registered delivery function (`registerMagicLinkDelivery`).
@@ -26,11 +25,22 @@ export interface MagicLinkPayload {
   agencyId: string;
   exp: number;
   nonce: string;
+  /** Exact user session epoch at issuance; null only for a new invitation. */
+  sessionRev: number | null;
 }
 
 export type MagicLinkPurpose = "sign-in" | "client-portal-invite";
 
-type MagicLinkSubject = Pick<MagicLinkPayload, "email" | "clientId" | "agencyId">;
+/** Stamp the authoritative rotation epoch into a magic-link session. */
+export function magicLinkSessionRevision(user: { sessionRev?: number }): number {
+  return user.sessionRev ?? 0;
+}
+
+type MagicLinkSubject = Pick<MagicLinkPayload, "email" | "clientId" | "agencyId" | "sessionRev"> & {
+  /** Durable delivery generations supply these to reconstruct one exact token. */
+  nonce?: string;
+  exp?: number;
+};
 
 function getSecret(): string {
   return resolveSigningSecret();
@@ -45,8 +55,9 @@ function signPurposeToken(input: MagicLinkSubject, purpose: MagicLinkPurpose): {
     email: input.email.trim().toLowerCase(),
     clientId: input.clientId,
     agencyId: input.agencyId,
-    exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS,
-    nonce: crypto.randomBytes(16).toString("base64url"),
+    exp: input.exp ?? Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS,
+    nonce: input.nonce ?? crypto.randomBytes(16).toString("base64url"),
+    sessionRev: input.sessionRev,
   };
   const json = JSON.stringify(payload);
   const b64 = Buffer.from(json, "utf8").toString("base64url");
@@ -108,6 +119,12 @@ export function verifyMagicToken(
     || typeof candidate.exp !== "number" || !Number.isSafeInteger(candidate.exp)
     || typeof candidate.nonce !== "string" || !candidate.nonce
     || typeof candidate.purpose !== "string" || !candidate.purpose
+    || !(
+      candidate.sessionRev === null
+      || (typeof candidate.sessionRev === "number"
+        && Number.isSafeInteger(candidate.sessionRev)
+        && candidate.sessionRev >= 0)
+    )
   ) {
     return { ok: false, error: "missing_claims" };
   }
@@ -173,6 +190,10 @@ export interface MagicLinkDelivery {
     clientId: string;
     agencyId: string;
     magicUrl: string;
+    /** Stable for retries of this exact token generation; changes for a new token. */
+    operationRef: string;
+    /** Public response deadline/caller cancellation reaches every delivery hook. */
+    signal?: AbortSignal;
   }): Promise<void>;
 }
 
@@ -182,22 +203,78 @@ export function registerMagicLinkDelivery(fn: MagicLinkDelivery | null): void {
   delivery = fn;
 }
 
-export async function deliverMagicLink(input: {
+interface MagicLinkDeliveryInput {
   email: string;
   clientId: string;
   agencyId: string;
   magicUrl: string;
-}): Promise<{ delivered: boolean; via: "email-sender" | "resend" | "console" }> {
+  /** Durable server-side operation identity; never accepted from a request. */
+  operationRef?: string;
+  signal?: AbortSignal;
+}
+
+export interface MagicLinkDeliveryResult {
+  delivered: boolean;
+  via: "email-sender" | "resend" | "console";
+  /**
+   * Provider idempotency identity for this exact signed-token generation.
+   * A caller retrying an ambiguous delivery must reuse the same magicUrl and
+   * therefore the same operationRef. A later request mints a new token/nonce
+   * and receives a different operationRef.
+   */
+  operationRef: string;
+  reason?: string;
+  code?: "REMOTE_OPERATION_TIMEOUT" | "REMOTE_OPERATION_ABORTED" | "REMOTE_OPERATION_FAILED";
+  outcomeUnknown?: boolean;
+  retry?: "safe" | "same-operation-key" | "reconcile-first";
+}
+
+function magicTokenGenerationIdentity(magicUrl: string): string {
+  try {
+    const parsed = new URL(magicUrl, "https://invalid.aquacrm.local");
+    const token = parsed.searchParams.get("token")?.trim();
+    if (token) return token;
+  } catch {
+    // A registered test/dev delivery may use a non-URL marker. Hashing the
+    // exact marker still gives retries a stable identity without leaking it.
+  }
+  return magicUrl;
+}
+
+/**
+ * Build a non-secret provider idempotency key for one signed-link operation.
+ * The raw token and recipient address never leave this module in the key.
+ */
+export function magicLinkDeliveryOperationRef(input: MagicLinkDeliveryInput): string {
+  const generationDigest = crypto
+    .createHash("sha256")
+    .update(input.agencyId)
+    .update("\0")
+    .update(input.clientId)
+    .update("\0")
+    .update(input.email.trim().toLowerCase())
+    .update("\0")
+    .update(magicTokenGenerationIdentity(input.magicUrl))
+    .digest("base64url")
+    .slice(0, 32);
+  return `customer-access:${input.clientId}:${generationDigest}`;
+}
+
+export async function deliverMagicLink(
+  input: MagicLinkDeliveryInput,
+  dependencies: { sendEmail?: typeof sendTransactionalEmail } = {},
+): Promise<MagicLinkDeliveryResult> {
+  const operationRef = input.operationRef ?? magicLinkDeliveryOperationRef(input);
   if (delivery) {
-    await delivery(input);
-    return { delivered: true, via: "email-sender" };
+    await delivery({ ...input, operationRef, signal: input.signal });
+    return { delivered: true, via: "email-sender", operationRef };
   }
 
-  const sent = await sendTransactionalEmail({
+  const sent = await (dependencies.sendEmail ?? sendTransactionalEmail)({
     to: input.email,
     agencyId: input.agencyId,
     clientId: input.clientId,
-    externalRef: `customer-access:${input.clientId}:${input.email}`,
+    externalRef: operationRef,
     subject: "Your private Milesymedia home is ready",
     bodyText: [
       "MILESYMEDIA",
@@ -233,15 +310,24 @@ export async function deliverMagicLink(input: {
       '</td></tr></table>',
       '</body></html>',
     ].join(""),
+    signal: input.signal,
   });
-  if (sent.delivered) return { delivered: true, via: "resend" };
+  if (sent.delivered) return { delivered: true, via: "resend", operationRef };
 
   if (process.env.NODE_ENV !== "production") {
     console.log(
       `[magic-link] Email delivery is not configured. URL for ${input.email}: ${input.magicUrl}`,
     );
   } else {
-    console.error(`[magic-link] Delivery failed for ${input.email}: ${sent.reason}`);
+    console.error("[magic-link] Delivery failed.");
   }
-  return { delivered: false, via: "console" };
+  return {
+    delivered: false,
+    via: "console",
+    operationRef,
+    ...(sent.reason ? { reason: sent.reason } : {}),
+    ...(sent.code ? { code: sent.code } : {}),
+    ...(sent.outcomeUnknown !== undefined ? { outcomeUnknown: sent.outcomeUnknown } : {}),
+    ...(sent.retry ? { retry: sent.retry } : {}),
+  };
 }

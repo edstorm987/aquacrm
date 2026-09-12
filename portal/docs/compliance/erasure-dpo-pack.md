@@ -56,10 +56,11 @@ hosted-table scrub reports errors. Because the local client row has already been
 deleted, a normal retry returns “not found.” The UI/API result therefore cannot be
 treated as proof that every system completed the erasure.
 
-**Not built yet (process, not code):** there is no DSAR intake workflow — no place to
-log that a request was received, verify the requester's identity, or track the
-statutory response clock. Today the owner acts on a request out-of-band and presses
-the button. See §8.
+**Partially built process:** the DSAR register now records receipt, the statutory
+clock and identity-verification evidence. A subject-access export is bound to an
+exact verified request. Intake is still manual, however, and the erasure button is
+not yet bound to that request record, so an owner must still connect the out-of-band
+request to the destructive action correctly. See §8.
 
 ---
 
@@ -172,9 +173,10 @@ tests and comments asserting that it names no person. Until that is removed and
 behaviourally tested at the activity-record boundary, the audit must be treated as
 retaining personal data.
 
-**Gap:** the audit records *what the system did*. It does not record *why* — who
-requested the erasure, how their identity was verified, or when the request came in.
-That is the DSAR workflow in §8.
+**Gap:** the DSAR register can record who requested erasure, receipt and identity
+verification, but this erasure audit is not transactionally linked to that request.
+The evidence therefore does not itself prove which verified request authorised this
+specific destructive action.
 
 ---
 
@@ -218,18 +220,21 @@ We would rather understate this than oversell it.
 | **Q4** | Should the organisation-link **rationale text** be cleared too (§6.5)? | A domain is weaker than an address, but it is derived from one. |
 | **Q5** | What must happen to data already held by **sub-processors** (§9) on an erasure — and do we have the DPAs to require it? | The button does not reach them. |
 | **Q6** | What is required for **backups / point-in-time recovery**, given a restore would resurrect erased records? | Common regulator question; currently unaddressed. |
-| **Q7** | What **response timeframe and identity-verification standard** should the DSAR process meet, so we build the workflow to it? | The workflow is unbuilt; we would rather build it to your spec than guess. |
+| **Q7** | Is the implemented one-calendar-month clock and identity-verification evidence standard sufficient, and how must the erasure action be bound to a verified request? | The register and access-request gate exist, but legal/process sign-off and erasure linkage remain open. |
 | **Q8** | Is a **person's own record** (as opposed to a client's) in scope for the same button? Today erasure is per client workspace. | Affects people who never became a client — leads, enquirers, funnel captures. |
 
 ---
 
 ## 8. Known gaps beyond erasure
 
-These are tracked in the [compliance & legal plan](../development/plans/compliance-legal.md)
-and are **not built**: a Records-of-Processing map (ROPA), a DSAR intake and fulfilment
-workflow (including subject **access** and **portability**, not just erasure), automated
-retention expiry, and a breach register with the 72-hour clock. A legal-document
-register and cookie-consent capture do exist today.
+These are tracked in the [compliance & legal plan](../development/plans/compliance-legal.md).
+A maintained Records-of-Processing map (ROPA) and automated DSAR intake are not
+built. The register, clock, breach register, configurable retention mechanism and a
+safe automatic access/portability export now exist, but remain **partial**: retention
+periods are unset, the export withholds review-required rows and excludes systems
+outside hydrated PortalState, final delivery is not evidenced, and erasure is not
+bound to the verified request. A legal-document register and cookie-consent capture
+also exist today.
 
 **Since 2026-08-20 these gaps are visible in the product, not only in this document.**
 A compliance posture at `/portal/agency/company?view=legal` lists each control, its

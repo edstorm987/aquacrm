@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-08T19:09:05.795Z",
+  "generatedAt": "2026-09-12T09:47:20.357Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -52,46 +52,6 @@
   "generatedReferenceDirectory": "docs/reference",
   "sources": [
     {
-      "path": ".artefacts/ui-wave9/03-write-journeys.md",
-      "volume": "docs/00-START-HERE.md",
-      "anchor": "source-artefacts-ui-wave9-03-write-journeys-md",
-      "sha256": "8030166105658cd37ece46f94f0e7c93f3330499bb477e668f92f963af460ad0",
-      "words": 359,
-      "bytes": 2438
-    },
-    {
-      "path": ".artefacts/ui-wave9/04-prehydration-FINDING.md",
-      "volume": "docs/00-START-HERE.md",
-      "anchor": "source-artefacts-ui-wave9-04-prehydration-finding-md",
-      "sha256": "c5d1c376bc5129ac54400639b0a052d7f537edb5112a03eace844cf1f8a985b0",
-      "words": 1161,
-      "bytes": 8434
-    },
-    {
-      "path": ".artefacts/ui-wave9/07-prod-roles-BLOCKED.md",
-      "volume": "docs/00-START-HERE.md",
-      "anchor": "source-artefacts-ui-wave9-07-prod-roles-blocked-md",
-      "sha256": "05266377c83ffc5b8c83cfe78eda4dea2bc692eff7bfcc8fb7b1563b3db3822f",
-      "words": 267,
-      "bytes": 1880
-    },
-    {
-      "path": ".artefacts/ui-wave9/10-item7-prod-role-matrix.md",
-      "volume": "docs/00-START-HERE.md",
-      "anchor": "source-artefacts-ui-wave9-10-item7-prod-role-matrix-md",
-      "sha256": "632eb9e894d0acb82879f8cf8ce59fa0cfcd4d160f85a0e20a326a999a21f14e",
-      "words": 347,
-      "bytes": 2321
-    },
-    {
-      "path": ".artefacts/ui-wave9/FINDING-workspace-curtain.md",
-      "volume": "docs/00-START-HERE.md",
-      "anchor": "source-artefacts-ui-wave9-finding-workspace-curtain-md",
-      "sha256": "ec097f764684e5e2bc6f8b206c1832f6dbabf5654648e62cf6048c55d7f5261a",
-      "words": 291,
-      "bytes": 2016
-    },
-    {
       "path": "AGENTS.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-agents-md",
@@ -135,9 +95,9 @@
       "path": "docs/compliance/erasure-dpo-pack.md",
       "volume": "docs/07-INTEGRATIONS-COMPLIANCE-AND-BRANDS.md",
       "anchor": "source-docs-compliance-erasure-dpo-pack-md",
-      "sha256": "8b4dc2a9016f8dc218f12db0a2ace6cba8a68263c18daf9c45894a8bc48fe1be",
-      "words": 2835,
-      "bytes": 17915
+      "sha256": "7afaac69676811484f9e7dde6fb17f885b48774882d9a5002ebec21209fea778",
+      "words": 2881,
+      "bytes": 18380
     },
     {
       "path": "docs/context/archive/connect-flow-real-codes-handoff.md",
@@ -335,9 +295,9 @@
       "path": "docs/CURRENT-IMPLEMENTATION.md",
       "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
       "anchor": "source-docs-current-implementation-md",
-      "sha256": "d110c036ab5aa5eb014e3997f8f8ff8eb84e01eb29b98514d74789cdad7174ff",
-      "words": 4627,
-      "bytes": 34968
+      "sha256": "434edcc94699da2379466bc85792f7c1cef4545a5b9a762428b719750a2f1418",
+      "words": 4996,
+      "bytes": 37618
     },
     {
       "path": "docs/data/adr/ADR-001-semantic-registry-in-code.md",
@@ -463,9 +423,9 @@
       "path": "docs/development/BLOCKERS-FOR-ED.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-blockers-for-ed-md",
-      "sha256": "826f402229309526fb3c24076def94f098897eeef752984f0586e80e40b27f91",
-      "words": 1480,
-      "bytes": 11100
+      "sha256": "48e28e6022ec8fbc5ead0562f0b42a9f8ba7a9159c5c820068af7ecb872bdb6c",
+      "words": 1494,
+      "bytes": 11180
     },
     {
       "path": "docs/development/CAMPAIGN-LEDGER.md",
@@ -871,9 +831,9 @@
       "path": "docs/development/plans/launch-order-and-blockers.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-launch-order-and-blockers-md",
-      "sha256": "8cbd36e3f49593d8ada271b043046790c56b7bcf61c1a33441d2719ccf32cc43",
-      "words": 21167,
-      "bytes": 133511
+      "sha256": "62ce019946d179c9e4900d7eea97896278bd2ddfecdc8a19b637db956c2e9350",
+      "words": 21204,
+      "bytes": 134503
     },
     {
       "path": "docs/development/plans/marketing-workspace-overhaul.md",
@@ -1079,17 +1039,17 @@
       "path": "docs/development/roadmap.md",
       "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
       "anchor": "source-docs-development-roadmap-md",
-      "sha256": "f3ef33649d6f5b6404a5c1a8216e93313090263e719b34d02228028b13ee2e90",
-      "words": 21704,
-      "bytes": 222112
+      "sha256": "6f32b3711a26c02938a6e7a88c37e3e451e325c677fa027f93ddedcf43dfac02",
+      "words": 21836,
+      "bytes": 223208
     },
     {
       "path": "docs/development/status.md",
       "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
       "anchor": "source-docs-development-status-md",
-      "sha256": "10c744ce76c81343595183206c0ca909e9257b1c319a0247fb89be172371414d",
-      "words": 22045,
-      "bytes": 173170
+      "sha256": "6fa2f79af09c872c544938d5d689e4814d4de9656b9e2bfa0c56e26d6031640c",
+      "words": 22170,
+      "bytes": 174165
     },
     {
       "path": "docs/development/STRUCTURE.md",
@@ -1172,6 +1132,14 @@
       "bytes": 12057
     },
     {
+      "path": "docs/google-maps-scouting.md",
+      "volume": "docs/00-START-HERE.md",
+      "anchor": "source-docs-google-maps-scouting-md",
+      "sha256": "c7037a42a4bcfce6d48302434bb398d87a33b0a6ec1f59b5e36b98ba52adb273",
+      "words": 1797,
+      "bytes": 12613
+    },
+    {
       "path": "docs/meta-master-inbox.md",
       "volume": "docs/07-INTEGRATIONS-COMPLIANCE-AND-BRANDS.md",
       "anchor": "source-docs-meta-master-inbox-md",
@@ -1223,17 +1191,17 @@
       "path": "docs/workspace/api-reference.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-api-reference-md",
-      "sha256": "7b4eb3ae396a9d3bb1cdd32a816238d9f09d837b8cbc8d16770c6d373fe697e5",
-      "words": 8531,
-      "bytes": 59956
+      "sha256": "8531f1682bdb7663e260b87dba8934c1b1d7c0181d56208a8ef8408e3308d075",
+      "words": 8891,
+      "bytes": 62836
     },
     {
       "path": "docs/workspace/aqua-tag.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-aqua-tag-md",
-      "sha256": "d662b63850cb5a8399402dcbc64054df306146bfffb8ca8480c4ca02bbc101e1",
-      "words": 3463,
-      "bytes": 26321
+      "sha256": "c0acfad152f7d94c64c18a5eae46ac14f1ad96ef5d118d441e6eed4ab7b67a72",
+      "words": 4196,
+      "bytes": 31781
     },
     {
       "path": "docs/workspace/components.md",
@@ -1247,33 +1215,33 @@
       "path": "docs/workspace/database.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-database-md",
-      "sha256": "396394473cec1654b5b5fdd1a2900334246d6b94bcca2903e73c39a3c32f72fe",
-      "words": 2263,
-      "bytes": 18538
+      "sha256": "d445039e1a3d36662d9295e83aa9d99a56f9b309c8070fe0187d45c41fbda991",
+      "words": 2557,
+      "bytes": 20814
     },
     {
       "path": "docs/workspace/env-and-sellability.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-env-and-sellability-md",
-      "sha256": "dda5fb28db1246cbff734f9d6e6512f6e0703f0f5e2ea6b417a5e846551f06ca",
-      "words": 3662,
-      "bytes": 28607
+      "sha256": "b5f5e0fa72a67e0d6eadea0124c7fcebcf54e7a124f388db4c3236fc80a729b5",
+      "words": 3741,
+      "bytes": 29230
     },
     {
       "path": "docs/workspace/feature-index.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-feature-index-md",
-      "sha256": "3091196d10e6ad4d8cf883077e5c2096f05c42f8365b2a6baae9b14540d4d506",
-      "words": 5346,
-      "bytes": 50495
+      "sha256": "ee4a500e94b40d4bfa1e40e5e3d6ac89c7cb88eff71f7302d8c12d1392ff539f",
+      "words": 5377,
+      "bytes": 50997
     },
     {
       "path": "docs/workspace/hazards-and-duplication.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-hazards-and-duplication-md",
-      "sha256": "16f6a1abda8766e039a3ab45c3eaa3ee06e35b1acce2da86c08825a5c4098ad3",
-      "words": 7937,
-      "bytes": 60660
+      "sha256": "b6f50763caef7326703051c2537570cbbf090705d2ec23377406da69f5571df3",
+      "words": 7826,
+      "bytes": 59865
     },
     {
       "path": "docs/workspace/kpi-intelligence.md",
@@ -1367,9 +1335,9 @@
       "path": "src/built-ins/modules/ecommerce/README.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-src-built-ins-modules-ecommerce-readme-md",
-      "sha256": "41433d51b931e2f36a62a1436a8c7816106ec10a3078a71ab38d739ec14be905",
-      "words": 1111,
-      "bytes": 9699
+      "sha256": "406a984c6374cd5298644bc4513fcf380e180b43ece4bcc6bc10cacb6c9bf99d",
+      "words": 1325,
+      "bytes": 11242
     },
     {
       "path": "src/built-ins/modules/fulfillment/README.md",
@@ -1383,9 +1351,9 @@
       "path": "src/built-ins/modules/website-editor/README.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-src-built-ins-modules-website-editor-readme-md",
-      "sha256": "8ba4ff6dfe4e545d4f532b9a3d6fe503b5c87f59e4d007e66ed99c52f38b9855",
-      "words": 516,
-      "bytes": 4282
+      "sha256": "0500bba5f008a4afe4821db627d1d79b7d024e28b33c7cd9c1572f75619d409c",
+      "words": 760,
+      "bytes": 6025
     },
     {
       "path": "src/built-ins/runtime/milesymedia/README.md",

@@ -113,7 +113,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on:** _No internal imports._
 
-**Used by (4):** [`scripts/smoke-access-control-ui.test.ts`](#file-scripts-smoke-access-control-ui-test-ts-b983e0a0f7) · [`scripts/smoke-info-tip.test.ts`](#file-scripts-smoke-info-tip-test-ts-0588407fba) · [`scripts/smoke-portal-viewport-loading.test.ts`](#file-scripts-smoke-portal-viewport-loading-test-ts-cacaebcde8) · [`scripts/smoke-website-editor-plugin-gates.test.ts`](#file-scripts-smoke-website-editor-plugin-gates-test-ts-f620cb8d70)
+**Used by (5):** [`scripts/smoke-access-control-ui.test.ts`](#file-scripts-smoke-access-control-ui-test-ts-b983e0a0f7) · [`scripts/smoke-info-tip.test.ts`](#file-scripts-smoke-info-tip-test-ts-0588407fba) · [`scripts/smoke-portal-viewport-loading.test.ts`](#file-scripts-smoke-portal-viewport-loading-test-ts-cacaebcde8) · [`scripts/smoke-sales-accessibility-contract.test.ts`](#file-scripts-smoke-sales-accessibility-contract-test-ts-28370b7a6e) · [`scripts/smoke-website-editor-plugin-gates.test.ts`](#file-scripts-smoke-website-editor-plugin-gates-test-ts-f620cb8d70)
 
 <a id="file-scripts-client-workspace-navigation-test-ts-391d5d3396"></a>
 
@@ -156,7 +156,37 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on:** _No internal imports._
 
-**Used by (71):** [`scripts/smoke-actions-route-recovery.test.ts`](#file-scripts-smoke-actions-route-recovery-test-ts-dc077cd1d8) · [`scripts/smoke-actions-task-validity.test.ts`](#file-scripts-smoke-actions-task-validity-test-ts-5f47547c36) · [`scripts/smoke-ai-actor-binding.test.ts`](#file-scripts-smoke-ai-actor-binding-test-ts-107703449e) · [`scripts/smoke-app-route-tenancy.test.ts`](#file-scripts-smoke-app-route-tenancy-test-ts-c2561f3f7d) · [`scripts/smoke-aqua-editor-ai-history.test.ts`](#file-scripts-smoke-aqua-editor-ai-history-test-ts-de42c06074) · [`scripts/smoke-aqua-editor-ai-reply.test.ts`](#file-scripts-smoke-aqua-editor-ai-reply-test-ts-571fd5cd5e) · [`scripts/smoke-aqua-editor-ai-token.test.ts`](#file-scripts-smoke-aqua-editor-ai-token-test-ts-38936410da) · [`scripts/smoke-chrome-layout-cas-route.test.ts`](#file-scripts-smoke-chrome-layout-cas-route-test-ts-53877a631b) · [`scripts/smoke-chrome-layout.test.ts`](#file-scripts-smoke-chrome-layout-test-ts-80b420a476) · [`scripts/smoke-client-association-element.test.ts`](#file-scripts-smoke-client-association-element-test-ts-26cb0339d5) · [`scripts/smoke-client-contracts.test.ts`](#file-scripts-smoke-client-contracts-test-ts-6040e786b4) · [`scripts/smoke-client-delight-route.test.ts`](#file-scripts-smoke-client-delight-route-test-ts-67f5d33728) · [`scripts/smoke-client-dev-workspace.test.ts`](#file-scripts-smoke-client-dev-workspace-test-ts-3fe4ffcd02) · [`scripts/smoke-client-element-ceiling.test.ts`](#file-scripts-smoke-client-element-ceiling-test-ts-5e1fca4444) · [`scripts/smoke-client-fulfilment-board.test.ts`](#file-scripts-smoke-client-fulfilment-board-test-ts-a8399daa87) · [`scripts/smoke-client-portal-placement.test.ts`](#file-scripts-smoke-client-portal-placement-test-ts-1e85efb390) · [`scripts/smoke-client-project-access.test.ts`](#file-scripts-smoke-client-project-access-test-ts-bfb6eb6d30) · [`scripts/smoke-client-role-workspace-boundary.test.ts`](#file-scripts-smoke-client-role-workspace-boundary-test-ts-2484d348d2) · [`scripts/smoke-client-workspace-api-access.test.ts`](#file-scripts-smoke-client-workspace-api-access-test-ts-9fba6ff4ff) · [`scripts/smoke-client-workspace-remaining-api-access.test.ts`](#file-scripts-smoke-client-workspace-remaining-api-access-test-ts-557adf87e8) · [`scripts/smoke-close-deal-route.test.ts`](#file-scripts-smoke-close-deal-route-test-ts-5e90664cfa) · [`scripts/smoke-contract-template-convergence.test.ts`](#file-scripts-smoke-contract-template-convergence-test-ts-dfbf2963ee) · [`scripts/smoke-dev-access-session.test.ts`](#file-scripts-smoke-dev-access-session-test-ts-27bc623a29) · [`scripts/smoke-dev-console-edges.test.ts`](#file-scripts-smoke-dev-console-edges-test-ts-4d6e26c337) · [`scripts/smoke-dev-editor-aqua-tag.test.ts`](#file-scripts-smoke-dev-editor-aqua-tag-test-ts-cd0adfe158) · [`scripts/smoke-dev-mode-identity.test.ts`](#file-scripts-smoke-dev-mode-identity-test-ts-1c1ae1393b) · [`scripts/smoke-dev-path-scope-grants.test.ts`](#file-scripts-smoke-dev-path-scope-grants-test-ts-b3614f9881) · [`scripts/smoke-dev-project-access-control.test.ts`](#file-scripts-smoke-dev-project-access-control-test-ts-639fd2368d) · [`scripts/smoke-dev-project-api-access.test.ts`](#file-scripts-smoke-dev-project-api-access-test-ts-1fa057a72e) · [`scripts/smoke-dev-project-map.test.ts`](#file-scripts-smoke-dev-project-map-test-ts-0f1985407f) · [`scripts/smoke-dev-project-nesting.test.ts`](#file-scripts-smoke-dev-project-nesting-test-ts-dd3f5b2305) · [`scripts/smoke-dev-team-api-view.test.ts`](#file-scripts-smoke-dev-team-api-view-test-ts-6f500601e0) · [`scripts/smoke-dev-team-editor.test.ts`](#file-scripts-smoke-dev-team-editor-test-ts-1fb1e2d66a) · [`scripts/smoke-dev-team-gates.test.ts`](#file-scripts-smoke-dev-team-gates-test-ts-bc85af653c) · [`scripts/smoke-ecommerce-public-checkout.test.ts`](#file-scripts-smoke-ecommerce-public-checkout-test-ts-4209142448) · [`scripts/smoke-editor-surface-modes.test.ts`](#file-scripts-smoke-editor-surface-modes-test-ts-dbd9c60d53) · [`scripts/smoke-editor-words-publish.test.ts`](#file-scripts-smoke-editor-words-publish-test-ts-8a0e2a86d4) · [`scripts/smoke-element-insert.test.ts`](#file-scripts-smoke-element-insert-test-ts-f323eac974) · [`scripts/smoke-finance-idempotency.test.ts`](#file-scripts-smoke-finance-idempotency-test-ts-3fe907cb63) · [`scripts/smoke-finance-plan-assignment.test.ts`](#file-scripts-smoke-finance-plan-assignment-test-ts-fed2e879fc) · [`scripts/smoke-finance-runtime-validation.test.ts`](#file-scripts-smoke-finance-runtime-validation-test-ts-e9d8d503cc) · [`scripts/smoke-finance-section-gates.test.ts`](#file-scripts-smoke-finance-section-gates-test-ts-bb835c5a2c) · [`scripts/smoke-fulfilment-clients-access.test.ts`](#file-scripts-smoke-fulfilment-clients-access-test-ts-a00564a357) · [`scripts/smoke-fulfilment-technical-access.test.ts`](#file-scripts-smoke-fulfilment-technical-access-test-ts-9f806e6993) · [`scripts/smoke-kpi-target-convergence.test.ts`](#file-scripts-smoke-kpi-target-convergence-test-ts-7f8b914212) · [`scripts/smoke-legal-document-dependencies.test.ts`](#file-scripts-smoke-legal-document-dependencies-test-ts-4acf172dc2) · [`scripts/smoke-librarian.test.ts`](#file-scripts-smoke-librarian-test-ts-83768b6b09) · [`scripts/smoke-local-repository-preview-route.test.ts`](#file-scripts-smoke-local-repository-preview-route-test-ts-1fda48c87f) · [`scripts/smoke-meta-reply-parts.test.ts`](#file-scripts-smoke-meta-reply-parts-test-ts-24f1b00ade) · [`scripts/smoke-my-tools-icon-route.test.ts`](#file-scripts-smoke-my-tools-icon-route-test-ts-e900b48203) · [`scripts/smoke-people-domain-validity.test.ts`](#file-scripts-smoke-people-domain-validity-test-ts-9f5d830b68) · [`scripts/smoke-performance-experiments-checked-mutations.test.ts`](#file-scripts-smoke-performance-experiments-checked-mutations-test-ts-2364c916c5) · [`scripts/smoke-performance-milestone-mutations.test.ts`](#file-scripts-smoke-performance-milestone-mutations-test-ts-5bf31f0964) · [`scripts/smoke-performance-report-checked-mutations.test.ts`](#file-scripts-smoke-performance-report-checked-mutations-test-ts-7f15b883de) · [`scripts/smoke-plugin-api-host-gates.test.ts`](#file-scripts-smoke-plugin-api-host-gates-test-ts-a532a714e3) · [`scripts/smoke-plugin-api-tenancy.test.ts`](#file-scripts-smoke-plugin-api-tenancy-test-ts-8bbf35181d) · [`scripts/smoke-plugin-health-route.test.ts`](#file-scripts-smoke-plugin-health-route-test-ts-e71d45300f) · [`scripts/smoke-plugin-page-host-gates.test.ts`](#file-scripts-smoke-plugin-page-host-gates-test-ts-a2690cdf7e) · [`scripts/smoke-portal-update-route.test.ts`](#file-scripts-smoke-portal-update-route-test-ts-366fc43e6d) · [`scripts/smoke-private-upload-storage.test.ts`](#file-scripts-smoke-private-upload-storage-test-ts-7e4fe1d141) · [`scripts/smoke-product-stage-convergence.test.ts`](#file-scripts-smoke-product-stage-convergence-test-ts-addf092169) · [`scripts/smoke-release-access-matrix.test.ts`](#file-scripts-smoke-release-access-matrix-test-ts-0f37b84c3b) · [`scripts/smoke-repo-write.test.ts`](#file-scripts-smoke-repo-write-test-ts-938e040d8b) · [`scripts/smoke-sandbox-access-governance.test.ts`](#file-scripts-smoke-sandbox-access-governance-test-ts-b9a31169e4) · [`scripts/smoke-search-realm-cache.test.ts`](#file-scripts-smoke-search-realm-cache-test-ts-af64249a9e) · [`scripts/smoke-search-restricted-route.test.ts`](#file-scripts-smoke-search-restricted-route-test-ts-053831cc6b) · [`scripts/smoke-session-revocation.test.ts`](#file-scripts-smoke-session-revocation-test-ts-bb12bdf6e9) · [`scripts/smoke-sop-reference-integrity.test.ts`](#file-scripts-smoke-sop-reference-integrity-test-ts-b9e06c1184) · [`scripts/smoke-website-editor-public-newsletter.test.ts`](#file-scripts-smoke-website-editor-public-newsletter-test-ts-c307f3897f) · [`scripts/smoke-website-editor-public-visitors.test.ts`](#file-scripts-smoke-website-editor-public-visitors-test-ts-b860bc0b94) · [`scripts/smoke-work-lifecycle.test.ts`](#file-scripts-smoke-work-lifecycle-test-ts-be6965c054)
+**Used by (77):** [`scripts/smoke-actions-route-recovery.test.ts`](#file-scripts-smoke-actions-route-recovery-test-ts-dc077cd1d8) · [`scripts/smoke-actions-task-validity.test.ts`](#file-scripts-smoke-actions-task-validity-test-ts-5f47547c36) · [`scripts/smoke-ai-actor-binding.test.ts`](#file-scripts-smoke-ai-actor-binding-test-ts-107703449e) · [`scripts/smoke-app-route-tenancy.test.ts`](#file-scripts-smoke-app-route-tenancy-test-ts-c2561f3f7d) · [`scripts/smoke-aqua-editor-ai-history.test.ts`](#file-scripts-smoke-aqua-editor-ai-history-test-ts-de42c06074) · [`scripts/smoke-aqua-editor-ai-reply.test.ts`](#file-scripts-smoke-aqua-editor-ai-reply-test-ts-571fd5cd5e) · [`scripts/smoke-aqua-editor-ai-token.test.ts`](#file-scripts-smoke-aqua-editor-ai-token-test-ts-38936410da) · [`scripts/smoke-chrome-layout-cas-route.test.ts`](#file-scripts-smoke-chrome-layout-cas-route-test-ts-53877a631b) · [`scripts/smoke-chrome-layout.test.ts`](#file-scripts-smoke-chrome-layout-test-ts-80b420a476) · [`scripts/smoke-client-association-element.test.ts`](#file-scripts-smoke-client-association-element-test-ts-26cb0339d5) · [`scripts/smoke-client-contracts.test.ts`](#file-scripts-smoke-client-contracts-test-ts-6040e786b4) · [`scripts/smoke-client-delight-route.test.ts`](#file-scripts-smoke-client-delight-route-test-ts-67f5d33728) · [`scripts/smoke-client-dev-workspace.test.ts`](#file-scripts-smoke-client-dev-workspace-test-ts-3fe4ffcd02) · [`scripts/smoke-client-element-ceiling.test.ts`](#file-scripts-smoke-client-element-ceiling-test-ts-5e1fca4444) · [`scripts/smoke-client-fulfilment-board.test.ts`](#file-scripts-smoke-client-fulfilment-board-test-ts-a8399daa87) · [`scripts/smoke-client-portal-invite-admission.test.ts`](#file-scripts-smoke-client-portal-invite-admission-test-ts-42cb588deb) · [`scripts/smoke-client-portal-placement.test.ts`](#file-scripts-smoke-client-portal-placement-test-ts-1e85efb390) · [`scripts/smoke-client-project-access.test.ts`](#file-scripts-smoke-client-project-access-test-ts-bfb6eb6d30) · [`scripts/smoke-client-role-workspace-boundary.test.ts`](#file-scripts-smoke-client-role-workspace-boundary-test-ts-2484d348d2) · [`scripts/smoke-client-workspace-api-access.test.ts`](#file-scripts-smoke-client-workspace-api-access-test-ts-9fba6ff4ff) · [`scripts/smoke-client-workspace-remaining-api-access.test.ts`](#file-scripts-smoke-client-workspace-remaining-api-access-test-ts-557adf87e8) · [`scripts/smoke-close-deal-route.test.ts`](#file-scripts-smoke-close-deal-route-test-ts-5e90664cfa) · [`scripts/smoke-contract-template-convergence.test.ts`](#file-scripts-smoke-contract-template-convergence-test-ts-dfbf2963ee) · [`scripts/smoke-dev-access-session.test.ts`](#file-scripts-smoke-dev-access-session-test-ts-27bc623a29) · [`scripts/smoke-dev-console-edges.test.ts`](#file-scripts-smoke-dev-console-edges-test-ts-4d6e26c337) · [`scripts/smoke-dev-editor-aqua-tag.test.ts`](#file-scripts-smoke-dev-editor-aqua-tag-test-ts-cd0adfe158) · [`scripts/smoke-dev-mode-identity.test.ts`](#file-scripts-smoke-dev-mode-identity-test-ts-1c1ae1393b) · [`scripts/smoke-dev-path-scope-grants.test.ts`](#file-scripts-smoke-dev-path-scope-grants-test-ts-b3614f9881) · [`scripts/smoke-dev-project-access-control.test.ts`](#file-scripts-smoke-dev-project-access-control-test-ts-639fd2368d) · [`scripts/smoke-dev-project-api-access.test.ts`](#file-scripts-smoke-dev-project-api-access-test-ts-1fa057a72e) · [`scripts/smoke-dev-project-map.test.ts`](#file-scripts-smoke-dev-project-map-test-ts-0f1985407f) · [`scripts/smoke-dev-project-nesting.test.ts`](#file-scripts-smoke-dev-project-nesting-test-ts-dd3f5b2305) · [`scripts/smoke-dev-team-api-view.test.ts`](#file-scripts-smoke-dev-team-api-view-test-ts-6f500601e0) · [`scripts/smoke-dev-team-editor.test.ts`](#file-scripts-smoke-dev-team-editor-test-ts-1fb1e2d66a) · [`scripts/smoke-dev-team-gates.test.ts`](#file-scripts-smoke-dev-team-gates-test-ts-bc85af653c) · [`scripts/smoke-ecommerce-public-checkout.test.ts`](#file-scripts-smoke-ecommerce-public-checkout-test-ts-4209142448) · [`scripts/smoke-editor-surface-modes.test.ts`](#file-scripts-smoke-editor-surface-modes-test-ts-dbd9c60d53) · [`scripts/smoke-editor-words-publish.test.ts`](#file-scripts-smoke-editor-words-publish-test-ts-8a0e2a86d4) · [`scripts/smoke-element-insert.test.ts`](#file-scripts-smoke-element-insert-test-ts-f323eac974) · [`scripts/smoke-embed-security.test.ts`](#file-scripts-smoke-embed-security-test-ts-2f2282baca) · [`scripts/smoke-finance-idempotency.test.ts`](#file-scripts-smoke-finance-idempotency-test-ts-3fe907cb63) · [`scripts/smoke-finance-plan-assignment.test.ts`](#file-scripts-smoke-finance-plan-assignment-test-ts-fed2e879fc) · [`scripts/smoke-finance-runtime-validation.test.ts`](#file-scripts-smoke-finance-runtime-validation-test-ts-e9d8d503cc) · [`scripts/smoke-finance-section-gates.test.ts`](#file-scripts-smoke-finance-section-gates-test-ts-bb835c5a2c) · [`scripts/smoke-fulfilment-clients-access.test.ts`](#file-scripts-smoke-fulfilment-clients-access-test-ts-a00564a357) · [`scripts/smoke-fulfilment-technical-access.test.ts`](#file-scripts-smoke-fulfilment-technical-access-test-ts-9f806e6993) · [`scripts/smoke-kpi-target-convergence.test.ts`](#file-scripts-smoke-kpi-target-convergence-test-ts-7f8b914212) · [`scripts/smoke-legal-document-dependencies.test.ts`](#file-scripts-smoke-legal-document-dependencies-test-ts-4acf172dc2) · [`scripts/smoke-librarian.test.ts`](#file-scripts-smoke-librarian-test-ts-83768b6b09) · [`scripts/smoke-local-repository-preview-route.test.ts`](#file-scripts-smoke-local-repository-preview-route-test-ts-1fda48c87f) · [`scripts/smoke-meta-reply-parts.test.ts`](#file-scripts-smoke-meta-reply-parts-test-ts-24f1b00ade) · [`scripts/smoke-my-tools-icon-route.test.ts`](#file-scripts-smoke-my-tools-icon-route-test-ts-e900b48203) · [`scripts/smoke-people-cv-persistence-failure.test.ts`](#file-scripts-smoke-people-cv-persistence-failure-test-ts-291b99a925) · [`scripts/smoke-people-cv-security.test.ts`](#file-scripts-smoke-people-cv-security-test-ts-a34dfd75a7) · [`scripts/smoke-people-domain-validity.test.ts`](#file-scripts-smoke-people-domain-validity-test-ts-9f5d830b68) · [`scripts/smoke-performance-experiments-checked-mutations.test.ts`](#file-scripts-smoke-performance-experiments-checked-mutations-test-ts-2364c916c5) · [`scripts/smoke-performance-milestone-mutations.test.ts`](#file-scripts-smoke-performance-milestone-mutations-test-ts-5bf31f0964) · [`scripts/smoke-performance-report-checked-mutations.test.ts`](#file-scripts-smoke-performance-report-checked-mutations-test-ts-7f15b883de) · [`scripts/smoke-plugin-api-host-gates.test.ts`](#file-scripts-smoke-plugin-api-host-gates-test-ts-a532a714e3) · [`scripts/smoke-plugin-api-tenancy.test.ts`](#file-scripts-smoke-plugin-api-tenancy-test-ts-8bbf35181d) · [`scripts/smoke-plugin-health-route.test.ts`](#file-scripts-smoke-plugin-health-route-test-ts-e71d45300f) · [`scripts/smoke-plugin-page-host-gates.test.ts`](#file-scripts-smoke-plugin-page-host-gates-test-ts-a2690cdf7e) · [`scripts/smoke-portal-update-route.test.ts`](#file-scripts-smoke-portal-update-route-test-ts-366fc43e6d) · [`scripts/smoke-private-upload-storage.test.ts`](#file-scripts-smoke-private-upload-storage-test-ts-7e4fe1d141) · [`scripts/smoke-product-stage-convergence.test.ts`](#file-scripts-smoke-product-stage-convergence-test-ts-addf092169) · [`scripts/smoke-release-access-matrix.test.ts`](#file-scripts-smoke-release-access-matrix-test-ts-0f37b84c3b) · [`scripts/smoke-repo-write.test.ts`](#file-scripts-smoke-repo-write-test-ts-938e040d8b) · [`scripts/smoke-sandbox-access-governance.test.ts`](#file-scripts-smoke-sandbox-access-governance-test-ts-b9a31169e4) · [`scripts/smoke-search-realm-cache.test.ts`](#file-scripts-smoke-search-realm-cache-test-ts-af64249a9e) · [`scripts/smoke-search-restricted-route.test.ts`](#file-scripts-smoke-search-restricted-route-test-ts-053831cc6b) · [`scripts/smoke-session-revocation.test.ts`](#file-scripts-smoke-session-revocation-test-ts-bb12bdf6e9) · [`scripts/smoke-sop-reference-integrity.test.ts`](#file-scripts-smoke-sop-reference-integrity-test-ts-b9e06c1184) · [`scripts/smoke-subject-access-export-security.test.ts`](#file-scripts-smoke-subject-access-export-security-test-ts-e3325ba299) · [`scripts/smoke-threat-centre.test.ts`](#file-scripts-smoke-threat-centre-test-ts-dbf56d436c) · [`scripts/smoke-website-editor-public-newsletter.test.ts`](#file-scripts-smoke-website-editor-public-newsletter-test-ts-c307f3897f) · [`scripts/smoke-website-editor-public-visitors.test.ts`](#file-scripts-smoke-website-editor-public-visitors-test-ts-b860bc0b94) · [`scripts/smoke-work-lifecycle.test.ts`](#file-scripts-smoke-work-lifecycle-test-ts-be6965c054)
+
+
+## `scripts/fixtures/`
+
+<a id="file-scripts-fixtures-nonce-store-worker-ts-fdedaaed4d"></a>
+
+### `scripts/fixtures/nonce-store-worker.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/lib/server/auth/nonceStore.ts`](lib.md#file-src-lib-server-auth-noncestore-ts-409d62095b)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-fixtures-public-auth-link-worker-ts-cc056a2bc8"></a>
+
+### `scripts/fixtures/public-auth-link-worker.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/server/publicAuthLinkDelivery.ts`](server.md#file-src-server-publicauthlinkdelivery-ts-77c671007c)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+
+## `scripts/`
 
 <a id="file-scripts-generate-radar-rules-reference-ts-00cd698199"></a>
 
@@ -298,6 +328,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-abuse-003-public-capture-test-ts-de1a489940"></a>
+
+### `scripts/smoke-abuse-003-public-capture.test.ts`
+
+**What it is:** fixture; this suite never calls a provider or a live database.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (15):** [`src/app/api/public/aqua-tag-admission/route.ts`](app.md#file-src-app-api-public-aqua-tag-admission-route-ts-090875dd2d) · [`src/app/api/telemetry/collect/route.ts`](app.md#file-src-app-api-telemetry-collect-route-ts-bdfa138d16) · [`src/built-ins/modules/website-editor/src/api/handlers/visitor.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-api-handlers-visitor-ts-75b41af6b2) · [`src/built-ins/modules/website-editor/src/lib/aquaPluginTypes.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-aquaplugintypes-ts-0dd53b92c8) · [`src/built-ins/modules/website-editor/src/lib/visitorContactConsent.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-visitorcontactconsent-ts-5835cb3996) · [`src/built-ins/modules/website-editor/src/lib/visitorNewsletterConsent.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-visitornewsletterconsent-ts-72834c0bb9) · [`src/built-ins/modules/website-editor/src/server/pages.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-server-pages-ts-2624a905b7) · [`src/built-ins/modules/website-editor/src/server/sites.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-server-sites-ts-2ef002b8d2) · [`src/lib/server/clients/clientTelemetryService.ts`](lib.md#file-src-lib-server-clients-clienttelemetryservice-ts-92d317a118) · [`src/lib/server/security/aquaTagFormAdmission.ts`](lib.md#file-src-lib-server-security-aquatagformadmission-ts-415b80bec3) · [`src/lib/server/security/botChallenge.ts`](lib.md#file-src-lib-server-security-botchallenge-ts-2fba680d42) · [`src/server/agencyWebsite.ts`](server.md#file-src-server-agencywebsite-ts-eb7ef721d2) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-access-control-kernel-test-ts-600ebf4ed8"></a>
 
 ### `scripts/smoke-access-control-kernel.test.ts`
@@ -325,6 +367,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 <a id="file-scripts-smoke-accessible-names-test-ts-6ddca9d575"></a>
 
 ### `scripts/smoke-accessible-names.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-acquisition-person-continuity-test-ts-0225ecae65"></a>
+
+### `scripts/smoke-acquisition-person-continuity.test.ts`
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
@@ -595,6 +649,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on (11):** [`scripts/dev-console-request-scope.ts`](#file-scripts-dev-console-request-scope-ts-77ec79ae76) · [`src/lib/server/assistants/assistantBusinessContext.ts`](lib.md#file-src-lib-server-assistants-assistantbusinesscontext-ts-022a1a1e3a) · [`src/lib/server/assistants/assistantContextScope.ts`](lib.md#file-src-lib-server-assistants-assistantcontextscope-ts-94c69e3f23) · [`src/lib/server/assistants/externalAssistantApi.ts`](lib.md#file-src-lib-server-assistants-externalassistantapi-ts-ed0003cedc) · [`src/lib/server/assistants/externalAssistantDelegation.ts`](lib.md#file-src-lib-server-assistants-externalassistantdelegation-ts-78d9a64341) · [`src/lib/server/assistants/externalAssistantKeys.ts`](lib.md#file-src-lib-server-assistants-externalassistantkeys-ts-0301a6f6a2) · [`src/lib/server/portal/pluginClientElement.ts`](lib.md#file-src-lib-server-portal-pluginclientelement-ts-08e08be258) · [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-ai-containment-test-ts-dc756312b1"></a>
+
+### `scripts/smoke-ai-containment.test.ts`
+
+**What it is:** Prompt contents never appear in security events or logs.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (3):** [`src/lib/server/auth/securityControl.ts`](lib.md#file-src-lib-server-auth-securitycontrol-ts-20ca5b763a) · [`src/lib/server/integrations/openaiResponses.ts`](lib.md#file-src-lib-server-integrations-openairesponses-ts-67abb2ee3a) · [`src/lib/server/security/securityEvents.ts`](lib.md#file-src-lib-server-security-securityevents-ts-f771bad0c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -898,6 +964,30 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-auth-abuse-admission-test-ts-381d8e67b2"></a>
+
+### `scripts/smoke-auth-abuse-admission.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (15):** [`src/app/api/auth/magic/request/route.ts`](app.md#file-src-app-api-auth-magic-request-route-ts-d858b9ec21) · [`src/app/api/auth/password/request-reset/handler.ts`](app.md#file-src-app-api-auth-password-request-reset-handler-ts-6715ca3d58) · [`src/app/api/auth/password/request-reset/route.ts`](app.md#file-src-app-api-auth-password-request-reset-route-ts-890173f5c7) · [`src/app/api/auth/signup/route.ts`](app.md#file-src-app-api-auth-signup-route-ts-1b48626832) · [`src/app/api/auth/verify-email/route.ts`](app.md#file-src-app-api-auth-verify-email-route-ts-345cec8605) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/emailVerification.ts`](lib.md#file-src-lib-server-auth-emailverification-ts-7082ef294e) · [`src/lib/server/auth/magicLink.ts`](lib.md#file-src-lib-server-auth-magiclink-ts-6a72fcbb7b) · [`src/lib/server/auth/nonceStore.ts`](lib.md#file-src-lib-server-auth-noncestore-ts-409d62095b) · [`src/lib/server/auth/passwordReset.ts`](lib.md#file-src-lib-server-auth-passwordreset-ts-a6c6156ebf) · [`src/lib/server/security/botChallenge.ts`](lib.md#file-src-lib-server-security-botchallenge-ts-2fba680d42) · [`src/server/agencySignup.ts`](server.md#file-src-server-agencysignup-ts-f629350094) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-auth-fail-closed-test-ts-5ef4c04eef"></a>
+
+### `scripts/smoke-auth-fail-closed.test.ts`
+
+**What it is:** legacy cookies that carry no stamps.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (5):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/securityControl.ts`](lib.md#file-src-lib-server-auth-securitycontrol-ts-20ca5b763a) · [`src/lib/server/env.ts`](lib.md#file-src-lib-server-env-ts-e409426595) · [`src/proxy.ts`](misc.md#file-src-proxy-ts-8e0a566449) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-auth-form-encoding-test-ts-5ce004c3f5"></a>
 
 ### `scripts/smoke-auth-form-encoding.test.ts`
@@ -994,6 +1084,30 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-bot-challenge-surfaces-test-ts-7c83be3be4"></a>
+
+### `scripts/smoke-bot-challenge-surfaces.test.ts`
+
+**What it is:** without carrying the token/action/reset contract with it.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-bot-challenge-test-ts-4c483549d4"></a>
+
+### `scripts/smoke-bot-challenge.test.ts`
+
+**What it is:** unconfigured readiness-blocker denial, and the dev skip.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (2):** [`src/lib/server/security/botChallenge.ts`](lib.md#file-src-lib-server-security-botchallenge-ts-2fba680d42) · [`src/lib/server/security/securityEvents.ts`](lib.md#file-src-lib-server-security-securityevents-ts-f771bad0c8)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-browser-matrix-test-ts-f5ff7391c9"></a>
 
 ### `scripts/smoke-browser-matrix.test.ts`
@@ -1086,7 +1200,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on:** _No internal imports._
+**Depends on (1):** [`src/lib/server/websiteEnquiries.ts`](lib.md#file-src-lib-server-websiteenquiries-ts-e00ecfd23b)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -1195,6 +1309,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on (6):** [`scripts/dev-console-request-scope.ts`](#file-scripts-dev-console-request-scope-ts-77ec79ae76) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-client-enquiry-lineage-test-ts-25efbbeea2"></a>
+
+### `scripts/smoke-client-enquiry-lineage.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/lib/server/websiteEnquiries.ts`](lib.md#file-src-lib-server-websiteenquiries-ts-e00ecfd23b)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -1318,6 +1444,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-client-portal-invite-admission-test-ts-42cb588deb"></a>
+
+### `scripts/smoke-client-portal-invite-admission.test.ts`
+
+**What it is:** a membership or session, while an exact, purpose-bound invitation still can.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`scripts/dev-console-request-scope.ts`](#file-scripts-dev-console-request-scope-ts-77ec79ae76)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-client-portal-placement-test-ts-1e85efb390"></a>
 
 ### `scripts/smoke-client-portal-placement.test.ts`
@@ -1327,6 +1465,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on (8):** [`scripts/dev-console-request-scope.ts`](#file-scripts-dev-console-request-scope-ts-77ec79ae76) · [`src/built-ins/runtime/_pageScope.ts`](built-ins.md#file-src-built-ins-runtime-pagescope-ts-3cc574306e) · [`src/built-ins/runtime/_registry.ts`](built-ins.md#file-src-built-ins-runtime-registry-ts-504f0b067d) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-client-portal-setup-recovery-test-ts-7a6c318a4a"></a>
+
+### `scripts/smoke-client-portal-setup-recovery.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/server/clientPortalSetupOperation.ts`](server.md#file-src-server-clientportalsetupoperation-ts-00aaba79ca)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -1531,6 +1681,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on (1):** [`src/lib/chrome/clientWorkspaceRoute.ts`](lib.md#file-src-lib-chrome-clientworkspaceroute-ts-00b35bb40b)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-clients-staff-scope-test-ts-06b336005a"></a>
+
+### `scripts/smoke-clients-staff-scope.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -1834,6 +1996,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-content-trust-test-ts-20f7d82fb8"></a>
+
+### `scripts/smoke-content-trust.test.ts`
+
+**What it is:** hermetically tested; connecting an AV/CDR service remains an owner action.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (3):** [`src/lib/server/privateUploadStorage.ts`](lib.md#file-src-lib-server-privateuploadstorage-ts-80d5415fe8) · [`src/lib/server/security/contentTrust.ts`](lib.md#file-src-lib-server-security-contenttrust-ts-8100703c87) · [`src/lib/server/security/securityEvents.ts`](lib.md#file-src-lib-server-security-securityevents-ts-f771bad0c8)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-contract-template-convergence-test-ts-dfbf2963ee"></a>
 
 ### `scripts/smoke-contract-template-convergence.test.ts`
@@ -1971,6 +2145,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 ### `scripts/smoke-date-resilience.test.ts`
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-date-timezone-determinism-test-ts-b0a95d6a9e"></a>
+
+### `scripts/smoke-date-timezone-determinism.test.ts`
+
+**What it is:** the output does not move.
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
@@ -2710,6 +2896,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-device-handoff-activity-privacy-test-ts-3b1adc2524"></a>
+
+### `scripts/smoke-device-handoff-activity-privacy.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-domain-management-test-ts-6fa9b3b92b"></a>
 
 ### `scripts/smoke-domain-management.test.ts`
@@ -2802,7 +3000,19 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on (11):** [`scripts/dev-console-request-scope.ts`](#file-scripts-dev-console-request-scope-ts-77ec79ae76) · [`src/built-ins/modules/ecommerce/src/lib/products.ts`](built-ins.md#file-src-built-ins-modules-ecommerce-src-lib-products-ts-49e47995b3) · [`src/built-ins/modules/ecommerce/src/server/foundationAdapter.ts`](built-ins.md#file-src-built-ins-modules-ecommerce-src-server-foundationadapter-ts-2aaeb2f16c) · [`src/built-ins/modules/website-editor/src/components/storefrontCommerceScope.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-components-storefrontcommercescope-ts-b6375f8bc4) · [`src/built-ins/runtime/foundation-adapters/ecommerceFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-ecommercefoundation-ts-96609f2fd3) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (12):** [`scripts/dev-console-request-scope.ts`](#file-scripts-dev-console-request-scope-ts-77ec79ae76) · [`src/built-ins/modules/ecommerce/src/lib/products.ts`](built-ins.md#file-src-built-ins-modules-ecommerce-src-lib-products-ts-49e47995b3) · [`src/built-ins/modules/ecommerce/src/server/foundationAdapter.ts`](built-ins.md#file-src-built-ins-modules-ecommerce-src-server-foundationadapter-ts-2aaeb2f16c) · [`src/built-ins/modules/website-editor/src/components/storefrontCommerceScope.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-components-storefrontcommercescope-ts-b6375f8bc4) · [`src/built-ins/runtime/foundation-adapters/ecommerceFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-ecommercefoundation-ts-96609f2fd3) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78) · [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-ecommerce-storefront-abuse-test-ts-b641762ffd"></a>
+
+### `scripts/smoke-ecommerce-storefront-abuse.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (6):** [`src/built-ins/modules/ecommerce/src/api/handlers.ts`](built-ins.md#file-src-built-ins-modules-ecommerce-src-api-handlers-ts-acaedc752f) · [`src/built-ins/modules/ecommerce/src/lib/aquaPluginTypes.ts`](built-ins.md#file-src-built-ins-modules-ecommerce-src-lib-aquaplugintypes-ts-8a6368bb64) · [`src/built-ins/modules/ecommerce/src/server/index.ts`](built-ins.md#file-src-built-ins-modules-ecommerce-src-server-index-ts-e03f2af91d) · [`src/built-ins/modules/ecommerce/src/server/ports.ts`](built-ins.md#file-src-built-ins-modules-ecommerce-src-server-ports-ts-11967ebb48) · [`src/built-ins/modules/ecommerce/src/server/storefrontCheckoutSecurity.ts`](built-ins.md#file-src-built-ins-modules-ecommerce-src-server-storefrontcheckoutsecurity-ts-95b45d6f5d) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3070,6 +3280,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-embed-security-test-ts-2f2282baca"></a>
+
+### `scripts/smoke-embed-security.test.ts`
+
+**What it is:** durable single-use consumption. Hermetic: memory PortalState, no network.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (5):** [`scripts/dev-console-request-scope.ts`](#file-scripts-dev-console-request-scope-ts-77ec79ae76) · [`src/lib/server/aquaEmbedToken.ts`](lib.md#file-src-lib-server-aquaembedtoken-ts-1a3b5086bf) · [`src/lib/server/auth/nonceStore.ts`](lib.md#file-src-lib-server-auth-noncestore-ts-409d62095b) · [`src/lib/server/embedCredentialAuthority.ts`](lib.md#file-src-lib-server-embedcredentialauthority-ts-a972ae83a0) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-end-customer-portal-test-ts-03ca6023ff"></a>
 
 ### `scripts/smoke-end-customer-portal.test.ts`
@@ -3211,6 +3433,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on (1):** [`src/lib/server/env.ts`](lib.md#file-src-lib-server-env-ts-e409426595)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-erasure-exact-lineage-test-ts-1f2fa189b3"></a>
+
+### `scripts/smoke-erasure-exact-lineage.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3702,7 +3936,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on (12):** [`src/app/api/portal/freelancer/message/route.ts`](app.md#file-src-app-api-portal-freelancer-message-route-ts-3cdcda7686) · [`src/app/api/portal/freelancer/submit/route.ts`](app.md#file-src-app-api-portal-freelancer-submit-route-ts-2773e0a953) · [`src/app/api/portal/freelancer/work/content/route.ts`](app.md#file-src-app-api-portal-freelancer-work-content-route-ts-6670ae9510) · [`src/app/api/portal/freelancer/work/route.ts`](app.md#file-src-app-api-portal-freelancer-work-route-ts-cbe10b774f) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/freelancerAdmin.ts`](server.md#file-src-server-freelanceradmin-ts-0700d77e70) · [`src/server/freelancerWorkspace.ts`](server.md#file-src-server-freelancerworkspace-ts-f31c25464f) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/staffProvisioning.ts`](server.md#file-src-server-staffprovisioning-ts-affcacba17) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (14):** [`src/app/api/portal/freelancer/message/route.ts`](app.md#file-src-app-api-portal-freelancer-message-route-ts-3cdcda7686) · [`src/app/api/portal/freelancer/submit/route.ts`](app.md#file-src-app-api-portal-freelancer-submit-route-ts-2773e0a953) · [`src/app/api/portal/freelancer/work/content/route.ts`](app.md#file-src-app-api-portal-freelancer-work-content-route-ts-6670ae9510) · [`src/app/api/portal/freelancer/work/route.ts`](app.md#file-src-app-api-portal-freelancer-work-route-ts-cbe10b774f) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/passwordReset.ts`](lib.md#file-src-lib-server-auth-passwordreset-ts-a6c6156ebf) · [`src/server/freelancerAdmin.ts`](server.md#file-src-server-freelanceradmin-ts-0700d77e70) · [`src/server/freelancerWorkspace.ts`](server.md#file-src-server-freelancerworkspace-ts-f31c25464f) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/publicAuthLinkDelivery.ts`](server.md#file-src-server-publicauthlinkdelivery-ts-77c671007c) · [`src/server/staffProvisioning.ts`](server.md#file-src-server-staffprovisioning-ts-affcacba17) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -3790,6 +4024,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-google-places-scouting-test-ts-e72e446213"></a>
+
+### `scripts/smoke-google-places-scouting.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (2):** [`src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-aquaplugintypes-ts-f59e96dcca) · [`src/lib/server/env.ts`](lib.md#file-src-lib-server-env-ts-e409426595)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-governance-workspace-test-ts-d7350db25b"></a>
 
 ### `scripts/smoke-governance-workspace.test.ts`
@@ -3826,11 +4072,23 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-health-check-abuse-controls-test-ts-e84bf643d5"></a>
+
+### `scripts/smoke-health-check-abuse-controls.test.ts`
+
+**What it is:** retired. All provider answers below are in-process stubs.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (14):** [`src/app/api/public/health-check/complete/route.ts`](app.md#file-src-app-api-public-health-check-complete-route-ts-630525eded) · [`src/built-ins/modules/public-funnel/src/api/routes.ts`](built-ins.md#file-src-built-ins-modules-public-funnel-src-api-routes-ts-9661e57f0d) · [`src/built-ins/runtime/foundation-adapters/leadFunnelPorts.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-leadfunnelports-ts-c751d4855d) · [`src/built-ins/runtime/foundation-adapters/publicFunnelFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-publicfunnelfoundation-ts-18280e9710) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/compliance/retention.ts`](lib.md#file-src-lib-server-compliance-retention-ts-ba422f7289) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/server/security/botChallenge.ts`](lib.md#file-src-lib-server-security-botchallenge-ts-2fba680d42) · [`src/lib/server/seeds/founderSeed.ts`](lib.md#file-src-lib-server-seeds-founderseed-ts-a8d60a4bd5) · [`src/server/automations.ts`](server.md#file-src-server-automations-ts-3e92d448c5) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-health-check-funnel-journey-test-ts-9db3f7413a"></a>
 
 ### `scripts/smoke-health-check-funnel-journey.test.ts`
 
-**What it is:** touches the developer's local portal data file.
+**What it is:** is a separate future promotion flow.
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
@@ -3867,6 +4125,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 ### `scripts/smoke-hr-policy-convergence.test.ts`
 
 **What it is:** deliberately not.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-hydration-boundary-test-ts-52903586bf"></a>
+
+### `scripts/smoke-hydration-boundary.test.ts`
+
+**What it is:** probe recorded in .artefacts/ui-wave9/.
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
@@ -4278,7 +4548,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on:** _No internal imports._
+**Depends on (1):** [`src/lib/security/contentSecurityPolicy.ts`](lib.md#file-src-lib-security-contentsecuritypolicy-ts-a580b466c7)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -4339,6 +4609,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-login-bot-challenge-test-ts-0fd3aef95b"></a>
+
+### `scripts/smoke-login-bot-challenge.test.ts`
+
+**What it is:** scripts/smoke-login-bot-challenge.test.ts
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (7):** [`src/app/api/auth/login/browser/route.ts`](app.md#file-src-app-api-auth-login-browser-route-ts-169294a35d) · [`src/app/api/auth/login/route.ts`](app.md#file-src-app-api-auth-login-route-ts-ee4ec679af) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/security/botChallenge.ts`](lib.md#file-src-lib-server-security-botchallenge-ts-2fba680d42) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -4465,6 +4747,30 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 <a id="file-scripts-smoke-master-inbox-replies-test-ts-ef58ca1a3d"></a>
 
 ### `scripts/smoke-master-inbox-replies.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-meeting-asset-url-safety-test-ts-fa70630e27"></a>
+
+### `scripts/smoke-meeting-asset-url-safety.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (5):** [`src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-aquaplugintypes-ts-f59e96dcca) · [`src/built-ins/modules/leads-pipeline/src/lib/meetingAssetUrl.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-meetingasseturl-ts-b275db770a) · [`src/built-ins/modules/leads-pipeline/src/server/contacts.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-server-contacts-ts-396a68ffb8) · [`src/built-ins/modules/leads-pipeline/src/server/leads.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-server-leads-ts-aedd6f72a5) · [`src/built-ins/modules/leads-pipeline/src/server/ports.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-server-ports-ts-3da7bed047)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-meeting-attempt-attribution-test-ts-cbef70fcab"></a>
+
+### `scripts/smoke-meeting-attempt-attribution.test.ts`
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
@@ -4918,6 +5224,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-outbound-broker-ssrf-test-ts-0dbbe55196"></a>
+
+### `scripts/smoke-outbound-broker-ssrf.test.ts`
+
+**What it is:** resolves to 127.0.0.1 (the rebinding shape).
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (2):** [`src/lib/server/net/outboundBroker.ts`](lib.md#file-src-lib-server-net-outboundbroker-ts-1b5e0fb1d0) · [`src/lib/server/security/securityEvents.ts`](lib.md#file-src-lib-server-security-securityevents-ts-f771bad0c8)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-outbox-postcommit-order-test-ts-b39070cf83"></a>
 
 ### `scripts/smoke-outbox-postcommit-order.test.ts`
@@ -4954,6 +5272,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-password-reset-operation-test-ts-b48cfd693e"></a>
+
+### `scripts/smoke-password-reset-operation.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (6):** [`src/lib/server/auth/nonceStore.ts`](lib.md#file-src-lib-server-auth-noncestore-ts-409d62095b) · [`src/lib/server/auth/passwordReset.ts`](lib.md#file-src-lib-server-auth-passwordreset-ts-a6c6156ebf) · [`src/server/passwordResetOperation.ts`](server.md#file-src-server-passwordresetoperation-ts-8a04481e02) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-password-reset-test-ts-ac13dd55c8"></a>
 
 ### `scripts/smoke-password-reset.test.ts`
@@ -4962,7 +5292,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on (2):** [`src/lib/server/auth/nonceStore.ts`](lib.md#file-src-lib-server-auth-noncestore-ts-409d62095b) · [`src/lib/server/auth/passwordReset.ts`](lib.md#file-src-lib-server-auth-passwordreset-ts-a6c6156ebf)
+**Depends on (4):** [`src/lib/server/auth/emailVerification.ts`](lib.md#file-src-lib-server-auth-emailverification-ts-7082ef294e) · [`src/lib/server/auth/magicLink.ts`](lib.md#file-src-lib-server-auth-magiclink-ts-6a72fcbb7b) · [`src/lib/server/auth/nonceStore.ts`](lib.md#file-src-lib-server-auth-noncestore-ts-409d62095b) · [`src/lib/server/auth/passwordReset.ts`](lib.md#file-src-lib-server-auth-passwordreset-ts-a6c6156ebf)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -4975,6 +5305,30 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-people-cv-persistence-failure-test-ts-291b99a925"></a>
+
+### `scripts/smoke-people-cv-persistence-failure.test.ts`
+
+**What it is:** Hermetic: isolated local state/private files and an injected scanner only.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`scripts/dev-console-request-scope.ts`](#file-scripts-dev-console-request-scope-ts-77ec79ae76)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-people-cv-security-test-ts-a34dfd75a7"></a>
+
+### `scripts/smoke-people-cv-security.test.ts`
+
+**What it is:** Hermetic: memory PortalState + local .data bytes + injected scanner only.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (9):** [`scripts/dev-console-request-scope.ts`](#file-scripts-dev-console-request-scope-ts-77ec79ae76) · [`src/app/api/portal/people/cv/route.ts`](app.md#file-src-app-api-portal-people-cv-route-ts-e56d36d5ab) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/csrf.ts`](lib.md#file-src-lib-server-auth-csrf-ts-ff75131bd7) · [`src/lib/server/security/contentTrust.ts`](lib.md#file-src-lib-server-security-contenttrust-ts-8100703c87) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/productWorkspaceCoordinator.ts`](server.md#file-src-server-productworkspacecoordinator-ts-746a08d0be) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -5110,6 +5464,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-person-client-seeding-exactness-test-ts-a4df1199eb"></a>
+
+### `scripts/smoke-person-client-seeding-exactness.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-person-destination-test-ts-d410102cfa"></a>
 
 ### `scripts/smoke-person-destination.test.ts`
@@ -5194,6 +5560,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-pg-tls-fail-closed-test-ts-927b888ba6"></a>
+
+### `scripts/smoke-pg-tls-fail-closed.test.ts`
+
+**What it is:** most: PRODUCTION IGNORES the insecure escape hatch.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/lib/server/pgTls.ts`](lib.md#file-src-lib-server-pgtls-ts-b1a7154167)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-phase-admin-checked-mutations-test-ts-3caa1dd94d"></a>
 
 ### `scripts/smoke-phase-admin-checked-mutations.test.ts`
@@ -5251,6 +5629,30 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-platform-hardening-test-ts-a99e092645"></a>
+
+### `scripts/smoke-platform-hardening.test.ts`
+
+**What it is:** from the end via PORTAL_TRUSTED_PROXY_HOPS).
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (2):** [`src/lib/server/rateLimit.ts`](lib.md#file-src-lib-server-ratelimit-ts-4b02277298) · [`src/proxy.ts`](misc.md#file-src-proxy-ts-8e0a566449)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-plugin-agency-route-access-test-ts-cb99ff2026"></a>
+
+### `scripts/smoke-plugin-agency-route-access.test.ts`
+
+**What it is:** dispatcher only applied element access to client-scoped calls.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/lib/server/portal/pluginAgencyRouteAccess.ts`](lib.md#file-src-lib-server-portal-pluginagencyrouteaccess-ts-cac794fc31)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -5334,7 +5736,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on (8):** [`src/built-ins/modules/agency-finance/src/lib/stripe.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-lib-stripe-ts-3832f7b0e6) · [`src/built-ins/runtime/_registry.ts`](built-ins.md#file-src-built-ins-runtime-registry-ts-504f0b067d) · [`src/built-ins/runtime/_validate.ts`](built-ins.md#file-src-built-ins-runtime-validate-ts-7537e6b17c) · [`src/lib/server/plugins/pluginSecretConfig.ts`](lib.md#file-src-lib-server-plugins-pluginsecretconfig-ts-8cb887a277) · [`src/lib/server/plugins/pluginSettingsSurface.ts`](lib.md#file-src-lib-server-plugins-pluginsettingssurface-ts-f5a8104127) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
+**Depends on (10):** [`src/built-ins/modules/agency-finance/src/lib/stripe.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-lib-stripe-ts-3832f7b0e6) · [`src/built-ins/runtime/_registry.ts`](built-ins.md#file-src-built-ins-runtime-registry-ts-504f0b067d) · [`src/built-ins/runtime/_validate.ts`](built-ins.md#file-src-built-ins-runtime-validate-ts-7537e6b17c) · [`src/lib/integrations/catalog.ts`](lib.md#file-src-lib-integrations-catalog-ts-1b19d0b1c0) · [`src/lib/server/integrations/integrationConnections.ts`](lib.md#file-src-lib-server-integrations-integrationconnections-ts-0ca61152db) · [`src/lib/server/plugins/pluginSecretConfig.ts`](lib.md#file-src-lib-server-plugins-pluginsecretconfig-ts-8cb887a277) · [`src/lib/server/plugins/pluginSettingsSurface.ts`](lib.md#file-src-lib-server-plugins-pluginsettingssurface-ts-f5a8104127) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -5569,6 +5971,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-postmark-webhook-security-test-ts-56d82c6128"></a>
+
+### `scripts/smoke-postmark-webhook-security.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (4):** [`src/built-ins/modules/email-sender/src/api/handlers.ts`](built-ins.md#file-src-built-ins-modules-email-sender-src-api-handlers-ts-103f6a498c) · [`src/built-ins/modules/email-sender/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-email-sender-src-lib-domain-ts-86c3b3b8a6) · [`src/built-ins/modules/email-sender/src/server/ports.ts`](built-ins.md#file-src-built-ins-modules-email-sender-src-server-ports-ts-d83f489d16) · [`src/built-ins/modules/email-sender/src/server/webhook.ts`](built-ins.md#file-src-built-ins-modules-email-sender-src-server-webhook-ts-420e6f3bdc)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-privacy-mode-test-ts-be86610ca0"></a>
 
 ### `scripts/smoke-privacy-mode.test.ts`
@@ -5797,6 +6211,42 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-prospect-acquisition-continuity-test-ts-190db0efd2"></a>
+
+### `scripts/smoke-prospect-acquisition-continuity.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (7):** [`src/app/portal/agency/pipelines/[slug]/_leadJourneyProjection.ts`](app.md#file-src-app-portal-agency-pipelines-slug-leadjourneyprojection-ts-07570a82ff) · [`src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-aquaplugintypes-ts-f59e96dcca) · [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) · [`src/built-ins/modules/leads-pipeline/src/server/leads.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-server-leads-ts-aedd6f72a5) · [`src/built-ins/modules/leads-pipeline/src/server/ports.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-server-ports-ts-3da7bed047) · [`src/built-ins/modules/leads-pipeline/src/server/prospectAcquisition.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-server-prospectacquisition-ts-edb9744eda) · [`src/built-ins/modules/leads-pipeline/src/server/prospects.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-server-prospects-ts-59cfdd04fc)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-prospect-not-qualified-archive-test-ts-d3add2f559"></a>
+
+### `scripts/smoke-prospect-not-qualified-archive.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (3):** [`src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-aquaplugintypes-ts-f59e96dcca) · [`src/built-ins/modules/leads-pipeline/src/server/ports.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-server-ports-ts-3da7bed047) · [`src/built-ins/modules/leads-pipeline/src/server/prospects.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-server-prospects-ts-59cfdd04fc)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-prospect-qualification-atomicity-test-ts-b1fa385116"></a>
+
+### `scripts/smoke-prospect-qualification-atomicity.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-provider-deadlines-test-ts-b3c5fd9785"></a>
 
 ### `scripts/smoke-provider-deadlines.test.ts`
@@ -5833,6 +6283,30 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-public-auth-link-delivery-test-ts-650ae90f40"></a>
+
+### `scripts/smoke-public-auth-link-delivery.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (4):** [`src/lib/server/auth/magicLink.ts`](lib.md#file-src-lib-server-auth-magiclink-ts-6a72fcbb7b) · [`src/lib/server/auth/passwordReset.ts`](lib.md#file-src-lib-server-auth-passwordreset-ts-a6c6156ebf) · [`src/server/publicAuthLinkDelivery.ts`](server.md#file-src-server-publicauthlinkdelivery-ts-77c671007c) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-public-auth-origin-test-ts-3d437b5330"></a>
+
+### `scripts/smoke-public-auth-origin.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/lib/server/auth/publicAuthOrigin.ts`](lib.md#file-src-lib-server-auth-publicauthorigin-ts-5357419b47)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-public-brand-navigation-test-ts-7a10ccde89"></a>
 
 ### `scripts/smoke-public-brand-navigation.test.ts`
@@ -5854,6 +6328,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-public-forms-bot-challenge-test-ts-a12b003822"></a>
+
+### `scripts/smoke-public-forms-bot-challenge.test.ts`
+
+**What it is:** scripts/smoke-public-forms-bot-challenge.test.ts
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (10):** [`src/app/api/public/brand-enquiry/route.ts`](app.md#file-src-app-api-public-brand-enquiry-route-ts-a6e218f276) · [`src/app/api/public/careers/route.ts`](app.md#file-src-app-api-public-careers-route-ts-7ea6e435d1) · [`src/app/api/public/contact/route.ts`](app.md#file-src-app-api-public-contact-route-ts-08a246b9bd) · [`src/lib/server/privateUploadStorage.ts`](lib.md#file-src-lib-server-privateuploadstorage-ts-80d5415fe8) · [`src/lib/server/security/botChallenge.ts`](lib.md#file-src-lib-server-security-botchallenge-ts-2fba680d42) · [`src/lib/server/security/contentTrust.ts`](lib.md#file-src-lib-server-security-contenttrust-ts-8100703c87) · [`src/lib/server/seeds/founderSeed.ts`](lib.md#file-src-lib-server-seeds-founderseed-ts-a8d60a4bd5) · [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -5881,11 +6367,47 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-public-plugin-authority-registry-test-ts-da8b8f45ad"></a>
+
+### `scripts/smoke-public-plugin-authority-registry.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (3):** [`src/built-ins/runtime/_registry.ts`](built-ins.md#file-src-built-ins-runtime-registry-ts-504f0b067d) · [`src/lib/server/portal/pluginPublicRouteAuthority.ts`](lib.md#file-src-lib-server-portal-pluginpublicrouteauthority-ts-424d0cf99d) · [`src/lib/server/portal/providerWebhookScope.ts`](lib.md#file-src-lib-server-portal-providerwebhookscope-ts-ede85951b4)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-public-portfolio-demo-test-ts-4b052040a7"></a>
 
 ### `scripts/smoke-public-portfolio-demo.test.ts`
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-public-request-body-boundaries-test-ts-37d09f01e3"></a>
+
+### `scripts/smoke-public-request-body-boundaries.test.ts`
+
+**What it is:** Hermetic request-boundary regression: no network, provider or live storage.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (5):** [`src/app/api/public/aqua-tag-admission/route.ts`](app.md#file-src-app-api-public-aqua-tag-admission-route-ts-090875dd2d) · [`src/app/api/public/form-capture/route.ts`](app.md#file-src-app-api-public-form-capture-route-ts-34c5b0f2ed) · [`src/app/api/telemetry/collect/route.ts`](app.md#file-src-app-api-telemetry-collect-route-ts-bdfa138d16) · [`src/lib/server/boundedRequestBody.ts`](lib.md#file-src-lib-server-boundedrequestbody-ts-b28de71542) · [`src/lib/server/security/botChallenge.ts`](lib.md#file-src-lib-server-security-botchallenge-ts-2fba680d42)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-public-request-body-side-effects-test-ts-64945b3b4b"></a>
+
+### `scripts/smoke-public-request-body-side-effects.test.ts`
+
+**What it is:** must be cancelled before tenant lookup, rate accounting, proof, or storage.
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
@@ -5914,6 +6436,42 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on (1):** [`src/lib/server/publicUploadStorage.ts`](lib.md#file-src-lib-server-publicuploadstorage-ts-7bf29f859e)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-public-webhook-body-boundary-test-ts-c1bb7e5f08"></a>
+
+### `scripts/smoke-public-webhook-body-boundary.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/lib/server/portal/publicWebhookBody.ts`](lib.md#file-src-lib-server-portal-publicwebhookbody-ts-46be045721)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-public-webhook-generic-errors-test-ts-95825ac7b4"></a>
+
+### `scripts/smoke-public-webhook-generic-errors.test.ts`
+
+**What it is:** Hermetic: arbitrary signatures, local empty configs, no provider/network use.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (10):** [`src/built-ins/modules/affiliates/src/api/handlers.ts`](built-ins.md#file-src-built-ins-modules-affiliates-src-api-handlers-ts-b2da5fb28d) · [`src/built-ins/modules/affiliates/src/server/foundationAdapter.ts`](built-ins.md#file-src-built-ins-modules-affiliates-src-server-foundationadapter-ts-1b0d780160) · [`src/built-ins/modules/agency-finance/src/api/handlers-stripe.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-api-handlers-stripe-ts-6e9c0e130b) · [`src/built-ins/modules/ecommerce/src/api/handlers.ts`](built-ins.md#file-src-built-ins-modules-ecommerce-src-api-handlers-ts-acaedc752f) · [`src/built-ins/modules/leads-pipeline/src/api/handlers.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-api-handlers-ts-1726bbbb81) · [`src/built-ins/modules/memberships/src/api/handlers.ts`](built-ins.md#file-src-built-ins-modules-memberships-src-api-handlers-ts-d98278c673) · [`src/built-ins/modules/memberships/src/server/foundationAdapter.ts`](built-ins.md#file-src-built-ins-modules-memberships-src-server-foundationadapter-ts-adbdd97bed) · [`src/built-ins/runtime/_types.ts`](built-ins.md#file-src-built-ins-runtime-types-ts-bae4cd6b2a) · [`src/lib/server/integrations/integrationConnections.ts`](lib.md#file-src-lib-server-integrations-integrationconnections-ts-0ca61152db) · [`src/lib/server/portal/publicWebhookResponse.ts`](lib.md#file-src-lib-server-portal-publicwebhookresponse-ts-73ecf08474)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-qualified-prospect-provider-gate-test-ts-b6a7590e7f"></a>
+
+### `scripts/smoke-qualified-prospect-provider-gate.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -6397,6 +6955,102 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-sales-accessibility-contract-test-ts-28370b7a6e"></a>
+
+### `scripts/smoke-sales-accessibility-contract.test.ts`
+
+**What it is:** the canonical suite's `--conditions react-server` process.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (3):** [`scripts/client-render-condition.ts`](#file-scripts-client-render-condition-ts-f87886323c) · [`src/app/portal/agency/leads-pipeline/_UpcomingMeetings.tsx`](app.md#file-src-app-portal-agency-leads-pipeline-upcomingmeetings-tsx-18fcadc035) · [`src/components/sales/SalesAcquisitionTabs.tsx`](components.md#file-src-components-sales-salesacquisitiontabs-tsx-518dc0e4de)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-sales-element-leaf-access-test-ts-9fda78eeae"></a>
+
+### `scripts/smoke-sales-element-leaf-access.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-sales-enquiry-admission-test-ts-188ee74474"></a>
+
+### `scripts/smoke-sales-enquiry-admission.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (5):** [`src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-aquaplugintypes-ts-f59e96dcca) · [`src/built-ins/modules/leads-pipeline/src/server/leads.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-server-leads-ts-aedd6f72a5) · [`src/built-ins/modules/leads-pipeline/src/server/ports.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-server-ports-ts-3da7bed047) · [`src/built-ins/modules/leads-pipeline/src/server/prospectAcquisition.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-server-prospectacquisition-ts-edb9744eda) · [`src/built-ins/modules/leads-pipeline/src/server/prospects.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-server-prospects-ts-59cfdd04fc)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-sales-meetings-test-ts-27dd11e434"></a>
+
+### `scripts/smoke-sales-meetings.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/app/portal/agency/leads-pipeline/_UpcomingMeetings.tsx`](app.md#file-src-app-portal-agency-leads-pipeline-upcomingmeetings-tsx-18fcadc035)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-sales-operational-alerts-test-ts-22e5f48de5"></a>
+
+### `scripts/smoke-sales-operational-alerts.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-sales-outreach-attribution-test-ts-bf5735fc71"></a>
+
+### `scripts/smoke-sales-outreach-attribution.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (4):** [`src/app/portal/agency/pipelines/[slug]/_scoutingProspectView.ts`](app.md#file-src-app-portal-agency-pipelines-slug-scoutingprospectview-ts-6047a5839c) · [`src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-aquaplugintypes-ts-f59e96dcca) · [`src/built-ins/modules/leads-pipeline/src/server/ports.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-server-ports-ts-3da7bed047) · [`src/built-ins/modules/leads-pipeline/src/server/prospects.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-server-prospects-ts-59cfdd04fc)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-sales-outreach-journey-finalizer-test-ts-4b56ca7f2e"></a>
+
+### `scripts/smoke-sales-outreach-journey-finalizer.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-sales-workflow-split-test-ts-4b0e557e34"></a>
+
+### `scripts/smoke-sales-workflow-split.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (3):** [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/lib/sales/prospectWorkflow.ts`](lib.md#file-src-lib-sales-prospectworkflow-ts-30057a85fd) · [`src/lib/sales/scoutingIntake.ts`](lib.md#file-src-lib-sales-scoutingintake-ts-4598d0ff00)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-sandbox-access-governance-test-ts-b9a31169e4"></a>
 
 ### `scripts/smoke-sandbox-access-governance.test.ts`
@@ -6465,7 +7119,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on:** _No internal imports._
+**Depends on (1):** [`src/lib/telephony/prospectOutreachPolicy.ts`](lib.md#file-src-lib-telephony-prospectoutreachpolicy-ts-5efdbc00c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -6478,6 +7132,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-scouting-workspace-test-ts-d5e54ecc15"></a>
+
+### `scripts/smoke-scouting-workspace.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (2):** [`src/lib/access/navElementKeys.ts`](lib.md#file-src-lib-access-navelementkeys-ts-bebe1ec3e3) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -6526,6 +7192,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on (5):** [`src/engines/data/server/kpi/customKpis.ts`](engines.md#file-src-engines-data-server-kpi-customkpis-ts-1d248b2f03) · [`src/lib/clients/fulfillmentPhaseRead.ts`](lib.md#file-src-lib-clients-fulfillmentphaseread-ts-24fe4b874a) · [`src/lib/inbox/completedActionRead.ts`](lib.md#file-src-lib-inbox-completedactionread-ts-b1507e4185) · [`src/lib/performance/kpiConfigurationRead.ts`](lib.md#file-src-lib-performance-kpiconfigurationread-ts-9f0ef3e87b) · [`src/server/completedActions.ts`](server.md#file-src-server-completedactions-ts-93ff9c085e)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-security-lockdown-test-ts-1af6073996"></a>
+
+### `scripts/smoke-security-lockdown.test.ts`
+
+**What it is:** Every switch flip lands in the security-event spine.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (4):** [`src/lib/server/auth/securityControl.ts`](lib.md#file-src-lib-server-auth-securitycontrol-ts-20ca5b763a) · [`src/lib/server/security/securityEvents.ts`](lib.md#file-src-lib-server-security-securityevents-ts-f771bad0c8) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -6681,7 +7359,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on (1):** [`src/lib/server/auth/emailVerification.ts`](lib.md#file-src-lib-server-auth-emailverification-ts-7082ef294e)
+**Depends on (2):** [`src/lib/server/auth/emailVerification.ts`](lib.md#file-src-lib-server-auth-emailverification-ts-7082ef294e) · [`src/lib/server/auth/sessionToken.ts`](lib.md#file-src-lib-server-auth-sessiontoken-ts-b0b933a575)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -6793,6 +7471,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-spreadsheet-upload-bounds-test-ts-c052362c5f"></a>
+
+### `scripts/smoke-spreadsheet-upload-bounds.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`src/built-ins/modules/leads-pipeline/src/server/csv.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-server-csv-ts-ec5874fb35)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-staff-navigation-surfaces-test-ts-8ac70d06d8"></a>
 
 ### `scripts/smoke-staff-navigation-surfaces.test.ts`
@@ -6874,6 +7564,30 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on (1):** [`src/server/storagePatch.ts`](server.md#file-src-server-storagepatch-ts-c38f552c7a)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-stored-code-boundary-test-ts-4b3e737880"></a>
+
+### `scripts/smoke-stored-code-boundary.test.ts`
+
+**What it is:** Full parser-sanitiser + separate-origin isolation remain PARTIAL (documented).
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (2):** [`src/built-ins/modules/website-editor/src/lib/customCodeSafeMode.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-customcodesafemode-ts-fba737a4d8) · [`src/lib/security/contentSecurityPolicy.ts`](lib.md#file-src-lib-security-contentsecuritypolicy-ts-a580b466c7)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-subject-access-export-security-test-ts-e3325ba299"></a>
+
+### `scripts/smoke-subject-access-export-security.test.ts`
+
+**What it is:** fulfilled unless the export and its activity evidence commit together.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (2):** [`scripts/dev-console-request-scope.ts`](#file-scripts-dev-console-request-scope-ts-77ec79ae76) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -7009,6 +7723,30 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-telephony-outreach-access-test-ts-781db50695"></a>
+
+### `scripts/smoke-telephony-outreach-access.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (2):** [`src/lib/telephony/contactRecipientPolicy.ts`](lib.md#file-src-lib-telephony-contactrecipientpolicy-ts-29789d003b) · [`src/lib/telephony/prospectTargetAccess.ts`](lib.md#file-src-lib-telephony-prospecttargetaccess-ts-533d578203)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-telephony-provider-replay-test-ts-980da6d8d2"></a>
+
+### `scripts/smoke-telephony-provider-replay.test.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (3):** [`src/lib/server/telephony/outboundCommunicationReplay.ts`](lib.md#file-src-lib-server-telephony-outboundcommunicationreplay-ts-6b2f6985e8) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-template-preview-sample-test-ts-26ba23fdd7"></a>
 
 ### `scripts/smoke-template-preview-sample.test.ts`
@@ -7030,6 +7768,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on (1):** [`src/server/storagePatch.ts`](server.md#file-src-server-storagepatch-ts-c38f552c7a)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-threat-centre-test-ts-dbf56d436c"></a>
+
+### `scripts/smoke-threat-centre.test.ts`
+
+**What it is:** drain) instead of faking green.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (1):** [`scripts/dev-console-request-scope.ts`](#file-scripts-dev-console-request-scope-ts-77ec79ae76)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -7138,6 +7888,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports:** _No exported symbols (internal/side-effect module)._
 
 **Depends on (9):** [`src/app/portal/customer/_portalData.ts`](app.md#file-src-app-portal-customer-portaldata-ts-2f1995696c) · [`src/built-ins/modules/agency-finance/src/lib/currencies.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-lib-currencies-ts-d92fdc906d) · [`src/built-ins/modules/agency-finance/src/lib/taxPosition.ts`](built-ins.md#file-src-built-ins-modules-agency-finance-src-lib-taxposition-ts-fd8435862b) · [`src/lib/performance/telemetryDisplay.ts`](lib.md#file-src-lib-performance-telemetrydisplay-ts-5be221a37e) · [`src/lib/readAvailability.ts`](lib.md#file-src-lib-readavailability-ts-35b000b352) · [`src/lib/server/finance/financeCurrency.ts`](lib.md#file-src-lib-server-finance-financecurrency-ts-85981f420b) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
+<a id="file-scripts-smoke-ui-acceptance-harness-test-ts-eef2bddcfb"></a>
+
+### `scripts/smoke-ui-acceptance-harness.test.ts`
+
+**What it is:** classifyRecord, the matching row below goes red — that is the point.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -7365,7 +8127,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on (10):** [`src/app/api/auth/signup/route.ts`](app.md#file-src-app-api-auth-signup-route-ts-1b48626832) · [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) · [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-leadspipelinefoundation-ts-a0444ffabc) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/server/agencyBootstrap.ts`](server.md#file-src-server-agencybootstrap-ts-7ff459b170) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (11):** [`src/app/api/auth/signup/route.ts`](app.md#file-src-app-api-auth-signup-route-ts-1b48626832) · [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) · [`src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-leadspipelinefoundation-ts-a0444ffabc) · [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/server/agencyBootstrap.ts`](server.md#file-src-server-agencybootstrap-ts-7ff459b170) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78) · [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 

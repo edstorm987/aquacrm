@@ -52,7 +52,7 @@ export async function generateMetadata({
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ brand?: string; next?: string }>;
+  searchParams: Promise<{ brand?: string; next?: string; clientId?: string }>;
 }) {
   const botChallenge = botChallengeClientConfig();
   const params = await searchParams;
@@ -113,6 +113,7 @@ export default async function LoginPage({
             <p>{brand.id === "aquacrm" ? "Sign in with the access issued to you." : `Sign in to your ${brand.name} workspace.`}</p>
           </div>
           <LoginForm
+            clientId={params.clientId}
             googleEnabled={isGoogleOAuthConfigured()}
             captchaSiteKey={botChallenge.siteKey}
             captchaRequired={botChallenge.required}

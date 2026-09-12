@@ -105,6 +105,8 @@ export async function POST(request: Request) {
     ? async (invoice: Invoice): Promise<string> => {
         const keys = readStripeKeysFromInstall(stripeConfig);
         const out = await createInvoiceCheckout(keys, {
+          agencyId: session.agencyId,
+          clientId: invoice.clientId,
           invoiceId: invoice.id,
           invoiceNumber: invoice.number,
           amountCents: invoice.totalCents,

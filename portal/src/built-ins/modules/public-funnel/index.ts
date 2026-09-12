@@ -1,7 +1,7 @@
 // `@aqua/plugin-public-funnel` — wires the Health Check (and future
-// Resources tools) completion to capture-only lead registration. Anonymous
-// completion never authenticates; a future mailbox-verified continuation owns
-// sign-in.
+// Resources tools) completion to pending-only lead capture. Anonymous
+// completion creates no User, session, membership or provider identity; a
+// future mailbox-verified continuation owns promotion and sign-in.
 // `core: true` so it auto-installs on bootstrap.
 //
 // Scope policy note: the round 021 prompt suggests `"global"` (leads
@@ -28,21 +28,27 @@ const manifest: AquaPlugin = {
   version: "0.1.0",
   status: "alpha",
   category: "growth",
-  tagline: "Health Check + tool completions → safe lead capture for BOS.",
+  tagline: "Health Check + tool completions → safe pending capture.",
   description:
     "The public funnel link. Static `public/health-check/` POSTs the " +
-    "completed slot through `/api/public/health-check/complete`; this plugin creates a brand-new `lead` user via the " +
-    "foundation `LeadUserPort`, captures the slot for BOS " +
-    "personalisation, and responds with a BOS redirect without issuing authentication. " +
-    "Existing identities and repeated completion ids fail closed. A future " +
-    "mailbox-verified, single-use flow may authenticate the lead. Future Resources tools (rank-my-website, …) hit " +
-    "`tool-complete` with the same shape.",
+    "completed slot through `/api/public/health-check/complete`; after managed challenge verification this plugin " +
+    "creates only a non-authenticatable pending capture in install storage. It creates no User, session, membership " +
+    "or provider identity. Existing identities, canonical-address repeats and repeated completion ids fail closed " +
+    "without returning capture authority. Anonymous events contain only the capture id, source and score bucket. " +
+    "The server-only promotion command revalidates its foundation capability inside one durable promotion ledger, " +
+    "binds a hashed subject/operation claim to one exact install and capture, then stores the exact " +
+    "Lead/Person/Prospect/card lineage; no bearer credential is stored and no public promotion endpoint exists. " +
+    "Exact promoted-capture and client erasure route through that lineage to the CRM in the same retryable transaction, " +
+    "while derivatives that pre-date the capture and identities shared by another client are preserved. " +
+    "This host currently validates signed, fresh agency sessions with an authorised live member and fails mailbox-proof " +
+    "credentials closed until a durable proof-receipt store is mounted. " +
+    "Anonymous capture has one canonical mounted admission; the former query-scoped plugin completion routes are retired.",
 
   core: true,
   scopePolicy: "agency",
 
   // No nav items — public funnel is invisible UI; activity-inbox and
-  // BOS surface the captures via events + the me-context endpoint.
+  // verified/legacy identities may surface through the me-context endpoint.
   navItems: [],
 
   pages: [],
@@ -75,7 +81,7 @@ const manifest: AquaPlugin = {
   // Right-to-be-forgotten. Address-only captures are preserved and surfaced
   // for review; only exact client/exclusive-Person stamps may delete.
   onEraseClient: async (ctx: PluginCtx, clientId: string, subject?: ErasureSubject) => {
-    const c = _containerFromCtx({ agencyId: ctx.agencyId, storage: ctx.storage });
+    const c = _containerFromCtx({ agencyId: ctx.agencyId, installId: ctx.install.id, storage: ctx.storage });
     if (!c) throw new Error("Public-funnel erasure foundation is unavailable.");
     const evidence = subject?.identityEvidence;
     const result = await c.funnel.eraseForClient({
@@ -85,6 +91,14 @@ const manifest: AquaPlugin = {
       emails: evidence?.emails ?? subject?.emails ?? [],
       sharedEmails: evidence?.sharedEmails ?? [],
     });
+    // Installed-plugin hooks execute in durable install order. When this hook
+    // consumes an exact promoted Lead before the leads-pipeline hook runs,
+    // retire the already-proven edge from the shared coordinator subject so
+    // the downstream hook treats it as an idempotent absence, not corruption.
+    for (const leadId of result.erasedPromotionLeadIds) {
+      if (subject?.leadId === leadId) subject.leadId = undefined;
+      if (subject?.exactOwnership.leadId === leadId) subject.exactOwnership.leadId = undefined;
+    }
     if (result.reviewRequired.legacyUnscoped > 0) {
       subject?.reviewRequired?.push({
         system: "public-funnel",
@@ -102,7 +116,7 @@ const manifest: AquaPlugin = {
   },
 
   healthcheck: async (ctx: PluginCtx): Promise<HealthStatus> => {
-    const c = _containerFromCtx({ agencyId: ctx.agencyId, storage: ctx.storage });
+    const c = _containerFromCtx({ agencyId: ctx.agencyId, installId: ctx.install.id, storage: ctx.storage });
     if (!c) return { ok: false, message: "public-funnel foundation not registered" };
     const all = await c.funnel.list();
     const hc = all.filter(x => x.source === "hc").length;

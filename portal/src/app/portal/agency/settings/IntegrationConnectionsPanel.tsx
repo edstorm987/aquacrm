@@ -65,8 +65,13 @@ const providerIcon: Record<IntegrationProvider, typeof Mail> = {
   vercel: Cloud,
   openai: Bot,
   "aqua-editor-ai": Bot,
+  "aqua-embed": KeyRound,
   "google-search-console": SearchCheck,
 };
+
+// Aqua embed credentials are generated and revealed once by their dedicated
+// panel. The generic paste-and-test provider workflow must never recreate them.
+const CONNECTION_CATALOG = INTEGRATION_CATALOG.filter(definition => definition.id !== "aqua-embed");
 
 export function IntegrationConnectionsPanel({ clients, canManage, initialProvider }: Props) {
   const [connections, setConnections] = useState<PublicIntegrationConnection[]>([]);
@@ -94,13 +99,13 @@ export function IntegrationConnectionsPanel({ clients, canManage, initialProvide
     return () => { active = false; };
   }, [canManage, initialProvider]);
 
-  const byProvider = useMemo(() => Object.fromEntries(INTEGRATION_CATALOG.map(definition => [
+  const byProvider = useMemo(() => Object.fromEntries(CONNECTION_CATALOG.map(definition => [
     definition.id,
     connections.filter(connection => connection.provider === definition.id),
   ])) as Record<IntegrationProvider, PublicIntegrationConnection[]>, [connections]);
   const visibleCatalog = useMemo(() => initialProvider
-    ? [...INTEGRATION_CATALOG].sort((left, right) => Number(right.id === initialProvider) - Number(left.id === initialProvider))
-    : INTEGRATION_CATALOG, [initialProvider]);
+    ? [...CONNECTION_CATALOG].sort((left, right) => Number(right.id === initialProvider) - Number(left.id === initialProvider))
+    : CONNECTION_CATALOG, [initialProvider]);
 
   async function testConnection(connection: PublicIntegrationConnection) {
     setBusyId(connection.id);

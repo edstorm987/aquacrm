@@ -61,6 +61,8 @@ export async function getStripeClient(secretKey: string, injected?: StripeClient
 }
 
 export interface InvoiceCheckoutInput {
+  agencyId: string;
+  clientId: string;
   invoiceId: string;
   invoiceNumber: string;
   amountCents: number;
@@ -94,8 +96,15 @@ export async function createInvoiceCheckout(
       },
     }],
     customer_email: input.customerEmail,
-    metadata: { invoiceId: input.invoiceId, invoiceNumber: input.invoiceNumber },
-    payment_intent_data: { metadata: { invoiceId: input.invoiceId } },
+    metadata: {
+      agencyId: input.agencyId,
+      clientId: input.clientId,
+      invoiceId: input.invoiceId,
+      invoiceNumber: input.invoiceNumber,
+    },
+    payment_intent_data: {
+      metadata: { agencyId: input.agencyId, clientId: input.clientId, invoiceId: input.invoiceId },
+    },
     success_url: input.successUrl,
     cancel_url: input.cancelUrl,
   });

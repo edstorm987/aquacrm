@@ -8,7 +8,17 @@
 //   500 unexpected throw
 
 import type { PluginCtx } from "../lib/aquaPluginTypes";
-import { containerFor, isStripeAvailable } from "../server/foundationAdapter";
+import { readBoundedPublicWebhookBody } from "@/lib/server/portal/publicWebhookBody";
+import {
+  publicWebhookProcessingFailed,
+  publicWebhookRefused,
+  publicWebhookUnavailable,
+} from "@/lib/server/portal/publicWebhookResponse";
+import {
+  containerFor,
+  isStripeAvailable,
+  isStripeWebhookAvailable,
+} from "../server/foundationAdapter";
 import { PlanHasDependantsError } from "../server/dependencies";
 import {
   PlanPriceOperationConflictError,
@@ -307,11 +317,35 @@ export async function adminCancelSubscriberHandler(req: Request, ctx: PluginCtx)
 
 export async function stripeWebhookHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
-  const rawBody = await req.text();
   const signatureHeader = req.headers.get("stripe-signature") ?? "";
-  if (!signatureHeader) return badRequest("missing stripe-signature header");
-  const result = await buildContainer(ctx).webhook.handle({ rawBody, signatureHeader });
-  return json(result, result.ok ? 200 : result.retryable ? 503 : 400);
+  if (!signatureHeader) return publicWebhookRefused();
+  if (!ctx.clientId) return publicWebhookUnavailable("stripe-memberships", "configuration");
+  try {
+    if (!isStripeWebhookAvailable({ agencyId: ctx.agencyId, clientId: ctx.clientId })) {
+      return publicWebhookUnavailable("stripe-memberships", "configuration");
+    }
+  } catch (error) {
+    return publicWebhookUnavailable("stripe-memberships", "configuration", error);
+  }
+  const body = await readBoundedPublicWebhookBody(req);
+  if (!body.ok) return body.response;
+  const rawBody = body.rawBody;
+  try {
+    const result = await buildContainer(ctx).webhook.handle({ rawBody, signatureHeader });
+    if (result.ok) return json(result, 200);
+    try {
+      if (!isStripeWebhookAvailable({ agencyId: ctx.agencyId, clientId: ctx.clientId })) {
+        return publicWebhookUnavailable("stripe-memberships", "configuration");
+      }
+    } catch (error) {
+      return publicWebhookUnavailable("stripe-memberships", "configuration", error);
+    }
+    return result.retryable
+      ? publicWebhookProcessingFailed("stripe-memberships", "apply", result.error, 503)
+      : publicWebhookRefused();
+  } catch (error) {
+    return publicWebhookProcessingFailed("stripe-memberships", "apply", error, 503);
+  }
 }
 
 // ─── Customer-facing routes ─────────────────────────────────────────────

@@ -14,8 +14,8 @@ type StoredBuckets = Record<string, StoredBucket>;
 
 export interface VisitorRateLimitInput {
   action:
-    | "contact-ip" | "contact-install"
-    | "newsletter-ip" | "newsletter-install"
+    | "contact-ip" | "contact-address" | "contact-install"
+    | "newsletter-ip" | "newsletter-address" | "newsletter-install"
     | "blog" | "blog-install";
   identity: string;
   max: number;

@@ -9,6 +9,8 @@
 // interrupted or racing index update cannot hide an accepted completion;
 // erasure still removes the old pointers.
 
+import crypto from "node:crypto";
+
 import { makeId } from "../lib/ids";
 import { now } from "../lib/time";
 import type { AgencyId, UserId } from "../lib/tenancy";
@@ -20,21 +22,56 @@ import type {
   LeadCapture,
   LeadSource,
   MeContext,
+  PendingCapturePromotion,
+  PromotePendingCaptureInput,
+  PromotePendingCaptureResult,
 } from "../lib/domain";
 import { bucketHcSlot, canonEmail, isPlausibleEmail } from "../lib/domain";
 import type {
   ActivityLogPort,
   EventBusPort,
   LeadUserPort,
+  PendingCaptureErasurePort,
+  PendingCapturePromotionAuthorityPort,
+  PendingCapturePromotionAuthorityGrant,
+  PendingCapturePromotionPort,
   StoragePort,
 } from "./ports";
 
 const CAPTURE_INDEX = "captures/index";
 const captureKey = (id: string): string => `captures/by-id/${id}`;
 const captureEmailKey = (email: string): string => `captures/by-email/${canonEmail(email)}`;
+const PROMOTION_LEDGER_LOCK = "capture-promotion-ledger";
+const promotionClaimKey = (input: {
+  kind: PendingCapturePromotionAuthorityGrant["kind"];
+  subjectKey: string;
+  operationId: string;
+}): string => `promotion-claims/${crypto.createHash("sha256")
+  .update([input.kind, input.subjectKey, input.operationId].join("\u0000"))
+  .digest("hex")}`;
+
+interface PendingCapturePromotionClaim {
+  agencyId: string;
+  installId: string;
+  captureId: string;
+  authorityKind: PendingCapturePromotionAuthorityGrant["kind"];
+  subjectDigest: string;
+  operationDigest: string;
+  claimedAt: number;
+}
+
+function promotionSubjectDigest(subjectKey: string): string {
+  return crypto.createHash("sha256").update(subjectKey).digest("hex");
+}
+
+function promotionOperationDigest(operationId: string): string {
+  return crypto.createHash("sha256").update(operationId).digest("hex");
+}
 
 export interface FunnelErasureResult {
   erased: number;
+  /** Exact Lead ids already consumed by the promoted-capture graph bridge. */
+  erasedPromotionLeadIds: string[];
   reviewRequired: {
     legacyUnscoped: number;
     sharedIdentity: number;
@@ -80,25 +117,37 @@ function assertHcSlot(slot: HCSlot): void {
 
 export interface FunnelDeps {
   agencyId: AgencyId;
+  installId: string;
   storage: StoragePort;
   activity: ActivityLogPort;
   events: EventBusPort;
   leadUsers: LeadUserPort;
+  promotionAuthority: PendingCapturePromotionAuthorityPort;
+  promotions: PendingCapturePromotionPort;
+  promotionErasure: PendingCaptureErasurePort;
 }
 
 export class FunnelService {
   private readonly agencyId: AgencyId;
+  private readonly installId: string;
   private readonly storage: StoragePort;
   private readonly activity: ActivityLogPort;
   private readonly events: EventBusPort;
   private readonly leadUsers: LeadUserPort;
+  private readonly promotionAuthority: PendingCapturePromotionAuthorityPort;
+  private readonly promotions: PendingCapturePromotionPort;
+  private readonly promotionErasure: PendingCaptureErasurePort;
 
   constructor(deps: FunnelDeps) {
     this.agencyId = deps.agencyId;
+    this.installId = deps.installId;
     this.storage = deps.storage;
     this.activity = deps.activity;
     this.events = deps.events;
     this.leadUsers = deps.leadUsers;
+    this.promotionAuthority = deps.promotionAuthority;
+    this.promotions = deps.promotions;
+    this.promotionErasure = deps.promotionErasure;
   }
 
   // ── Captures ─────────────────────────────────────────────────
@@ -143,9 +192,9 @@ export class FunnelService {
           : "completion_id_conflict",
       );
     }
-    const registration = await this.leadUsers.withNewLeadByEmail(
+    const registration = await this.leadUsers.withPendingLeadByEmail(
       email,
-      createLead => this.doCaptureExclusive(source, email, captureId, args, createLead),
+      createPendingLead => this.doCaptureExclusive(source, email, captureId, args, createPendingLead),
     );
     if (!registration.created) {
       // This includes existing leads. Only a separately verified mailbox flow
@@ -160,7 +209,7 @@ export class FunnelService {
     email: string,
     captureId: string,
     args: { sourceMeta: Record<string, unknown>; hcSlot?: HCSlot },
-    createLead: () => { id: string },
+    createPendingLead: () => { id: string },
   ): Promise<CaptureResult> {
     const previous = await this.storage.get<LeadCapture>(captureKey(captureId));
     if (previous) {
@@ -172,13 +221,21 @@ export class FunnelService {
       throw new FunnelInputError("completion_id_replayed");
     }
 
+    // Preserve the old canonical-address create-only semantics without
+    // reserving the global login namespace. This executes inside the
+    // foundation transaction, so a racing canonical spelling cannot append a
+    // second pending capture.
+    if ((await this.listByEmail(email)).length > 0) {
+      throw new FunnelInputError("identity_unavailable");
+    }
+
     const t = now();
-    const leadUserId = createLead().id;
+    const pendingLeadId = createPendingLead().id;
 
     const capture: LeadCapture = {
       id: captureId,
       source,
-      leadUserId,
+      pendingLeadId,
       email,
       capturedAt: t,
       sourceMeta: args.sourceMeta,
@@ -202,47 +259,265 @@ export class FunnelService {
     }
 
     this.activity.logActivity({
-        // `actorEmail` is deliberately NOT set: it is a PII FIELD on every
-        // activity entry, not just the message, and these entries carry no
-        // `clientId` for the erasure sweep to match. `actorUserId` identifies
-        // the lead user without naming them.
-        agencyId: this.agencyId, actorUserId: leadUserId,
-        category: "public-funnel", action: "public-funnel.lead.captured",
+        // No actor identity: a pending lead is capture data, never a User.
+        agencyId: this.agencyId,
+        category: "public-funnel", action: "public-funnel.capture.pending",
         // No address in the message: this install is agency-scoped, so its
         // entries carry no `clientId` and the erasure sweep (clientId-only)
         // could never scrub them. The metadata carries the capture id.
         message: `Lead captured (${source}).`,
-        metadata: { captureId: capture.id, source, leadUserId },
+        metadata: { captureId: capture.id, source },
     });
-    this.events.emit({ agencyId: this.agencyId },
-      "public-funnel.lead.captured",
-      { id: capture.id, leadUserId, email, source });
+    const bucket = source === "hc" ? bucketHcSlot(args.hcSlot) : undefined;
+    this.events.emit(
+      { agencyId: this.agencyId },
+      "public-funnel.capture.pending",
+      {
+        captureId: capture.id,
+        source,
+        ...(bucket ? { bucket } : {}),
+        ...(source === "tool" && typeof args.sourceMeta.toolId === "string"
+          ? { toolId: args.sourceMeta.toolId }
+          : {}),
+      },
+    );
 
     if (source === "hc") {
-      const bucket = bucketHcSlot(args.hcSlot);
       this.activity.logActivity({
-        // `actorEmail` is deliberately NOT set: it is a PII FIELD on every
-        // activity entry, not just the message, and these entries carry no
-        // `clientId` for the erasure sweep to match. `actorUserId` identifies
-        // the lead user without naming them.
-        agencyId: this.agencyId, actorUserId: leadUserId,
+        agencyId: this.agencyId,
         category: "public-funnel", action: "public-funnel.hc.completed",
         message: `Health Check completed${bucket ? ` (${bucket})` : ""}.`,
-        metadata: { captureId: capture.id, leadUserId, bucket, slot: args.hcSlot?.slot },
+        metadata: { captureId: capture.id, bucket, slot: args.hcSlot?.slot },
       });
-      this.events.emit({ agencyId: this.agencyId },
-        "public-funnel.hc.completed",
-        { id: capture.id, leadUserId, email, bucket, slot: args.hcSlot });
-    } else if (source === "tool") {
-      this.events.emit({ agencyId: this.agencyId },
-        "public-funnel.tool.completed",
-        { id: capture.id, leadUserId, email, toolId: args.sourceMeta.toolId });
     }
 
     const result: CaptureResult = {
-      capture, leadUserId, created: true,
+      capture, pendingLeadId, created: true,
     };
     return result;
+  }
+
+  /**
+   * Convert one exact pending row into CRM lineage after a trusted caller has
+   * established mailbox ownership or authenticated operator authority. There
+   * is deliberately no anonymous route to this command.
+   */
+  async promotePendingCapture(input: PromotePendingCaptureInput): Promise<PromotePendingCaptureResult> {
+    const captureId = input.captureId.trim();
+    if (!captureId || !this.storage.runExclusive) {
+      throw new FunnelInputError("promotion_unavailable");
+    }
+    if (!input.credential
+      || (input.credential.kind !== "mailbox-proof"
+        && input.credential.kind !== "authenticated")) {
+      throw new FunnelInputError("promotion_authority_refused");
+    }
+    const candidate = await this.storage.get<LeadCapture>(captureKey(captureId));
+    if (!candidate) throw new FunnelInputError("capture_not_found");
+    // A first verification rejects junk without taking the durable mutation
+    // lane. It is never sufficient authority to mutate: the same credential
+    // is resolved again while the promotion ledger transaction is held.
+    const candidateAuthority = await this.promotionAuthority.verify({
+      agencyId: this.agencyId,
+      installId: this.installId,
+      captureId: candidate.id,
+      captureEmail: candidate.email,
+      credential: input.credential,
+    });
+    if (!candidateAuthority || candidateAuthority.kind !== input.credential.kind) {
+      throw new FunnelInputError("promotion_authority_refused");
+    }
+    const candidateOperationId = candidateAuthority.operationId.trim();
+    const candidateSubjectKey = candidateAuthority.subjectKey.trim();
+    if (!/^[a-zA-Z0-9:_-]{8,160}$/.test(candidateOperationId)) {
+      throw new FunnelInputError("invalid_promotion_operation");
+    }
+    if (!candidateSubjectKey || candidateSubjectKey.length > 320) {
+      throw new FunnelInputError("invalid_promotion_subject");
+    }
+
+    // One install-wide durable ledger lane is intentional. A capture-keyed
+    // lock cannot stop the same subject/operation from racing two different
+    // captures on separate servers. This lane makes the command claim and all
+    // CRM/capture mutations one atomic transaction.
+    return this.storage.runExclusive(PROMOTION_LEDGER_LOCK, async () => {
+      const capture = await this.storage.get<LeadCapture>(captureKey(captureId));
+      if (!capture) throw new FunnelInputError("capture_not_found");
+      if (capture.email !== candidate.email) throw new FunnelInputError("capture_authority_changed");
+
+      const authority = await this.promotionAuthority.verify({
+        agencyId: this.agencyId,
+        installId: this.installId,
+        captureId: capture.id,
+        captureEmail: capture.email,
+        credential: input.credential,
+      });
+      if (!authority
+        || authority.kind !== input.credential.kind
+        || authority.operationId.trim() !== candidateOperationId
+        || authority.subjectKey.trim() !== candidateSubjectKey
+        || authority.actorUserId !== candidateAuthority.actorUserId) {
+        throw new FunnelInputError("promotion_authority_refused");
+      }
+      const operationId = authority.operationId.trim();
+      const subjectKey = authority.subjectKey.trim();
+      const authorityOperationId = `${authority.kind}:${operationId}`;
+      const claimKey = promotionClaimKey({ kind: authority.kind, subjectKey, operationId });
+      const subjectDigest = promotionSubjectDigest(subjectKey);
+      const operationDigest = promotionOperationDigest(operationId);
+      const existingClaim = await this.storage.get<PendingCapturePromotionClaim>(claimKey);
+      if (existingClaim && (
+        existingClaim.agencyId !== this.agencyId
+        || existingClaim.installId !== this.installId
+        || existingClaim.captureId !== capture.id
+        || existingClaim.authorityKind !== authority.kind
+        || existingClaim.subjectDigest !== subjectDigest
+        || existingClaim.operationDigest !== operationDigest
+      )) {
+        throw new FunnelInputError("promotion_operation_conflict");
+      }
+      if (capture.promotion) {
+        if (capture.promotion.operationId !== authorityOperationId) {
+          throw new FunnelInputError("capture_already_promoted");
+        }
+        if (!existingClaim) {
+          await this.storage.set<PendingCapturePromotionClaim>(claimKey, {
+            agencyId: this.agencyId,
+            installId: this.installId,
+            captureId: capture.id,
+            authorityKind: authority.kind,
+            subjectDigest,
+            operationDigest,
+            claimedAt: capture.promotion.promotedAt,
+          });
+        }
+        return { capture, promotion: capture.promotion, promoted: false };
+      }
+      if (!capture.pendingLeadId) throw new FunnelInputError("capture_not_pending");
+      if (authority.kind === "mailbox-proof"
+        && canonEmail(authority.verifiedEmail ?? "") !== capture.email) {
+        throw new FunnelInputError("mailbox_proof_mismatch");
+      }
+      const actorUserId = authority.actorUserId.trim();
+      if (!actorUserId) throw new FunnelInputError("promotion_actor_required");
+
+      if (!existingClaim) {
+        await this.storage.set<PendingCapturePromotionClaim>(claimKey, {
+          agencyId: this.agencyId,
+          installId: this.installId,
+          captureId: capture.id,
+          authorityKind: authority.kind,
+          subjectDigest,
+          operationDigest,
+          claimedAt: now(),
+        });
+      }
+
+      const lineage = await this.promotions.promote({
+        agencyId: this.agencyId,
+        captureId: capture.id,
+        email: capture.email,
+        source: capture.source,
+        actorUserId,
+        profile: input.profile,
+      });
+      const promotion: PendingCapturePromotion = {
+        operationId: authorityOperationId,
+        authorityKind: authority.kind,
+        promotedAt: now(),
+        leadId: lineage.leadId,
+        personId: lineage.personId,
+        prospectId: lineage.prospectId,
+        pipelineCardId: lineage.pipelineCardId,
+        leadOwned: lineage.leadOwned,
+        personOwned: lineage.personOwned,
+        prospectOwned: lineage.prospectOwned,
+        pipelineCardOwned: lineage.pipelineCardOwned,
+      };
+      const { pendingLeadId: _retiredPendingId, ...captureWithoutPending } = capture;
+      const promotedCapture: LeadCapture = {
+        ...captureWithoutPending,
+        personId: lineage.personId,
+        promotion,
+      };
+      await this.storage.set(captureKey(capture.id), promotedCapture);
+      await this.activity.logActivity({
+        agencyId: this.agencyId,
+        actorUserId: authority.kind === "authenticated" ? actorUserId : undefined,
+        category: "public-funnel",
+        action: "public-funnel.capture.promoted",
+        message: "Pending capture promoted into the CRM.",
+        metadata: {
+          captureId: capture.id,
+          leadId: lineage.leadId,
+          personId: lineage.personId,
+          prospectId: lineage.prospectId,
+        },
+      });
+      this.events.emit(
+        { agencyId: this.agencyId },
+        "public-funnel.capture.promoted",
+        {
+          captureId: capture.id,
+          source: capture.source,
+          leadId: lineage.leadId,
+          personId: lineage.personId,
+          ...(lineage.prospectId ? { prospectId: lineage.prospectId } : {}),
+          ...(lineage.pipelineCardId ? { pipelineCardId: lineage.pipelineCardId } : {}),
+          authorityKind: authority.kind,
+        },
+      );
+      return { capture: promotedCapture, promotion, promoted: true };
+    });
+  }
+
+  /**
+   * Delete one exact pending capture and every durable derivative linked by
+   * its id. Promoted rows fail closed into the linked CRM erasure workflow;
+   * deleting only their capture would discard the ownership linkage while
+   * leaving the Person/Lead behind.
+   * The caller must establish erasure authority before invoking this server-
+   * only command; there is deliberately no address-selected public route.
+   */
+  async eraseExactCapture(
+    captureIdInput: string,
+    erasureSubject?: { clientId: string; personId?: string },
+  ): Promise<{ erased: boolean; recordsErased: number }> {
+    const captureId = captureIdInput.trim();
+    if (!captureId || !this.storage.runExclusive) {
+      throw new FunnelInputError("capture_erasure_unavailable");
+    }
+    return this.storage.runExclusive(`capture-erasure:${captureId}`, async () => {
+      const capture = await this.storage.get<LeadCapture>(captureKey(captureId));
+      if (!capture) return { erased: false, recordsErased: 0 };
+      let promotionRecordsErased = 0;
+      if (capture.promotion) {
+        const erased = await this.promotionErasure.erase({
+          agencyId: this.agencyId,
+          installId: this.installId,
+          captureId: capture.id,
+          promotion: capture.promotion,
+          erasureSubject,
+        });
+        promotionRecordsErased = erased.recordsErased;
+      } else if (capture.personId || !capture.pendingLeadId) {
+        throw new FunnelInputError("capture_erasure_requires_review");
+      }
+      await this.storage.del(captureKey(capture.id));
+      const index = (await this.storage.get<string[]>(CAPTURE_INDEX)) ?? [];
+      await this.storage.set(CAPTURE_INDEX, index.filter(value => value !== capture.id));
+      if (!(await this.listByEmail(capture.email)).length) {
+        await this.storage.del(captureEmailKey(capture.email));
+      }
+      const artifacts = await this.leadUsers.eraseCaptureArtifacts({
+        agencyId: this.agencyId,
+        captureIds: [capture.id],
+      });
+      return {
+        erased: true,
+        recordsErased: 1 + promotionRecordsErased + artifacts.recordsErased,
+      };
+    });
   }
 
   // Right-to-be-forgotten. Historical captures are pre-client and therefore
@@ -255,7 +530,9 @@ export class FunnelService {
     const captures = await this.list();
     const reviewRequired = { legacyUnscoped: 0, sharedIdentity: 0 };
     const erasedAddresses = new Set<string>();
-    const erasedCapturesByUser = new Map<string, { emails: Set<string>; captureIds: string[] }>();
+    const erasedCaptureIds: string[] = [];
+    const erasedCapturesByUser = new Map<string, { emails: Set<string> }>();
+    const erasedPromotionLeadIds: string[] = [];
     const legacyUserReviews = new Set<string>();
     const sharedUserReviews = new Set<string>();
     let erased = 0;
@@ -289,12 +566,25 @@ export class FunnelService {
         }
         continue;
       }
+      if (capture.promotion) {
+        // The client-erasure coordinator is the only caller that supplies this
+        // exact subject. Route promoted rows through the CRM graph bridge while
+        // the coordinator transaction still owns the retry/rollback boundary;
+        // deleting only the capture would discard the sole ownership lineage.
+        await this.eraseExactCapture(capture.id, {
+          clientId: subject.clientId,
+          ...(subject.personId ? { personId: subject.personId } : {}),
+        });
+        erasedPromotionLeadIds.push(capture.promotion.leadId);
+        erased++;
+        continue;
+      }
       await this.storage.del(captureKey(capture.id));
+      erasedCaptureIds.push(capture.id);
       erasedAddresses.add(canonEmail(capture.email));
       if (capture.leadUserId) {
-        const group = erasedCapturesByUser.get(capture.leadUserId) ?? { emails: new Set<string>(), captureIds: [] };
+        const group = erasedCapturesByUser.get(capture.leadUserId) ?? { emails: new Set<string>() };
         group.emails.add(canonEmail(capture.email));
-        group.captureIds.push(capture.id);
         erasedCapturesByUser.set(capture.leadUserId, group);
       }
       const index = (await this.storage.get<string[]>(CAPTURE_INDEX)) ?? [];
@@ -304,14 +594,18 @@ export class FunnelService {
     for (const address of erasedAddresses) {
       if (!(await this.listByEmail(address)).length) await this.storage.del(captureEmailKey(address));
     }
+    if (erasedCaptureIds.length) {
+      await this.leadUsers.eraseCaptureArtifacts({
+        agencyId: this.agencyId,
+        captureIds: erasedCaptureIds,
+      });
+    }
     for (const [userId, group] of erasedCapturesByUser) {
       const cleanup = await this.leadUsers.eraseIfUnreferenced({
-        agencyId: this.agencyId,
         userId,
         // Multiple addresses claiming the same user are corrupt ownership
         // evidence. An empty value makes the adapter preserve for review.
         email: group.emails.size === 1 ? [...group.emails][0]! : "",
-        captureIds: group.captureIds,
       });
       if (cleanup.status === "preserved") {
         legacyUserReviews.delete(userId);
@@ -329,7 +623,7 @@ export class FunnelService {
         metadata: { erased },
       });
     }
-    return { erased, reviewRequired };
+    return { erased, erasedPromotionLeadIds, reviewRequired };
   }
 
   // ── Reads ───────────────────────────────────────────────────

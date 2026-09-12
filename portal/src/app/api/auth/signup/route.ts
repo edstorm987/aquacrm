@@ -31,10 +31,11 @@
 //
 // ─── 2. A JSON post (the product path) ───────────────────────────────────
 //
-// Unchanged, deliberately. AquaCRM's own product signup — somebody choosing to
-// create an AquaCRM workspace — is a real thing and still bootstraps an agency
-// + owner + verification email + auto-login. Every byte of that handler below
-// is as it was; the form branch is in front of it, not around it.
+// AquaCRM's own product signup remains available, but admission is now
+// mailbox-first. The initial request stores only a password-free durable
+// intent and sends a verification link. Mailbox proof grants a short-lived
+// setup capability; only the completion request provisions the provider,
+// tenant and owner and then issues the first session.
 //
 // The two are told apart by content-type, exactly as `api/auth/login` tells a
 // browser post from a fetch caller. A published-site block can only ever
@@ -45,24 +46,41 @@ import { NextResponse, type NextRequest } from "next/server";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { issueSession, sessionCookie } from "@/lib/server/auth/auth";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
-import { bootstrapAgency } from "@/server/agencyBootstrap";
-import { createUser, getUser } from "@/server/users";
-import { signVerifyEmailToken } from "@/lib/server/auth/emailVerification";
+import { getUser } from "@/server/users";
 import { logActivity } from "@/server/activity";
 import { resolvePostLoginPath } from "@/lib/server/auth/postLoginRedirect";
-import { sendTransactionalEmail } from "@/lib/server/email/transactionalEmail";
+import { sendResendEmail } from "@/lib/server/email/resendEmail";
+import { verifyBotChallenge } from "@/lib/server/security/botChallenge";
+import {
+  activateAgencySignup,
+  AGENCY_SIGNUP_TERMS_VERSION,
+  AGENCY_SIGNUP_SETUP_COOKIE,
+  prepareAgencySignup,
+  recordAgencySignupDelivery,
+} from "@/server/agencySignup";
 import { containerFor } from "@aqua/plugin-leads-pipeline/server";
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { getInstall } from "@/server/pluginInstalls";
-import { getAgencyBySlug, listAgencies } from "@/server/tenants";
-import { FOUNDER_AGENCY_SLUG, seedFounder } from "@/lib/server/seeds/founderSeed";
+import { listAgencies } from "@/server/tenants";
 import { listWebsiteSources, normalizeHost, resolveWebsiteSourceRouting } from "@/server/websiteSources";
+import {
+  configuredPublicAuthOrigin,
+  isExactConfiguredRequestOrigin,
+} from "@/lib/server/auth/publicAuthOrigin";
+import {
+  logPublicAuthDeliveryFailure,
+  runBoundedPublicAuthDelivery,
+  waitForPublicAuthResponseWindow,
+} from "@/lib/server/auth/publicAuthDelivery";
 
 interface Body {
   companyName?: unknown;
   email?: unknown;
   password?: unknown;
+  phase?: unknown;
+  captchaToken?: unknown;
+  consent?: unknown;
 }
 
 // ─── Website-lead capture (the form branch) ──────────────────────────────
@@ -74,8 +92,11 @@ const SIGNUP_MESSAGE_COOKIE = "aqua_signup_message";
 const LEAD_THANKS = "Thanks — we have your details and will be in touch shortly.";
 const LEAD_GENERIC_ERROR = "We could not send your details. Please try again.";
 const LEAD_FIELDS_ERROR = "Please add your name and a valid email address.";
+const LEAD_CONSENT_ERROR = "Please confirm the terms before sending your details.";
 const LEAD_UNAVAILABLE = "This form is temporarily unavailable. Please email us instead.";
 const LEAD_TOO_MANY = "Too many submissions. Please try again shortly.";
+const LEAD_CONSENT_POLICY = "website-lead-terms";
+const LEAD_CONSENT_VERSION = "2026-09-12";
 
 const PLAUSIBLE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -85,6 +106,13 @@ function isFormPost(req: NextRequest): boolean {
     contentType.includes("application/x-www-form-urlencoded") ||
     contentType.includes("multipart/form-data")
   );
+}
+
+function isJsonPost(req: NextRequest): boolean {
+  return (req.headers.get("content-type") ?? "")
+    .split(";", 1)[0]
+    ?.trim()
+    .toLowerCase() === "application/json";
 }
 
 // Where a form post goes back to — the SAME-ORIGIN referring page (the site
@@ -139,49 +167,50 @@ function field(form: FormData, name: string, max: number): string {
 /**
  * Whose lead is this?
  *
- * Resolution is entirely server-side. Nothing a visitor can type can pick an
- * agency that does not already exist, and nothing here can create one.
+ * Resolution is entirely server-side. Nothing a visitor can post or set as a
+ * cookie is tenant authority, and nothing here can create an agency.
  *
- *   1. The submitting site's HOST, matched against the website sources an
- *      operator registered in the app (`listWebsiteSources`). This is the real
- *      answer — "cedar-dental.com goes to Cedar" — and it also tells us which
- *      client or company the site belongs to.
- *   2. The `brand` field / `aqua_public_brand` cookie, looked up as an agency
- *      SLUG. A preference, never a grant: an unknown slug simply falls through.
- *   3. The founder agency, the same fallback `api/public/contact` uses.
- *   4. A single-agency portal — if there is exactly one, the lead is obviously
- *      its. With two or more and no other signal we refuse rather than guess,
- *      because filing one agency's lead under another is worse than a retry.
+ * The request URL's host must match exactly one operator-registered WebsiteSource.
+ * Origin and Referer, when present, only corroborate that host; they never name
+ * the tenant themselves. There is intentionally no posted-brand, public-cookie,
+ * founder, or single-agency fallback. A central cross-origin form will need a
+ * future server-signed source capability before it can be admitted safely.
  */
-function resolveLeadOwner(
-  req: NextRequest,
-  brandHint: string,
-  host: string,
-): { agencyId: string; clientId?: string; companyId?: string } | null {
+function resolveLeadOwner(req: NextRequest): {
+  agencyId: string;
+  host: string;
+  clientId?: string;
+  companyId?: string;
+} | null {
+  const host = req.nextUrl.host;
   const normalizedHost = normalizeHost(host);
-  const agencies = listAgencies();
+  if (!normalizedHost) return null;
 
-  if (normalizedHost) {
-    for (const agency of agencies) {
-      const match = listWebsiteSources(agency.id).find(source => source.host === normalizedHost);
-      if (!match) continue;
-      const destination = resolveWebsiteSourceRouting(agency.id, normalizedHost);
-      return {
-        agencyId: agency.id,
-        clientId: destination.kind === "client" ? destination.clientId : undefined,
-        companyId: destination.kind === "company" ? destination.companyId : undefined,
-      };
+  for (const header of ["origin", "referer"] as const) {
+    const raw = req.headers.get(header);
+    if (!raw) continue;
+    try {
+      if (normalizeHost(new URL(raw).host) !== normalizedHost) return null;
+    } catch {
+      return null;
     }
   }
 
-  const slug = brandHint || req.cookies.get("aqua_public_brand")?.value || "";
-  const byBrand = slug ? getAgencyBySlug(slug) : null;
-  if (byBrand) return { agencyId: byBrand.id };
+  const matches = listAgencies().flatMap(agency => (
+    listWebsiteSources(agency.id).some(source => source.host === normalizedHost)
+      ? [agency]
+      : []
+  ));
+  if (matches.length !== 1 || !matches[0]) return null;
 
-  const founder = getAgencyBySlug(FOUNDER_AGENCY_SLUG);
-  if (founder) return { agencyId: founder.id };
-
-  return agencies.length === 1 && agencies[0] ? { agencyId: agencies[0].id } : null;
+  const agencyId = matches[0].id;
+  const destination = resolveWebsiteSourceRouting(agencyId, normalizedHost);
+  return {
+    agencyId,
+    host: normalizedHost,
+    clientId: destination.kind === "client" ? destination.clientId : undefined,
+    companyId: destination.kind === "company" ? destination.companyId : undefined,
+  };
 }
 
 async function handleWebsiteLead(req: NextRequest): Promise<NextResponse> {
@@ -208,13 +237,34 @@ async function handleWebsiteLead(req: NextRequest): Promise<NextResponse> {
   const phone = field(form, "phone", 40);
   const company = field(form, "company", 160);
   const message = field(form, "message", 4_000);
-  const brandHint = field(form, "brand", 60);
   // NOTE: `password` is deliberately never read. A lead form has no business
   // holding one, and the current block does not render the input at all.
 
   if (!name || !PLAUSIBLE_EMAIL.test(email)) {
     return leadOutcome(req, false, LEAD_FIELDS_ERROR);
   }
+  if (field(form, "terms", 12) !== "on") {
+    return leadOutcome(req, false, LEAD_CONSENT_ERROR);
+  }
+
+  const challenge = await verifyBotChallenge({
+    action: "website-lead-signup",
+    token: field(form, "captchaToken", 4_096),
+    remoteIp: ip,
+    hostname: req.nextUrl.hostname,
+  });
+  if (!challenge.ok) return leadOutcome(req, false, challenge.message);
+
+  // Only a human-verified submission may spend another person's address
+  // budget. This is intentionally before tenant lookup and lead mutation.
+  // Cross-instance durable victim-address enforcement remains the systemic
+  // ABUSE-BASE-001 control; this process-local limiter is only a first bound.
+  const emailLimit = rateLimit({
+    key: `website-lead-signup-email:${email}`,
+    max: 3,
+    windowMs: 60 * 60 * 1_000,
+  });
+  if (!emailLimit.allowed) return leadOutcome(req, false, LEAD_TOO_MANY);
 
   // No `getUser(email)` check on this path — on purpose. Telling an anonymous
   // visitor "an account already exists for that email" is an account-existence
@@ -222,26 +272,22 @@ async function handleWebsiteLead(req: NextRequest): Promise<NextResponse> {
   // the same regardless of whether the address has an account.
 
   const referer = req.headers.get("referer") ?? "";
-  const origin = req.headers.get("origin") ?? "";
+  try {
+    await ensureHydrated();
+  } catch (cause) {
+    console.error("[signup] website lead state unavailable", cause);
+    return leadOutcome(req, false, LEAD_UNAVAILABLE);
+  }
   let pagePath = "/";
   try {
     if (referer) pagePath = new URL(referer).pathname.slice(0, 300);
   } catch {
     pagePath = "/";
   }
-  const host = (() => {
-    try { return referer ? new URL(referer).host : new URL(origin || req.nextUrl.origin).host; }
-    catch { return req.nextUrl.host; }
-  })();
-
   try {
-    // Best-effort: the founder fallback below needs the founder agency to
-    // exist. This is a no-op when it already does (or when FOUNDER_PASSWORD is
-    // unset), and must never take the visitor's submission down with it.
-    await seedFounder().catch(() => {});
     ensureLeadsPipelineFoundationRegistered();
 
-    const owner = resolveLeadOwner(req, brandHint, host);
+    const owner = resolveLeadOwner(req);
     if (!owner) return leadOutcome(req, false, LEAD_UNAVAILABLE);
 
     const install = getInstall({ agencyId: owner.agencyId }, "leads-pipeline");
@@ -262,12 +308,21 @@ async function handleWebsiteLead(req: NextRequest): Promise<NextResponse> {
         name,
         phone: phone || undefined,
         company: company || undefined,
-        source: `website:${normalizeHost(host) || "signup"}`,
+        source: `website:${owner.host}`,
         tags: ["website-enquiry", "website-signup"],
         notes: message || undefined,
         customFields: {
           capturedBy: "signup-form-block",
           pagePath,
+          consentAcceptedAt: new Date().toISOString(),
+          consentPolicy: LEAD_CONSENT_POLICY,
+          consentPolicyVersion: LEAD_CONSENT_VERSION,
+          // Host was resolved to exactly one registered WebsiteSource above.
+          // Persist a server-derived policy URL; request Host is never evidence.
+          consentTermsUrl: new URL(
+            "/terms",
+            `${process.env.NODE_ENV === "production" ? "https" : "http"}://${owner.host}`,
+          ).toString(),
           ...(owner.clientId ? { routedClientId: owner.clientId } : {}),
           ...(owner.companyId ? { routedCompanyId: owner.companyId } : {}),
         },
@@ -306,37 +361,25 @@ async function handleWebsiteLead(req: NextRequest): Promise<NextResponse> {
 // ─── Entry point ─────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  await ensureHydrated();
   if (isFormPost(req)) return handleWebsiteLead(req);
   return handleAccountSignup(req);
 }
 
-// ─── Product signup (JSON) — unchanged ───────────────────────────────────
+// ─── Product signup (JSON) — mailbox proof before privileged state ───────
 //
 // Flow:
-//   1. IP rate-limit (5/min) — slows scripted signup floods.
-//   2. Validate email + password (≥8) + companyName.
-//   3. `getUser(email)` collision → 409 (existing account → redirect to /login).
-//   4. `bootstrapAgency` (creates Agency + auto-installs core plugins —
-//      kanban / sops / agency-hr / fulfillment seed defaults via their
-//      onInstall hooks).
-//   5. `createUser(role:"agency-owner")`.
-//   6. Sign verification token (HMAC, 24h TTL); dev-mode includes the
-//      verify URL in the response body and console-logs it. Production
-//      response just hands back the auto-login session cookie.
-//   7. `issueSession` → `lk_session_v1` cookie set on response → user is
-//      auto-logged-in. Client-side form redirects to /portal/agency.
+//   1. Parse + validate non-secret intent, then apply the coarse IP limit.
+//   2. Verify the exact `agency-signup` managed challenge.
+//   3. Spend the victim-address budget only after challenge proof.
+//   4. Persist/reuse a stable password-free operation and deliver its email.
+//   5. Verification grants only an HttpOnly setup capability, never a session.
+//   6. Completion uses that capability to create/adopt the provider identity,
+//      atomically bootstrap one agency + owner, then issue the first session.
 
 async function handleAccountSignup(req: NextRequest) {
-  const ip = clientIpFromHeaders(req.headers);
-  const limit = rateLimit({ key: `signup:${ip}`, max: 5, windowMs: 60_000 });
-  if (!limit.allowed) {
-    return NextResponse.json(
-      { ok: false, error: "Too many signup attempts. Try again shortly." },
-      { status: 429, headers: { "retry-after": String(limit.retryAfterSec) } },
-    );
+  if (!isJsonPost(req)) {
+    return NextResponse.json({ ok: false, error: "JSON content type required." }, { status: 415 });
   }
-
   let body: Body;
   try {
     body = (await req.json()) as Body;
@@ -344,86 +387,183 @@ async function handleAccountSignup(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "Invalid JSON." }, { status: 400 });
   }
 
+  const ip = clientIpFromHeaders(req.headers);
+  if (body.phase === "complete") {
+    const publicOrigin = configuredPublicAuthOrigin();
+    if (!publicOrigin || !isExactConfiguredRequestOrigin(req, publicOrigin)) {
+      return NextResponse.json({ ok: false, error: "Account setup request was not accepted." }, { status: 403 });
+    }
+    const completeLimit = rateLimit({ key: `agency-signup-complete:${ip}`, max: 5, windowMs: 10 * 60_000 });
+    if (!completeLimit.allowed) {
+      return NextResponse.json(
+        { ok: false, error: "Too many setup attempts. Try again shortly." },
+        { status: 429, headers: { "retry-after": String(completeLimit.retryAfterSec) } },
+      );
+    }
+    const setupToken = req.cookies.get(AGENCY_SIGNUP_SETUP_COOKIE)?.value ?? "";
+    const password = typeof body.password === "string" ? body.password : "";
+    try {
+      const { user, completedNow } = await activateAgencySignup({ setupToken, password });
+      const response = NextResponse.json({
+        ok: true,
+        redirect: completedNow ? resolvePostLoginPath(null, user) : "/login?signup=complete",
+      });
+      if (completedNow) {
+        const sessionToken = issueSession({
+          userId: user.id,
+          email: user.email,
+          role: user.role,
+          agencyId: user.agencyId,
+          sessionRev: user.sessionRev ?? 0,
+          aal: "aal1",
+        });
+        const cookie = sessionCookie(sessionToken);
+        response.cookies.set(cookie.name, cookie.value, cookie.options);
+      }
+      response.cookies.set(AGENCY_SIGNUP_SETUP_COOKIE, "", {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: 0,
+      });
+      return response;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Account setup failed.";
+      const isInput = /password|setup_|mailbox_verification_required/.test(message);
+      return NextResponse.json(
+        { ok: false, error: isInput ? message : "Account setup could not be completed. Please try again." },
+        { status: isInput ? 400 : 503 },
+      );
+    }
+  }
+
   const companyName = typeof body.companyName === "string" ? body.companyName.trim() : "";
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-  const password = typeof body.password === "string" ? body.password : "";
 
   if (!companyName) {
     return NextResponse.json({ ok: false, error: "Company name is required." }, { status: 400 });
   }
-  if (!email || !email.includes("@")) {
+  if (companyName.length > 160) {
+    return NextResponse.json({ ok: false, error: "Company name is too long (max 160 characters)." }, { status: 400 });
+  }
+  if (email.length > 254 || !PLAUSIBLE_EMAIL.test(email)) {
     return NextResponse.json({ ok: false, error: "A valid email is required." }, { status: 400 });
   }
-  if (password.length < 8) {
-    return NextResponse.json({ ok: false, error: "Password must be at least 8 characters." }, { status: 400 });
+  if (body.consent !== true) {
+    return NextResponse.json({ ok: false, error: "Please accept the terms to continue." }, { status: 400 });
   }
-
-  // Email collision check — we hit the plain-email key (agency/client tier).
-  // End-customer emails are scoped per-client so we don't need to scan
-  // every client tier here; an agency-owner with a colliding plain-email
-  // entry blocks signup.
-  if (getUser(email)) {
+  const ipLimit = rateLimit({ key: `agency-signup:${ip}`, max: 5, windowMs: 60_000 });
+  if (!ipLimit.allowed) {
     return NextResponse.json(
-      { ok: false, error: "An account already exists for that email. Try signing in." },
-      { status: 409 },
+      { ok: false, error: "Too many signup attempts. Try again shortly." },
+      { status: 429, headers: { "retry-after": String(ipLimit.retryAfterSec) } },
     );
   }
 
-  const provisional = `usr_pending_${Date.now()}`;
-  const { agency } = await bootstrapAgency(
-    { name: companyName, ownerEmail: email },
-    provisional,
-  );
-
-  const user = createUser({
-    email,
-    password,
-    role: "agency-owner",
-    agencyId: agency.id,
-    name: email.split("@")[0] ?? companyName,
+  const challenge = await verifyBotChallenge({
+    action: "agency-signup",
+    token: body.captchaToken,
+    remoteIp: ip,
+    hostname: req.nextUrl.hostname,
   });
-
-  // HMAC-signed verification token (24h TTL).
-  const { token } = signVerifyEmailToken({ userId: user.id, email: user.email });
-  const origin = req.nextUrl.origin;
-  const verifyUrl = `${origin}/api/auth/verify-email?token=${encodeURIComponent(token)}`;
-
-  const verification = await sendTransactionalEmail({
-    to: user.email,
-    agencyId: agency.id,
-    externalRef: `verify-email:${user.id}:${crypto.randomUUID()}`,
-    signal: req.signal,
-    subject: "Verify your AquaCRM account",
-    bodyText: `Confirm your Milesymedia email address using this secure link. It expires in 24 hours.\n\n${verifyUrl}`,
-    bodyHtml: `<p>Confirm your Milesymedia email address using the secure link below. It expires in 24 hours.</p><p><a href="${verifyUrl}">Verify email address</a></p>`,
-  });
-  if (!verification.delivered && process.env.NODE_ENV !== "production") {
-    // eslint-disable-next-line no-console
-    console.log(`[signup] verify-email URL for ${user.email}: ${verifyUrl}`);
+  if (!challenge.ok) {
+    return NextResponse.json(
+      { ok: false, error: challenge.message },
+      {
+        status: challenge.reason === "rate-limited" ? 429 : 403,
+        headers: challenge.retryAfterSec ? { "retry-after": String(challenge.retryAfterSec) } : undefined,
+      },
+    );
   }
 
-  logActivity({
-    agencyId: agency.id,
-    actorUserId: user.id,
-    actorEmail: user.email,
-    category: "auth",
-    action: "agency.signup",
-    message: `Signup: created agency "${agency.name}" and owner ${user.email}.`,
+  // Cross-instance durable victim-address enforcement remains the systemic
+  // ABUSE-BASE-001 control; this process-local limiter is only a first bound.
+  const emailLimit = rateLimit({
+    key: `agency-signup-email:${email}`,
+    max: 3,
+    windowMs: 60 * 60 * 1_000,
   });
+  if (!emailLimit.allowed) {
+    return NextResponse.json(
+      { ok: false, error: "Too many signup requests. Try again later." },
+      { status: 429, headers: { "retry-after": String(emailLimit.retryAfterSec) } },
+    );
+  }
 
-  // Auto-login (Goal B).
-  const sessionToken = issueSession({
-    userId: user.id, email: user.email, role: user.role, agencyId: user.agencyId,
-    sessionRev: user.sessionRev ?? 0,
-  });
-  const cookie = sessionCookie(sessionToken);
+  const responseStartedAt = Date.now();
+  let publicOrigin: string | null = null;
+  try {
+    publicOrigin = configuredPublicAuthOrigin();
+  } catch {
+    // Keep configuration faults on the generic accepted path.
+  }
+  if (!publicOrigin) {
+    await waitForPublicAuthResponseWindow(responseStartedAt);
+    return NextResponse.json({
+      ok: true,
+      accepted: true,
+      message: "If this address can be used, a verification link is on its way.",
+    }, { status: 202 });
+  }
+
+  const delivery = await runBoundedPublicAuthDelivery(async signal => {
+    const prepared = await prepareAgencySignup({
+      email,
+      companyName,
+      consent: {
+        acceptedAt: Date.now(),
+        policy: "agency-self-service-terms",
+        version: AGENCY_SIGNUP_TERMS_VERSION,
+        termsUrl: new URL("/terms", publicOrigin).toString(),
+      },
+    });
+    const verifyUrl = prepared.verificationToken
+      ? `${publicOrigin}/api/auth/verify-email?token=${encodeURIComponent(prepared.verificationToken)}`
+      : undefined;
+    if (prepared.shouldDeliver && prepared.operation && verifyUrl) {
+      const fromEmail = (process.env.AQUACRM_AUTH_FROM_EMAIL ?? process.env.MILESYMEDIA_FROM_EMAIL ?? "").trim();
+      const senderName = (process.env.AQUACRM_AUTH_FROM_NAME ?? "AquaCRM").trim();
+      const sent = fromEmail
+        ? await sendResendEmail({
+            to: prepared.operation.email,
+            from: `${senderName} <${fromEmail}>`,
+            replyTo: process.env.MILESYMEDIA_REPLY_TO?.trim() || fromEmail,
+            idempotencyKey: `agency-signup-verify:${prepared.operation.id}:${prepared.operation.deliveryGeneration}`,
+            signal,
+            subject: "Verify your AquaCRM account",
+            text: `Confirm your email address to continue setting up AquaCRM. This link expires in 24 hours.\n\n${verifyUrl}`,
+            html: `<p>Confirm your email address to continue setting up AquaCRM. This link expires in 24 hours.</p><p><a href="${verifyUrl}">Verify email address</a></p>`,
+          })
+        : { ok: false as const, reason: "AquaCRM auth email sender is not configured.", unconfigured: true };
+      await recordAgencySignupDelivery(
+        prepared.operation.id,
+        prepared.operation.deliveryGeneration,
+        sent.ok
+          ? { delivered: true, externalMessageId: sent.id }
+          : {
+              delivered: false,
+              outcomeUnknown: sent.outcomeUnknown,
+              unavailable: sent.unconfigured === true,
+            },
+      );
+    }
+    return { verifyUrl };
+  }, { startedAt: responseStartedAt, requestSignal: req.signal });
+  if (delivery.status !== "complete") {
+    logPublicAuthDeliveryFailure("agency-signup", delivery.status);
+  }
+
   const isDev = process.env.NODE_ENV !== "production";
-  const res = NextResponse.json({
+  const verifyUrl = delivery.status === "complete" ? delivery.value.verifyUrl : undefined;
+  if (isDev && verifyUrl) {
+    // eslint-disable-next-line no-console
+    console.log(`[signup] verify-email URL prepared for local development: ${verifyUrl}`);
+  }
+  return NextResponse.json({
     ok: true,
-    user: { id: user.id, email: user.email, role: user.role, agencyId: user.agencyId },
-    redirect: resolvePostLoginPath(null, user),
-    ...(isDev ? { devVerifyUrl: verifyUrl } : {}),
-  });
-  res.cookies.set(cookie.name, cookie.value, cookie.options);
-  return res;
+    accepted: true,
+    message: "If this address can be used, a verification link is on its way.",
+    ...(isDev && verifyUrl ? { devVerifyUrl: verifyUrl } : {}),
+  }, { status: 202 });
 }

@@ -51,7 +51,7 @@ describe("Public-funnel port adapters — `public: true` route flag (R032)", () 
 });
 
 describe("Public-funnel port adapters — leadFunnelPorts.ts (R032)", () => {
-  it("file exists + exports create-only leadUserPort / funnelMePort", () => {
+  it("file exists + exports pending identity admission / funnelMePort", () => {
     assert.equal(existsSync(LEAD_PORTS), true);
     const src = readFileSync(LEAD_PORTS, "utf8");
     assert.ok(src.includes("export const leadUserPort"));
@@ -59,20 +59,32 @@ describe("Public-funnel port adapters — leadFunnelPorts.ts (R032)", () => {
     assert.ok(src.includes("export const funnelMePort"));
   });
 
-  it("LeadUserPort.withNewLeadByEmail refuses every existing identity atomically", () => {
+  it("LeadUserPort allocates only a pending id and refuses every existing identity atomically", () => {
     const src = readFileSync(LEAD_PORTS, "utf8");
-    assert.ok(src.includes("withNewLeadByEmail"));
+    assert.ok(src.includes("withPendingLeadByEmail"));
     assert.match(src, /Object\.values\(getState\(\)\.users\)/, "checks every scoped user key");
     assert.ok(src.match(/created:\s*false/), "refuses reuse rather than returning a user");
     assert.ok(src.match(/created:\s*true/), "returns created:true on first capture");
-    assert.ok(src.includes("withPortalStateTransaction"), "identity check + create are atomic");
-    assert.ok(src.includes("LEAD_AGENCY_ID"));
-    assert.ok(src.includes('role: "lead"'));
+    assert.ok(src.includes("withPortalStateTransaction"), "identity check + capture are atomic");
+    assert.ok(src.includes("pending_lead_"));
+    assert.doesNotMatch(src, /createUser\s*\(/, "anonymous adapter must not create a global User");
+    assert.doesNotMatch(src, /password\s*:/, "pending identity must not have password material");
   });
 
   it("anonymous funnel adapter exposes no session-minting port", () => {
     const src = readFileSync(LEAD_PORTS, "utf8");
     assert.doesNotMatch(src, /foundationIssueSession|issueSession\s*\(/);
+  });
+
+  it("binds promotion to a stable subject and exposes exact promoted-graph erasure", () => {
+    const src = readFileSync(LEAD_PORTS, "utf8");
+    assert.ok(src.includes("subjectKey: `user:${user.id}`"),
+      "authenticated promotion lacks a verifier-owned subject binding");
+    assert.ok(src.includes("export const pendingCaptureErasurePort"));
+    assert.ok(src.includes("eraseVerifiedFunnelCapturePromotion"));
+    assert.ok(src.includes("installId"), "erasure adapter lost its exact install binding");
+    assert.doesNotMatch(src, /subjectKey:\s*input\.credential\.sessionToken/,
+      "bearer session material became the durable promotion subject");
   });
 
   it("FunnelMePort returns null for non-lead users", () => {

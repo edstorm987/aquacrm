@@ -171,7 +171,9 @@ export function saveIntegrationConnection(input: SaveIntegrationConnectionInput)
     actorEmail: input.actorEmail,
     category: "integrations",
     action: existing ? "integration.updated" : "integration.created",
-    message: `${existing ? "Updated" : "Added"} ${definition.name} connection “${connection.label}”.`,
+    message: connection.provider === "aqua-embed"
+      ? `${existing ? "Updated" : "Added"} an Aqua embed credential.`
+      : `${existing ? "Updated" : "Added"} ${definition.name} connection “${connection.label}”.`,
     metadata: { connectionId: connection.id, provider: connection.provider, scope: connection.clientId ? "client" : "workspace" },
   });
   return publicIntegrationConnection(connection);
@@ -193,7 +195,9 @@ export function revokeIntegrationConnection(input: {
     actorEmail: input.actorEmail,
     category: "integrations",
     action: "integration.revoked",
-    message: `Revoked ${integrationDefinition(existing.provider).name} connection “${existing.label}”.`,
+    message: existing.provider === "aqua-embed"
+      ? "Revoked an Aqua embed credential."
+      : `Revoked ${integrationDefinition(existing.provider).name} connection “${existing.label}”.`,
     metadata: { connectionId: existing.id, provider: existing.provider, scope: existing.clientId ? "client" : "workspace" },
   });
   return publicIntegrationConnection(existing);
@@ -446,6 +450,9 @@ function environmentValues(provider: IntegrationProvider): Record<string, string
     // fallback at all — so this entry exists to satisfy the exhaustive map and
     // to say out loud that the omission is the intent.
     "aqua-editor-ai": {},
+    // Embed credentials are generated and consumed only through the local
+    // credential authority. A deployment environment is never their owner.
+    "aqua-embed": {},
     "google-search-console": {
       siteUrl: process.env.GOOGLE_SEARCH_CONSOLE_SITE_URL,
       propertyId: process.env.GOOGLE_SEARCH_CONSOLE_PROPERTY_ID,
@@ -644,6 +651,9 @@ async function testProvider(
     // configured the Advisor.
     await request("https://api.openai.com/v1/models", `Bearer ${values.apiKey}`);
     return `Aqua Editor AI connected using ${values.model || "the default model"}. This key is used only by the editor, for the project it is bound to.`;
+  }
+  if (provider === "aqua-embed") {
+    return "Aqua embed credential is stored in the encrypted local vault.";
   }
   await request("https://api.openai.com/v1/models", `Bearer ${values.apiKey}`);
   return `OpenAI connected using ${values.model || "the default model"}.`;

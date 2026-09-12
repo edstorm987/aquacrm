@@ -178,11 +178,28 @@ test("an event we don't handle, or a session without an invoiceId, is safely ign
   assert.equal((await reconcileStripeEvent(services, evt("checkout.session.completed", { id: "cs_2", payment_intent: "pi_2", metadata: {} }))).action, "ignored");
 });
 
+test("finance reconciliation refuses signed metadata aimed at another client", async () => {
+  const result = await reconcileStripeEvent(
+    services,
+    evt("checkout.session.completed", {
+      id: "cs_wrong_client",
+      payment_intent: "pi_wrong_client",
+      amount_total: 50_000,
+      currency: "gbp",
+      metadata: { agencyId: AGENCY_ID, clientId: "client_somebody_else", invoiceId },
+    }),
+  );
+  assert.equal(result.handled, false);
+  assert.equal(result.action, "ignored");
+  assert.match(result.message ?? "", /client scope mismatch/);
+  assert.equal(await services.payments.findByExternalRef("pi_wrong_client"), null);
+});
+
 test("createInvoiceCheckout builds a one-line-item session stamped with the invoiceId", async () => {
   const { client, captured } = fakeStripe();
   const out = await createInvoiceCheckout(
     { secretKey: "sk_test_x" },
-    { invoiceId: "inv_42", invoiceNumber: "INV-2026-0042", amountCents: 50_000, currency: "gbp", successUrl: "https://app/ok", cancelUrl: "https://app/cancel" },
+    { agencyId: "agency_finance_test", clientId: "client_finance_test", invoiceId: "inv_42", invoiceNumber: "INV-2026-0042", amountCents: 50_000, currency: "gbp", successUrl: "https://app/ok", cancelUrl: "https://app/cancel" },
     client,
   );
   assert.equal(out.url, "https://checkout.stripe.test/cs_fake");
@@ -191,7 +208,11 @@ test("createInvoiceCheckout builds a one-line-item session stamped with the invo
   assert.equal(params.line_items[0].price_data.unit_amount, 50_000);
   assert.equal(params.line_items[0].price_data.currency, "gbp");
   assert.equal(params.metadata.invoiceId, "inv_42", "the webhook reconciles by this");
+  assert.equal(params.metadata.agencyId, "agency_finance_test");
+  assert.equal(params.metadata.clientId, "client_finance_test");
   assert.equal(params.payment_intent_data.metadata.invoiceId, "inv_42");
+  assert.equal(params.payment_intent_data.metadata.agencyId, "agency_finance_test");
+  assert.equal(params.payment_intent_data.metadata.clientId, "client_finance_test");
 });
 
 test("createStripeRefund calls Stripe with the PaymentIntent (full refund when no amount)", async () => {

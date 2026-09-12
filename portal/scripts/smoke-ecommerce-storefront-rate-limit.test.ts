@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { PluginStorage } from "../src/built-ins/modules/ecommerce/src/lib/aquaPluginTypes";
-import { takeStorefrontRateLimit } from "../src/built-ins/modules/ecommerce/src/server/storefrontRateLimit";
+import {
+  storefrontRateLimitDimension,
+  takeStorefrontRateLimit,
+  takeStorefrontRateLimitDimensions,
+} from "../src/built-ins/modules/ecommerce/src/server/storefrontRateLimit";
 
 function sharedStorage(): { first: PluginStorage; second: PluginStorage; data: Map<string, unknown> } {
   const data = new Map<string, unknown>();
@@ -103,9 +107,10 @@ test("storefront limits partition actions and client addresses", async () => {
 
 test("an expired durable bucket is pruned and begins a new window", async () => {
   const { first, data } = sharedStorage();
+  const addressKey = `quote:${storefrontRateLimitDimension("ip", "203.0.113.9")}`;
   data.set("storefront-rate-limit:v1", {
     "quote:expired": { count: 99, resetAt: 1 },
-    "quote:203.0.113.9": { count: 1, resetAt: 1_500 },
+    [addressKey]: { count: 1, resetAt: 1_500 },
   });
 
   const result = await takeStorefrontRateLimit(first, {
@@ -119,5 +124,28 @@ test("an expired durable bucket is pruned and begins a new window", async () => 
   assert.equal(result.allowed, true);
   assert.equal(result.resetAt, 2_500);
   const stored = data.get("storefront-rate-limit:v1") as Record<string, unknown>;
-  assert.deepEqual(Object.keys(stored), ["quote:203.0.113.9"]);
+  assert.deepEqual(Object.keys(stored), [addressKey]);
+});
+
+test("checkout dimensions spend atomically and retain no raw address or email", async () => {
+  const { first, data } = sharedStorage();
+  const ip = "203.0.113.70";
+  const email = "shopper@example.test";
+  const input = {
+    action: "checkout" as const,
+    dimensions: [
+      { key: storefrontRateLimitDimension("ip", ip), max: 3 },
+      { key: storefrontRateLimitDimension("subject", email), max: 1 },
+      { key: storefrontRateLimitDimension("provider", "stripe:install-a"), max: 5 },
+    ],
+    windowMs: 60_000,
+    now: 30_000,
+  };
+  assert.equal((await takeStorefrontRateLimitDimensions(first, input)).allowed, true);
+  const before = structuredClone(data.get("storefront-rate-limit:v1"));
+  assert.equal((await takeStorefrontRateLimitDimensions(first, input)).allowed, false);
+  assert.deepEqual(data.get("storefront-rate-limit:v1"), before, "a refused multi-dimension spend partially charged another bucket");
+  const serialized = JSON.stringify(data.get("storefront-rate-limit:v1"));
+  assert.equal(serialized.includes(ip), false);
+  assert.equal(serialized.includes(email), false);
 });

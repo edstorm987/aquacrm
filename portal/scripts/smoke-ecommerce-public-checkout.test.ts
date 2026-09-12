@@ -7,7 +7,10 @@ import { withRequestScope, withSession } from "./dev-console-request-scope";
 
 process.env.PORTAL_BACKEND ??= "memory";
 
-import { ecommerceApiUrl } from "../src/built-ins/modules/website-editor/src/components/storefrontCommerceScope";
+import {
+  ecommerceApiUrl,
+  ecommerceStorefrontScope,
+} from "../src/built-ins/modules/website-editor/src/components/storefrontCommerceScope";
 import { containerFor } from "../src/built-ins/modules/ecommerce/src/server/foundationAdapter";
 import type { Product } from "../src/built-ins/modules/ecommerce/src/lib/products";
 import { ensureEcommerceFoundationRegistered } from "../src/built-ins/runtime/foundation-adapters/ecommerceFoundation";
@@ -17,6 +20,7 @@ import { ensureHydrated } from "../src/server/storage";
 import { createAgency, createClient } from "../src/server/tenants";
 import { issueSession } from "../src/lib/server/auth/auth";
 import { createUser } from "../src/server/users";
+import { addWebsiteSource } from "../src/server/websiteSources";
 
 let agencyId = "";
 let clientId = "";
@@ -38,6 +42,7 @@ async function call(
     query?: Record<string, string>;
     body?: unknown;
     ip?: string;
+    origin?: string;
     token?: string;
   } = {},
 ): Promise<Reply> {
@@ -55,6 +60,7 @@ async function call(
     headers: {
       "content-type": "application/json",
       "x-forwarded-for": input.ip ?? "198.51.100.69",
+      ...(input.origin ? { origin: input.origin } : {}),
     },
     ...(method === "POST" ? { body: JSON.stringify(input.body ?? {}) } : {}),
   });
@@ -78,6 +84,13 @@ before(async () => {
   const client = createClient(agency.id, { name: "Public Shop", slug: `public-shop-${Date.now()}` });
   agencyId = agency.id;
   clientId = client.id;
+  addWebsiteSource({
+    agencyId,
+    host: "public-shop.example.test",
+    label: "Public checkout test storefront",
+    destinationClientId: clientId,
+    createdBy: "smoke-ecommerce-public-checkout",
+  });
   const owner = createUser({
     email: `public-checkout-owner-${Date.now()}@example.test`,
     name: "Public Checkout Owner",
@@ -240,6 +253,24 @@ test("the mounted storefront rewrites only commerce calls onto its explicit publ
   assert.equal(ecommerceApiUrl("/api/portal/ecommerce/products", null), "/api/portal/ecommerce/products");
 });
 
+test("only a published storefront root can discover anonymous commerce scope", () => {
+  let queried = "";
+  const publishedRoot = {
+    querySelector<T extends Element>(selector: string): T | null {
+      queried = selector;
+      return {
+        dataset: { aquaAgencyId: "agency_a", aquaClientId: "client_a" },
+      } as unknown as T;
+    },
+  };
+  assert.deepEqual(ecommerceStorefrontScope(publishedRoot), {
+    agencyId: "agency_a",
+    clientId: "client_a",
+  });
+  assert.match(queried, /data-aqua-published-storefront/);
+  assert.equal(ecommerceStorefrontScope({ querySelector: () => null }), null);
+});
+
 test("anonymous catalogue access is facade-only and cannot reveal hidden products", async () => {
   const internal = await call(["products"], { query: scope() });
   assert.equal(internal.status, 401, "the operator catalogue route became anonymous");
@@ -249,6 +280,7 @@ test("anonymous catalogue access is facade-only and cannot reveal hidden product
 
   const visible = await call(["storefront", "products"], {
     query: { ...scope(), includeHidden: "true", includeArchived: "true" },
+    origin: "https://public-shop.example.test",
   });
   assert.equal(visible.status, 200);
   const products = visible.json.products as Array<Record<string, unknown>>;
@@ -298,6 +330,7 @@ test("anonymous catalogue access is facade-only and cannot reveal hidden product
 
   const visibleProduct = await call(["storefront", "products", "get"], {
     query: { ...scope(), slug: "public-checkout-product" },
+    origin: "https://public-shop.example.test",
   });
   assert.equal(visibleProduct.status, 200);
   const detail = visibleProduct.json.product as Record<string, unknown>;
@@ -325,6 +358,7 @@ test("anonymous catalogue access is facade-only and cannot reveal hidden product
 
   const hiddenProduct = await call(["storefront", "products", "get"], {
     query: { ...scope(), slug: "hidden-checkout-product" },
+    origin: "https://public-shop.example.test",
   });
   assert.equal(hiddenProduct.status, 404, "a hidden product was readable through the public detail route");
 });
@@ -339,6 +373,7 @@ test("public quote is server-priced and refuses browser-asserted customer identi
   const quote = await call(["storefront", "checkout", "quote"], {
     method: "POST",
     query: scope(),
+    origin: "https://public-shop.example.test",
     body: payload,
   });
   assert.equal(quote.status, 200);
@@ -349,6 +384,7 @@ test("public quote is server-priced and refuses browser-asserted customer identi
   const forgedIdentity = await call(["storefront", "checkout", "quote"], {
     method: "POST",
     query: scope(),
+    origin: "https://public-shop.example.test",
     body: { ...payload, operationId: "public-quote-identity-002", endCustomerUserId: "user_somebody_else" },
   });
   assert.equal(forgedIdentity.status, 400);
@@ -396,11 +432,13 @@ test("a public provider failure is retryable without exposing Stripe configurati
   const unavailable = await call(["storefront", "stripe", "checkout"], {
     method: "POST",
     query: scope(),
+    origin: "https://public-shop.example.test",
     body: {
       version: 1,
       operationId: "public-provider-unavailable-001",
       items: [{ productId: "product_public_checkout", variantId: "variant_pdf", quantity: 1 }],
       customerEmail: "buyer@example.test",
+      checkoutKind: "paid",
     },
   });
   assert.equal(unavailable.status, 503, JSON.stringify(unavailable.json));
@@ -418,16 +456,19 @@ test("anonymous checkout completes and replays through the real dispatcher witho
     customerEmail: "buyer@example.test",
     successPath: "/order-confirmed?session_id={CHECKOUT_SESSION_ID}",
     cancelPath: "/cart",
+    checkoutKind: "free",
   };
 
   const before = await call(["storefront", "orders", "by-session"], {
     query: { ...scope(), sessionId: "zero_public-zero-checkout-001" },
+    origin: "https://public-shop.example.test",
   });
   assert.equal(before.status, 404, "an unknown provider session looked complete");
 
   const first = await call(["storefront", "stripe", "checkout"], {
     method: "POST",
     query: scope(),
+    origin: "https://public-shop.example.test",
     body,
   });
   assert.equal(first.status, 200, JSON.stringify(first.json));
@@ -438,6 +479,7 @@ test("anonymous checkout completes and replays through the real dispatcher witho
   const replay = await call(["storefront", "stripe", "checkout"], {
     method: "POST",
     query: scope(),
+    origin: "https://public-shop.example.test",
     body,
   });
   assert.equal(replay.status, 200);
@@ -447,6 +489,7 @@ test("anonymous checkout completes and replays through the real dispatcher witho
     method: "POST",
     token: ownerToken,
     query: scope(),
+    origin: "https://public-shop.example.test",
     body,
   });
   assert.equal(sessionBearingPublicReplay.status, 200);
@@ -466,6 +509,7 @@ test("anonymous checkout completes and replays through the real dispatcher witho
 
   const order = await call(["storefront", "orders", "by-session"], {
     query: { ...scope(), sessionId: String(first.json.id) },
+    origin: "https://public-shop.example.test",
   });
   assert.equal(order.status, 200);
   const receipt = order.json.order as Record<string, unknown>;
@@ -491,5 +535,7 @@ test("the anonymous Stripe webhook is reachable only as a signature-authorised r
     body: {},
   });
   assert.equal(missingSignature.status, 400);
-  assert.match(String(missingSignature.json.error), /stripe-signature/);
+  assert.equal(missingSignature.json.error, "webhook_refused");
+  assert.equal(missingSignature.headers.get("cache-control"), "no-store");
+  assert.doesNotMatch(JSON.stringify(missingSignature.json), /signature|secret|stripe|config|install/i);
 });

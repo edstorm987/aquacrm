@@ -86,6 +86,66 @@ test("a request cannot be fulfilled before identity is checked", () => {
   );
 });
 
+test("subject-access fulfilment requires the exact open verified request and person", () => {
+  const agencyId = "agency_subject_access_gate";
+  const personId = "per_subject_access_gate";
+  const request = requests.recordSubjectRequest({
+    agencyId,
+    kind: "portability",
+    subjectLabel: "subject@example.test",
+    personId,
+    createdBy: "owner",
+  });
+
+  for (const attempt of [
+    () => requests.requireSubjectAccessRequestForExport(agencyId, request.id, personId),
+    () => requests.fulfilSubjectAccessRequest(agencyId, request.id, personId, "owner", "Done."),
+  ]) {
+    assert.throws(attempt, (error: unknown) => (error as { code?: string }).code === "request_not_ready");
+  }
+
+  requests.verifySubjectRequestIdentity(agencyId, request.id, "owner");
+  assert.throws(
+    () => requests.requireSubjectAccessRequestForExport(agencyId, request.id, "per_someone_else"),
+    (error: unknown) => (error as { code?: string }).code === "request_not_ready",
+    "a verified request for another exact person is not authority",
+  );
+  assert.throws(
+    () => requests.requireSubjectAccessRequestForExport("agency_other", request.id, personId),
+    (error: unknown) => (error as { code?: string }).code === "request_not_ready",
+    "another tenant cannot use the request id",
+  );
+
+  const fulfilled = requests.fulfilSubjectAccessRequest(
+    agencyId,
+    request.id,
+    personId,
+    "owner",
+    "Verified export prepared.",
+  );
+  assert.ok(fulfilled.fulfilledAt);
+  assert.equal(fulfilled.fulfilledBy, "owner");
+  assert.throws(
+    () => requests.requireSubjectAccessRequestForExport(agencyId, request.id, personId),
+    (error: unknown) => (error as { code?: string }).code === "request_not_ready",
+    "a closed request cannot be replayed",
+  );
+
+  const erasure = requests.recordSubjectRequest({
+    agencyId,
+    kind: "erasure",
+    subjectLabel: "subject@example.test",
+    personId,
+    createdBy: "owner",
+  });
+  requests.verifySubjectRequestIdentity(agencyId, erasure.id, "owner");
+  assert.throws(
+    () => requests.requireSubjectAccessRequestForExport(agencyId, erasure.id, personId),
+    (error: unknown) => (error as { code?: string }).code === "request_not_ready",
+    "an erasure request is not authority for an access export",
+  );
+});
+
 test("an extension runs from the original deadline and must state a reason", () => {
   const agencyId = "agency_ext";
   const received = Date.UTC(2026, 2, 1, 0, 0, 0);

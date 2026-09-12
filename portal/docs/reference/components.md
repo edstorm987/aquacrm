@@ -34,7 +34,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `AccessRequests({ requests, canManage, people, scope, scopeChoices, onSelectScope, environment, mutate }: { requests: AccessRequest[]; canManage: boolean; people: readonly AccessPerson[]; scope: NamedAccessScope; scopeCh…`
 - `CapabilityComposer({ capabilities, onChange, scope, scopeKind, idPrefix, compact = false, allowedCapabilities }: CapabilityComposerProps)`
 
-**Depends on (1):** [`src/components/access/accessModel.ts`](#file-src-components-access-accessmodel-ts-87afdaff76)
+**Depends on (2):** [`src/components/access/accessModel.ts`](#file-src-components-access-accessmodel-ts-87afdaff76) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
 
 **Used by (2):** [`scripts/smoke-access-control-ui.test.ts`](scripts.md#file-scripts-smoke-access-control-ui-test-ts-b983e0a0f7) · [`src/app/portal/agency/fulfilment/_FulfilmentWorkspace.tsx`](app.md#file-src-app-portal-agency-fulfilment-fulfilmentworkspace-tsx-efb66537d4)
 
@@ -229,6 +229,23 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Depends on (4):** [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1) · [`src/lib/client/checkedMutation.ts`](lib.md#file-src-lib-client-checkedmutation-ts-afe8d37eb1) · [`src/lib/tasks/taskTemplates.ts`](lib.md#file-src-lib-tasks-tasktemplates-ts-6aee71d67c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (1):** [`src/app/portal/agency/actions/_ActionsWorkspace.tsx`](app.md#file-src-app-portal-agency-actions-actionsworkspace-tsx-3feedac0a1)
+
+
+## `src/components/attribution/`
+
+<a id="file-src-components-attribution-googlemapsattribution-tsx-af4b79183a"></a>
+
+### `src/components/attribution/GoogleMapsAttribution.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `GoogleMapsAttribution({ className = "" }: { className?: string })` — Google's unmodified, non-outlined logo for plain light backgrounds. The wrapper preserves the required clear space around the native 98 x 18px asset. Keep provider-specific attrib…
+
+**Depends on:** _No internal imports._
+
+**Used by (2):** [`src/app/portal/agency/pipelines/[slug]/_GoogleBusinessScout.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-googlebusinessscout-tsx-94ed60a1e0) · [`src/app/portal/agency/pipelines/[slug]/_ScoutingCommand.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-scoutingcommand-tsx-15bc8216b1)
 
 
 ## `src/components/auth/`
@@ -1704,7 +1721,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `PersonalRadarPanel({ reading, actions, actionsAvailable, actionSummary, headline, variant = "page", showHeader = true, actionsHref = "/portal/agency/actions", goalsHref = "/portal/agency/calendar", businessRadarHref = "…`
 - `interface PersonalRadarPanelProps (10 members)`
 
-**Depends on (1):** [`src/lib/intelligence/personalRadar.ts`](lib.md#file-src-lib-intelligence-personalradar-ts-d1e0282176)
+**Depends on (2):** [`src/lib/intelligence/personalRadar.ts`](lib.md#file-src-lib-intelligence-personalradar-ts-d1e0282176) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd)
 
 **Used by (3):** [`src/app/portal/agency/my-radar/page.tsx`](app.md#file-src-app-portal-agency-my-radar-page-tsx-065cdf2270) · [`src/app/portal/agency/page.tsx`](app.md#file-src-app-portal-agency-page-tsx-35a1d5c98a) · [`src/components/chrome/MyRadarQuickLookPanel.tsx`](#file-src-components-chrome-myradarquicklookpanel-tsx-028d2ead5a)
 
@@ -1808,6 +1825,58 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Used by (3):** [`src/components/resource-tools/AccessibilityAuditTool.tsx`](#file-src-components-resource-tools-accessibilityaudittool-tsx-3a3f3fc7d7) · [`src/components/resource-tools/SeoAuditTool.tsx`](#file-src-components-resource-tools-seoaudittool-tsx-37cbd4c528) · [`src/components/resource-tools/SiteSpeedTool.tsx`](#file-src-components-resource-tools-sitespeedtool-tsx-8d38aed0ac)
 
 
+## `src/components/sales/`
+
+<a id="file-src-components-sales-salesacquisitiontabs-tsx-518dc0e4de"></a>
+
+### `src/components/sales/SalesAcquisitionTabs.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `SalesAcquisitionTabs({ active }: { active: SalesAcquisitionTab })` — Views over one acquisition history, not mandatory gates. The same Prospect can be researched and contacted in either order; Journey is the master view.
+- `type SalesAcquisitionTab = | "journey" | "scouting" | "researching" | "outreach" | "meetings" | "inbox" | "contacts"`
+
+**Depends on:** _No internal imports._
+
+**Used by (6):** [`scripts/smoke-sales-accessibility-contract.test.ts`](scripts.md#file-scripts-smoke-sales-accessibility-contract-test-ts-28370b7a6e) · [`src/app/portal/agency/inbox/page.tsx`](app.md#file-src-app-portal-agency-inbox-page-tsx-4d64a629ec) · [`src/app/portal/agency/meetings/page.tsx`](app.md#file-src-app-portal-agency-meetings-page-tsx-f498aebb68) · [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspace.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspace-tsx-f2c8061bae) · [`src/app/portal/clients/_JourneyCommercialWorkspace.tsx`](app.md#file-src-app-portal-clients-journeycommercialworkspace-tsx-77a037be14) · [`src/app/portal/clients/page.tsx`](app.md#file-src-app-portal-clients-page-tsx-bffc1e671f)
+
+
+## `src/components/security/`
+
+<a id="file-src-components-security-botchallenge-tsx-0fa09b369d"></a>
+
+### `src/components/security/BotChallenge.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (4):**
+
+- `usePublicBotChallengeConfig(): PublicBotChallengeConfig` — Runtime configuration for client-rendered website/editor form blocks.
+- `BotChallenge = forwardRef<BotChallengeHandle, Props>(function BotChallenge(`
+- `interface BotChallengeHandle (1 members)`
+- `interface PublicBotChallengeConfig (4 members)`
+
+**Depends on:** _No internal imports._
+
+**Used by (11):** [`src/app/(website)/LaunchGateForm.tsx`](app.md#file-src-app-website-launchgateform-tsx-01956e4ca2) · [`src/app/careers/_ApplicationForm.tsx`](app.md#file-src-app-careers-applicationform-tsx-41c1341750) · [`src/app/connect/[connectionId]/_ConnectFlow.tsx`](app.md#file-src-app-connect-connectionid-connectflow-tsx-1d6ec3fb6b) · [`src/app/login/LoginForm.tsx`](app.md#file-src-app-login-loginform-tsx-6ad02dfb81) · [`src/app/login/forgot/ForgotForm.tsx`](app.md#file-src-app-login-forgot-forgotform-tsx-3e704568e8) · [`src/built-ins/modules/website-editor/src/components/blocks/ContactFormBlock.tsx`](built-ins.md#file-src-built-ins-modules-website-editor-src-components-blocks-contactformblock-tsx-796d559412) · [`src/built-ins/modules/website-editor/src/components/blocks/CrmContactFormBlock.tsx`](built-ins.md#file-src-built-ins-modules-website-editor-src-components-blocks-crmcontactformblock-tsx-f77dc58d45) · [`src/built-ins/modules/website-editor/src/components/blocks/LoginFormBlock.tsx`](built-ins.md#file-src-built-ins-modules-website-editor-src-components-blocks-loginformblock-tsx-dccd244512) · [`src/built-ins/modules/website-editor/src/components/blocks/NewsletterSignupBlock.tsx`](built-ins.md#file-src-built-ins-modules-website-editor-src-components-blocks-newslettersignupblock-tsx-e658cbfcfc) · [`src/built-ins/modules/website-editor/src/components/blocks/PaymentButtonBlock.tsx`](built-ins.md#file-src-built-ins-modules-website-editor-src-components-blocks-paymentbuttonblock-tsx-ea4c9d492e) · [`src/built-ins/modules/website-editor/src/components/blocks/SignupFormBlock.tsx`](built-ins.md#file-src-built-ins-modules-website-editor-src-components-blocks-signupformblock-tsx-3bd868b748)
+
+<a id="file-src-components-security-securitycentrepanel-tsx-3e206695c6"></a>
+
+### `src/components/security/SecurityCentrePanel.tsx`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (1):**
+
+- `SecurityCentrePanel()`
+
+**Depends on:** _No internal imports._
+
+**Used by (2):** [`src/app/portal/agency/security/page.tsx`](app.md#file-src-app-portal-agency-security-page-tsx-4976e0e02a) · [`src/app/portal/dev-team/security/page.tsx`](app.md#file-src-app-portal-dev-team-security-page-tsx-dd07884f2a)
+
+
 ## `src/components/telephony/`
 
 <a id="file-src-components-telephony-callcontrols-tsx-13a6a3e9b1"></a>
@@ -1819,9 +1888,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports (2):**
 
 - `CallLinePicker()`
-- `CallButton({ phone, name, contactId, prospectId, onCalled, }: { phone?: string; name?: string; contactId?: string; /** When set, the server gates on the prospect's inspection + opt-out and records the attempt itself. */…`
+- `CallButton({ phone, name, contactId, prospectId, disabled, onCalled, onPendingChange, }: { phone?: string; name?: string; contactId?: string; /** When set, the server binds the recipient, enforces opt-out, and records t…`
 
-**Depends on (2):** [`src/lib/client/senderCatalogueRead.ts`](lib.md#file-src-lib-client-sendercatalogueread-ts-e7ebc13e6f) · [`src/lib/telephony/phoneNumbers.ts`](lib.md#file-src-lib-telephony-phonenumbers-ts-b7be228e55)
+**Depends on (3):** [`src/lib/client/senderCatalogueRead.ts`](lib.md#file-src-lib-client-sendercatalogueread-ts-e7ebc13e6f) · [`src/lib/telephony/phoneNumbers.ts`](lib.md#file-src-lib-telephony-phonenumbers-ts-b7be228e55) · [`src/lib/telephony/prospectOutreachReceipt.ts`](lib.md#file-src-lib-telephony-prospectoutreachreceipt-ts-baf56b5243)
 
 **Used by (2):** [`src/app/portal/agency/leads-pipeline/contacts/_ContactsWorkspace.tsx`](app.md#file-src-app-portal-agency-leads-pipeline-contacts-contactsworkspace-tsx-9e6c6879f9) · [`src/app/portal/agency/pipelines/[slug]/_ScoutingCommand.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-scoutingcommand-tsx-15bc8216b1)
 
@@ -1834,9 +1903,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports (2):**
 
 - `EmailLinePicker()`
-- `EmailButton({ email, phone, name, contactId, prospectId, onSent, }: { email?: string; /** Passed so the server can apply the same opt-out suppression the dialler does. */ phone?: string; name?: string; contactId?: strin…`
+- `EmailButton({ email, phone, name, contactId, prospectId, disabled, onSent, onPrepared, onPendingChange, }: { email?: string; /** Passed so the server can apply the same opt-out suppression the dialler does. */ phone?: s…`
 
-**Depends on (1):** [`src/lib/client/senderCatalogueRead.ts`](lib.md#file-src-lib-client-sendercatalogueread-ts-e7ebc13e6f)
+**Depends on (2):** [`src/lib/client/senderCatalogueRead.ts`](lib.md#file-src-lib-client-sendercatalogueread-ts-e7ebc13e6f) · [`src/lib/telephony/prospectOutreachReceipt.ts`](lib.md#file-src-lib-telephony-prospectoutreachreceipt-ts-baf56b5243)
 
 **Used by (2):** [`src/app/portal/agency/leads-pipeline/contacts/_ContactsWorkspace.tsx`](app.md#file-src-app-portal-agency-leads-pipeline-contacts-contactsworkspace-tsx-9e6c6879f9) · [`src/app/portal/agency/pipelines/[slug]/_ScoutingCommand.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-scoutingcommand-tsx-15bc8216b1)
 

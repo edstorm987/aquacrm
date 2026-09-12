@@ -188,6 +188,10 @@
   }
 
   window.AquaBotChallenge = Object.freeze({
+    mount: function (form) {
+      if (!form || typeof form.matches !== "function" || !form.matches("form[data-aqua-challenge-action]")) return;
+      render(form);
+    },
     tokenFor: function (form) {
       var state = states.get(form);
       return state ? state.token : "";

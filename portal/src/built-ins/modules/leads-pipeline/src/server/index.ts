@@ -30,11 +30,12 @@ export type { ParsedRow, ParseCsvResult } from "./csv";
 
 export {
   EVENT_SUBSCRIPTIONS,
-  handleFunnelLeadCaptured,
+  promoteFunnelCaptureToLead,
   handlePipelineCardMoved,
 } from "./subscribers";
 export type {
-  FunnelLeadCapturedPayload,
+  FunnelCapturePromotionLineage,
+  FunnelCapturePromotionPayload,
   PipelineCardMovedPayload,
 } from "./subscribers";
 

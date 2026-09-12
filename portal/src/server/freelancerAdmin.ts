@@ -19,6 +19,11 @@ import {
 import { signPasswordResetToken } from "@/lib/server/auth/passwordReset";
 import { sendTransactionalEmail } from "@/lib/server/email/transactionalEmail";
 import { flushPendingWrites } from "@/server/storage";
+import { configuredPublicAuthOrigin } from "@/lib/server/auth/publicAuthOrigin";
+import {
+  preparePublicAuthLinkDelivery,
+  recordPublicAuthLinkDelivery,
+} from "@/server/publicAuthLinkDelivery";
 
 export interface FreelancerAdminRow {
   employeeId: string;
@@ -65,7 +70,6 @@ export function createFreelancer(
   const email = (input.email ?? "").trim().toLowerCase();
   if (!name) return { ok: false, error: "name_required" };
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: "email_invalid" };
-
   let user = getUser(email);
   if (user && user.agencyId !== agencyId) return { ok: false, error: "email_in_use" };
   if (!user) {
@@ -111,7 +115,7 @@ export interface InviteFreelancerDependencies {
 export async function inviteFreelancer(
   agencyId: string,
   actorUserId: string,
-  input: { name?: string; email?: string; title?: string; origin: string },
+  input: { name?: string; email?: string; title?: string },
   dependencies: InviteFreelancerDependencies = {},
 ): Promise<InviteFreelancerResult> {
   const name = (input.name ?? "").trim();
@@ -119,6 +123,8 @@ export async function inviteFreelancer(
   const title = (input.title ?? "").trim() || "Freelancer";
   if (!name) return { ok: false, error: "name_required" };
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: "email_invalid" };
+  const publicOrigin = configuredPublicAuthOrigin();
+  if (!publicOrigin) return { ok: false, error: "auth_origin_unavailable" };
 
   const existingUser = getUser(email);
   if (existingUser && (existingUser.agencyId !== agencyId || existingUser.role !== "freelancer")) {
@@ -155,16 +161,54 @@ export async function inviteFreelancer(
       await flushPendingWrites();
     }
 
-    const { token } = (dependencies.signSetupToken ?? signPasswordResetToken)({ userId: result.user.id, email: result.user.email });
-    const setupUrl = `${input.origin.replace(/\/$/, "")}/login/reset?token=${encodeURIComponent(token)}`;
-    const sent = await (dependencies.sendEmail ?? sendTransactionalEmail)({
-      to: result.user.email,
+    const now = (dependencies.now ?? Date.now)();
+    const invitationOperation = await preparePublicAuthLinkDelivery({
+      kind: "password-reset",
+      userId: result.user.id,
+      email: result.user.email,
       agencyId,
-      externalRef: `freelancer-invite:${result.operation.id}:${(dependencies.now ?? Date.now)()}`,
-      subject: "Set up your freelancer workspace",
-      bodyText: `You have been invited to a freelancer workspace. Set your password using this secure link (valid for 24 hours):\n\n${setupUrl}`,
-      bodyHtml: `<p>You have been invited to a freelancer workspace.</p><p><a href="${setupUrl}">Set up your password</a></p><p>This link is valid for 24 hours.</p>`,
+      clientId: null,
+      sessionRev: result.user.sessionRev ?? 0,
+      presentation: "freelancer-setup",
+      now,
     });
+
+    const { token } = (dependencies.signSetupToken ?? signPasswordResetToken)({
+      userId: invitationOperation.userId,
+      email: invitationOperation.email,
+      sessionRev: invitationOperation.expectedSessionRev,
+      clientId: invitationOperation.clientId,
+      nonce: invitationOperation.tokenNonce,
+      exp: invitationOperation.tokenExpiresAt,
+    });
+    const setupUrl = `${publicOrigin}/login/reset?token=${encodeURIComponent(token)}`;
+    let sent: Awaited<ReturnType<typeof sendTransactionalEmail>>;
+    try {
+      sent = await (dependencies.sendEmail ?? sendTransactionalEmail)({
+        to: result.user.email,
+        agencyId,
+        externalRef: invitationOperation.providerOperationRef,
+        subject: "Set up your freelancer workspace",
+        bodyText: `You have been invited to a freelancer workspace. Set your password using this secure link (valid for 24 hours):\n\n${setupUrl}`,
+        bodyHtml: `<p>You have been invited to a freelancer workspace.</p><p><a href="${setupUrl}">Set up your password</a></p><p>This link is valid for 24 hours.</p>`,
+      });
+    } catch {
+      // Provisioning and the invitation generation are already durable.
+      // Provider exceptions become the same generic, generation-fenced
+      // receipt instead of escaping the mounted action or exposing detail.
+      sent = { delivered: false, via: "unconfigured", outcomeUnknown: true };
+    }
+    await recordPublicAuthLinkDelivery(
+      invitationOperation.id,
+      invitationOperation.generation,
+      {
+        delivered: sent.delivered,
+        externalMessageId: sent.externalMessageId,
+        outcomeUnknown: sent.outcomeUnknown,
+        unavailable: sent.via === "unconfigured",
+      },
+      now,
+    );
     return {
       ok: true,
       employeeId: result.employee?.id,

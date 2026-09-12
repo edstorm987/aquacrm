@@ -36,17 +36,20 @@ function readLoginErrorCookie(): string {
   }
 }
 
-export default function LoginFormBlock({ block, editorMode }: BlockRenderProps) {
+export default function LoginFormBlock({ block, editorMode, context }: BlockRenderProps) {
   const title    = (block.props.title as string | undefined)    ?? "Sign in";
   const subtitle = (block.props.subtitle as string | undefined) ?? "";
   const action   = (block.props.action as string | undefined)   ?? "/api/auth/login";
   const submitLabel  = (block.props.submitLabel as string | undefined)  ?? "Sign in";
   const showRemember = block.props.showRemember !== false;
   const showForgot   = block.props.showForgot !== false;
-  const forgotHref   = (block.props.forgotHref as string | undefined)   ?? "/account/forgot-password";
-  const signupHref   = (block.props.signupHref as string | undefined)   ?? "/signup";
+  const configuredForgotHref = (block.props.forgotHref as string | undefined)?.trim();
+  const signupHref   = (block.props.signupHref as string | undefined)?.trim() ?? "";
   const showSignupLink = block.props.showSignupLink !== false;
   const protectedLogin = action.trim() === "/api/auth/login";
+  const forgotHref = protectedLogin
+    ? `/login/forgot${context?.clientId ? `?clientId=${encodeURIComponent(context.clientId)}` : ""}`
+    : configuredForgotHref || "/account/forgot-password";
   const challenge = usePublicBotChallengeConfig();
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
@@ -107,6 +110,9 @@ export default function LoginFormBlock({ block, editorMode }: BlockRenderProps) 
         </p>
       )}
       <form action={action} method="POST" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {protectedLogin && context?.clientId ? (
+          <input type="hidden" name="clientId" value={context.clientId} />
+        ) : null}
         <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <span style={{ fontSize: 11, opacity: 0.7 }}>Email</span>
           <input name="email" type="email" required disabled={editorMode} style={inputStyle} />
@@ -149,7 +155,11 @@ export default function LoginFormBlock({ block, editorMode }: BlockRenderProps) 
       </form>
       {showSignupLink && (
         <p style={{ marginTop: 16, fontSize: 12, opacity: 0.65, textAlign: "center" }}>
-          New here? <a href={signupHref} style={{ color: "var(--theme-primary, #ff6b35)", textDecoration: "none" }}>Create an account</a>
+          {signupHref && signupHref !== "/signup" ? (
+            <>New here? <a href={signupHref} style={{ color: "var(--theme-primary, #ff6b35)", textDecoration: "none" }}>Create an account</a></>
+          ) : (
+            <>Client portal access is invitation-only. Ask your agency contact to send access.</>
+          )}
         </p>
       )}
     </section>

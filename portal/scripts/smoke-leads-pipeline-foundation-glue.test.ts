@@ -13,7 +13,7 @@
 //  - `pipelinePort.leadIdsInColumn` reverse-resolves cards by column label.
 //  - `pipelinePort.columnLabelForLead` returns the current column label.
 //  - `pipelines.ts` `moveCard` emits `pipelines.card.moved` payload.
-//  - `EVENT_SUBSCRIPTIONS` array exported from the plugin includes both events.
+//  - anonymous funnel capture is absent from `EVENT_SUBSCRIPTIONS`.
 //  - `emailEnqueuePort.enqueue` forwards triggeredByPlugin + externalRef
 //     (verified by source inspection — runtime requires email-sender,
 //     a foundation-pending dependency).
@@ -129,7 +129,8 @@ describe("Leads-pipeline foundation glue (T1 R037) — source markers", () => {
 
   it("foundation adapter binds EVENT_SUBSCRIPTIONS handlers", () => {
     const src = readFileSync(FOUND_ADAPTER, "utf-8");
-    assert.match(src, /subscribeForPlugin\(PLUGIN_ID,\s*"public-funnel\.lead\.captured"/);
+    assert.doesNotMatch(src, /subscribeForPlugin\(PLUGIN_ID,\s*"public-funnel\.lead\.captured"/);
+    assert.match(src, /promoteVerifiedFunnelCapture/);
     assert.match(src, /subscribeForPlugin\(PLUGIN_ID,\s*"pipelines\.card\.moved"/);
   });
 
@@ -141,9 +142,9 @@ describe("Leads-pipeline foundation glue (T1 R037) — source markers", () => {
 });
 
 describe("Leads-pipeline foundation glue — runtime", () => {
-  it("EVENT_SUBSCRIPTIONS array exports both expected event names", () => {
+  it("EVENT_SUBSCRIPTIONS excludes anonymous public-funnel capture", () => {
     const arr = leadsPlugin.EVENT_SUBSCRIPTIONS as readonly string[];
-    assert.ok(arr.includes("public-funnel.lead.captured"));
+    assert.equal(arr.includes("public-funnel.lead.captured"), false);
     assert.ok(arr.includes("pipelines.card.moved"));
   });
 

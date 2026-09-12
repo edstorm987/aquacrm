@@ -232,10 +232,13 @@ export type ClientStage =
   | "aqua-traffic"
   | "aqua-mastery";
 
-// End-customer surface configuration. Optional — when absent the client
-// uses the foundation defaults (signups enabled, no return URL).
+// End-customer surface configuration. Public registration is never enabled;
+// this controls only purpose-bound invitations issued by an authenticated
+// agency operator.
 export interface ClientEndCustomerConfig {
-  signupsEnabled?: boolean;        // default true
+  invitationsEnabled?: boolean;
+  /** @deprecated Read-only compatibility for existing invitation-ready rows. */
+  signupsEnabled?: boolean;
   postLoginReturnUrl?: string;     // default `${portalBase}/portal/customer`
 }
 
@@ -657,6 +660,12 @@ export interface SessionPayload {
   // unless the user explicitly switched in the Topbar.
   activeAgencyId?: string;
   clientId?: string;
+  /** Signed lineage for a client portal session minted through Aqua Embed. */
+  embed?: {
+    credentialId: string;
+    credentialVersion: string;
+    allowedOrigin?: string;
+  };
   /** Canonical environment selector. Legacy demo/showcase fields remain during migration. */
   sandbox?: SandboxSessionEnvironment;
   // Sandboxed demo session. Set when the cookie was issued by `/demo`
@@ -4132,6 +4141,34 @@ export interface PeopleApplication {
     size: number;
     storageProvider: "supabase" | "vercel-blob" | "local";
     storageKey: string;
+    /**
+     * Signature trust and malware clearance are deliberately separate. A PDF
+     * header or DOCX ZIP container is not an AV verdict. Missing/legacy
+     * clearance therefore remains quarantined at every read boundary.
+     */
+    contentTrust?: {
+      digest: string;
+      /** Stable identity of this exact provider/key/digest tuple. */
+      objectVersion?: string;
+      signatureVerdict: "clean" | "unverified" | "blocked";
+      sniffedType?: string;
+      scannerVerdict: "clean" | "malicious" | "unavailable" | "not-configured" | "not-run";
+      quarantineStatus: "released" | "quarantined";
+      assessedAt: number;
+    };
+    /** Bounded, durable, secret/PII-free evidence for releases and integrity failures. */
+    securityAudit?: Array<{
+      scanId: string;
+      event: "initial-assessment" | "rescan-admitted" | "rescan" | "download-digest-mismatch";
+      /** Tenant-scoped opaque principal hash, or a fixed system actor category. */
+      actorRef: string;
+      objectVersion: string;
+      digest: string;
+      signatureVerdict: "clean" | "unverified" | "blocked";
+      scannerVerdict: "clean" | "malicious" | "unavailable" | "not-configured" | "not-run";
+      quarantineStatus: "released" | "quarantined";
+      at: number;
+    }>;
   };
   stage: PeopleApplicationStage;
   stageHistory: PeopleApplicationStageEntry[];
@@ -4526,6 +4563,144 @@ export interface StaffProvisioningOperation {
   completedAt?: number;
 }
 
+export type AgencySignupStage =
+  | "awaiting-email-verification"
+  | "verification-claiming"
+  | "email-verified"
+  | "provider-ready"
+  | "complete";
+
+export type AgencySignupDeliveryStatus = "pending" | "delivered" | "failed";
+
+export type PublicAuthLinkKind = "magic-link" | "password-reset";
+export type PublicAuthLinkDeliveryStatus = "pending" | "delivered" | "failed" | "consumed";
+
+/**
+ * Durable delivery generation for one exact public-auth subject.
+ *
+ * The signed bearer is deliberately not persisted. `tokenNonce`, expiry, and
+ * the authoritative subject claims are enough for the server to reconstruct
+ * the same HMAC token after a lost/ambiguous provider response. A generation
+ * changes only after expiry, consumption, or a session-epoch change, so retries
+ * cannot leave several simultaneously valid links in different inbox messages.
+ */
+export interface PublicAuthLinkDeliveryOperation {
+  id: string;
+  kind: PublicAuthLinkKind;
+  userId: string;
+  email: string;
+  agencyId: string;
+  clientId: string | null;
+  expectedSessionRev: number;
+  /** Non-secret presentation context: safe return path or stable brand id. */
+  presentation: string;
+  generation: number;
+  tokenNonce: string;
+  tokenExpiresAt: number;
+  providerOperationRef: string;
+  deliveryStatus: PublicAuthLinkDeliveryStatus;
+  deliveryAttempts: number;
+  deliveryLastAttemptAt?: number;
+  deliveryExternalMessageId?: string;
+  /** Stable internal category only; never provider text or subject data. */
+  deliveryLastError?: "provider_failed" | "delivery_unavailable";
+  deliveryOutcomeUnknown?: boolean;
+  deliveredAt?: number;
+  consumedAt?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type PasswordResetOperationStatus = "accepted" | "provider-applied" | "complete";
+
+/** Durable checkpoint joining one mailbox reset proof to provider + local state. */
+export interface PasswordResetOperation {
+  id: string;
+  userId: string;
+  email: string;
+  agencyId: string;
+  clientId?: string;
+  role: Role;
+  tokenNonce: string;
+  tokenExpiresAt: number;
+  expectedSessionRev: number;
+  passwordFingerprint: string;
+  initialSupabaseAuthUserId?: string;
+  providerUserId?: string;
+  status: PasswordResetOperationStatus;
+  providerAttempts: number;
+  providerLastError?: string;
+  providerOutcomeUnknown?: boolean;
+  completedAt?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type ClientPortalSetupOperationStatus = "accepted" | "provider-applied" | "complete";
+
+/** Durable first-password checkpoint for one exact invited client identity. */
+export interface ClientPortalSetupOperation {
+  id: string;
+  userId: string;
+  email: string;
+  agencyId: string;
+  clientId: string;
+  role: Role;
+  expectedSessionRev: number;
+  passwordFingerprint: string;
+  initialSupabaseAuthUserId?: string;
+  providerUserId?: string;
+  status: ClientPortalSetupOperationStatus;
+  providerAttempts: number;
+  providerLastError?: string;
+  providerOutcomeUnknown?: boolean;
+  completedAt?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/**
+ * Durable, password-free admission and recovery ledger for self-service agency
+ * signup. No Agency or ServerUser exists while the row is awaiting mailbox
+ * proof. Provider and local activation resume from the stable operation/user/
+ * agency ids, so a lost response cannot create a sibling tenant or identity.
+ */
+export interface AgencySignupOperation {
+  id: string;
+  email: string;
+  companyName: string;
+  intentFingerprint: string;
+  userId: string;
+  agencyId: string;
+  consentAcceptedAt: number;
+  consentPolicy: "agency-self-service-terms";
+  consentPolicyVersion: string;
+  consentTermsUrl: string;
+  stage: AgencySignupStage;
+  verificationNonce: string;
+  verificationExpiresAt: number;
+  deliveryGeneration: number;
+  deliveryStatus: AgencySignupDeliveryStatus;
+  deliveryAttempts: number;
+  deliveryLastAttemptAt?: number;
+  deliveryExternalMessageId?: string;
+  /** Stable internal category only; never provider response text. */
+  deliveryLastError?: "provider_failed" | "delivery_unavailable";
+  /** Retry the same provider idempotency key after an ambiguous response. */
+  deliveryOutcomeUnknown?: boolean;
+  setupNonce?: string;
+  setupExpiresAt?: number;
+  providerUserId?: string;
+  /** Keyed digest binding every activation retry to the original password. */
+  activationPasswordFingerprint?: string;
+  activationAttempts: number;
+  activationLastError?: string;
+  verifiedAt?: number;
+  completedAt?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export type ClientProjectOperationKind = "provision" | "publish" | "deploy";
 export type ClientProjectOperationStatus = "pending" | "external-created" | "succeeded" | "failed";
 
@@ -4698,6 +4873,29 @@ export interface SubjectRequest {
    */
   identityVerifiedAt?: number;
   identityVerifiedBy?: string;
+  /** A durable fingerprint of a generated safe subset. Preparation is not
+   * delivery and deliberately leaves the statutory request open. */
+  preparedExportAt?: number;
+  preparedExportBy?: string;
+  preparedExportDigest?: string;
+  preparedExportGeneratedAt?: number;
+  preparedExportRecordCount?: number;
+  preparedExportReviewCount?: number;
+  preparedExportByteLength?: number;
+  /** Bounded staged payload so a lost response can replay the identical file.
+   * Cleared after evidenced delivery; the digest remains as audit evidence. */
+  preparedExportJson?: string;
+  /** Evidence that every counted ambiguity/omission was reviewed against the
+   * exact prepared digest. This still is not evidence of delivery. */
+  preparedExportReviewResolvedAt?: number;
+  preparedExportReviewResolvedBy?: string;
+  preparedExportReviewResolvedDigest?: string;
+  preparedExportReviewEvidenceId?: string;
+  /** Separate evidence that the exact prepared export was handed over. */
+  deliveredAt?: number;
+  deliveredBy?: string;
+  deliveryMethod?: "verified-portal" | "secure-email" | "in-person" | "other";
+  deliveryEvidenceId?: string;
   fulfilledAt?: number;
   fulfilledBy?: string;
   /** What was actually done — free text for the file, no personal data. */
@@ -4924,6 +5122,8 @@ export interface SecurityControlState {
   suspendedUsers: Record<string, { reason: string; at: number; actor: string }>;
   /** sid → registry record. Individual device/session revocation. */
   sessions: Record<string, SecuritySessionRecord>;
+  /** Opaque-keyed, atomic embed issue/consume budgets. No token, IP or PII is stored. */
+  embedBudgets?: Record<string, { count: number; resetAt: number }>;
   /**
    * KILL SWITCH: while set, `mutate()` refuses every write except the security
    * control plane's own (so the switch can be lifted and sessions revoked while
@@ -5107,6 +5307,10 @@ export interface PortalState {
   peopleChannelReads: Record<string, PeopleChannelRead>;
   peopleTrainingModules: Record<string, PeopleTrainingModule>;
   staffProvisioningOperations: Record<string, StaffProvisioningOperation>;
+  agencySignupOperations: Record<string, AgencySignupOperation>;
+  publicAuthLinkDeliveryOperations: Record<string, PublicAuthLinkDeliveryOperation>;
+  passwordResetOperations: Record<string, PasswordResetOperation>;
+  clientPortalSetupOperations: Record<string, ClientPortalSetupOperation>;
   // Durable checkpoints for client-website provision/publish/deploy, so a retry
   // after a lost save adopts the external thing that already exists.
   clientProjectOperations: Record<string, ClientProjectOperation>;

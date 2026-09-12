@@ -884,6 +884,34 @@ export const PROMOTION_DISPOSITION = {
     keying: "own-id",
     reason: "Password-free staff account recovery checkpoints belong to the holding agency and never follow a promoted company.",
   },
+  agencySignupOperations: {
+    disposition: "na",
+    ownership: "app-wide",
+    keying: "own-id",
+    reason:
+      "Password-free, pre-tenant admission receipts are platform security lineage. They are neither moved nor copied during a company promotion.",
+  },
+  publicAuthLinkDeliveryOperations: {
+    disposition: "leave",
+    ownership: "agency-scoped",
+    keying: "own-id",
+    reason:
+      "Exact-subject magic/reset delivery generations are authentication security lineage for their originating tenant. They are never copied, re-keyed or treated as a credential during company promotion.",
+  },
+  passwordResetOperations: {
+    disposition: "leave",
+    ownership: "agency-scoped",
+    keying: "own-id",
+    reason:
+      "Password-reset provider receipts are security lineage for the original exact user and tenant. They never follow a promoted company or become credentials in the new tenant.",
+  },
+  clientPortalSetupOperations: {
+    disposition: "leave",
+    ownership: "agency-scoped",
+    keying: "own-id",
+    reason:
+      "Client portal setup receipts bind one exact user and client to provider/local convergence. They remain security lineage in the originating tenant.",
+  },
   clientProjectOperations: {
     disposition: "leave",
     ownership: "agency-scoped",
@@ -942,7 +970,9 @@ type _NoStaleCollections = AssertNever<StaleCollections>;
 // tenant key and live outside the live data realm entirely.
 // 98 → 99 on 2026-09-03: `personalMetricDays`, the bounded actor-owned
 // semantic projection behind personal recurring targets.
-export const PROMOTION_COLLECTION_COUNT = 101;
+// 104 -> 105 on 2026-09-12: `publicAuthLinkDeliveryOperations`, the durable
+// exact-subject generation and provider-receipt store for public auth links.
+export const PROMOTION_COLLECTION_COUNT = 105;
 
 /** Every classified collection name, in `PortalState` order. */
 export const PROMOTION_COLLECTIONS = Object.keys(PROMOTION_DISPOSITION) as Array<

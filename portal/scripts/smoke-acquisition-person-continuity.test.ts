@@ -112,8 +112,9 @@ describe("acquisition writers converge on canonical Person", { concurrency: fals
       source: "manual",
     }, "user_identity_smoke" as never);
 
-    await subscribers.handleFunnelLeadCaptured(world.container.leads, {
+    await subscribers.promoteFunnelCaptureToLead(world.container.leads, {
       agencyId: world.agency.id as never,
+      captureId: "lc_hc_person_continuity",
       email: "website@example.test",
       name: "Website Person",
       phone: "+447700900111",

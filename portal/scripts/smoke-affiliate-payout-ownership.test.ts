@@ -339,25 +339,41 @@ test("affiliate Stripe Connect is unavailable until the client's ecommerce insta
     "an ecommerce install with no secret key is not a configured Stripe",
   );
 
-  // Keys saved through the real settings write path (they land in the
-  // encrypted vault, never on the browser-visible install.config).
+  // The shared API key and Ecommerce endpoint secret are saved through the
+  // real Ecommerce settings path. The latter must never verify Affiliates.
   writePluginSettings({
     pluginId: "ecommerce",
     scope,
     values: {
       stripeSecretKey: "sk_test_affiliates_0001",
-      stripeWebhookSecret: "whsec_affiliates_0002",
+      stripeWebhookSecret: "whsec_ecommerce_wrong_endpoint",
     },
     actorUserId: "user_aff_stripe_test",
   });
 
-  const keys = affiliatesStripeConnectKeysFor(scope);
+  let keys = affiliatesStripeConnectKeysFor(scope);
   assert.equal(keys?.secretKey, "sk_test_affiliates_0001");
-  assert.equal(keys?.webhookSecret, "whsec_affiliates_0002");
+  assert.equal(keys?.webhookSecret, undefined, "Ecommerce's endpoint secret is never reused for Connect");
   assert.equal(
     getInstall(scope, "ecommerce")?.config.stripeSecretKey,
     undefined,
     "the secret came from the vault, not from install.config",
+  );
+
+  upsertInstall({ pluginId: "affiliates", scope, enabled: true, config: {}, features: {} });
+  writePluginSettings({
+    pluginId: "affiliates",
+    scope,
+    values: { stripeConnectWebhookSecret: "whsec_affiliates_0002" },
+    actorUserId: "user_aff_stripe_test",
+  });
+  keys = affiliatesStripeConnectKeysFor(scope);
+  assert.equal(keys?.secretKey, "sk_test_affiliates_0001");
+  assert.equal(keys?.webhookSecret, "whsec_affiliates_0002");
+  assert.equal(
+    getInstall(scope, "affiliates")?.config.stripeConnectWebhookSecret,
+    undefined,
+    "the Connect signing secret is vault-only, never install.config",
   );
   assert.equal(isStripeConnectAvailable(scope), true, "a configured install reports available");
   assert.ok(affiliatesStripeConnectFor(scope), "and yields a real StripeConnectPort");

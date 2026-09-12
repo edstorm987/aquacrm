@@ -35,7 +35,8 @@
             "submitLabel": "Sign in",
             "showRememberMe": true,
             "showForgotPassword": true,
-            "signupHref": "/signup"
+            "showSignupLink": true,
+            "signupHref": ""
           }
         }
       ]

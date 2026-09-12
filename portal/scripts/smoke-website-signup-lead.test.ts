@@ -15,8 +15,8 @@
 //      decision: the block creates a WEBSITE LEAD. Both halves are asserted,
 //      and the "not a new agency" half explicitly.
 //
-// Also pinned: the JSON product-signup contract is untouched, the rate limiter
-// still counts form posts, no password is ever stored, and nothing about the
+// Also pinned: the JSON product-signup contract is mailbox-first, the rate limiter
+// still protects form posts, no password is ever stored, and nothing about the
 // submission reaches the redirect URL.
 
 import { describe, it, before } from "node:test";
@@ -38,11 +38,13 @@ import { makePluginStorage } from "../src/lib/server/pluginStorage";
 import { containerFor } from "@aqua/plugin-leads-pipeline/server";
 import { ensureLeadsPipelineFoundationRegistered } from "../src/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
 import { SESSION_COOKIE_NAME } from "../src/lib/server/auth/auth";
+import { addWebsiteSource } from "../src/server/websiteSources";
 import type { Lead } from "../src/built-ins/modules/leads-pipeline/src/lib/domain";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 const ORIGIN = "http://localhost:3030";
+process.env.NEXT_PUBLIC_PORTAL_BASE_URL = ORIGIN;
 const SIGNUP_URL = `${ORIGIN}/api/auth/signup`;
 const SITE_PAGE = `${ORIGIN}/sites/acme/get-started`;
 const STATUS_COOKIE = "aqua_signup_status";
@@ -53,6 +55,9 @@ const MESSAGE_COOKIE = "aqua_signup_message";
 interface Opts {
   ip: string;
   referer?: string;
+  origin?: string;
+  originHeader?: string;
+  cookie?: string;
 }
 
 function formRequest(fields: Record<string, string>, opts: Opts): NextRequest {
@@ -62,17 +67,19 @@ function formRequest(fields: Record<string, string>, opts: Opts): NextRequest {
     "x-forwarded-for": opts.ip,
   };
   if (opts.referer) headers.referer = opts.referer;
-  return new NextRequest(SIGNUP_URL, {
+  if (opts.originHeader) headers.origin = opts.originHeader;
+  if (opts.cookie) headers.cookie = opts.cookie;
+  return new NextRequest(`${opts.origin ?? ORIGIN}/api/auth/signup`, {
     method: "POST",
     headers,
-    body: new URLSearchParams(fields).toString(),
+    body: new URLSearchParams({ terms: "on", ...fields }).toString(),
   });
 }
 
 function jsonRequest(body: unknown, opts: Opts): NextRequest {
   return new NextRequest(SIGNUP_URL, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-forwarded-for": opts.ip },
+    headers: { "content-type": "application/json", "x-forwarded-for": opts.ip, origin: ORIGIN },
     body: JSON.stringify(body),
   });
 }
@@ -99,10 +106,14 @@ let baselineAgencies = 0;
 let baselineUsers = 0;
 
 async function listLeads(): Promise<Lead[]> {
-  const install = getInstall({ agencyId: siteAgencyId }, "leads-pipeline");
+  return listLeadsFor(siteAgencyId);
+}
+
+async function listLeadsFor(agencyId: string): Promise<Lead[]> {
+  const install = getInstall({ agencyId }, "leads-pipeline");
   assert.ok(install?.enabled, "the fixture agency must have leads-pipeline installed");
   const { leads } = containerFor({
-    agencyId: siteAgencyId,
+    agencyId,
     storage: makePluginStorage(install.id) as never,
   });
   return leads.list();
@@ -120,6 +131,12 @@ before(async () => {
     "usr_fixture_owner",
   );
   siteAgencyId = agency.id;
+  addWebsiteSource({
+    agencyId: siteAgencyId,
+    host: "localhost",
+    label: "Mounted published-site fixture",
+    createdBy: "usr_fixture_owner",
+  });
   baselineAgencies = listAgencies().length;
   baselineUsers = listUsersForAgency(siteAgencyId).length;
   assert.equal(baselineAgencies, 1, "fixture should be a single-agency portal");
@@ -149,6 +166,7 @@ describe("Signup block form POST — encoding", () => {
     const form = new FormData();
     form.set("name", "Milo Multipart");
     form.set("email", "milo@visitor.test");
+    form.set("terms", "on");
     const res = await POST(
       new NextRequest(SIGNUP_URL, {
         method: "POST",
@@ -341,6 +359,19 @@ describe("Signup block form POST — creates a website LEAD", () => {
     assert.equal((await listLeads()).length, before);
   });
 
+  it("required consent is enforced by the server, not only the checkbox UI", async () => {
+    const before = (await listLeads()).length;
+    const res = await POST(formRequest({
+      name: "No Consent",
+      email: "no-consent@visitor.test",
+      terms: "",
+    }, { ip: "20.1.0.61", referer: SITE_PAGE }));
+    assert.equal(res.status, 303);
+    assert.equal(cookieValue(res, STATUS_COOKIE), "error");
+    assert.match(cookieValue(res, MESSAGE_COOKIE) ?? "", /confirm the terms/i);
+    assert.equal((await listLeads()).length, before);
+  });
+
   it("the refusal reveals nothing about whether an account exists for that email", async () => {
     // The fixture owner definitely has an account. A visitor typing that
     // address must get exactly the ordinary capture outcome — the JSON path's
@@ -362,7 +393,7 @@ describe("Signup block form POST — creates a website LEAD", () => {
 
 // ─── the JSON product-signup contract must not move ───────────────────────
 
-describe("Signup JSON contract — unchanged for the product signup path", () => {
+describe("Signup JSON contract — mailbox proof precedes product activation", () => {
   it("a JSON POST with missing fields still returns the exact 400 body", async () => {
     const res = await POST(jsonRequest({ email: "x@y.z" }, { ip: "20.2.0.1" }));
     assert.equal(res.status, 400);
@@ -381,29 +412,33 @@ describe("Signup JSON contract — unchanged for the product signup path", () =>
     assert.deepEqual(await res.json(), { ok: false, error: "Invalid JSON." });
   });
 
-  it("a JSON POST still bootstraps an agency + owner + session", async () => {
+  it("a JSON POST creates only a pending admission, with no agency, owner or session", async () => {
     const before = listAgencies().length;
     const res = await POST(
       jsonRequest(
-        { companyName: "Deliberate Product Signup Ltd", email: "founder@deliberate.test", password: "a-long-enough-pw" },
+        {
+          companyName: "Deliberate Product Signup Ltd",
+          email: "founder@deliberate.test",
+          password: "a-long-enough-pw",
+          consent: true,
+        },
         { ip: "20.2.0.3" },
       ),
     );
-    assert.equal(res.status, 200);
+    assert.equal(res.status, 202);
     const body = (await res.json()) as Record<string, unknown>;
     assert.equal(body.ok, true);
-    assert.equal(body.redirect, "/portal/agency");
-    assert.equal(listAgencies().length, before + 1, "the product path still creates an agency");
-    assert.ok(res.headers.getSetCookie().some(c => c.startsWith(`${SESSION_COOKIE_NAME}=`)));
-    // Keep the "no new agency" baseline honest for anything that runs after.
-    baselineAgencies = listAgencies().length;
+    assert.equal(body.accepted, true);
+    assert.equal(listAgencies().length, before, "mailbox-unverified product signup must not create an agency");
+    assert.equal(getUser("founder@deliberate.test"), null);
+    assert.ok(!res.headers.getSetCookie().some(c => c.startsWith(`${SESSION_COOKIE_NAME}=`)));
   });
 });
 
 // ─── the limiter is in front of the branch, not behind it ─────────────────
 
 describe("Signup block form POST — rate limiter untouched", () => {
-  it("form posts are counted by the same per-IP limiter the JSON path uses", async () => {
+  it("form posts are protected by their own per-IP limiter", async () => {
     const ip = "20.3.0.1";
     for (let i = 0; i < 5; i += 1) {
       const res = await POST(
@@ -421,11 +456,80 @@ describe("Signup block form POST — rate limiter untouched", () => {
     assert.match(cookieValue(limited, MESSAGE_COOKIE) ?? "", /too many/i);
     assert.equal(await findLead("burst5@visitor.test"), undefined, "a limited post must write nothing");
 
-    // …and the same IP arriving as a JSON caller is genuinely rate-limited,
-    // which proves the form posts were counted rather than bypassing it.
-    const asJson = await POST(jsonRequest({ companyName: "X", email: "x@y.z", password: "12345678" }, { ip }));
-    assert.equal(asJson.status, 429);
-    assert.ok(asJson.headers.get("retry-after"));
+    // The owner-signup path has a separate key: a lead-form flood cannot lock a
+    // legitimate future AquaCRM owner out of its admission surface.
+    const asJson = await POST(jsonRequest({ companyName: "X", email: "x@y.z" }, { ip }));
+    assert.notEqual(asJson.status, 429);
+  });
+});
+
+describe("Signup block form POST — tenant authority", () => {
+  it("uses the one registered request host and ignores cross-tenant slug/cookie injection", async () => {
+    const { agency: otherAgency } = await bootstrapAgency(
+      { name: "Other Tenant Ltd", slug: "other-tenant", ownerEmail: "owner@other-tenant.test" },
+      "usr_other_tenant_owner",
+    );
+    addWebsiteSource({
+      agencyId: siteAgencyId,
+      host: "source-owner.test",
+      label: "Source owner",
+      createdBy: "usr_fixture_owner",
+    });
+
+    const sourceBefore = (await listLeadsFor(siteAgencyId)).length;
+    const otherBefore = (await listLeadsFor(otherAgency.id)).length;
+    const response = await POST(formRequest({
+      name: "Host Bound Lead",
+      email: "host-bound@visitor.test",
+      brand: otherAgency.slug,
+    }, {
+      ip: "20.4.0.1",
+      origin: "https://source-owner.test",
+      originHeader: "https://source-owner.test",
+      referer: "https://source-owner.test/contact",
+      cookie: `aqua_public_brand=${otherAgency.slug}`,
+    }));
+
+    assert.equal(response.status, 303);
+    assert.equal(cookieValue(response, STATUS_COOKIE), "ok");
+    assert.equal((await listLeadsFor(siteAgencyId)).length, sourceBefore + 1);
+    assert.equal((await listLeadsFor(otherAgency.id)).length, otherBefore);
+  });
+
+  it("fails closed on an unregistered host even when both posted slug and public cookie name a tenant", async () => {
+    const otherAgency = listAgencies().find(agency => agency.slug === "other-tenant");
+    assert.ok(otherAgency);
+    const before = (await listLeadsFor(otherAgency.id)).length;
+    const response = await POST(formRequest({
+      name: "Injected Tenant Lead",
+      email: "injected-tenant@visitor.test",
+      brand: otherAgency.slug,
+    }, {
+      ip: "20.4.0.2",
+      origin: "https://unregistered-source.test",
+      originHeader: "https://unregistered-source.test",
+      referer: "https://unregistered-source.test/contact",
+      cookie: `aqua_public_brand=${otherAgency.slug}`,
+    }));
+
+    assert.equal(response.status, 303);
+    assert.equal(cookieValue(response, STATUS_COOKIE), "error");
+    assert.equal((await listLeadsFor(otherAgency.id)).length, before);
+    assert.match(cookieValue(response, MESSAGE_COOKIE) ?? "", /temporarily unavailable/i);
+  });
+
+  it("treats Origin and Referer as corroboration, never as authority", async () => {
+    const response = await POST(formRequest({
+      name: "Spoofed Origin Lead",
+      email: "spoofed-origin@visitor.test",
+    }, {
+      ip: "20.4.0.3",
+      origin: "https://source-owner.test",
+      originHeader: "https://other-tenant.test",
+      referer: "https://source-owner.test/contact",
+    }));
+    assert.equal(cookieValue(response, STATUS_COOKIE), "error");
+    assert.match(cookieValue(response, MESSAGE_COOKIE) ?? "", /temporarily unavailable/i);
   });
 });
 
@@ -438,10 +542,12 @@ describe("SignupFormBlock — the surface that sends the form post", () => {
   );
   const src = readFileSync(BLOCK, "utf8");
 
-  it("still submits natively (no JS) to /api/auth/signup", () => {
+  it("still uses a native browser navigation to /api/auth/signup", () => {
     assert.ok(src.includes('<form action={action} method="POST"'));
     assert.ok(src.includes('?? "/api/auth/signup"'));
-    assert.ok(!src.includes("onSubmit"), "the block must keep working without JS");
+    assert.ok(!src.includes("onSubmit"), "the block must keep native form navigation");
+    assert.ok(src.includes('action="website-lead-signup"'));
+    assert.ok(src.includes('name="captchaToken"'));
   });
 
   it("collects no password — there is no account at the end of this form", () => {
@@ -450,7 +556,7 @@ describe("SignupFormBlock — the surface that sends the form post", () => {
   });
 
   it("the fields it renders are the fields the lead branch reads", () => {
-    for (const field of ['name="name"', 'name="email"', 'name="phone"', 'name="message"', 'name="website"']) {
+    for (const field of ['name="name"', 'name="email"', 'name="phone"', 'name="message"', 'name="website"', 'name="terms"']) {
       assert.ok(src.includes(field), `signup block should post ${field}`);
     }
   });

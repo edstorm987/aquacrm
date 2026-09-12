@@ -2,7 +2,7 @@
 
 ← Back to [the reference index](00-index.md) · [the map](../WORKSPACE-FILE-TREE.md) · [development.md](../development.md)
 
-Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2716 source files; 0 per-source stubs.**
+Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2844 source files; 0 per-source stubs.**
 
 ## Engines — `src/engines/` (89)
 
@@ -96,7 +96,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/engines/sop/server/sopReferences.ts`](engines.md#file-src-engines-sop-server-sopreferences-ts-d9e3df3e58)
 - [`src/engines/sop/server/sops.ts`](engines.md#file-src-engines-sop-server-sops-ts-8c9bee0d0c)
 
-## State layer — `src/server/` (72)
+## State layer — `src/server/` (76)
 
 - [`src/server/accessControl.ts`](server.md#file-src-server-accesscontrol-ts-e07d6e6201)
 - [`src/server/actionMutationReceipts.ts`](server.md#file-src-server-actionmutationreceipts-ts-5d777f385d)
@@ -105,6 +105,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/server/agencyOriginTemplate.ts`](server.md#file-src-server-agencyorigintemplate-ts-a3888d8a9f)
 - [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb)
 - [`src/server/agencySettings.ts`](server.md#file-src-server-agencysettings-ts-6d31afe153)
+- [`src/server/agencySignup.ts`](server.md#file-src-server-agencysignup-ts-f629350094)
 - [`src/server/agencyWebsite.ts`](server.md#file-src-server-agencywebsite-ts-eb7ef721d2)
 - [`src/server/automations.ts`](server.md#file-src-server-automations-ts-3e92d448c5)
 - [`src/server/clientDelight.ts`](server.md#file-src-server-clientdelight-ts-85d52eb038)
@@ -112,6 +113,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/server/clientMilestones.ts`](server.md#file-src-server-clientmilestones-ts-08c5910472)
 - [`src/server/clientPortalDesigns.ts`](server.md#file-src-server-clientportaldesigns-ts-a391c1a4b9)
 - [`src/server/clientPortalSetup.ts`](server.md#file-src-server-clientportalsetup-ts-71e6828ad0)
+- [`src/server/clientPortalSetupOperation.ts`](server.md#file-src-server-clientportalsetupoperation-ts-00aaba79ca)
 - [`src/server/clientPortalTemplateUpdate.ts`](server.md#file-src-server-clientportaltemplateupdate-ts-0bcbf2d359)
 - [`src/server/clientProjectAccess.ts`](server.md#file-src-server-clientprojectaccess-ts-25398f4b12)
 - [`src/server/clientProjectOperations.ts`](server.md#file-src-server-clientprojectoperations-ts-40ab84b65e)
@@ -139,6 +141,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/server/notepad.ts`](server.md#file-src-server-notepad-ts-bf33f74a4d)
 - [`src/server/organisations.ts`](server.md#file-src-server-organisations-ts-ba6f8d840f)
 - [`src/server/outbox.ts`](server.md#file-src-server-outbox-ts-de86d78655)
+- [`src/server/passwordResetOperation.ts`](server.md#file-src-server-passwordresetoperation-ts-8a04481e02)
 - [`src/server/people.ts`](server.md#file-src-server-people-ts-3717f452ee)
 - [`src/server/performanceExperiments.ts`](server.md#file-src-server-performanceexperiments-ts-074cf348a4)
 - [`src/server/persons.ts`](server.md#file-src-server-persons-ts-c2f3c0cfec)
@@ -152,6 +155,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/server/productStageTransitions.ts`](server.md#file-src-server-productstagetransitions-ts-10f6812790)
 - [`src/server/productWorkspaceCoordinator.ts`](server.md#file-src-server-productworkspacecoordinator-ts-746a08d0be)
 - [`src/server/productWorkspaces.ts`](server.md#file-src-server-productworkspaces-ts-c20e49f8a5)
+- [`src/server/publicAuthLinkDelivery.ts`](server.md#file-src-server-publicauthlinkdelivery-ts-77c671007c)
 - [`src/server/staffCapacity.ts`](server.md#file-src-server-staffcapacity-ts-51560b1003)
 - [`src/server/staffProvisioning.ts`](server.md#file-src-server-staffprovisioning-ts-affcacba17)
 - [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
@@ -171,12 +175,13 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
 - [`src/server/zimanteTradingCompanies.ts`](server.md#file-src-server-zimantetradingcompanies-ts-ef9a41c5a6)
 
-## Shared logic — `src/lib/` (373)
+## Shared logic — `src/lib/` (400)
 
 - [`src/lib/a11y/contrastValidator.ts`](lib.md#file-src-lib-a11y-contrastvalidator-ts-7c6889cfca) — components. We default to 4.5 for the strictest check.
 - [`src/lib/a11y/isEmbedded.ts`](lib.md#file-src-lib-a11y-isembedded-ts-e91cac9938)
 - [`src/lib/a11y/useArrowNav.ts`](lib.md#file-src-lib-a11y-usearrownav-ts-ad026e3ee5)
 - [`src/lib/a11y/useFocusTrap.ts`](lib.md#file-src-lib-a11y-usefocustrap-ts-379a1539d1)
+- [`src/lib/a11y/useHydrated.ts`](lib.md#file-src-lib-a11y-usehydrated-ts-76b076d928)
 - [`src/lib/a11y/useMenuKeys.ts`](lib.md#file-src-lib-a11y-usemenukeys-ts-403e5f37d6)
 - [`src/lib/a11y/useViewport.ts`](lib.md#file-src-lib-a11y-useviewport-ts-2d7456f7d0)
 - [`src/lib/access/departmentProfiles.ts`](lib.md#file-src-lib-access-departmentprofiles-ts-343cc6ceea) — a macro dashboard averages five departments into one reassuring number.
@@ -323,11 +328,14 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/projects/releases.ts`](lib.md#file-src-lib-projects-releases-ts-c5050ad492)
 - [`src/lib/public/careerApplicationFailure.ts`](lib.md#file-src-lib-public-careerapplicationfailure-ts-5525e371e7)
 - [`src/lib/public/milesymediaRoutes.ts`](lib.md#file-src-lib-public-milesymediaroutes-ts-52388356af)
-- [`src/lib/public/publicOrigin.ts`](lib.md#file-src-lib-public-publicorigin-ts-ccb00c7487) — Is an origin reachable from a stranger's browser? Anything we hand out to be pasted into someone el…
+- [`src/lib/public/publicOrigin.ts`](lib.md#file-src-lib-public-publicorigin-ts-ccb00c7487)
 - [`src/lib/public/publicSites.ts`](lib.md#file-src-lib-public-publicsites-ts-d086f7aadc)
 - [`src/lib/public/publicUrl.ts`](lib.md#file-src-lib-public-publicurl-ts-41cb714770)
 - [`src/lib/readAvailability.ts`](lib.md#file-src-lib-readavailability-ts-35b000b352) — A read that either answered, or did not. Finding 2026-08-26 (issues #57): twenty-eight mounted path…
 - [`src/lib/resources/catalog.ts`](lib.md#file-src-lib-resources-catalog-ts-f344d6292f) — soon — stub or coming-soon stub at the linked URL
+- [`src/lib/sales/prospectWorkflow.ts`](lib.md#file-src-lib-sales-prospectworkflow-ts-30057a85fd)
+- [`src/lib/sales/scoutingIntake.ts`](lib.md#file-src-lib-sales-scoutingintake-ts-4598d0ff00)
+- [`src/lib/security/contentSecurityPolicy.ts`](lib.md#file-src-lib-security-contentsecuritypolicy-ts-a580b466c7)
 - [`src/lib/server/access/clientAssociationElement.ts`](lib.md#file-src-lib-server-access-clientassociationelement-ts-141ea1a836)
 - [`src/lib/server/access/clientWorkspaceElementAccess.ts`](lib.md#file-src-lib-server-access-clientworkspaceelementaccess-ts-8bc7ac298d)
 - [`src/lib/server/access/externalProposalAccess.ts`](lib.md#file-src-lib-server-access-externalproposalaccess-ts-5e61bae842)
@@ -358,16 +366,20 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/server/auth/companySwitcherState.ts`](lib.md#file-src-lib-server-auth-companyswitcherstate-ts-df33027a74)
 - [`src/lib/server/auth/csrf.ts`](lib.md#file-src-lib-server-auth-csrf-ts-ff75131bd7) — (No `import "server-only"` — smoke imports the HMAC roundtrip directly.)
 - [`src/lib/server/auth/effectiveRole.ts`](lib.md#file-src-lib-server-auth-effectiverole-ts-800cbe7bd9)
-- [`src/lib/server/auth/emailVerification.ts`](lib.md#file-src-lib-server-auth-emailverification-ts-7082ef294e) — RLS multi-instance hardening.
+- [`src/lib/server/auth/emailVerification.ts`](lib.md#file-src-lib-server-auth-emailverification-ts-7082ef294e) — subject/nonce to its password-free operation receipt.
 - [`src/lib/server/auth/founderAgency.ts`](lib.md#file-src-lib-server-auth-founderagency-ts-ab8355b6de)
 - [`src/lib/server/auth/magicLink.ts`](lib.md#file-src-lib-server-auth-magiclink-ts-6a72fcbb7b) — to the server console so a developer can copy/paste it.
 - [`src/lib/server/auth/mfa.ts`](lib.md#file-src-lib-server-auth-mfa-ts-2eef53bfa4) — Two-factor authentication, via Supabase. Aqua does not implement 2FA — Supabase Auth already has it…
 - [`src/lib/server/auth/nonceStore.ts`](lib.md#file-src-lib-server-auth-noncestore-ts-409d62095b) — `pg` on first call.
 - [`src/lib/server/auth/passwordReset.ts`](lib.md#file-src-lib-server-auth-passwordreset-ts-a6c6156ebf) — effect when actually called.
 - [`src/lib/server/auth/postLoginRedirect.ts`](lib.md#file-src-lib-server-auth-postloginredirect-ts-17fc4de17b) — never contradicts where sign-in would have sent the same person.
+- [`src/lib/server/auth/publicAuthDelivery.ts`](lib.md#file-src-lib-server-auth-publicauthdelivery-ts-4dfaada38f)
+- [`src/lib/server/auth/publicAuthOrigin.ts`](lib.md#file-src-lib-server-auth-publicauthorigin-ts-5357419b47)
 - [`src/lib/server/auth/requireAgencyScope.ts`](lib.md#file-src-lib-server-auth-requireagencyscope-ts-affb5f3ca1) — gates by whether the session has any agency scope at all.
+- [`src/lib/server/auth/securityControl.ts`](lib.md#file-src-lib-server-auth-securitycontrol-ts-20ca5b763a)
 - [`src/lib/server/auth/sessionToken.ts`](lib.md#file-src-lib-server-auth-sessiontoken-ts-b0b933a575)
 - [`src/lib/server/auth/showcaseMode.ts`](lib.md#file-src-lib-server-auth-showcasemode-ts-20762473eb)
+- [`src/lib/server/boundedRequestBody.ts`](lib.md#file-src-lib-server-boundedrequestbody-ts-b28de71542)
 - [`src/lib/server/brandPortfolioService.ts`](lib.md#file-src-lib-server-brandportfolioservice-ts-76537b2419)
 - [`src/lib/server/calendarVault.ts`](lib.md#file-src-lib-server-calendarvault-ts-dbe48389c3)
 - [`src/lib/server/chrome/activeDepartment.ts`](lib.md#file-src-lib-server-chrome-activedepartment-ts-14973fdc11)
@@ -441,6 +453,9 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/server/email/resendEmail.ts`](lib.md#file-src-lib-server-email-resendemail-ts-ad53572a43)
 - [`src/lib/server/email/transactionalEmail.ts`](lib.md#file-src-lib-server-email-transactionalemail-ts-778ef382d4)
 - [`src/lib/server/embedAllowResolver.ts`](lib.md#file-src-lib-server-embedallowresolver-ts-c444b1bd8b) — list (or unknown slug) → frame-ancestors: 'none' (default deny).
+- [`src/lib/server/embedCredentialAuthority.ts`](lib.md#file-src-lib-server-embedcredentialauthority-ts-a972ae83a0)
+- [`src/lib/server/embedFramePolicy.ts`](lib.md#file-src-lib-server-embedframepolicy-ts-dc90dfc76e)
+- [`src/lib/server/embedSessionHandlers.ts`](lib.md#file-src-lib-server-embedsessionhandlers-ts-d084982daf)
 - [`src/lib/server/enquirySubmissionDelivery.ts`](lib.md#file-src-lib-server-enquirysubmissiondelivery-ts-20e07b3f46)
 - [`src/lib/server/enquirySubmissionOperation.ts`](lib.md#file-src-lib-server-enquirysubmissionoperation-ts-984d2e490f)
 - [`src/lib/server/env.ts`](lib.md#file-src-lib-server-env-ts-e409426595) — tsx --test.
@@ -473,12 +488,14 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/server/intelligence/scoutingQuota.ts`](lib.md#file-src-lib-server-intelligence-scoutingquota-ts-fe272dfda1)
 - [`src/lib/server/leadsPipelinePorts.ts`](lib.md#file-src-lib-server-leadspipelineports-ts-65fb36de0a)
 - [`src/lib/server/marketingIntelligence.ts`](lib.md#file-src-lib-server-marketingintelligence-ts-bc53756ee1)
+- [`src/lib/server/net/outboundBroker.ts`](lib.md#file-src-lib-server-net-outboundbroker-ts-1b5e0fb1d0)
 - [`src/lib/server/observability.ts`](lib.md#file-src-lib-server-observability-ts-30e894807d)
 - [`src/lib/server/observabilityCapability.ts`](lib.md#file-src-lib-server-observabilitycapability-ts-6b60d0fb67) — Whether the optional `@sentry/nextjs` package can actually be resolved.
 - [`src/lib/server/onboardingMilestones.ts`](lib.md#file-src-lib-server-onboardingmilestones-ts-36940c3016)
 - [`src/lib/server/performance/performanceMutationErrors.ts`](lib.md#file-src-lib-server-performance-performancemutationerrors-ts-8a1df8fe23)
 - [`src/lib/server/performanceMode.ts`](lib.md#file-src-lib-server-performancemode-ts-4cd4548229)
 - [`src/lib/server/personInteractionsService.ts`](lib.md#file-src-lib-server-personinteractionsservice-ts-197db49a11)
+- [`src/lib/server/pgTls.ts`](lib.md#file-src-lib-server-pgtls-ts-b1a7154167) — that production ignores the escape hatch.
 - [`src/lib/server/phases/phaseMutationErrors.ts`](lib.md#file-src-lib-server-phases-phasemutationerrors-ts-d84b2bae2e)
 - [`src/lib/server/pluginRequestScope.ts`](lib.md#file-src-lib-server-pluginrequestscope-ts-e0445d2dd4)
 - [`src/lib/server/plugins/ensureLeadsPipelineInstall.ts`](lib.md#file-src-lib-server-plugins-ensureleadspipelineinstall-ts-bc1dba2897)
@@ -489,10 +506,15 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/server/plugins/readOnlyPluginStorage.ts`](lib.md#file-src-lib-server-plugins-readonlypluginstorage-ts-2e4e793f30)
 - [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112)
 - [`src/lib/server/portal/apiTenantScope.ts`](lib.md#file-src-lib-server-portal-apitenantscope-ts-14e9f33919) — pre-fix `peeked ?? …` rule) can be written out and shown to leak.
+- [`src/lib/server/portal/pluginAgencyRouteAccess.ts`](lib.md#file-src-lib-server-portal-pluginagencyrouteaccess-ts-cac794fc31)
 - [`src/lib/server/portal/pluginClientElement.ts`](lib.md#file-src-lib-server-portal-pluginclientelement-ts-08e08be258)
+- [`src/lib/server/portal/pluginPublicRouteAuthority.ts`](lib.md#file-src-lib-server-portal-pluginpublicrouteauthority-ts-424d0cf99d)
 - [`src/lib/server/portal/portalConnections.ts`](lib.md#file-src-lib-server-portal-portalconnections-ts-2e1e525a6f)
 - [`src/lib/server/portal/portalHandoff.ts`](lib.md#file-src-lib-server-portal-portalhandoff-ts-d400fa1c06)
 - [`src/lib/server/portal/previewPhase.ts`](lib.md#file-src-lib-server-portal-previewphase-ts-13ec383cc8)
+- [`src/lib/server/portal/providerWebhookScope.ts`](lib.md#file-src-lib-server-portal-providerwebhookscope-ts-ede85951b4) — Exact signed-metadata scope checks shared by public provider webhooks.
+- [`src/lib/server/portal/publicWebhookBody.ts`](lib.md#file-src-lib-server-portal-publicwebhookbody-ts-46be045721)
+- [`src/lib/server/portal/publicWebhookResponse.ts`](lib.md#file-src-lib-server-portal-publicwebhookresponse-ts-73ecf08474)
 - [`src/lib/server/privateMediaResponse.ts`](lib.md#file-src-lib-server-privatemediaresponse-ts-5f57a20b36)
 - [`src/lib/server/privateObjectLifecycle.ts`](lib.md#file-src-lib-server-privateobjectlifecycle-ts-340cbd1888)
 - [`src/lib/server/privateUploadStorage.ts`](lib.md#file-src-lib-server-privateuploadstorage-ts-80d5415fe8)
@@ -509,6 +531,10 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/server/sandbox/providerPolicy.ts`](lib.md#file-src-lib-server-sandbox-providerpolicy-ts-d36e7025f0)
 - [`src/lib/server/sandbox/sandboxEnvironment.ts`](lib.md#file-src-lib-server-sandbox-sandboxenvironment-ts-719cbc6a25)
 - [`src/lib/server/secrets.ts`](lib.md#file-src-lib-server-secrets-ts-99a4129f8d)
+- [`src/lib/server/security/aquaTagFormAdmission.ts`](lib.md#file-src-lib-server-security-aquatagformadmission-ts-415b80bec3)
+- [`src/lib/server/security/botChallenge.ts`](lib.md#file-src-lib-server-security-botchallenge-ts-2fba680d42)
+- [`src/lib/server/security/contentTrust.ts`](lib.md#file-src-lib-server-security-contenttrust-ts-8100703c87)
+- [`src/lib/server/security/securityEvents.ts`](lib.md#file-src-lib-server-security-securityevents-ts-f771bad0c8)
 - [`src/lib/server/seeds/aquaOasisSeed.ts`](lib.md#file-src-lib-server-seeds-aquaoasisseed-ts-b96f5acf2c)
 - [`src/lib/server/seeds/demoSalesSeat.ts`](lib.md#file-src-lib-server-seeds-demosalesseat-ts-763eac7f9c)
 - [`src/lib/server/seeds/demoSeed.ts`](lib.md#file-src-lib-server-seeds-demoseed-ts-8b209d4159)
@@ -516,6 +542,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/server/seeds/seedClientFromPerson.ts`](lib.md#file-src-lib-server-seeds-seedclientfromperson-ts-e9956e05d4)
 - [`src/lib/server/sidebarAttention.ts`](lib.md#file-src-lib-server-sidebarattention-ts-5ea8532d70)
 - [`src/lib/server/sopsAccess.ts`](lib.md#file-src-lib-server-sopsaccess-ts-ead9fdb042)
+- [`src/lib/server/telephony/outboundCommunicationReplay.ts`](lib.md#file-src-lib-server-telephony-outboundcommunicationreplay-ts-6b2f6985e8)
 - [`src/lib/server/telephony/prospectOutreach.ts`](lib.md#file-src-lib-server-telephony-prospectoutreach-ts-e5dc064a6f)
 - [`src/lib/server/telephony/resolveCaller.ts`](lib.md#file-src-lib-server-telephony-resolvecaller-ts-e095b8d96b)
 - [`src/lib/server/tradingCompanyContext.ts`](lib.md#file-src-lib-server-tradingcompanycontext-ts-734b37da15)
@@ -544,10 +571,14 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/tasks/clientTaskBoard.ts`](lib.md#file-src-lib-tasks-clienttaskboard-ts-2a03b8e0ea)
 - [`src/lib/tasks/taskTemplates.ts`](lib.md#file-src-lib-tasks-tasktemplates-ts-6aee71d67c)
 - [`src/lib/telephony/callerIdentity.ts`](lib.md#file-src-lib-telephony-calleridentity-ts-41bffc243e) — answer available".
+- [`src/lib/telephony/contactRecipientPolicy.ts`](lib.md#file-src-lib-telephony-contactrecipientpolicy-ts-29789d003b)
 - [`src/lib/telephony/phoneNumbers.ts`](lib.md#file-src-lib-telephony-phonenumbers-ts-b7be228e55) — The default country for numbers written without any international prefix.
+- [`src/lib/telephony/prospectOutreachPolicy.ts`](lib.md#file-src-lib-telephony-prospectoutreachpolicy-ts-5efdbc00c8)
+- [`src/lib/telephony/prospectOutreachReceipt.ts`](lib.md#file-src-lib-telephony-prospectoutreachreceipt-ts-baf56b5243)
+- [`src/lib/telephony/prospectTargetAccess.ts`](lib.md#file-src-lib-telephony-prospecttargetaccess-ts-533d578203)
 - [`src/lib/telephony/twilioSignature.ts`](lib.md#file-src-lib-telephony-twiliosignature-ts-bff6e7eefd) — indistinguishable from one that always returns true.
 
-## Shared components — `src/components/` (128)
+## Shared components — `src/components/` (132)
 
 - [`src/components/access/AccessBoundary.tsx`](components.md#file-src-components-access-accessboundary-tsx-5d487a86d6)
 - [`src/components/access/AccessControlPanel.tsx`](components.md#file-src-components-access-accesscontrolpanel-tsx-62b7a8e0aa)
@@ -562,6 +593,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/components/attention/ResolutionSpotlight.tsx`](components.md#file-src-components-attention-resolutionspotlight-tsx-ae5d8281fd)
 - [`src/components/attention/TaskChecklist.tsx`](components.md#file-src-components-attention-taskchecklist-tsx-5a580cd7c4)
 - [`src/components/attention/TaskTemplates.tsx`](components.md#file-src-components-attention-tasktemplates-tsx-de2f75c5e4)
+- [`src/components/attribution/GoogleMapsAttribution.tsx`](components.md#file-src-components-attribution-googlemapsattribution-tsx-af4b79183a)
 - [`src/components/auth/TwoFactorSetup.tsx`](components.md#file-src-components-auth-twofactorsetup-tsx-7204b88a64)
 - [`src/components/chrome/AdvisorDrawerControl.tsx`](components.md#file-src-components-chrome-advisordrawercontrol-tsx-2c1a086faf)
 - [`src/components/chrome/ClientRadarQuickLookButton.tsx`](components.md#file-src-components-chrome-clientradarquicklookbutton-tsx-2beda25bec)
@@ -663,6 +695,9 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/components/resource-tools/SeoAuditTool.tsx`](components.md#file-src-components-resource-tools-seoaudittool-tsx-37cbd4c528)
 - [`src/components/resource-tools/shared.ts`](components.md#file-src-components-resource-tools-shared-ts-3c4dca0b76) — (chapter #68 honesty contract).
 - [`src/components/resource-tools/SiteSpeedTool.tsx`](components.md#file-src-components-resource-tools-sitespeedtool-tsx-8d38aed0ac)
+- [`src/components/sales/SalesAcquisitionTabs.tsx`](components.md#file-src-components-sales-salesacquisitiontabs-tsx-518dc0e4de)
+- [`src/components/security/BotChallenge.tsx`](components.md#file-src-components-security-botchallenge-tsx-0fa09b369d)
+- [`src/components/security/SecurityCentrePanel.tsx`](components.md#file-src-components-security-securitycentrepanel-tsx-3e206695c6)
 - [`src/components/telephony/CallControls.tsx`](components.md#file-src-components-telephony-callcontrols-tsx-13a6a3e9b1)
 - [`src/components/telephony/EmailControls.tsx`](components.md#file-src-components-telephony-emailcontrols-tsx-b2da5be2fc)
 - [`src/components/ui/CollapsibleSection.tsx`](components.md#file-src-components-ui-collapsiblesection-tsx-98c71bb5d3)
@@ -678,7 +713,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/components/workspaces/PluginSettingsPanel.tsx`](components.md#file-src-components-workspaces-pluginsettingspanel-tsx-1ae842fede)
 - [`src/components/workspaces/PluginWorkspaceNav.tsx`](components.md#file-src-components-workspaces-pluginworkspacenav-tsx-34bb1220e7)
 
-## Plugins — `src/built-ins/` (767)
+## Plugins — `src/built-ins/` (774)
 
 - [`src/built-ins/modules/affiliates/index.ts`](built-ins.md#file-src-built-ins-modules-affiliates-index-ts-68c0702721) — `requires: ["ecommerce"]`, opt-in.
 - [`src/built-ins/modules/affiliates/src/__smoke__/affiliates.test.ts`](built-ins.md#file-src-built-ins-modules-affiliates-src-smoke-affiliates-test-ts-e464cf139b) — - side-effects: activity log + event bus
@@ -946,6 +981,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/built-ins/modules/ecommerce/src/server/ports.ts`](built-ins.md#file-src-built-ins-modules-ecommerce-src-server-ports-ts-11967ebb48) — Mirrors the fulfillment plugin's port discipline.
 - [`src/built-ins/modules/ecommerce/src/server/productsStore.ts`](built-ins.md#file-src-built-ins-modules-ecommerce-src-server-productsstore-ts-5e31a0bc11) — Reads merge override + inventory into the returned Product.
 - [`src/built-ins/modules/ecommerce/src/server/referralCodes.ts`](built-ins.md#file-src-built-ins-modules-ecommerce-src-server-referralcodes-ts-43709e0925) — and rewired off localStorage onto the plugin's `StoragePort`.
+- [`src/built-ins/modules/ecommerce/src/server/storefrontCheckoutSecurity.ts`](built-ins.md#file-src-built-ins-modules-ecommerce-src-server-storefrontcheckoutsecurity-ts-95b45d6f5d)
 - [`src/built-ins/modules/ecommerce/src/server/storefrontRateLimit.ts`](built-ins.md#file-src-built-ins-modules-ecommerce-src-server-storefrontratelimit-ts-f70f4be9dd)
 - [`src/built-ins/modules/email-sender/index.ts`](built-ins.md#file-src-built-ins-modules-email-sender-index-ts-99f0cb2139) — 4 declared subscribers on this plugin's EmailService.
 - [`src/built-ins/modules/email-sender/src/__smoke__/email-sender.test.ts`](built-ins.md#file-src-built-ins-modules-email-sender-src-smoke-email-sender-test-ts-c954269146) — 7. Cross-plugin event subscriber wiring (mock router)
@@ -1012,12 +1048,15 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/built-ins/modules/fulfillment/src/server/transitions.ts`](built-ins.md#file-src-built-ins-modules-fulfillment-src-server-transitions-ts-db89e86459) — incomplete work, never hidden inside `ok:true`.
 - [`src/built-ins/modules/leads-pipeline/index.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-index-ts-33d21129df) — `registerLeadsPipelineFoundation({...})` with its real port adapters.
 - [`src/built-ins/modules/leads-pipeline/src/__smoke__/leads-pipeline.test.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-smoke-leads-pipeline-test-ts-d720e6b46f) — Run: `npm run smoke` from the plugin folder.
+- [`src/built-ins/modules/leads-pipeline/src/api/googlePlaces.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-api-googleplaces-ts-47524227f9)
 - [`src/built-ins/modules/leads-pipeline/src/api/handlers.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-api-handlers-ts-1726bbbb81) — rule violation.
 - [`src/built-ins/modules/leads-pipeline/src/api/routes.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-api-routes-ts-b984951bbb) — API route table — mounted at `/api/portal/leads-pipeline/...` by T1.
 - [`src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-aquaplugintypes-ts-f59e96dcca) — Vendored copy of the Aqua plugin contract — same as agency-hr.
-- [`src/built-ins/modules/leads-pipeline/src/lib/clientMatch.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-clientmatch-ts-908892ce11)
+- [`src/built-ins/modules/leads-pipeline/src/lib/clientAcquisitionLineage.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-clientacquisitionlineage-ts-c558775ef2)
+- [`src/built-ins/modules/leads-pipeline/src/lib/clientMatch.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-clientmatch-ts-908892ce11) — The slice of a foundation `Client` these matchers read. Declared structurally so the plugin doesn't…
 - [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) — CSV-import idempotency check + AudienceFilter resolution stay O(1).
 - [`src/built-ins/modules/leads-pipeline/src/lib/ids.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-ids-ts-77fae66661) — Lightweight id generator + slugify — same shape as sister plugins.
+- [`src/built-ins/modules/leads-pipeline/src/lib/meetingAssetUrl.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-meetingasseturl-ts-b275db770a)
 - [`src/built-ins/modules/leads-pipeline/src/lib/safeDate.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-safedate-ts-8a21c84580)
 - [`src/built-ins/modules/leads-pipeline/src/lib/tenancy.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-tenancy-ts-7c7be8ab2d) — the canonical foundation types when the chief commander unifies them.
 - [`src/built-ins/modules/leads-pipeline/src/lib/time.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-lib-time-ts-6221b77bb3) — Clock indirection so timestamp-sensitive smoke tests can stub.
@@ -1031,7 +1070,9 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/built-ins/modules/leads-pipeline/src/server/foundationAdapter.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-server-foundationadapter-ts-9f18a9a0ea) — Foundation registration adapter — same pattern as agency-hr.
 - [`src/built-ins/modules/leads-pipeline/src/server/index.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-server-index-ts-887b568dd6) — adapter exports. Same shape as agency-hr / public-funnel.
 - [`src/built-ins/modules/leads-pipeline/src/server/leads.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-server-leads-ts-aedd6f72a5) — idempotent CSV re-import)
+- [`src/built-ins/modules/leads-pipeline/src/server/meetingMutation.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-server-meetingmutation-ts-5bbc6544a5)
 - [`src/built-ins/modules/leads-pipeline/src/server/ports.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-server-ports-ts-3da7bed047) — (foundation-pending — see chapter).
+- [`src/built-ins/modules/leads-pipeline/src/server/prospectAcquisition.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-server-prospectacquisition-ts-edb9744eda)
 - [`src/built-ins/modules/leads-pipeline/src/server/prospects.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-server-prospects-ts-59cfdd04fc)
 - [`src/built-ins/modules/leads-pipeline/src/server/subscribers.ts`](built-ins.md#file-src-built-ins-modules-leads-pipeline-src-server-subscribers-ts-eda7161818) — promote the lead to a Customer Contact (idempotent on email).
 - [`src/built-ins/modules/memberships/index.ts`](built-ins.md#file-src-built-ins-modules-memberships-index-ts-ffebb58de1) — adapter the foundation side-effect-imports at boot.
@@ -1307,6 +1348,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/built-ins/modules/website-editor/src/lib/content.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-content-ts-c979a99f42) — `02/src/lib/admin/content.ts`.
 - [`src/built-ins/modules/website-editor/src/lib/countdownDeadline.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-countdowndeadline-ts-e95121bce2) — exactly one implementation, in `src/engines/editor/elements/countdownDeadline.ts`.
 - [`src/built-ins/modules/website-editor/src/lib/customCode.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-customcode-ts-d18c49cfa0) — inside a `<style>` block between brand vars and block styles.
+- [`src/built-ins/modules/website-editor/src/lib/customCodeSafeMode.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-customcodesafemode-ts-fba737a4d8) — separate preview origin will remove. Setting the break-glass is loud.
 - [`src/built-ins/modules/website-editor/src/lib/customPages.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-custompages-ts-4b6c3c8144)
 - [`src/built-ins/modules/website-editor/src/lib/devicePresets.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-devicepresets-ts-fdbbacbde1) — swapping width/height at render time.
 - [`src/built-ins/modules/website-editor/src/lib/domains.ts`](built-ins.md#file-src-built-ins-modules-website-editor-src-lib-domains-ts-e71d5fddc9)
@@ -1448,7 +1490,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/built-ins/runtime/foundation-adapters/publicFunnelFoundation.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-publicfunnelfoundation-ts-18280e9710)
 - [`src/built-ins/runtime/foundation-adapters/publicMediaAdapter.ts`](built-ins.md#file-src-built-ins-runtime-foundation-adapters-publicmediaadapter-ts-4b47d9ab84)
 
-## App routes & UI — `src/app/` (663)
+## App routes & UI — `src/app/` (686)
 
 - [`src/app/(seeds)/aquaOasisDemoContent.ts`](app.md#file-src-app-seeds-aquaoasisdemocontent-ts-f2e90ac84c) — agency record (so a prod tenant flip doesn't spawn fake data).
 - [`src/app/(website)/business-os/page.tsx`](app.md#file-src-app-website-business-os-page-tsx-0cbb0528df)
@@ -1475,16 +1517,18 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/api/assistant/route.ts`](app.md#file-src-app-api-assistant-route-ts-c694f06b3f)
 - [`src/app/api/auth/csrf/route.ts`](app.md#file-src-app-api-auth-csrf-route-ts-d4f333b39f) — on subsequent state-changing requests.
 - [`src/app/api/auth/dev-mode/route.ts`](app.md#file-src-app-api-auth-dev-mode-route-ts-fc21c25e6d)
-- [`src/app/api/auth/end-customer/signup/route.ts`](app.md#file-src-app-api-auth-end-customer-signup-route-ts-1498be750f) — 7. Return { ok: true, user, returnUrl? }.
+- [`src/app/api/auth/end-customer/signup/route.ts`](app.md#file-src-app-api-auth-end-customer-signup-route-ts-1498be750f) — customer-portal-control route.
 - [`src/app/api/auth/login/browser/route.ts`](app.md#file-src-app-api-auth-login-browser-route-ts-169294a35d)
 - [`src/app/api/auth/login/route.ts`](app.md#file-src-app-api-auth-login-route-ts-ee4ec679af)
+- [`src/app/api/auth/login/trustedChallengeLogin.ts`](app.md#file-src-app-api-auth-login-trustedchallengelogin-ts-14b7bffe22)
 - [`src/app/api/auth/logout/route.ts`](app.md#file-src-app-api-auth-logout-route-ts-c51066a8c5)
-- [`src/app/api/auth/magic/request/route.ts`](app.md#file-src-app-api-auth-magic-request-route-ts-d858b9ec21) — the operator to know that path is closed.
-- [`src/app/api/auth/magic/verify/route.ts`](app.md#file-src-app-api-auth-magic-verify-route-ts-7db07be0c8) — fly. The token itself was the proof of email ownership.
+- [`src/app/api/auth/magic/request/route.ts`](app.md#file-src-app-api-auth-magic-request-route-ts-d858b9ec21) — action-bound challenge precedes the victim-address budget and all lookups.
+- [`src/app/api/auth/magic/verify/route.ts`](app.md#file-src-app-api-auth-magic-verify-route-ts-7db07be0c8) — alone is not authority to join a caller-selected client tenant.
 - [`src/app/api/auth/me/route.ts`](app.md#file-src-app-api-auth-me-route-ts-ac9824406d)
 - [`src/app/api/auth/oauth/google/callback/route.ts`](app.md#file-src-app-api-auth-oauth-google-callback-route-ts-9b9be0b68e) — rejects with "contact your agency admin".
 - [`src/app/api/auth/oauth/google/start/route.ts`](app.md#file-src-app-api-auth-oauth-google-start-route-ts-a795d204e3) — callback's expectations. 404 when env not configured.
-- [`src/app/api/auth/password/request-reset/route.ts`](app.md#file-src-app-api-auth-password-request-reset-route-ts-890173f5c7) — completion route once the user proves possession of the token.
+- [`src/app/api/auth/password/request-reset/handler.ts`](app.md#file-src-app-api-auth-password-request-reset-handler-ts-6715ca3d58)
+- [`src/app/api/auth/password/request-reset/route.ts`](app.md#file-src-app-api-auth-password-request-reset-route-ts-890173f5c7) — injection use `handler.ts`; this file exposes only the supported HTTP method.
 - [`src/app/api/auth/password/reset/route.ts`](app.md#file-src-app-api-auth-password-reset-route-ts-47ec72bf47) — drop a one-shot toast on the login page.
 - [`src/app/api/auth/preview-as-client-at-phase/route.ts`](app.md#file-src-app-api-auth-preview-as-client-at-phase-route-ts-5da58f548c)
 - [`src/app/api/auth/preview-as-freelancer/route.ts`](app.md#file-src-app-api-auth-preview-as-freelancer-route-ts-cb8ca43f33)
@@ -1630,7 +1674,10 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/api/portal/products/rollout/route.ts`](app.md#file-src-app-api-portal-products-rollout-route-ts-e011401b3b)
 - [`src/app/api/portal/products/route.ts`](app.md#file-src-app-api-portal-products-route-ts-a2529d7af1)
 - [`src/app/api/portal/search/route.ts`](app.md#file-src-app-api-portal-search-route-ts-4b746a12f2)
+- [`src/app/api/portal/security/actions/route.ts`](app.md#file-src-app-api-portal-security-actions-route-ts-2cd87a58e8) — against the caller like a login failure would.
+- [`src/app/api/portal/security/overview/route.ts`](app.md#file-src-app-api-portal-security-overview-route-ts-99b4645fa6) — dashboard; this one says "no scanner is connected" in so many words.
 - [`src/app/api/portal/settings/activity-log/route.ts`](app.md#file-src-app-api-portal-settings-activity-log-route-ts-d364125887)
+- [`src/app/api/portal/settings/embed-credentials/route.ts`](app.md#file-src-app-api-portal-settings-embed-credentials-route-ts-d8f154e7d7)
 - [`src/app/api/portal/settings/external-ai/route.ts`](app.md#file-src-app-api-portal-settings-external-ai-route-ts-786e01e0b7)
 - [`src/app/api/portal/settings/integrations/route.ts`](app.md#file-src-app-api-portal-settings-integrations-route-ts-9238edbbf1)
 - [`src/app/api/portal/settings/portal-editor/route.ts`](app.md#file-src-app-api-portal-settings-portal-editor-route-ts-a5e2aeb492)
@@ -1663,7 +1710,9 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/api/portal/website-sources/mapping/route.ts`](app.md#file-src-app-api-portal-website-sources-mapping-route-ts-b27548b76e)
 - [`src/app/api/portal/website-sources/route.ts`](app.md#file-src-app-api-portal-website-sources-route-ts-c4d7f6276d)
 - [`src/app/api/portal/website/route.ts`](app.md#file-src-app-api-portal-website-route-ts-0b9e92cfd9)
+- [`src/app/api/public/aqua-tag-admission/route.ts`](app.md#file-src-app-api-public-aqua-tag-admission-route-ts-090875dd2d)
 - [`src/app/api/public/aqua-tag-config/route.ts`](app.md#file-src-app-api-public-aqua-tag-config-route-ts-bd5355841e)
+- [`src/app/api/public/bot-challenge/config/route.ts`](app.md#file-src-app-api-public-bot-challenge-config-route-ts-dc17063543)
 - [`src/app/api/public/brand-enquiry/route.ts`](app.md#file-src-app-api-public-brand-enquiry-route-ts-a6e218f276)
 - [`src/app/api/public/business-os/context/route.ts`](app.md#file-src-app-api-public-business-os-context-route-ts-9eb9689fc9)
 - [`src/app/api/public/careers/route.ts`](app.md#file-src-app-api-public-careers-route-ts-7ea6e435d1)
@@ -1785,6 +1834,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/portal/agency/_RadarPolicyPanel.tsx`](app.md#file-src-app-portal-agency-radarpolicypanel-tsx-6559104210)
 - [`src/app/portal/agency/_RadarScanControl.tsx`](app.md#file-src-app-portal-agency-radarscancontrol-tsx-79dd03deaf)
 - [`src/app/portal/agency/_radarShared.ts`](app.md#file-src-app-portal-agency-radarshared-ts-87f8108ec8) — side of the boundary.
+- [`src/app/portal/agency/_SalesProspectWorkspacePage.tsx`](app.md#file-src-app-portal-agency-salesprospectworkspacepage-tsx-29047226f9)
 - [`src/app/portal/agency/_WeeklyReviewWorkspace.tsx`](app.md#file-src-app-portal-agency-weeklyreviewworkspace-tsx-325853ffef)
 - [`src/app/portal/agency/[...rest]/_retiredStaffRoute.ts`](app.md#file-src-app-portal-agency-rest-retiredstaffroute-ts-af00e4c1fc) — The one canonical staff directory.
 - [`src/app/portal/agency/[...rest]/page.tsx`](app.md#file-src-app-portal-agency-rest-page-tsx-27d1ad6afa) — tool the tenant hasn't enabled yet.
@@ -1884,7 +1934,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/portal/agency/marketing/_MarketingCommandSurfaces.tsx`](app.md#file-src-app-portal-agency-marketing-marketingcommandsurfaces-tsx-ed3c63aa76)
 - [`src/app/portal/agency/marketing/_marketingViews.ts`](app.md#file-src-app-portal-agency-marketing-marketingviews-ts-40d3847a22) — The six tabs, plus the demoted-but-still-addressable client services view.
 - [`src/app/portal/agency/marketing/page.tsx`](app.md#file-src-app-portal-agency-marketing-page-tsx-e2b361f4ba)
-- [`src/app/portal/agency/meetings/page.tsx`](app.md#file-src-app-portal-agency-meetings-page-tsx-f498aebb68) — derivation (`loadUpcomingMeetings`), so the two surfaces can never disagree.
+- [`src/app/portal/agency/meetings/page.tsx`](app.md#file-src-app-portal-agency-meetings-page-tsx-f498aebb68) — maintaining a second, future-only meeting model.
 - [`src/app/portal/agency/my-radar/page.tsx`](app.md#file-src-app-portal-agency-my-radar-page-tsx-065cdf2270)
 - [`src/app/portal/agency/notepad/_NotepadWorkspace.tsx`](app.md#file-src-app-portal-agency-notepad-notepadworkspace-tsx-02e35d35f5)
 - [`src/app/portal/agency/notepad/page.tsx`](app.md#file-src-app-portal-agency-notepad-page-tsx-4f8074aa94)
@@ -1905,13 +1955,18 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/portal/agency/pipelines/[slug]/_ConvertLeadModal.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-convertleadmodal-tsx-7f91a659e2)
 - [`src/app/portal/agency/pipelines/[slug]/_CustomBoardWorkspace.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-customboardworkspace-tsx-04bfdb692d)
 - [`src/app/portal/agency/pipelines/[slug]/_DetailsEditor.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-detailseditor-tsx-3ebc0eecb9)
+- [`src/app/portal/agency/pipelines/[slug]/_DismissedProspectsArchive.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-dismissedprospectsarchive-tsx-8989ec33b3)
 - [`src/app/portal/agency/pipelines/[slug]/_FulfilmentProductSwitcher.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-fulfilmentproductswitcher-tsx-29f4fe40e6)
+- [`src/app/portal/agency/pipelines/[slug]/_GoogleBusinessScout.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-googlebusinessscout-tsx-94ed60a1e0)
+- [`src/app/portal/agency/pipelines/[slug]/_leadJourneyProjection.ts`](app.md#file-src-app-portal-agency-pipelines-slug-leadjourneyprojection-ts-07570a82ff)
 - [`src/app/portal/agency/pipelines/[slug]/_leadShared.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-leadshared-tsx-52b2a7ffbe)
 - [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspace.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspace-tsx-f2c8061bae)
 - [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspaceServer.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspaceserver-tsx-90294b0e08)
 - [`src/app/portal/agency/pipelines/[slug]/_leadTypes.ts`](app.md#file-src-app-portal-agency-pipelines-slug-leadtypes-ts-27bc220ff8) — nothing outside this directory changes.
 - [`src/app/portal/agency/pipelines/[slug]/_PipelineBoard.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-pipelineboard-tsx-a12d247779)
+- [`src/app/portal/agency/pipelines/[slug]/_ProspectImportDialog.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-prospectimportdialog-tsx-c36005eb6d)
 - [`src/app/portal/agency/pipelines/[slug]/_ScoutingCommand.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-scoutingcommand-tsx-15bc8216b1)
+- [`src/app/portal/agency/pipelines/[slug]/_scoutingProspectView.ts`](app.md#file-src-app-portal-agency-pipelines-slug-scoutingprospectview-ts-6047a5839c)
 - [`src/app/portal/agency/pipelines/[slug]/page.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-page-tsx-6d47eb0c95) — readable, accessible view of pipeline state.
 - [`src/app/portal/agency/portals/_PortalsWorkspace.tsx`](app.md#file-src-app-portal-agency-portals-portalsworkspace-tsx-98e4936ea5)
 - [`src/app/portal/agency/portals/_PortalUpdateControl.tsx`](app.md#file-src-app-portal-agency-portals-portalupdatecontrol-tsx-2d9a6f8e62)
@@ -1925,14 +1980,20 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/portal/agency/products/[productId]/_ProductRolloutCentre.tsx`](app.md#file-src-app-portal-agency-products-productid-productrolloutcentre-tsx-4ad7eb92e7)
 - [`src/app/portal/agency/products/[productId]/page.tsx`](app.md#file-src-app-portal-agency-products-productid-page-tsx-d1a4d27f77)
 - [`src/app/portal/agency/products/page.tsx`](app.md#file-src-app-portal-agency-products-page-tsx-35ff15c280)
+- [`src/app/portal/agency/prospecting/page.tsx`](app.md#file-src-app-portal-agency-prospecting-page-tsx-682a99b1be)
 - [`src/app/portal/agency/radar/page.tsx`](app.md#file-src-app-portal-agency-radar-page-tsx-0f2e0cd367)
 - [`src/app/portal/agency/radar/RadarInspectionWorkspace.tsx`](app.md#file-src-app-portal-agency-radar-radarinspectionworkspace-tsx-ada28e340f)
 - [`src/app/portal/agency/radar/workload/page.tsx`](app.md#file-src-app-portal-agency-radar-workload-page-tsx-ba8ecc7909)
+- [`src/app/portal/agency/researching/page.tsx`](app.md#file-src-app-portal-agency-researching-page-tsx-90139eefdf)
+- [`src/app/portal/agency/scouting/_ScoutingWorkspaceServer.tsx`](app.md#file-src-app-portal-agency-scouting-scoutingworkspaceserver-tsx-8deaafd3f9)
+- [`src/app/portal/agency/scouting/page.tsx`](app.md#file-src-app-portal-agency-scouting-page-tsx-eb104ceac0)
+- [`src/app/portal/agency/security/page.tsx`](app.md#file-src-app-portal-agency-security-page-tsx-4976e0e02a) — never the gate.
 - [`src/app/portal/agency/serverStationNavigation.ts`](app.md#file-src-app-portal-agency-serverstationnavigation-ts-a2741da569)
 - [`src/app/portal/agency/settings/ActivityLogPanel.tsx`](app.md#file-src-app-portal-agency-settings-activitylogpanel-tsx-8e0ad7148e)
 - [`src/app/portal/agency/settings/AgencyIdentityPanel.tsx`](app.md#file-src-app-portal-agency-settings-agencyidentitypanel-tsx-6659ff738c)
 - [`src/app/portal/agency/settings/ApiAccessPanel.tsx`](app.md#file-src-app-portal-agency-settings-apiaccesspanel-tsx-19d29349c2)
 - [`src/app/portal/agency/settings/AppearancePanel.tsx`](app.md#file-src-app-portal-agency-settings-appearancepanel-tsx-f841fe15ee)
+- [`src/app/portal/agency/settings/EmbedCredentialsPanel.tsx`](app.md#file-src-app-portal-agency-settings-embedcredentialspanel-tsx-9faf1d1609)
 - [`src/app/portal/agency/settings/ExternalAiConnectionPanel.tsx`](app.md#file-src-app-portal-agency-settings-externalaiconnectionpanel-tsx-17f25eeae6)
 - [`src/app/portal/agency/settings/IntegrationConnectionsPanel.tsx`](app.md#file-src-app-portal-agency-settings-integrationconnectionspanel-tsx-867350879d)
 - [`src/app/portal/agency/settings/page.tsx`](app.md#file-src-app-portal-agency-settings-page-tsx-05d4a95f14) — SettingsTabs (client-side tab switcher) below.
@@ -1958,6 +2019,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/portal/clients/_JourneyCommercialWorkspace.tsx`](app.md#file-src-app-portal-clients-journeycommercialworkspace-tsx-77a037be14)
 - [`src/app/portal/clients/_JourneyKanbansDesk.tsx`](app.md#file-src-app-portal-clients-journeykanbansdesk-tsx-f0420491f0)
 - [`src/app/portal/clients/_JourneyMeetingsWorkspace.tsx`](app.md#file-src-app-portal-clients-journeymeetingsworkspace-tsx-1fdcf4ce27)
+- [`src/app/portal/clients/_meetingAttemptHistory.ts`](app.md#file-src-app-portal-clients-meetingattempthistory-ts-02e5ad03cc)
 - [`src/app/portal/clients/_PeopleHub.tsx`](app.md#file-src-app-portal-clients-peoplehub-tsx-62c6426811)
 - [`src/app/portal/clients/[clientId]/_ClientAdvancedControls.tsx`](app.md#file-src-app-portal-clients-clientid-clientadvancedcontrols-tsx-6fa769a12e)
 - [`src/app/portal/clients/[clientId]/_ClientContactsPanel.tsx`](app.md#file-src-app-portal-clients-clientid-clientcontactspanel-tsx-3570c2bed7)
@@ -2075,6 +2137,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/portal/dev-team/plans/new/page.tsx`](app.md#file-src-app-portal-dev-team-plans-new-page-tsx-af6392003f)
 - [`src/app/portal/dev-team/roadmap/_RoadmapWorkspace.tsx`](app.md#file-src-app-portal-dev-team-roadmap-roadmapworkspace-tsx-3477cc74cb)
 - [`src/app/portal/dev-team/roadmap/page.tsx`](app.md#file-src-app-portal-dev-team-roadmap-page-tsx-635c96b266)
+- [`src/app/portal/dev-team/security/page.tsx`](app.md#file-src-app-portal-dev-team-security-page-tsx-dd07884f2a)
 - [`src/app/portal/dev-team/tasks/_TasksWorkspace.tsx`](app.md#file-src-app-portal-dev-team-tasks-tasksworkspace-tsx-69ee3b59a7)
 - [`src/app/portal/dev-team/tasks/_thoughtMerge.ts`](app.md#file-src-app-portal-dev-team-tasks-thoughtmerge-ts-ab03993ac5)
 - [`src/app/portal/dev-team/tasks/page.tsx`](app.md#file-src-app-portal-dev-team-tasks-page-tsx-1413a640e9)
@@ -2113,8 +2176,10 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/setup/page.tsx`](app.md#file-src-app-setup-page-tsx-6f1aa06ccf)
 - [`src/app/showcase/exit/route.ts`](app.md#file-src-app-showcase-exit-route-ts-2297ba275f)
 - [`src/app/showcase/route.ts`](app.md#file-src-app-showcase-route-ts-4c24dd82df)
+- [`src/app/signup/setup/page.tsx`](app.md#file-src-app-signup-setup-page-tsx-e3c8edbab5)
+- [`src/app/signup/setup/SetupForm.tsx`](app.md#file-src-app-signup-setup-setupform-tsx-4ad89f7f91)
 
-## Scripts — `scripts/` (618)
+## Scripts — `scripts/` (681)
 
 - [`scripts/attention-protection.test.ts`](scripts.md#file-scripts-attention-protection-test-ts-d64d01714c)
 - [`scripts/audit-actions.ts`](scripts.md#file-scripts-audit-actions-ts-862ea31175) — What state Actions is actually in — measured, not remembered. For every alert the checks currently …
@@ -2128,6 +2193,8 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/client-workspace-navigation.test.ts`](scripts.md#file-scripts-client-workspace-navigation-test-ts-391d5d3396)
 - [`scripts/company-health.test.ts`](scripts.md#file-scripts-company-health-test-ts-d9fc59462b)
 - [`scripts/dev-console-request-scope.ts`](scripts.md#file-scripts-dev-console-request-scope-ts-77ec79ae76) — Scope: test support only. Nothing in src/ imports this.
+- [`scripts/fixtures/nonce-store-worker.ts`](scripts.md#file-scripts-fixtures-nonce-store-worker-ts-fdedaaed4d)
+- [`scripts/fixtures/public-auth-link-worker.ts`](scripts.md#file-scripts-fixtures-public-auth-link-worker-ts-cc056a2bc8)
 - [`scripts/generate-radar-rules-reference.ts`](scripts.md#file-scripts-generate-radar-rules-reference-ts-00cd698199) — with what each lens checks. Re-run after editing radarRuleCatalog.ts.
 - [`scripts/hiring-capacity.test.ts`](scripts.md#file-scripts-hiring-capacity-test-ts-71b413f095)
 - [`scripts/inbox-attention-thread.test.ts`](scripts.md#file-scripts-inbox-attention-thread-test-ts-b40b6d8124)
@@ -2138,9 +2205,11 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/seed-bare-co-portal.ts`](scripts.md#file-scripts-seed-bare-co-portal-ts-63293223e6) — PORTAL_BACKEND=file npx tsx scripts/seed-bare-co-portal.ts
 - [`scripts/seed-contact-card-fixture.ts`](scripts.md#file-scripts-seed-contact-card-fixture-ts-70c8f450ee) — PORTAL_BACKEND=file npx tsx scripts/seed-contact-card-fixture.ts
 - [`scripts/seed-dev-tenant.ts`](scripts.md#file-scripts-seed-dev-tenant-ts-3659e4cee4) — PORTAL_BACKEND=file npx tsx scripts/seed-dev-tenant.ts
+- [`scripts/smoke-abuse-003-public-capture.test.ts`](scripts.md#file-scripts-smoke-abuse-003-public-capture-test-ts-de1a489940) — fixture; this suite never calls a provider or a live database.
 - [`scripts/smoke-access-control-kernel.test.ts`](scripts.md#file-scripts-smoke-access-control-kernel-test-ts-600ebf4ed8)
 - [`scripts/smoke-access-control-ui.test.ts`](scripts.md#file-scripts-smoke-access-control-ui-test-ts-b983e0a0f7) — which `react-dom/server` refuses to load under. See the note in that file.
 - [`scripts/smoke-accessible-names.test.ts`](scripts.md#file-scripts-smoke-accessible-names-test-ts-6ddca9d575)
+- [`scripts/smoke-acquisition-person-continuity.test.ts`](scripts.md#file-scripts-smoke-acquisition-person-continuity-test-ts-0225ecae65)
 - [`scripts/smoke-action-sources.test.ts`](scripts.md#file-scripts-smoke-action-sources-test-ts-a017c9356b)
 - [`scripts/smoke-actions-checked-mutations.test.ts`](scripts.md#file-scripts-smoke-actions-checked-mutations-test-ts-bd774399db)
 - [`scripts/smoke-actions-route-recovery.test.ts`](scripts.md#file-scripts-smoke-actions-route-recovery-test-ts-dc077cd1d8) — state transition, receipt, response and rollback are proved together.
@@ -2163,6 +2232,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-agency-task-assignment.test.ts`](scripts.md#file-scripts-smoke-agency-task-assignment-test-ts-a5050f0d3b)
 - [`scripts/smoke-agency-website.test.ts`](scripts.md#file-scripts-smoke-agency-website-test-ts-865696c5c2)
 - [`scripts/smoke-ai-actor-binding.test.ts`](scripts.md#file-scripts-smoke-ai-actor-binding-test-ts-107703449e) — First, and statically — see the note in dev-console-request-scope.ts.
+- [`scripts/smoke-ai-containment.test.ts`](scripts.md#file-scripts-smoke-ai-containment-test-ts-dc756312b1) — Prompt contents never appear in security events or logs.
 - [`scripts/smoke-alert-classification.test.ts`](scripts.md#file-scripts-smoke-alert-classification-test-ts-13e9f4980c)
 - [`scripts/smoke-app-route-tenancy.test.ts`](scripts.md#file-scripts-smoke-app-route-tenancy-test-ts-c2561f3f7d) — ARM 3 Marketing vs the campaigns manifest, driven for every agency role.
 - [`scripts/smoke-aqua-editor-ai-history.test.ts`](scripts.md#file-scripts-smoke-aqua-editor-ai-history-test-ts-de42c06074) — First, and statically — see the note in dev-console-request-scope.ts.
@@ -2188,6 +2258,8 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-attention-protection.test.ts`](scripts.md#file-scripts-smoke-attention-protection-test-ts-821e77c91a)
 - [`scripts/smoke-attention-read-availability.test.ts`](scripts.md#file-scripts-smoke-attention-read-availability-test-ts-081105af31)
 - [`scripts/smoke-audit-regressions.test.ts`](scripts.md#file-scripts-smoke-audit-regressions-test-ts-6af607d4b8)
+- [`scripts/smoke-auth-abuse-admission.test.ts`](scripts.md#file-scripts-smoke-auth-abuse-admission-test-ts-381d8e67b2)
+- [`scripts/smoke-auth-fail-closed.test.ts`](scripts.md#file-scripts-smoke-auth-fail-closed-test-ts-5ef4c04eef) — legacy cookies that carry no stamps.
 - [`scripts/smoke-auth-form-encoding.test.ts`](scripts.md#file-scripts-smoke-auth-form-encoding-test-ts-5ce004c3f5) — after the limiter, not around it.
 - [`scripts/smoke-auth-magic.test.ts`](scripts.md#file-scripts-smoke-auth-magic-test-ts-6d102aba46) — npx tsx --test scripts/smoke-auth-magic.test.ts
 - [`scripts/smoke-auth-oauth.test.ts`](scripts.md#file-scripts-smoke-auth-oauth-test-ts-ce25ee2816) — npx tsx --test scripts/smoke-auth-oauth.test.ts
@@ -2196,6 +2268,8 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-battle-table.test.ts`](scripts.md#file-scripts-smoke-battle-table-test-ts-c74a9e6a9b)
 - [`scripts/smoke-block-current-page-hydration.test.ts`](scripts.md#file-scripts-smoke-block-current-page-hydration-test-ts-c172ea8e9a) — in the website-editor lane (`npm run smoke:website-editor`), not here.
 - [`scripts/smoke-bos-middleware-integration.test.ts`](scripts.md#file-scripts-smoke-bos-middleware-integration-test-ts-80126501cc) — should only proxy portal routes; public Business OS paths belong elsewhere.
+- [`scripts/smoke-bot-challenge-surfaces.test.ts`](scripts.md#file-scripts-smoke-bot-challenge-surfaces-test-ts-7c83be3be4) — without carrying the token/action/reset contract with it.
+- [`scripts/smoke-bot-challenge.test.ts`](scripts.md#file-scripts-smoke-bot-challenge-test-ts-4c483549d4) — unconfigured readiness-blocker denial, and the dev skip.
 - [`scripts/smoke-browser-matrix.test.ts`](scripts.md#file-scripts-smoke-browser-matrix-test-ts-f5ff7391c9) — without a browser binary. → issues #137
 - [`scripts/smoke-business-calendar-date.test.ts`](scripts.md#file-scripts-smoke-business-calendar-date-test-ts-4b471185e4)
 - [`scripts/smoke-business-os-destinations.test.ts`](scripts.md#file-scripts-smoke-business-os-destinations-test-ts-65fccf4171)
@@ -2213,6 +2287,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-client-delivery-package.test.ts`](scripts.md#file-scripts-smoke-client-delivery-package-test-ts-4003cb0559)
 - [`scripts/smoke-client-dev-workspace.test.ts`](scripts.md#file-scripts-smoke-client-dev-workspace-test-ts-3fe4ffcd02) — does not promote the person anywhere else.
 - [`scripts/smoke-client-element-ceiling.test.ts`](scripts.md#file-scripts-smoke-client-element-ceiling-test-ts-5e1fca4444) — First, and statically — see the note in dev-console-request-scope.ts.
+- [`scripts/smoke-client-enquiry-lineage.test.ts`](scripts.md#file-scripts-smoke-client-enquiry-lineage-test-ts-25efbbeea2)
 - [`scripts/smoke-client-erasure-references.test.ts`](scripts.md#file-scripts-smoke-client-erasure-references-test-ts-425df21b3c) — file is what stops the next nested reference shape from slipping through.
 - [`scripts/smoke-client-erasure.test.ts`](scripts.md#file-scripts-smoke-client-erasure-test-ts-4c94dc1ab3)
 - [`scripts/smoke-client-finance-read-availability.test.ts`](scripts.md#file-scripts-smoke-client-finance-read-availability-test-ts-7d53368058)
@@ -2223,7 +2298,9 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-client-match.test.ts`](scripts.md#file-scripts-smoke-client-match-test-ts-67198581a9)
 - [`scripts/smoke-client-not-found-bootstrap.test.ts`](scripts.md#file-scripts-smoke-client-not-found-bootstrap-test-ts-8763b2b154)
 - [`scripts/smoke-client-payment-plans.test.ts`](scripts.md#file-scripts-smoke-client-payment-plans-test-ts-a36d87f8e9)
+- [`scripts/smoke-client-portal-invite-admission.test.ts`](scripts.md#file-scripts-smoke-client-portal-invite-admission-test-ts-42cb588deb) — a membership or session, while an exact, purpose-bound invitation still can.
 - [`scripts/smoke-client-portal-placement.test.ts`](scripts.md#file-scripts-smoke-client-portal-placement-test-ts-1e85efb390) — First, and statically — see the note in dev-console-request-scope.ts.
+- [`scripts/smoke-client-portal-setup-recovery.test.ts`](scripts.md#file-scripts-smoke-client-portal-setup-recovery-test-ts-7a6c318a4a)
 - [`scripts/smoke-client-portal-studio.test.ts`](scripts.md#file-scripts-smoke-client-portal-studio-test-ts-5d8c6cc985)
 - [`scripts/smoke-client-portal-template-update.test.ts`](scripts.md#file-scripts-smoke-client-portal-template-update-test-ts-13b540bfd1) — treat it as drift, and the planner mutates nothing at all.
 - [`scripts/smoke-client-project-access.test.ts`](scripts.md#file-scripts-smoke-client-project-access-test-ts-bfb6eb6d30) — happen, because that is the half a client discovers on their own website.
@@ -2241,6 +2318,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-client-workspace-element-runtime.test.ts`](scripts.md#file-scripts-smoke-client-workspace-element-runtime-test-ts-d34b5d7232)
 - [`scripts/smoke-client-workspace-remaining-api-access.test.ts`](scripts.md#file-scripts-smoke-client-workspace-remaining-api-access-test-ts-557adf87e8)
 - [`scripts/smoke-client-workspace-transition.test.ts`](scripts.md#file-scripts-smoke-client-workspace-transition-test-ts-2e543ef8d9)
+- [`scripts/smoke-clients-staff-scope.test.ts`](scripts.md#file-scripts-smoke-clients-staff-scope-test-ts-06b336005a)
 - [`scripts/smoke-close-deal-route.test.ts`](scripts.md#file-scripts-smoke-close-deal-route-test-ts-5e90664cfa) — channels are the ones that record + route without any pay-link).
 - [`scripts/smoke-code-mode.test.ts`](scripts.md#file-scripts-smoke-code-mode-test-ts-7878f923f1)
 - [`scripts/smoke-command-calendar.test.ts`](scripts.md#file-scripts-smoke-command-calendar-test-ts-82b9f54d64)
@@ -2266,6 +2344,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-composite-widget-keyboard.test.ts`](scripts.md#file-scripts-smoke-composite-widget-keyboard-test-ts-2613e5a284) — file, for good — never the third state the app was in.
 - [`scripts/smoke-consent-capture.test.ts`](scripts.md#file-scripts-smoke-consent-capture-test-ts-fdf2cfa14c)
 - [`scripts/smoke-contact-identity-ownership.test.ts`](scripts.md#file-scripts-smoke-contact-identity-ownership-test-ts-631d3d7028)
+- [`scripts/smoke-content-trust.test.ts`](scripts.md#file-scripts-smoke-content-trust-test-ts-20f7d82fb8) — hermetically tested; connecting an AV/CDR service remains an owner action.
 - [`scripts/smoke-contract-template-convergence.test.ts`](scripts.md#file-scripts-smoke-contract-template-convergence-test-ts-dfbf2963ee)
 - [`scripts/smoke-countdown-deadline.test.ts`](scripts.md#file-scripts-smoke-countdown-deadline-test-ts-2966be70f3)
 - [`scripts/smoke-custom-css.test.ts`](scripts.md#file-scripts-smoke-custom-css-test-ts-8fa6fa8140) — that broke things.
@@ -2278,6 +2357,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-customer-setup.test.ts`](scripts.md#file-scripts-smoke-customer-setup-test-ts-b4072d61ab)
 - [`scripts/smoke-dashboard-command-center.test.ts`](scripts.md#file-scripts-smoke-dashboard-command-center-test-ts-dee9e69026)
 - [`scripts/smoke-date-resilience.test.ts`](scripts.md#file-scripts-smoke-date-resilience-test-ts-2373e56ca2)
+- [`scripts/smoke-date-timezone-determinism.test.ts`](scripts.md#file-scripts-smoke-date-timezone-determinism-test-ts-b0a95d6a9e) — the output does not move.
 - [`scripts/smoke-day-command-paused-truth.test.ts`](scripts.md#file-scripts-smoke-day-command-paused-truth-test-ts-4df966bede)
 - [`scripts/smoke-department-allocation.test.ts`](scripts.md#file-scripts-smoke-department-allocation-test-ts-5c9901e42a) — for reads as a failure.
 - [`scripts/smoke-department-focus.test.ts`](scripts.md#file-scripts-smoke-department-focus-test-ts-6ed06869e5) — it never adds a row; owner/no-hat is byte-identical).
@@ -2339,6 +2419,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-dev-thoughts.test.ts`](scripts.md#file-scripts-smoke-dev-thoughts-test-ts-9374373a6a)
 - [`scripts/smoke-development-dashboard.test.ts`](scripts.md#file-scripts-smoke-development-dashboard-test-ts-3a1a28ccc8)
 - [`scripts/smoke-development-toolkit.test.ts`](scripts.md#file-scripts-smoke-development-toolkit-test-ts-b77799208e)
+- [`scripts/smoke-device-handoff-activity-privacy.test.ts`](scripts.md#file-scripts-smoke-device-handoff-activity-privacy-test-ts-3b1adc2524)
 - [`scripts/smoke-domain-management.test.ts`](scripts.md#file-scripts-smoke-domain-management-test-ts-6fa9b3b92b)
 - [`scripts/smoke-durable-nonce-store.test.ts`](scripts.md#file-scripts-smoke-durable-nonce-store-test-ts-4c3e61f296) — scenario, demonstrating why production needs Postgres).
 - [`scripts/smoke-ecommerce-authoritative-checkout.test.ts`](scripts.md#file-scripts-smoke-ecommerce-authoritative-checkout-test-ts-a9634143fc)
@@ -2347,6 +2428,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-ecommerce-order-lifecycle.test.ts`](scripts.md#file-scripts-smoke-ecommerce-order-lifecycle-test-ts-e3c92688ab)
 - [`scripts/smoke-ecommerce-product-lifecycle.test.ts`](scripts.md#file-scripts-smoke-ecommerce-product-lifecycle-test-ts-319241a5c4)
 - [`scripts/smoke-ecommerce-public-checkout.test.ts`](scripts.md#file-scripts-smoke-ecommerce-public-checkout-test-ts-4209142448)
+- [`scripts/smoke-ecommerce-storefront-abuse.test.ts`](scripts.md#file-scripts-smoke-ecommerce-storefront-abuse-test-ts-b641762ffd)
 - [`scripts/smoke-ecommerce-storefront-rate-limit.test.ts`](scripts.md#file-scripts-smoke-ecommerce-storefront-rate-limit-test-ts-5bdc0eea51)
 - [`scripts/smoke-editing-engine.test.ts`](scripts.md#file-scripts-smoke-editing-engine-test-ts-b08365e610)
 - [`scripts/smoke-editing-leases.test.ts`](scripts.md#file-scripts-smoke-editing-leases-test-ts-5baf8a31f6)
@@ -2369,6 +2451,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-element-source.test.ts`](scripts.md#file-scripts-smoke-element-source-test-ts-2fc52c57b8)
 - [`scripts/smoke-email-sender-foundation.test.ts`](scripts.md#file-scripts-smoke-email-sender-foundation-test-ts-0e2479e62a) — plugin's `emails` queue and surface via `emails.list({})`).
 - [`scripts/smoke-email-subscriber-wiring.test.ts`](scripts.md#file-scripts-smoke-email-subscriber-wiring-test-ts-91e3313a98) — stops the notes going stale in either direction.
+- [`scripts/smoke-embed-security.test.ts`](scripts.md#file-scripts-smoke-embed-security-test-ts-2f2282baca) — durable single-use consumption. Hermetic: memory PortalState, no network.
 - [`scripts/smoke-end-customer-portal.test.ts`](scripts.md#file-scripts-smoke-end-customer-portal-test-ts-03ca6023ff) — - Layout.tsx contains the embed cookie branch.
 - [`scripts/smoke-engines-editor.test.ts`](scripts.md#file-scripts-smoke-engines-editor-test-ts-a5389db247) — contract: it imports a moved module by its NEW path and asserts an expected export.
 - [`scripts/smoke-engines-sop-data.test.ts`](scripts.md#file-scripts-smoke-engines-sop-data-test-ts-b5f6256928)
@@ -2381,6 +2464,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-enquiry-tenant-isolation.test.ts`](scripts.md#file-scripts-smoke-enquiry-tenant-isolation-test-ts-653a6b555f) — exist, and the erase route deleted any row by id regardless of tenant.
 - [`scripts/smoke-env-example-completeness.test.ts`](scripts.md#file-scripts-smoke-env-example-completeness-test-ts-c0d4eb3e60) — fails here rather than at 2am on a deploy.
 - [`scripts/smoke-env-secrets.test.ts`](scripts.md#file-scripts-smoke-env-secrets-test-ts-25feb9d192) — source-marker.
+- [`scripts/smoke-erasure-exact-lineage.test.ts`](scripts.md#file-scripts-smoke-erasure-exact-lineage-test-ts-1f2fa189b3)
 - [`scripts/smoke-every-action-classified.test.ts`](scripts.md#file-scripts-smoke-every-action-classified-test-ts-09b4e6e8a7)
 - [`scripts/smoke-evidence-card.test.ts`](scripts.md#file-scripts-smoke-evidence-card-test-ts-b6cce70eb1)
 - [`scripts/smoke-evidence-completeness.test.ts`](scripts.md#file-scripts-smoke-evidence-completeness-test-ts-03bb802487)
@@ -2429,13 +2513,16 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-fulfilment-technical-access.test.ts`](scripts.md#file-scripts-smoke-fulfilment-technical-access-test-ts-9f806e6993)
 - [`scripts/smoke-google-command-calendar.test.ts`](scripts.md#file-scripts-smoke-google-command-calendar-test-ts-2d77fc7ecb)
 - [`scripts/smoke-google-oauth.test.ts`](scripts.md#file-scripts-smoke-google-oauth-test-ts-5c6ba97fe0) — npx tsx --test scripts/smoke-google-oauth.test.ts
+- [`scripts/smoke-google-places-scouting.test.ts`](scripts.md#file-scripts-smoke-google-places-scouting-test-ts-e72e446213)
 - [`scripts/smoke-governance-workspace.test.ts`](scripts.md#file-scripts-smoke-governance-workspace-test-ts-d7350db25b) — clientErasure suite.
 - [`scripts/smoke-hazards-doc-paths.test.ts`](scripts.md#file-scripts-smoke-hazards-doc-paths-test-ts-a86255bab2) — module-relative paths, and missing that produced six more false findings.
 - [`scripts/smoke-hc-leads-pipeline-integration.test.ts`](scripts.md#file-scripts-smoke-hc-leads-pipeline-integration-test-ts-5bc3cb6bb5) — a client workspace and starter portal.
-- [`scripts/smoke-health-check-funnel-journey.test.ts`](scripts.md#file-scripts-smoke-health-check-funnel-journey-test-ts-9db3f7413a) — touches the developer's local portal data file.
+- [`scripts/smoke-health-check-abuse-controls.test.ts`](scripts.md#file-scripts-smoke-health-check-abuse-controls-test-ts-e84bf643d5) — retired. All provider answers below are in-process stubs.
+- [`scripts/smoke-health-check-funnel-journey.test.ts`](scripts.md#file-scripts-smoke-health-check-funnel-journey-test-ts-9db3f7413a) — is a separate future promotion flow.
 - [`scripts/smoke-health-check-sharing.test.ts`](scripts.md#file-scripts-smoke-health-check-sharing-test-ts-257139591c)
 - [`scripts/smoke-healthz-readiness.test.ts`](scripts.md#file-scripts-smoke-healthz-readiness-test-ts-ee576f6034) — - local/dev/preview stay green while still reporting the truth in the body.
 - [`scripts/smoke-hr-policy-convergence.test.ts`](scripts.md#file-scripts-smoke-hr-policy-convergence-test-ts-1c36af8d4b) — deliberately not.
+- [`scripts/smoke-hydration-boundary.test.ts`](scripts.md#file-scripts-smoke-hydration-boundary-test-ts-52903586bf) — probe recorded in .artefacts/ui-wave9/.
 - [`scripts/smoke-icon-usability.test.ts`](scripts.md#file-scripts-smoke-icon-usability-test-ts-154bdaf30b)
 - [`scripts/smoke-identity-resolution.test.ts`](scripts.md#file-scripts-smoke-identity-resolution-test-ts-d476122980)
 - [`scripts/smoke-import-forms.test.ts`](scripts.md#file-scripts-smoke-import-forms-test-ts-bd8deb16ee)
@@ -2475,6 +2562,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-local-repository-preview-route.test.ts`](scripts.md#file-scripts-smoke-local-repository-preview-route-test-ts-1fda48c87f)
 - [`scripts/smoke-local-repository-preview-ui.test.ts`](scripts.md#file-scripts-smoke-local-repository-preview-ui-test-ts-959efc4c5f)
 - [`scripts/smoke-local-repository-preview.test.ts`](scripts.md#file-scripts-smoke-local-repository-preview-test-ts-d0e3b0997a)
+- [`scripts/smoke-login-bot-challenge.test.ts`](scripts.md#file-scripts-smoke-login-bot-challenge-test-ts-0fd3aef95b) — scripts/smoke-login-bot-challenge.test.ts
 - [`scripts/smoke-manifest-fields-consumed.test.ts`](scripts.md#file-scripts-smoke-manifest-fields-consumed-test-ts-a94aa6c77f) — leaving the dead half dead, with the contract updated to say which is which.
 - [`scripts/smoke-marketing-customer-profiles.test.ts`](scripts.md#file-scripts-smoke-marketing-customer-profiles-test-ts-4fb1c2808f)
 - [`scripts/smoke-marketing-durable-mutations.test.ts`](scripts.md#file-scripts-smoke-marketing-durable-mutations-test-ts-e0fb96f243)
@@ -2486,6 +2574,8 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-marketing-view-consolidation.test.ts`](scripts.md#file-scripts-smoke-marketing-view-consolidation-test-ts-48a38fa62e)
 - [`scripts/smoke-master-inbox-communications.test.ts`](scripts.md#file-scripts-smoke-master-inbox-communications-test-ts-bf4bd0f522)
 - [`scripts/smoke-master-inbox-replies.test.ts`](scripts.md#file-scripts-smoke-master-inbox-replies-test-ts-ef58ca1a3d)
+- [`scripts/smoke-meeting-asset-url-safety.test.ts`](scripts.md#file-scripts-smoke-meeting-asset-url-safety-test-ts-fa70630e27)
+- [`scripts/smoke-meeting-attempt-attribution.test.ts`](scripts.md#file-scripts-smoke-meeting-attempt-attribution-test-ts-cbef70fcab)
 - [`scripts/smoke-membership-affiliate-runtime-validation.test.ts`](scripts.md#file-scripts-smoke-membership-affiliate-runtime-validation-test-ts-3abf1989a8)
 - [`scripts/smoke-membership-plan-dependencies.test.ts`](scripts.md#file-scripts-smoke-membership-plan-dependencies-test-ts-dddf387354) — deletion is allowed only while the authoritative dependency graph is empty.
 - [`scripts/smoke-membership-plan-price-provisioning.test.ts`](scripts.md#file-scripts-smoke-membership-plan-price-provisioning-test-ts-6432224380)
@@ -2523,11 +2613,15 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-operations-hub.test.ts`](scripts.md#file-scripts-smoke-operations-hub-test-ts-e3d28f9969) — fails if any Operations function is missing a card on the hub.
 - [`scripts/smoke-operations-surface.test.ts`](scripts.md#file-scripts-smoke-operations-surface-test-ts-6ab56eaf77) — See docs/development/plans/information-architecture-v2.md.
 - [`scripts/smoke-organisations.test.ts`](scripts.md#file-scripts-smoke-organisations-test-ts-cba19e278b)
+- [`scripts/smoke-outbound-broker-ssrf.test.ts`](scripts.md#file-scripts-smoke-outbound-broker-ssrf-test-ts-0dbbe55196) — resolves to 127.0.0.1 (the rebinding shape).
 - [`scripts/smoke-outbox-postcommit-order.test.ts`](scripts.md#file-scripts-smoke-outbox-postcommit-order-test-ts-b39070cf83)
 - [`scripts/smoke-outbox.test.ts`](scripts.md#file-scripts-smoke-outbox-test-ts-1e7c5ed8b3) — client.created durably with the same payload the old emit carried.
 - [`scripts/smoke-page-reachability.test.ts`](scripts.md#file-scripts-smoke-page-reachability-test-ts-523f3df15c) — settings page — and each was only caught by somebody asking.
+- [`scripts/smoke-password-reset-operation.test.ts`](scripts.md#file-scripts-smoke-password-reset-operation-test-ts-b48cfd693e)
 - [`scripts/smoke-password-reset.test.ts`](scripts.md#file-scripts-smoke-password-reset-test-ts-ac13dd55c8) — reset).
 - [`scripts/smoke-payment-plan-invoice-recovery.test.ts`](scripts.md#file-scripts-smoke-payment-plan-invoice-recovery-test-ts-76f7b112b7)
+- [`scripts/smoke-people-cv-persistence-failure.test.ts`](scripts.md#file-scripts-smoke-people-cv-persistence-failure-test-ts-291b99a925) — Hermetic: isolated local state/private files and an injected scanner only.
+- [`scripts/smoke-people-cv-security.test.ts`](scripts.md#file-scripts-smoke-people-cv-security-test-ts-a34dfd75a7) — Hermetic: memory PortalState + local .data bytes + injected scanner only.
 - [`scripts/smoke-people-domain-validity.test.ts`](scripts.md#file-scripts-smoke-people-domain-validity-test-ts-9f5d830b68)
 - [`scripts/smoke-people-workspace.test.ts`](scripts.md#file-scripts-smoke-people-workspace-test-ts-7563ad03d4)
 - [`scripts/smoke-perf-easy-wins.test.ts`](scripts.md#file-scripts-smoke-perf-easy-wins-test-ts-1983a3ce9c) — Standalone portal perf/source smoke.
@@ -2539,6 +2633,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-performance-report-checked-mutations.test.ts`](scripts.md#file-scripts-smoke-performance-report-checked-mutations-test-ts-7f15b883de)
 - [`scripts/smoke-performance-reports.test.ts`](scripts.md#file-scripts-smoke-performance-reports-test-ts-7f96fb9f61)
 - [`scripts/smoke-performance-staff-connections.test.ts`](scripts.md#file-scripts-smoke-performance-staff-connections-test-ts-3deb045f06)
+- [`scripts/smoke-person-client-seeding-exactness.test.ts`](scripts.md#file-scripts-smoke-person-client-seeding-exactness-test-ts-a4df1199eb)
 - [`scripts/smoke-person-destination.test.ts`](scripts.md#file-scripts-smoke-person-destination-test-ts-d410102cfa)
 - [`scripts/smoke-person-editing.test.ts`](scripts.md#file-scripts-smoke-person-editing-test-ts-789ace3589)
 - [`scripts/smoke-person-identity-dedupe.test.ts`](scripts.md#file-scripts-smoke-person-identity-dedupe-test-ts-16529d7722)
@@ -2546,11 +2641,14 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-person-record-and-seeding.test.ts`](scripts.md#file-scripts-smoke-person-record-and-seeding-test-ts-ae0af3e412)
 - [`scripts/smoke-personal-business-radar.test.ts`](scripts.md#file-scripts-smoke-personal-business-radar-test-ts-c9081f0f68)
 - [`scripts/smoke-persons.test.ts`](scripts.md#file-scripts-smoke-persons-test-ts-46f4e060d9)
+- [`scripts/smoke-pg-tls-fail-closed.test.ts`](scripts.md#file-scripts-smoke-pg-tls-fail-closed-test-ts-927b888ba6) — most: PRODUCTION IGNORES the insecure escape hatch.
 - [`scripts/smoke-phase-admin-checked-mutations.test.ts`](scripts.md#file-scripts-smoke-phase-admin-checked-mutations-test-ts-3caa1dd94d) — Plus source pins that hold the mounted components to the contract.
 - [`scripts/smoke-phase-transition-convergence.test.ts`](scripts.md#file-scripts-smoke-phase-transition-convergence-test-ts-4c776e59e9)
 - [`scripts/smoke-phases-preview.test.ts`](scripts.md#file-scripts-smoke-phases-preview-test-ts-84f8b63027) — code-injection escaping, sidebar entry, and ordering.
 - [`scripts/smoke-pinned-tabs.test.ts`](scripts.md#file-scripts-smoke-pinned-tabs-test-ts-6690991992) — asserting is pure and lives here.
 - [`scripts/smoke-pipelines-refactor.test.ts`](scripts.md#file-scripts-smoke-pipelines-refactor-test-ts-e6f35175f8) — bootstrap wire-up, default column packs.
+- [`scripts/smoke-platform-hardening.test.ts`](scripts.md#file-scripts-smoke-platform-hardening-test-ts-a99e092645) — from the end via PORTAL_TRUSTED_PROXY_HOPS).
+- [`scripts/smoke-plugin-agency-route-access.test.ts`](scripts.md#file-scripts-smoke-plugin-agency-route-access-test-ts-cb99ff2026) — dispatcher only applied element access to client-scoped calls.
 - [`scripts/smoke-plugin-api-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-api-host-gates-test-ts-a532a714e3) — ARM 4 Mutation checks. A guard nobody has watched fail is a guess.
 - [`scripts/smoke-plugin-api-tenancy.test.ts`](scripts.md#file-scripts-smoke-plugin-api-tenancy-test-ts-8bbf35181d) — ARM 7 Mutation checks — the guard watched failing.
 - [`scripts/smoke-plugin-client-element.test.ts`](scripts.md#file-scripts-smoke-plugin-client-element-test-ts-27f6a3b76a) — `requireCurrentClientWorkspaceElementAccess`.
@@ -2577,6 +2675,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-post-login-redirect.test.ts`](scripts.md#file-scripts-smoke-post-login-redirect-test-ts-12a58426e8) — wire-up of the three production call-sites (login, signup, magic/verify).
 - [`scripts/smoke-postgres-backend-wired.test.ts`](scripts.md#file-scripts-smoke-postgres-backend-wired-test-ts-eef7087227) — when env is absent so dev workflow doesn't break (per prompt D).
 - [`scripts/smoke-postgres-private-object-reentrancy.test.ts`](scripts.md#file-scripts-smoke-postgres-private-object-reentrancy-test-ts-f3049e67b8)
+- [`scripts/smoke-postmark-webhook-security.test.ts`](scripts.md#file-scripts-smoke-postmark-webhook-security-test-ts-56d82c6128)
 - [`scripts/smoke-privacy-mode.test.ts`](scripts.md#file-scripts-smoke-privacy-mode-test-ts-be86610ca0)
 - [`scripts/smoke-privacy-notice-truth.test.ts`](scripts.md#file-scripts-smoke-privacy-notice-truth-test-ts-aa874cf642) — be re-made deliberately rather than drifting.
 - [`scripts/smoke-private-media-range.test.ts`](scripts.md#file-scripts-smoke-private-media-range-test-ts-096d78601e)
@@ -2596,16 +2695,28 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-profile-picture-upload.test.ts`](scripts.md#file-scripts-smoke-profile-picture-upload-test-ts-f6005d0481) — CSS variant, route handler shape, layout wire-up.
 - [`scripts/smoke-profile-toggles.test.ts`](scripts.md#file-scripts-smoke-profile-toggles-test-ts-03003d3ca5)
 - [`scripts/smoke-project-explorer.test.ts`](scripts.md#file-scripts-smoke-project-explorer-test-ts-c06f07e026)
+- [`scripts/smoke-prospect-acquisition-continuity.test.ts`](scripts.md#file-scripts-smoke-prospect-acquisition-continuity-test-ts-190db0efd2)
+- [`scripts/smoke-prospect-not-qualified-archive.test.ts`](scripts.md#file-scripts-smoke-prospect-not-qualified-archive-test-ts-d3add2f559)
+- [`scripts/smoke-prospect-qualification-atomicity.test.ts`](scripts.md#file-scripts-smoke-prospect-qualification-atomicity-test-ts-b1fa385116)
 - [`scripts/smoke-provider-deadlines.test.ts`](scripts.md#file-scripts-smoke-provider-deadlines-test-ts-b3c5fd9785)
 - [`scripts/smoke-public-aquacrm-film.test.ts`](scripts.md#file-scripts-smoke-public-aquacrm-film-test-ts-44a8778ef0)
 - [`scripts/smoke-public-aquacrm-reflow.test.ts`](scripts.md#file-scripts-smoke-public-aquacrm-reflow-test-ts-f71626dd85)
+- [`scripts/smoke-public-auth-link-delivery.test.ts`](scripts.md#file-scripts-smoke-public-auth-link-delivery-test-ts-650ae90f40)
+- [`scripts/smoke-public-auth-origin.test.ts`](scripts.md#file-scripts-smoke-public-auth-origin-test-ts-3d437b5330)
 - [`scripts/smoke-public-brand-navigation.test.ts`](scripts.md#file-scripts-smoke-public-brand-navigation-test-ts-7a10ccde89)
 - [`scripts/smoke-public-contact.test.ts`](scripts.md#file-scripts-smoke-public-contact-test-ts-7105b58c34)
+- [`scripts/smoke-public-forms-bot-challenge.test.ts`](scripts.md#file-scripts-smoke-public-forms-bot-challenge-test-ts-a12b003822) — scripts/smoke-public-forms-bot-challenge.test.ts
 - [`scripts/smoke-public-funnel-port-adapters.test.ts`](scripts.md#file-scripts-smoke-public-funnel-port-adapters-test-ts-306c6847e5) — shipped contract.
 - [`scripts/smoke-public-media-promotion.test.ts`](scripts.md#file-scripts-smoke-public-media-promotion-test-ts-fbdd9dd480) — process suite). See docs/development/plans/public-bucket.md (Phase 2).
+- [`scripts/smoke-public-plugin-authority-registry.test.ts`](scripts.md#file-scripts-smoke-public-plugin-authority-registry-test-ts-da8b8f45ad)
 - [`scripts/smoke-public-portfolio-demo.test.ts`](scripts.md#file-scripts-smoke-public-portfolio-demo-test-ts-4b052040a7)
+- [`scripts/smoke-public-request-body-boundaries.test.ts`](scripts.md#file-scripts-smoke-public-request-body-boundaries-test-ts-37d09f01e3) — Hermetic request-boundary regression: no network, provider or live storage.
+- [`scripts/smoke-public-request-body-side-effects.test.ts`](scripts.md#file-scripts-smoke-public-request-body-side-effects-test-ts-64945b3b4b) — must be cancelled before tenant lookup, rate accounting, proof, or storage.
 - [`scripts/smoke-public-surface-rate-limits.test.ts`](scripts.md#file-scripts-smoke-public-surface-rate-limits-test-ts-c0fbaf0d8f) — the same risk as a signature would make this test dishonest.
 - [`scripts/smoke-public-upload-storage.test.ts`](scripts.md#file-scripts-smoke-public-upload-storage-test-ts-863a723f4c) — matching the private-upload-storage convention.
+- [`scripts/smoke-public-webhook-body-boundary.test.ts`](scripts.md#file-scripts-smoke-public-webhook-body-boundary-test-ts-c1bb7e5f08)
+- [`scripts/smoke-public-webhook-generic-errors.test.ts`](scripts.md#file-scripts-smoke-public-webhook-generic-errors-test-ts-95825ac7b4) — Hermetic: arbitrary signatures, local empty configs, no provider/network use.
+- [`scripts/smoke-qualified-prospect-provider-gate.test.ts`](scripts.md#file-scripts-smoke-qualified-prospect-provider-gate-test-ts-b6a7590e7f)
 - [`scripts/smoke-radar-actionable.test.ts`](scripts.md#file-scripts-smoke-radar-actionable-test-ts-df783f2149)
 - [`scripts/smoke-radar-classification.test.ts`](scripts.md#file-scripts-smoke-radar-classification-test-ts-c42e03ab17)
 - [`scripts/smoke-radar-coverage-seeding.test.ts`](scripts.md#file-scripts-smoke-radar-coverage-seeding-test-ts-5eb2cb2b61)
@@ -2646,6 +2757,14 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-retention.test.ts`](scripts.md#file-scripts-smoke-retention-test-ts-16914bb89e) — • the preview must not mutate.
 - [`scripts/smoke-rls-policy-coverage.test.ts`](scripts.md#file-scripts-smoke-rls-policy-coverage-test-ts-13f6926776) — RLS policy coverage — the repo's written SQL vs. what the code actually does. WHY THIS EXISTS The R…
 - [`scripts/smoke-route-auth-coverage.test.ts`](scripts.md#file-scripts-smoke-route-auth-coverage-test-ts-36b8dbe85c) — to it is a deliberate act with a sentence attached.
+- [`scripts/smoke-sales-accessibility-contract.test.ts`](scripts.md#file-scripts-smoke-sales-accessibility-contract-test-ts-28370b7a6e) — the canonical suite's `--conditions react-server` process.
+- [`scripts/smoke-sales-element-leaf-access.test.ts`](scripts.md#file-scripts-smoke-sales-element-leaf-access-test-ts-9fda78eeae)
+- [`scripts/smoke-sales-enquiry-admission.test.ts`](scripts.md#file-scripts-smoke-sales-enquiry-admission-test-ts-188ee74474)
+- [`scripts/smoke-sales-meetings.test.ts`](scripts.md#file-scripts-smoke-sales-meetings-test-ts-27dd11e434)
+- [`scripts/smoke-sales-operational-alerts.test.ts`](scripts.md#file-scripts-smoke-sales-operational-alerts-test-ts-22e5f48de5)
+- [`scripts/smoke-sales-outreach-attribution.test.ts`](scripts.md#file-scripts-smoke-sales-outreach-attribution-test-ts-bf5735fc71)
+- [`scripts/smoke-sales-outreach-journey-finalizer.test.ts`](scripts.md#file-scripts-smoke-sales-outreach-journey-finalizer-test-ts-4b56ca7f2e)
+- [`scripts/smoke-sales-workflow-split.test.ts`](scripts.md#file-scripts-smoke-sales-workflow-split-test-ts-4b0e557e34)
 - [`scripts/smoke-sandbox-access-governance.test.ts`](scripts.md#file-scripts-smoke-sandbox-access-governance-test-ts-b9a31169e4)
 - [`scripts/smoke-sandbox-environment.test.ts`](scripts.md#file-scripts-smoke-sandbox-environment-test-ts-99a8655e6d)
 - [`scripts/smoke-sandbox-protection.test.ts`](scripts.md#file-scripts-smoke-sandbox-protection-test-ts-56f89a60e9)
@@ -2653,10 +2772,12 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-scouting-niche.test.ts`](scripts.md#file-scripts-smoke-scouting-niche-test-ts-b0571d11ad)
 - [`scripts/smoke-scouting-outreach.test.ts`](scripts.md#file-scripts-smoke-scouting-outreach-test-ts-adec0bbb56) — suppression could be walked around by clicking the other button.
 - [`scripts/smoke-scouting-quota.test.ts`](scripts.md#file-scripts-smoke-scouting-quota-test-ts-00977f6809) — already capture the work, never written back into `currentValue`.
+- [`scripts/smoke-scouting-workspace.test.ts`](scripts.md#file-scripts-smoke-scouting-workspace-test-ts-d5e54ecc15)
 - [`scripts/smoke-search-access.test.ts`](scripts.md#file-scripts-smoke-search-access-test-ts-7a50d2d5f3)
 - [`scripts/smoke-search-realm-cache.test.ts`](scripts.md#file-scripts-smoke-search-realm-cache-test-ts-af64249a9e)
 - [`scripts/smoke-search-restricted-route.test.ts`](scripts.md#file-scripts-smoke-search-restricted-route-test-ts-053831cc6b)
 - [`scripts/smoke-secondary-read-availability.test.ts`](scripts.md#file-scripts-smoke-secondary-read-availability-test-ts-fb51ca2ec5)
+- [`scripts/smoke-security-lockdown.test.ts`](scripts.md#file-scripts-smoke-security-lockdown-test-ts-1af6073996) — Every switch flip lands in the security-event spine.
 - [`scripts/smoke-semantic-registry.test.ts`](scripts.md#file-scripts-smoke-semantic-registry-test-ts-9231002b71) — classified.
 - [`scripts/smoke-service-role-usage.test.ts`](scripts.md#file-scripts-smoke-service-role-usage-test-ts-953db26555) — Service-role usage — measured, pinned, and only allowed to go DOWN knowingly. WHY THIS EXISTS RLS o…
 - [`scripts/smoke-session-memoization.test.ts`](scripts.md#file-scripts-smoke-session-memoization-test-ts-e46933b88a) — session onto another wherever a cache scope did exist.
@@ -2679,6 +2800,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-sop-interactive.test.ts`](scripts.md#file-scripts-smoke-sop-interactive-test-ts-979297a403)
 - [`scripts/smoke-sop-library-organisation.test.ts`](scripts.md#file-scripts-smoke-sop-library-organisation-test-ts-67f5229a9f)
 - [`scripts/smoke-sop-reference-integrity.test.ts`](scripts.md#file-scripts-smoke-sop-reference-integrity-test-ts-b9e06c1184) — deletion/write race through a mounted route.
+- [`scripts/smoke-spreadsheet-upload-bounds.test.ts`](scripts.md#file-scripts-smoke-spreadsheet-upload-bounds-test-ts-c052362c5f)
 - [`scripts/smoke-staff-navigation-surfaces.test.ts`](scripts.md#file-scripts-smoke-staff-navigation-surfaces-test-ts-8ac70d06d8)
 - [`scripts/smoke-staff-provisioning-recovery.test.ts`](scripts.md#file-scripts-smoke-staff-provisioning-recovery-test-ts-ad32d66715)
 - [`scripts/smoke-staff-workspace-policy.test.ts`](scripts.md#file-scripts-smoke-staff-workspace-policy-test-ts-571c82073c)
@@ -2686,6 +2808,8 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-state-roundtrip.test.ts`](scripts.md#file-scripts-smoke-state-roundtrip-test-ts-2768997d46)
 - [`scripts/smoke-station-chunk-measurement.test.ts`](scripts.md#file-scripts-smoke-station-chunk-measurement-test-ts-18175b9228)
 - [`scripts/smoke-storage-sidecars.test.ts`](scripts.md#file-scripts-smoke-storage-sidecars-test-ts-42cb683e8c) — file".
+- [`scripts/smoke-stored-code-boundary.test.ts`](scripts.md#file-scripts-smoke-stored-code-boundary-test-ts-4b3e737880) — Full parser-sanitiser + separate-origin isolation remain PARTIAL (documented).
+- [`scripts/smoke-subject-access-export-security.test.ts`](scripts.md#file-scripts-smoke-subject-access-export-security-test-ts-e3325ba299) — fulfilled unless the export and its activity evidence commit together.
 - [`scripts/smoke-subject-access-export.test.ts`](scripts.md#file-scripts-smoke-subject-access-export-test-ts-ae8fcc2ef2) — tenant's records in a response handed to a member of the public.
 - [`scripts/smoke-subject-requests.test.ts`](scripts.md#file-scripts-smoke-subject-requests-test-ts-d947d9008f) — fulfilment is refused until identity has been checked — a rule, not a prompt.
 - [`scripts/smoke-suite-coverage.test.ts`](scripts.md#file-scripts-smoke-suite-coverage-test-ts-94a77de259)
@@ -2697,8 +2821,11 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-telemetry-idempotency.test.ts`](scripts.md#file-scripts-smoke-telemetry-idempotency-test-ts-9f19109644) — provider retries cannot starve genuine new events.
 - [`scripts/smoke-telephony-caller-identity.test.ts`](scripts.md#file-scripts-smoke-telephony-caller-identity-test-ts-2ed21c8e2e) — from, which would make every callback arrive as "unknown".
 - [`scripts/smoke-telephony-inbound.test.ts`](scripts.md#file-scripts-smoke-telephony-inbound-test-ts-880e50ee50) — always returns true, so these run the real algorithm against real vectors.
+- [`scripts/smoke-telephony-outreach-access.test.ts`](scripts.md#file-scripts-smoke-telephony-outreach-access-test-ts-781db50695)
+- [`scripts/smoke-telephony-provider-replay.test.ts`](scripts.md#file-scripts-smoke-telephony-provider-replay-test-ts-980da6d8d2)
 - [`scripts/smoke-template-preview-sample.test.ts`](scripts.md#file-scripts-smoke-template-preview-sample-test-ts-26ba23fdd7) — ever written.
 - [`scripts/smoke-templates-sidecar.test.ts`](scripts.md#file-scripts-smoke-templates-sidecar-test-ts-bb4da10563)
+- [`scripts/smoke-threat-centre.test.ts`](scripts.md#file-scripts-smoke-threat-centre-test-ts-dbf56d436c) — drain) instead of faking green.
 - [`scripts/smoke-today-view.test.ts`](scripts.md#file-scripts-smoke-today-view-test-ts-636087248b)
 - [`scripts/smoke-tools-directory.test.ts`](scripts.md#file-scripts-smoke-tools-directory-test-ts-65a70ca0c9) — OPERATIONS, and this file proves the move orphaned nothing.
 - [`scripts/smoke-topbar-agency-switcher.test.ts`](scripts.md#file-scripts-smoke-topbar-agency-switcher-test-ts-010a81e653) — CI commands keep working after retiring the agency/company switchers.
@@ -2708,6 +2835,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-trading-companies.test.ts`](scripts.md#file-scripts-smoke-trading-companies-test-ts-4c0ca048ab)
 - [`scripts/smoke-transactional-email.test.ts`](scripts.md#file-scripts-smoke-transactional-email-test-ts-21ba833cb2)
 - [`scripts/smoke-truthful-surfaces.test.ts`](scripts.md#file-scripts-smoke-truthful-surfaces-test-ts-bead8c0c30) — name belongs.
+- [`scripts/smoke-ui-acceptance-harness.test.ts`](scripts.md#file-scripts-smoke-ui-acceptance-harness-test-ts-eef2bddcfb) — classifyRecord, the matching row below goes red — that is the point.
 - [`scripts/smoke-unified-internal-workspace.test.ts`](scripts.md#file-scripts-smoke-unified-internal-workspace-test-ts-e63c18f9cb)
 - [`scripts/smoke-unified-master-inbox.test.ts`](scripts.md#file-scripts-smoke-unified-master-inbox-test-ts-f246a2f7b5)
 - [`scripts/smoke-universal-search.test.ts`](scripts.md#file-scripts-smoke-universal-search-test-ts-adce40e488)

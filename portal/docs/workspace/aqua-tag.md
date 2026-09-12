@@ -30,11 +30,25 @@ planned.
 - Keyed by a **`data-site-key`** on the script tag — that key is what ties a submission back to an agency or client.
 
 ## 2. Keys & routing model  (`src/server/websiteSources.ts`)
-Two kinds of site key, one routing registry:
+Four browser-emitted key classes, one authoritative resolver and one routing
+registry:
 
 - **Per-client key** — `newTelemetrySiteKey()` (`src/lib/server/…`), stored as `telemetrySiteKey` on the client. Identifies a specific client's site.
-- **Agency master key** — `ensureAgencyMasterSiteKey(agencyId)`: one stable key per agency, generated on first ask and **kept forever** (the tag lives in people's sites — it must never rotate). The reverse lookup on the ingestion path is `resolveAgencyByMasterSiteKey(siteKey)`. The paste-in snippet is `masterTagSnippet(origin, siteKey)`. Stored in `agencyMasterTagKeys` on `PortalState`.
+- **Agency master key** — `ensureAgencyMasterSiteKey(agencyId)`: one stable key per agency, generated on first ask and **kept forever** (the tag lives in people's sites — it must never rotate). `listAgenciesByMasterSiteKey(siteKey)` lets the admission resolver count every persisted owner; the compatibility lookup `resolveAgencyByMasterSiteKey(siteKey)` answers only for exactly one owner. The paste-in snippet is `masterTagSnippet(origin, siteKey)`. Stored in `agencyMasterTagKeys` on `PortalState`.
+- **Hardcoded public-project key** — a first-party Aqua property in
+  `publicSites`; accepted only on that property's fixed origin allowlist.
+- **Agency-website key** — the key on `agencyWebsites`; accepted only on that
+  project's production host (and its preview host outside production).
 - **The routing registry** — `websiteSources` (state), a list of `WebsiteSource {host → destinationClientId? | destinationCompanyId?}`. Functions: `listWebsiteSources`, `addWebsiteSource`, `updateWebsiteSourceRouting`, `removeWebsiteSource`, and the resolver `resolveWebsiteSourceRouting(agencyId, host)` → a **`WebsiteSourceDestination`** discriminated union (`{kind:"inbox"} | {kind:"client",clientId} | {kind:"company",companyId}`; defined in `server/types.ts`). `normalizeHost()` reduces a URL to the shared form (`https://www.Cedar-Dental.com/contact` → `cedar-dental.com`) so both a submission and its routing rule match. A site has **one home**: a client, or a company, or the inbox — `add`/`updateWebsiteSourceRouting` enforce client-XOR-company and validate a company via agency-scoped `getTradingCompany`.
+
+`resolveAquaTagAdmissionScope` is the one public request resolver for all four
+classes. It requires one unambiguous key owner plus the exact registered host;
+key collisions or an unregistered host fail closed. Master-key lookup enumerates
+every persisted owner before applying the host boundary, so corrupt duplicate
+agency keys cannot silently select the first agency. It keeps both the canonical
+routing host (`www.example.com` → `example.com`) and the exact request hostname.
+Turnstile must attest that exact hostname, so an apex proof cannot satisfy a
+`www` request (or vice versa) even though both may map to the same routing rule.
 
 **The rule:** master tag → agency inbox by default; a `websiteSources` entry for that host **overrides** it to a **client** (their inbox) or a **company** (one of Ed's own brands, since 2026-08-19). A company-routed enquiry is recorded on the enquiry (`routedCompanyId` in metadata) and — per "the configured route wins" — is *not* also filed onto a client.
 
@@ -96,8 +110,9 @@ over a period. ⚠ This overlaps the Aqua Tags Command Centre screen conceptuall
 **Read-only, and deliberately not a fifth workflow.** The tag seen as what it is
 alongside the API keys and the vault: a machine surface with a permanent
 credential. Shows the site key, the paste snippet (`masterTagSnippet`), the
-**three endpoints the tag actually calls** (`/api/public/aqua-tag-config`,
-`/api/public/form-capture`, `/api/telemetry/collect`) and the injectable
+  **four endpoints the tag actually calls** (`/api/public/aqua-tag-config`,
+  `/api/public/aqua-tag-admission`, `/api/public/form-capture`,
+  `/api/telemetry/collect`) and the injectable
 allow-list — all **derived** from `AQUA_TAG_SOURCE` / `INJECTION_PROVIDERS`,
 never retyped. Detection, routing and injection *config* are NOT duplicated: it
 links to §3a. Deployment-founder only; local Dev Mode fixtures also pass.
@@ -119,9 +134,33 @@ The step-2/3 logic is real, not stubbed:
 - Endpoint: **`POST /api/portal/aqua-tags/detect`** (agency-scoped).
 
 ## 5. Ingestion & telemetry
-- **`POST /api/public/form-capture`** *(LIVE Supabase)* — the Aqua-Tag form-capture path: resolves the agency by master key, applies host→client routing, writes a real enquiry.
+- **`POST /api/public/aqua-tag-admission`** — resolves the browser-public site
+  key plus exact registered Origin to a tenant/site/host scope, then verifies a
+  managed Turnstile token for exact action `aqua-tag-form-capture`, that
+  registered hostname and tenant before minting anything. Only caller-IP and
+  provider pressure valves run before proof. The challenge is checked against
+  the exact request hostname, while the canonical host remains the routing key.
+  The resulting two-minute HMAC
+  admission is bound to action, tenant, key class, site id, host, form metadata,
+  submission id and a digest of every captured answer. Its signed claim payload
+  is decodable but carries no plaintext answers or challenge token, and the
+  route stores neither.
+- **`POST /api/public/form-capture`** *(LIVE Supabase)* — verifies that exact
+  signed admission before persistence, then atomically classifies the durable
+  submission id as new/replay/conflict. Exact replay returns the original
+  receipt and changed facts return 409; only the first new transition spends
+  IP, one-way address-digest, install/site and tenant budgets or mutates the
+  enquiry. The additive `20260912140000_aqua_tag_capture_admission_claims.sql`
+  migration supplies that claim/complete/release boundary; without it this
+  public mutation fails closed with 503. The site key remains discovery
+  metadata, never mutation authority by itself. The upgrade adopts only legacy
+  tag-first rows whose old fingerprint and original `attached:false` outcome are
+  provable. A legacy row that already has both tag and brand halves cannot prove
+  arrival order, so it is marked `legacy-review` and fails closed until a
+  one-time evidence-backed backfill records the true original receipt; the
+  migration never invents `attached:true`.
 - **`POST /api/public/brand-enquiry`** *(LIVE `brand_enquiries`)* — website enquiry submission; carries the same routing + a 2-minute **dedupe guard**.
-- **`POST /api/telemetry/collect`** *(LIVE `website_consent_events`)* — page telemetry + consent events, CORS + consent-gated.
+- **`POST /api/telemetry/collect`** *(LIVE `website_consent_events`)* — page telemetry + consent events, CORS + consent-gated. The route passes the exact resolved tenant/client/site scope into the sink; the sink rechecks it instead of choosing the first client carrying a browser-public key. Distinct hosts can therefore route a collided key to their exact owners, while an ambiguous exact key/host fails closed. Consent audit rows copy that exact agency/client/site/key/host scope into governed metadata so later key rotation or routing changes cannot erase attribution; it contains operational identifiers only, not captured form values or challenge tokens. Telemetry beacons do not use CAPTCHA.
 - **`src/server/agencyWebsite.ts`** — records/summarises agency-site telemetry (`recordAgencyWebsiteTelemetry`, `resetAgencyWebsiteTelemetryKey`, `summarizeAgencyWebsite`). Client telemetry mirrors this via `/api/tenants/client-telemetry` + `lib/…/clientTelemetry`.
 
 ## 6. Embed (tag-adjacent)
@@ -140,6 +179,7 @@ a visitor straight into their portal.
 | `GET, POST /api/portal/website-injections` | Manage a site's injected tools (list/add/update/remove) + provider catalogue | |
 | `GET, POST /api/portal/website` | Agency site config + telemetry key | |
 | `GET, POST /api/tenants/client-telemetry` | Per-client telemetry key manage/reset | |
+| `POST /api/public/aqua-tag-admission` | Verify exact managed proof; mint short-lived host/form/action admission | |
 | `POST /api/public/form-capture` | Tag form-capture + master-tag routing | **LIVE** |
 | `POST /api/public/brand-enquiry` | Enquiry submit + dedupe + routing | **LIVE** |
 | `POST /api/telemetry/collect` | Telemetry + consent events | **LIVE** |
@@ -148,7 +188,13 @@ a visitor straight into their portal.
 `agencyMasterTagKeys` (agency → master key), `websiteSources` (routing rules),
 `websiteSiteConfigs` (per-site injection config — see `server/websiteInjections`),
 `telemetrySiteKey` on each `Client`, agency-site telemetry on `agencyWebsites`,
-and — live in Supabase — `website_consent_events`.
+and — live in Supabase — `website_consent_events` plus
+`aqua_tag_submissions`. The latter's additive tag-capture columns hold the
+immutable capture digest, fenced claim lease and original completion receipt;
+table access and claim/complete/release RPCs are service-role only. A resolved
+RPC response with status `0` is treated as an unknown commit outcome, never as
+rollback proof: quota stays charged and an exact retry reconciles through the
+durable receipt or lease.
 
 ## 9. Consent model & the tag-manager (foundation built — Phase 4)
 The tag already reads `aqua-cookie-preferences` and gates analytics on it
@@ -230,7 +276,7 @@ serves the same body with `deprecation: true` + `sunset` headers.
 | Performance (`load`) | on `load` | Yes | telemetry |
 | JS error / promise rejection | window handlers | Yes | telemetry |
 | Form-submit *event* (count only) | capturing `submit` | Yes | telemetry |
-| **Form CONTENT capture (field values)** | same `submit` | **NO — always runs** | `/api/public/form-capture` |
+| **Form CONTENT admission + capture (field values)** | same `submit`, after dedicated managed proof | **NO cookie-consent gate** | `/api/public/aqua-tag-admission` → `/api/public/form-capture` |
 | Conversion | click `[data-aqua-conversion]` | **Yes** (marketing) | telemetry |
 | Consent event | `aqua:consent-updated` | No — always | telemetry |
 | Custom `Aqua.track()` | public API | depends on category | telemetry |
@@ -240,9 +286,15 @@ serves the same body with `deprecation: true` + `sunset` headers.
 `[data-aqua-ignore]`; capture if `data-aqua-form`/`data-aqua-capture`; **never**
 if it has a password input; else capture iff it asks for email/phone. Per field
 (`captureableField`): rejects password/hidden/file/search, names matching
-`/(pass|pwd|secret|token|csrf|otp|cvv|card|iban|ssn|nino)/i`, and `cc-`/
-`*-password` autocomplete — **cannot be switched off by config**. Caps: ≤60
-fields, values ≤2000, keys ≤120; same-name fields merged.
+`/(pass|pwd|secret|token|csrf|nonce|otp|captcha|turnstile|cvv|card|iban|ssn|nino)/i`,
+challenge fields/descendants and `cc-`/`*-password` autocomplete — **cannot be
+switched off by config**. The server repeats the secret/challenge-field filter
+for callers that bypass the tag. Caps: ≤60
+fields, values ≤2000, keys ≤120; same-name fields merged. One stable submission
+id and one exact payload are sent with a WeakMap-held challenge token only to
+admission, then to capture with only the signed admission. Challenge proof never
+becomes a form field, telemetry property or log value. Capture retries reuse the
+same id and payload for durable idempotence.
 
 **Consent model:** `localStorage["aqua-cookie-preferences"]`, event
 `aqua:consent-updated`. `normalizePreferences` returns *no consent* unless
@@ -270,15 +322,29 @@ and private/reserved IP ranges (10/8, 127/8, 169.254 incl. cloud metadata,
 
 **Embed token** (`aquaEmbedToken.ts`): `base64url(payload).base64url(HMAC-SHA256)`;
 TTL clamped 30–300s; HMAC from `AQUA_EMBED_SIGNING_SECRET` (throws in prod if
-unset); mint API bearer-gated by `AQUA_EMBED_API_TOKEN`. `consume` verifies →
-issues a real session → redirects into the portal. Reverse direction
+unset). Mint authority is an encrypted per-agency or per-client vault credential
+with a maximum-mode ceiling and optional exact origin. `consume` revalidates the
+live credential and scope, atomically burns the durable nonce, issues a session,
+then redirects without putting the token on the destination URL. Reverse direction
 (`embedAllowResolver.ts`): an empty/unknown allow-list ⇒ `frame-ancestors 'none'`
 (default-deny).
 
 ### ⚠ Security findings (verified — worth your attention)
 - **A. Form-content capture is NOT client-side consent-gated.** The field-value POST to `/api/public/form-capture` runs regardless of the cookie choice (subject to the `capturableForm`/field filters), and the server route has **no** consent check. Telemetry, by contrast, is double-gated (client `permitted()` + server `eventIsConsented`). Worth a deliberate decision: is capturing enquiry fields from a visitor who declined analytics/marketing intended? (It's arguably legitimate-interest for a form they submitted, but it's an asymmetry to be aware of.)
 - **B. Consent flags are self-reported.** The server trusts the `consent*` booleans the tag puts in the body — no server-side source of truth ties them to the stored preference.
-- **C. `/api/public/form-capture` has no body-size cap** (telemetry caps at 32KiB); it relies on field-count/length caps only.
+- **C. Transport body caps are enforced before parsing or application work.**
+  Admission and form capture stream at most 160KiB, which fits the documented
+  60 × 2,000-character field contract plus labels and metadata; telemetry
+  streams at most 32KiB. Declared oversize, missing/invalid Content-Length and
+  chunked oversize are handled by the same byte-counted fail-closed reader, and
+  an over-limit stream is cancelled before hydration, proof, quotas or storage.
+- **D. Honest abuse-limit scope:** Aqua Tag admission and capture currently add
+  process-local caller-IP/provider and post-proof IP/address-digest/site/tenant
+  pressure valves. Capture replay/mutation classification is durable and atomic,
+  but globally durable quota counters across multiple app instances remain
+  owned by `ABUSE-BASE-001`. The signed admission is backed by exact managed
+  human proof; telemetry beacons deliberately do not request a CAPTCHA and are
+  instead limited to the exact registered key/host mapping plus consent gates.
 
 ### Network throttling (added 2026-08-22 — the Dev editor's wifi control)
 The tag can throttle **what the page's scripts request** on the editor's

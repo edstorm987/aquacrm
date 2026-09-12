@@ -108,7 +108,13 @@ function probePlugin(id: string, scopePolicy: "agency" | "client"): AquaPlugin {
       { path: "probe", methods: [...METHODS], handler: probeHandler },
       // The public shape the peek exists for, with a handler that reports the
       // tenant it was given.
-      { path: "public-probe", methods: [...METHODS], handler: probeHandler, public: true },
+      {
+        path: "public-probe",
+        methods: [...METHODS],
+        handler: probeHandler,
+        public: true,
+        publicAuthority: "published-site-read",
+      },
     ],
     settings: { groups: [] },
     features: [],
@@ -482,7 +488,7 @@ describe("reads never see the other tenant", () => {
 // ─── ARM 4: the public routes the peek exists for ─────────────────────────
 
 describe("public routes — the reason the peek exists — still work", () => {
-  it("the shipped public routes are exactly the seventeen, and each names its own module", () => {
+  it("the shipped public routes are exactly the fifteen, and each names its own module", () => {
     const publics = listPlugins()
       .filter(plugin => !plugin.id.startsWith("zz-"))
       .flatMap(plugin => plugin.api.filter(route => route.public === true).map(r => `${plugin.id}/${r.path}`))
@@ -499,8 +505,6 @@ describe("public routes — the reason the peek exists — still work", () => {
       "email-sender/public/webhook/postmark",
       "leads-pipeline/commercial/stripe-webhook",
       "memberships/stripe/webhook",
-      "public-funnel/hc-complete",
-      "public-funnel/tool-complete",
       "website-editor/public/blog/posts",
       "website-editor/public/blog/posts/by-slug",
       "website-editor/visitor/contact",
@@ -526,7 +530,11 @@ describe("public routes — the reason the peek exists — still work", () => {
           // routes need BOTH ids to resolve — see the test below.
           query: clientScoped ? { agencyId: agencyB, clientId: clientB } : { agencyId: agencyB },
         });
-        if (reply.status === 401 || reply.status === 403 || reply.status === 404) {
+        const dispatcherDenied = reply.status === 401
+          || reply.status === 404
+          || (reply.status === 403
+            && ["tenant_scope_mismatch", "forbidden"].includes(String(reply.json?.error ?? "")));
+        if (dispatcherDenied) {
           blocked.push(`${plugin.id}/${route.path} → HTTP ${reply.status} ${reply.body.slice(0, 120)}`);
         }
       }

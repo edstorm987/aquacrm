@@ -18,7 +18,7 @@
 //     (chapter #138 extension).
 //   - Lib + routes + pages + login-link source markers (10 file
 //     structure tests including the no-leak assertion on
-//     request-reset and the sessionRev/setUserPassword + redirect on
+//     request-reset and the sessionRev/durable reset operation + redirect on
 //     reset).
 
 import { describe, it } from "node:test";
@@ -37,6 +37,14 @@ import {
   _swapStoreForTests,
   _createMemoryAdapterForTests,
 } from "../src/lib/server/auth/nonceStore";
+import {
+  signVerifyEmailToken,
+  verifyVerifyEmailToken,
+} from "../src/lib/server/auth/emailVerification";
+import {
+  signMagicToken,
+  verifyMagicToken,
+} from "../src/lib/server/auth/magicLink";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
@@ -46,19 +54,22 @@ describe("Password reset — HMAC token (R038)", () => {
     const { token, payload } = signPasswordResetToken({
       userId: "usr_1",
       email: "Ed@Example.com",
+      sessionRev: 7,
     });
     const result = verifyPasswordResetToken(token);
     assert.equal(result.ok, true);
     if (result.ok) {
       assert.equal(result.payload.userId, "usr_1");
       assert.equal(result.payload.email, "ed@example.com");
+      assert.equal(result.payload.purpose, "password-reset");
+      assert.equal(result.payload.sessionRev, 7);
       assert.equal(result.payload.nonce, payload.nonce);
       assert.equal(result.payload.exp, payload.exp);
     }
   });
 
   it("tampered token fails signature check", () => {
-    const { token } = signPasswordResetToken({ userId: "usr_2", email: "x@y.z" });
+    const { token } = signPasswordResetToken({ userId: "usr_2", email: "x@y.z", sessionRev: 0 });
     const [b64] = token.split(".");
     const tampered = `${b64}.AAAA`;
     const result = verifyPasswordResetToken(tampered);
@@ -74,8 +85,11 @@ describe("Password reset — HMAC token (R038)", () => {
 
   it("expired token rejected (valid signature, exp in past)", () => {
     const payload = {
+      purpose: "password-reset",
       userId: "usr_exp",
       email: "old@x.com",
+      sessionRev: 4,
+      clientId: null,
       exp: Math.floor(Date.now() / 1000) - 60,
       nonce: "expired-nonce",
     };
@@ -86,12 +100,79 @@ describe("Password reset — HMAC token (R038)", () => {
     assert.equal(result.ok, false);
     if (!result.ok) assert.equal(result.error, "expired");
   });
+
+  it("purpose-less legacy-shaped signed payloads fail closed", () => {
+    const payload = {
+      userId: "usr_legacy",
+      email: "legacy@x.com",
+      exp: Math.floor(Date.now() / 1000) + 60,
+      nonce: "legacy-reset-nonce",
+    };
+    const b64 = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+    const secret = process.env.PORTAL_SESSION_SECRET ?? "dev-secret-do-not-use-in-prod";
+    const sig = crypto.createHmac("sha256", secret).update(b64).digest("base64url");
+    const result = verifyPasswordResetToken(`${b64}.${sig}`);
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.error, "missing_claims");
+  });
+
+  it("legacy reset payloads without an immutable client audience fail closed", () => {
+    const payload = {
+      purpose: "password-reset",
+      userId: "usr_legacy_audience",
+      email: "legacy-audience@x.com",
+      sessionRev: 0,
+      exp: Math.floor(Date.now() / 1000) + 60,
+      nonce: "legacy-audience-nonce",
+    };
+    const b64 = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+    const secret = process.env.PORTAL_SESSION_SECRET ?? "dev-secret-do-not-use-in-prod";
+    const sig = crypto.createHmac("sha256", secret).update(b64).digest("base64url");
+    const result = verifyPasswordResetToken(`${b64}.${sig}`);
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.error, "missing_claims");
+  });
+
+  it("email-verification and magic-link tokens cannot cross into password reset", () => {
+    const emailVerification = signVerifyEmailToken({
+      userId: "usr_email_verify",
+      email: "verify@example.test",
+    });
+    assert.equal(verifyVerifyEmailToken(emailVerification.token).ok, true);
+    const emailAsReset = verifyPasswordResetToken(emailVerification.token);
+    assert.equal(emailAsReset.ok, false);
+    if (!emailAsReset.ok) assert.equal(emailAsReset.error, "invalid_purpose");
+
+    const magic = signMagicToken({
+      email: "magic@example.test",
+      clientId: "client_magic",
+      agencyId: "agency_magic",
+      sessionRev: 0,
+    });
+    assert.equal(verifyMagicToken(magic.token).ok, true);
+    const magicAsReset = verifyPasswordResetToken(magic.token);
+    assert.equal(magicAsReset.ok, false);
+    if (!magicAsReset.ok) assert.equal(magicAsReset.error, "invalid_purpose");
+  });
+
+  it("password-reset tokens cannot cross into email verification or magic sign-in", () => {
+    const reset = signPasswordResetToken({
+      userId: "usr_reset_only",
+      email: "reset-only@example.test",
+      sessionRev: 2,
+    });
+    assert.equal(verifyPasswordResetToken(reset.token).ok, true);
+    const asEmailVerification = verifyVerifyEmailToken(reset.token);
+    assert.equal(asEmailVerification.ok, false);
+    if (!asEmailVerification.ok) assert.equal(asEmailVerification.error, "invalid_purpose");
+    assert.equal(verifyMagicToken(reset.token).ok, false);
+  });
 });
 
 describe("Password reset — single-use nonce (R038)", () => {
   it("consumeResetNonce: first call true, second call false (single-use)", async () => {
     await _swapStoreForTests(_createMemoryAdapterForTests());
-    const { payload } = signPasswordResetToken({ userId: "usr_n1", email: "n1@x.y" });
+    const { payload } = signPasswordResetToken({ userId: "usr_n1", email: "n1@x.y", sessionRev: 0 });
     const first = await consumeResetNonce(payload.nonce, payload.exp);
     const second = await consumeResetNonce(payload.nonce, payload.exp);
     assert.equal(first, true);
@@ -133,8 +214,8 @@ describe("Password reset — file structure (R038)", () => {
       "passwordReset.ts must not import 'server-only' — smoke driver imports it");
   });
 
-  it("/api/auth/password/request-reset/route.ts rate-limits + no-leak", () => {
-    const p = join(ROOT, "src", "app", "api", "auth", "password", "request-reset", "route.ts");
+  it("/api/auth/password/request-reset handler rate-limits + no-leak", () => {
+    const p = join(ROOT, "src", "app", "api", "auth", "password", "request-reset", "handler.ts");
     assert.equal(existsSync(p), true);
     const src = readFileSync(p, "utf8");
     assert.ok(src.includes("rateLimit"));
@@ -147,27 +228,45 @@ describe("Password reset — file structure (R038)", () => {
     // matching the success branch shape so a probing attacker can't
     // distinguish "email exists" from "email doesn't".
     assert.ok(
-      /if \(!user\)[\s\S]*?return NextResponse\.json\(\s*\{\s*ok:\s*true\s*\}/.test(src),
+      /if \(!user\)[\s\S]*?return NextResponse\.json\(ACCEPTED\)/.test(src),
       "missing user must still return ok:true (no enumeration leak)",
     );
+
+    const route = readFileSync(
+      join(ROOT, "src", "app", "api", "auth", "password", "request-reset", "route.ts"),
+      "utf8",
+    );
+    assert.match(route, /export (?:async )?function POST/);
+    assert.doesNotMatch(route, /export async function handlePasswordResetRequest/,
+      "Next route modules must not export the injectable implementation seam");
   });
 
-  it("/api/auth/password/reset/route.ts verifies + consumes + setUserPassword + redirect", () => {
+  it("/api/auth/password/reset/route.ts verifies + consumes + commits a durable exact-user reset", () => {
     const p = join(ROOT, "src", "app", "api", "auth", "password", "reset", "route.ts");
     assert.equal(existsSync(p), true);
     const src = readFileSync(p, "utf8");
     assert.ok(src.includes("verifyPasswordResetToken"));
-    assert.ok(src.includes("consumeResetNonce"));
+    assert.ok(src.includes("executePasswordReset"));
     assert.ok(src.includes("validatePassword"));
     // setUserPassword bumps sessionRev — load-bearing per chapter #120.
-    assert.ok(src.includes("setUserPassword"));
+    const operation = readFileSync(
+      join(ROOT, "src", "server", "passwordResetOperation.ts"),
+      "utf8",
+    );
+    assert.ok(operation.includes("consumeResetNonce"));
+    assert.ok(operation.includes("setUserPasswordById"));
+    assert.ok(operation.includes("updateBoundClientPortalPassword"));
+    assert.ok(operation.includes("provisionBoundClientPortalIdentity"));
+    assert.doesNotMatch(operation, /updateSupabasePassword\(/,
+      "reset must never mutate whichever global provider subject shares an email");
     // sessionRev bump is comment-documented at the call site so the
     // security guarantee survives future refactors.
     assert.ok(/sessionRev/.test(src), "must reference sessionRev semantics");
     assert.ok(src.includes('"/login?reset=1"'));
     assert.ok(src.includes("password_reset"));
-    // Defensive email-mismatch reject (token tampered to swap users).
-    assert.ok(src.includes("email_mismatch"));
+    // Exact immutable-subject reject now lives in the resumable operation.
+    assert.ok(operation.includes("password_reset_invalid"));
+    assert.ok(operation.includes("password_reset_subject_changed"));
   });
 
   it("/login/forgot/page.tsx + ForgotForm.tsx wire to request-reset", () => {
@@ -210,7 +309,8 @@ describe("Password reset — file structure (R038)", () => {
   it("LoginForm exposes a Forgot password? link in password sign-in mode", () => {
     const p = join(ROOT, "src", "app", "login", "LoginForm.tsx");
     const src = readFileSync(p, "utf8");
-    assert.ok(src.includes("/login/forgot${brandParam"));
+    assert.ok(src.includes("const forgotHref = `/login/forgot"));
+    assert.ok(src.includes('forgotParams.set("clientId", clientId)'));
     assert.ok(src.includes("mm-form-toggle"),
       "Use the mm-form-toggle class per the Login premium redesign chapter.");
     assert.ok(src.includes('data-testid="login-forgot-link"'));

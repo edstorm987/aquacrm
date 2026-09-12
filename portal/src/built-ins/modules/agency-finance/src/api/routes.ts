@@ -92,6 +92,6 @@ export const ROUTES: PluginApiRoute[] = [
   // never holds funds. The webhook is PUBLIC (Stripe has no session) — it
   // resolves the agency from `?agencyId=` and trusts only the signed payload.
   { path: "invoices/checkout", methods: ["POST"], handler: stripeCheckoutHandler, visibleToRoles: [...AGENCY_ADMINS] },
-  { path: "stripe/webhook", methods: ["POST"], handler: stripeWebhookHandler, public: true },
+  { path: "stripe/webhook", methods: ["POST"], handler: stripeWebhookHandler, public: true, publicAuthority: "provider-webhook" },
   { path: "payments/refund", methods: ["POST"], handler: stripeRefundHandler, visibleToRoles: [...AGENCY_ADMINS] },
 ];

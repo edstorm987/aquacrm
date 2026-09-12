@@ -34,6 +34,9 @@ const PROD_REQUIRED_ENV: NodeJS.ProcessEnv = {
   NEXT_PUBLIC_SUPABASE_PUBLIC_BUCKET: "aquacrm-public",
   NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET: "aquacrm-uploads",
   SUPABASE_SERVICE_ROLE_KEY: "service-role-test-key",
+  CONTENT_SCANNER_URL: "https://scanner.example.com/v1/scan",
+  CONTENT_SCANNER_ALLOWED_ORIGINS: "https://scanner.example.com",
+  CONTENT_SCANNER_BEARER_TOKEN: "x".repeat(32),
   FOUNDER_EMAIL: "edwardhallam07@gmail.com",
   FOUNDER_PASSWORD: "x".repeat(16),
 };
@@ -151,6 +154,21 @@ describe("Env secrets — inspectEnv issues (R029)", () => {
     const e = issues.find(i => i.name === "NEXT_PUBLIC_PORTAL_SECURITY");
     assert.ok(e);
     assert.equal(e!.severity, "error");
+  });
+
+  it("rejects a non-HTTPS or private production scanner endpoint", () => {
+    for (const url of ["http://scanner.example.test/v1/scan", "https://127.0.0.1/scan"]) {
+      const issues = inspectEnv({ ...PROD_REQUIRED_ENV, CONTENT_SCANNER_URL: url });
+      assert.ok(issues.some(issue => issue.name === "CONTENT_SCANNER_URL" && issue.severity === "error"), url);
+    }
+  });
+
+  it("requires the scanner URL's exact origin on the scanner egress allowlist", () => {
+    const missing = inspectEnv({ ...PROD_REQUIRED_ENV, CONTENT_SCANNER_ALLOWED_ORIGINS: "https://other.example.com" });
+    assert.ok(missing.some(issue => issue.name === "CONTENT_SCANNER_ALLOWED_ORIGINS" && issue.severity === "error"));
+
+    const pathEntry = inspectEnv({ ...PROD_REQUIRED_ENV, CONTENT_SCANNER_ALLOWED_ORIGINS: "https://scanner.example.com/path" });
+    assert.ok(pathEntry.some(issue => issue.name === "CONTENT_SCANNER_ALLOWED_ORIGINS" && issue.severity === "error"));
   });
 
   it("dev mode downgrades missing-required errors to warns", () => {

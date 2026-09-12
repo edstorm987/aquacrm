@@ -67,7 +67,7 @@ test("every unauthenticated write under /api/public is rate limited", () => {
     // Comments stripped first, so a route cannot pass by merely DISCUSSING
     // rate limiting in a header — the trap that has caught assertions in this
     // repo before.
-    if (!/rateLimit\s*\(/.test(code)) unlimited.push(rel);
+    if (!/rateLimit(?:Batch)?\s*\(/.test(code)) unlimited.push(rel);
   }
 
   assert.deepEqual(
@@ -83,7 +83,7 @@ test("the rate limit is keyed per caller, not globally", () => {
   const offenders: string[] = [];
   for (const { rel, src } of publicRoutes()) {
     const code = stripComments(src);
-    if (!/rateLimit\s*\(/.test(code)) continue;
+    if (!/rateLimit(?:Batch)?\s*\(/.test(code)) continue;
     if (!/clientIpFromHeaders\s*\(/.test(code)) offenders.push(rel);
   }
   assert.deepEqual(

@@ -458,6 +458,17 @@ export interface PluginApiRoute {
   // agency/client from the URL or body — `ctx.agencyId` falls back
   // to a default sentinel so the dispatcher can build a PluginCtx.
   public?: boolean;
+  /**
+   * Required classification for every anonymous route. The dispatcher refuses
+   * `public: true` routes that omit or invent this value; the owning handler
+   * must still enforce the declared provider/site/storefront admission.
+   */
+  publicAuthority?:
+    | "provider-webhook"
+    | "published-site-write"
+    | "published-site-read"
+    | "storefront-read"
+    | "storefront-checkout";
 }
 
 // ─── Storefront contributions (T3-territory; contract lives here) ────────

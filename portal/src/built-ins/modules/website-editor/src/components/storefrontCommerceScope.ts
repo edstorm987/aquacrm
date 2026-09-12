@@ -5,7 +5,7 @@ export interface StorefrontCommerceScope {
   clientId: string;
 }
 
-const STORE_ROOT = "[data-aqua-storefront][data-aqua-agency-id][data-aqua-client-id]";
+const STORE_ROOT = "[data-aqua-storefront][data-aqua-published-storefront][data-aqua-agency-id][data-aqua-client-id]";
 const MODULE_PREFIX = "/api/portal/ecommerce/";
 
 export function ecommerceStorefrontScope(

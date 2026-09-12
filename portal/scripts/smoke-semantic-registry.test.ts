@@ -101,3 +101,12 @@ test("every entity declares where its truth lives and how records originate", ()
     assert.ok(entity.idRule.trim().length > 0, `${entity.id}: idRule missing`);
   }
 });
+
+test("the semantic registry states the exact subject-request authority boundary", () => {
+  const note = PORTAL_STATE_COVERAGE.subjectRequests.note;
+  assert.match(note, /Agency-scoped/);
+  assert.match(note, /exact open request/);
+  assert.match(note, /same Person/);
+  assert.match(note, /identity verification/);
+  assert.match(note, /intake is still manual/);
+});

@@ -6,6 +6,7 @@ import type {
   UserId,
   UserProfile,
 } from "../lib/tenancy";
+import type { PendingCapturePromotionCredential } from "../lib/domain";
 
 export interface StoragePort {
   get<T = unknown>(key: string): Promise<T | undefined>;
@@ -13,6 +14,7 @@ export interface StoragePort {
   setIfAbsent?<T = unknown>(key: string, value: T): Promise<boolean>;
   del(key: string): Promise<void>;
   list(prefix?: string): Promise<string[]>;
+  runExclusive?<T>(key: string, operation: () => Promise<T>): Promise<T>;
 }
 
 export interface UserPort {
@@ -39,9 +41,8 @@ export interface ActivityLogPort {
 }
 
 export type FunnelEventName =
-  | "public-funnel.lead.captured"
-  | "public-funnel.hc.completed"
-  | "public-funnel.tool.completed";
+  | "public-funnel.capture.pending"
+  | "public-funnel.capture.promoted";
 
 export interface EventBusPort {
   emit<T = unknown>(
@@ -51,35 +52,103 @@ export interface EventBusPort {
   ): void;
 }
 
-// Foundation lead-user port. T1 R023 added the `lead` role + the
-// `LEAD_AGENCY_ID` sentinel; this port wraps the foundation
-// `createUser` path so the plugin doesn't depend on the foundation's
-// internal user store directly.
+// Foundation identity-admission port. The historical name is retained for API
+// compatibility, but anonymous capture must never create a global User.
 export interface LeadUserPort {
-  // Anonymous capture is registration, never authentication. The adapter must
-  // create a brand-new lead only when the canonical address belongs to no
-  // existing identity of any role. `created:false` is a fail-closed refusal.
-  // The foundation owns the transaction because identity and plugin capture
-  // must commit together. `createLead` is lazy: the callback first checks the
-  // completion id, then creates the identity immediately before persistence.
-  withNewLeadByEmail<T>(
+  // The adapter refuses any address already owned by a real identity, then
+  // allocates an opaque pending id inside the same transaction as plugin
+  // persistence. The id has no password, session, membership or provider
+  // identity. CRM promotion never creates or attaches a User; that would
+  // require a separate verified account-enrolment boundary.
+  withPendingLeadByEmail<T>(
     email: string,
-    operation: (createLead: () => UserProfile) => Promise<T>,
+    operation: (createPendingLead: () => { id: string }) => Promise<T>,
   ): Promise<{ value: T; created: true } | { created: false }>;
+
+  /** Remove audit/ledger artifacts owned by exact captures of any identity kind. */
+  eraseCaptureArtifacts(input: {
+    agencyId: AgencyId;
+    captureIds: string[];
+  }): Promise<{ recordsErased: number }>;
 
   /**
    * Erasure-only cleanup. Exact capture ids may always lose their own audit
-   * trail, but the generated lead account is deleted only when no plugin
-   * capture anywhere still owns it.
+   * trail. This removes only legacy capture-created User rows after proving no
+   * plugin capture anywhere still owns them. New pending captures have no User.
    */
   eraseIfUnreferenced(input: {
-    agencyId: AgencyId;
     userId: UserId;
     email: string;
-    captureIds: string[];
   }): Promise<{
     status: "deleted" | "missing" | "preserved";
     recordsErased: number;
     reason?: "still-referenced" | "ambiguous-user" | "non-capture-lead";
   }>;
+}
+
+export interface PendingCapturePromotionLineage {
+  leadId: string;
+  personId: string;
+  prospectId?: string;
+  pipelineCardId?: string;
+  leadOwned: boolean;
+  personOwned: boolean;
+  prospectOwned: boolean;
+  pipelineCardOwned: boolean;
+}
+
+export interface PendingCapturePromotionAuthorityGrant {
+  kind: "mailbox-proof" | "authenticated";
+  /** Stable, non-secret receipt/command id used for idempotent replay. */
+  operationId: string;
+  /** Authoritative actor chosen by the verifier, never by the caller. */
+  actorUserId: UserId;
+  /**
+   * Stable verifier-owned subject identity. The service hashes this before it
+   * writes the promotion claim; a bearer credential is never persisted.
+   */
+  subjectKey: string;
+  /** Required for mailbox proof so the service can bind it to the capture. */
+  verifiedEmail?: string;
+}
+
+/**
+ * Trust boundary for promotion. The plugin passes only an opaque credential;
+ * the host verifies a durable proof receipt or a signed, fresh agency session.
+ */
+export interface PendingCapturePromotionAuthorityPort {
+  verify(input: {
+    agencyId: AgencyId;
+    installId: string;
+    captureId: string;
+    captureEmail: string;
+    credential: PendingCapturePromotionCredential;
+  }): Promise<PendingCapturePromotionAuthorityGrant | null>;
+}
+
+/**
+ * Trusted server-side bridge into the CRM. Anonymous capture never calls this
+ * port; FunnelService exposes it only through its explicit authority-bearing
+ * promotion command.
+ */
+export interface PendingCapturePromotionPort {
+  promote(input: {
+    agencyId: AgencyId;
+    captureId: string;
+    email: string;
+    source: string;
+    actorUserId: UserId;
+    profile?: { name?: string; phone?: string; company?: string };
+  }): Promise<PendingCapturePromotionLineage>;
+}
+
+export interface PendingCaptureErasurePort {
+  erase(input: {
+    agencyId: AgencyId;
+    installId: string;
+    captureId: string;
+    promotion: PendingCapturePromotionLineage;
+    /** Present only when the exact capture is being erased by the client-erasure coordinator. */
+    erasureSubject?: { clientId: ClientId; personId?: string };
+  }): Promise<{ recordsErased: number; sharedIdentityPreserved: boolean }>;
 }

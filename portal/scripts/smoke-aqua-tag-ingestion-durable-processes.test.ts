@@ -119,6 +119,20 @@ after(async () => {
 });
 
 describe("real-process Aqua Tag ingestion durability", () => {
+  it("two processes retrying one exact tag capture receive the original receipt from one mutation", async () => {
+    const outcomes = await collide([
+      { action: "capture", submissionId: SUBMISSION_ID, label: "capture-a" },
+      { action: "capture", submissionId: SUBMISSION_ID, label: "capture-b" },
+    ]);
+    const replies = outcomes.map((outcome, index) => reply(outcome, `capture ${index}`));
+    assert.deepEqual(replies.map(entry => entry.status), [200, 200]);
+    assert.deepEqual(replies[1].body, replies[0].body, "the retry must receive the winner's durable receipt");
+    assert.equal(replies[0].body.boundary, "database");
+    assert.equal(replies[0].body.submissionId, SUBMISSION_ID);
+    theOneEnquiry();
+    assert.equal(model.dump().submissions.length, 1);
+  });
+
   it("the tag and the host form arriving at once from two processes produce one enquiry and one effect set", async () => {
     const [held, accepted] = await collide([
       { action: "capture", submissionId: SUBMISSION_ID, label: "tag" },

@@ -63,7 +63,8 @@ verifying. Cross-check against `src/lib/server/productionReadiness.ts`.
   key-rotation note; the app reads both.)
 - **App secrets — sessions/handoff (likely already set):** `SESSION_SECRET` /
   `PORTAL_SESSION_SECRET`, `PORTAL_HANDOFF_SECRET`, `PORTAL_PREVIEW_SECRET`,
-  `AQUA_EMBED_SIGNING_SECRET`, `AQUA_EMBED_API_TOKEN`, `CRON_SECRET` (also gates the radar-probe cron).
+  `AQUA_EMBED_SIGNING_SECRET`, `CRON_SECRET` (also gates the radar-probe cron). Embed caller
+  credentials are created per agency/client in Settings and stored encrypted in the vault.
 - **Radar probe self-scheduler (#170, optional — OFF unless set):** `RADAR_PROBE_INTERVAL_MINUTES` — set to a
   positive number of minutes (e.g. `180`) on the Railway instance to run the probe sweep in-process on the
   persistent server. Leave unset to keep it off (and instead use a Railway cron / GitHub Action on

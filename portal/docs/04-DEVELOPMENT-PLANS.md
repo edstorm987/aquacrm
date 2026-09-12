@@ -2,7 +2,7 @@
 
 > Every active, completed and archived phased implementation plan and handoff.
 >
-> Consolidated 2026-09-08 from **63** source documents / **130,679 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-12 from **63** source documents / **130,716 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -43,7 +43,7 @@
 - [`docs/development/plans/information-architecture-v2.md`](#source-docs-development-plans-information-architecture-v2-md) — 893 words · `d2d34f2ce729`
 - [`docs/development/plans/internal-chat-attention.md`](#source-docs-development-plans-internal-chat-attention-md) — 434 words · `5f94a11ee09b`
 - [`docs/development/plans/kpi-intelligence-overhaul.md`](#source-docs-development-plans-kpi-intelligence-overhaul-md) — 1,995 words · `166a3cc9b521`
-- [`docs/development/plans/launch-order-and-blockers.md`](#source-docs-development-plans-launch-order-and-blockers-md) — 21,167 words · `8cbd36e3f495`
+- [`docs/development/plans/launch-order-and-blockers.md`](#source-docs-development-plans-launch-order-and-blockers-md) — 21,204 words · `62ce019946d1`
 - [`docs/development/plans/marketing-workspace-overhaul.md`](#source-docs-development-plans-marketing-workspace-overhaul-md) — 1,849 words · `c42bb1c185ed`
 - [`docs/development/plans/meta-inbox-connect.md`](#source-docs-development-plans-meta-inbox-connect-md) — 1,197 words · `48c3b40b0764`
 - [`docs/development/plans/mfa-login.md`](#source-docs-development-plans-mfa-login-md) — 1,513 words · `b48b0cc1945d`
@@ -6917,7 +6917,7 @@ plan in flight._
 
 ## Source document — `docs/development/plans/launch-order-and-blockers.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/launch-order-and-blockers.md" sha256="8cbd36e3f49593d8ada271b043046790c56b7bcf61c1a33441d2719ccf32cc43" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/launch-order-and-blockers.md" sha256="62ce019946d179c9e4900d7eea97896278bd2ddfecdc8a19b637db956c2e9350" -->
 # Launch: the order, and what is stopping us
 
 > **HISTORICAL LAUNCH PLAN (written 27–28 August 2026).** Its Vercel steps,
@@ -7029,9 +7029,8 @@ saving never sweeps.
 
 ### 5. Two smaller decisions, whenever
 
-- **Embed token** — one deployment-wide token can currently mint an admin embed
-  session for *any* tenant's client. Fine while only you hold it; a problem the
-  day you hand it to a partner. Three options in D9b.
+- **Embed credentials** — completed 2026-09-12: owner/manager-created encrypted
+  per-agency or per-client credentials replaced the deployment-wide bearer.
 - **DSAR intake channel** — a form, a monitored mailbox, or something else. The
   register is built and will receive from whichever you pick.
 
@@ -8996,38 +8995,26 @@ different route:
 | `portal/dev/projects` | `routeTenantScope(actor.session, …)` |
 | `auth/magic/request` | public by design; resolves the client, must not reveal account existence |
 | `auth/end-customer/signup` | public by design; resolves clientId → Client, 404 if archived |
-| `v1/embed/sessions` | bearer token — **but no agency scoping; see below** |
+| `v1/embed/sessions` | encrypted per-agency/client vault credential; exact tenant/client and maximum mode are enforced |
 
-##### 🟠 A DECISION FOR ED — the embed API token is deployment-wide
+##### ✅ EMBED-SEC-001 — scoped embed authority (completed 2026-09-12)
 
-`v1/embed/sessions` is properly gated: the bearer check is the first statement
-in the handler (so it cannot leak whether a client exists to an unauthenticated
-caller), the comparison is `timingSafeEqual`, and an unset
-`AQUA_EMBED_API_TOKEN` in production resolves to `""` and **denies everyone**
-rather than admitting them — the local dev fallback is explicitly gated on not
-being production.
-
-**What it does not do is scope to an agency.** There is one token for the whole
-deployment. Its holder can call `getClient(anyClientId)` across every tenant,
-choose `mode: "admin"` from the request body, and receive that client's name.
-
-For a single-operator deployment that is coherent — you hold the token. The risk
-is what the feature is *for*: an embed token is the thing you hand to whoever
-embeds a portal in their own site. **Hand it to one partner and they can mint an
-admin embed session for every other tenant's clients.**
-
-Not changed unilaterally, because the right answer depends on how you intend to
-distribute it. The options, cheapest first:
-
-1. **Keep it operator-only.** Never give the token to a client or partner; embed
-   only from surfaces you run. No code change.
-2. **Scope by env.** An optional `AQUA_EMBED_AGENCY_ID` that, when set, refuses
-   clients outside it. Additive, off by default, ~10 lines.
-3. **Per-agency tokens.** Move the embed token into the credential vault
-   alongside the other per-agency secrets. Correct long-term, largest change.
-
-The current shape is pinned by `smoke-route-auth-coverage` so it cannot drift
-without the decision being re-made.
+Owners and managers create encrypted Aqua embed credentials in Settings. Each
+credential is bound to one agency and optionally one client, has an immutable
+maximum-mode ceiling and may require one exact HTTPS origin. Minted tokens carry
+agency and credential lineage. Consumption revalidates the live credential and
+scope, applies durable budgets, and atomically consumes the nonce before issuing
+a tokenless session-backed destination. Duplicate, revoked, missing or legacy
+deployment credentials fail closed; the generated secret is revealed once only.
+The exchanged session also carries signed credential/version/origin lineage.
+`/embed/account` is the only route excluded from the global self-only framing
+rule; its proxy response permits only the credential's exact HTTPS origin and
+`'self'`. Forged, ordinary or origin-unbound sessions receive
+`frame-ancestors 'none'`. The account page revalidates the live credential,
+version, tenant, client and mode before loading customer data, so revocation or
+policy rotation closes an already-issued embed session at the data boundary.
+Cross-browser third-party-cookie and real response-header verification remain a
+deployment acceptance gate rather than a claim made from hermetic tests.
 
 9. The security posture sweep: every public route ✅, every mutating route ✅,
    the access matrix re-run against the live backend rather than memory.
@@ -9094,16 +9081,17 @@ touches OpenAI.
 > are being set up and when the mistake would be locked in. Verified by changing
 > the condition to `rows.length > 0`: the test fails.
 
-#### D10c — subject access and portability: BUILT 2026-08-28
+#### D10c — subject access and portability: PARTIAL; corrected 2026-09-12
 
 `compliancePosture` recorded `gdpr.dsar-access` as **missing**: *"You can delete
 someone's data but you cannot give it to them."* Access and portability are the
 two most commonly exercised rights, and neither existed.
 
-`POST /api/portal/governance/subject-access` now returns everything held about
-one person as a JSON download — JSON because Art. 20 asks for a "structured,
-commonly used and machine-readable" format and these records are nested;
-flattening to CSV would lose the structure the right exists to preserve.
+`POST /api/portal/governance/subject-access` now prepares the **automatic safe
+portion** of a verified access/portability request as JSON. JSON preserves the
+nested structure, but this is not represented as “everything held” or as proof
+of delivery: client-owned databases, providers and other systems outside the
+hydrated PortalState snapshot require separate collection.
 
 **It searches every collection in state, not a maintained list.** The obvious
 design classifies each of the ~90 collections as personal/not-personal and
@@ -9114,11 +9102,19 @@ everything we hold about you". **A wrong subject-access response is worse than
 none: it is a false statement made under a legal obligation.** So there is no
 list; every collection is walked and the question is asked of each record.
 
-Matching is recursive, because a reference is as often nested
-(`scope: { kind: "person", details: { personId } }`) as top-level — the shape
-that defeated the erasure sweep in August. It matches on person id,
-relationship id, email (case-insensitively, and on the `raw` form as well as the
-normalised one) and phone.
+Walking is recursive; **ownership matching is not**. Only exact typed Person,
+reciprocal client/facet/relationship lineage, typed scope, or an exclusive
+email/phone in a recognised contact field can authorise a row. A subject id,
+email or phone inside arbitrary prose, or a reference to the subject as actor or
+assignee, is a review-only mention. Shared identifiers and contradictory client
+lineage are ambiguous and cannot authorise automatic release.
+
+An attributable row is still not automatically safe. Deterministic third-party
+name, postal address/postcode, email and phone fields are redacted on a copy.
+Operator-authored free text and content beyond the inspection-depth limit make
+the whole row review-only. The JSON reports value-free counts for unscoped,
+unclassified, ambiguous, co-mingled and depth-limit rows, plus field-redaction
+counts; it never embeds the withheld values.
 
 **Tenant safety.** Only records whose own `agencyId` matches are included: a
 subject-access response that leaked another tenant's records would be a breach
@@ -9126,18 +9122,28 @@ committed in the act of complying with a subject right. Matches carrying **no**
 `agencyId` cannot be proven to belong here, so they are counted and reported as
 `recordsNotAttributableToThisAgency` — visible, never silently dropped.
 
-Each fulfilment is logged, naming the subject **by id only**: activity messages
-survive as an audit trail, and an address written into one would outlive the
-person's own erasure.
+The body is bounded before hydration/auth work and contains only `requestId` and
+`personId`; the tenant and actor come from the session. The request must already
+exist in the exact agency, be access/portability kind, bind the exact Person, be
+identity-verified, and remain open. Export construction, id-only activity
+evidence and fulfilment share one coordinated transaction, and the download is
+returned only after commit. Commit failure rolls back both evidence and
+fulfilment. Success, request refusals, malformed/oversized input and auth errors
+all carry `no-store`.
 
-Verified by breaking it — capping recursion depth loses the nested reference;
-removing the agency filter leaks the other tenant's record. Both fail the tests.
+Permanent adversarial coverage lives in
+`scripts/smoke-subject-access-export-security.test.ts`: free-text ids, phones
+and emails; actor/assignee mentions; shared identifiers; exact client facets and
+relationship siblings; contradictory lineage; third-party name/address/postcode,
+email, phone and prose; traversal depth; other tenants/requests; every request
+gate; malformed/oversized bodies; no-store; and storage-failure rollback.
 
-**The posture was updated to `partial`, not `met`**, and the sync test with it.
-Fulfilment now exists; the REQUEST side does not — no identity-verification step
-before releasing someone's data, and no clock against the one-month deadline.
-`gdpr.dsar-intake` stays `missing`, and the two must not be conflated: being able
-to *fulfil* a request is not being able to *receive and evidence* one.
+**The posture remains `partial`, not `met`.** The request register, identity
+sequence and statutory clock exist, and this route is now bound to them. Intake
+is still manual; every non-zero review count needs explicit disposition; external
+systems still need collection; lawful scope and final handover still need a
+human process; and configured retention periods remain unset. A point-in-time
+export does not alter source retention.
 
 > Two existing guards caught this work before it landed, which is the system
 > behaving correctly: the app-route tenancy test refused a new route until its

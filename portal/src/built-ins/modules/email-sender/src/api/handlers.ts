@@ -1,6 +1,7 @@
 // HTTP handlers for the email-sender plugin.
 
 import type { PluginCtx } from "../lib/aquaPluginTypes";
+import { readBoundedPublicWebhookBody } from "@/lib/server/portal/publicWebhookBody";
 import { containerFor } from "../server/foundationAdapter";
 import { redactProviderConfig } from "../server/provider";
 import type {
@@ -166,16 +167,42 @@ export async function testSendHandler(req: Request, ctx: PluginCtx): Promise<Res
 
 // ─── Webhook (public, no auth — provider signs) ──────────────────────────
 
+export function postmarkWebhookCredential(req: Request): string {
+  // Query-carried credentials leak through access logs, browser history and
+  // copied URLs. Postmark supports HTTP Basic auth on a webhook endpoint; a
+  // reverse proxy may alternatively supply the dedicated header. If both are
+  // present they must agree, so an intermediary cannot silently replace one.
+  const headerCredential = (req.headers.get("x-postmark-secret") ?? "").trim();
+  const authorization = (req.headers.get("authorization") ?? "").trim();
+  let basicCredential = "";
+  if (authorization) {
+    const match = /^Basic ([A-Za-z0-9+/]+={0,2})$/.exec(authorization);
+    if (!match || match[1].length > 2048) return "";
+    try {
+      const decoded = Buffer.from(match[1], "base64").toString("utf8");
+      const separator = decoded.indexOf(":");
+      if (separator < 1 || decoded.slice(0, separator) !== "aqua") return "";
+      basicCredential = decoded.slice(separator + 1).trim();
+    } catch {
+      return "";
+    }
+  }
+  if (headerCredential && basicCredential && headerCredential !== basicCredential) return "";
+  const credential = headerCredential || basicCredential;
+  return credential.length > 0 && credential.length <= 1024 ? credential : "";
+}
+
 export async function postmarkWebhookHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
-  const rawBody = await req.text();
-  const url = new URL(req.url);
-  // Postmark sends the webhook secret as `?secret=...`.
-  const signatureHeader = url.searchParams.get("secret")
-    ?? req.headers.get("x-postmark-secret")
-    ?? "";
+  const signatureHeader = postmarkWebhookCredential(req);
+  if (!signatureHeader) return json({ ok: false, error: "webhook_refused" }, 400);
+  const body = await readBoundedPublicWebhookBody(req);
+  if (!body.ok) return body.response;
+  const rawBody = body.rawBody;
   const result = await buildContainer(ctx).webhook.handle({ rawBody, signatureHeader });
-  return json(result, result.ok ? 200 : 400);
+  return result.ok
+    ? json(result, 200)
+    : json({ ok: false, error: "webhook_refused" }, 400);
 }
 
 // ─── Internal enqueue (plugin-to-plugin via foundation routing) ──────────

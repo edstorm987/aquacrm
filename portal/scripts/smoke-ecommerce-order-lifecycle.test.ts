@@ -80,6 +80,7 @@ function checkoutEvent(
         currency: "gbp",
         customer_email: "buyer@example.test",
         metadata: {
+          agencyId: AGENCY_ID,
           clientId: CLIENT_ID,
           checkoutOperationId: `checkout-${sessionId}`,
           expectedAmountTotal: "1000",
@@ -151,7 +152,11 @@ function expiredEvent(eventId: string, sessionId: string): EcommerceWebhookEvent
     data: {
       object: {
         id: sessionId,
-        metadata: { checkoutOperationId: `checkout-${sessionId}` },
+        metadata: {
+          agencyId: AGENCY_ID,
+          clientId: CLIENT_ID,
+          checkoutOperationId: `checkout-${sessionId}`,
+        },
       },
     },
   };
@@ -244,6 +249,31 @@ test("paid checkout delivery is durable, validated and deduped after a fresh req
   );
   assert.equal(unknownOperation.ok, false);
   assert.match(unknownOperation.error ?? "", /unknown operation/);
+});
+
+test("verified checkout events for another tenant fail before durable delivery or commerce mutation", async () => {
+  const world = buildWorld();
+  const event = checkoutEvent("evt_wrong_tenant", "cs_wrong_tenant", {
+    metadata: {
+      agencyId: "agency_somebody_else",
+      clientId: CLIENT_ID,
+      checkoutOperationId: "checkout-cs_wrong_tenant",
+      expectedAmountTotal: "1000",
+      expectedCurrency: "gbp",
+      expectedItemCount: "1",
+    },
+  });
+  await primeCheckout(world, "cs_wrong_tenant");
+  const result = await applyVerifiedEcommerceWebhookEvent(event, world.ctx);
+  assert.equal(result.ok, false);
+  assert.equal(result.retryable, false);
+  assert.match(result.error ?? "", /scope/);
+  assert.equal(
+    await world.storage.get("ecommerce/webhook/delivery/evt_wrong_tenant"),
+    undefined,
+    "a cross-tenant event reached the durable delivery ledger",
+  );
+  assert.equal(await world.services().orders.getOrderByStripeSession("cs_wrong_tenant"), null);
 });
 
 test("checkout resumes state-first work after an activity failure without another order", async () => {

@@ -1,5 +1,7 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
+
 import type { PluginStorage } from "../lib/aquaPluginTypes";
 
 const STORE_KEY = "storefront-rate-limit:v1";
@@ -27,6 +29,19 @@ export interface StorefrontRateLimitResult {
   retryAfterSec: number;
 }
 
+export interface StorefrontRateLimitDimension {
+  /** Server-generated label only. Caller-controlled values must be digested. */
+  key: string;
+  max: number;
+}
+
+export interface StorefrontRateLimitDimensionsInput {
+  action: StorefrontRateLimitInput["action"];
+  dimensions: StorefrontRateLimitDimension[];
+  windowMs: number;
+  now?: number;
+}
+
 function cleanBucket(value: unknown): StoredBucket | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
@@ -46,11 +61,12 @@ function cleanBuckets(value: unknown, now: number): StoredBuckets {
   return cleaned;
 }
 
-function bucketKey(input: Pick<StorefrontRateLimitInput, "action" | "clientIp">): string {
-  // The provider-normalised address remains private inside the install's
-  // server-side storage. Length is bounded so a hostile header cannot turn
-  // the limiter record into an unbounded key.
-  return `${input.action}:${input.clientIp.trim().slice(0, 200) || "anonymous"}`;
+export function storefrontRateLimitDimension(label: string, value: string): string {
+  const safeLabel = label.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 32) || "scope";
+  const digest = createHash("sha256")
+    .update(`aqua-storefront-rate-limit:v1\u0000${safeLabel}\u0000${value.trim() || "anonymous"}`)
+    .digest("hex");
+  return `${safeLabel}:${digest}`;
 }
 
 /**
@@ -65,46 +81,74 @@ export async function takeStorefrontRateLimit(
   storage: PluginStorage,
   input: StorefrontRateLimitInput,
 ): Promise<StorefrontRateLimitResult> {
+  return takeStorefrontRateLimitDimensions(storage, {
+    action: input.action,
+    dimensions: [{ key: storefrontRateLimitDimension("ip", input.clientIp), max: input.max }],
+    windowMs: input.windowMs,
+    now: input.now,
+  });
+}
+
+/**
+ * Atomically spend every server-derived abuse dimension, or none of them.
+ * Checkout uses this after human proof and an authoritative server quote so a
+ * single address cannot fan out across IPs, a single IP cannot drain many
+ * SKUs, and provider/session creation has its own install-scoped ceiling.
+ */
+export async function takeStorefrontRateLimitDimensions(
+  storage: PluginStorage,
+  input: StorefrontRateLimitDimensionsInput,
+): Promise<StorefrontRateLimitResult> {
   if (!storage.runExclusive) {
     throw new Error("storefront_rate_limit_requires_exclusive_storage");
   }
   const operation = async (): Promise<StorefrontRateLimitResult> => {
     const now = input.now ?? Date.now();
     const buckets = cleanBuckets(await storage.get<unknown>(STORE_KEY), now);
-    const key = bucketKey(input);
-    const existing = buckets[key];
-
-    if (!existing) {
-      const next = { count: 1, resetAt: now + input.windowMs };
-      buckets[key] = next;
-      await storage.set(STORE_KEY, buckets);
-      return {
-        allowed: true,
-        remaining: Math.max(0, input.max - 1),
-        resetAt: next.resetAt,
-        retryAfterSec: 0,
-      };
+    const dimensions = new Map<string, number>();
+    for (const dimension of input.dimensions.slice(0, 64)) {
+      const key = `${input.action}:${dimension.key.trim().slice(0, 120)}`;
+      if (!dimension.key.trim() || !Number.isSafeInteger(dimension.max) || dimension.max < 1) {
+        throw new Error("storefront_rate_limit_dimension_invalid");
+      }
+      dimensions.set(key, Math.min(dimensions.get(key) ?? dimension.max, dimension.max));
+    }
+    if (dimensions.size === 0 || !Number.isSafeInteger(input.windowMs) || input.windowMs < 1) {
+      throw new Error("storefront_rate_limit_dimension_invalid");
     }
 
-    if (existing.count >= input.max) {
-      // Persist the pruned map even on refusal so expired identities do not
-      // accumulate forever under a busy install.
+    const blocked = [...dimensions].flatMap(([key, max]) => {
+      const bucket = buckets[key];
+      return bucket && bucket.count >= max ? [{ bucket, max }] : [];
+    });
+    if (blocked.length > 0) {
       await storage.set(STORE_KEY, buckets);
+      const retryAfterSec = Math.max(...blocked.map(({ bucket }) =>
+        Math.max(1, Math.ceil((bucket.resetAt - now) / 1_000))));
       return {
         allowed: false,
         remaining: 0,
-        resetAt: existing.resetAt,
-        retryAfterSec: Math.max(1, Math.ceil((existing.resetAt - now) / 1_000)),
+        resetAt: Math.max(...blocked.map(({ bucket }) => bucket.resetAt), now),
+        retryAfterSec,
       };
     }
 
-    const next = { ...existing, count: existing.count + 1 };
-    buckets[key] = next;
+    let remaining = Number.POSITIVE_INFINITY;
+    let resetAt = now + input.windowMs;
+    for (const [key, max] of dimensions) {
+      const existing = buckets[key];
+      const next = existing
+        ? { ...existing, count: existing.count + 1 }
+        : { count: 1, resetAt: now + input.windowMs };
+      buckets[key] = next;
+      remaining = Math.min(remaining, Math.max(0, max - next.count));
+      resetAt = Math.max(resetAt, next.resetAt);
+    }
     await storage.set(STORE_KEY, buckets);
     return {
       allowed: true,
-      remaining: Math.max(0, input.max - next.count),
-      resetAt: next.resetAt,
+      remaining: Number.isFinite(remaining) ? remaining : 0,
+      resetAt,
       retryAfterSec: 0,
     };
   };

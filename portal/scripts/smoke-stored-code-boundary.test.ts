@@ -24,6 +24,7 @@ import {
   storedCodeMode,
   storedMarkupOrNull,
 } from "../src/built-ins/modules/website-editor/src/lib/customCodeSafeMode";
+import { buildContentSecurityPolicy } from "../src/lib/security/contentSecurityPolicy";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (rel: string) => readFileSync(join(ROOT, rel), "utf8");
@@ -71,9 +72,11 @@ test("the editor iframe no longer combines allow-scripts with allow-same-origin"
 
 test("the production CSP drops the broad https: script source and narrows frame-ancestors", () => {
   const config = read("next.config.ts");
-  const prodScript = config.match(/\? "(script-src[^"]*)"/)?.[1] ?? "";
+  const policy = buildContentSecurityPolicy({ nodeEnv: "production" });
+  const prodScript = policy.match(/script-src[^;]*/)?.[0] ?? "";
   assert.ok(prodScript.length > 0, "production script-src not found");
-  assert.doesNotMatch(prodScript, /https:/, `production script-src still allows a broad https: source: "${prodScript}"`);
+  assert.doesNotMatch(prodScript, /(?:^|\s)https:(?:\s|$)/, `production script-src still allows a broad https: source: "${prodScript}"`);
   assert.match(prodScript, /'self'/, "script-src must keep 'self'");
-  assert.match(config, /frame-ancestors 'self'\$\{DEV_LOOPBACK_FRAME_SOURCES\}`/, "frame-ancestors must be 'self' only (plus dev loopback)");
+  assert.match(policy, /frame-ancestors 'self'(?:;|$)/, "the global production frame policy must remain self-only");
+  assert.match(config, /\/\(\(\?!embed\/account/, "the request-bound embed account must be excluded from the static CSP rule");
 });

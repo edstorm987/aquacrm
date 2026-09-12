@@ -26,11 +26,11 @@ import { NextRequest } from "next/server";
 
 process.env.PORTAL_BACKEND ??= "memory";
 
-import { POST } from "../src/app/api/auth/login/route";
+import * as loginRoute from "../src/app/api/auth/login/route";
 import { POST as browserPOST } from "../src/app/api/auth/login/browser/route";
 import { ensureHydrated } from "../src/server/storage";
 import { createAgency } from "../src/server/tenants";
-import { createUser } from "../src/server/users";
+import { bindSupabaseAuthIdentity, createUser } from "../src/server/users";
 import { SESSION_COOKIE_NAME } from "../src/lib/server/auth/auth";
 import { __resetBotChallengeForTest } from "../src/lib/server/security/botChallenge";
 
@@ -43,12 +43,18 @@ const SECRET_KEY = "1x0000000000000000000000000000000AA";
 const MEMBER_EMAIL = "captcha.login@auth001.test";
 const GOOD_PASSWORD = "Sup3rSecret!pw";
 const SB_USER_ID = "sb_user_captcha_login";
+const FREELANCER_EMAIL = "bound.freelancer@auth001.test";
+const FREELANCER_SB_USER_ID = "sb_user_bound_freelancer";
+const WRONG_FREELANCER_SB_USER_ID = "sb_user_wrong_freelancer";
+const POST = loginRoute.POST;
 
 let sbServer: Server | undefined;
 let sbCalls: string[] = [];
 let realFetch: typeof fetch;
 let savedEnv: Record<string, string | undefined> = {};
 let supabaseReachable = false;
+let freelancerAgencyId = "";
+let activeFreelancerSubjectId = FREELANCER_SB_USER_ID;
 const EXTERNAL_LOGIN_ORIGIN = "https://portal.aquaoasis.test";
 
 // The canned Turnstile answer for a "valid" token. Bound to action=login and
@@ -87,8 +93,11 @@ async function startStubSupabase(): Promise<string> {
       if (url.startsWith("/auth/v1/token")) {
         const body = Buffer.concat(chunks).toString("utf8");
         let password = "";
+        let requestedEmail = "";
         try {
-          password = (JSON.parse(body) as { password?: string }).password ?? "";
+          const parsed = JSON.parse(body) as { email?: string; password?: string };
+          password = parsed.password ?? "";
+          requestedEmail = parsed.email?.trim().toLowerCase() ?? "";
         } catch {
           password = "";
         }
@@ -98,6 +107,7 @@ async function startStubSupabase(): Promise<string> {
           return;
         }
         res.writeHead(200, { "content-type": "application/json" });
+        const isFreelancer = requestedEmail === FREELANCER_EMAIL;
         res.end(JSON.stringify({
           access_token: "stub-access-token",
           token_type: "bearer",
@@ -105,8 +115,17 @@ async function startStubSupabase(): Promise<string> {
           expires_at: Math.floor(Date.now() / 1000) + 3600,
           refresh_token: "stub-refresh-token",
           user: {
-            id: SB_USER_ID, aud: "authenticated", role: "authenticated",
-            email: MEMBER_EMAIL, app_metadata: {}, user_metadata: {},
+            id: isFreelancer ? activeFreelancerSubjectId : SB_USER_ID,
+            aud: "authenticated",
+            role: "authenticated",
+            email: requestedEmail || MEMBER_EMAIL,
+            app_metadata: isFreelancer ? {
+              aqua_subject_kind: "agency-staff",
+              aqua_profile_role: "staff",
+              aqua_agency_id: freelancerAgencyId,
+              aqua_provisioning_operation_id: "staff-provisioning-test-operation",
+            } : {},
+            user_metadata: {},
             created_at: new Date(0).toISOString(),
           },
         }));
@@ -114,7 +133,11 @@ async function startStubSupabase(): Promise<string> {
       }
       if (url.startsWith("/rest/v1/profiles")) {
         res.writeHead(200, { "content-type": "application/json" });
-        res.end("[]");
+        res.end(
+          url.includes(FREELANCER_SB_USER_ID) || url.includes(WRONG_FREELANCER_SB_USER_ID)
+            ? '[{"role":"staff"}]'
+            : "[]",
+        );
         return;
       }
       res.writeHead(200, { "content-type": "application/json" });
@@ -188,6 +211,15 @@ before(async () => {
   await ensureHydrated();
   const agency = createAgency({ name: "AUTH001 Captcha Co", ownerEmail: "owner@auth001.test" });
   createUser({ email: MEMBER_EMAIL, password: GOOD_PASSWORD, name: "Captcha Login", role: "agency-owner", agencyId: agency.id });
+  freelancerAgencyId = agency.id;
+  const freelancer = createUser({
+    email: FREELANCER_EMAIL,
+    password: GOOD_PASSWORD,
+    name: "Bound Freelancer",
+    role: "freelancer",
+    agencyId: agency.id,
+  });
+  assert.ok(bindSupabaseAuthIdentity(freelancer.id, FREELANCER_SB_USER_ID));
 
   const probe = await realFetch(`${base}/auth/v1/token?grant_type=password`, {
     method: "POST", headers: { "content-type": "application/json" },
@@ -209,6 +241,10 @@ after(() => {
 });
 
 describe("Login is gated by the managed bot-challenge (configured)", () => {
+  it("the Next route exports only supported route-handler symbols", () => {
+    assert.deepEqual(Object.keys(loginRoute).sort(), ["POST"]);
+  });
+
   it("denies a JSON login with NO token before any credential work", async () => {
     const before = sbCalls.length;
     const res = await POST(jsonRequest({ email: MEMBER_EMAIL, password: GOOD_PASSWORD }, "20.0.0.1"));
@@ -248,6 +284,41 @@ describe("Login is gated by the managed bot-challenge (configured)", () => {
     const location = res.headers.get("location")!;
     assert.ok(!location.toLowerCase().includes("challenge"), "the challenge message must not leak into the URL");
     assert.match(cookieValue(res, ERROR_COOKIE) ?? "", /verification challenge/i);
+  });
+});
+
+describe("Bound workforce subjects never fall back to a same-email account", () => {
+  it("accepts the exact immutable freelancer subject with staff provider metadata", async () => {
+    activeFreelancerSubjectId = FREELANCER_SB_USER_ID;
+    turnstileVerdict = () => ({
+      success: true,
+      action: "login",
+      hostname: "localhost",
+      challenge_ts: new Date().toISOString(),
+    });
+    const response = await POST(jsonRequest({
+      email: FREELANCER_EMAIL,
+      password: GOOD_PASSWORD,
+      captchaToken: "bound-freelancer",
+    }, "20.0.3.1"));
+    assert.equal(response.status, 200, await response.clone().text());
+    assert.ok(response.headers.getSetCookie().some(cookie => (
+      cookie.startsWith(`${SESSION_COOKIE_NAME}=`)
+    )));
+  });
+
+  it("refuses a different provider subject even when email and admin metadata match", async () => {
+    activeFreelancerSubjectId = WRONG_FREELANCER_SB_USER_ID;
+    const response = await POST(jsonRequest({
+      email: FREELANCER_EMAIL,
+      password: GOOD_PASSWORD,
+      captchaToken: "wrong-freelancer-subject",
+    }, "20.0.3.2"));
+    assert.equal(response.status, 403);
+    assert.equal(response.headers.getSetCookie().some(cookie => (
+      cookie.startsWith(`${SESSION_COOKIE_NAME}=`)
+    )), false);
+    activeFreelancerSubjectId = FREELANCER_SB_USER_ID;
   });
 });
 

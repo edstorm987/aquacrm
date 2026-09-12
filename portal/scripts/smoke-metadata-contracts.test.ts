@@ -29,7 +29,16 @@ const SRC_ROOT = join(__dirname, "..", "src");
  * else catalogued-but-unused must be retired with the code that stopped
  * using it.
  */
-const STORED_DATA_ONLY_KEYS = new Set(["practiceName"]);
+const STORED_DATA_ONLY_KEYS = new Set([
+  "practiceName",
+  // Supabase auth app_metadata is written as an admin-only object literal, not
+  // read through a local variable literally named `metadata`; these still need
+  // contracts because they are persisted authority at the identity boundary.
+  "aqua_subject_kind",
+  "aqua_agency_id",
+  "aqua_profile_role",
+  "aqua_provisioning_operation_id",
+]);
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {

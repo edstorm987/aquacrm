@@ -5,6 +5,51 @@
 -- existing ON DELETE CASCADE constraints. The table locks close predicate and
 -- late-child races while the row locks make the exact reviewed set explicit.
 
+-- A completed live erasure and the later local/plugin deletion cannot share
+-- one database transaction. Keep an irreversible, PII-free ownership
+-- tombstone in the live inbox database so a delayed or concurrent writer can
+-- never recreate the erased client link in that gap (or afterwards).
+create table if not exists public.inbox_client_erasure_tombstones (
+  agency_id text not null,
+  client_id text not null,
+  erased_at timestamptz not null default clock_timestamp(),
+  primary key (agency_id, client_id),
+  check (btrim(agency_id) <> '' and btrim(client_id) <> '')
+);
+
+alter table public.inbox_client_erasure_tombstones enable row level security;
+revoke all on table public.inbox_client_erasure_tombstones from public, anon, authenticated, service_role;
+
+create or replace function public.reject_erased_client_inbox_link()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog
+as $$
+begin
+  if new.client_id is not null and exists (
+    select 1
+    from public.inbox_client_erasure_tombstones tombstone
+    where tombstone.agency_id = new.agency_id
+      and tombstone.client_id = new.client_id
+  ) then
+    raise exception using
+      errcode = '23514',
+      message = 'inbox_client_erasure_tombstone';
+  end if;
+  return new;
+end;
+$$;
+
+revoke all on function public.reject_erased_client_inbox_link() from public, anon, authenticated, service_role;
+
+drop trigger if exists inbox_identity_reject_erased_client_link
+  on public.inbox_contact_identities;
+create trigger inbox_identity_reject_erased_client_link
+before insert or update of client_id, agency_id
+on public.inbox_contact_identities
+for each row execute function public.reject_erased_client_inbox_link();
+
 create or replace function public.erase_client_inbox_data(
   p_agency_id text,
   p_client_id text
@@ -39,11 +84,19 @@ begin
   -- on the complete FK chain prevents reassignment, phantom identities, and
   -- late children until this RPC commits or rolls back.
   lock table
+    public.inbox_client_erasure_tombstones,
     public.inbox_channel_connections,
     public.inbox_contact_identities,
     public.inbox_conversations,
     public.inbox_messages
   in share row exclusive mode;
+
+  -- The trigger above is the other half of this lock. A writer that committed
+  -- first is included in the locked deletion set; a writer that waits for this
+  -- transaction resumes only after this tombstone is visible and is refused.
+  insert into public.inbox_client_erasure_tombstones (agency_id, client_id)
+  values (p_agency_id, p_client_id)
+  on conflict (agency_id, client_id) do nothing;
 
   perform identity_row.id
   from public.inbox_contact_identities identity_row

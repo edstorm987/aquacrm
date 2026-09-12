@@ -7,6 +7,7 @@
 // `install.config`, which reaches the browser. The driver itself is small and
 // has no @postmark/* dependency — it uses fetch, injectable for tests.
 
+import { createHash, timingSafeEqual } from "node:crypto";
 import type {
   EmailMessage,
   IdentityVerification,
@@ -144,18 +145,19 @@ export class PostmarkDriver implements EmailDriver {
     };
   }
 
-  // Postmark webhook signature is the per-server "Webhook secret" the
-  // agency sets in Postmark dashboard. They send it as a query param
-  // `?secret=<value>` on each delivery callback. v1 verification:
-  // exact-match comparison. (Postmark also offers basic auth on the
-  // webhook URL; same comparison applies.)
+  // Postmark webhook authority is the per-server webhook secret the agency
+  // sets as the HTTP Basic-auth password in Postmark. The handler rejects
+  // query-carried secrets before this driver sees them; this layer performs a
+  // constant-time exact comparison against the vault-held value.
   async verifyWebhook({ ctx, rawBody, signatureHeader }: {
     ctx: DriverContext;
     rawBody: string;
     signatureHeader: string;
   }): Promise<PostmarkWebhookEvent | null> {
     if (!ctx.webhookSecret) return null;
-    if (signatureHeader !== ctx.webhookSecret) return null;
+    const expected = createHash("sha256").update(ctx.webhookSecret, "utf8").digest();
+    const supplied = createHash("sha256").update(signatureHeader, "utf8").digest();
+    if (!timingSafeEqual(expected, supplied)) return null;
     try {
       const event = JSON.parse(rawBody) as PostmarkWebhookEvent;
       if (!event.RecordType || !event.MessageID) return null;

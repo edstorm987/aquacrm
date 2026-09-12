@@ -8,12 +8,7 @@ interface Props {
   embedded?: boolean;
   // When provided, the form posts to /api/auth/login with a `clientId`
   // body field so the auth lookup hits the end-customer pool first.
-  // Also unlocks the "Create one" signup toggle (when allowSignup).
   clientId?: string;
-  // When true, renders the "Don't have an account? Create one" toggle
-  // and lets visitors POST /api/auth/end-customer/signup. Set by the
-  // embed page after reading `client.endCustomers.signupsEnabled`.
-  allowSignup?: boolean;
   // R9: when true the page renders the "Continue with Google" button.
   // The login page server-fetches `isGoogleOAuthConfigured()` and
   // passes it down — env unset → button hidden.
@@ -27,10 +22,10 @@ interface Props {
   captchaRequired?: boolean;
 }
 
-type Mode = "signin" | "signup" | "magic";
+type Mode = "signin" | "magic";
 
 export function LoginForm({
-  embedded = false, clientId, allowSignup = false,
+  embedded = false, clientId,
   googleEnabled = false, magicLinkEnabled = false,
   captchaSiteKey = null, captchaRequired = false,
 }: Props) {
@@ -62,7 +57,6 @@ export function LoginForm({
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(doorNotice);
   const [magicSent, setMagicSent] = useState<{ devUrl?: string } | null>(null);
@@ -107,45 +101,34 @@ export function LoginForm({
         const res = await fetch("/api/auth/magic/request", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ email, clientId, returnUrl: success.startsWith("/") ? success : "/portal/customer" }),
+          body: JSON.stringify({
+            email,
+            clientId,
+            returnUrl: success.startsWith("/") ? success : "/portal/customer",
+            ...(captchaToken ? { captchaToken } : {}),
+          }),
         });
         const data = (await res.json()) as { ok: boolean; error?: string; sent?: boolean; devMagicUrl?: string };
         if (!res.ok || !data.ok) {
           setError(data.error ?? "Couldn't send magic link.");
-          setBusy(false);
           return;
         }
         setMagicSent({ devUrl: data.devMagicUrl });
-        setBusy(false);
         return;
       }
-      let res: Response;
-      if (mode === "signup") {
-        if (!clientId) throw new Error("Sign-up requires an embedding client.");
-        res = await fetch("/api/auth/end-customer/signup", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ clientId, email, password, name: name.trim() || undefined }),
-        });
-      } else {
-        res = await fetch("/api/auth/login", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            email, password, clientId, brand: brandParam,
-            ...(code.trim() ? { code: code.trim() } : {}),
-            ...(captchaToken ? { captchaToken } : {}),
-          }),
-        });
-      }
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email, password, clientId, brand: brandParam,
+          ...(code.trim() ? { code: code.trim() } : {}),
+          ...(captchaToken ? { captchaToken } : {}),
+        }),
+      });
       const data = (await res.json()) as {
         ok: boolean; error?: string; returnUrl?: string; redirect?: string;
         mfaRequired?: boolean; recoveryCodes?: string[];
       };
-      // Any password-login request may have consumed the single-use token,
-      // including a response whose body says the credentials or MFA code were
-      // wrong. Reset before branching so every retry starts with fresh proof.
-      if (mode === "signin") captchaRef.current?.reset();
       if (!res.ok || !data.ok) {
         if (data.mfaRequired) {
           // Ask for the code and keep the password in state so the retry is one
@@ -154,8 +137,7 @@ export function LoginForm({
           setMfaRequired(true);
           setCode("");
         }
-        setError(data.error ?? `${mode === "signup" ? "Sign-up" : "Sign-in"} failed.`);
-        setBusy(false);
+        setError(data.error ?? "Sign-in failed.");
         return;
       }
       // Server may suggest a return URL via the client's
@@ -167,22 +149,26 @@ export function LoginForm({
         // person's own copy. Hold the redirect until they say they are saved.
         setRecoveryCodes(data.recoveryCodes);
         setPendingRedirect(destination);
-        setBusy(false);
         return;
       }
       navigate(destination);
     } catch {
-      if (mode === "signin") captchaRef.current?.reset();
       setError("Network error. Try again.");
+    } finally {
+      // Both password and magic-link submissions consume their action-bound
+      // token. Reset even on an early return or network/provider failure.
+      captchaRef.current?.reset();
       setBusy(false);
     }
   }
 
-  const submitLabel = busy
-    ? (mode === "signup" ? "Creating account…" : "Signing in…")
-    : (mode === "signup" ? "Create account" : "Sign in");
+  const submitLabel = busy ? "Signing in…" : "Sign in";
 
   const isMagic = mode === "magic";
+  const forgotParams = new URLSearchParams();
+  if (brandParam) forgotParams.set("brand", brandParam);
+  if (clientId) forgotParams.set("clientId", clientId);
+  const forgotHref = `/login/forgot${forgotParams.size ? `?${forgotParams.toString()}` : ""}`;
 
   // The one showing of the recovery codes. Rendered INSTEAD of the form: the
   // sign-in already succeeded, and the only job left is making sure these are
@@ -228,18 +214,6 @@ export function LoginForm({
           <span>or</span>
         </div>
       )}
-      {mode === "signup" && (
-        <label className="mm-input-label">
-          <span>Name <span className="mm-input-label-aside">(optional)</span></span>
-          <input
-            type="text"
-            autoComplete="name"
-            value={name}
-            onChange={e => setName(e.target.value)}
-            className="mm-input"
-          />
-        </label>
-      )}
       <label className="mm-input-label">
         <span>{embedded ? "Email" : "Username or email"}</span>
         <input
@@ -256,9 +230,8 @@ export function LoginForm({
           <span>Password</span>
           <input
             type="password"
-            autoComplete={mode === "signup" ? "new-password" : "current-password"}
+            autoComplete="current-password"
             required
-            minLength={mode === "signup" ? 8 : undefined}
             value={password}
             onChange={e => setPassword(e.target.value)}
             className="mm-input"
@@ -294,7 +267,7 @@ export function LoginForm({
       )}
       {!isMagic && mode === "signin" && (
         <a
-          href={`/login/forgot${brandParam ? `?brand=${encodeURIComponent(brandParam)}` : ""}`}
+          href={forgotHref}
           className="mm-form-toggle"
           data-testid="login-forgot-link"
 
@@ -302,14 +275,13 @@ export function LoginForm({
           Forgot password?
         </a>
       )}
-      {/* AUTH-001: managed bot-challenge, shown for the password sign-in only
-          (not the magic-link / signup side doors, which are governed elsewhere).
-          Renders nothing when no site key is configured. */}
-      {mode === "signin" && (
+      {/* AUTH-001: both public authentication request modes use distinct,
+          server-matched challenge actions. */}
+      {(mode === "signin" || mode === "magic") && (
         <BotChallenge
           ref={captchaRef}
           siteKey={captchaSiteKey}
-          action="login"
+          action={mode === "magic" ? "magic-link-request" : "login"}
           onToken={setCaptchaToken}
           className="mm-auth-captcha"
           required={captchaRequired}
@@ -328,8 +300,8 @@ export function LoginForm({
         type="submit"
         disabled={
           busy
-          || (mode === "signin" && Boolean(captchaSiteKey) && !captchaToken)
-          || (mode === "signin" && captchaRequired && !captchaSiteKey)
+          || (Boolean(captchaSiteKey) && !captchaToken)
+          || (captchaRequired && !captchaSiteKey)
         }
         className="mm-btn-primary"
       >
@@ -338,35 +310,21 @@ export function LoginForm({
       {magicLinkEnabled && clientId && (
         <button
           type="button"
-          onClick={() => { setMode(isMagic ? "signin" : "magic"); setError(null); setMagicSent(null); }}
+          onClick={() => {
+            setMode(isMagic ? "signin" : "magic");
+            setCaptchaToken(null);
+            captchaRef.current?.reset();
+            setError(null);
+            setMagicSent(null);
+          }}
           className="mm-form-toggle"
         >
           {isMagic ? "Use a password instead" : "Email me a magic link instead"}
         </button>
       )}
-      {clientId && allowSignup && (
+      {clientId && (
         <p className="mm-form-link">
-          {mode === "signin" ? (
-            <>
-              Don&apos;t have an account?{" "}
-              <button
-                type="button"
-                onClick={() => { setMode("signup"); setError(null); }}
-              >
-                Create one
-              </button>
-            </>
-          ) : (
-            <>
-              Already have an account?{" "}
-              <button
-                type="button"
-                onClick={() => { setMode("signin"); setError(null); }}
-              >
-                Sign in
-              </button>
-            </>
-          )}
+          Client portal access is invitation-only. Ask your agency contact to send or resend access.
         </p>
       )}
     </form>

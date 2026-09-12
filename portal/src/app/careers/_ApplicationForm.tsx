@@ -1,24 +1,50 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ArrowRight, Check, ExternalLink, FileText, LoaderCircle, Upload } from "lucide-react";
+import {
+  BotChallenge,
+  type BotChallengeHandle,
+  usePublicBotChallengeConfig,
+} from "@/components/security/BotChallenge";
 
 export function ApplicationForm() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [statusUrl, setStatusUrl] = useState("");
+  const challenge = usePublicBotChallengeConfig();
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const captchaRef = useRef<BotChallengeHandle>(null);
 
   async function submit(form: FormData) {
     setSubmitting(true);
     setError("");
     try {
-      const response = await fetch("/api/public/careers", { method: "POST", body: form });
+      if (challenge.required && !captchaToken) {
+        throw new Error("Complete the verification challenge before submitting your application.");
+      }
+      const cv = form.get("cv");
+      if (!(cv instanceof File) || cv.size < 1 || cv.size > 8 * 1024 * 1024) {
+        throw new Error("Attach a PDF, DOC or DOCX CV no larger than 8 MB.");
+      }
+      // Admission proof and the cheap file-size bound deliberately live in
+      // headers, so the server can reject before allocating/draining multipart.
+      const response = await fetch("/api/public/careers", {
+        method: "POST",
+        headers: {
+          "x-aqua-upload-size": String(cv.size),
+          ...(captchaToken ? { "x-aqua-bot-token": captchaToken } : {}),
+        },
+        body: form,
+      });
       const payload = await response.json() as { ok?: boolean; error?: string; statusUrl?: string };
       if (!response.ok || !payload.ok || !payload.statusUrl) throw new Error(payload.error || "The application could not be saved.");
       setStatusUrl(payload.statusUrl);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "The application could not be saved.");
     } finally {
+      captchaRef.current?.reset();
+      setCaptchaToken(null);
       setSubmitting(false);
     }
   }
@@ -77,8 +103,20 @@ export function ApplicationForm() {
       </label>
       <input name="companyWebsite" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden />
 
+      <BotChallenge
+        ref={captchaRef}
+        siteKey={challenge.siteKey}
+        action="careers-application"
+        onToken={setCaptchaToken}
+        required={challenge.required && (challenge.error || !challenge.loading)}
+        className="mt-5"
+      />
+
       {error ? <p role="alert" className="mt-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p> : null}
-      <button disabled={submitting} className="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-[#153a32] px-5 text-sm font-semibold text-white hover:bg-[#0e2d27] disabled:cursor-wait disabled:opacity-60 sm:w-auto">
+      <button
+        disabled={submitting || challenge.loading || challenge.error || (Boolean(challenge.siteKey) && !captchaToken)}
+        className="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-[#153a32] px-5 text-sm font-semibold text-white hover:bg-[#0e2d27] disabled:cursor-wait disabled:opacity-60 sm:w-auto"
+      >
         {submitting ? <LoaderCircle className="animate-spin" size={17} /> : <ArrowRight size={17} />} Submit application
       </button>
     </form>

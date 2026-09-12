@@ -240,11 +240,11 @@ not live.
 | Path | Methods | Purpose | Scope/auth | Live? |
 |---|---|---|---|---|
 | `/api/portal/people` | GET, POST | HR station: employees, leave, shifts, training, applications; provisions Supabase identity | agency | **LIVE (auth)** |
-| `/api/portal/people/cv` | GET | Stream a job-application CV file | agency-session | **LIVE (Storage)** |
+| `/api/portal/people/cv` | GET, POST | GET downloads only a durably released AV/CDR-clean CV, re-hashing the exact response bytes before any 200; a mismatch is quarantined and never served. POST requires owner/manager, `staff.people.manage`, signed double-submit CSRF and bounded user/tenant/IP budgets; same-object rescans are serialized, scanning runs outside the state lock, then the exact owner tuple, trust and secret-free audit are committed atomically | agency owner/manager + `staff.people` view/manage | **LOCAL VERIFIED; provider + egress firewall proof required** |
 | `/api/portal/dashboard-planning` | GET, POST | My-Day: clock in/out, work sessions, day/week plans | agency (staff gated by station) | |
 | `/api/portal/intelligence/my-radar` | GET | Person-scoped My Radar: the caller's Actions, goals, self-reported wellbeing and work pace. Read-only; tenant and user come from the session and the request carries no ids. Department workload and company health stay in Business Radar | agency (`staff.overview` gates the personal envelope; `workspace.actions` independently gates Actions; `staff.schedule` gates staff goals and `workspace.calendar` gates canonically narrowed manager goals; client-named Actions retain the client-association gate) | |
 | `/api/portal/intelligence/business-radar/workload` | POST | Replaces only the company department-hour baselines used by Business Radar workload; this route cannot patch any other workspace setting | owner/manager plus `workspace.settings.manage` | |
-| `/api/portal/[module]/[...rest]` | GET, POST, PATCH, PUT, DELETE | **Built-in module API catch-all** → plugin handlers | authenticated (scope inferred) | varies by plugin |
+| `/api/portal/[module]/[...rest]` | GET, POST, PATCH, PUT, DELETE | **Built-in module API catch-all** → plugin handlers. Query/header tenant identifiers are routing evidence, never authority. Each anonymous plugin route must independently bind its scope to a typed public admission. Ecommerce checkout now requires one globally unique registered `WebsiteSource`, exact storefront `Origin`, exact paid/free managed-proof action, server-authoritative total class and atomic durable abuse budgets before inventory/provider work. The remaining public-plugin inventory is tracked by `PUBLIC-PLUGIN-TENANT-001`; do not infer that every public route is accepted yet. | authenticated by default; explicitly public plugin routes apply their own admission | varies by plugin |
 | `/api/portal/client-crm/pipelines` | GET, POST, PATCH, DELETE | Journey boards a client builds for themselves | agency viewers + client-owner/staff | feature `journey-pipelines` |
 | `/api/portal/client-crm/pipelines/board` | GET | One board, joined server-side (cards + contacts + idle flags + stage totals). No `pipelineId` → the client's default board | agency viewers + client-owner/staff | feature `journey-pipelines` |
 | `/api/portal/client-crm/pipelines/stages` | POST, PATCH, DELETE | Columns. DELETE refuses `stage_not_empty:<n>` unless `moveCardsTo` names where the people go | agency admins + client-owner/staff | feature `journey-pipelines` |
@@ -324,27 +324,28 @@ not live.
 | `/api/tenants/product-workspaces` | GET, POST | Client product internal workspaces read/save | agency + client roles | |
 | `/api/tenants/seed` | POST | Dev-only seed (agency+owner+client+users) when store empty | dev / prod requires any session | |
 
-## `api/public/*` (7 listed; 10 route files on disk)
+## `api/public/*` (8 listed; route-file count may include compatibility paths)
 
 | Path | Methods | Purpose | Scope/auth | Live? |
 |---|---|---|---|---|
 | `/api/public/brand-enquiry` | OPTIONS, POST | Website enquiry submission → leads pipeline + Supabase (dedupe guard) | public (CORS, rate-limited) | **LIVE (admin + brand_enquiries)** |
-| `/api/public/careers` | POST | Public job application w/ CV upload (multipart) | public (origin + rate-limited) | **LIVE (Storage)** |
+| `/api/public/careers` | POST | Public job application with bounded file-size metadata and managed human proof in headers before multipart parsing, victim-email budget or file work. Parsed file size is repeated against the admitted size. CV bytes are signature-checked and privately quarantined unless full-file AV/CDR returns clean; owner/trust/audit become visible only after one durable state transaction; the route never seeds founder state | public (exact challenge + origin + rate-limited) | **LOCAL VERIFIED; private Storage + scanner required live** |
 | `/api/public/contact` | POST | Public contact form → leads pipeline + website telemetry | public (origin-checked) | |
-| `/api/public/form-capture` | OPTIONS, POST | Aqua-Tag form-capture enrichment + master-tag routing → Supabase | public (CORS) | **LIVE (admin)** |
+| `/api/public/aqua-tag-admission` | OPTIONS, POST | Verify managed proof for exact `aqua-tag-form-capture` action/tenant/exact request hostname, then mint a short-lived admission bound to tenant/key-class/site/canonical routing host/exact challenge host and exact form facts | public (managed proof + exact key/host resolver + caller-IP/provider limits) | |
+| `/api/public/form-capture` | OPTIONS, POST | Verify Aqua-Tag admission, atomically classify new/replay/conflict, then form-capture enrichment + master-tag routing → Supabase | public (signed admission + durable claim; post-proof local quotas); **503 until additive claim migration exists, and for ambiguous legacy rows pending evidence-backed receipt adoption** | **LIVE (admin)** |
 | `/api/public/proposals/[token]` | POST | Accept a commercial proposal by public token | public (token) | |
 | `/api/public/aqua-tag-config` | GET, OPTIONS | Serve a site's enabled injections by key+host (cached, CORS) — tag-manager delivery seam | public (CORS) | |
 | `/api/public/demo-interest` | POST | AquaCRM demo gate — records name/contact + consent {timestamp, terms version} in the `website-demo` data realm, never the live one | public (same-origin, honeypot, rate-limited); **404 unless `WEBSITE_DEMO_ENABLED`** | |
 
-## `api/v1/*` (10) — external assistant API (bearer-token)
+## `api/v1/*` (10) — external assistant API and scoped embed exchange
 
 | Path | Methods | Purpose | Scope/auth | Live? |
 |---|---|---|---|---|
 | `/api/v1/actions/proposals` | GET, POST | List / submit external-assistant action proposals | external token (proposal access) | |
 | `/api/v1/advisor/context` | GET | External advisor-grade business context | external token (`advisor:read`) | |
 | `/api/v1/assistant/context` | GET | External assistant workspace context | external token (`context:read`) | |
-| `/api/v1/embed/consume` | GET | Consume Aqua embed token → end-customer session, redirect | public (embed token) | |
-| `/api/v1/embed/sessions` | POST | Mint an Aqua embed token for a client | embed API bearer token | |
+| `/api/v1/embed/consume` | GET | Atomically exchange a single-use Aqua embed token for a session, then redirect | public (signed token + live scoped credential + durable nonce) | |
+| `/api/v1/embed/sessions` | POST | Mint an Aqua embed token for a client | per-agency/client vault credential with mode ceiling | |
 | `/api/v1/export` | GET | Export tenant records (json/csv) | external token (`export:read`) | |
 | `/api/v1/openapi.json` | GET | Serve the OpenAPI 3.1 spec for the v1 API | public | |
 | `/api/v1/records/[recordId]` | GET | Fetch a single tenant record by id + module | external token (`records:read`) | |
@@ -358,7 +359,7 @@ not live.
 | `/api/assistant` | GET, POST | AI assistant workspace: threads, memory, ask OpenAI | agency owner/manager | |
 | `/api/mcp` | POST, GET, DELETE | External-assistant MCP JSON-RPC (POST); GET 405 / DELETE 204 | external assistant token | |
 | `/api/webhooks/meta` | GET, POST | Meta webhook verify (GET) + signed event ingest → inbox queue | public (verify-token / signature) | **LIVE (inbox store)** |
-| `/api/telemetry/collect` | OPTIONS, POST | Ingest website telemetry/consent events → Supabase | public (CORS, consent-gated) | **LIVE (admin, consent events)** |
+| `/api/telemetry/collect` | OPTIONS, POST | Ingest website telemetry/consent events using the exact resolved tenant/client/site target; consent rows retain that immutable lineage in governed metadata → Supabase | public (exact key+host scope, CORS, consent-gated; no CAPTCHA) | **LIVE (admin, consent events)** |
 | `/api/cron/inbox` | GET | Cron (daily): drain inbox webhook queue + prune + full radar sweeps + evidence rollup | `CRON_SECRET` bearer | **LIVE (inbox store)** |
 | `/api/cron/radar-probes` | GET | Cron (~10 min): fast Deep + Infra probe refresh only (no Pulse rebuild) — radar upgrade probe cadence | `CRON_SECRET` bearer | **LIVE (probes DB/network)** |
 | `/api/internal/sweep` | GET | Founder diagnostic: sweep rate-limit/lockout + automations + inbox queue | agency owner (founder) | **LIVE (inbox store)** |
@@ -412,7 +413,7 @@ Two Live-column edge cases (they don't match a naive `supabase/admin` grep):
 | `/api/portal/governance/hipaa` | POST | Toggle the HIPAA readiness track (owner-only); returns HIPAA_HONESTY | agency | new 2026-08-20 |
 | `/api/portal/governance/legal` | POST | Add a legal-register record (owner/manager) | agency | new 2026-08-20 |
 | `/api/portal/governance/erasure/preview` | POST | Non-destructive erasure blast-radius preview (owner/manager) | agency | new 2026-08-20 |
-| `/api/portal/governance/subject-access` | POST | GDPR Art. 15/20 subject access export — everything held about one person, as a JSON download (owner/manager) | agency | new 2026-08-28 |
+| `/api/portal/governance/subject-access` | POST | GDPR Art. 15/20 safe JSON export (owner/manager). Bounded body `{requestId, personId}`; exact same-agency open access/portability request and identity verification required. Typed person/client/relationship/facet or exclusive contact ownership only; ambiguous, unclassified, co-mingled and depth-limit rows are withheld as value-free review counts. Export evidence and fulfilment commit together; every response is no-store. Scope is hydrated PortalState only, not client-owned/provider stores. | agency | new 2026-08-28; hardened 2026-09-12 |
 | `/api/portal/governance/retention` | POST | Set the retention period per category; blank clears to keep-forever. Returns a fresh preview, never sweeps (owner only) | agency | new 2026-08-28 |
 | `/api/portal/governance/breaches` | POST | GDPR Art. 33/34 breach register — `record`/`notify-authority`/`notify-subjects` (owner/manager), `assess`/`close` (owner only). The 72-hour clock runs from discovery; it records that a human notified, never notifies | agency | new 2026-08-31 |
 | `/api/portal/sop-guides` | GET/POST/PATCH/DELETE | SOP guides CRUD (ordered SOP sequences); GET all-roles, writes owner/manager | agency | new 2026-08-20 |

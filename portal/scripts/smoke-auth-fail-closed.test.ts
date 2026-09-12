@@ -108,6 +108,9 @@ const VALID_PROD_ENV = {
   NEXT_PUBLIC_SUPABASE_PUBLIC_BUCKET: "aquacrm-public",
   NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET: "aquacrm-uploads",
   SUPABASE_SERVICE_ROLE_KEY: "service",
+  CONTENT_SCANNER_URL: "https://scanner.example.com/v1/scan",
+  CONTENT_SCANNER_ALLOWED_ORIGINS: "https://scanner.example.com",
+  CONTENT_SCANNER_BEARER_TOKEN: "x".repeat(32),
   FOUNDER_EMAIL: "owner@example.com",
   FOUNDER_PASSWORD: "founder-password-ok",
 } as NodeJS.ProcessEnv;

@@ -103,7 +103,6 @@ export type LeadsEventName =
 
 // Cross-plugin events this plugin subscribes to.
 export type SubscribedEventName =
-  | "public-funnel.lead.captured"
   | "pipelines.card.moved";        // T1 emits when card column changes
 
 export interface EventBusPort {

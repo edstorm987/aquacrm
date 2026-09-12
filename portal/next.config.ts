@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { fileURLToPath } from "node:url";
+import { buildContentSecurityPolicy } from "./src/lib/security/contentSecurityPolicy";
 
 // Real filesystem path of this app root. `new URL(".", import.meta.url).pathname`
 // percent-encodes spaces (this project lives under ".../Web Development/...").
@@ -39,16 +40,6 @@ const DEV_TEAM_OUTPUT_TRACING: NextConfig["outputFileTracingIncludes"] =
       }
     : undefined;
 
-// The supervised repository preview chooses an ephemeral loopback port. Both
-// the host editor and a previewed Next app need to permit that local frame:
-// `frame-src` lets AquaCRM load it, while `frame-ancestors` lets an AquaCRM
-// project running in the preview process be embedded by the editor on :3032.
-// Production keeps the strict self/HTTPS policy and never receives this
-// loopback exception.
-const DEV_LOOPBACK_FRAME_SOURCES = process.env.NODE_ENV === "production"
-  ? ""
-  : " http://localhost:* http://127.0.0.1:*";
-
 // Strict by default. We do NOT use `eslint.ignoreDuringBuilds` or
 // `typescript.ignoreBuildErrors` — every build runs the full ESLint +
 // TS gate. If a warning needs suppressing, fix the code or carve out a
@@ -80,39 +71,17 @@ const DEV_LOOPBACK_FRAME_SOURCES = process.env.NODE_ENV === "production"
 // and network calls are already covered by `frame-src https:` / `connect-src
 // https:` below. No wildcard is added; if Turnstile is not configured the host
 // is simply unused. Kept in both variants so the dev widget renders too.
-const TURNSTILE_SCRIPT_HOST = "https://challenges.cloudflare.com";
-const SCRIPT_SRC = process.env.NODE_ENV === "production"
-  ? `script-src 'self' 'unsafe-inline' ${TURNSTILE_SCRIPT_HOST}`
-  : `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${TURNSTILE_SCRIPT_HOST}`;
-
 const SECURITY_HEADERS = [
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), interest-cohort=()" },
-  {
-    key: "Content-Security-Policy",
-    value: [
-      "default-src 'self'",
-      SCRIPT_SRC,
-      "style-src 'self' 'unsafe-inline' https:",
-      "img-src 'self' data: blob: https:",
-      "media-src 'self' blob: https:",
-      "font-src 'self' data: https:",
-      "connect-src 'self' https: wss:",
-      // Aqua embeds and branded sign-in surfaces are hosted in client-owned portals.
-      `frame-src 'self'${DEV_LOOPBACK_FRAME_SOURCES} https:`,
-      // Assume-breach containment (Phase 0-C): frame-ancestors narrowed from
-      // `https:` (which let ANY https site frame the authenticated portal — a
-      // clickjacking surface) to 'self' only. The editor previews same-origin
-      // content, so 'self' is sufficient; the dev-loopback exception stays.
-      `frame-ancestors 'self'${DEV_LOOPBACK_FRAME_SOURCES}`,
-      "object-src 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-    ].join("; "),
-  },
 ];
+
+const DEFAULT_CSP_HEADER = {
+  key: "Content-Security-Policy",
+  value: buildContentSecurityPolicy({ nodeEnv: process.env.NODE_ENV }),
+};
 
 const nextConfig: NextConfig = {
   // Dev-only: lets a verification browser reach this dev server as 127.0.0.1.
@@ -213,7 +182,13 @@ const nextConfig: NextConfig = {
     };
   },
   async headers() {
-    return [{ source: "/:path*", headers: SECURITY_HEADERS }];
+    return [
+      { source: "/:path*", headers: SECURITY_HEADERS },
+      // `/embed/account` receives a signed-session-bound frame ancestor from
+      // proxy.ts. Excluding it here prevents two CSP headers intersecting and
+      // silently restoring the global self-only rule.
+      { source: "/((?!embed/account(?:/|$)).*)", headers: [DEFAULT_CSP_HEADER] },
+    ];
   },
 };
 

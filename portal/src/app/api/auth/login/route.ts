@@ -212,18 +212,6 @@ export async function POST(req: NextRequest) {
   return handleJsonLogin(req);
 }
 
-/**
- * Server-internal entrypoint for the separately validated cross-origin browser
- * form wrapper. The trusted hostname is a function argument, never a public
- * request header or body field that a caller could spoof.
- */
-export async function loginWithTrustedChallengeHostname(
-  req: NextRequest,
-  trustedChallengeHostname: string,
-) {
-  return handleJsonLogin(req, trustedChallengeHostname);
-}
-
 async function handleJsonLogin(
   req: NextRequest,
   trustedChallengeHostname = req.nextUrl.hostname,
@@ -317,14 +305,16 @@ async function handleJsonLogin(
   const isClientPortalSubject =
     profile?.role === "client"
     || remoteMetadata.aqua_subject_kind === "client-portal"
-    || remoteMetadata.aqua_profile_role === "client"
-    || boundPortalUser !== null;
+    || remoteMetadata.aqua_profile_role === "client";
 
   // A client password proves control of one exact Supabase Auth subject. Use
   // that immutable id as the local principal — never discard it and select a
   // same-email agency owner (or another tenant's customer) instead. All
   // client-side markers must independently agree with the local binding.
-  let portalUser = isClientPortalSubject ? boundPortalUser : getUserByLogin(email);
+  const emailMatchedPortalUser = getUserByLogin(email);
+  let portalUser = isClientPortalSubject
+    ? boundPortalUser
+    : boundPortalUser ?? emailMatchedPortalUser;
   if (isClientPortalSubject) {
     const exactClient = portalUser?.clientId
       ? getClientForAgency(portalUser.agencyId, portalUser.clientId)
@@ -344,6 +334,35 @@ async function handleJsonLogin(
       && exactClient.id === portalUser.clientId
       && ["active", "suspended"].includes(exactClient.status);
     if (!exactBinding) portalUser = null;
+  } else if (boundPortalUser) {
+    const expectedProfileRole = boundPortalUser.role === "agency-owner"
+      ? "owner"
+      : ["agency-manager", "agency-staff", "freelancer"].includes(boundPortalUser.role)
+        ? "staff"
+        : null;
+    const exactBinding = expectedProfileRole !== null
+      && profile?.role === expectedProfileRole
+      && boundPortalUser.supabaseAuthUserId === authData.user.id
+      && boundPortalUser.email === email
+      && authData.user.email?.trim().toLowerCase() === boundPortalUser.email
+      && remoteMetadata.aqua_subject_kind === (
+        expectedProfileRole === "owner" ? "agency-owner" : "agency-staff"
+      )
+      && remoteMetadata.aqua_profile_role === expectedProfileRole
+      && remoteMetadata.aqua_agency_id === boundPortalUser.agencyId;
+    if (!exactBinding) portalUser = null;
+  } else {
+    // A write-once local binding, or admin-authored Aqua subject metadata,
+    // means this is no longer a legacy email-only account. Never fall back to
+    // a same-email principal when the signed-in provider subject differs or a
+    // provider receipt exists but its local binding is missing.
+    const providerManagedSubject =
+      typeof remoteMetadata.aqua_subject_kind === "string"
+      || typeof remoteMetadata.aqua_profile_role === "string"
+      || typeof remoteMetadata.aqua_provisioning_operation_id === "string";
+    if (emailMatchedPortalUser?.supabaseAuthUserId || providerManagedSubject) {
+      portalUser = null;
+    }
   }
   if (!portalUser) {
     await supabase.auth.signOut();
@@ -362,7 +381,11 @@ async function handleJsonLogin(
   }
 
   const expectedInternalRole = profile?.role === "owner" || profile?.role === "staff";
-  if (expectedInternalRole && !portalUser.role.startsWith("agency-")) {
+  if (
+    expectedInternalRole
+    && !portalUser.role.startsWith("agency-")
+    && portalUser.role !== "freelancer"
+  ) {
     await supabase.auth.signOut();
     return applyCookies(
       NextResponse.json({ ok: false, error: "Account access is not configured correctly." }, { status: 403 }),

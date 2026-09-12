@@ -2,6 +2,12 @@
 // the other Aqua plugins.
 
 import type { PluginCtx } from "../lib/aquaPluginTypes";
+import { readBoundedPublicWebhookBody } from "@/lib/server/portal/publicWebhookBody";
+import {
+  publicWebhookProcessingFailed,
+  publicWebhookRefused,
+  publicWebhookUnavailable,
+} from "@/lib/server/portal/publicWebhookResponse";
 import { containerFor, isStripeConnectAvailable } from "../server/foundationAdapter";
 import { AffiliateHasDependantsError } from "../server/dependencies";
 import type {
@@ -289,26 +295,39 @@ export async function processPayoutHandler(req: Request, ctx: PluginCtx): Promis
 export async function stripeWebhookHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   const guard = methodGuard(req, "POST");
   if (guard) return guard;
-  if (!ctx.clientId) return badRequest("clientId scope missing");
+  const signature = req.headers.get("stripe-signature");
+  if (!signature || !ctx.clientId) return publicWebhookRefused();
   // The signing secret is the CLIENT's, so the driver has to be resolved in
   // this exact scope — a platform-wide port would verify one client's webhook
   // against another client's secret.
-  const stripeConnect = (await import("../server/foundationAdapter")).stripeConnectFor({
-    agencyId: ctx.agencyId,
-    clientId: ctx.clientId,
-  });
-  if (!stripeConnect) return unprocessable("Stripe Connect not configured for this install.");
+  let stripeConnect;
+  try {
+    stripeConnect = (await import("../server/foundationAdapter")).stripeConnectFor({
+      agencyId: ctx.agencyId,
+      clientId: ctx.clientId,
+    });
+  } catch (error) {
+    return publicWebhookProcessingFailed("stripe-affiliates", "verification", error, 503);
+  }
+  if (!stripeConnect) return publicWebhookUnavailable("stripe-affiliates", "configuration");
 
-  const rawBody = await req.text();
-  const signature = req.headers.get("stripe-signature");
-  if (!(await stripeConnect.verifyWebhookSignature({ rawBody, signature }))) {
-    return json({ ok: false, error: "invalid_signature" }, 400);
+  const body = await readBoundedPublicWebhookBody(req);
+  if (!body.ok) return body.response;
+  const rawBody = body.rawBody;
+  let verified: boolean;
+  try {
+    verified = await stripeConnect.verifyWebhookSignature({ rawBody, signature });
+  } catch (error) {
+    return publicWebhookProcessingFailed("stripe-affiliates", "verification", error, 503);
+  }
+  if (!verified) {
+    return publicWebhookRefused();
   }
   let event: { type?: string; data?: { object?: Record<string, unknown> } };
   try {
     event = JSON.parse(rawBody);
   } catch {
-    return badRequest("invalid_json");
+    return publicWebhookRefused();
   }
   const c = buildContainer(ctx);
 
@@ -320,7 +339,7 @@ export async function stripeWebhookHandler(req: Request, ctx: PluginCtx): Promis
       details_submitted?: boolean;
       requirements?: { disabled_reason?: string | null };
     };
-    if (!obj.id) return badRequest("missing account id");
+    if (!obj.id) return publicWebhookRefused();
     const snapshot = {
       accountId: obj.id,
       onboardingStatus: "pending" as const,    // recomputed by snapshotToStatus inside the service
@@ -329,16 +348,24 @@ export async function stripeWebhookHandler(req: Request, ctx: PluginCtx): Promis
       detailsSubmitted: !!obj.details_submitted,
       disabledReason: obj.requirements?.disabled_reason ?? undefined,
     };
-    if (!c.onboarding) return unprocessable("onboarding service not available");
-    const out = await c.onboarding.applySnapshotForAccount(obj.id, snapshot);
-    return json({ ok: true, affiliateId: out?.id ?? null });
+    if (!c.onboarding) return publicWebhookUnavailable("stripe-affiliates", "onboarding-service");
+    try {
+      const out = await c.onboarding.applySnapshotForAccount(obj.id, snapshot);
+      return json({ ok: true, affiliateId: out?.id ?? null });
+    } catch (error) {
+      return publicWebhookProcessingFailed("stripe-affiliates", "account-update", error, 503);
+    }
   }
 
   if (event.type === "transfer.paid") {
     const obj = (event.data?.object ?? {}) as { id?: string };
-    if (!obj.id) return badRequest("missing transfer id");
-    const out = await c.payouts.confirmTransferPaid(obj.id);
-    return json({ ok: true, payoutId: out?.id ?? null });
+    if (!obj.id) return publicWebhookRefused();
+    try {
+      const out = await c.payouts.confirmTransferPaid(obj.id);
+      return json({ ok: true, payoutId: out?.id ?? null });
+    } catch (error) {
+      return publicWebhookProcessingFailed("stripe-affiliates", "transfer-paid", error, 503);
+    }
   }
 
   return json({ ok: true, ignored: true, type: event.type ?? null });

@@ -47,7 +47,7 @@
     "smoke:client-lifecycle-creation": "NODE_OPTIONS='--conditions react-server' node --import tsx --test scripts/smoke-client-lifecycle-creation.test.ts",
     "smoke:notifications": "NODE_OPTIONS='--conditions react-server' tsx --test scripts/smoke-operational-notifications.test.ts",
     "smoke:google-calendar": "NODE_OPTIONS='--conditions react-server' tsx --test scripts/smoke-google-command-calendar.test.ts scripts/smoke-command-calendar.test.ts",
-    "smoke:aqua-embed": "NODE_OPTIONS='--conditions react-server' tsx --test scripts/smoke-aqua-embed.test.ts",
+    "smoke:aqua-embed": "NODE_OPTIONS='--conditions react-server' tsx --test scripts/smoke-aqua-embed.test.ts scripts/smoke-embed-security.test.ts",
     "smoke:agency-website": "tsx --test scripts/smoke-agency-website.test.ts",
     "smoke:auth-magic": "tsx --test scripts/smoke-auth-magic.test.ts",
     "smoke:portal-role-brandkit": "tsx --test scripts/smoke-portal-role-brandkit.test.ts",

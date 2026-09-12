@@ -1,8 +1,8 @@
 import "server-only";
 
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
-import { del, put } from "@vercel/blob";
+import { del, get, put } from "@vercel/blob";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { sliceStream, type ByteRange } from "@/lib/server/privateMediaResponse";
@@ -41,7 +41,7 @@ export interface StoredPrivateUpload {
    * digest (artifact identity) + verdict. Optional so `planPrivateUpload`
    * (which predicts a key before any bytes exist) keeps its shape.
    */
-  contentTrust?: Pick<ContentTrustAssessment, "verdict" | "digest" | "sniffedType">;
+  contentTrust?: Pick<ContentTrustAssessment, "verdict" | "digest" | "sniffedType" | "scannerVerdict">;
 }
 
 /**
@@ -97,7 +97,12 @@ export async function storePrivateUpload(input: StorePrivateUploadInput): Promis
     actor: input.trust?.actor,
   });
   if (assessment.verdict === "blocked") throw new ContentTrustError(assessment);
-  const contentTrust = { verdict: assessment.verdict, digest: assessment.digest, sniffedType: assessment.sniffedType };
+  const contentTrust = {
+    verdict: assessment.verdict,
+    digest: assessment.digest,
+    sniffedType: assessment.sniffedType,
+    scannerVerdict: assessment.scannerVerdict,
+  };
   if (supabasePrivateUploadsConfigured()) {
     const bucket = process.env.NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET?.trim()
       || DEFAULT_SUPABASE_UPLOAD_BUCKET;
@@ -135,6 +140,30 @@ export async function readSupabasePrivateUpload(storageKey: string): Promise<Blo
   const admin = createSupabaseAdminClient();
   const { data, error } = await admin.storage.from(bucket).download(storageKey);
   return error ? null : data;
+}
+
+export async function readPrivateUpload(input: {
+  storageProvider: PrivateUploadStorageProvider;
+  storageKey: string;
+  localDirectory: string;
+}): Promise<Blob | null> {
+  if (!input.storageKey.trim()) return null;
+  if (input.storageProvider === "supabase") return readSupabasePrivateUpload(input.storageKey);
+  if (input.storageProvider === "vercel-blob") {
+    const result = await get(input.storageKey, { access: "private" });
+    return result?.statusCode === 200 && result.stream
+      ? new Response(result.stream).blob()
+      : null;
+  }
+  const root = resolve(process.cwd(), ".data", input.localDirectory);
+  const target = resolve(root, input.storageKey);
+  if (!target.startsWith(`${root}${sep}`)) return null;
+  try {
+    const bytes = await readFile(target);
+    return new Blob([Uint8Array.from(bytes)]);
+  } catch {
+    return null;
+  }
 }
 
 /**

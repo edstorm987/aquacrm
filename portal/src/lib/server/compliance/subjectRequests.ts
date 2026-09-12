@@ -55,7 +55,7 @@ export function recordSubjectRequest(input: RecordSubjectRequestInput): SubjectR
     agencyId: input.agencyId,
     kind: input.kind,
     subjectLabel: input.subjectLabel.trim().slice(0, 200),
-    personId: input.personId,
+    personId: input.personId?.trim() || undefined,
     receivedAt,
     dueAt: oneMonthAfter(receivedAt),
     createdBy: input.createdBy,
@@ -110,6 +110,168 @@ export class SubjectRequestError extends Error {
 }
 
 /**
+ * Deliberately one public failure for every export-request gate. A route must
+ * not disclose whether a guessed request id belongs to another agency, names a
+ * different person, is the wrong right, is unverified, or is already closed.
+ */
+export class SubjectAccessRequestGateError extends Error {
+  readonly code = "request_not_ready";
+  constructor() {
+    super("request_not_ready");
+    this.name = "SubjectAccessRequestGateError";
+  }
+}
+
+const SUBJECT_ACCESS_KINDS = new Set<SubjectRequest["kind"]>(["access", "portability"]);
+
+function isOpenVerifiedSubjectAccessRequest(
+  request: SubjectRequest | undefined,
+  agencyId: string,
+  personId: string,
+): request is SubjectRequest {
+  return Boolean(
+    request
+    && request.agencyId === agencyId
+    && SUBJECT_ACCESS_KINDS.has(request.kind)
+    && request.personId === personId
+    && request.identityVerifiedAt
+    && !request.fulfilledAt
+    && !request.refusedAt,
+  );
+}
+
+/** Read-side gate used inside the same coordinated transaction as fulfilment. */
+export function requireSubjectAccessRequestForExport(
+  agencyId: string,
+  id: string,
+  personId: string,
+): SubjectRequest {
+  const request = getState().subjectRequests[id];
+  if (!isOpenVerifiedSubjectAccessRequest(request, agencyId, personId)) {
+    throw new SubjectAccessRequestGateError();
+  }
+  return request;
+}
+
+export interface PreparedSubjectAccessExport {
+  digest: string;
+  generatedAt: number;
+  recordCount: number;
+  reviewCount: number;
+  byteLength: number;
+  json: string;
+}
+
+/**
+ * Durably stage an immutable, bounded export. This never closes the request:
+ * successful generation is not evidence that the subject received anything.
+ * Retaining the staged bytes makes a lost HTTP response safely replayable.
+ */
+export function recordPreparedSubjectAccessExport(
+  agencyId: string,
+  id: string,
+  personId: string,
+  actorUserId: string,
+  prepared: PreparedSubjectAccessExport,
+): SubjectRequest {
+  let updated: SubjectRequest | null = null;
+  mutate(state => {
+    const request = state.subjectRequests[id];
+    if (!isOpenVerifiedSubjectAccessRequest(request, agencyId, personId)) {
+      throw new SubjectAccessRequestGateError();
+    }
+    if (request.preparedExportDigest === prepared.digest && request.preparedExportJson === prepared.json) {
+      updated = request;
+      return;
+    }
+    request.preparedExportAt = Date.now();
+    request.preparedExportBy = actorUserId;
+    request.preparedExportDigest = prepared.digest;
+    request.preparedExportGeneratedAt = prepared.generatedAt;
+    request.preparedExportRecordCount = prepared.recordCount;
+    request.preparedExportReviewCount = prepared.reviewCount;
+    request.preparedExportByteLength = prepared.byteLength;
+    request.preparedExportJson = prepared.json;
+    delete request.preparedExportReviewResolvedAt;
+    delete request.preparedExportReviewResolvedBy;
+    delete request.preparedExportReviewResolvedDigest;
+    delete request.preparedExportReviewEvidenceId;
+    updated = request;
+  });
+  if (!updated) throw new SubjectAccessRequestGateError();
+  return updated;
+}
+
+/** Record human review against the exact prepared file, without delivery. */
+export function recordSubjectAccessReviewCompletion(
+  agencyId: string,
+  id: string,
+  personId: string,
+  actorUserId: string,
+  digest: string,
+  evidenceId: string,
+): SubjectRequest {
+  let updated: SubjectRequest | null = null;
+  mutate(state => {
+    const request = state.subjectRequests[id];
+    if (!isOpenVerifiedSubjectAccessRequest(request, agencyId, personId)
+      || request.preparedExportDigest !== digest
+      || !request.preparedExportJson
+      || !(request.preparedExportReviewCount && request.preparedExportReviewCount > 0)) {
+      throw new SubjectAccessRequestGateError();
+    }
+    if (!request.preparedExportReviewResolvedAt) {
+      request.preparedExportReviewResolvedAt = Date.now();
+      request.preparedExportReviewResolvedBy = actorUserId;
+      request.preparedExportReviewResolvedDigest = digest;
+      request.preparedExportReviewEvidenceId = evidenceId;
+    }
+    updated = request;
+  });
+  if (!updated) throw new SubjectAccessRequestGateError();
+  return updated;
+}
+
+/**
+ * Close only after separate evidence says the exact prepared file was
+ * delivered. Review-bearing exports additionally require evidence that review
+ * was completed against this same digest.
+ */
+export function fulfilPreparedSubjectAccessDelivery(
+  agencyId: string,
+  id: string,
+  personId: string,
+  actorUserId: string,
+  digest: string,
+  deliveryMethod: NonNullable<SubjectRequest["deliveryMethod"]>,
+  evidenceId: string,
+): SubjectRequest {
+  let updated: SubjectRequest | null = null;
+  mutate(state => {
+    const request = state.subjectRequests[id];
+    if (!isOpenVerifiedSubjectAccessRequest(request, agencyId, personId)
+      || request.preparedExportDigest !== digest
+      || !request.preparedExportJson
+      || (Boolean(request.preparedExportReviewCount)
+        && request.preparedExportReviewResolvedDigest !== digest)) {
+      throw new SubjectAccessRequestGateError();
+    }
+    const now = Date.now();
+    request.deliveredAt = now;
+    request.deliveredBy = actorUserId;
+    request.deliveryMethod = deliveryMethod;
+    request.deliveryEvidenceId = evidenceId;
+    request.fulfilledAt = now;
+    request.fulfilledBy = actorUserId;
+    request.outcome = "Prepared export delivered with separate delivery evidence.";
+    delete request.preparedExportJson;
+    updated = request;
+  });
+  if (!updated) throw new SubjectAccessRequestGateError();
+  return updated;
+}
+
+/**
  * Close a request as fulfilled.
  *
  * Refuses when identity has not been verified. That refusal is the point of the
@@ -130,7 +292,9 @@ export function fulfilSubjectRequest(
   let updated: SubjectRequest | null = null;
   mutate(state => {
     const request = state.subjectRequests[id];
-    if (!request) return;
+    if (!request || request.agencyId !== agencyId) return;
+    if (!request.identityVerifiedAt) throw new SubjectRequestError("identity_unverified");
+    if (request.fulfilledAt || request.refusedAt) throw new SubjectRequestError("already_closed");
     request.fulfilledAt = Date.now();
     request.fulfilledBy = actorUserId;
     request.outcome = outcome.trim().slice(0, 2_000);

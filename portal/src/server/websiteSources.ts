@@ -196,11 +196,26 @@ export function getAgencyMasterSiteKey(agencyId: string): string | undefined {
   return getState().agencyMasterTagKeys?.[agencyId];
 }
 
-/** Which agency a master tag key belongs to, for the ingestion path. */
-export function resolveAgencyByMasterSiteKey(siteKey: string | undefined): string | undefined {
-  if (!siteKey) return undefined;
+/** Every agency currently carrying this browser-public master key. */
+export function listAgenciesByMasterSiteKey(siteKey: string | undefined): string[] {
+  if (!siteKey) return [];
   const map = getState().agencyMasterTagKeys ?? {};
-  return Object.keys(map).find(agencyId => map[agencyId] === siteKey);
+  return Object.keys(map)
+    .filter(agencyId => map[agencyId] === siteKey)
+    .sort();
+}
+
+/**
+ * Which agency a master tag key uniquely belongs to.
+ *
+ * This compatibility helper deliberately fails closed when persisted state is
+ * corrupt and two agencies carry the same browser-public key. Callers that
+ * also bind a registered host must enumerate `listAgenciesByMasterSiteKey`
+ * and decide uniqueness only after applying that host boundary.
+ */
+export function resolveAgencyByMasterSiteKey(siteKey: string | undefined): string | undefined {
+  const owners = listAgenciesByMasterSiteKey(siteKey);
+  return owners.length === 1 ? owners[0] : undefined;
 }
 
 /** The one-line snippet to paste into a site's HTML. */

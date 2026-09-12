@@ -353,6 +353,102 @@ export function getPeopleApplicationByToken(token: string): PeopleApplication | 
   return Object.values(getState().peopleApplications).find(application => application.statusTokenHash === tokenHash) ?? null;
 }
 
+export function setPeopleApplicationCvTrust(input: {
+  agencyId: string;
+  applicationId: string;
+  contentTrust: NonNullable<PeopleApplication["cv"]["contentTrust"]>;
+  audit?: NonNullable<PeopleApplication["cv"]["securityAudit"]>[number];
+}): PeopleApplication | null {
+  const existing = getPeopleApplication(input.agencyId, input.applicationId);
+  if (!existing) return null;
+  const updated: PeopleApplication = {
+    ...existing,
+    cv: {
+      ...existing.cv,
+      contentTrust: input.contentTrust,
+      securityAudit: input.audit
+        ? [...(existing.cv.securityAudit ?? []), input.audit].slice(-100)
+        : existing.cv.securityAudit,
+    },
+    updatedAt: Date.now(),
+  };
+  mutate(state => { state.peopleApplications[updated.id] = updated; });
+  return updated;
+}
+
+/**
+ * Stable, tenant-scoped actor attribution for security evidence. Raw user ids
+ * never enter the file-security audit rows.
+ */
+export function peopleCvAuditActorRef(agencyId: string, userId: string): string {
+  return `principal:${crypto.createHash("sha256").update("people-cv-audit\0").update(agencyId).update("\0").update(userId).digest("hex")}`;
+}
+
+/**
+ * Atomically reserve one AV/CDR provider call and append its safe evidence.
+ * The caller runs this inside the agency-wide `withPortalStateTransaction`
+ * lane after reading/hashing the object but before calling the paid scanner.
+ */
+export function reservePeopleCvScanBudget(input: {
+  agencyId: string;
+  userId: string;
+  applicationId: string;
+  storageProvider: PeopleApplication["cv"]["storageProvider"];
+  storageKey: string;
+  scanId: string;
+  objectVersion: string;
+  digest: string;
+  now?: number;
+}): { allowed: true; retryAfterSec: 0 } | { allowed: false; reason: "rate" | "stale"; retryAfterSec: number } {
+  const now = input.now ?? Date.now();
+  const actorRef = peopleCvAuditActorRef(input.agencyId, input.userId);
+  const admissions = Object.values(getState().peopleApplications)
+    .filter(application => application.agencyId === input.agencyId)
+    .flatMap(application => application.cv.securityAudit ?? [])
+    .filter(entry => entry.event === "rescan-admitted");
+  const userAdmissions = admissions.filter(entry => entry.actorRef === actorRef && entry.at > now - 15 * 60_000);
+  const tenantAdmissions = admissions.filter(entry => entry.at > now - 60 * 60_000);
+  if (userAdmissions.length >= 5 || tenantAdmissions.length >= 30) {
+    const resets = [
+      ...(userAdmissions.length >= 5 ? [Math.min(...userAdmissions.map(entry => entry.at)) + 15 * 60_000] : []),
+      ...(tenantAdmissions.length >= 30 ? [Math.min(...tenantAdmissions.map(entry => entry.at)) + 60 * 60_000] : []),
+    ];
+    return { allowed: false, reason: "rate", retryAfterSec: Math.max(1, Math.ceil((Math.max(...resets) - now) / 1_000)) };
+  }
+  const existing = getPeopleApplication(input.agencyId, input.applicationId);
+  if (
+    !existing
+    || existing.cv.storageProvider !== input.storageProvider
+    || existing.cv.storageKey !== input.storageKey
+    || existing.cv.contentTrust?.quarantineStatus === "released"
+  ) {
+    return { allowed: false, reason: "stale", retryAfterSec: 0 };
+  }
+  const admission: NonNullable<PeopleApplication["cv"]["securityAudit"]>[number] = {
+    scanId: input.scanId,
+    event: "rescan-admitted",
+    actorRef,
+    objectVersion: input.objectVersion,
+    digest: input.digest,
+    signatureVerdict: existing.cv.contentTrust?.signatureVerdict ?? "unverified",
+    scannerVerdict: "not-run",
+    quarantineStatus: "quarantined",
+    at: now,
+  };
+  const securityAudit: NonNullable<PeopleApplication["cv"]["securityAudit"]> = [
+    ...(existing.cv.securityAudit ?? []),
+    admission,
+  ].slice(-100);
+  mutate(state => {
+    state.peopleApplications[existing.id] = {
+      ...existing,
+      cv: { ...existing.cv, securityAudit },
+      updatedAt: now,
+    };
+  });
+  return { allowed: true, retryAfterSec: 0 };
+}
+
 export function createPeopleApplication(input: {
   agencyId: string;
   name: string;

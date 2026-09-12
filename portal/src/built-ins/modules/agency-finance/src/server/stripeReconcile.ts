@@ -105,6 +105,9 @@ export async function reconcileStripeEvent(
       if (!invoice) {
         return { handled: false, type: event.type, action: "ignored", message: `invoice ${invoiceId} not found` };
       }
+      if (session.metadata?.clientId && session.metadata.clientId !== invoice.clientId) {
+        return { handled: false, type: event.type, action: "ignored", message: "invoice client scope mismatch" };
+      }
       const { settled, deduped } = await container.payments.record(actor, {
         invoiceId,
         amountCents: session.amount_total ?? invoice.totalCents,

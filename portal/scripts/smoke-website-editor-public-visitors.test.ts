@@ -859,7 +859,7 @@ test("contact security controls fail closed and throttle a shared install", asyn
     "the durable rate-limit ledger retained a plaintext visitor IP address",
   );
   assert.ok(
-    Object.keys(buckets ?? {}).every(key => /^(?:contact-ip|contact-install):[a-f0-9]{64}$/.test(key)),
+    Object.keys(buckets ?? {}).every(key => /^(?:contact-ip|contact-address|contact-install):[a-f0-9]{64}$/.test(key)),
     "rate-limit buckets must use one-way identity digests",
   );
 });

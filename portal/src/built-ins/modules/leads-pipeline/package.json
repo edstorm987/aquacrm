@@ -2,7 +2,7 @@
   "name": "@aqua/plugin-leads-pipeline",
   "version": "0.1.0",
   "private": true,
-  "description": "Aqua portal leads-pipeline plugin \u2014 CSV contact import, single-shot email campaigns, lead/contact domain. Auto-binds to the leads-kind pipeline created by T1's foundation seed (R034). Agency-scoped (scopePolicy: 'agency'), opt-in (core: false). v1 covers Lead+Contact CRUD, idempotent CSV import, declarative AudienceFilter, send-now Campaign dispatch via the email-sender plugin's queue, and a public-funnel.lead.captured subscriber. Drip sequences, open-rate tracking, A/B campaigns, lead scoring are post-ship.",
+  "description": "Aqua portal leads-pipeline plugin \u2014 CSV contact import, single-shot email campaigns and lead/contact domain. Anonymous Public Funnel captures remain pending outside CRM; only an explicit mailbox-proven or authenticated promotion bridge creates exact Lead, Person, Prospect and pipeline-card lineage.",
   "main": "index.ts",
   "exports": {
     ".": "./index.ts",

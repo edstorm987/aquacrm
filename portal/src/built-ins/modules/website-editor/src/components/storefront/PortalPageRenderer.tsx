@@ -29,6 +29,9 @@ export function PortalPageRenderer({ page, theme, preview, agencyId, clientId }:
       data-portal-page={renderedPage.id}
       data-portal-role={renderedPage.portalRole ?? "page"}
       data-aqua-storefront={agencyId && clientId ? "" : undefined}
+      data-aqua-published-storefront={
+        agencyId && clientId && preview !== true && resolved.source === "published" ? "" : undefined
+      }
       data-aqua-agency-id={agencyId}
       data-aqua-client-id={clientId}
     >

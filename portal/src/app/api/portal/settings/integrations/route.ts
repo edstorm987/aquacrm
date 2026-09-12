@@ -37,7 +37,7 @@ export async function GET() {
     return NextResponse.json({
       ok: true,
       vaultAvailable: integrationVaultAvailable(),
-      connections: listIntegrationConnections(session.agencyId),
+      connections: listIntegrationConnections(session.agencyId).filter(connection => connection.provider !== "aqua-embed"),
     }, { headers: { "cache-control": "private, no-store" } });
   } catch (error) {
     return authErrorResponse(error);
@@ -56,6 +56,9 @@ export async function POST(request: Request) {
     const existingConnection = body.connectionId
       ? getIntegrationConnection(session.agencyId, body.connectionId)
       : null;
+    if (existingConnection?.provider === "aqua-embed" || body.provider === "aqua-embed") {
+      return NextResponse.json({ ok: false, error: "Manage Aqua embed credentials from their dedicated Connections panel." }, { status: 400 });
+    }
     // Meta is the Inbox's own channel credential. Let a configurable Inbox
     // manager administer only that provider; every unrelated integration keeps
     // the historical owner/manager ceiling.
@@ -137,7 +140,7 @@ export async function POST(request: Request) {
 }
 
 function responseConnections(agencyId: string, includeAll: boolean) {
-  const connections = listIntegrationConnections(agencyId);
+  const connections = listIntegrationConnections(agencyId).filter(connection => connection.provider !== "aqua-embed");
   return includeAll ? connections : connections.filter(connection => connection.provider === "meta");
 }
 

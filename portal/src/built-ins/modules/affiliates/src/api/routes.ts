@@ -61,7 +61,7 @@ export const ROUTES: PluginApiRoute[] = [
 
   // R12 — Stripe Connect webhook (account.updated + transfer.paid).
   // Public endpoint — verifies Stripe-Signature header internally.
-  { path: "webhooks/stripe", methods: ["POST"], handler: stripeWebhookHandler, public: true },
+  { path: "webhooks/stripe", methods: ["POST"], handler: stripeWebhookHandler, public: true, publicAuthority: "provider-webhook" },
 
   // Customer-facing
   { path: "me", methods: ["GET"], handler: meHandler, visibleToRoles: [...END_CUSTOMER] },

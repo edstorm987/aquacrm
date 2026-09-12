@@ -161,16 +161,31 @@ export function PeopleCommand({ initial, accessLevels, canManageAccess = false, 
     setError("");
     setNotice("");
     try {
-      const response = await fetch("/api/portal/people", {
+      const securityScan = name === "scan-application-cv";
+      let csrfToken = "";
+      if (securityScan) {
+        const csrfResponse = await fetch("/api/auth/csrf", { cache: "no-store" });
+        const csrfPayload = await csrfResponse.json() as { ok?: boolean; token?: string };
+        if (!csrfResponse.ok || !csrfPayload.ok || !csrfPayload.token) {
+          throw new Error("The security scan could not be verified. Refresh and try again.");
+        }
+        csrfToken = csrfPayload.token;
+      }
+      const response = await fetch(securityScan ? "/api/portal/people/cv" : "/api/portal/people", {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: name, ...payload }),
+        headers: {
+          "content-type": "application/json",
+          ...(securityScan ? { "x-csrf-token": csrfToken } : {}),
+        },
+        body: JSON.stringify(securityScan ? payload : { action: name, ...payload }),
       });
       const result = await response.json() as { ok?: boolean; error?: string; statusUrl?: string };
       if (!response.ok || !result.ok) throw new Error(result.error || "People could not be updated.");
       if (result.statusUrl) {
         await navigator.clipboard.writeText(result.statusUrl);
         setNotice("A fresh private status link was copied.");
+      } else if (securityScan) {
+        setNotice("The CV passed the security scan and is ready to download.");
       } else {
         setNotice("People records updated.");
       }
@@ -432,6 +447,8 @@ function Candidates({ applications, hiringStages, focusedApplicationId, busy, ac
 
 function CandidateRow({ application, labelOf, guidanceOf, stages, focused, busy, action }: { application: PeopleApplication; labelOf: (id: PeopleApplicationStage) => string; guidanceOf: (id: PeopleApplicationStage) => string | undefined; stages: PeopleHiringStageConfig[]; focused: boolean; busy: string; action: (name: string, payload: Record<string, unknown>) => Promise<unknown> }) {
   const [stage, setStage] = useState(application.stage);
+  const cvReleased = application.cv.contentTrust?.scannerVerdict === "clean"
+    && application.cv.contentTrust.quarantineStatus === "released";
   return (
     <details id={`application-${application.id}`} className="group scroll-mt-24 rounded-lg border border-black/10 bg-white" open={focused || application.stage === "applied" || application.stage === "under-review"}>
       <summary className="flex cursor-pointer list-none flex-col gap-4 p-4 sm:flex-row sm:items-center">
@@ -444,7 +461,22 @@ function CandidateRow({ application, labelOf, guidanceOf, stages, focused, busy,
         <div>
           <p className="text-sm leading-6 text-black/65">{application.coverNote || "No cover note supplied."}</p>
           <dl className="mt-5 grid gap-4 border-t border-black/10 pt-4 sm:grid-cols-3"><Meta label="Location" value={application.location || "Not supplied"} /><Meta label="Arrangement" value={application.employmentPreference?.replaceAll("-", " ") || "Open"} /><Meta label="Applied" value={formatDate(application.submittedAt)} /></dl>
-          <div className="mt-5 flex flex-wrap gap-2"><a href={`/api/portal/people/cv?applicationId=${application.id}`} target="_blank" className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 px-3 text-sm font-semibold"><FileText size={15} /> Open CV</a>{application.portfolioUrl ? <a href={application.portfolioUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 px-3 text-sm font-semibold">Portfolio <ExternalLink size={14} /></a> : null}<button onClick={() => action("rotate-status-link", { applicationId: application.id })} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 px-3 text-sm font-semibold"><Copy size={14} /> Copy fresh status link</button></div>
+          <div className="mt-5 flex flex-wrap gap-2">
+            {cvReleased ? (
+              <a href={`/api/portal/people/cv?applicationId=${application.id}`} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 px-3 text-sm font-semibold"><FileText size={15} /> Download cleared CV</a>
+            ) : (
+              <button
+                type="button"
+                onClick={() => action("scan-application-cv", { applicationId: application.id })}
+                disabled={busy === "scan-application-cv"}
+                className="inline-flex min-h-9 items-center gap-2 rounded-md border border-amber-700/25 bg-amber-50 px-3 text-sm font-semibold text-amber-900 disabled:opacity-60"
+              >
+                <ShieldCheck size={15} /> {busy === "scan-application-cv" ? "Scanning…" : "CV quarantined · retry scan"}
+              </button>
+            )}
+            {application.portfolioUrl ? <a href={application.portfolioUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 px-3 text-sm font-semibold">Portfolio <ExternalLink size={14} /></a> : null}
+            <button onClick={() => action("rotate-status-link", { applicationId: application.id })} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 px-3 text-sm font-semibold"><Copy size={14} /> Copy fresh status link</button>
+          </div>
         </div>
         <div className="space-y-4 rounded-md bg-[#f7f7f3] p-4">
           <label className="block text-xs font-semibold uppercase text-black/45">Decision stage<select value={stage} onChange={event => setStage(event.target.value as PeopleApplicationStage)} className="mt-2 min-h-10 w-full rounded-md border border-black/15 bg-white px-3 text-sm normal-case text-black">{stages.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>

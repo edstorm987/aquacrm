@@ -1,8 +1,8 @@
 import "server-only";
-// Public-funnel plugin foundation registration. Closes Gap #1 from
-// the chapter #161 HC→leads-pipeline integration verification —
-// without this side-effect import, `/api/portal/public-funnel/hc-complete`
-// returns 404 in prod because the plugin isn't in the runtime registry.
+// Public-funnel plugin foundation registration. The anonymous Health Check
+// writes only through `/api/public/health-check/complete`, whose managed
+// challenge and fixed founder-tenant admission precede this adapter. The old
+// query-scoped plugin capture routes were retired by ABUSE-002.
 //
 // Mirrors `leadsPipelineFoundation.ts` shape:
 //   • shared ports (activity + events) from `_foundationPorts.ts`
@@ -21,7 +21,12 @@ import {
   eventBusPort,
   tenantPort,
 } from "./_foundationPorts";
-import { leadUserPort } from "./leadFunnelPorts";
+import {
+  leadUserPort,
+  pendingCaptureErasurePort,
+  pendingCapturePromotionAuthorityPort,
+  pendingCapturePromotionPort,
+} from "./leadFunnelPorts";
 
 let registered = false;
 
@@ -38,6 +43,9 @@ export function ensurePublicFunnelFoundationRegistered(): void {
     activity: activityPort,
     events: eventBusPort,
     leadUsers: leadUserPort,
+    promotionAuthority: pendingCapturePromotionAuthorityPort,
+    promotions: pendingCapturePromotionPort,
+    promotionErasure: pendingCaptureErasurePort,
     tenant: tenantPort,
   } as unknown as Parameters<typeof registerFunnelFoundation>[0]);
   registered = true;

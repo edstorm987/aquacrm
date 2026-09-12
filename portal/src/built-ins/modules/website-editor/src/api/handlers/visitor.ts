@@ -22,6 +22,7 @@ import {
   withVisitorPublicBoundary,
 } from "../../server/visitorPublicBoundary";
 import { clientIpFromHeaders } from "@/lib/server/rateLimit";
+import { verifyBotChallenge } from "@/lib/server/security/botChallenge";
 import { fail, json, ok, requireClientScope } from "../helpers";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -50,6 +51,7 @@ interface VisitorContactInput {
     version: number;
     statementDigest: string;
   };
+  captchaToken?: string;
 }
 
 export interface VisitorContactSubmission {
@@ -86,6 +88,7 @@ interface VisitorNewsletterInput {
     version: number;
     statementDigest: string;
   };
+  captchaToken?: string;
 }
 
 export interface VisitorNewsletterConsentRecord {
@@ -153,7 +156,7 @@ function exactKeys(value: Record<string, unknown>, allowed: readonly string[]): 
 function parseContactInput(value: unknown): VisitorContactInput | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const body = value as Record<string, unknown>;
-  if (!exactKeys(body, ["version", "operationId", "siteId", "pageId", "blockId", "contact", "consent", "website"])) return null;
+  if (!exactKeys(body, ["version", "operationId", "siteId", "pageId", "blockId", "contact", "consent", "captchaToken", "website"])) return null;
   if (body.version !== 1) return null;
 
   const operationId = clean(body.operationId, 120);
@@ -203,13 +206,14 @@ function parseContactInput(value: unknown): VisitorContactInput | null {
       version: consentVersion,
       statementDigest,
     },
+    ...(clean(body.captchaToken, 4_096) ? { captchaToken: clean(body.captchaToken, 4_096) } : {}),
   };
 }
 
 function parseNewsletterInput(value: unknown): VisitorNewsletterInput | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const body = value as Record<string, unknown>;
-  if (!exactKeys(body, ["version", "operationId", "siteId", "pageId", "blockId", "email", "consent", "honeypot"])) return null;
+  if (!exactKeys(body, ["version", "operationId", "siteId", "pageId", "blockId", "email", "consent", "captchaToken", "honeypot"])) return null;
   if (body.version !== 1) return null;
   // The trap field may be absent or an empty string; a non-empty value was
   // already answered before parsing, and any other type is not this DTO.
@@ -251,6 +255,7 @@ function parseNewsletterInput(value: unknown): VisitorNewsletterInput | null {
       version: consentVersion,
       statementDigest,
     },
+    ...(clean(body.captchaToken, 4_096) ? { captchaToken: clean(body.captchaToken, 4_096) } : {}),
   };
 }
 
@@ -269,21 +274,21 @@ function normalisedHost(value: string): string {
   catch { return ""; }
 }
 
-function originAllowed(req: Request, site: { customDomain?: string; domains?: string[]; primaryDomain?: string }): boolean {
+function allowedOriginHostname(req: Request, site: { customDomain?: string; domains?: string[]; primaryDomain?: string }): string | null {
   const raw = req.headers.get("origin");
-  if (!raw) return false;
+  if (!raw) return null;
   let origin: URL;
   try { origin = new URL(raw); }
-  catch { return false; }
-  if (origin.origin === new URL(req.url).origin) return true;
+  catch { return null; }
+  if (origin.origin === new URL(req.url).origin) return origin.hostname.toLowerCase();
   if (
     process.env.NODE_ENV !== "production"
     && (origin.hostname === "localhost" || origin.hostname === "127.0.0.1")
-  ) return true;
+  ) return origin.hostname.toLowerCase();
   const registered = [site.primaryDomain, site.customDomain, ...(site.domains ?? [])]
     .filter((value): value is string => Boolean(value))
     .map(normalisedHost);
-  return registered.includes(origin.host.toLowerCase());
+  return registered.includes(origin.host.toLowerCase()) ? origin.hostname.toLowerCase() : null;
 }
 
 function sourcePath(req: Request): string {
@@ -358,10 +363,61 @@ export async function handleVisitorContact(req: Request, ctx: PluginCtx): Promis
   const input = parseContactInput(raw);
   if (!input) return fail("Please provide valid contact details and consent.", 400);
 
+  const operationKey = `${CONTACT_OPERATION_PREFIX}${encodeURIComponent(input.operationId)}`;
+  const fingerprint = await contactFingerprint(input);
+  try {
+    const existing = await ctx.storage.get<VisitorContactOperation>(operationKey);
+    if (existing) {
+      if (existing.fingerprint !== fingerprint) return fail("This submission reference was already used.", 409);
+      return json(
+        { ok: true, receiptId: existing.receiptId },
+        { status: 200, headers: { "cache-control": "no-store" } },
+      );
+    }
+  } catch (error) {
+    return privateFailure("contact replay lookup", error);
+  }
+
+  // Do not hold the visitor storage transaction while the managed challenge
+  // provider answers. The exact site/page/block/consent state is checked again
+  // inside the transaction below before any quota or mutation, closing an
+  // unpublish/domain-change race without letting a slow provider stall every
+  // public visitor operation for this install.
+  const ip = clientIpFromHeaders(req.headers);
+  let challengeOriginHostname: string;
+  try {
+    const challengeSite = await getSite(ctx.storage, scope.agencyId, scope.clientId, input.siteId);
+    if (!challengeSite || (challengeSite.status !== "active" && challengeSite.status !== "live")) {
+      return fail("Contact form not found.", 404);
+    }
+    const hostname = allowedOriginHostname(req, challengeSite);
+    if (!hostname) return fail("This contact form could not be verified.", 403);
+    challengeOriginHostname = hostname;
+  } catch (error) {
+    return privateFailure("contact challenge scope", error);
+  }
+  const challenge = await verifyBotChallenge({
+    action: "website-contact",
+    token: input.captchaToken,
+    remoteIp: ip,
+    hostname: challengeOriginHostname,
+    tenantId: scope.agencyId,
+  });
+  if (!challenge.ok) {
+    return json(
+      { ok: false, error: challenge.message },
+      {
+        status: challenge.reason === "rate-limited" ? 429 : 403,
+        headers: {
+          ...(challenge.retryAfterSec ? { "retry-after": String(challenge.retryAfterSec) } : {}),
+          "cache-control": "no-store",
+        },
+      },
+    );
+  }
+
   try {
     return await withVisitorPublicBoundary(ctx.storage, async () => {
-      const operationKey = `${CONTACT_OPERATION_PREFIX}${encodeURIComponent(input.operationId)}`;
-      const fingerprint = await contactFingerprint(input);
       const existing = await ctx.storage.get<VisitorContactOperation>(operationKey);
       if (existing) {
         if (existing.fingerprint !== fingerprint) return fail("This submission reference was already used.", 409);
@@ -376,7 +432,8 @@ export async function handleVisitorContact(req: Request, ctx: PluginCtx): Promis
       // then accept a submission against content that is no longer public.
       const site = await getSite(ctx.storage, scope.agencyId, scope.clientId, input.siteId);
       if (!site || (site.status !== "active" && site.status !== "live")) return fail("Contact form not found.", 404);
-      if (!originAllowed(req, site)) return fail("This contact form could not be verified.", 403);
+      const originHostname = allowedOriginHostname(req, site);
+      if (!originHostname) return fail("This contact form could not be verified.", 403);
       const storedPage = await getPage(ctx.storage, scope.agencyId, scope.clientId, input.siteId, input.pageId);
       const page = storedPage ? resolvePublishedPage(storedPage) : null;
       if (!page || page.status !== "published" || (page.privacy && page.privacy !== "public" && page.privacy !== "unlisted")) {
@@ -396,9 +453,16 @@ export async function handleVisitorContact(req: Request, ctx: PluginCtx): Promis
         return fail("The consent wording changed. Please review it and submit again.", 400);
       }
 
-      const ip = clientIpFromHeaders(req.headers);
+      // ABUSE-003: the exact published block above binds the FORM; the managed
+      // challenge already bound the CONTACT action and visitor HOST. The
+      // revalidated hostname must still be the one that was challenged.
+      if (originHostname !== challengeOriginHostname) return fail("This contact form could not be verified.", 403);
+      const addressIdentity = await visitorBoundaryDigest(
+        input.contact.email ? `email\u0000${input.contact.email}` : `phone\u0000${input.contact.phone ?? ""}`,
+      );
       const limit = await takeVisitorRateLimitsLocked(ctx.storage, [
         { action: "contact-ip", identity: ip, max: 8, windowMs: 60 * 60 * 1_000 },
+        { action: "contact-address", identity: addressIdentity, max: 10, windowMs: 60 * 60 * 1_000 },
         { action: "contact-install", identity: "all", max: 120, windowMs: 60 * 60 * 1_000 },
       ]);
       if (!limit.allowed) {
@@ -483,10 +547,56 @@ export async function handleVisitorNewsletter(req: Request, ctx: PluginCtx): Pro
   const input = parseNewsletterInput(raw);
   if (!input) return fail("Please provide a valid email address and consent.", 400);
 
+  const operationKey = `${NEWSLETTER_OPERATION_PREFIX}${encodeURIComponent(input.operationId)}`;
+  const fingerprint = await newsletterFingerprint(input);
+  try {
+    const existing = await ctx.storage.get<VisitorNewsletterOperation>(operationKey);
+    if (existing) {
+      if (existing.fingerprint !== fingerprint) return fail("This sign-up reference was already used.", 409);
+      return json(
+        { ok: true, receiptId: existing.receiptId },
+        { status: 200, headers: { "cache-control": "no-store" } },
+      );
+    }
+  } catch (error) {
+    return privateFailure("newsletter replay lookup", error);
+  }
+
+  const ip = clientIpFromHeaders(req.headers);
+  let challengeOriginHostname: string;
+  try {
+    const challengeSite = await getSite(ctx.storage, scope.agencyId, scope.clientId, input.siteId);
+    if (!challengeSite || (challengeSite.status !== "active" && challengeSite.status !== "live")) {
+      return fail("Newsletter sign-up not found.", 404);
+    }
+    const hostname = allowedOriginHostname(req, challengeSite);
+    if (!hostname) return fail("This sign-up form could not be verified.", 403);
+    challengeOriginHostname = hostname;
+  } catch (error) {
+    return privateFailure("newsletter challenge scope", error);
+  }
+  const challenge = await verifyBotChallenge({
+    action: "website-newsletter",
+    token: input.captchaToken,
+    remoteIp: ip,
+    hostname: challengeOriginHostname,
+    tenantId: scope.agencyId,
+  });
+  if (!challenge.ok) {
+    return json(
+      { ok: false, error: challenge.message },
+      {
+        status: challenge.reason === "rate-limited" ? 429 : 403,
+        headers: {
+          ...(challenge.retryAfterSec ? { "retry-after": String(challenge.retryAfterSec) } : {}),
+          "cache-control": "no-store",
+        },
+      },
+    );
+  }
+
   try {
     return await withVisitorPublicBoundary(ctx.storage, async () => {
-      const operationKey = `${NEWSLETTER_OPERATION_PREFIX}${encodeURIComponent(input.operationId)}`;
-      const fingerprint = await newsletterFingerprint(input);
       const existing = await ctx.storage.get<VisitorNewsletterOperation>(operationKey);
       if (existing) {
         if (existing.fingerprint !== fingerprint) return fail("This sign-up reference was already used.", 409);
@@ -502,7 +612,8 @@ export async function handleVisitorNewsletter(req: Request, ctx: PluginCtx): Pro
       // longer public.
       const site = await getSite(ctx.storage, scope.agencyId, scope.clientId, input.siteId);
       if (!site || (site.status !== "active" && site.status !== "live")) return fail("Newsletter sign-up not found.", 404);
-      if (!originAllowed(req, site)) return fail("This sign-up form could not be verified.", 403);
+      const originHostname = allowedOriginHostname(req, site);
+      if (!originHostname) return fail("This sign-up form could not be verified.", 403);
       const storedPage = await getPage(ctx.storage, scope.agencyId, scope.clientId, input.siteId, input.pageId);
       const page = storedPage ? resolvePublishedPage(storedPage) : null;
       if (!storedPage || !page || page.status !== "published" || (page.privacy && page.privacy !== "public" && page.privacy !== "unlisted")) {
@@ -526,9 +637,14 @@ export async function handleVisitorNewsletter(req: Request, ctx: PluginCtx): Pro
         return fail("The consent wording changed. Please review it and submit again.", 400);
       }
 
-      const ip = clientIpFromHeaders(req.headers);
+      // ABUSE-003: exact published newsletter block + exact challenge action +
+      // registered visitor hostname, before an arbitrary caller can spend the
+      // named address's quota or create/update the subscriber.
+      if (originHostname !== challengeOriginHostname) return fail("This sign-up form could not be verified.", 403);
+      const addressIdentity = await visitorBoundaryDigest(`email\u0000${input.email}`);
       const limit = await takeVisitorRateLimitsLocked(ctx.storage, [
         { action: "newsletter-ip", identity: ip, max: 6, windowMs: 60 * 60 * 1_000 },
+        { action: "newsletter-address", identity: addressIdentity, max: 10, windowMs: 60 * 60 * 1_000 },
         { action: "newsletter-install", identity: "all", max: 200, windowMs: 60 * 60 * 1_000 },
       ]);
       if (!limit.allowed) {

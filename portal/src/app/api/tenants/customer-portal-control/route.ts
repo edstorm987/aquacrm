@@ -1,15 +1,17 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { ensureHydrated } from "@/server/storage";
+import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
 import { isAgencyRole } from "@/server/types";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { logActivity } from "@/server/activity";
-import { deliverMagicLink, signClientPortalInviteToken } from "@/lib/server/auth/magicLink";
+import { deliverMagicLink, magicLinkSessionRevision, signClientPortalInviteToken } from "@/lib/server/auth/magicLink";
+import { getUser } from "@/server/users";
 import { resolvePortalProductAssignment } from "@/lib/products/productAssignments";
 import { ensureClientPortalInstance, ensureProductPortalTemplate } from "@/server/clientPortalDesigns";
 import { getAgencyProduct, listAgencyProducts } from "@/server/agencyProducts";
 import { reconcileClientProductWorkspaces } from "@/server/productWorkspaces";
 import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
+import { configuredPublicAuthOrigin } from "@/lib/server/auth/publicAuthOrigin";
 
 type PortalMode = "onboarding" | "designing" | "developed-launch" | "maintenance";
 
@@ -183,7 +185,7 @@ export async function POST(req: NextRequest) {
     : null;
 
   const saved = updateClient(agencyId, client.id, {
-    endCustomers: { signupsEnabled: true, postLoginReturnUrl: "/portal/customer" },
+    endCustomers: { invitationsEnabled: true, postLoginReturnUrl: "/portal/customer" },
     metadata: {
       portalMode,
       portalLoginEmail,
@@ -243,6 +245,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "customer email is required before sending access" }, { status: 400 });
   }
 
+  // The invitation verifier requires these eligibility fields. Commit them
+  // before email leaves the process, otherwise a fast recipient can arrive at
+  // another instance while the client is still ineligible there.
+  await flushPendingWrites();
+
+  const existingInvitee = getUser(portalLoginEmail, {
+    clientId: client.id,
+    role: "end-customer",
+  });
+
   // This authenticated, tenant-scoped Manage route is the sole issuer of
   // membership-creating portal invitations. Public magic-link requests only
   // sign in an already-existing exact membership.
@@ -250,8 +262,16 @@ export async function POST(req: NextRequest) {
     email: portalLoginEmail,
     clientId: client.id,
     agencyId,
+    sessionRev: existingInvitee ? magicLinkSessionRevision(existingInvitee) : null,
   });
-  const magicUrl = new URL("/login/magic", req.nextUrl.origin);
+  const publicOrigin = configuredPublicAuthOrigin();
+  if (!publicOrigin) {
+    return NextResponse.json(
+      { ok: false, error: "Secure public portal address is not configured." },
+      { status: 503 },
+    );
+  }
+  const magicUrl = new URL("/login/magic", publicOrigin);
   magicUrl.searchParams.set("token", token);
   // Setup rather than the portal itself. A first-timer has no password yet,
   // and the portal would send them straight back here anyway — landing them on
@@ -259,12 +279,20 @@ export async function POST(req: NextRequest) {
   // already been through it is passed on to the portal by `/setup`.
   magicUrl.searchParams.set("return", "/setup");
 
-  const result = await deliverMagicLink({
-    email: portalLoginEmail,
-    clientId: client.id,
-    agencyId,
-    magicUrl: magicUrl.toString(),
-  });
+  let result: Awaited<ReturnType<typeof deliverMagicLink>>;
+  try {
+    result = await deliverMagicLink({
+      email: portalLoginEmail,
+      clientId: client.id,
+      agencyId,
+      magicUrl: magicUrl.toString(),
+    });
+  } catch {
+    return NextResponse.json({
+      ok: false,
+      error: "Customer access could not be delivered. Try again shortly.",
+    }, { status: 502 });
+  }
 
   const accessAt = Date.now();
   if (result.delivered) {
@@ -297,11 +325,14 @@ export async function POST(req: NextRequest) {
   });
 
   if (!result.delivered && process.env.NODE_ENV === "production") {
+    await flushPendingWrites();
     return NextResponse.json({
       ok: false,
       error: "Customer access could not be delivered. Check the transactional email settings and try again.",
     }, { status: 502 });
   }
+
+  await flushPendingWrites();
 
   return NextResponse.json({
     ok: true,

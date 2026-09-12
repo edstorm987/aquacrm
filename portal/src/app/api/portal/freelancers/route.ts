@@ -34,10 +34,7 @@ export async function POST(request: Request) {
     await requireCurrentWorkspaceElementAccess("staff", "staff.people", "manage");
     const body = await request.json().catch(() => null) as { name?: string; email?: string; title?: string } | null;
     if (!body) return NextResponse.json({ ok: false, error: "name + email required" }, { status: 400 });
-    const result = await inviteFreelancer(session.agencyId, session.userId, {
-      ...body,
-      origin: new URL(request.url).origin,
-    });
+    const result = await inviteFreelancer(session.agencyId, session.userId, body);
     if (!result.ok) {
       const status = result.error === "email_in_use" ? 409 : result.retryable ? 503 : 400;
       return NextResponse.json({

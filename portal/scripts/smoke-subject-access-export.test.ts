@@ -59,26 +59,27 @@ test("it walks every collection in state, not a list somebody has to maintain", 
   assert.ok(stateKeys.length > 50, `expected a large state shape, saw ${stateKeys.length}`);
 });
 
-test("it finds the person by id, by email, and through a nested reference", async () => {
+test("it finds exact typed person, contact and scope ownership", async () => {
   const agency = tenants.createAgency({ name: "Find Co", slug: `find-${Math.floor(performance.now())}` });
   const person = seedPerson(agency.id, "Ravi Subject", "Ravi.Subject@Example.COM");
 
   storage.mutate(state => {
     // by id, top level
     state.tasks[`task_sar_1`] = {
-      id: "task_sar_1", agencyId: agency.id, title: "Call them back",
+      id: "task_sar_1", agencyId: agency.id, title: "Ravi Subject",
       personId: person.id, status: "open", createdAt: Date.now(),
     } as never;
     // by email, and with DIFFERENT casing than stored — addresses are recorded
     // by humans and normalisation is not retroactive
     state.tasks[`task_sar_2`] = {
-      id: "task_sar_2", agencyId: agency.id, title: "Email them",
+      id: "task_sar_2", agencyId: agency.id, title: "Ravi Subject",
       contact: { email: "ravi.subject@example.com" }, status: "open", createdAt: Date.now(),
     } as never;
-    // NESTED — the shape that defeated the erasure sweep in August
+    // A typed scope is accepted. Merely nesting the id in an arbitrary object
+    // is tested separately and may never authorise a row.
     state.tasks[`task_sar_3`] = {
-      id: "task_sar_3", agencyId: agency.id, title: "Scoped",
-      scope: { kind: "person", details: { personId: person.id } }, status: "open", createdAt: Date.now(),
+      id: "task_sar_3", agencyId: agency.id, title: "Ravi Subject",
+      scope: { kind: "person", id: person.id }, status: "open", createdAt: Date.now(),
     } as never;
     // and one that is nothing to do with them
     state.tasks[`task_sar_4`] = {
@@ -90,7 +91,7 @@ test("it finds the person by id, by email, and through a nested reference", asyn
   const result = sar.collectSubjectAccessExport(agency.id, person.id);
   const found = (result?.found.tasks ?? []) as Array<{ id: string }>;
   const ids = found.map(task => task.id).sort();
-  assert.deepEqual(ids, ["task_sar_1", "task_sar_2", "task_sar_3"], "id, email (any case) and nested references must all be found");
+  assert.deepEqual(ids, ["task_sar_1", "task_sar_2", "task_sar_3"], "exact personId, exclusive contact email and typed scope must all be found");
   assert.ok(!ids.includes("task_sar_4"), "somebody else's record must not appear in their export");
 });
 
@@ -103,7 +104,7 @@ test("another tenant's records never enter a subject access response", async () 
 
   storage.mutate(state => {
     state.tasks["task_mine"] = {
-      id: "task_mine", agencyId: mine.id, title: "Ours", personId: person.id, status: "open", createdAt: Date.now(),
+      id: "task_mine", agencyId: mine.id, title: "Shared Email", personId: person.id, status: "open", createdAt: Date.now(),
     } as never;
     // Same person, same email — but another agency's record.
     state.tasks["task_theirs"] = {
@@ -134,7 +135,7 @@ test("a person from another agency is not found rather than refused", async () =
   assert.equal(sar.collectSubjectAccessExport(a.id, person.id), null, "scope, then find");
 });
 
-test("the route logs the fulfilment without writing the subject's email into the log", async () => {
+test("the route binds a verified request and logs without subject contact details", async () => {
   // Two compliance properties at once. The fulfilment must leave evidence —
   // `compliancePosture` records that a handled request currently cannot be
   // evidenced. And the evidence must not itself be a data-protection problem:
@@ -145,13 +146,16 @@ test("the route logs the fulfilment without writing the subject's email into the
 
   assert.match(route, /logActivity\(/, "the fulfilment must be recorded");
   assert.match(route, /action: "subject_access\.exported"/, "under a stable action name");
-  assert.match(route, /metadata: \{\s*\n\s*personId,/, "the subject must be named by id");
+  assert.match(route, /metadata: \{[\s\S]*?requestId: body\.requestId,[\s\S]*?personId: body\.personId,/, "the request and subject must be named by opaque ids");
   // The metadata block must carry no email or name field.
-  const metadata = /metadata: \{([\s\S]*?)\n {6}\},/.exec(route);
+  const metadata = /metadata: \{([\s\S]*?)\n {8}\},\n {6}\}\);/.exec(route);
   assert.ok(metadata, "the activity metadata must still be a literal");
   assert.doesNotMatch(metadata[1], /email|name/i, "no email or name may enter the audit trail");
 
   // The agency comes from the session, never the body.
   assert.match(route, /const agencyId = getActiveAgencyId\(session\);/, "agency must come from the session");
-  assert.doesNotMatch(route, /body\?\.agencyId/, "the body must not be able to name an agency");
+  assert.doesNotMatch(route, /body\??\.agencyId/, "the body must not be able to name an agency");
+  assert.match(route, /requireSubjectAccessRequestForExport\(agencyId, body\.requestId, body\.personId\)/,
+    "an existing verified access/portability request is the export gate");
+  assert.match(route, /withPortalStateTransaction/, "activity and fulfilment must share one durable transaction");
 });

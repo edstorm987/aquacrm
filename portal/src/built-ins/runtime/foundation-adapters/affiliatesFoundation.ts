@@ -6,11 +6,12 @@ import "server-only";
 // See `_crossPluginPorts.ts` for the projection shape.
 //
 // `stripeConnectFor({ agencyId, clientId })` returns a real Stripe Connect
-// driver built from the per-install Stripe keys carried on the **ecommerce**
-// install in that same scope — one Stripe account per client, one place to
-// configure it, exactly as memberships resolves its billing keys. The keys are
-// read through `installConfigWithSecrets`, i.e. out of the encrypted
-// integrations vault, never off the browser-visible `install.config` alone.
+// driver built from the secret API key carried by the **ecommerce** install in
+// that same scope and the Affiliates install's own endpoint-specific Connect
+// webhook secret. Stripe issues a distinct signing secret per endpoint, so the
+// Ecommerce checkout secret is never accepted for this public route. Both are
+// read through `installConfigWithSecrets`, i.e. out of the encrypted vault,
+// never off browser-visible `install.config` alone.
 //
 // When there is no enabled ecommerce install in that scope, or it carries no
 // secret key, the factory returns **null**. That null is the honest answer:
@@ -35,6 +36,7 @@ import {
 // Affiliate payouts ride the client's own Stripe account — the same platform
 // key that takes the customer's money sends the affiliate's commission.
 const ECOMMERCE_PLUGIN_ID = "ecommerce";
+const AFFILIATES_PLUGIN_ID = "affiliates";
 
 /**
  * The Stripe keys affiliates would use for this scope, or null when the client
@@ -57,7 +59,30 @@ export function affiliatesStripeConnectKeysFor(args: {
     { agencyId: args.agencyId, clientId: args.clientId },
     install.config,
   );
-  return tryReadStripeKeysFromInstall(config);
+  const ecommerceKeys = tryReadStripeKeysFromInstall(config);
+  if (!ecommerceKeys) return null;
+
+  const affiliatesInstall = pluginInstallStorePort.getInstall(
+    { agencyId: args.agencyId, clientId: args.clientId },
+    AFFILIATES_PLUGIN_ID,
+  );
+  const affiliatesConfig = affiliatesInstall?.enabled
+    ? installConfigWithSecrets(
+      AFFILIATES_PLUGIN_ID,
+      { agencyId: args.agencyId, clientId: args.clientId },
+      affiliatesInstall.config,
+    )
+    : {};
+  const connectWebhookSecret = typeof affiliatesConfig.stripeConnectWebhookSecret === "string"
+    ? affiliatesConfig.stripeConnectWebhookSecret.trim()
+    : "";
+
+  // Deliberately discard ecommerceKeys.webhookSecret. It proves callbacks for
+  // a different endpoint and must never authenticate Affiliates Connect.
+  return {
+    ...ecommerceKeys,
+    webhookSecret: connectWebhookSecret || undefined,
+  };
 }
 
 /**

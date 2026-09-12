@@ -2,16 +2,16 @@
 
 > The current readiness assessment, one task list, status history, roadmap, goals, decisions and working queue.
 >
-> Consolidated 2026-09-08 from **7** source documents / **57,076 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-12 from **7** source documents / **57,702 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
-- [`docs/CURRENT-IMPLEMENTATION.md`](#source-docs-current-implementation-md) — 4,627 words · `d110c036ab5a`
+- [`docs/CURRENT-IMPLEMENTATION.md`](#source-docs-current-implementation-md) — 4,996 words · `434edcc94699`
 - [`docs/development/goals.md`](#source-docs-development-goals-md) — 532 words · `62f18b439951`
 - [`docs/development/notes.md`](#source-docs-development-notes-md) — 1,730 words · `f68ea59936dd`
 - [`docs/development/PRODUCTION-READINESS.md`](#source-docs-development-production-readiness-md) — 2,257 words · `69689073325f`
-- [`docs/development/roadmap.md`](#source-docs-development-roadmap-md) — 21,704 words · `f3ef33649d6f`
-- [`docs/development/status.md`](#source-docs-development-status-md) — 22,045 words · `10c744ce76c8`
+- [`docs/development/roadmap.md`](#source-docs-development-roadmap-md) — 21,836 words · `6f32b3711a26`
+- [`docs/development/status.md`](#source-docs-development-status-md) — 22,170 words · `6fa2f79af09c`
 - [`docs/development/TODO.md`](#source-docs-development-todo-md) — 4,181 words · `1803d5dd4755`
 
 ---
@@ -20,7 +20,7 @@
 
 ## Source document — `docs/CURRENT-IMPLEMENTATION.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/CURRENT-IMPLEMENTATION.md" sha256="d110c036ab5aa5eb014e3997f8f8ff8eb84e01eb29b98514d74789cdad7174ff" -->
+<!-- AQUACRM_SOURCE_START path="docs/CURRENT-IMPLEMENTATION.md" sha256="434edcc94699da2379466bc85792f7c1cef4545a5b9a762428b719750a2f1418" -->
 # AquaCRM Current Implementation
 
 > **What this file is: the inventory of what systems EXIST.** It is not the
@@ -1108,7 +1108,7 @@ when this document records a newer result.
 
 ## Source document — `docs/development/roadmap.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/roadmap.md" sha256="f3ef33649d6f5b6404a5c1a8216e93313090263e719b34d02228028b13ee2e90" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/roadmap.md" sha256="6f32b3711a26c02938a6e7a88c37e3e451e325c677fa027f93ddedcf43dfac02" -->
 # Roadmap
 
 ← [PRODUCTION-READINESS.md](PRODUCTION-READINESS.md) · [TODO.md](TODO.md) · **The strategic outer view.**
@@ -1530,9 +1530,9 @@ Finish #29/#69 public-route authorization, then browser-prove two stores through
 ### Make Public Funnel capture transactional and retry-safe
 **Id:** transactional-public-funnel-capture · **Status:** building · **Size:** M · **Added:** 2026-08-24 · **Source:** ultra-review
 **Files:** src/built-ins/modules/public-funnel/src/server/services.ts, src/built-ins/modules/public-funnel/src/api/handlers.ts, src/built-ins/modules/public-funnel/src/server/ports.ts, src/lib/server/pluginStorage.ts, src/built-ins/modules/public-funnel/src/__smoke__/funnel.test.ts
-**Why:** Authoritative by-id reads, stable completion ids, process-atomic insertion, resumable session issuance and 4xx/503 classification are shipped and covered. The remaining risk is cross-process atomic uniqueness and activity/event delivery across a crash.
+**Why:** Anonymous capture must never create identity before verified authority. ABUSE-002 keeps completion pending-only and binds later server-side promotion to a fresh capability, exact agency/install/capture, one hashed subject/operation claim and ownership-aware lineage so erasure cannot delete pre-existing or shared CRM records.
 
-Add a database-native conditional insert and durable outbox/idempotent consumer boundary. Fault every activity/event step and race separate processes before marking the funnel fully reliable.
+Authoritative by-id reads, stable completion ids and a process transaction collapse same-process replay and canonical-email races. Pending completion creates no User, session or CRM identity and emits only non-PII summaries. Exact promoted-capture and full-client erasure use recorded Lead/Person/Prospect/card ownership in one retryable transaction. The host validates fresh signed agency sessions and refuses caller-asserted mailbox proof because no durable receipt store or public proof endpoint exists. Add database-native cross-process canonical uniqueness, durable address/installation/IP budgets and a durable outbox/idempotent consumer boundary. Build and verify mailbox-proof promotion before exposing it, then race separate processes. Local adversarial gates cover revocation after pre-check, cross-capture replay, rollback/retry, exclusive deletion and shared-client preservation.
 
 ### Make Leads Pipeline identity changes conflict-safe
 **Id:** conflict-safe-lead-identity · **Status:** building · **Size:** M · **Added:** 2026-08-24 · **Source:** ultra-review
@@ -2504,9 +2504,9 @@ Do not claim immediate remote teardown unless provider-specific unload support i
 ### Connect Health Check, Public Funnel and Business OS
 **Id:** connect-health-check-public-funnel-bos · **Status:** shipped · **Size:** L · **Added:** 2026-08-24 · **Shipped:** 2026-08-25 · **Source:** ultra-review
 **Files:** public/health-check/index.html, public/business-os/bos.js, public/business-os/auth-sync.js, src/app/api/public/health-check/complete/route.ts, src/app/api/public/business-os/context/route.ts, src/built-ins/runtime/foundation-adapters/publicFunnelFoundation.ts, src/built-ins/runtime/foundation-adapters/leadFunnelPorts.ts, scripts/smoke-health-check-funnel-journey.test.ts
-**Why:** Email-backed Health Check completion now persists one exact result through Public Funnel, flushes before success, issues lead identity and restores the same server context into BOS. A clean-browser resume derives the same completion id; skipping contact is deliberately and visibly browser-only.
+**Why:** Anonymous Health Check completion must not authenticate a visitor or create CRM identity. ABUSE-002 stores one pending Public Funnel capture; later server-only promotion rechecks authority, claims the exact capture and hashed subject/operation once, and records ownership-aware lineage for safe erasure. No public promotion endpoint exists.
 
-Shipped with a **21/21** route/plugin journey gate and live port-3032 copy verification. The public BOS remains intentionally usable without authentication; BOS Auth Gate was not mounted because the selected product boundary is optional email-backed sync, not a mandatory gate.
+This supersedes the 2026-08-25 identity/cookie behaviour. Completion emits non-PII summaries and creates no User, session or CRM derivatives. The host validates fresh signed agency sessions and fails mailbox proof closed until a durable receipt flow exists. The historical route remains shipped, but anonymous completion no longer authenticates or restores CRM context into BOS. The public BOS remains intentionally usable without authentication. Promotion must stay dormant until a verified or authenticated caller is mounted and independently accepted.
 
 ### Published sites can submit Login / Signup native forms
 **Id:** published-site-auth · **Status:** shipped · **Size:** S · **Added:** 2026-08-20 · **Shipped:** 2026-08-23 · **Source:** worker:money
@@ -2603,7 +2603,7 @@ This remains a truthful record of the first pass, **not a current performance cl
 
 ## Source document — `docs/development/status.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/status.md" sha256="10c744ce76c81343595183206c0ca909e9257b1c319a0247fb89be172371414d" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/status.md" sha256="6fa2f79af09c872c544938d5d689e4814d4de9656b9e2bfa0c56e26d6031640c" -->
 # Status & verification register
 
 ← Back to [development.md](../development.md) (the law)
@@ -2879,8 +2879,8 @@ not rerun.
 | Session authorization | **RESOLVED 2026-08-27 at the focused-test level.** `resolveFreshSessionUser()` in `auth.ts` enforces current-user existence, `sessionRev`, current role and live membership on every `getSession()`/`getSessionFromRequest()` read; the old-cookie exploit replay (external-AI create after owner→staff downgrade, password rotation, deletion) returns 403/401 with no token — `smoke-session-revocation` 16/16. | Browser-walk a live downgrade as part of the release access matrix; deployed multi-instance immediacy rides on the storage backend's freshness (sandbox anchors already hydrate fresh). |
 | Core CRM and portal surfaces | **Substantially coded; broad static/logic suite green at the last documented run** | Complete the critical browser journeys instead of treating source-shape assertions as end-to-end acceptance. |
 | Account creation surfaces | **The standalone portal intentionally exposes no `/signup` page.** Its JSON agency-bootstrap API is backend-only here. Published-site `SignupFormBlock` creates a lead; end-customer self-signup is available only from a client-scoped embed with signups enabled. The focused source/behaviour set passes **35/35**. | Browser-walk the published-site lead result and enabled client embed; do not report the absent standalone screen as a broken route unless product policy changes. |
-| Health Check → Public Funnel → BOS | **Connected and route-proven.** Email-backed completion now sends the exact result through a stable Public Funnel operation, flushes before acknowledgement, creates/reuses lead identity, issues the real cookie and redirects to BOS; BOS reloads the result from a fresh no-store lead context. A resumed clean browser derives the same completion id. Contact skip remains an explicitly browser-only free path. | The server journey/plugin regressions pass **21/21** and live 3032 copy is verified. A full human completion on the shared live dataset was deliberately not submitted during acceptance. |
-| Public Funnel capture durability | **Partially repaired.** Authoritative by-id reads remove the split-index loss, stable ids and process-atomic insertion collapse same-process retries/races, session failure resumes, and infrastructure errors are 503. | Add database-native conditional insert and a durable outbox/idempotent consumer contract; fault and race activity/event delivery across separate processes before claiming exactly-once operation semantics. |
+| Health Check → Public Funnel → BOS | **Anonymous completion is pending-only at the local code and behaviour gate.** A valid managed challenge with the exact Health Check action and host may create one pending Public Funnel capture for the configured installation. It creates no User, session, membership, Lead, Prospect, Person, pipeline card, email index or identity outbox, and emits only a non-PII pending summary. BOS therefore receives no authenticated identity or restored CRM context from an anonymous completion. | The server-only promotion command revalidates a signed, fresh agency session and live membership inside the same durable promotion lane that claims the exact agency/install/capture plus hashed subject/operation. Reuse against another capture fails, and bearer material is not stored. Caller-asserted user ids and mailbox claims are refused. Exact erasure removes owned Lead/Person/Prospect/card lineage atomically and preserves another client's identity basis. No durable mailbox-proof receipt flow or public promotion endpoint exists yet. Provision managed challenge secrets and durable abuse budgets, then browser- and deployment-prove the pending journey and any future verified promotion path. |
+| Public Funnel capture durability | **Partially repaired and deliberately pending.** Authoritative by-id reads, stable ids and a global process transaction collapse same-process replay/races across configured installations. Anonymous capture retains submitted PII only in its pending row; activity and automation effects receive non-PII summaries. The focused local gates cover authority revocation after the pre-check, same-command races across two captures, promoted-graph erasure rollback/retry, exclusive deletion, cross-client preservation and no residual exclusive subject email. | Add database-native cross-process canonical uniqueness, durable address/installation/IP budgets and a durable outbox/idempotent consumer contract. Race capture, erasure and promotion across separate processes before claiming exactly-once or production-grade abuse resistance. |
 | Lead identity changes | **Partially repaired.** Canonical email/phone conflicts are refused under one agency-scoped process lock; the real PATCH boundary returns 409, pointer cleanup is ownership-safe, simultaneous in-process edits/upserts are covered, ambiguous legacy email-card fallback is avoided and the sales-record draft stays open with an inline error. The focused gate passes **46/46**. | Add storage/database-native conditional identity ownership and prove edit/import/qualification races, retries and reload across separate processes before claiming distributed uniqueness. |
 | Opportunity invoice/payment ledger | **Partially repaired.** Unique invoice slots, an agency-scoped process lock and independent payment ledger rows preserve simultaneous proposals/payments/save edits; canonical required references dedupe retries and conflicting reuse returns 409. Receipt/activity/event progress is resumable. The focused gate passes **8/8**. | Back the conditional claims and outbox with database-native cross-process storage; fault/retry Finance, Stripe, email, activity and event delivery across crashes and instances. |
 | Marketing asset/profile persistence | **Partially repaired.** Assets/funnels and profiles use per-id rows with legacy-array merge/tombstones; mutations serialise in-process and mounted editors send their opened `updatedAt`. Same-version races yield one success and one visible 409, and all acknowledged simultaneous creates survive. The focused gate passes **25/25**. | Add database-native compare-and-set/version constraints and repeat create/edit/status/delete/reload across separate processes before claiming distributed safety. |

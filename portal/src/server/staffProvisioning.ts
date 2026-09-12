@@ -16,7 +16,12 @@ import type {
   ServerUser,
   StaffProvisioningOperation,
 } from "./types";
-import { createUser, getUser, updateUser } from "./users";
+import {
+  bindSupabaseAuthIdentity,
+  createUser,
+  getUser,
+  updateUser,
+} from "./users";
 
 interface StaffProvisioningBaseIntent {
   agencyId: string;
@@ -92,6 +97,7 @@ export interface StaffProvisioningRuntime {
     agencyId: string;
     mustChangePassword?: boolean;
   }): ServerUser;
+  bindProviderIdentity(userId: string, providerUserId: string): ServerUser | null;
   finaliseTarget(intent: StaffProvisioningIntent, user: ServerUser, operation: StaffProvisioningOperation): TargetResult;
   resolveResult(operation: StaffProvisioningOperation): { user: ServerUser | null; employee?: PeopleEmployee };
   now(): number;
@@ -160,6 +166,17 @@ function assertMatchingLocalUser(user: ServerUser, intent: StaffProvisioningInte
     || canonicalEmail(user.email) !== canonicalEmail(intent.email)
   ) {
     throw new StaffProvisioningConflictError("That email belongs to a different local account and cannot be adopted.");
+  }
+}
+
+function assertMatchingProviderBinding(
+  user: ServerUser,
+  operation: StaffProvisioningOperation,
+): void {
+  if (!operation.providerUserId || user.supabaseAuthUserId !== operation.providerUserId) {
+    throw new StaffProvisioningConflictError(
+      "The local account is not bound to the exact provider identity for this operation.",
+    );
   }
 }
 
@@ -258,6 +275,9 @@ const defaultRuntime: StaffProvisioningRuntime = {
   },
   findLocalUser: email => getUser(email),
   createLocalUser: input => createUser(input),
+  bindProviderIdentity: (userId, providerUserId) => (
+    bindSupabaseAuthIdentity(userId, providerUserId)
+  ),
   finaliseTarget: defaultFinaliseTarget,
   resolveResult: operation => ({
     user: getUser(operation.email),
@@ -313,6 +333,7 @@ export async function runStaffProvisioning(
     const resolved = runtime.resolveResult(existing);
     if (!resolved.user) throw new Error("The completed provisioning operation is missing its local user; retry recovery is required.");
     assertMatchingLocalUser(resolved.user, intent, existing);
+    assertMatchingProviderBinding(resolved.user, existing);
     return { operation: existing, user: resolved.user, employee: resolved.employee, resumed: true };
   }
 
@@ -350,7 +371,10 @@ export async function runStaffProvisioning(
         password: intent.password,
         name: operation.name,
         agencyId: operation.agencyId,
-        profileRole: operation.localRole === "freelancer" ? "client" : "staff",
+        // Freelancers are limited AquaCRM workforce identities, not client-
+        // portal customers. Their local role still supplies the finer-grained
+        // authorisation boundary after the provider proves this staff subject.
+        profileRole: "staff",
       });
       if (operation.providerUserId && operation.providerUserId !== provider.id) {
         throw new StaffProvisioningConflictError("The provider returned a different identity for this operation.");
@@ -380,6 +404,22 @@ export async function runStaffProvisioning(
         mustChangePassword: intent.mustChangePassword,
       });
     }
+    if (!operation.providerUserId) {
+      throw new Error("The provider identity receipt is missing from this provisioning operation.");
+    }
+    // Binding and the local-user-ready checkpoint are flushed together. A
+    // failed flush therefore cannot acknowledge local completion without the
+    // write-once subject binding; a retry replays the exact provider operation
+    // and idempotently establishes the same local binding.
+    const boundUser = runtime.bindProviderIdentity(user.id, operation.providerUserId);
+    if (!boundUser) {
+      throw new StaffProvisioningConflictError(
+        "The provider identity is already bound to a different local account.",
+      );
+    }
+    assertMatchingLocalUser(boundUser, intent, operation);
+    assertMatchingProviderBinding(boundUser, operation);
+    user = boundUser;
     operation = { ...operation, stage: "local-user-ready", updatedAt: runtime.now() };
     runtime.writeOperation(key, operation);
     await runtime.flush();
@@ -401,6 +441,7 @@ export async function runStaffProvisioning(
     const resolved = runtime.resolveResult(operation);
     if (!resolved.user) throw new Error("Provisioning completed without a readable local user.");
     assertMatchingLocalUser(resolved.user, intent, operation);
+    assertMatchingProviderBinding(resolved.user, operation);
     return {
       operation,
       user: resolved.user,

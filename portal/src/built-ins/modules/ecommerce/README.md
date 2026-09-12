@@ -119,6 +119,31 @@ install.config = {
 Set up via the `setup` wizard on install. Operator can rotate keys
 later from the plugin's settings page.
 
+## Public storefront checkout admission
+
+The anonymous checkout facade does not trust the `agencyId` or `clientId` in
+the generic plugin route. A checkout start is accepted only when the request's
+exact `Origin` resolves through one globally unique `WebsiteSource` owned by
+that agency and routed to that client. The published Website Editor renderer
+marks the storefront root; previews and admin/editor canvases do not receive
+that marker and therefore keep the authenticated API path.
+
+Before inventory reservation, gift-card mutation, Stripe work, or completion,
+the server verifies a managed challenge bound to the exact browser hostname.
+Paid checkout uses `storefront-checkout`; an authoritative zero-value order
+requires the separate `storefront-free-order` action. A read-only server quote
+must agree with that proof class. Replays use the already-committed checkout
+snapshot, while the checkout service still enforces the exact request
+fingerprint for the operation id.
+
+Checkout admission then atomically spends durable, one-way-digested limits for
+the network address, customer email identity, provider/install, tenant/client,
+shipping country, and each authoritative inventory SKU. If any dimension is exhausted, none are
+charged and no checkout state is created. Production fails closed unless the
+managed-challenge site and secret keys are configured and the exact storefront
+hostname is allowed by the provider. A real paid Stripe journey remains a
+provider/staging release check; local tests do not represent it as completed.
+
 The vendored `src/lib/stripe/server.ts` is the same dynamic-import
 wrapper from `02` but takes keys as a parameter instead of reading
 `process.env`. The chief commander wires the foundation to load

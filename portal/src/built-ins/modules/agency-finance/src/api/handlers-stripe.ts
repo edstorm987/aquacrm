@@ -26,6 +26,13 @@ import { installConfigWithSecrets } from "@/lib/server/plugins/pluginSecretConfi
 import { invoiceOutstandingCents, isCollectibleInvoiceStatus } from "../lib/paymentAllocation";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/auth";
 import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
+import { exactProviderAgencyScope } from "@/lib/server/portal/providerWebhookScope";
+import { readBoundedPublicWebhookBody } from "@/lib/server/portal/publicWebhookBody";
+import {
+  publicWebhookProcessingFailed,
+  publicWebhookRefused,
+  publicWebhookUnavailable,
+} from "@/lib/server/portal/publicWebhookResponse";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -95,6 +102,8 @@ export async function stripeCheckoutHandler(req: Request, ctx: PluginCtx): Promi
     const successUrl = cfg.successUrl || `${origin}/portal/agency/agency-finance/invoices/${invoice.id}?paid=1`;
     const cancelUrl = cfg.cancelUrl || `${origin}/portal/agency/agency-finance/invoices/${invoice.id}`;
     const session = await createInvoiceCheckout(keys, {
+      agencyId: ctx.agencyId,
+      clientId: invoice.clientId,
       invoiceId: invoice.id,
       invoiceNumber: invoice.number,
       amountCents: outstandingCents,
@@ -125,24 +134,41 @@ export async function stripeCheckoutHandler(req: Request, ctx: PluginCtx): Promi
 export async function stripeWebhookHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   if (req.method !== "POST") return methodNotAllowed();
   const signature = req.headers.get("stripe-signature");
-  if (!signature) return badRequest("missing stripe-signature header");
-  let rawBody: string;
-  try { rawBody = await req.text(); } catch { return badRequest("could not read body"); }
+  if (!signature) return publicWebhookRefused();
+  let keys: ReturnType<typeof readStripeKeysFromInstall>;
+  try {
+    keys = readStripeKeysFromInstall(stripeConfig(ctx));
+  } catch (error) {
+    return publicWebhookUnavailable("stripe-finance", "configuration", error);
+  }
+  if (!keys.webhookSecret) {
+    return publicWebhookUnavailable("stripe-finance", "configuration");
+  }
+  const body = await readBoundedPublicWebhookBody(req);
+  if (!body.ok) return body.response;
+  const rawBody = body.rawBody;
 
   let event: StripeEvent;
   try {
-    const keys = readStripeKeysFromInstall(stripeConfig(ctx));
     event = (await verifyStripeWebhook(keys, rawBody, signature)) as StripeEvent;
-  } catch (err) {
-    // A signature mismatch or bad payload — refuse. Never leak key material.
-    return json({ ok: false, error: errorMessage(err, "webhook_verification_failed") }, 400);
+  } catch {
+    // A signature mismatch, malformed payload or unreadable local setup is not
+    // reflected to the anonymous caller. Never leak key or configuration detail.
+    return publicWebhookRefused();
+  }
+
+  if (event.type === "checkout.session.completed") {
+    const metadata = (event.data.object as { metadata?: Record<string, string> }).metadata;
+    if (!exactProviderAgencyScope(metadata, ctx.agencyId) || !metadata?.clientId) {
+      return publicWebhookRefused();
+    }
   }
 
   try {
     const result = await reconcileStripeEventOnce(build(ctx), event);
     return json({ ok: true, ...result });
   } catch (err) {
-    return json({ ok: false, error: errorMessage(err, "webhook_processing_failed") }, 500);
+    return publicWebhookProcessingFailed("stripe-finance", "reconcile", err, 500);
   }
 }
 

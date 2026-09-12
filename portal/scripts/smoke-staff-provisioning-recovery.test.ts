@@ -66,6 +66,7 @@ class FakeProvider {
 interface AttemptOptions {
   failFlushAt?: number;
   failLocalCreate?: boolean;
+  failProviderBinding?: boolean;
   failTargetLink?: boolean;
 }
 
@@ -115,6 +116,19 @@ function attemptRuntime(
       working.users[user.email] = user;
       return user;
     },
+    bindProviderIdentity(userId, providerUserId) {
+      if (options.failProviderBinding) return null;
+      if (Object.values(working.users).some(
+        user => user.id !== userId && user.supabaseAuthUserId === providerUserId,
+      )) return null;
+      const entry = Object.entries(working.users).find(([, user]) => user.id === userId);
+      if (!entry) return null;
+      const [key, user] = entry;
+      if (user.supabaseAuthUserId && user.supabaseAuthUserId !== providerUserId) return null;
+      const bound = { ...user, supabaseAuthUserId: providerUserId };
+      working.users[key] = bound;
+      return bound;
+    },
     finaliseTarget(intent, user) {
       if (options.failTargetLink && !targetLinkFailed) {
         targetLinkFailed = true;
@@ -159,6 +173,8 @@ test("normal completion and a lost-response replay converge on one provider and 
   assert.equal(provider.creates, 1);
   assert.equal(provider.adoptions, 0, "a completed replay must not touch the provider again");
   assert.equal(Object.keys(durable.users).length, 1);
+  assert.equal(first.user.supabaseAuthUserId, "provider_1");
+  assert.equal(replay.user.supabaseAuthUserId, "provider_1");
   assert.equal(durable.targetUserIds.employee_recovery, first.user.id);
   assert.doesNotMatch(JSON.stringify(durable.operations), /temporary-password-123/);
 });
@@ -205,6 +221,7 @@ test("fresh-process retries recover local-user and employee-link failures", asyn
       const result = await runStaffProvisioning(intent(), attemptRuntime(durable, provider));
       assert.equal(result.operation.stage, "complete");
       assert.equal(Object.keys(durable.users).length, 1);
+      assert.equal(result.user.supabaseAuthUserId, "provider_1");
       assert.equal(durable.targetUserIds.employee_recovery, result.user.id);
       assert.equal(provider.creates, 1);
     });
@@ -224,9 +241,31 @@ test("every post-provider durable boundary resumes from its last acknowledged st
       assert.equal(result.operation.stage, "complete");
       assert.equal(provider.creates, 1, "retry created a second remote identity");
       assert.equal(Object.keys(durable.users).length, 1, "retry created a second local identity");
+      assert.equal(result.user.supabaseAuthUserId, "provider_1",
+        "the recovered acknowledgement must include the exact provider binding");
       assert.equal(durable.targetUserIds.employee_recovery, result.user.id);
     });
   }
+});
+
+test("a conflicting provider binding fails closed before local completion", async () => {
+  const durable = emptyWorld();
+  const provider = new FakeProvider();
+  await assert.rejects(
+    runStaffProvisioning(intent(), attemptRuntime(durable, provider, { failProviderBinding: true })),
+    /already bound to a different local account/,
+  );
+  const operation = Object.values(durable.operations)[0];
+  assert.ok(operation);
+  assert.equal(operation.stage, "provider-ready");
+  assert.equal(Object.keys(durable.users).length, 1);
+  assert.equal(Object.values(durable.users)[0]?.supabaseAuthUserId, undefined,
+    "a failed bind cannot mis-bind the staged local user");
+  assert.equal(Object.keys(durable.targetUserIds).length, 0,
+    "a failed bind cannot acknowledge or expose the local account through its target");
+  const recovered = await runStaffProvisioning(intent(), attemptRuntime(durable, provider));
+  assert.equal(recovered.operation.stage, "complete");
+  assert.equal(recovered.user.supabaseAuthUserId, "provider_1");
 });
 
 test("different intent cannot take over the email-scoped operation", async () => {
@@ -258,6 +297,7 @@ test("the real PortalState adapter converges Agency Users, candidate hire and em
     target: { kind: "agency-user", companyIds: [] },
   }, runtime);
   assert.equal(getUser("manager@provisioning.test")?.id, agencyUser.user.id);
+  assert.equal(getUser("manager@provisioning.test")?.supabaseAuthUserId, "provider_1");
 
   const application = createPeopleApplication({
     agencyId: agency.id,
@@ -284,6 +324,7 @@ test("the real PortalState adapter converges Agency Users, candidate hire and em
   }, runtime);
   assert.equal(getPeopleApplication(agency.id, application.id)?.employeeId, hired.employee?.id);
   assert.equal(hired.employee?.userId, hired.user.id);
+  assert.equal(hired.user.supabaseAuthUserId, "provider_2");
 
   const employee = createPeopleEmployee({
     agencyId: agency.id,
@@ -303,6 +344,7 @@ test("the real PortalState adapter converges Agency Users, candidate hire and em
     target: { kind: "employee", employeeId: employee.id },
   }, runtime);
   assert.equal(activated.employee?.userId, activated.user.id);
+  assert.equal(activated.user.supabaseAuthUserId, "provider_3");
   assert.equal(Object.values(getState().staffProvisioningOperations).filter(row => row.stage === "complete").length, 3);
   assert.equal(provider.creates, 3);
 });

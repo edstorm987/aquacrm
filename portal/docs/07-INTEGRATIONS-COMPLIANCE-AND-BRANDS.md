@@ -2,12 +2,12 @@
 
 > External APIs, inbox and portal concepts, compliance packs and brand records.
 >
-> Consolidated 2026-09-08 from **6** source documents / **7,139 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-12 from **6** source documents / **7,185 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
 - [`assistant-integrations/milesymedia-api/SKILL.md`](#source-assistant-integrations-milesymedia-api-skill-md) — 289 words · `482c82e344fb`
-- [`docs/compliance/erasure-dpo-pack.md`](#source-docs-compliance-erasure-dpo-pack-md) — 2,835 words · `8b4dc2a9016f`
+- [`docs/compliance/erasure-dpo-pack.md`](#source-docs-compliance-erasure-dpo-pack-md) — 2,881 words · `7afaac696768`
 - [`docs/external-assistant-api.md`](#source-docs-external-assistant-api-md) — 1,675 words · `2a4a76c6d69d`
 - [`docs/meta-master-inbox.md`](#source-docs-meta-master-inbox-md) — 718 words · `1de766d50ed8`
 - [`docs/portal-tiers-and-fractal-fulfilment.md`](#source-docs-portal-tiers-and-fractal-fulfilment-md) — 1,286 words · `af8659f6076a`
@@ -77,7 +77,7 @@ ${AQUACRM_API_BASE_URL}/openapi.json
 
 ## Source document — `docs/compliance/erasure-dpo-pack.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/compliance/erasure-dpo-pack.md" sha256="8b4dc2a9016f8dc218f12db0a2ace6cba8a68263c18daf9c45894a8bc48fe1be" -->
+<!-- AQUACRM_SOURCE_START path="docs/compliance/erasure-dpo-pack.md" sha256="7afaac69676811484f9e7dde6fb17f885b48774882d9a5002ebec21209fea778" -->
 # Right-to-erasure — review pack for a DPO / solicitor
 
 ← [development.md](../development.md) · [erasure plan](../development/plans/plugin-data-erasure.md) · [compliance & legal plan](../development/plans/compliance-legal.md)
@@ -136,10 +136,11 @@ hosted-table scrub reports errors. Because the local client row has already been
 deleted, a normal retry returns “not found.” The UI/API result therefore cannot be
 treated as proof that every system completed the erasure.
 
-**Not built yet (process, not code):** there is no DSAR intake workflow — no place to
-log that a request was received, verify the requester's identity, or track the
-statutory response clock. Today the owner acts on a request out-of-band and presses
-the button. See §8.
+**Partially built process:** the DSAR register now records receipt, the statutory
+clock and identity-verification evidence. A subject-access export is bound to an
+exact verified request. Intake is still manual, however, and the erasure button is
+not yet bound to that request record, so an owner must still connect the out-of-band
+request to the destructive action correctly. See §8.
 
 ---
 
@@ -252,9 +253,10 @@ tests and comments asserting that it names no person. Until that is removed and
 behaviourally tested at the activity-record boundary, the audit must be treated as
 retaining personal data.
 
-**Gap:** the audit records *what the system did*. It does not record *why* — who
-requested the erasure, how their identity was verified, or when the request came in.
-That is the DSAR workflow in §8.
+**Gap:** the DSAR register can record who requested erasure, receipt and identity
+verification, but this erasure audit is not transactionally linked to that request.
+The evidence therefore does not itself prove which verified request authorised this
+specific destructive action.
 
 ---
 
@@ -298,18 +300,21 @@ We would rather understate this than oversell it.
 | **Q4** | Should the organisation-link **rationale text** be cleared too (§6.5)? | A domain is weaker than an address, but it is derived from one. |
 | **Q5** | What must happen to data already held by **sub-processors** (§9) on an erasure — and do we have the DPAs to require it? | The button does not reach them. |
 | **Q6** | What is required for **backups / point-in-time recovery**, given a restore would resurrect erased records? | Common regulator question; currently unaddressed. |
-| **Q7** | What **response timeframe and identity-verification standard** should the DSAR process meet, so we build the workflow to it? | The workflow is unbuilt; we would rather build it to your spec than guess. |
+| **Q7** | Is the implemented one-calendar-month clock and identity-verification evidence standard sufficient, and how must the erasure action be bound to a verified request? | The register and access-request gate exist, but legal/process sign-off and erasure linkage remain open. |
 | **Q8** | Is a **person's own record** (as opposed to a client's) in scope for the same button? Today erasure is per client workspace. | Affects people who never became a client — leads, enquirers, funnel captures. |
 
 ---
 
 ## 8. Known gaps beyond erasure
 
-These are tracked in the [compliance & legal plan](../development/plans/compliance-legal.md)
-and are **not built**: a Records-of-Processing map (ROPA), a DSAR intake and fulfilment
-workflow (including subject **access** and **portability**, not just erasure), automated
-retention expiry, and a breach register with the 72-hour clock. A legal-document
-register and cookie-consent capture do exist today.
+These are tracked in the [compliance & legal plan](../development/plans/compliance-legal.md).
+A maintained Records-of-Processing map (ROPA) and automated DSAR intake are not
+built. The register, clock, breach register, configurable retention mechanism and a
+safe automatic access/portability export now exist, but remain **partial**: retention
+periods are unset, the export withholds review-required rows and excludes systems
+outside hydrated PortalState, final delivery is not evidenced, and erasure is not
+bound to the verified request. A legal-document register and cookie-consent capture
+also exist today.
 
 **Since 2026-08-20 these gaps are visible in the product, not only in this document.**
 A compliance posture at `/portal/agency/company?view=legal` lists each control, its

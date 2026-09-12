@@ -1,4 +1,6 @@
 process.env.PORTAL_BACKEND = "memory";
+const savedPublicAuthOrigin = process.env.NEXT_PUBLIC_PORTAL_BASE_URL;
+process.env.NEXT_PUBLIC_PORTAL_BASE_URL = "http://localhost:3032";
 
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -12,6 +14,7 @@ import { POST as submitPOST } from "../src/app/api/portal/freelancer/submit/rout
 import { GET as workContentGET } from "../src/app/api/portal/freelancer/work/content/route";
 import { POST as workPOST } from "../src/app/api/portal/freelancer/work/route";
 import { issueSession, SESSION_COOKIE_NAME } from "../src/lib/server/auth/auth";
+import { verifyPasswordResetToken } from "../src/lib/server/auth/passwordReset";
 import { createFreelancer, inviteFreelancer } from "../src/server/freelancerAdmin";
 import {
   freelancerWorkspace,
@@ -24,9 +27,10 @@ import {
   savePeopleFreelancerJob,
 } from "../src/server/people";
 import { createPortalStaffProvisioningRuntime } from "../src/server/staffProvisioning";
+import { recordPublicAuthLinkDelivery } from "../src/server/publicAuthLinkDelivery";
 import { ensureHydrated, getState, reset } from "../src/server/storage";
 import { createAgency } from "../src/server/tenants";
-import { createUser, getUser, getUserById } from "../src/server/users";
+import { createUser, getUser, getUserById, setUserPasswordById } from "../src/server/users";
 
 const originalCwd = process.cwd();
 const uploadCwd = mkdtempSync(join(tmpdir(), "aquacrm-freelancer-journey-"));
@@ -58,6 +62,8 @@ beforeEach(async () => {
 });
 
 after(() => {
+  if (savedPublicAuthOrigin === undefined) delete process.env.NEXT_PUBLIC_PORTAL_BASE_URL;
+  else process.env.NEXT_PUBLIC_PORTAL_BASE_URL = savedPublicAuthOrigin;
   process.chdir(originalCwd);
   rmSync(uploadCwd, { recursive: true, force: true });
 });
@@ -89,14 +95,13 @@ test("real freelancer journey provisions once, invites, shares work, messages, u
     name: "Fran Creator",
     email: "FRAN@example.test",
     title: "Motion Designer",
-    origin: "http://localhost:3032/",
   }, { runtime, sendEmail, now: () => 1234 });
 
   assert.equal(invite.ok, true);
   assert.equal(invite.inviteDelivered, true);
   assert.match(invite.setupUrl ?? "", /^http:\/\/localhost:3032\/login\/reset\?token=/);
   assert.equal(providerInputs.length, 1);
-  assert.deepEqual(providerInputs[0], { email: "fran@example.test", profileRole: "client" });
+  assert.deepEqual(providerInputs[0], { email: "fran@example.test", profileRole: "staff" });
   assert.equal(deliveredEmails.length, 1);
   assert.equal(deliveredEmails[0]?.to, "fran@example.test");
   assert.match(deliveredEmails[0]?.bodyText ?? "", /Set your password/);
@@ -104,6 +109,8 @@ test("real freelancer journey provisions once, invites, shares work, messages, u
   const freelancer = getUser("fran@example.test");
   assert.ok(freelancer);
   assert.equal(freelancer.role, "freelancer");
+  assert.equal(freelancer.supabaseAuthUserId, "provider_freelancer_1",
+    "local completion must include the immutable provider-subject binding");
   assert.equal(freelancer.mustChangePassword, true);
   const employee = invite.employeeId ? getState().peopleEmployees[invite.employeeId] : undefined;
   assert.ok(employee);
@@ -114,28 +121,33 @@ test("real freelancer journey provisions once, invites, shares work, messages, u
     name: "Fran Creator",
     email: "fran@example.test",
     title: "Motion Designer",
-    origin: "http://localhost:3032",
   }, { runtime, sendEmail, now: () => 1235 });
   assert.equal(replay.ok, true);
   assert.equal(replay.resumed, true);
   assert.equal(replay.userId, freelancer.id);
   assert.equal(replay.employeeId, employee.id);
   assert.equal(providerInputs.length, 1, "a completed replay must not create a second provider identity");
+  assert.equal(deliveredEmails.length, 2);
+  assert.equal(deliveredEmails[0]?.externalRef, deliveredEmails[1]?.externalRef,
+    "delivery retry must reuse the logical provider operation key");
+  assert.equal(replay.setupUrl, invite.setupUrl,
+    "a retry while the first link is live must not mint another bearer link");
   assert.equal(Object.values(getState().users).filter(user => user.email === freelancer.email).length, 1);
 
   const savedNodeEnvironment = process.env.NODE_ENV;
   const savedSessionSecret = process.env.PORTAL_SESSION_SECRET;
+  const savedProductionPublicAuthOrigin = process.env.NEXT_PUBLIC_PORTAL_BASE_URL;
   process.env.NODE_ENV = "production";
   // Phase 0-B: token signing FAILS CLOSED in production — no secret, no boot.
   // A realistic production simulation therefore carries a real secret; the
   // fail-closed guard itself has its own suite (smoke-auth-fail-closed).
   process.env.PORTAL_SESSION_SECRET = "freelancer-journey-production-simulation-secret";
+  process.env.NEXT_PUBLIC_PORTAL_BASE_URL = "https://portal.example.com";
   try {
     const deliveryFallback = await inviteFreelancer(agency.id, owner.id, {
       name: "Fran Creator",
       email: "fran@example.test",
       title: "Motion Designer",
-      origin: "https://portal.example.test",
     }, {
       runtime,
       sendEmail: async () => ({ delivered: false, via: "unconfigured" }),
@@ -143,13 +155,30 @@ test("real freelancer journey provisions once, invites, shares work, messages, u
     });
     assert.equal(deliveryFallback.ok, true);
     assert.equal(deliveryFallback.inviteDelivered, false);
-    assert.match(deliveryFallback.setupUrl ?? "", /^https:\/\/portal\.example\.test\/login\/reset\?token=/,
+    assert.match(deliveryFallback.setupUrl ?? "", /^https:\/\/portal\.example\.com\/login\/reset\?token=/,
       "a production mail outage must still leave the authorised operator one usable setup path");
+
+    const thrownDelivery = await inviteFreelancer(agency.id, owner.id, {
+      name: "Fran Creator",
+      email: "fran@example.test",
+      title: "Motion Designer",
+    }, {
+      runtime,
+      sendEmail: async () => { throw new Error("private freelancer provider detail"); },
+      now: () => 1237,
+    });
+    assert.equal(thrownDelivery.ok, true);
+    assert.equal(thrownDelivery.inviteDelivered, false);
+    assert.equal(thrownDelivery.setupUrl, deliveryFallback.setupUrl,
+      "an exception uses the structured retry contract and keeps the one live bearer");
+    assert.equal(Object.prototype.hasOwnProperty.call(thrownDelivery, "providerError"), false);
   } finally {
     if (savedNodeEnvironment === undefined) delete process.env.NODE_ENV;
     else process.env.NODE_ENV = savedNodeEnvironment;
     if (savedSessionSecret === undefined) delete process.env.PORTAL_SESSION_SECRET;
     else process.env.PORTAL_SESSION_SECRET = savedSessionSecret;
+    if (savedProductionPublicAuthOrigin === undefined) delete process.env.NEXT_PUBLIC_PORTAL_BASE_URL;
+    else process.env.NEXT_PUBLIC_PORTAL_BASE_URL = savedProductionPublicAuthOrigin;
   }
 
   const job = savePeopleFreelancerJob({
@@ -269,7 +298,7 @@ test("a legacy local-only freelancer is adopted without duplicating its user or 
   const runtime = createPortalStaffProvisioningRuntime({
     provisionProvider: async input => {
       providerCalls += 1;
-      assert.equal(input.profileRole, "client");
+      assert.equal(input.profileRole, "staff");
       return { id: "provider_legacy_freelancer" };
     },
   });
@@ -282,7 +311,6 @@ test("a legacy local-only freelancer is adopted without duplicating its user or 
     name: "Legacy Artist",
     email: "legacy@example.test",
     title: "Illustrator",
-    origin: "https://portal.example.test",
   };
   const adopted = await inviteFreelancer(agency.id, owner.id, input, dependencies);
   const replay = await inviteFreelancer(agency.id, owner.id, input, dependencies);
@@ -295,9 +323,122 @@ test("a legacy local-only freelancer is adopted without duplicating its user or 
   assert.equal(replay.userId, localBefore.id);
   assert.equal(replay.employeeId, legacy.employeeId);
   assert.equal(getUserById(localBefore.id)?.mustChangePassword, true);
+  assert.equal(getUserById(localBefore.id)?.supabaseAuthUserId, "provider_legacy_freelancer");
   assert.equal(providerCalls, 1);
   assert.equal(Object.values(getState().users).filter(user => user.email === localBefore.email).length, 1);
   assert.equal(Object.values(getState().peopleEmployees).filter(employee => employee.email === localBefore.email).length, 1);
+});
+
+test("freelancer setup delivery fences a delayed old generation and keeps one current-epoch bearer", async () => {
+  const savedSecret = process.env.PORTAL_SESSION_SECRET;
+  process.env.PORTAL_SESSION_SECRET = "freelancer-generation-fence-test-secret";
+  try {
+    const agency = createAgency({ name: "Freelancer Fencing", slug: "freelancer-fencing" });
+    const owner = createUser({
+      email: "owner@freelancer-fencing.test",
+      password: "owner-password",
+      name: "Agency Owner",
+      role: "agency-owner",
+      agencyId: agency.id,
+    });
+    const runtime = createPortalStaffProvisioningRuntime({
+      provisionProvider: async () => ({ id: "provider_freelancer_fenced" }),
+    });
+    const input = {
+      name: "Fenced Freelancer",
+      email: "fenced.freelancer@example.test",
+      title: "Designer",
+    };
+    const now = Date.now();
+    let releaseFirst!: () => void;
+    let firstStarted!: () => void;
+    const firstStartedPromise = new Promise<void>(resolve => { firstStarted = resolve; });
+    const firstReceipt = new Promise<void>(resolve => { releaseFirst = resolve; });
+    let firstUrl = "";
+
+    const firstInvite = inviteFreelancer(agency.id, owner.id, input, {
+      runtime,
+      now: () => now,
+      sendEmail: async email => {
+        firstUrl = email.bodyText.match(/https?:\/\/\S+/)?.[0] ?? "";
+        firstStarted();
+        await firstReceipt;
+        return { delivered: true, via: "resend" as const, externalMessageId: "late-generation-one" };
+      },
+    });
+    await firstStartedPromise;
+
+    const provisioned = getUser(input.email);
+    assert.ok(provisioned);
+    assert.equal(provisioned.supabaseAuthUserId, "provider_freelancer_fenced");
+    const firstOperation = Object.values(getState().publicAuthLinkDeliveryOperations)[0];
+    assert.ok(firstOperation);
+
+    const rotated = setUserPasswordById(
+      provisioned.id,
+      "Rotated-freelancer-password-123!",
+      provisioned.sessionRev ?? 0,
+    );
+    assert.ok(rotated);
+    const second = await inviteFreelancer(agency.id, owner.id, input, {
+      runtime,
+      now: () => now + 100,
+      sendEmail: async () => ({
+        delivered: true,
+        via: "resend" as const,
+        externalMessageId: "generation-two",
+      }),
+    });
+    assert.equal(second.ok, true);
+    assert.ok(second.setupUrl);
+
+    releaseFirst();
+    await firstInvite;
+    const afterLateReceipt = getState().publicAuthLinkDeliveryOperations[firstOperation.id];
+    assert.ok(afterLateReceipt);
+    assert.equal(afterLateReceipt.generation, firstOperation.generation + 1);
+    assert.equal(afterLateReceipt.expectedSessionRev, (provisioned.sessionRev ?? 0) + 1);
+    assert.equal(afterLateReceipt.deliveryExternalMessageId, "generation-two",
+      "the delayed generation-one receipt must not overwrite generation two");
+    await recordPublicAuthLinkDelivery(firstOperation.id, firstOperation.generation, {
+      delivered: false,
+      outcomeUnknown: true,
+    }, now + 150);
+    assert.equal(
+      getState().publicAuthLinkDeliveryOperations[firstOperation.id]?.deliveryExternalMessageId,
+      "generation-two",
+      "a delayed generation-one failure must not release or overwrite generation two",
+    );
+
+    const third = await inviteFreelancer(agency.id, owner.id, input, {
+      runtime,
+      now: () => now + 200,
+      sendEmail: async () => ({
+        delivered: true,
+        via: "resend" as const,
+        externalMessageId: "generation-two",
+      }),
+    });
+    assert.equal(third.setupUrl, second.setupUrl,
+      "an ambiguous/current-generation retry reconstructs the same bearer");
+
+    const tokens = [firstUrl, second.setupUrl!, third.setupUrl!].map(url => (
+      new URL(url).searchParams.get("token") ?? ""
+    ));
+    const payloads = tokens.map(token => verifyPasswordResetToken(token));
+    assert.ok(payloads.every(result => result.ok));
+    const validPayloads = payloads.flatMap(result => result.ok ? [result.payload] : []);
+    assert.equal(validPayloads[0]?.userId, provisioned.id);
+    assert.equal(validPayloads[0]?.sessionRev, provisioned.sessionRev ?? 0);
+    assert.equal(validPayloads[1]?.sessionRev, rotated.sessionRev ?? 0);
+    assert.notEqual(validPayloads[0]?.nonce, validPayloads[1]?.nonce);
+    assert.equal(new Set(
+      tokens.filter((_, index) => validPayloads[index]?.sessionRev === rotated.sessionRev),
+    ).size, 1, "only one distinct bearer is valid for the current local session epoch");
+  } finally {
+    if (savedSecret === undefined) delete process.env.PORTAL_SESSION_SECRET;
+    else process.env.PORTAL_SESSION_SECRET = savedSecret;
+  }
 });
 
 test("the mounted freelancer surfaces use the real invitation and shared-work APIs", () => {

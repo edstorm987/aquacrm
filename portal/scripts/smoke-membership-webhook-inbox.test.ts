@@ -653,6 +653,8 @@ test("mounted webhook maps retryable processing failure to 503", async () => {
     join(process.cwd(), "src/built-ins/modules/memberships/src/api/handlers.ts"),
     "utf8",
   );
-  assert.match(source, /result\.retryable \? 503 : 400/);
+  assert.match(source, /result\.retryable[\s\S]+publicWebhookProcessingFailed\("stripe-memberships"/);
+  assert.match(source, /: publicWebhookRefused\(\)/);
+  assert.doesNotMatch(source, /return json\(result, result\.ok/);
   assert.doesNotMatch(source, /\{ agencyId: "", clientId: "" \}/);
 });

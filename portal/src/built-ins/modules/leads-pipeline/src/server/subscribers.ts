@@ -1,13 +1,9 @@
 // Cross-plugin event glue. The foundation registers these subscribers
 // at boot — they fire when other plugins emit on the shared event bus.
 //
-// Two subscriptions:
-//
-//   `public-funnel.lead.captured`
-//     Payload `{email, name?, phone?, source}` — public-funnel (T2 R021)
-//     emits this when an HC / Resources tool captures a lead. We
-//     upsert the Lead row + (when wired) drop a card on the leads
-//     pipeline's "New" column.
+// Anonymous public-funnel capture is intentionally NOT a subscription: pending
+// rows stay inside that plugin until mailbox proof or an authenticated command
+// calls the explicit promotion bridge. The only automatic subscription is:
 //
 //   `pipelines.card.moved`
 //     Payload `{cardId, leadId?, fromColumn, toColumn}` — T1's
@@ -21,14 +17,23 @@ import type { ContactService } from "./contacts";
 import type { ProspectService } from "./prospects";
 import { ensureAcquisitionDossierForLead } from "./prospectAcquisition";
 
-export interface FunnelLeadCapturedPayload {
+export interface FunnelCapturePromotionPayload {
+  captureId: string;
   email: string;
   name?: string;
   phone?: string;
   company?: string;
   source: string;
+  actorUserId?: UserId;
   agencyId: AgencyId;              // funnel emits with the scope, but
                                    // some buses repeat it on the payload.
+}
+
+export interface FunnelCapturePromotionLineage {
+  leadId: string;
+  personId?: string;
+  prospectId?: string;
+  pipelineCardId?: string;
 }
 
 export interface PipelineCardMovedPayload {
@@ -41,11 +46,12 @@ export interface PipelineCardMovedPayload {
 
 export const SYSTEM_ACTOR: UserId = "system";
 
-export async function handleFunnelLeadCaptured(
+export async function promoteFunnelCaptureToLead(
   leads: LeadService,
-  payload: FunnelLeadCapturedPayload,
+  payload: FunnelCapturePromotionPayload,
   prospects?: ProspectService,
-): Promise<void> {
+): Promise<FunnelCapturePromotionLineage> {
+  const actor = payload.actorUserId ?? SYSTEM_ACTOR;
   const result = await leads.upsert(
     {
       email: payload.email,
@@ -55,12 +61,21 @@ export async function handleFunnelLeadCaptured(
       source: payload.source ?? "public-funnel",
       relationshipCategory: "inbound-enquiry",
       tags: ["public-funnel"],
+      customFields: { publicFunnelCaptureId: payload.captureId },
     },
-    SYSTEM_ACTOR,
+    actor,
   );
+  let prospectId: string | undefined;
   if (prospects) {
-    await ensureAcquisitionDossierForLead({ leads, prospects }, result.lead, SYSTEM_ACTOR);
+    prospectId = (await ensureAcquisitionDossierForLead({ leads, prospects }, result.lead, actor)).id;
   }
+  const linked = await leads.get(result.lead.id) ?? result.lead;
+  return {
+    leadId: linked.id,
+    personId: linked.personId,
+    prospectId,
+    pipelineCardId: linked.pipelineCardId,
+  };
 }
 
 export async function handlePipelineCardMoved(
@@ -79,6 +94,5 @@ export async function handlePipelineCardMoved(
 // Declarative manifest the foundation can introspect at boot to wire
 // subscriptions without hard-coding the names elsewhere.
 export const EVENT_SUBSCRIPTIONS = [
-  "public-funnel.lead.captured",
   "pipelines.card.moved",
 ] as const;

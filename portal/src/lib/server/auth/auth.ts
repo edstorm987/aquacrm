@@ -49,6 +49,8 @@ interface IssueSessionInput {
   // (defaults to `agencyId`).
   activeAgencyId?: string;
   clientId?: string;
+  /** Immutable credential policy bound to an exchanged Aqua Embed session. */
+  embed?: SessionPayload["embed"];
   sandbox?: SandboxSessionEnvironment;
   // Mark the session as a sandboxed demo. The chrome layer reads this to
   // render the demo banner + POV toggle; the seed/reset endpoints use it
@@ -103,6 +105,7 @@ export function issueSession(input: IssueSessionInput): string {
     agencyIds,
     activeAgencyId,
     clientId: input.clientId,
+    embed: input.embed,
     sandbox: input.sandbox,
     isDemo: input.isDemo === true ? true : undefined,
     showcaseReturnAgencyId: input.showcaseReturnAgencyId,

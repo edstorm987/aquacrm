@@ -5,11 +5,10 @@ import "server-only";
  * `supabase/migrations/20260902093000_aqua_tag_submission_delivery.sql`.
  *
  * The public routes call these with the service-role client they already
- * hold. Every wrapper distinguishes three answers: the boundary worked, the
- * boundary is not there yet (the migration is applied by hand, so the code can
- * be live against a database without it — the caller then keeps the older
- * process-local path), or the submission id is being reused for a different
- * submission (SQLSTATE AQ409 from the merge-facts rule).
+ * hold. The host-form route can retain its explicitly labelled legacy path,
+ * but the Aqua Tag capture route fails closed unless its additive claim RPCs
+ * are installed: a browser-public capture may never silently lose replay and
+ * quota ordering guarantees.
  */
 
 export interface SubmissionRpcError {
@@ -20,7 +19,12 @@ export interface SubmissionRpcError {
 }
 
 export interface SubmissionClaimClient {
-  rpc(fn: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: SubmissionRpcError | null }>;
+  rpc(fn: string, args: Record<string, unknown>): PromiseLike<{
+    data: unknown;
+    error: SubmissionRpcError | null;
+    /** Supabase/PostgREST uses 0 when no authoritative HTTP response exists. */
+    status?: number;
+  }>;
 }
 
 export type AquaTagArrival = "tag" | "brand";
@@ -56,6 +60,37 @@ export type AquaTagIngestResult =
   | { kind: "ingested"; receipt: AquaTagIngestReceipt }
   | { kind: "unavailable"; reason: string }
   | { kind: "conflict"; fact: string; message: string };
+
+export interface AquaTagCaptureReceipt {
+  ok: true;
+  attached: boolean;
+  submissionId: string;
+  enquiryId: string;
+  boundary: "database";
+}
+
+/**
+ * A completion refusal returned by PostgreSQL proves that its transaction
+ * rolled back. Transport loss or an unreadable success payload is ambiguous:
+ * the database may already hold the receipt, so callers must not refund quota
+ * or clear the claim until a durable replay resolves that ambiguity.
+ */
+export class AquaTagCaptureCompletionError extends Error {
+  readonly rollbackConfirmed: boolean;
+
+  constructor(message: string, rollbackConfirmed: boolean) {
+    super(message);
+    this.name = "AquaTagCaptureCompletionError";
+    this.rollbackConfirmed = rollbackConfirmed;
+  }
+}
+
+export type AquaTagCaptureClaimResult =
+  | { kind: "new"; claimToken: string }
+  | { kind: "pending"; retryAfterMs: number }
+  | { kind: "replay"; receipt: AquaTagCaptureReceipt }
+  | { kind: "unavailable"; reason: string }
+  | { kind: "conflict"; message: string };
 
 export interface AquaTagWorkClaim {
   tenantScope: string;
@@ -113,6 +148,15 @@ export function isSubmissionDeliveryUnavailable(error: SubmissionRpcError | null
 export function isSubmissionConflict(error: SubmissionRpcError | null | undefined): boolean {
   if (!error) return false;
   return error.code === CONFLICT_CODE || /aqua_tag_submission_conflict/.test(error.message ?? "");
+}
+
+function completionErrorProvesRollback(error: SubmissionRpcError, status: number | undefined): boolean {
+  // An Error object alone is not an acknowledgement from PostgreSQL. In
+  // particular supabase-js represents fetch/network ambiguity with status 0;
+  // the transaction may already have committed behind the lost response.
+  if (!Number.isInteger(status) || status! < 400 || status! >= 500) return false;
+  const code = (error.code ?? "").trim().toUpperCase();
+  return /^[0-9A-Z]{5}$/.test(code) || /^PGRST\d{3}$/.test(code);
 }
 
 function conflictFact(error: SubmissionRpcError): string {
@@ -181,6 +225,112 @@ export async function ingestAquaTagSubmission(
     throw new Error(`Could not record the submission: ${error.message ?? "unknown error"}`);
   }
   return { kind: "ingested", receipt: receiptFrom(data) };
+}
+
+function captureReceiptFrom(value: unknown): AquaTagCaptureReceipt | null {
+  const body = record(value);
+  if (
+    body?.ok !== true
+    || typeof body.submissionId !== "string"
+    || typeof body.enquiryId !== "string"
+    || body.boundary !== "database"
+  ) return null;
+  return {
+    ok: true,
+    attached: body.attached === true,
+    submissionId: body.submissionId,
+    enquiryId: body.enquiryId,
+    boundary: "database",
+  };
+}
+
+/**
+ * Reserve one exact tag-capture transition before victim-derived quotas.
+ * The additive 20260912140000 migration owns cross-instance arbitration;
+ * missing objects fail closed instead of falling back to a weaker mutation.
+ */
+export async function claimAquaTagCapture(
+  client: SubmissionClaimClient,
+  input: {
+    tenantScope: string;
+    submissionId: string;
+    siteKey: string;
+    captureDigest: string;
+    legacyCaptureFingerprint: string;
+    leaseMs?: number;
+  },
+): Promise<AquaTagCaptureClaimResult> {
+  const { data, error } = await client.rpc("claim_aqua_tag_capture", {
+    p_tenant_scope: input.tenantScope,
+    p_submission_id: input.submissionId,
+    p_site_key: input.siteKey,
+    p_capture_digest: input.captureDigest,
+    p_legacy_capture_fingerprint: input.legacyCaptureFingerprint,
+    p_lease_ms: input.leaseMs ?? 15_000,
+  });
+  if (error) {
+    if (isSubmissionDeliveryUnavailable(error)) return { kind: "unavailable", reason: error.message ?? "claim_aqua_tag_capture is unavailable" };
+    if (isSubmissionConflict(error)) return { kind: "conflict", message: "This submission reference was already used for a different submission." };
+    throw new Error(`Could not classify the form capture: ${error.message ?? "unknown error"}`);
+  }
+  const body = record(data);
+  const kind = body?.kind;
+  if (kind === "new" && typeof body?.claimToken === "string" && body.claimToken) {
+    return { kind: "new", claimToken: body.claimToken };
+  }
+  if (kind === "pending") {
+    return { kind: "pending", retryAfterMs: Math.max(25, Math.min(Number(body?.retryAfterMs) || 100, 1_000)) };
+  }
+  if (kind === "replay") {
+    const receipt = captureReceiptFrom(body?.receipt);
+    if (receipt) return { kind: "replay", receipt };
+  }
+  if (kind === "unavailable") {
+    return {
+      kind: "unavailable",
+      reason: typeof body?.reason === "string" ? body.reason : "The legacy capture requires evidence-backed adoption.",
+    };
+  }
+  throw new Error("The form-capture classifier returned an incomplete result.");
+}
+
+export async function completeAquaTagCapture(
+  client: SubmissionClaimClient,
+  input: AquaTagIngestInput & { claimToken: string },
+): Promise<{ receipt: AquaTagCaptureReceipt; ingestion: AquaTagIngestReceipt }> {
+  const response = await client.rpc("complete_aqua_tag_capture", {
+    p_tenant_scope: input.tenantScope,
+    p_submission_id: input.submissionId,
+    p_site_key: input.siteKey,
+    p_claim_token: input.claimToken,
+    p_facts: input.facts,
+    p_capture: input.capture ?? null,
+    p_enquiry_row: input.enquiryRow,
+  });
+  const { data, error } = response;
+  if (error) {
+    const rollbackConfirmed = completionErrorProvesRollback(error, response.status);
+    if (isSubmissionConflict(error)) throw new AquaTagCaptureCompletionError("aqua_tag_submission_conflict:capture", rollbackConfirmed);
+    throw new AquaTagCaptureCompletionError(`Could not complete the form capture: ${error.message ?? "unknown error"}`, rollbackConfirmed);
+  }
+  const body = record(data);
+  const receipt = captureReceiptFrom(body?.receipt);
+  if (!receipt) throw new AquaTagCaptureCompletionError("The form-capture completion returned an incomplete receipt.", false);
+  return { receipt, ingestion: receiptFrom(body?.ingestion) };
+}
+
+export async function releaseAquaTagCapture(
+  client: SubmissionClaimClient,
+  input: { tenantScope: string; submissionId: string; claimToken: string },
+): Promise<void> {
+  const { error } = await client.rpc("release_aqua_tag_capture", {
+    p_tenant_scope: input.tenantScope,
+    p_submission_id: input.submissionId,
+    p_claim_token: input.claimToken,
+  });
+  if (error && !isSubmissionDeliveryUnavailable(error)) {
+    throw new Error(`Could not release the form-capture claim: ${error.message ?? "unknown error"}`);
+  }
 }
 
 function claimFromRow(row: Record<string, unknown>): AquaTagWorkClaim | null {

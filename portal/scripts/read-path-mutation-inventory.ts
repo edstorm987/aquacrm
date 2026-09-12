@@ -173,17 +173,17 @@ export const CAUSE_RULINGS: Record<string, CauseRuling> = {
   },
 
   // ── The GET is the effect ───────────────────────────────────────────────
-  createUser: {
+  markPublicAuthLinkConsumed: {
     category: "callback", verdict: "deliberate",
-    note: "Magic-link verification. The link IS the sign-up; a GET that created nothing would be a broken email. Direct.",
+    note: "Magic-link verification. The link GET is the authentication ceremony, and marking its exact delivery generation consumed prevents an ambiguous delivery retry from minting a second live link. Direct.",
   },
   bootstrapAgency: {
     category: "callback", verdict: "deliberate",
     note: "Google OAuth return for a first sign-in. The callback exists in order to create the tenant. Direct.",
   },
-  markEmailVerified: {
+  claimAgencySignupVerification: {
     category: "callback", verdict: "deliberate",
-    note: "The verification link's whole job, and it can only ever arrive as a GET. Direct.",
+    note: "The agency verification link's whole job is to atomically claim its durable mailbox-proof operation, and it can only arrive as a GET. Direct.",
   },
   connectGoogleCalendarAccount: {
     category: "callback", verdict: "deliberate",
@@ -309,9 +309,9 @@ export interface DeclaredEntry {
 }
 
 export const DECLARED_READ_ROUTES: DeclaredEntry[] = [
-  { path: "/api/auth/magic/verify", cause: "createUser" },
+  { path: "/api/auth/magic/verify", cause: "markPublicAuthLinkConsumed" },
   { path: "/api/auth/oauth/google/callback", cause: "bootstrapAgency" },
-  { path: "/api/auth/verify-email", cause: "markEmailVerified" },
+  { path: "/api/auth/verify-email", cause: "claimAgencySignupVerification" },
   { path: "/api/cron/inbox", cause: "processInboxWebhookQueue" },
   { path: "/api/cron/radar-probes", cause: "runScheduledProbeSweep" },
   // `/api/internal/sweep` reaches TWO deliberate writes: the routine

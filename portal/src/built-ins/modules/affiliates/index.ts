@@ -163,6 +163,21 @@ const manifest: AquaPlugin = {
           },
         ],
       },
+      {
+        id: "stripe-connect",
+        label: "Stripe Connect",
+        description: "Credentials for affiliate payouts. The API key remains owned by Ecommerce; this endpoint-specific signing secret is separate.",
+        fields: [
+          {
+            id: "stripeConnectWebhookSecret",
+            label: "Affiliate Connect webhook secret",
+            type: "password",
+            placeholder: "whsec_...",
+            helpText: "Use the signing secret created specifically for /api/portal/affiliates/webhooks/stripe. Do not paste the Ecommerce checkout webhook secret.",
+            secretVault: { provider: "stripe", field: "affiliateConnectWebhookSecret" },
+          },
+        ],
+      },
     ],
   },
 

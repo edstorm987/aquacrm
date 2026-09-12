@@ -31,8 +31,17 @@ export interface LeadCapture {
   /** Exact erasure lineage. Historical/pre-client captures omit both fields. */
   clientId?: string;
   personId?: string;
-  // The lead user's id. Set after the user is created by the LeadUserPort.
-  leadUserId: UserId;
+  /**
+   * Anonymous captures are deliberately outside the authenticatable User
+   * namespace. Only a separate verified account-enrolment boundary may later
+   * attach a real user; CRM promotion does not. Legacy rows can already
+   * contain this field.
+   */
+  leadUserId?: UserId;
+  /** Opaque, non-authenticatable identity local to this capture. */
+  pendingLeadId?: string;
+  /** Exact CRM lineage, present only after an authorised promotion command. */
+  promotion?: PendingCapturePromotion;
   email: string;
   capturedAt: number;
   // Source-specific payload. For `hc` this carries the HCSlot; for
@@ -42,10 +51,63 @@ export interface LeadCapture {
   hcSlot?: HCSlot;
 }
 
+export interface PendingCapturePromotion {
+  operationId: string;
+  authorityKind: "mailbox-proof" | "authenticated";
+  promotedAt: number;
+  leadId: string;
+  personId: string;
+  prospectId?: string;
+  pipelineCardId?: string;
+  /**
+   * Ownership is captured at the promotion boundary. Erasure may delete only
+   * derivatives created by this capture; a pre-existing CRM row or Person is
+   * preserved and merely loses the exact capture backlink.
+   */
+  leadOwned: boolean;
+  personOwned: boolean;
+  prospectOwned: boolean;
+  pipelineCardOwned: boolean;
+}
+
+/**
+ * Untrusted request material. It is deliberately not an authority claim: the
+ * foundation must resolve it through PendingCapturePromotionAuthorityPort.
+ */
+export type PendingCapturePromotionCredential =
+  | {
+      kind: "mailbox-proof";
+      /** Opaque receipt id minted and stored by a separate mailbox verifier. */
+      receiptId: string;
+    }
+  | {
+      kind: "authenticated";
+      /** Signed session token; raw user ids never confer authority. */
+      sessionToken: string;
+      /** Stable command id supplied by the authenticated boundary. */
+      operationId: string;
+    };
+
+export interface PromotePendingCaptureInput {
+  captureId: string;
+  credential: PendingCapturePromotionCredential;
+  profile?: {
+    name?: string;
+    phone?: string;
+    company?: string;
+  };
+}
+
+export interface PromotePendingCaptureResult {
+  capture: LeadCapture;
+  promotion: PendingCapturePromotion;
+  promoted: boolean;
+}
+
 export interface CaptureHcInput {
   email: string;
   slot: HCSlot;
-  /** Stable per-results operation id. Retrying it reuses the original capture. */
+  /** Stable per-results operation id. A retry is refused without revealing the original capture. */
   completionId?: string;
   sourceMeta?: Record<string, unknown>;
 }
@@ -61,9 +123,9 @@ export interface CaptureToolInput {
 
 export interface CaptureResult {
   capture: LeadCapture;
-  leadUserId: UserId;
-  // Anonymous completion can only register a brand-new lead. Existing
-  // identities and replayed completion ids fail closed before this result.
+  pendingLeadId: string;
+  // Anonymous completion can only register a brand-new pending capture.
+  // Existing identities and replayed completion ids fail closed first.
   created: boolean;
 }
 
@@ -76,7 +138,7 @@ export interface MeContext {
   captures: LeadCapture[];
 }
 
-// Score-bucket helper. Exposed so the HC-completed event payload is
+// Score-bucket helper. Exposed so the non-PII pending summary payload is
 // stable across HC schema bumps.
 export type HcScoreBucket = "early" | "growing" | "scaling";
 
@@ -89,8 +151,8 @@ export function bucketHcSlot(slot?: HCSlot): HcScoreBucket | undefined {
   return "scaling";
 }
 
-// Email canonicalisation — trim + lowercase. Used to reuse lead identity;
-// capture retry identity comes from the optional stable completion id.
+// Email canonicalisation — trim + lowercase. Anonymous capture never reuses
+// an identity; the canonical form makes repeat refusal deterministic.
 export function canonEmail(raw: string): string {
   return raw.trim().toLowerCase();
 }

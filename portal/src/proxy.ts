@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { SESSION_COOKIE_NAME } from "@/lib/server/auth/sessionToken";
+import { embedAccountContentSecurityPolicy } from "@/lib/server/embedFramePolicy";
 import {
   STAFF_WORKSPACE_API_REFUSAL,
   STAFF_WORKSPACE_ROLE,
@@ -20,7 +22,7 @@ import {
 // (no fs/crypto.scrypt, only crypto.subtle via WebCrypto). Edge here uses
 // node:crypto via the Node 22 edge polyfill that Next 16 ships.
 
-const COOKIE = "lk_session_v1";
+const COOKIE = SESSION_COOKIE_NAME;
 
 // A public showcase session must never trap a real user outside their own
 // workspace. These routes only replace or clear authentication state; they do
@@ -210,7 +212,16 @@ export function proxy(req: NextRequest) {
   // headers are absent. Overwrite, rather than trust, any inbound value.
   const forwardedHeaders = new Headers(req.headers);
   forwardedHeaders.set("x-aqua-route-path", path);
-  const next = () => NextResponse.next({ request: { headers: forwardedHeaders } });
+  const next = () => {
+    const response = NextResponse.next({ request: { headers: forwardedHeaders } });
+    if (matchesRoot(path, "/embed/account")) {
+      response.headers.set("content-security-policy", embedAccountContentSecurityPolicy({
+        token: req.cookies.get(COOKIE)?.value,
+        nodeEnv: process.env.NODE_ENV,
+      }));
+    }
+    return response;
+  };
   const token = req.cookies.get(COOKIE)?.value;
   const payload = decodePayload(token);
   const safeMethod = ["GET", "HEAD", "OPTIONS"].includes(req.method);
@@ -334,5 +345,5 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/portal/:path*", "/api/:path*"],
+  matcher: ["/portal/:path*", "/api/:path*", "/embed/account/:path*"],
 };

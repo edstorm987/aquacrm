@@ -128,6 +128,7 @@ export interface PluginApiRoute {
   requiresFeature?: string;
   visibleToRoles?: PluginRoleVisibility[];
   public?: boolean;
+  publicAuthority?: "provider-webhook" | "published-site-write" | "published-site-read" | "storefront-read" | "storefront-checkout";
 }
 
 export interface SettingsSchema {

@@ -238,7 +238,9 @@ describe("the master tag as surfaced on the Dev Team API page", () => {
     // What the deployed tag really talks to, read out of the tag's own source.
     const called = [...new Set([...AQUA_TAG_SOURCE.matchAll(/\/api\/[a-zA-Z0-9/_-]+/g)].map(m => m[0]))].sort();
     assert.deepEqual(called, [
+      "/api/public/aqua-tag-admission",
       "/api/public/aqua-tag-config",
+      "/api/public/bot-challenge/config",
       "/api/public/form-capture",
       "/api/telemetry/collect",
     ], "the tag's endpoint set changed — the API page must be updated to match");
@@ -298,6 +300,10 @@ describe("the master tag as surfaced on the Dev Team API page", () => {
       "http://192.168.68.58:3046",      // the LAN address Next prints on boot
       "http://172.20.1.5:3000",
       "http://169.254.10.2",
+      "http://0.0.0.0:3000",
+      "http://[::]:3000",
+      "http://[fc00::1]:3000",
+      "http://[fe80::1]:3000",
       "https://ed-mac.local:3000",
       "not a url",
       "",

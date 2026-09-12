@@ -62,25 +62,32 @@ export class WebhookService {
   // Direct entry point for tests / replay tooling.
   async apply(event: PostmarkWebhookEvent): Promise<WebhookHandleResult> {
     const eventId = `${event.RecordType}:${event.MessageID}`;
-    const seen = await this.storage.get<WebhookEventSeen>(seenKey(eventId));
-    if (seen) {
-      return { ok: true, duplicate: true, applied: false, eventKind: event.RecordType };
+    if (!this.storage.runExclusive) {
+      return { ok: false, error: "durable webhook admission unavailable" };
     }
-    await this.storage.set(seenKey(eventId), {
-      id: eventId,
-      eventId,
-      receivedAt: now(),
-    } satisfies WebhookEventSeen);
+    return this.storage.runExclusive(seenKey(eventId), async () => {
+      // Provider MessageID ownership is the tenant boundary when two installs
+      // accidentally share a secret. Refuse to write even a dedupe marker
+      // until this exact install proves it sent the referenced message.
+      const message = await this.emails.getByExternalRef(event.MessageID);
+      if (!message) {
+        return { ok: true, duplicate: false, applied: false, eventKind: event.RecordType };
+      }
+      const seen = await this.storage.get<WebhookEventSeen>(seenKey(eventId));
+      if (seen) {
+        return { ok: true, duplicate: true, applied: false, eventKind: event.RecordType };
+      }
+      // runExclusive is the host's durable PortalState transaction. The seen
+      // claim, message mutation, activity and event outbox therefore commit or
+      // roll back together rather than acknowledging a half-applied callback.
+      await this.storage.set(seenKey(eventId), {
+        id: eventId,
+        eventId,
+        receivedAt: now(),
+      } satisfies WebhookEventSeen);
 
-    const message = await this.emails.getByExternalRef(event.MessageID);
-    if (!message) {
-      // Unknown message — record the event seen (so we don't keep
-      // reprocessing) and return ok-but-not-applied.
-      return { ok: true, duplicate: false, applied: false, eventKind: event.RecordType };
-    }
-
-    let applied = false;
-    switch (event.RecordType) {
+      let applied = false;
+      switch (event.RecordType) {
       case "Delivery": {
         const recipient = event.Recipient ?? message.to[0] ?? "";
         // Status stays "sent" — Postmark fires Delivery after a successful
@@ -132,7 +139,8 @@ export class WebhookService {
         applied = true;
         break;
       }
-    }
-    return { ok: true, duplicate: false, applied, eventKind: event.RecordType };
+      }
+      return { ok: true, duplicate: false, applied, eventKind: event.RecordType };
+    });
   }
 }

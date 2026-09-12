@@ -39,7 +39,7 @@ export const ROUTES: PluginApiRoute[] = [
   { path: "test", methods: ["POST"], handler: testSendHandler, visibleToRoles: [...AGENCY_ADMINS] },
 
   // Public webhook (provider-signed; foundation must honour `public:true`)
-  { path: "public/webhook/postmark", methods: ["POST"], handler: postmarkWebhookHandler, public: true },
+  { path: "public/webhook/postmark", methods: ["POST"], handler: postmarkWebhookHandler, public: true, publicAuthority: "provider-webhook" },
 
   // Internal (foundation event-router target — plugin-to-plugin)
   { path: "internal/enqueue", methods: ["POST"], handler: internalEnqueueHandler, visibleToRoles: [...AGENCY_ADMINS] },

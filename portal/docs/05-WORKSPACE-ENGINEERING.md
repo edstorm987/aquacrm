@@ -2,7 +2,7 @@
 
 > Source maps, subsystem dossiers, components, routes, state and built-in module notes.
 >
-> Consolidated 2026-09-08 from **23** source documents / **57,760 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-12 from **23** source documents / **59,604 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -10,13 +10,13 @@
 - [`docs/WORKSPACE-FILE-TREE.md`](#source-docs-workspace-file-tree-md) — 1,376 words · `6cd666857aba`
 - [`docs/workspace/advisor.md`](#source-docs-workspace-advisor-md) — 1,445 words · `d5b9b4fc79dc`
 - [`docs/workspace/api-and-routes.md`](#source-docs-workspace-api-and-routes-md) — 946 words · `8bbf0d2e9c9f`
-- [`docs/workspace/api-reference.md`](#source-docs-workspace-api-reference-md) — 8,531 words · `7b4eb3ae396a`
-- [`docs/workspace/aqua-tag.md`](#source-docs-workspace-aqua-tag-md) — 3,463 words · `d662b63850cb`
+- [`docs/workspace/api-reference.md`](#source-docs-workspace-api-reference-md) — 8,891 words · `8531f1682bdb`
+- [`docs/workspace/aqua-tag.md`](#source-docs-workspace-aqua-tag-md) — 4,196 words · `c0acfad152f7`
 - [`docs/workspace/components.md`](#source-docs-workspace-components-md) — 1,142 words · `5ef3bf2f75be`
-- [`docs/workspace/database.md`](#source-docs-workspace-database-md) — 2,263 words · `396394473cec`
-- [`docs/workspace/env-and-sellability.md`](#source-docs-workspace-env-and-sellability-md) — 3,662 words · `dda5fb28db12`
-- [`docs/workspace/feature-index.md`](#source-docs-workspace-feature-index-md) — 5,346 words · `3091196d10e6`
-- [`docs/workspace/hazards-and-duplication.md`](#source-docs-workspace-hazards-and-duplication-md) — 7,937 words · `16f6a1abda87`
+- [`docs/workspace/database.md`](#source-docs-workspace-database-md) — 2,557 words · `d445039e1a3d`
+- [`docs/workspace/env-and-sellability.md`](#source-docs-workspace-env-and-sellability-md) — 3,741 words · `b5f5e0fa72a6`
+- [`docs/workspace/feature-index.md`](#source-docs-workspace-feature-index-md) — 5,377 words · `ee4a500e94b4`
+- [`docs/workspace/hazards-and-duplication.md`](#source-docs-workspace-hazards-and-duplication-md) — 7,826 words · `b6f50763caef`
 - [`docs/workspace/kpi-intelligence.md`](#source-docs-workspace-kpi-intelligence-md) — 2,283 words · `d641f1291cbc`
 - [`docs/workspace/plugins.md`](#source-docs-workspace-plugins-md) — 2,193 words · `85bf55b735d1`
 - [`docs/workspace/portal-ui.md`](#source-docs-workspace-portal-ui-md) — 4,405 words · `5a18d11726d8`
@@ -25,9 +25,9 @@
 - [`docs/workspace/shared-logic.md`](#source-docs-workspace-shared-logic-md) — 3,911 words · `34a172e29b5e`
 - [`docs/workspace/state-layer.md`](#source-docs-workspace-state-layer-md) — 1,047 words · `b891d38adf8e`
 - [`src/archive/multi-agency/README.md`](#source-src-archive-multi-agency-readme-md) — 43 words · `8655235589a0`
-- [`src/built-ins/modules/ecommerce/README.md`](#source-src-built-ins-modules-ecommerce-readme-md) — 1,111 words · `41433d51b931`
+- [`src/built-ins/modules/ecommerce/README.md`](#source-src-built-ins-modules-ecommerce-readme-md) — 1,325 words · `406a984c6374`
 - [`src/built-ins/modules/fulfillment/README.md`](#source-src-built-ins-modules-fulfillment-readme-md) — 913 words · `f472689dde20`
-- [`src/built-ins/modules/website-editor/README.md`](#source-src-built-ins-modules-website-editor-readme-md) — 516 words · `8ba4ff6dfe4e`
+- [`src/built-ins/modules/website-editor/README.md`](#source-src-built-ins-modules-website-editor-readme-md) — 760 words · `0500bba5f008`
 - [`src/built-ins/runtime/milesymedia/README.md`](#source-src-built-ins-runtime-milesymedia-readme-md) — 159 words · `5c5839e189b2`
 
 ---
@@ -600,7 +600,7 @@ switcher — membership-only, session ∩ live record), `showcase-mode`, `dev-mo
 
 ## Source document — `docs/workspace/api-reference.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/api-reference.md" sha256="7b4eb3ae396a9d3bb1cdd32a816238d9f09d837b8cbc8d16770c6d373fe697e5" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/api-reference.md" sha256="8531f1682bdb7663e260b87dba8934c1b1d7c0181d56208a8ef8408e3308d075" -->
 # Chapter — Hand-maintained API reference
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md) · [API & routes overview](api-and-routes.md)
@@ -843,11 +843,11 @@ not live.
 | Path | Methods | Purpose | Scope/auth | Live? |
 |---|---|---|---|---|
 | `/api/portal/people` | GET, POST | HR station: employees, leave, shifts, training, applications; provisions Supabase identity | agency | **LIVE (auth)** |
-| `/api/portal/people/cv` | GET | Stream a job-application CV file | agency-session | **LIVE (Storage)** |
+| `/api/portal/people/cv` | GET, POST | GET downloads only a durably released AV/CDR-clean CV, re-hashing the exact response bytes before any 200; a mismatch is quarantined and never served. POST requires owner/manager, `staff.people.manage`, signed double-submit CSRF and bounded user/tenant/IP budgets; same-object rescans are serialized, scanning runs outside the state lock, then the exact owner tuple, trust and secret-free audit are committed atomically | agency owner/manager + `staff.people` view/manage | **LOCAL VERIFIED; provider + egress firewall proof required** |
 | `/api/portal/dashboard-planning` | GET, POST | My-Day: clock in/out, work sessions, day/week plans | agency (staff gated by station) | |
 | `/api/portal/intelligence/my-radar` | GET | Person-scoped My Radar: the caller's Actions, goals, self-reported wellbeing and work pace. Read-only; tenant and user come from the session and the request carries no ids. Department workload and company health stay in Business Radar | agency (`staff.overview` gates the personal envelope; `workspace.actions` independently gates Actions; `staff.schedule` gates staff goals and `workspace.calendar` gates canonically narrowed manager goals; client-named Actions retain the client-association gate) | |
 | `/api/portal/intelligence/business-radar/workload` | POST | Replaces only the company department-hour baselines used by Business Radar workload; this route cannot patch any other workspace setting | owner/manager plus `workspace.settings.manage` | |
-| `/api/portal/[module]/[...rest]` | GET, POST, PATCH, PUT, DELETE | **Built-in module API catch-all** → plugin handlers | authenticated (scope inferred) | varies by plugin |
+| `/api/portal/[module]/[...rest]` | GET, POST, PATCH, PUT, DELETE | **Built-in module API catch-all** → plugin handlers. Query/header tenant identifiers are routing evidence, never authority. Each anonymous plugin route must independently bind its scope to a typed public admission. Ecommerce checkout now requires one globally unique registered `WebsiteSource`, exact storefront `Origin`, exact paid/free managed-proof action, server-authoritative total class and atomic durable abuse budgets before inventory/provider work. The remaining public-plugin inventory is tracked by `PUBLIC-PLUGIN-TENANT-001`; do not infer that every public route is accepted yet. | authenticated by default; explicitly public plugin routes apply their own admission | varies by plugin |
 | `/api/portal/client-crm/pipelines` | GET, POST, PATCH, DELETE | Journey boards a client builds for themselves | agency viewers + client-owner/staff | feature `journey-pipelines` |
 | `/api/portal/client-crm/pipelines/board` | GET | One board, joined server-side (cards + contacts + idle flags + stage totals). No `pipelineId` → the client's default board | agency viewers + client-owner/staff | feature `journey-pipelines` |
 | `/api/portal/client-crm/pipelines/stages` | POST, PATCH, DELETE | Columns. DELETE refuses `stage_not_empty:<n>` unless `moveCardsTo` names where the people go | agency admins + client-owner/staff | feature `journey-pipelines` |
@@ -927,27 +927,28 @@ not live.
 | `/api/tenants/product-workspaces` | GET, POST | Client product internal workspaces read/save | agency + client roles | |
 | `/api/tenants/seed` | POST | Dev-only seed (agency+owner+client+users) when store empty | dev / prod requires any session | |
 
-## `api/public/*` (7 listed; 10 route files on disk)
+## `api/public/*` (8 listed; route-file count may include compatibility paths)
 
 | Path | Methods | Purpose | Scope/auth | Live? |
 |---|---|---|---|---|
 | `/api/public/brand-enquiry` | OPTIONS, POST | Website enquiry submission → leads pipeline + Supabase (dedupe guard) | public (CORS, rate-limited) | **LIVE (admin + brand_enquiries)** |
-| `/api/public/careers` | POST | Public job application w/ CV upload (multipart) | public (origin + rate-limited) | **LIVE (Storage)** |
+| `/api/public/careers` | POST | Public job application with bounded file-size metadata and managed human proof in headers before multipart parsing, victim-email budget or file work. Parsed file size is repeated against the admitted size. CV bytes are signature-checked and privately quarantined unless full-file AV/CDR returns clean; owner/trust/audit become visible only after one durable state transaction; the route never seeds founder state | public (exact challenge + origin + rate-limited) | **LOCAL VERIFIED; private Storage + scanner required live** |
 | `/api/public/contact` | POST | Public contact form → leads pipeline + website telemetry | public (origin-checked) | |
-| `/api/public/form-capture` | OPTIONS, POST | Aqua-Tag form-capture enrichment + master-tag routing → Supabase | public (CORS) | **LIVE (admin)** |
+| `/api/public/aqua-tag-admission` | OPTIONS, POST | Verify managed proof for exact `aqua-tag-form-capture` action/tenant/exact request hostname, then mint a short-lived admission bound to tenant/key-class/site/canonical routing host/exact challenge host and exact form facts | public (managed proof + exact key/host resolver + caller-IP/provider limits) | |
+| `/api/public/form-capture` | OPTIONS, POST | Verify Aqua-Tag admission, atomically classify new/replay/conflict, then form-capture enrichment + master-tag routing → Supabase | public (signed admission + durable claim; post-proof local quotas); **503 until additive claim migration exists, and for ambiguous legacy rows pending evidence-backed receipt adoption** | **LIVE (admin)** |
 | `/api/public/proposals/[token]` | POST | Accept a commercial proposal by public token | public (token) | |
 | `/api/public/aqua-tag-config` | GET, OPTIONS | Serve a site's enabled injections by key+host (cached, CORS) — tag-manager delivery seam | public (CORS) | |
 | `/api/public/demo-interest` | POST | AquaCRM demo gate — records name/contact + consent {timestamp, terms version} in the `website-demo` data realm, never the live one | public (same-origin, honeypot, rate-limited); **404 unless `WEBSITE_DEMO_ENABLED`** | |
 
-## `api/v1/*` (10) — external assistant API (bearer-token)
+## `api/v1/*` (10) — external assistant API and scoped embed exchange
 
 | Path | Methods | Purpose | Scope/auth | Live? |
 |---|---|---|---|---|
 | `/api/v1/actions/proposals` | GET, POST | List / submit external-assistant action proposals | external token (proposal access) | |
 | `/api/v1/advisor/context` | GET | External advisor-grade business context | external token (`advisor:read`) | |
 | `/api/v1/assistant/context` | GET | External assistant workspace context | external token (`context:read`) | |
-| `/api/v1/embed/consume` | GET | Consume Aqua embed token → end-customer session, redirect | public (embed token) | |
-| `/api/v1/embed/sessions` | POST | Mint an Aqua embed token for a client | embed API bearer token | |
+| `/api/v1/embed/consume` | GET | Atomically exchange a single-use Aqua embed token for a session, then redirect | public (signed token + live scoped credential + durable nonce) | |
+| `/api/v1/embed/sessions` | POST | Mint an Aqua embed token for a client | per-agency/client vault credential with mode ceiling | |
 | `/api/v1/export` | GET | Export tenant records (json/csv) | external token (`export:read`) | |
 | `/api/v1/openapi.json` | GET | Serve the OpenAPI 3.1 spec for the v1 API | public | |
 | `/api/v1/records/[recordId]` | GET | Fetch a single tenant record by id + module | external token (`records:read`) | |
@@ -961,7 +962,7 @@ not live.
 | `/api/assistant` | GET, POST | AI assistant workspace: threads, memory, ask OpenAI | agency owner/manager | |
 | `/api/mcp` | POST, GET, DELETE | External-assistant MCP JSON-RPC (POST); GET 405 / DELETE 204 | external assistant token | |
 | `/api/webhooks/meta` | GET, POST | Meta webhook verify (GET) + signed event ingest → inbox queue | public (verify-token / signature) | **LIVE (inbox store)** |
-| `/api/telemetry/collect` | OPTIONS, POST | Ingest website telemetry/consent events → Supabase | public (CORS, consent-gated) | **LIVE (admin, consent events)** |
+| `/api/telemetry/collect` | OPTIONS, POST | Ingest website telemetry/consent events using the exact resolved tenant/client/site target; consent rows retain that immutable lineage in governed metadata → Supabase | public (exact key+host scope, CORS, consent-gated; no CAPTCHA) | **LIVE (admin, consent events)** |
 | `/api/cron/inbox` | GET | Cron (daily): drain inbox webhook queue + prune + full radar sweeps + evidence rollup | `CRON_SECRET` bearer | **LIVE (inbox store)** |
 | `/api/cron/radar-probes` | GET | Cron (~10 min): fast Deep + Infra probe refresh only (no Pulse rebuild) — radar upgrade probe cadence | `CRON_SECRET` bearer | **LIVE (probes DB/network)** |
 | `/api/internal/sweep` | GET | Founder diagnostic: sweep rate-limit/lockout + automations + inbox queue | agency owner (founder) | **LIVE (inbox store)** |
@@ -1015,7 +1016,7 @@ Two Live-column edge cases (they don't match a naive `supabase/admin` grep):
 | `/api/portal/governance/hipaa` | POST | Toggle the HIPAA readiness track (owner-only); returns HIPAA_HONESTY | agency | new 2026-08-20 |
 | `/api/portal/governance/legal` | POST | Add a legal-register record (owner/manager) | agency | new 2026-08-20 |
 | `/api/portal/governance/erasure/preview` | POST | Non-destructive erasure blast-radius preview (owner/manager) | agency | new 2026-08-20 |
-| `/api/portal/governance/subject-access` | POST | GDPR Art. 15/20 subject access export — everything held about one person, as a JSON download (owner/manager) | agency | new 2026-08-28 |
+| `/api/portal/governance/subject-access` | POST | GDPR Art. 15/20 safe JSON export (owner/manager). Bounded body `{requestId, personId}`; exact same-agency open access/portability request and identity verification required. Typed person/client/relationship/facet or exclusive contact ownership only; ambiguous, unclassified, co-mingled and depth-limit rows are withheld as value-free review counts. Export evidence and fulfilment commit together; every response is no-store. Scope is hydrated PortalState only, not client-owned/provider stores. | agency | new 2026-08-28; hardened 2026-09-12 |
 | `/api/portal/governance/retention` | POST | Set the retention period per category; blank clears to keep-forever. Returns a fresh preview, never sweeps (owner only) | agency | new 2026-08-28 |
 | `/api/portal/governance/breaches` | POST | GDPR Art. 33/34 breach register — `record`/`notify-authority`/`notify-subjects` (owner/manager), `assess`/`close` (owner only). The 72-hour clock runs from discovery; it records that a human notified, never notifies | agency | new 2026-08-31 |
 | `/api/portal/sop-guides` | GET/POST/PATCH/DELETE | SOP guides CRUD (ordered SOP sequences); GET all-roles, writes owner/manager | agency | new 2026-08-20 |
@@ -1027,7 +1028,7 @@ Two Live-column edge cases (they don't match a naive `supabase/admin` grep):
 
 ## Source document — `docs/workspace/aqua-tag.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/aqua-tag.md" sha256="d662b63850cb5a8399402dcbc64054df306146bfffb8ca8480c4ca02bbc101e1" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/aqua-tag.md" sha256="c0acfad152f7d94c64c18a5eae46ac14f1ad96ef5d118d441e6eed4ab7b67a72" -->
 # Chapter — The Aqua Tag (feature dossier)
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
@@ -1060,11 +1061,25 @@ planned.
 - Keyed by a **`data-site-key`** on the script tag — that key is what ties a submission back to an agency or client.
 
 ## 2. Keys & routing model  (`src/server/websiteSources.ts`)
-Two kinds of site key, one routing registry:
+Four browser-emitted key classes, one authoritative resolver and one routing
+registry:
 
 - **Per-client key** — `newTelemetrySiteKey()` (`src/lib/server/…`), stored as `telemetrySiteKey` on the client. Identifies a specific client's site.
-- **Agency master key** — `ensureAgencyMasterSiteKey(agencyId)`: one stable key per agency, generated on first ask and **kept forever** (the tag lives in people's sites — it must never rotate). The reverse lookup on the ingestion path is `resolveAgencyByMasterSiteKey(siteKey)`. The paste-in snippet is `masterTagSnippet(origin, siteKey)`. Stored in `agencyMasterTagKeys` on `PortalState`.
+- **Agency master key** — `ensureAgencyMasterSiteKey(agencyId)`: one stable key per agency, generated on first ask and **kept forever** (the tag lives in people's sites — it must never rotate). `listAgenciesByMasterSiteKey(siteKey)` lets the admission resolver count every persisted owner; the compatibility lookup `resolveAgencyByMasterSiteKey(siteKey)` answers only for exactly one owner. The paste-in snippet is `masterTagSnippet(origin, siteKey)`. Stored in `agencyMasterTagKeys` on `PortalState`.
+- **Hardcoded public-project key** — a first-party Aqua property in
+  `publicSites`; accepted only on that property's fixed origin allowlist.
+- **Agency-website key** — the key on `agencyWebsites`; accepted only on that
+  project's production host (and its preview host outside production).
 - **The routing registry** — `websiteSources` (state), a list of `WebsiteSource {host → destinationClientId? | destinationCompanyId?}`. Functions: `listWebsiteSources`, `addWebsiteSource`, `updateWebsiteSourceRouting`, `removeWebsiteSource`, and the resolver `resolveWebsiteSourceRouting(agencyId, host)` → a **`WebsiteSourceDestination`** discriminated union (`{kind:"inbox"} | {kind:"client",clientId} | {kind:"company",companyId}`; defined in `server/types.ts`). `normalizeHost()` reduces a URL to the shared form (`https://www.Cedar-Dental.com/contact` → `cedar-dental.com`) so both a submission and its routing rule match. A site has **one home**: a client, or a company, or the inbox — `add`/`updateWebsiteSourceRouting` enforce client-XOR-company and validate a company via agency-scoped `getTradingCompany`.
+
+`resolveAquaTagAdmissionScope` is the one public request resolver for all four
+classes. It requires one unambiguous key owner plus the exact registered host;
+key collisions or an unregistered host fail closed. Master-key lookup enumerates
+every persisted owner before applying the host boundary, so corrupt duplicate
+agency keys cannot silently select the first agency. It keeps both the canonical
+routing host (`www.example.com` → `example.com`) and the exact request hostname.
+Turnstile must attest that exact hostname, so an apex proof cannot satisfy a
+`www` request (or vice versa) even though both may map to the same routing rule.
 
 **The rule:** master tag → agency inbox by default; a `websiteSources` entry for that host **overrides** it to a **client** (their inbox) or a **company** (one of Ed's own brands, since 2026-08-19). A company-routed enquiry is recorded on the enquiry (`routedCompanyId` in metadata) and — per "the configured route wins" — is *not* also filed onto a client.
 
@@ -1126,8 +1141,9 @@ over a period. ⚠ This overlaps the Aqua Tags Command Centre screen conceptuall
 **Read-only, and deliberately not a fifth workflow.** The tag seen as what it is
 alongside the API keys and the vault: a machine surface with a permanent
 credential. Shows the site key, the paste snippet (`masterTagSnippet`), the
-**three endpoints the tag actually calls** (`/api/public/aqua-tag-config`,
-`/api/public/form-capture`, `/api/telemetry/collect`) and the injectable
+  **four endpoints the tag actually calls** (`/api/public/aqua-tag-config`,
+  `/api/public/aqua-tag-admission`, `/api/public/form-capture`,
+  `/api/telemetry/collect`) and the injectable
 allow-list — all **derived** from `AQUA_TAG_SOURCE` / `INJECTION_PROVIDERS`,
 never retyped. Detection, routing and injection *config* are NOT duplicated: it
 links to §3a. Deployment-founder only; local Dev Mode fixtures also pass.
@@ -1149,9 +1165,33 @@ The step-2/3 logic is real, not stubbed:
 - Endpoint: **`POST /api/portal/aqua-tags/detect`** (agency-scoped).
 
 ## 5. Ingestion & telemetry
-- **`POST /api/public/form-capture`** *(LIVE Supabase)* — the Aqua-Tag form-capture path: resolves the agency by master key, applies host→client routing, writes a real enquiry.
+- **`POST /api/public/aqua-tag-admission`** — resolves the browser-public site
+  key plus exact registered Origin to a tenant/site/host scope, then verifies a
+  managed Turnstile token for exact action `aqua-tag-form-capture`, that
+  registered hostname and tenant before minting anything. Only caller-IP and
+  provider pressure valves run before proof. The challenge is checked against
+  the exact request hostname, while the canonical host remains the routing key.
+  The resulting two-minute HMAC
+  admission is bound to action, tenant, key class, site id, host, form metadata,
+  submission id and a digest of every captured answer. Its signed claim payload
+  is decodable but carries no plaintext answers or challenge token, and the
+  route stores neither.
+- **`POST /api/public/form-capture`** *(LIVE Supabase)* — verifies that exact
+  signed admission before persistence, then atomically classifies the durable
+  submission id as new/replay/conflict. Exact replay returns the original
+  receipt and changed facts return 409; only the first new transition spends
+  IP, one-way address-digest, install/site and tenant budgets or mutates the
+  enquiry. The additive `20260912140000_aqua_tag_capture_admission_claims.sql`
+  migration supplies that claim/complete/release boundary; without it this
+  public mutation fails closed with 503. The site key remains discovery
+  metadata, never mutation authority by itself. The upgrade adopts only legacy
+  tag-first rows whose old fingerprint and original `attached:false` outcome are
+  provable. A legacy row that already has both tag and brand halves cannot prove
+  arrival order, so it is marked `legacy-review` and fails closed until a
+  one-time evidence-backed backfill records the true original receipt; the
+  migration never invents `attached:true`.
 - **`POST /api/public/brand-enquiry`** *(LIVE `brand_enquiries`)* — website enquiry submission; carries the same routing + a 2-minute **dedupe guard**.
-- **`POST /api/telemetry/collect`** *(LIVE `website_consent_events`)* — page telemetry + consent events, CORS + consent-gated.
+- **`POST /api/telemetry/collect`** *(LIVE `website_consent_events`)* — page telemetry + consent events, CORS + consent-gated. The route passes the exact resolved tenant/client/site scope into the sink; the sink rechecks it instead of choosing the first client carrying a browser-public key. Distinct hosts can therefore route a collided key to their exact owners, while an ambiguous exact key/host fails closed. Consent audit rows copy that exact agency/client/site/key/host scope into governed metadata so later key rotation or routing changes cannot erase attribution; it contains operational identifiers only, not captured form values or challenge tokens. Telemetry beacons do not use CAPTCHA.
 - **`src/server/agencyWebsite.ts`** — records/summarises agency-site telemetry (`recordAgencyWebsiteTelemetry`, `resetAgencyWebsiteTelemetryKey`, `summarizeAgencyWebsite`). Client telemetry mirrors this via `/api/tenants/client-telemetry` + `lib/…/clientTelemetry`.
 
 ## 6. Embed (tag-adjacent)
@@ -1170,6 +1210,7 @@ a visitor straight into their portal.
 | `GET, POST /api/portal/website-injections` | Manage a site's injected tools (list/add/update/remove) + provider catalogue | |
 | `GET, POST /api/portal/website` | Agency site config + telemetry key | |
 | `GET, POST /api/tenants/client-telemetry` | Per-client telemetry key manage/reset | |
+| `POST /api/public/aqua-tag-admission` | Verify exact managed proof; mint short-lived host/form/action admission | |
 | `POST /api/public/form-capture` | Tag form-capture + master-tag routing | **LIVE** |
 | `POST /api/public/brand-enquiry` | Enquiry submit + dedupe + routing | **LIVE** |
 | `POST /api/telemetry/collect` | Telemetry + consent events | **LIVE** |
@@ -1178,7 +1219,13 @@ a visitor straight into their portal.
 `agencyMasterTagKeys` (agency → master key), `websiteSources` (routing rules),
 `websiteSiteConfigs` (per-site injection config — see `server/websiteInjections`),
 `telemetrySiteKey` on each `Client`, agency-site telemetry on `agencyWebsites`,
-and — live in Supabase — `website_consent_events`.
+and — live in Supabase — `website_consent_events` plus
+`aqua_tag_submissions`. The latter's additive tag-capture columns hold the
+immutable capture digest, fenced claim lease and original completion receipt;
+table access and claim/complete/release RPCs are service-role only. A resolved
+RPC response with status `0` is treated as an unknown commit outcome, never as
+rollback proof: quota stays charged and an exact retry reconciles through the
+durable receipt or lease.
 
 ## 9. Consent model & the tag-manager (foundation built — Phase 4)
 The tag already reads `aqua-cookie-preferences` and gates analytics on it
@@ -1260,7 +1307,7 @@ serves the same body with `deprecation: true` + `sunset` headers.
 | Performance (`load`) | on `load` | Yes | telemetry |
 | JS error / promise rejection | window handlers | Yes | telemetry |
 | Form-submit *event* (count only) | capturing `submit` | Yes | telemetry |
-| **Form CONTENT capture (field values)** | same `submit` | **NO — always runs** | `/api/public/form-capture` |
+| **Form CONTENT admission + capture (field values)** | same `submit`, after dedicated managed proof | **NO cookie-consent gate** | `/api/public/aqua-tag-admission` → `/api/public/form-capture` |
 | Conversion | click `[data-aqua-conversion]` | **Yes** (marketing) | telemetry |
 | Consent event | `aqua:consent-updated` | No — always | telemetry |
 | Custom `Aqua.track()` | public API | depends on category | telemetry |
@@ -1270,9 +1317,15 @@ serves the same body with `deprecation: true` + `sunset` headers.
 `[data-aqua-ignore]`; capture if `data-aqua-form`/`data-aqua-capture`; **never**
 if it has a password input; else capture iff it asks for email/phone. Per field
 (`captureableField`): rejects password/hidden/file/search, names matching
-`/(pass|pwd|secret|token|csrf|otp|cvv|card|iban|ssn|nino)/i`, and `cc-`/
-`*-password` autocomplete — **cannot be switched off by config**. Caps: ≤60
-fields, values ≤2000, keys ≤120; same-name fields merged.
+`/(pass|pwd|secret|token|csrf|nonce|otp|captcha|turnstile|cvv|card|iban|ssn|nino)/i`,
+challenge fields/descendants and `cc-`/`*-password` autocomplete — **cannot be
+switched off by config**. The server repeats the secret/challenge-field filter
+for callers that bypass the tag. Caps: ≤60
+fields, values ≤2000, keys ≤120; same-name fields merged. One stable submission
+id and one exact payload are sent with a WeakMap-held challenge token only to
+admission, then to capture with only the signed admission. Challenge proof never
+becomes a form field, telemetry property or log value. Capture retries reuse the
+same id and payload for durable idempotence.
 
 **Consent model:** `localStorage["aqua-cookie-preferences"]`, event
 `aqua:consent-updated`. `normalizePreferences` returns *no consent* unless
@@ -1300,15 +1353,29 @@ and private/reserved IP ranges (10/8, 127/8, 169.254 incl. cloud metadata,
 
 **Embed token** (`aquaEmbedToken.ts`): `base64url(payload).base64url(HMAC-SHA256)`;
 TTL clamped 30–300s; HMAC from `AQUA_EMBED_SIGNING_SECRET` (throws in prod if
-unset); mint API bearer-gated by `AQUA_EMBED_API_TOKEN`. `consume` verifies →
-issues a real session → redirects into the portal. Reverse direction
+unset). Mint authority is an encrypted per-agency or per-client vault credential
+with a maximum-mode ceiling and optional exact origin. `consume` revalidates the
+live credential and scope, atomically burns the durable nonce, issues a session,
+then redirects without putting the token on the destination URL. Reverse direction
 (`embedAllowResolver.ts`): an empty/unknown allow-list ⇒ `frame-ancestors 'none'`
 (default-deny).
 
 ### ⚠ Security findings (verified — worth your attention)
 - **A. Form-content capture is NOT client-side consent-gated.** The field-value POST to `/api/public/form-capture` runs regardless of the cookie choice (subject to the `capturableForm`/field filters), and the server route has **no** consent check. Telemetry, by contrast, is double-gated (client `permitted()` + server `eventIsConsented`). Worth a deliberate decision: is capturing enquiry fields from a visitor who declined analytics/marketing intended? (It's arguably legitimate-interest for a form they submitted, but it's an asymmetry to be aware of.)
 - **B. Consent flags are self-reported.** The server trusts the `consent*` booleans the tag puts in the body — no server-side source of truth ties them to the stored preference.
-- **C. `/api/public/form-capture` has no body-size cap** (telemetry caps at 32KiB); it relies on field-count/length caps only.
+- **C. Transport body caps are enforced before parsing or application work.**
+  Admission and form capture stream at most 160KiB, which fits the documented
+  60 × 2,000-character field contract plus labels and metadata; telemetry
+  streams at most 32KiB. Declared oversize, missing/invalid Content-Length and
+  chunked oversize are handled by the same byte-counted fail-closed reader, and
+  an over-limit stream is cancelled before hydration, proof, quotas or storage.
+- **D. Honest abuse-limit scope:** Aqua Tag admission and capture currently add
+  process-local caller-IP/provider and post-proof IP/address-digest/site/tenant
+  pressure valves. Capture replay/mutation classification is durable and atomic,
+  but globally durable quota counters across multiple app instances remain
+  owned by `ABUSE-BASE-001`. The signed admission is backed by exact managed
+  human proof; telemetry beacons deliberately do not request a CAPTCHA and are
+  instead limited to the exact registered key/host mapping plus consent gates.
 
 ### Network throttling (added 2026-08-22 — the Dev editor's wifi control)
 The tag can throttle **what the page's scripts request** on the editor's
@@ -1508,7 +1575,7 @@ does not use these; if anything the arrow runs the other way
 
 ## Source document — `docs/workspace/database.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/database.md" sha256="396394473cec1654b5b5fdd1a2900334246d6b94bcca2903e73c39a3c32f72fe" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/database.md" sha256="d445039e1a3d36662d9295e83aa9d99a56f9b309c8070fe0187d45c41fbda991" -->
 # Chapter — Database (Supabase / Postgres) dossier
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
@@ -1650,9 +1717,24 @@ layer").
 
 ### `nonces` (Postgres-direct) — ✅ DDL in-repo (`nonceStore.ts`)
 `token TEXT PRIMARY KEY`, `kind TEXT NOT NULL`
-(`magic-link|email-verify|password-reset|csrf`), `expires_at BIGINT NOT NULL`
+(`magic-link|client-portal-invite|email-verify|password-reset|csrf`), `expires_at BIGINT NOT NULL`
 (epoch ms), index on `expires_at`. Atomic consume via
 `INSERT … ON CONFLICT DO NOTHING RETURNING`.
+
+### `aqua_auth_nonces` (Supabase service-role RPC ledger)
+
+The Supabase/serverless backend cannot use process memory for magic, client
+invite, email-verification, password-reset or CSRF single-use state. Migration
+`20260912150000_durable_auth_nonces.sql` adds a digest-only ledger plus atomic
+consume/release/GC functions. Direct table access is revoked from public,
+`anon`, `authenticated` and `service_role`; only the three exact
+`SECURITY DEFINER` functions are executable by `service_role`. Raw bearer
+nonces never reach the table or logs. The application fails closed when the
+production Supabase adapter or migration is absent.
+
+This migration is present in source but **not applied by this local hardening
+run**. Its filename deliberately follows the Aqua Tag `20260912140000`
+migration so the two changes do not share a migration version.
 
 ### `inbox_*` tables (service-role) — Master Inbox / Meta messaging
 > **Live-evidence timeline:** these tables returned `404 PGRST205` in the
@@ -1669,12 +1751,16 @@ service-role client. Columns from the `*Row` mappers:
 - **`inbox_conversations`** — `id`, `agency_id`, `connection_id`, `identity_id`, `external_conversation_id`, `status`, `assigned_to?`, `tags`, `unread_count`, timing fields, `metadata`, timestamps.
 - **`inbox_messages`** — `id`, `agency_id`, `connection_id`, `conversation_id`, `external_message_id?`, `direction`, `message_type`, `body_text?`, `attachments` (jsonb), `status`, `metadata`, `sent_at`, timestamps.
 - **`inbox_webhook_events`** — `id`, `provider`, `event_key`, `payload` (jsonb), `status`, `attempts`, `available_at`, `processed_at?`. Claimed via RPC **`claim_inbox_webhook_events`** — defined in the inbox migration recorded as applied on 2026-09-03; `security definer`, execute granted to `service_role` only. Pruned by hard delete past retention.
+- **`inbox_client_erasure_tombstones`** — contact-data-free but pseudonymous `(agency_id, client_id, erased_at)` denial facts created atomically by `erase_client_inbox_data`. A database trigger rejects every future insert/update that would attach an inbox identity to an erased client. The erasure locks the identity chain before inserting the tombstone, so a writer that committed first is included in the deletion and a writer that waited is refused after commit. Direct access is revoked even from `service_role`. The opaque client id is still classified as personal data: retain it only while the anti-resurrection control is required, keep it access-restricted, and include it in retention review.
 
 All inbox reads filter `.eq("agency_id",…)` **in application code**. The written
-SQL gives all five tables `enable row level security` plus
+SQL gives the five mutable messaging tables `enable row level security` plus
 `revoke all from public, anon, authenticated` and `grant all to service_role` —
 i.e. service-role-only by grant, with **no policies at all**, so any anon or
-authenticated request is denied outright rather than filtered.
+authenticated request is denied outright rather than filtered. The separate
+erasure tombstone table and trigger are in the unapplied local hardening
+migration `20260912130000_atomic_client_inbox_erasure.sql`; deployment and a
+real concurrency check remain release gates.
 
 ## 3. Storage buckets
 Bucket rows and their `storage.objects` policies are defined in
@@ -1691,7 +1777,7 @@ Two `.storage.from()` call sites: `privateUploadStorage.ts` (private) and
 
 | Bucket | Default | Contents | Access (verified) |
 |---|---|---|---|
-| Private uploads | `aquacrm-uploads` | private files/recordings/pics | **Server-only via service-role.** upload/download/remove; **the app proxies bytes itself** — no signed URLs, no `getPublicUrl`. |
+| Private uploads | `aquacrm-uploads` | private files/recordings/pics | **Server-only via service-role.** upload/download/remove; **the app proxies bytes itself** — no signed URLs, no `getPublicUrl`. Public careers CVs add a stricter quarantine boundary: matching PDF/ZIP bytes are only signature evidence, never malware clearance; absent/unavailable AV/CDR stays quarantined. Release is adopted with an exact agency/application/provider-key/digest check plus bounded durable audit. Every operator download re-hashes the returned bytes against that digest before any 200; mismatch re-quarantines and never serves. Cleared bytes are attachments with `nosniff` and sandbox CSP. |
 | Public media | `aquacrm-public` | "approved website media" | **Wired + consumed (public-bucket Phases 1–2)** via `publicUploadStorage.ts` — `storePublicUpload` uploads (`upsert:true` → stable URLs on re-publish) + returns a durable `getPublicUrl` CDN link; `deleteSupabasePublicUpload` for unpublish. **Consumer:** the website-editor `publishPage` promotes inline `data:` media to this bucket on publish, via the new `publicMedia` foundation port (`foundation-adapters/publicMediaAdapter.ts` → `PluginServices.publicMedia`, content-addressed keys under `website-media/<agency>/<client>/<site>/<sha>.<ext>`). Auto-public-on-publish; drafts stay inline. |
 
 Private-upload precedence: Supabase bucket → Vercel Blob (`access:private`) →
@@ -1760,7 +1846,7 @@ ingestion; the blob backend holds everything else described across the
 
 ## Source document — `docs/workspace/env-and-sellability.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/env-and-sellability.md" sha256="dda5fb28db1246cbff734f9d6e6512f6e0703f0f5e2ea6b417a5e846551f06ca" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/env-and-sellability.md" sha256="b5f5e0fa72a67e0d6eadea0124c7fcebcf54e7a124f388db4c3236fc80a729b5" -->
 # Chapter — Env-only settings & the cost of selling AquaCRM
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md) · Sibling: [feature-index](feature-index.md) · [hazards-and-duplication](hazards-and-duplication.md)
@@ -1964,12 +2050,13 @@ them to a tenant (§3).
 | `PORTAL_VAULT_ENCRYPTION_KEY` | `integrationConnections.ts`, `calendarVault.ts`, `inboxVault.ts`, `server/developmentToolkit.ts` | The key that *enables* per-company credentials. Platform-level by definition. |
 | `DATABASE_URL`, `PORTAL_BACKEND`, `PORTAL_STATE_KEY`, `PORTAL_DATA_FILE`, `PORTAL_ALLOW_SHARED_STATE`, `PORTAL_PG_POOL_MAX/_IDLE_MS/_CONNECT_MS` | `server/storage.ts`, `storagePostgres.ts`, `storageSupabase.ts`, `nonceStore.ts`, `databaseStorageHealth.ts` | The store. Correct. |
 | `NEXT_PUBLIC_SUPABASE_URL/_ANON_KEY/_PUBLIC_BUCKET/_UPLOAD_BUCKET`, `SUPABASE_SERVICE_ROLE_KEY` | `lib/supabase/{config,admin}.ts`, `privateUploadStorage.ts`, `publicUploadStorage.ts`, `inboxStore.ts` | Correct. |
+| `CONTENT_SCANNER_URL`, `CONTENT_SCANNER_ALLOWED_ORIGINS`, `CONTENT_SCANNER_BEARER_TOKEN` | `security/contentTrust.ts`, careers upload and People CV quarantine/retry | Production-required full-file AV/CDR gateway. The URL must use HTTPS and match one exact configured egress origin. DNS is resolved once, every answer must be globally routable, and the selected IP is pinned while TLS SNI/Host keeps the configured provider identity. Redirects are refused; scanner absence/outage keeps CVs quarantined and unreadable. |
 | `NEXT_PUBLIC_PORTAL_BASE_URL`, `NEXT_PUBLIC_PORTAL_SECURITY`, `PORTAL_PUBLIC_ORIGIN` | `proxy.ts`, `secrets.ts`, `portalConnections.ts`, `metaMessaging.ts`, provision route | One origin per deployment. Correct. |
 | `FOUNDER_EMAIL`, `FOUNDER_PASSWORD`, `FOUNDER_AGENCY_NAME` | `founderSeed.ts`, `founderAgency.ts`, `devTeamAccess.ts`, `secrets.ts`, `api/auth/login` | Who owns the instance. Correct — `FOUNDER_EMAIL` is also the exact live identity allowed into the production Dev Team control plane; role alone is insufficient. |
 | `CRON_SECRET` | `api/cron/inbox`, `api/cron/radar-probes` | Vercel Cron. Correct. |
 | `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_TRACES_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_DSN` | `instrumentation.ts`, `observability.ts` | Operator-owned configuration is the correct tier. Next's request-error hook is mounted and readiness now checks both a DSN and an installed SDK; without the optional SDK the honest capability is deployment logs only. Installing the chosen sink and proving live delivery remain in [issue #132](../development/issues.md). |
 | `PORTAL_HANDOFF_SECRET`, `SESSION_SECRET` | `portalHandoff.ts` | Correct. **Neither is on `ENV_ALLOWLIST`** — see §5. |
-| `AQUA_EMBED_SIGNING_SECRET`, `AQUA_EMBED_API_TOKEN` | `aquaEmbedToken.ts` | Correct. |
+| `AQUA_EMBED_SIGNING_SECRET` | `aquaEmbedToken.ts` | Deployment signing key. Embed caller credentials are per-agency/client encrypted vault records managed in Settings, not env authority. |
 | `PORTAL_PREVIEW_SECRET` | `built-ins/modules/website-editor/.../content.ts` | Correct, but defaults to the literal `"round-1-default-secret"` with no production guard. |
 | `INBOX_STORAGE_BACKEND`, `INBOX_LOCAL_DATA_FILE`, `INBOX_WEBHOOK_RETENTION_DAYS` | `inboxStore.ts`, `api/cron/inbox` | Storage selection + retention. Retention is arguably a per-company policy later; not day one. |
 | `PORTAL_DEV_MODE`, `PORTAL_DEV_AGENCY` | `devMode.ts` | Dev-only demo-persona switch, refuses on Vercel. Correct. It no longer controls production Dev Team availability. |
@@ -2198,7 +2285,7 @@ store.
 
 ## Source document — `docs/workspace/feature-index.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/feature-index.md" sha256="3091196d10e6ad4d8cf883077e5c2096f05c42f8365b2a6baae9b14540d4d506" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/feature-index.md" sha256="ee4a500e94b40d4bfa1e40e5e3d6ac89c7cb88eff71f7302d8c12d1392ff539f" -->
 # Chapter — Feature → files index (the conflict-avoider)
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
@@ -2213,7 +2300,7 @@ layers (state → logic → API → UI). Edit these; don't duplicate them.
 | **Nested dev projects (Ed's two levels)** | `parentProjectId` on `DevProject` (`server/types.ts`); rules in `engines/editor/server/devProjects.ts` — `resolveParentProjectId` (two-level rule both ways + self-guard, tenant first, omission carries), `listDevProjectChildren`, `devProjectDeleteRefusal` (parent delete refuses NAMING children; route checks it BEFORE AI cleanup). Display grouping: `lib/shared/devProjectGrouping.ts` (pure, orphan-tolerant), drawn by `app/portal/dev-team/editor/setup/_DevEditorSetup.tsx` (indented children, "Inside" select, per-card "Add a project inside"; editor panel creates pre-parented only). A child is a FULL project. The in-editor family switcher is `devProjectDoorFamily` (door-anchored: the project the editor was OPENED on plus its direct children — a child-scoped door never offers the walk up to the parent). Tests: `scripts/smoke-dev-project-nesting.test.ts`. New 2026-08-22 |
 | **Governance / compliance / legal / DPO** | `app/portal/agency/governance/**` (`_GovernanceWorkspace.tsx`, `_governanceData.ts`), `app/api/portal/governance/**`; reuses `server/legalDocuments.ts`, `lib/compliance/compliancePosture.ts`, `server/clientErasure.ts`. KNOW-first — never a false green. New 2026-08-20 |
 | **Client-owned form data (their Supabase, our pointer)** | A client's enquiries live in THEIR database; we hold a pointer only. `lib/server/clientForms/**` — `clientSupabaseConnection.ts` (the vault connection), `clientFormNotices.ts` (`recordClientFormNotice` is idempotent per row, so a Supabase retry is not a second enquiry), `clientFormReader.ts` (reads values live, never stores them), `clientFormConfirmation.ts`, `clientSupabaseExport.ts` (**public half only — cannot return `webhookSecret`, which is the guarantee**), `clientSupabaseMapping.ts` (narrow mutator; `saveIntegrationConnection` would wipe `projectUrl`/`submissionsTable`). Door: `app/api/public/client-forms/[connectionId]/` (HMAC, timing-safe; unknown connection and bad secret BOTH answer 202). Mapping detection: `lib/enquiries/clientFormMapping.ts`. Client's inbox: the `enquiries` section in `app/portal/customer/_CustomerPortalViews.tsx`. Tests: `scripts/smoke-client-form-notices.test.ts`. New 2026-08-28 |
-| **Subject access & portability (GDPR Art. 15/20)** | `lib/server/compliance/subjectAccessExport.ts` — searches EVERY collection in state rather than a maintained list, so a collection added later cannot be silently absent from an export; matching is recursive and scoped to the caller's agency, with unattributable matches reported not dropped. Door: `app/api/portal/governance/subject-access/` (owner/manager; logs the fulfilment naming the subject by id only). Tests: `scripts/smoke-subject-access-export.test.ts`. New 2026-08-28 |
+| **Subject access & portability (GDPR Art. 15/20)** | `lib/server/compliance/subjectAccessExport.ts` walks EVERY hydrated PortalState collection, but ownership is exact and typed: Person, reciprocal client/facet/relationship lineage, or an exclusive identifier in a contact field. Free-text and actor/assignee mentions cannot authorise release. Third-party fields are redacted; ambiguous, unclassified, co-mingled/free-text and depth-limit rows are withheld as value-free review counts. Door: `app/api/portal/governance/subject-access/` (owner/manager; bounded `{requestId, personId}`; exact open verified access/portability request; activity + fulfilment transaction; no-store). Scope excludes client-owned/provider stores and does not change retention. Tests: `scripts/smoke-subject-access-export.test.ts`, `scripts/smoke-subject-access-export-security.test.ts`, `scripts/smoke-subject-requests.test.ts`. New 2026-08-28; hardened 2026-09-12 |
 | **DSAR register & the statutory clock (Art. 12)** | `lib/server/compliance/subjectRequests.ts` — one calendar month from RECEIPT (clamped at month-end), identity verification enforced as a SEQUENCE (`fulfilSubjectRequest` throws until it is done), one extension from the ORIGINAL deadline with a written reason. Surface: Governance → **Subject requests** (`_GovernanceWorkspace.tsx`). State: `subjectRequests` in `server/types.ts`. Tests: `scripts/smoke-subject-requests.test.ts`. New 2026-08-28 |
 | **Retention (Art. 5(1)(e))** | `lib/server/compliance/retention.ts` — periods per category on `AgencyWorkspaceSettings.retention`; **unset means keep forever**, which is the shipping default and the whole safety story. `findExpired` reads only (split out so a render cannot reach `mutate`); `previewRetentionSweep` counts, `runRetentionSweep` deletes. An OPEN subject request never expires. Form: Governance → Subject requests (owner only). Door: `app/api/portal/governance/retention/`. Tests: `scripts/smoke-retention.test.ts`. New 2026-08-28 |
 | **Where a claim in the privacy notice meets the code** | `scripts/smoke-privacy-notice-truth.test.ts` pins BOTH halves of two known contradictions (form-field values; "the server independently rejects"), so neither side can be changed without the other. Options drafted in `docs/development/plans/supabase-cutover-and-policy-drafts.md` §2f/§2g. New 2026-08-28 |
@@ -2247,7 +2334,7 @@ layers (state → logic → API → UI). Edit these; don't duplicate them.
 ## Enquiries, routing & the Aqua Tag
 | Concern | Owns it |
 | --- | --- |
-| **Website enquiries (ingestion + inbox)** | `lib/server/websiteEnquiries.ts` (reads live Supabase), `app/api/public/brand-enquiry/` (create + dedupe), `app/api/public/form-capture/` (tag capture + master routing) |
+| **Website enquiries (ingestion + inbox)** | `lib/server/websiteEnquiries.ts` (reads live Supabase), `app/api/public/brand-enquiry/` (create + dedupe), `app/api/public/aqua-tag-admission/` (short-lived exact host/form/action admission), `app/api/public/form-capture/` (verified tag capture + master routing) |
 | **Website → inbox routing / master tags** | `server/websiteSources.ts`, `app/api/portal/website-sources/`, `inbox/_WebsiteSourcesConfig.tsx`, `clients/[clientId]/_ClientTagWorkspace.tsx`, `agency/aqua-tags/` |
 | **The Aqua Tag script** | `lib/aquaTagSource.ts`, `app/aqua-tag.js/route.ts` — full feature map in [aqua-tag.md](aqua-tag.md) |
 | **Tag detect / scan a site (built, steps 1–3)** | `lib/server/aquaTagDetection.ts`, `lib/server/safeSiteFetch.ts` (SSRF-safe), `app/api/portal/aqua-tags/detect/`, UI in `agency/aqua-tags/_AquaTagsWorkspace.tsx` |
@@ -2338,7 +2425,7 @@ _(For which plugin owns a feature, see the [plugins chapter](plugins.md). For an
 
 ## Source document — `docs/workspace/hazards-and-duplication.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/hazards-and-duplication.md" sha256="16f6a1abda8766e039a3ab45c3eaa3ee06e35b1acce2da86c08825a5c4098ad3" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/hazards-and-duplication.md" sha256="b6f50763caef7326703051c2537570cbbf090705d2ec23377406da69f5571df3" -->
 # Chapter — Hazards & duplication (read before editing)
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
@@ -2760,7 +2847,7 @@ Plus overlapping "intelligence" builders that are easy to confuse:
 - **Finance Stripe adapter mirrors ecommerce's — intentional, per-plugin.** `agency-finance/src/lib/stripe.ts` lifts the proven wrapper from `ecommerce/src/lib/stripe/server.ts` (this codebase vendors utilities per-plugin, so a shared copy isn't used) and adds refunds + an injectable client. Change one, consider the other. **The finance Stripe webhook is a `public: true` plugin route** resolving the agency from `?agencyId=` (Stripe has no session) — **note ecommerce's own `stripe/webhook` is NOT `public`, so it would not actually receive live Stripe calls**; the finance one is done right. **Keys are Ed's, in the ENCRYPTED INTEGRATIONS VAULT — corrected 2026-08-22, they are NOT on `install.config`.** That record is handed to page props and reaches the browser, so a secret on it is a secret in the client. Both plugins declare `secretVault: { provider: "stripe", field }` on the manifest field and read back through `lib/server/plugins/pluginSecretConfig.ts` `installConfigWithSecrets()`, which merges the vault's values under the manifest ids — so the pure `readStripeKeysFromInstall(config)` readers keep their shape and neither plugin learns about the vault. **Do not "simplify" that back to a direct `install.config` read.** Never hardcoded/logged; the app never holds funds. Refund/chargeback surface via finance events + activity only — a `finance:refund`/`finance:chargeback` operational alert is a follow-up in `operationalAlerts.ts` (the client-health worker's file).
 - **THIRD Stripe wrapper — `memberships`, and it lives in the RUNTIME, not the plugin.** `src/built-ins/runtime/foundation-adapters/_membershipsStripeAdapter.ts` is the concrete `StripePort` for the memberships plugin (subscriptions, pause/resume/plan-change, checkout, billing portal, prices, webhook verification). It is deliberately NOT inside `built-ins/modules/memberships/` : that package declares `StripePort` in `src/server/ports.ts` and states it must never import the Stripe SDK — the foundation supplies the client. Same shape as the other two (narrow `StripeClientLike` slice + injectable client), so **change one, consider all three**. Its keys are the **ecommerce** install's keys in the same `(agencyId, clientId)` scope, read through `installConfigWithSecrets("ecommerce", …)` — one Stripe account per client, one place to configure it. **`stripeFor()` returns `null` when there is no key** and `containerFor` then falls back to a throwing NOOP port, so `isStripeAvailable()` is the honest question to ask before a paid flow; it used to return a stub unconditionally and answer `true` for every install on earth (issues #33). Don't reinstate an unconditional stub, and don't add a fourth wrapper.
 - **FOURTH Stripe wrapper — `affiliates` CONNECT, added for todo:506. Different Stripe surface, but half of it IS a copy.** `src/built-ins/runtime/foundation-adapters/_affiliatesStripeConnectAdapter.ts` is the concrete `StripeConnectPort` for the affiliates plugin (`accounts.create` Express + `accountLinks.create` + `accounts.retrieve` + `transfers.create` + `webhooks.constructEvent`). Those calls do NOT overlap the memberships wrapper's surface (customers / subscriptions / prices / checkout / billing portal), which is why a fifth port was not folded into `StripePort`. **But `getAffiliatesStripeConnectClient` is a verbatim copy of `getMembershipsStripeClient`** — same per-secret-key `Map` cache, same `new Function("s", "return import(s)")` dynamic import, same hardcoded `apiVersion: "2024-12-18.acacia"`, and `affiliatesStripeConnectKeysFor` is a third copy of "read the ecommerce install's keys through `installConfigWithSecrets`". `ecommerce/lib/stripe/server.ts` now exports the canonical non-throwing reader `tryReadStripeKeysFromInstall`; `_membershipsStripeAdapter.readMembershipsStripeKeys` has NOT been converged onto it. **Change one, consider all four**, and if you touch the client builder, hoist it rather than adding a fifth. The status collapse is not duplicated: the adapter calls the plugin's own `snapshotToStatus`.
-- **The affiliates Connect webhook currently verifies against the WRONG signing secret — `/api/portal/affiliates/webhooks/stripe` is not `/api/portal/ecommerce/stripe/webhook`.** `makeAffiliatesStripeConnectPort` verifies `account.updated` / `transfer.paid` with `keys.webhookSecret`, i.e. the **ecommerce** install's `stripeWebhookSecret`, whose own manifest help text says it is "Created in dashboard.stripe.com/webhooks for /api/portal/ecommerce/stripe/webhook". Stripe issues a distinct `whsec_…` per registered endpoint (and Connect endpoints are a separate endpoint kind from account endpoints), so in live/test mode the affiliates endpoint's signature can never match and every delivery answers 400. Consequence: onboarding status only ever advances through the customer's manual "refresh my status" button (which polls `accounts.retrieve`, so it does work), and a payout that reaches `in_progress` via `processPayout` has **no path to `completed`** — `confirmTransferPaid` is only reachable from the webhook, and the admin card only renders its buttons for `scheduled` payouts. Fixing it needs its own affiliates-scoped Connect webhook-secret setting (manifest field + `secretVault`), not a reuse of ecommerce's. Note also that `isStripeConnectAvailable()` gates on the SECRET key alone, so an install with a secret key and no webhook secret still offers both automated controls.
+- **Resolved locally 2026-09-12 — Affiliates Connect has its own endpoint signing secret.** `/api/portal/affiliates/webhooks/stripe` now reads the Affiliates manifest's vault-backed `stripeConnectWebhookSecret` (`stripe.affiliateConnectWebhookSecret`) and deliberately discards Ecommerce's `/api/portal/ecommerce/stripe/webhook` secret. A Stripe API key still enables onboarding/status polling, while money-moving controls require the Affiliates endpoint secret so a payout cannot be stranded in `in_progress`. Local adversarial acceptance and real provider staging remain separate release gates.
 - **Money-CREATE idempotency: ONE shared mechanism — don't add a per-path scheme.** Every finance money-create dedups a double-submit through the single helper `built-ins/modules/agency-finance/src/lib/idempotency.ts` (`deriveRecordId(prefix, idempotencyKey?)`): a client-supplied one-time key derives a **deterministic record id**, so a resubmit overwrites the same slot instead of minting a duplicate (parallel-double-click-safe; a plain "seen this key?" map is NOT — it races). Used by `payments.record`, `income.create`, `plans.create`, `invoices.create`, `operations.createCompensationPayment`, and `lib/server/closeDeal.ts` (derives the contract id + passes the key to `invoices.create`). It generalises the Stripe path's stable-reference dedup (`PaymentService.findByExternalRef` on the PaymentIntent) and the delight wire's `reference: delight:<id>` — **reuse `deriveRecordId`, don't invent a parallel `processedKeys` set or a time-window guard.** **Preserve the nuance:** multiple payments per invoice are legitimate (partial payments) — dedup only ever collapses a resubmit of the *same* key; a genuine second payment carries a new key. The id is only deterministic *with* a key — no key → `makeId(prefix)`, unchanged; so dedup is opt-in from the client (the finance modals + close-deal callers mint a `crypto.randomUUID()` per intent).
 - **Finance list reads are `index ∪ row-scan` — the index is a fast path, NEVER the source of truth.** Every finance store keeps an `<area>/index` array beside its `<area>/by-id/<id>` rows, and appending to that array is a **read-modify-write**: two records created concurrently both read the same array and the second write wins, so an id is lost and its row — stored perfectly well — becomes invisible to `list()`. For money that is a payment or invoice silently **off the books** (an under-count, the mirror of a double-count — and it can *mask* one, since three duplicate writes surface as a single row). Every list now goes through the one shared helper `built-ins/modules/agency-finance/src/server/rowIndex.ts` (`listRowIds(storage, indexKey, prefix)`), which unions the index with a prefix scan of the rows: `payments` · `invoices` · `income` · `plans` · `expenses` · `budgets` · `categories` · `operations.listRows`. **Don't add a new store that lists straight off its index array, and don't "optimise" the scan away.** Scope is unaffected — plugin storage is namespaced per install (`state.pluginData[installId]`, runtime `makeStorage`), so the scan sees exactly the keyspace the index did.
 - **No write-only secondary indexes in finance — they were removed, twice.** `payments/by-invoice/`, `payments/by-client/`, `expenses/by-category/` and `expenses/by-staff/` were all maintained on every create (and every re-category/re-assign) and read by **nothing** — `listForInvoice`/`listForClient`/`listForCategory` all filter through `list()` instead. That's storage ops and extra racy read-modify-writes bought for queries that don't exist. If you need a "by X" view, add a field to the store's `Filter` type and go through `list()`; a secondary index is only worth it with a measured read problem, and then it needs the same union treatment as the primary. Stragglers left in existing stores are inert (unread keys in the plugin's own slice).
@@ -4814,7 +4901,7 @@ Nothing in this folder is part of the live navigation or API route tree.
 
 ## Source document — `src/built-ins/modules/ecommerce/README.md`
 
-<!-- AQUACRM_SOURCE_START path="src/built-ins/modules/ecommerce/README.md" sha256="41433d51b931e2f36a62a1436a8c7816106ec10a3078a71ab38d739ec14be905" -->
+<!-- AQUACRM_SOURCE_START path="src/built-ins/modules/ecommerce/README.md" sha256="406a984c6374cd5298644bc4513fcf380e180b43ece4bcc6bc10cacb6c9bf99d" -->
 # `@aqua/plugin-ecommerce`
 
 The per-client ecommerce subsystem for the Aqua portal. Lives at
@@ -4935,6 +5022,31 @@ install.config = {
 
 Set up via the `setup` wizard on install. Operator can rotate keys
 later from the plugin's settings page.
+
+## Public storefront checkout admission
+
+The anonymous checkout facade does not trust the `agencyId` or `clientId` in
+the generic plugin route. A checkout start is accepted only when the request's
+exact `Origin` resolves through one globally unique `WebsiteSource` owned by
+that agency and routed to that client. The published Website Editor renderer
+marks the storefront root; previews and admin/editor canvases do not receive
+that marker and therefore keep the authenticated API path.
+
+Before inventory reservation, gift-card mutation, Stripe work, or completion,
+the server verifies a managed challenge bound to the exact browser hostname.
+Paid checkout uses `storefront-checkout`; an authoritative zero-value order
+requires the separate `storefront-free-order` action. A read-only server quote
+must agree with that proof class. Replays use the already-committed checkout
+snapshot, while the checkout service still enforces the exact request
+fingerprint for the operation id.
+
+Checkout admission then atomically spends durable, one-way-digested limits for
+the network address, customer email identity, provider/install, tenant/client,
+shipping country, and each authoritative inventory SKU. If any dimension is exhausted, none are
+charged and no checkout state is created. Production fails closed unless the
+managed-challenge site and secret keys are configured and the exact storefront
+hostname is allowed by the provider. A real paid Stripe journey remains a
+provider/staging release check; local tests do not represent it as completed.
 
 The vendored `src/lib/stripe/server.ts` is the same dynamic-import
 wrapper from `02` but takes keys as a parameter instead of reading
@@ -5172,7 +5284,7 @@ expects to receive at call time.
 
 ## Source document — `src/built-ins/modules/website-editor/README.md`
 
-<!-- AQUACRM_SOURCE_START path="src/built-ins/modules/website-editor/README.md" sha256="8ba4ff6dfe4e545d4f532b9a3d6fe503b5c87f59e4d007e66ed99c52f38b9855" -->
+<!-- AQUACRM_SOURCE_START path="src/built-ins/modules/website-editor/README.md" sha256="0500bba5f008a4afe4821db627d1d79b7d024e28b33c7cd9c1572f75619d409c" -->
 # @aqua/plugin-website-editor
 
 Visual page builder + 70-block library + portal-variant admin for the
@@ -5240,6 +5352,34 @@ import type { PortalRole } from "@aqua/plugin-website-editor/types";
 ```
 
 This is a one-line refactor T2 owns post-merge.
+
+## Published visitor write boundary
+
+The mounted contact and newsletter blocks are real anonymous write surfaces,
+not editor-only examples. Their handlers accept one exact DTO and re-resolve the
+tenant-owned active site plus the exact published page/block before writing.
+The browser components obtain a managed challenge for the exact actions
+`website-contact` and `website-newsletter`; the server verifies that action and
+the registered visitor hostname before any address/install quota or mutation.
+Editor previews remain inert and do not render a challenge.
+
+Rate limits are atomically updated through the plugin storage boundary for the
+visitor IP, a one-way address digest, and the plugin install. Contact defaults
+are 8/IP, 10/address and 120/install per hour; newsletter defaults are 6/IP,
+10/address and 200/install per hour. Operation receipts make same-payload
+replays idempotent, while reuse of an operation id for different facts is a
+conflict. Production still requires configured managed-challenge keys and the
+provider-side hostname allowlist; the handler fails closed when they are absent
+or invalid.
+
+The published payment button follows the same boundary. Only a renderer whose
+resolved tree is actually published receives the public-storefront marker;
+preview and draft fallback renders cannot silently rewrite authenticated calls
+onto the anonymous facade. The button obtains an authoritative quote, selects
+the paid or zero-value challenge action, and will not start checkout until the
+required proof is present. The ecommerce server independently re-resolves the
+registered host, total class, tenant/client and durable abuse dimensions, so
+the DOM marker and browser-supplied scope are routing hints rather than trust.
 
 ## Folder layout
 

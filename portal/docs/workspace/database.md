@@ -139,9 +139,24 @@ layer").
 
 ### `nonces` (Postgres-direct) — ✅ DDL in-repo (`nonceStore.ts`)
 `token TEXT PRIMARY KEY`, `kind TEXT NOT NULL`
-(`magic-link|email-verify|password-reset|csrf`), `expires_at BIGINT NOT NULL`
+(`magic-link|client-portal-invite|email-verify|password-reset|csrf`), `expires_at BIGINT NOT NULL`
 (epoch ms), index on `expires_at`. Atomic consume via
 `INSERT … ON CONFLICT DO NOTHING RETURNING`.
+
+### `aqua_auth_nonces` (Supabase service-role RPC ledger)
+
+The Supabase/serverless backend cannot use process memory for magic, client
+invite, email-verification, password-reset or CSRF single-use state. Migration
+`20260912150000_durable_auth_nonces.sql` adds a digest-only ledger plus atomic
+consume/release/GC functions. Direct table access is revoked from public,
+`anon`, `authenticated` and `service_role`; only the three exact
+`SECURITY DEFINER` functions are executable by `service_role`. Raw bearer
+nonces never reach the table or logs. The application fails closed when the
+production Supabase adapter or migration is absent.
+
+This migration is present in source but **not applied by this local hardening
+run**. Its filename deliberately follows the Aqua Tag `20260912140000`
+migration so the two changes do not share a migration version.
 
 ### `inbox_*` tables (service-role) — Master Inbox / Meta messaging
 > **Live-evidence timeline:** these tables returned `404 PGRST205` in the
@@ -158,12 +173,16 @@ service-role client. Columns from the `*Row` mappers:
 - **`inbox_conversations`** — `id`, `agency_id`, `connection_id`, `identity_id`, `external_conversation_id`, `status`, `assigned_to?`, `tags`, `unread_count`, timing fields, `metadata`, timestamps.
 - **`inbox_messages`** — `id`, `agency_id`, `connection_id`, `conversation_id`, `external_message_id?`, `direction`, `message_type`, `body_text?`, `attachments` (jsonb), `status`, `metadata`, `sent_at`, timestamps.
 - **`inbox_webhook_events`** — `id`, `provider`, `event_key`, `payload` (jsonb), `status`, `attempts`, `available_at`, `processed_at?`. Claimed via RPC **`claim_inbox_webhook_events`** — defined in the inbox migration recorded as applied on 2026-09-03; `security definer`, execute granted to `service_role` only. Pruned by hard delete past retention.
+- **`inbox_client_erasure_tombstones`** — contact-data-free but pseudonymous `(agency_id, client_id, erased_at)` denial facts created atomically by `erase_client_inbox_data`. A database trigger rejects every future insert/update that would attach an inbox identity to an erased client. The erasure locks the identity chain before inserting the tombstone, so a writer that committed first is included in the deletion and a writer that waited is refused after commit. Direct access is revoked even from `service_role`. The opaque client id is still classified as personal data: retain it only while the anti-resurrection control is required, keep it access-restricted, and include it in retention review.
 
 All inbox reads filter `.eq("agency_id",…)` **in application code**. The written
-SQL gives all five tables `enable row level security` plus
+SQL gives the five mutable messaging tables `enable row level security` plus
 `revoke all from public, anon, authenticated` and `grant all to service_role` —
 i.e. service-role-only by grant, with **no policies at all**, so any anon or
-authenticated request is denied outright rather than filtered.
+authenticated request is denied outright rather than filtered. The separate
+erasure tombstone table and trigger are in the unapplied local hardening
+migration `20260912130000_atomic_client_inbox_erasure.sql`; deployment and a
+real concurrency check remain release gates.
 
 ## 3. Storage buckets
 Bucket rows and their `storage.objects` policies are defined in
@@ -180,7 +199,7 @@ Two `.storage.from()` call sites: `privateUploadStorage.ts` (private) and
 
 | Bucket | Default | Contents | Access (verified) |
 |---|---|---|---|
-| Private uploads | `aquacrm-uploads` | private files/recordings/pics | **Server-only via service-role.** upload/download/remove; **the app proxies bytes itself** — no signed URLs, no `getPublicUrl`. |
+| Private uploads | `aquacrm-uploads` | private files/recordings/pics | **Server-only via service-role.** upload/download/remove; **the app proxies bytes itself** — no signed URLs, no `getPublicUrl`. Public careers CVs add a stricter quarantine boundary: matching PDF/ZIP bytes are only signature evidence, never malware clearance; absent/unavailable AV/CDR stays quarantined. Release is adopted with an exact agency/application/provider-key/digest check plus bounded durable audit. Every operator download re-hashes the returned bytes against that digest before any 200; mismatch re-quarantines and never serves. Cleared bytes are attachments with `nosniff` and sandbox CSP. |
 | Public media | `aquacrm-public` | "approved website media" | **Wired + consumed (public-bucket Phases 1–2)** via `publicUploadStorage.ts` — `storePublicUpload` uploads (`upsert:true` → stable URLs on re-publish) + returns a durable `getPublicUrl` CDN link; `deleteSupabasePublicUpload` for unpublish. **Consumer:** the website-editor `publishPage` promotes inline `data:` media to this bucket on publish, via the new `publicMedia` foundation port (`foundation-adapters/publicMediaAdapter.ts` → `PluginServices.publicMedia`, content-addressed keys under `website-media/<agency>/<client>/<site>/<sha>.<ext>`). Auto-public-on-publish; drafts stay inline. |
 
 Private-upload precedence: Supabase bucket → Vercel Blob (`access:private`) →

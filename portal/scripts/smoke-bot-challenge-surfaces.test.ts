@@ -40,7 +40,12 @@ function assertStaticChallenge(
 
 describe("managed challenge — React surface inventory", () => {
   it("wires the portal login, connection login, and editor login block", () => {
-    assertReactChallenge("../src/app/login/LoginForm.tsx", "login");
+    const portalLogin = source("../src/app/login/LoginForm.tsx");
+    assert.match(portalLogin, /BotChallenge/);
+    assert.match(portalLogin, /captchaToken/);
+    assert.match(portalLogin, /"magic-link-request"/);
+    assert.match(portalLogin, /: "login"/);
+    assert.match(portalLogin, /captchaRef\.current\?\.reset\(\)/);
     assertReactChallenge(
       "../src/app/connect/[connectionId]/_ConnectFlow.tsx",
       "login",
@@ -108,8 +113,15 @@ describe("managed challenge — cross-origin branded login boundary", () => {
     assert.match(wrapper, /brand === "aqua"/);
     assert.match(wrapper, /brand === "zimante"/);
     assert.match(wrapper, /loginWithTrustedChallengeHostname/);
+    assert.match(wrapper, /from "\.\.\/trustedChallengeLogin"/);
     assert.match(wrapper, /captchaToken/);
     assert.doesNotMatch(wrapper, /x-(?:trusted-)?(?:captcha|challenge)-hostname/i);
+
+    const route = source("../src/app/api/auth/login/route.ts");
+    const trustedHandler = source("../src/app/api/auth/login/trustedChallengeLogin.ts");
+    assert.doesNotMatch(route, /export async function loginWithTrustedChallengeHostname/);
+    assert.match(trustedHandler, /import "server-only"/);
+    assert.match(trustedHandler, /trustedChallengeHostname/);
   });
 
   it("exposes only public runtime configuration", () => {

@@ -231,6 +231,17 @@ describe("the master tag", () => {
     assert.equal(sources.resolveAgencyByMasterSiteKey("aqua_notreal"), undefined);
   });
 
+  it("never selects the first agency when durable master keys collide", () => {
+    const other = tenants.createAgency({ name: "Other collision master", slug: `ocm-${Math.floor(performance.now())}` }).id;
+    const key = sources.ensureAgencyMasterSiteKey(agencyId);
+    storage.mutate(state => {
+      state.agencyMasterTagKeys ??= {};
+      state.agencyMasterTagKeys[other] = key;
+    });
+    assert.deepEqual(sources.listAgenciesByMasterSiteKey(key), [agencyId, other].sort());
+    assert.equal(sources.resolveAgencyByMasterSiteKey(key), undefined);
+  });
+
   it("builds a one-line install snippet on the given origin", () => {
     assert.equal(
       sources.masterTagSnippet("https://aqua-crm.com/", "aqua_abc"),
@@ -244,7 +255,9 @@ describe("form-capture honours the master tag", () => {
     require("node:path").join(__dirname, "..", "src", "app", "api", "public", "form-capture", "route.ts"), "utf-8") as string);
 
   it("attributes a master-tag submission to its agency and applies host routing", () => {
-    assert.match(src, /resolveAgencyByMasterSiteKey\(siteKey\)/);
+    assert.match(src, /resolveAquaTagAdmissionScope\(siteKey, requested\)/);
+    assert.match(src, /verifyAquaTagFormAdmission\(/);
+    assert.match(src, /admission\.claims\.agencyId/);
     assert.match(src, /masterAgencyId \? resolveWebsiteSourceRouting\(masterAgencyId, submissionHost\)/);
   });
 
@@ -253,7 +266,7 @@ describe("form-capture honours the master tag", () => {
   });
 
   it("surfaces a routed master submission on the client's record", () => {
-    assert.match(src, /if \(masterAgencyId && routedClientId && inserted\?\.id\)/);
+    assert.match(src, /if \(completed\.ingestion\.created\) \{\s+try \{ surfaceOnRoutedClient\(completed\.ingestion\.enquiryId\); \}/);
     assert.match(src, /upsertClientRecordLedgerEvent\(masterAgencyId, routedClientId/);
   });
 

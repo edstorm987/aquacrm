@@ -31,6 +31,8 @@ export interface PluginCtx {
 export interface PluginStorage {
   get<T = unknown>(key: string): Promise<T | undefined>;
   set<T = unknown>(key: string, value: T): Promise<void>;
+  /** Serialize and durably flush a logical operation across application processes. */
+  runExclusive?<T>(key: string, operation: () => Promise<T>): Promise<T>;
   del(key: string): Promise<void>;
   list(prefix?: string): Promise<string[]>;
 }
@@ -116,6 +118,7 @@ export interface PluginApiRoute {
   requiresFeature?: string;
   visibleToRoles?: PluginRoleVisibility[];
   public?: boolean;
+  publicAuthority?: "provider-webhook" | "published-site-write" | "published-site-read" | "storefront-read" | "storefront-checkout";
 }
 
 export interface SettingsSchema { customPage?: boolean; groups: SettingsGroup[]; }

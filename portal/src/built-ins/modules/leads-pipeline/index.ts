@@ -49,7 +49,7 @@ const manifest: AquaPlugin = {
   category: "marketing",
   tagline: "CSV-driven leads board with single-shot email campaigns.",
   description:
-    "Owns the agency's leads pipeline: a CSV-importable contact rolodex, a Lead/Contact domain with promotion when a card moves to Won, and single-shot email blasts that enqueue through the email-sender plugin's queue. Subscribes to public-funnel.lead.captured so HC + Resources tools auto-deposit captures into the New column.",
+    "Owns the agency's leads pipeline: a CSV-importable contact rolodex, a Lead/Contact domain with promotion when a card moves to Won, and single-shot email blasts through the email-sender queue. Anonymous Public Funnel captures stay pending and do not enter this plugin; only the explicit mailbox-proven or authenticated promotion command creates exact Lead/Person/Prospect/card lineage.",
 
   core: true,
   scopePolicy: "agency",

@@ -25,7 +25,7 @@
 //   AQUA_TEST_INPUT='{"action":"brand", "coordinatorUrl":"http://127.0.0.1:NNN", ...}'
 //     node --conditions=react-server --import tsx scripts/fixtures/aqua-tag-ingestion-worker.mjs
 
-import { randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 import { access, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
@@ -64,6 +64,15 @@ export function createSubmissionStoreModel() {
   };
   const now = () => Date.now() + state.clockOffset;
   const key = (scope, id) => `${scope}|${id}`;
+  const blankSubmission = (scope, id, siteKey) => ({
+    tenant_scope: scope, submission_id: id, site_key: siteKey, enquiry_id: null,
+    facts: {}, capture: null, brand: null, state: "capture-only", work_status: "idle",
+    claim_owner: null, claim_token: null, lease_expires_at: null, attempts: 0, max_attempts: 6,
+    available_at: iso(now()), last_error: null, effects: {}, completed_at: null, dead_lettered_at: null,
+    tag_capture_digest: null, tag_capture_status: null, tag_capture_claim_token: null,
+    tag_capture_lease_expires_at: null, tag_capture_receipt: null,
+    created_at: iso(now()), updated_at: iso(now()),
+  });
 
   function consumeFault(target, args) {
     const index = state.faults.findIndex(fault => fault.target === target && (!fault.match || fault.match(args)));
@@ -113,16 +122,38 @@ export function createSubmissionStoreModel() {
     return { data, error: null };
   }
 
-  function rpc(fn, args) {
-    if (state.mode === "legacy") return { data: null, error: MISSING_FUNCTION(fn) };
-    const fault = consumeFault(`rpc:${fn}`, args);
-    if (fault?.mode === "throw") throw new Error(fault.message ?? `forced ${fn} transport failure`);
-    if (fault) return { data: null, error: { code: "XX000", message: fault.message ?? `forced ${fn} failure` } };
+  function invokeRpc(fn, args) {
     if (fn === "ingest_aqua_tag_submission") return ingest(args);
+    if (fn === "claim_aqua_tag_capture") return claimCapture(args);
+    if (fn === "complete_aqua_tag_capture") return completeCapture(args);
+    if (fn === "release_aqua_tag_capture") return releaseCapture(args);
     if (fn === "claim_aqua_tag_submission_work") return claim(args);
     if (fn === "checkpoint_aqua_tag_submission_work") return checkpoint(args);
     if (fn === "settle_aqua_tag_submission_work") return settle(args);
-    return { data: null, error: MISSING_FUNCTION(fn) };
+    return { data: null, error: MISSING_FUNCTION(fn), status: 404 };
+  }
+
+  function rpc(fn, args) {
+    if (state.mode === "legacy") return { data: null, error: MISSING_FUNCTION(fn), status: 404 };
+    const fault = consumeFault(`rpc:${fn}`, args);
+    if (fault?.mode === "throw") throw new Error(fault.message ?? `forced ${fn} transport failure`);
+    if (fault?.mode === "status-zero-after") {
+      const outcome = invokeRpc(fn, args);
+      if (outcome.error) return outcome;
+      return {
+        data: null,
+        error: { code: "FETCH_ERROR", message: fault.message ?? `lost ${fn} response after a possible commit` },
+        status: 0,
+      };
+    }
+    if (fault) {
+      return {
+        data: null,
+        error: { code: "XX000", message: fault.message ?? `forced ${fn} failure` },
+        status: Number.isInteger(fault.status) ? fault.status : 400,
+      };
+    }
+    return invokeRpc(fn, args);
   }
 
   function mergeFacts(existing, incoming) {
@@ -170,13 +201,7 @@ export function createSubmissionStoreModel() {
     if (!isObject(args.p_enquiry_row)) return { data: null, error: { code: "P0001", message: "enquiry row must be an object" } };
 
     const existing = state.submissions.get(key(scope, id));
-    const submission = existing ? clone(existing) : {
-      tenant_scope: scope, submission_id: id, site_key: args.p_site_key, enquiry_id: null,
-      facts: {}, capture: null, brand: null, state: "capture-only", work_status: "idle",
-      claim_owner: null, claim_token: null, lease_expires_at: null, attempts: 0, max_attempts: 6,
-      available_at: iso(now()), last_error: null, effects: {}, completed_at: null, dead_lettered_at: null,
-      created_at: iso(now()), updated_at: iso(now()),
-    };
+    const submission = existing ? clone(existing) : blankSubmission(scope, id, args.p_site_key);
     // Everything below is a transaction: work on copies and commit at the end.
     const enquiries = clone(state.enquiries);
     let created = false; let promoted = false; let attached = false; let replay = false;
@@ -250,6 +275,109 @@ export function createSubmissionStoreModel() {
       },
       error: null,
     };
+  }
+
+  function claimCapture(args) {
+    const scope = args.p_tenant_scope;
+    const id = args.p_submission_id;
+    const siteKey = args.p_site_key;
+    const digest = args.p_capture_digest;
+    const legacyFingerprint = args.p_legacy_capture_fingerprint;
+    if (
+      !scope
+      || !SUBMISSION_ID.test(String(id ?? ""))
+      || !siteKey
+      || !/^[a-f0-9]{64}$/.test(String(digest ?? ""))
+      || !/^[a-f0-9]{64}$/.test(String(legacyFingerprint ?? ""))
+    ) {
+      return { data: null, error: { code: "P0001", message: "aqua tag capture identity is invalid" } };
+    }
+    const storageKey = key(scope, id);
+    const row = state.submissions.get(storageKey) ?? blankSubmission(scope, id, siteKey);
+    state.submissions.set(storageKey, row);
+    if (row.site_key !== siteKey) {
+      return { data: null, error: { code: CONFLICT_CODE, message: "aqua_tag_submission_conflict:siteKey" } };
+    }
+    if (row.tag_capture_receipt) {
+      if (row.tag_capture_digest && row.tag_capture_digest !== digest) {
+        return { data: null, error: { code: CONFLICT_CODE, message: "aqua_tag_submission_conflict:captureDigest" } };
+      }
+      if (!row.tag_capture_digest && row.facts?.captureFingerprint !== legacyFingerprint) {
+        return { data: null, error: { code: CONFLICT_CODE, message: "aqua_tag_submission_conflict:legacyCaptureFingerprint" } };
+      }
+      return { data: { kind: "replay", receipt: clone(row.tag_capture_receipt) }, error: null };
+    }
+    if (row.tag_capture_status === "legacy-review") {
+      return { data: { kind: "unavailable", reason: "legacy_aqua_tag_capture_requires_evidence_backfill" }, error: null };
+    }
+    if (row.tag_capture_digest && row.tag_capture_digest !== digest) {
+      return { data: null, error: { code: CONFLICT_CODE, message: "aqua_tag_submission_conflict:captureDigest" } };
+    }
+    if (row.tag_capture_status === "processing" && Date.parse(row.tag_capture_lease_expires_at ?? "1970-01-01") > now()) {
+      return { data: { kind: "pending", retryAfterMs: 25 }, error: null };
+    }
+    const token = randomUUID();
+    Object.assign(row, {
+      tag_capture_digest: digest,
+      tag_capture_status: "processing",
+      tag_capture_claim_token: token,
+      tag_capture_lease_expires_at: iso(now() + Math.max(1000, Math.min(Number(args.p_lease_ms ?? 15000), 60000))),
+      updated_at: iso(now()),
+    });
+    return { data: { kind: "new", claimToken: token }, error: null };
+  }
+
+  function completeCapture(args) {
+    const row = state.submissions.get(key(args.p_tenant_scope, args.p_submission_id));
+    if (!row || row.site_key !== args.p_site_key || row.tag_capture_status !== "processing"
+      || row.tag_capture_claim_token !== args.p_claim_token
+      || Date.parse(row.tag_capture_lease_expires_at ?? "1970-01-01") <= now()) {
+      return { data: null, error: { code: "AQ412", message: "aqua_tag_capture_claim_lost" } };
+    }
+    if (args.p_facts?.captureDigest !== row.tag_capture_digest) {
+      return { data: null, error: { code: CONFLICT_CODE, message: "aqua_tag_submission_conflict:captureDigest" } };
+    }
+    const ingestion = ingest({
+      p_tenant_scope: args.p_tenant_scope,
+      p_submission_id: args.p_submission_id,
+      p_site_key: args.p_site_key,
+      p_arrival: "tag",
+      p_facts: args.p_facts,
+      p_capture: args.p_capture,
+      p_brand: null,
+      p_enquiry_row: args.p_enquiry_row,
+    });
+    if (ingestion.error) return ingestion;
+    const committed = state.submissions.get(key(args.p_tenant_scope, args.p_submission_id));
+    const receipt = {
+      ok: true,
+      attached: ingestion.data.created !== true,
+      submissionId: args.p_submission_id,
+      enquiryId: ingestion.data.enquiryId,
+      boundary: "database",
+    };
+    Object.assign(committed, {
+      tag_capture_status: "complete",
+      tag_capture_receipt: clone(receipt),
+      tag_capture_claim_token: null,
+      tag_capture_lease_expires_at: null,
+      updated_at: iso(now()),
+    });
+    return { data: { receipt, ingestion: ingestion.data }, error: null };
+  }
+
+  function releaseCapture(args) {
+    const row = state.submissions.get(key(args.p_tenant_scope, args.p_submission_id));
+    if (!row || row.tag_capture_status !== "processing" || row.tag_capture_claim_token !== args.p_claim_token || row.tag_capture_receipt) {
+      return { data: false, error: null };
+    }
+    Object.assign(row, {
+      tag_capture_status: null,
+      tag_capture_claim_token: null,
+      tag_capture_lease_expires_at: null,
+      updated_at: iso(now()),
+    });
+    return { data: true, error: null };
   }
 
   function claim(args) {
@@ -344,6 +472,34 @@ export function createSubmissionStoreModel() {
     injectFault(fault) { state.faults.push({ times: 1, ...fault }); },
     recordEffect(entry) { state.effects.push({ ...entry, at: now() }); },
     setMaxAttempts(scope, id, max) { const row = state.submissions.get(key(scope, id)); if (row) row.max_attempts = max; },
+    seedLegacyCapture({ tenantScope, submissionId, siteKey, legacyFingerprint, brand = null }) {
+      const row = blankSubmission(tenantScope, submissionId, siteKey);
+      const enquiryId = `enq_${++state.sequence}`;
+      row.enquiry_id = enquiryId;
+      row.facts = { captureFingerprint: legacyFingerprint, pagePath: "/contact" };
+      row.capture = { submissionId, siteKey, pagePath: "/contact" };
+      row.brand = brand;
+      state.enquiries.push({ id: enquiryId, metadata: { submissionId, formCapture: row.capture } });
+      state.submissions.set(key(tenantScope, submissionId), row);
+      return clone(row);
+    },
+    applyCaptureClaimUpgrade() {
+      for (const row of state.submissions.values()) {
+        if (!row.capture || row.tag_capture_status || row.tag_capture_receipt) continue;
+        if (row.enquiry_id && !row.brand && /^[a-f0-9]{64}$/.test(row.facts?.captureFingerprint ?? "")) {
+          row.tag_capture_status = "complete";
+          row.tag_capture_receipt = {
+            ok: true,
+            attached: false,
+            submissionId: row.submission_id,
+            enquiryId: row.enquiry_id,
+            boundary: "database",
+          };
+        } else {
+          row.tag_capture_status = "legacy-review";
+        }
+      }
+    },
     submission(scope, id) { return clone(state.submissions.get(key(scope, id)) ?? null); },
     dump() {
       return { enquiries: clone(state.enquiries), submissions: clone([...state.submissions.values()]), effects: clone(state.effects) };
@@ -461,7 +617,7 @@ export const fixtureRequire = createRequire(import.meta.url);
 
 export function installRouteStubs(options) {
   const require_ = fixtureRequire;
-  const { client, report, afterEffect = async () => {}, flags = {} } = options;
+  const { client, report, afterEffect = async () => {}, flags = {}, budget } = options;
   const stub = (modulePath, exports) => {
     const id = require_.resolve(modulePath);
     require_.cache[id] = { id, filename: id, loaded: true, paths: [], children: [], exports };
@@ -474,6 +630,19 @@ export function installRouteStubs(options) {
   stub("../../src/lib/server/rateLimit", {
     clientIpFromHeaders: () => "127.0.0.1",
     rateLimit: () => ({ allowed: true, remaining: 100, retryAfterSec: 0 }),
+    rateLimitBatch: () => {
+      if (budget) budget.charges = (budget.charges ?? 0) + 1;
+      return {
+        allowed: true,
+        remaining: 100,
+        resetAt: Date.now() + 60_000,
+        retryAfterSec: 0,
+        charges: [{ key: "fixture-capture-budget", resetAt: Date.now() + 60_000 }],
+      };
+    },
+    refundRateLimitBatch: () => {
+      if (budget) budget.refunds = (budget.refunds ?? 0) + 1;
+    },
   });
   stub("../../src/server/websiteSources", {
     resolveAgencyByMasterSiteKey: () => AGENCY_ID,
@@ -542,8 +711,9 @@ export function installRouteStubs(options) {
 }
 
 export function captureBody(submissionId, overrides = {}) {
-  return {
+  const body = {
     siteKey: SITE_KEY,
+    propertyId: "milesymedia",
     submissionId,
     pageUrl: "https://milesymedia.com/contact",
     pagePath: "/contact",
@@ -555,6 +725,55 @@ export function captureBody(submissionId, overrides = {}) {
     ],
     ...overrides,
   };
+  const facts = {
+    submissionId: body.submissionId,
+    formName: body.formName ?? "",
+    formId: body.formId ?? "",
+    purpose: body.purpose ?? "",
+    pageUrl: body.pageUrl ?? "",
+    pagePath: body.pagePath || "/",
+    propertyId: body.propertyId ?? "",
+    fields: body.fields.map(field => ({
+      key: field.key,
+      label: field.label ?? "",
+      value: field.value,
+      type: field.type ?? "",
+    })),
+  };
+  const now = Date.now();
+  const claims = {
+    v: 1,
+    action: "form-capture",
+    agencyId: AGENCY_ID,
+    siteKey: SITE_KEY,
+    host: "milesymedia.com",
+    challengeHostname: "milesymedia.com",
+    keyClass: "public",
+    siteId: `public:${SITE_KEY}`,
+    propertyId: "milesymedia",
+    submissionId: body.submissionId,
+    formName: body.formName,
+    pageUrl: body.pageUrl,
+    pagePath: body.pagePath,
+    captureDigest: createHash("sha256").update(JSON.stringify(facts)).digest("hex"),
+    nonce: randomUUID().replaceAll("-", ""),
+    iat: now,
+    exp: now + 120_000,
+  };
+  const payload = Buffer.from(JSON.stringify(claims)).toString("base64url");
+  const key = `aqua-tag-form-admission:v1\u0000${process.env.AQUA_TAG_ADMISSION_SECRET ?? process.env.PORTAL_SESSION_SECRET ?? ""}`;
+  body.admission = `${payload}.${createHmac("sha256", key).update(payload).digest("base64url")}`;
+  return body;
+}
+
+export function legacyCaptureFingerprint(body) {
+  return createHash("sha256")
+    .update(JSON.stringify([
+      body.formId ?? "",
+      body.pagePath || "/",
+      (body.fields ?? []).map(field => [field.key, field.value]),
+    ]))
+    .digest("hex");
 }
 
 export function brandBody(submissionId, overrides = {}) {
@@ -613,7 +832,10 @@ async function runWorker() {
   const post = async (handler, url, body) => {
     const response = await handler(new NextRequest(url, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        ...(url.includes("form-capture") ? { origin: "https://milesymedia.com" } : {}),
+      },
       body: JSON.stringify(body),
     }));
     const text = await response.text();

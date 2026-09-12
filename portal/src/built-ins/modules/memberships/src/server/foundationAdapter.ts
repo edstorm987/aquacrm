@@ -38,6 +38,12 @@ export interface MembershipsFoundation {
   // this install" — handlers degrade gracefully (free-tier subscribes
   // still work, paid-tier subscribes return 422 with a clear message).
   stripeFor(args: { agencyId: AgencyId; clientId: ClientId }): StripePort | null;
+  // Signature verification returns null for both an invalid signature and a
+  // missing signing secret. The public webhook edge needs this separate bit to
+  // answer the former with 400 and the latter with retryable 503.
+  // Optional keeps existing injected/test foundations source-compatible; when
+  // omitted, a supplied Stripe port is treated as webhook-capable.
+  stripeWebhookAvailable?(args: { agencyId: AgencyId; clientId: ClientId }): boolean;
 }
 
 let registered: MembershipsFoundation | null = null;
@@ -97,6 +103,12 @@ export function containerFor(args: ContainerForArgs): MembershipsContainer {
 // "Stripe not configured" message than throw 500.
 export function isStripeAvailable(args: { agencyId: AgencyId; clientId: ClientId }): boolean {
   if (!registered) return false;
+  return registered.stripeFor(args) !== null;
+}
+
+export function isStripeWebhookAvailable(args: { agencyId: AgencyId; clientId: ClientId }): boolean {
+  if (!registered) return false;
+  if (registered.stripeWebhookAvailable) return registered.stripeWebhookAvailable(args);
   return registered.stripeFor(args) !== null;
 }
 

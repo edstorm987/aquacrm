@@ -36,6 +36,8 @@ import {
 } from "../src/lib/server/plugins/pluginSettingsSurface";
 import { installConfigWithSecrets } from "../src/lib/server/plugins/pluginSecretConfig";
 import { stripeConfigured, readStripeKeysFromInstall } from "../src/built-ins/modules/agency-finance/src/lib/stripe";
+import { integrationDefinition, type IntegrationProvider } from "../src/lib/integrations/catalog";
+import { activateIntegrationConnection, saveIntegrationConnection } from "../src/lib/server/integrations/integrationConnections";
 
 const SECRET = "sk_test_do_not_echo_me_0001";
 const WEBHOOK = "whsec_do_not_echo_me_0002";
@@ -85,6 +87,31 @@ describe("every declared settings field is writable through a real write path", 
         byProvider.set(provider, [...(byProvider.get(provider) ?? []), field]);
       }
       for (const [provider, group] of byProvider) {
+        const definition = integrationDefinition(provider as IntegrationProvider);
+        const suppliedVaultFields = new Set(group.map(field => field.secretVault?.field));
+        const hasMissingRequiredCompanion = definition.fields.some(field =>
+          field.required && !suppliedVaultFields.has(field.id));
+        if (hasMissingRequiredCompanion) {
+          // A plugin may own one endpoint-specific credential on a provider
+          // connection whose required base credentials belong to a dependency
+          // (Affiliates Connect shares Ecommerce's Stripe API key, but never
+          // its webhook secret). Seed that dependency state rather than asking
+          // the specialised form to redeclare or leak unrelated credentials.
+          const connection = saveIntegrationConnection({
+            agencyId: agency.id,
+            provider: provider as IntegrationProvider,
+            values: Object.fromEntries(definition.fields
+              .filter(field => field.required)
+              .map(field => [field.id, `required-for-${provider}-${field.id}`])),
+            actorUserId: "user_settings_test",
+          });
+          activateIntegrationConnection({
+            agencyId: agency.id,
+            connectionId: connection.id,
+            actorUserId: "user_settings_test",
+            allowUntested: true,
+          });
+        }
         const result = writePluginSettings({
           pluginId: plugin.id,
           scope: { agencyId: agency.id },

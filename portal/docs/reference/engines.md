@@ -275,7 +275,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on:** _No internal imports._
 
-**Used by (3):** [`scripts/smoke-business-radar.test.ts`](scripts.md#file-scripts-smoke-business-radar-test-ts-8b02fea97b) · [`src/engines/data/server/radar/radarSyntheticProbes.ts`](#file-src-engines-data-server-radar-radarsyntheticprobes-ts-9544ca0ec2) · [`src/lib/server/safeSiteFetch.ts`](lib.md#file-src-lib-server-safesitefetch-ts-c5b55f0445)
+**Used by (5):** [`scripts/smoke-business-radar.test.ts`](scripts.md#file-scripts-smoke-business-radar-test-ts-8b02fea97b) · [`src/engines/data/server/radar/radarSyntheticProbes.ts`](#file-src-engines-data-server-radar-radarsyntheticprobes-ts-9544ca0ec2) · [`src/lib/server/net/outboundBroker.ts`](lib.md#file-src-lib-server-net-outboundbroker-ts-1b5e0fb1d0) · [`src/lib/server/safeSiteFetch.ts`](lib.md#file-src-lib-server-safesitefetch-ts-c5b55f0445) · [`src/lib/server/security/contentTrust.ts`](lib.md#file-src-lib-server-security-contenttrust-ts-8100703c87)
 
 
 ## `src/engines/data/server/kpi/`

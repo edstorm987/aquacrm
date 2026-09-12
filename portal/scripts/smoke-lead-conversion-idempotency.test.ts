@@ -210,6 +210,16 @@ describe("lead conversion operation", () => {
       ownerEmail: world.lead.email,
       metadata: { leadId: world.lead.id },
     });
+    // `metadata.leadId` is descriptive and must never authorise client
+    // adoption. Model the durable typed identity edge a prior conversion owner
+    // would have written before it stopped, so the recovery path is testing a
+    // legitimate partial operation rather than asking the handler to trust
+    // caller-shaped metadata.
+    await world.container.leads.recordConversion(
+      world.lead.id,
+      partialClient.id,
+      "conversion-smoke" as never,
+    );
     const partialInvoice = await finance.invoices.create({
       clientId: partialClient.id,
       dueAt: pack!.dueAt,

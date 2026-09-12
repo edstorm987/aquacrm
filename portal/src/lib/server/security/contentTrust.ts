@@ -19,14 +19,17 @@ import "server-only";
 //   - every refusal lands in the security-event spine (digest + types only —
 //     never file contents, never a caller-supplied filename).
 //
-// What this is NOT: a malware scanner. A real AV/CDR engine is an external
-// service the owner must connect (OWNER ACTION, tracked); the `setContentScanner`
-// hook below is the seam it plugs into, so connecting one is a config change,
-// not a redesign. Until then the honest verdict vocabulary is clean /
-// unverified / blocked — never "scanned".
+// What this does NOT do is provision a malware-scanner provider. The external
+// AV/CDR gateway remains an owner action. When configured, its exact origin,
+// DNS answers and connect-time IP are constrained below; until then a file may
+// be signature-clean but is never scanner-cleared for operator download.
 
 import crypto from "node:crypto";
+import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
+import { Agent } from "undici";
 import { recordSecurityEvent } from "./securityEvents";
+import { isReservedSyntheticHostname, isUnsafeSyntheticAddress } from "@/engines/data/radar/radarSyntheticSafety";
 
 export type ContentTrustReason =
   | "executable-content"
@@ -36,6 +39,13 @@ export type ContentTrustReason =
   | "svg-active-content"
   | "scanner-verdict-malicious";
 
+export type ContentScannerVerdict =
+  | "clean"
+  | "malicious"
+  | "unavailable"
+  | "not-configured"
+  | "not-run";
+
 export interface ContentTrustAssessment {
   verdict: "clean" | "unverified" | "blocked";
   /** sha256 of the full byte stream — the artifact's identity. */
@@ -44,6 +54,8 @@ export interface ContentTrustAssessment {
   declaredType: string;
   /** What the magic bytes say, when a signature matched. */
   sniffedType: string | null;
+  /** Malware/CDR result. Signature matching never upgrades this field. */
+  scannerVerdict: ContentScannerVerdict;
   reason?: ContentTrustReason;
 }
 
@@ -64,6 +76,8 @@ export class ContentTrustError extends Error {
 // ─── Optional external scanner seam ─────────────────────────────────────────
 
 export type ContentScanner = (input: {
+  /** Complete artifact. A malware verdict based only on the first bytes is not acceptable. */
+  file: Blob;
   head: Uint8Array;
   digest: string;
   declaredType: string;
@@ -72,6 +86,302 @@ export type ContentScanner = (input: {
 
 let scanner: ContentScanner | null = null;
 
+const SCANNER_RESPONSE_MAX_BYTES = 16 * 1024;
+const SCANNER_TIMEOUT_MS = 20_000;
+
+function scannerTimeoutError(): Error {
+  return new Error("scanner-timeout");
+}
+
+/**
+ * Bound every asynchronous scanner phase, including DNS and injectable test
+ * transports that do not themselves honour AbortSignal. Attaching both
+ * resolution handlers also prevents a late DNS/transport rejection from
+ * becoming unhandled after the deadline has already won the race.
+ */
+function scannerWorkBeforeDeadline<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) return Promise.reject(scannerTimeoutError());
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener("abort", onAbort);
+      callback();
+    };
+    const onAbort = () => finish(() => reject(scannerTimeoutError()));
+    signal.addEventListener("abort", onAbort, { once: true });
+    work.then(
+      value => finish(() => signal.aborted ? reject(scannerTimeoutError()) : resolve(value)),
+      cause => finish(() => reject(cause)),
+    );
+  });
+}
+
+export interface ContentScannerNetwork {
+  /** Resolve once; every answer is classified and the selected answer is pinned. */
+  resolve(hostname: string): Promise<Array<{ address: string; family: number }>>;
+  /** Injectable hermetic seam. Production uses the pinned transport below. */
+  transport(input: {
+    url: URL;
+    address: string;
+    family: 4 | 6;
+    servername: string;
+    headers: Record<string, string>;
+    body: Blob;
+    signal: AbortSignal;
+  }): Promise<{ status: number; bodyText: string; redirected: boolean }>;
+}
+
+export async function boundedScannerResponse(response: Response): Promise<string> {
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    total += chunk.value.byteLength;
+    if (total > SCANNER_RESPONSE_MAX_BYTES) {
+      await reader.cancel();
+      throw new Error("scanner-response-too-large");
+    }
+    chunks.push(chunk.value);
+  }
+  return Buffer.concat(chunks.map(chunk => Buffer.from(chunk))).toString("utf8");
+}
+
+function canonicalScannerHostname(url: URL): string {
+  return url.hostname.toLowerCase().replace(/\.$/, "").replace(/^\[|\]$/g, "");
+}
+
+function ipv4Number(address: string): number | null {
+  if (isIP(address) !== 4) return null;
+  return address.split(".").reduce((value, octet) => ((value << 8) | Number(octet)) >>> 0, 0);
+}
+
+function ipv4InCidr(address: string, base: string, prefix: number): boolean {
+  const value = ipv4Number(address);
+  const start = ipv4Number(base);
+  if (value === null || start === null) return false;
+  const mask = prefix === 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0;
+  return (value & mask) === (start & mask);
+}
+
+function ipv6Number(address: string): bigint | null {
+  let value = address.toLowerCase().split("%")[0] ?? "";
+  if (isIP(value) !== 6) return null;
+  const mappedV4 = /^(.*:)(\d{1,3}(?:\.\d{1,3}){3})$/.exec(value);
+  if (mappedV4) {
+    const numeric = ipv4Number(mappedV4[2]!);
+    if (numeric === null) return null;
+    value = `${mappedV4[1]}${((numeric >>> 16) & 0xffff).toString(16)}:${(numeric & 0xffff).toString(16)}`;
+  }
+  const halves = value.split("::");
+  if (halves.length > 2) return null;
+  const left = halves[0] ? halves[0]!.split(":") : [];
+  const right = halves[1] ? halves[1]!.split(":") : [];
+  const omitted = 8 - left.length - right.length;
+  const groups = halves.length === 2
+    ? [...left, ...Array.from({ length: omitted }, () => "0"), ...right]
+    : left;
+  if (groups.length !== 8 || groups.some(group => !/^[0-9a-f]{1,4}$/.test(group))) return null;
+  return groups.reduce((result, group) => (result << 16n) | BigInt(`0x${group}`), 0n);
+}
+
+function ipv6InCidr(address: string, base: string, prefix: number): boolean {
+  const value = ipv6Number(address);
+  const start = ipv6Number(base);
+  if (value === null || start === null) return false;
+  const shift = BigInt(128 - prefix);
+  return (value >> shift) === (start >> shift);
+}
+
+/** Scanner egress is allow-public-only, including documentation and benchmark ranges. */
+export function isUnsafeScannerAddress(address: string): boolean {
+  const normalized = address.toLowerCase().split("%")[0] ?? address.toLowerCase();
+  if (isUnsafeSyntheticAddress(normalized)) return true;
+  if (isIP(normalized) === 4) {
+    return [
+      ["192.0.2.0", 24],       // TEST-NET-1
+      ["192.31.196.0", 24],    // AS112 special-purpose
+      ["192.52.193.0", 24],    // AMT special-purpose
+      ["192.88.99.0", 24],     // deprecated relay anycast
+      ["192.175.48.0", 24],    // AS112 special-purpose
+      ["198.51.100.0", 24],    // TEST-NET-2
+      ["203.0.113.0", 24],     // TEST-NET-3
+    ].some(([base, prefix]) => ipv4InCidr(normalized, base as string, prefix as number));
+  }
+  if (isIP(normalized) === 6) {
+    return [
+      ["::", 128],             // unspecified
+      ["::1", 128],            // loopback
+      ["::ffff:0:0", 96],      // IPv4-mapped ambiguity
+      ["64:ff9b::", 96],       // translation prefixes
+      ["64:ff9b:1::", 48],
+      ["100::", 64],           // discard-only
+      ["2001::", 23],          // IETF special-purpose/benchmark/ORCHID
+      ["2001:db8::", 32],      // documentation
+      ["2002::", 16],          // 6to4 transition
+      ["3fff::", 20],          // documentation
+      ["5f00::", 16],          // segment-routing SIDs
+      ["fc00::", 7],           // unique-local
+      ["fe80::", 10],          // link-local
+      ["ff00::", 8],           // multicast
+    ].some(([base, prefix]) => ipv6InCidr(normalized, base as string, prefix as number));
+  }
+  return true;
+}
+
+function scannerAllowedOrigins(env: NodeJS.ProcessEnv): Set<string> {
+  const origins = new Set<string>();
+  for (const raw of (env.CONTENT_SCANNER_ALLOWED_ORIGINS ?? "").split(",")) {
+    const value = raw.trim();
+    if (!value) continue;
+    try {
+      const parsed = new URL(value);
+      if (parsed.username || parsed.password || parsed.search || parsed.hash || parsed.pathname !== "/") continue;
+      if (!["https:", "http:"].includes(parsed.protocol)) continue;
+      if (env.NODE_ENV === "production" && parsed.protocol !== "https:") continue;
+      origins.add(parsed.origin);
+    } catch {
+      // Invalid entries grant nothing.
+    }
+  }
+  return origins;
+}
+
+async function defaultScannerTransport(
+  input: Parameters<ContentScannerNetwork["transport"]>[0],
+): Promise<{ status: number; bodyText: string; redirected: boolean }> {
+  const agent = new Agent({
+    connect: {
+      lookup: (_hostname, _options, callback) => callback(null, input.address, input.family),
+      // Preserve TLS SNI/certificate verification and the provider's virtual host
+      // while the socket itself connects only to the already-vetted address.
+      servername: input.servername,
+    },
+  });
+  try {
+    const response = await fetch(input.url, {
+      method: "POST",
+      redirect: "manual",
+      signal: input.signal,
+      headers: input.headers,
+      body: input.body,
+      dispatcher: agent,
+    } as RequestInit);
+    const redirected = [301, 302, 303, 307, 308].includes(response.status);
+    return {
+      status: response.status,
+      bodyText: redirected ? "" : await boundedScannerResponse(response),
+      redirected,
+    };
+  } finally {
+    await agent.close().catch(() => undefined);
+  }
+}
+
+const DEFAULT_SCANNER_NETWORK: ContentScannerNetwork = {
+  resolve: async hostname => lookup(hostname, { all: true, verbatim: true }),
+  transport: defaultScannerTransport,
+};
+
+async function vettedScannerAddress(
+  url: URL,
+  network: ContentScannerNetwork,
+  signal: AbortSignal,
+): Promise<{ address: string; family: 4 | 6; servername: string }> {
+  const hostname = canonicalScannerHostname(url);
+  if (!hostname || isReservedSyntheticHostname(hostname)) throw new Error("scanner-reserved-hostname");
+  const literalFamily = isIP(hostname);
+  const candidates = literalFamily
+    ? [{ address: hostname, family: literalFamily }]
+    : await scannerWorkBeforeDeadline(network.resolve(hostname), signal);
+  if (signal.aborted) throw scannerTimeoutError();
+  if (candidates.length === 0) throw new Error("scanner-dns-empty");
+  for (const candidate of candidates) {
+    const family = isIP(candidate.address);
+    if ((family !== 4 && family !== 6) || isUnsafeScannerAddress(candidate.address)) {
+      throw new Error("scanner-private-or-reserved-address");
+    }
+  }
+  const selected = candidates[0]!;
+  return {
+    address: selected.address,
+    family: isIP(selected.address) as 4 | 6,
+    servername: hostname,
+  };
+}
+
+/**
+ * Generic HTTPS AV/CDR gateway contract. The gateway receives the complete
+ * artifact as the raw body plus digest/type metadata and must return exactly
+ * `{ "verdict": "clean" | "malicious" }`. Redirects are forbidden so the
+ * bearer credential and document cannot be forwarded to another origin.
+ */
+export function configuredHttpContentScanner(
+  env: NodeJS.ProcessEnv = process.env,
+  network: ContentScannerNetwork = DEFAULT_SCANNER_NETWORK,
+  timeoutMs: number = SCANNER_TIMEOUT_MS,
+): ContentScanner | null {
+  const endpoint = env.CONTENT_SCANNER_URL?.trim();
+  const token = env.CONTENT_SCANNER_BEARER_TOKEN?.trim();
+  if (!endpoint || !token) return null;
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    return null;
+  }
+  if (url.username || url.password || url.search || url.hash || !["https:", "http:"].includes(url.protocol)) return null;
+  if (env.NODE_ENV === "production" && url.protocol !== "https:") return null;
+  // Exact-origin admission is configuration, not a suffix match. A compromised
+  // endpoint variable cannot move the credential/document to another origin.
+  if (!scannerAllowedOrigins(env).has(url.origin)) return null;
+  const literal = canonicalScannerHostname(url);
+  if (isIP(literal) && isUnsafeScannerAddress(literal)) return null;
+  if (isReservedSyntheticHostname(literal)) return null;
+
+  return async input => {
+    const controller = new AbortController();
+    // The optional seam can shorten hermetic tests, never extend production's
+    // fixed maximum deadline.
+    const boundedTimeoutMs = Number.isFinite(timeoutMs) && timeoutMs > 0
+      ? Math.min(Math.floor(timeoutMs), SCANNER_TIMEOUT_MS)
+      : SCANNER_TIMEOUT_MS;
+    const timeout = setTimeout(() => controller.abort(), boundedTimeoutMs);
+    try {
+      const pinned = await vettedScannerAddress(url, network, controller.signal);
+      if (controller.signal.aborted) throw scannerTimeoutError();
+      const response = await scannerWorkBeforeDeadline(network.transport({
+        url,
+        address: pinned.address,
+        family: pinned.family,
+        servername: pinned.servername,
+        signal: controller.signal,
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": input.declaredType || "application/octet-stream",
+          "x-aqua-content-digest": input.digest,
+          "x-aqua-content-size": String(input.sizeBytes),
+        },
+        body: input.file,
+      }), controller.signal);
+      if (controller.signal.aborted) throw scannerTimeoutError();
+      if (response.redirected) throw new Error("scanner-redirect-refused");
+      if (response.status < 200 || response.status >= 300) throw new Error(`scanner-http-${response.status}`);
+      const payload = JSON.parse(response.bodyText) as { verdict?: unknown };
+      if (payload.verdict !== "clean" && payload.verdict !== "malicious") {
+        throw new Error("scanner-invalid-verdict");
+      }
+      return { malicious: payload.verdict === "malicious" };
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
+}
+
 /** Connect a real AV/CDR engine. Until one is connected, verdicts stay honest: clean-by-signature or unverified, never "scanned". */
 export function setContentScanner(fn: ContentScanner | null): void {
   scanner = fn;
@@ -79,7 +389,38 @@ export function setContentScanner(fn: ContentScanner | null): void {
 
 /** Honest posture: is a real scanner connected? (Signature-only when not.) */
 export function hasContentScanner(): boolean {
-  return scanner !== null;
+  return scanner !== null || configuredHttpContentScanner() !== null;
+}
+
+/** Exact identity of the provider object whose bytes received the verdict. */
+export function contentTrustObjectVersion(storageProvider: string, storageKey: string, digest: string): string {
+  return crypto.createHash("sha256")
+    .update(storageProvider)
+    .update("\0")
+    .update(storageKey)
+    .update("\0")
+    .update(digest)
+    .digest("hex");
+}
+
+/**
+ * Final read gate for high-risk private documents. Missing legacy metadata,
+ * signature-only checks, scanner outages and pending scans all remain closed.
+ */
+export function operatorDocumentDownloadAllowed(contentTrust: {
+  digest?: string;
+  objectVersion?: string;
+  scannerVerdict?: ContentScannerVerdict;
+  quarantineStatus?: "released" | "quarantined";
+} | null | undefined, object: {
+  storageProvider: string;
+  storageKey: string;
+}): boolean {
+  const digest = contentTrust?.digest ?? "";
+  return Boolean(contentTrust?.digest?.match(/^[0-9a-f]{64}$/))
+    && contentTrust?.objectVersion === contentTrustObjectVersion(object.storageProvider, object.storageKey, digest)
+    && contentTrust?.scannerVerdict === "clean"
+    && contentTrust.quarantineStatus === "released";
 }
 
 // ─── Signatures ─────────────────────────────────────────────────────────────
@@ -214,10 +555,12 @@ export async function assessUploadContent(input: AssessUploadInput): Promise<Con
     }
   }
   const digest = hash.digest("hex");
+  const activeScanner = scanner ?? configuredHttpContentScanner();
+  let scannerVerdict: ContentScannerVerdict = activeScanner ? "not-run" : "not-configured";
 
   const block = (reason: ContentTrustReason, sniffedType: string | null): ContentTrustAssessment => {
     const assessment: ContentTrustAssessment = {
-      verdict: "blocked", digest, sizeBytes, declaredType: input.declaredType, sniffedType, reason,
+      verdict: "blocked", digest, sizeBytes, declaredType: input.declaredType, sniffedType, scannerVerdict, reason,
     };
     recordSecurityEvent({
       kind: "content-trust.blocked",
@@ -261,14 +604,18 @@ export async function assessUploadContent(input: AssessUploadInput): Promise<Con
     return block("binary-masquerading-as-text", sniffed);
   }
 
-  // 6. Optional external scanner (AV/CDR) — only a MALICIOUS verdict blocks;
-  //    an unreachable scanner must not take uploads down with it, it just
-  //    leaves the verdict at its signature-based level.
-  if (scanner) {
+  // 6. Optional external scanner (AV/CDR). The complete artifact is supplied;
+  //    a HEAD-only integration could not honestly clear document malware.
+  //    Scanner absence/outage is recorded distinctly from signature trust so
+  //    high-risk surfaces can quarantine instead of treating magic bytes as a
+  //    malware verdict.
+  if (activeScanner) {
     try {
-      const result = await scanner({ head, digest, declaredType: input.declaredType, sizeBytes });
+      const result = await activeScanner({ file: input.file, head, digest, declaredType: input.declaredType, sizeBytes });
+      scannerVerdict = result.malicious ? "malicious" : "clean";
       if (result.malicious) return block("scanner-verdict-malicious", sniffed);
     } catch {
+      scannerVerdict = "unavailable";
       recordSecurityEvent({
         kind: "content-trust.scanner-unavailable",
         severity: "warning",
@@ -285,5 +632,6 @@ export async function assessUploadContent(input: AssessUploadInput): Promise<Con
     sizeBytes,
     declaredType: input.declaredType,
     sniffedType: sniffed,
+    scannerVerdict,
   };
 }

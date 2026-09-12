@@ -45,6 +45,7 @@ let delivery: typeof import("../src/lib/server/enquirySubmissionDelivery");
 let claims: typeof import("../src/lib/supabase/enquirySubmissionClaims");
 const effects: Record<string, number> = {};
 const flags = { failLead: false, failAutomation: false, failNotification: false };
+const budget = { charges: 0, refunds: 0 };
 
 before(async () => {
   fixture = await import("./fixtures/aqua-tag-ingestion-worker.mjs");
@@ -53,6 +54,7 @@ before(async () => {
   fixture.installRouteStubs({
     client,
     flags,
+    budget,
     report: async (name: string) => { effects[name] = (effects[name] ?? 0) + 1; },
   });
   ({ NextRequest } = require_("next/server"));
@@ -68,12 +70,17 @@ beforeEach(() => {
   flags.failLead = false;
   flags.failAutomation = false;
   flags.failNotification = false;
+  budget.charges = 0;
+  budget.refunds = 0;
 });
 
 function post(handler: typeof formCapturePost, url: string, body: Record<string, unknown>) {
   return handler(new NextRequest(url, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      ...(url.includes("form-capture") ? { origin: "https://milesymedia.com" } : {}),
+    },
     body: JSON.stringify(body),
   }));
 }
@@ -171,13 +178,74 @@ describe("the durable boundary: one identity, atomic merge, honest receipts", ()
     assert.equal(refused.status, 409);
     assert.equal(model.dump().enquiries.length, 1);
     assert.equal(model.dump().submissions.length, 1);
+    assert.equal(budget.charges, 1, "a conflicting retry must not spend a second victim/install quota batch");
   });
 
-  it("a retried tag capture with the same answers is a no-op receipt for the same id", async () => {
+  it("an exact tag retry returns the original receipt and charges quotas once", async () => {
     const first = await json(await capture());
     const again = await json(await capture());
-    assert.equal(again.enquiryId, first.enquiryId);
-    assert.equal(again.submissionId, SUBMISSION_ID);
+    assert.deepEqual(again, first);
+    assert.equal(budget.charges, 1);
+    assert.equal(budget.refunds, 0);
+    assert.equal(model.dump().enquiries.length, 1);
+  });
+
+  it("two concurrent exact captures receive one receipt from one charged transition", async () => {
+    const responses = await Promise.all([capture(), capture()]);
+    assert.deepEqual(responses.map(response => response.status), [200, 200]);
+    const [first, second] = await Promise.all(responses.map(json));
+    assert.deepEqual(second, first);
+    assert.equal(budget.charges, 1);
+    assert.equal(budget.refunds, 0);
+    assert.equal(model.dump().enquiries.length, 1);
+  });
+
+  it("rolls a failed mutation's local quota batch back before an exact retry", async () => {
+    model.injectFault({ target: "rpc:complete_aqua_tag_capture", mode: "error" });
+    const failed = await capture();
+    assert.equal(failed.status, 503);
+    assert.equal(budget.charges, 1);
+    assert.equal(budget.refunds, 1);
+    assert.equal(model.dump().enquiries.length, 0);
+
+    const accepted = await json(await capture());
+    assert.equal(accepted.ok, true);
+    assert.equal(budget.charges, 2);
+    assert.equal(budget.refunds, 1);
+    assert.equal(model.dump().enquiries.length, 1);
+  });
+
+  it("does not clear or refund an ambiguous completion transport loss", async () => {
+    model.injectFault({ target: "rpc:complete_aqua_tag_capture", mode: "throw" });
+    const ambiguous = await capture();
+    assert.equal(ambiguous.status, 503);
+    assert.equal(budget.charges, 1);
+    assert.equal(budget.refunds, 0, "an unknown commit outcome must not be treated as a proven rollback");
+    assert.equal(submission().tag_capture_status, "processing", "the claim must fence a stale retry until its lease expires");
+
+    const early = await capture();
+    assert.equal(early.status, 409);
+    assert.equal(budget.charges, 1, "a pending stale retry must not charge again");
+    model.advanceClock(16_000);
+    const recovered = await json(await capture());
+    assert.equal(recovered.ok, true);
+    assert.equal(budget.charges, 2);
+    assert.equal(model.dump().enquiries.length, 1);
+  });
+
+  it("reconciles a resolved status-0 response after commit without refunding or charging twice", async () => {
+    model.injectFault({ target: "rpc:complete_aqua_tag_capture", mode: "status-zero-after" });
+    const ambiguous = await capture();
+    assert.equal(ambiguous.status, 503);
+    assert.equal(budget.charges, 1);
+    assert.equal(budget.refunds, 0, "status 0 is not authoritative proof of database rollback");
+    assert.equal(model.dump().enquiries.length, 1, "the lost response may follow a committed mutation");
+
+    const replay = await json(await capture());
+    assert.equal(replay.ok, true);
+    assert.equal(replay.boundary, "database");
+    assert.equal(budget.charges, 1, "durable replay reconciliation must not charge a second quota batch");
+    assert.equal(budget.refunds, 0);
     assert.equal(model.dump().enquiries.length, 1);
   });
 });
@@ -312,24 +380,67 @@ describe("crash recovery, fencing and bounded retries", () => {
   });
 });
 
-describe("the fallback and the static contract", () => {
-  it("without the migration both routes still work and name the weaker process-local guarantee", async () => {
+describe("the deployment dependency and static contract", () => {
+  it("upgrades an exact legacy tag-first retry with its truthful attached:false receipt", async () => {
+    const legacyBody = fixture.captureBody(SUBMISSION_ID);
+    model.seedLegacyCapture({
+      tenantScope: fixture.AGENCY_ID,
+      submissionId: SUBMISSION_ID,
+      siteKey: fixture.SITE_KEY,
+      legacyFingerprint: fixture.legacyCaptureFingerprint(legacyBody),
+    });
+    model.applyCaptureClaimUpgrade();
+    const adopted = submission();
+    assert.equal(adopted.tag_capture_digest, null, "the incompatible legacy fingerprint must not masquerade as the new digest");
+    assert.equal(adopted.tag_capture_receipt.attached, false, "tag-first created the hold row; it did not attach");
+
+    const replay = await json(await capture());
+    assert.equal(replay.ok, true);
+    assert.equal(replay.attached, false);
+    assert.equal(replay.enquiryId, adopted.enquiry_id);
+    assert.equal(budget.charges, 0, "an adopted exact replay must not spend a new quota batch");
+    assert.equal(model.dump().enquiries.length, 1);
+
+    const conflict = await capture({ fields: [{ key: "email", value: "changed@example.test" }] });
+    assert.equal(conflict.status, 409);
+    assert.equal(budget.charges, 0);
+  });
+
+  it("quarantines a legacy two-half row whose original attached value cannot be proven", async () => {
+    const legacyBody = fixture.captureBody(SUBMISSION_ID);
+    model.seedLegacyCapture({
+      tenantScope: fixture.AGENCY_ID,
+      submissionId: SUBMISSION_ID,
+      siteKey: fixture.SITE_KEY,
+      legacyFingerprint: fixture.legacyCaptureFingerprint(legacyBody),
+      brand: { contactKey: "email:taylor@example.test" },
+    });
+    model.applyCaptureClaimUpgrade();
+    assert.equal(submission().tag_capture_status, "legacy-review");
+    assert.equal(submission().tag_capture_receipt, null, "the upgrade must not invent attached:true or attached:false");
+    assert.equal((await capture()).status, 503);
+    assert.equal(budget.charges, 0);
+    assert.equal(model.dump().enquiries.length, 1);
+  });
+
+  it("without the additive capture claim the public tag mutation fails closed", async () => {
     model.setMode("legacy");
     const held = await json(await capture());
-    assert.equal(held.ok, true);
-    assert.equal(held.boundary, "process-local");
+    assert.equal(held.ok, false);
+    assert.equal(held.boundary, undefined);
     const accepted = await json(await brand());
     assert.equal(accepted.ok, true);
     assert.equal(accepted.boundary, "process-local");
     assert.equal(accepted.delivery, "complete");
     assert.equal(model.dump().submissions.length, 0, "the fallback has no database identity to write");
-    assert.equal(model.dump().enquiries.length, 1);
+    assert.equal(model.dump().enquiries.length, 1, "the host's own submission remains independently available");
     assert.deepEqual(effects, { lead: 1, identity: 1, activity: 1, notification: 1, automation: 1 });
   });
 
   it("the migration, the sweep wiring and the tag receipt rule are the shape the runtime relies on", () => {
     const read = (relative: string) => readFileSync(new URL(relative, import.meta.url), "utf8");
     const migration = read("../../supabase/migrations/20260902093000_aqua_tag_submission_delivery.sql");
+    const captureClaimMigration = read("../../supabase/migrations/20260912140000_aqua_tag_capture_admission_claims.sql");
     assert.match(migration, /create table if not exists public\.aqua_tag_submissions/);
     assert.match(migration, /primary key \(tenant_scope, submission_id\)/);
     assert.match(migration, /tenant_scope text not null check \(length\(btrim\(tenant_scope\)\) > 0\)/);
@@ -341,6 +452,14 @@ describe("the fallback and the static contract", () => {
     assert.match(migration, /submission\.attempts >= submission\.max_attempts then/);
     assert.match(migration, /revoke all on table public\.aqua_tag_submissions from public, anon, authenticated/);
     assert.match(migration, /update public\.brand_enquiries e\s+set metadata = e\.metadata \|\| p_metadata_patch/);
+    assert.match(captureClaimMigration, /create or replace function public\.claim_aqua_tag_capture/);
+    assert.match(captureClaimMigration, /'attached', false/);
+    assert.match(captureClaimMigration, /tag_capture_status = 'legacy-review'/);
+    assert.doesNotMatch(captureClaimMigration, /'attached', true/);
+    assert.match(captureClaimMigration, /tag_capture_receipt/);
+    assert.match(captureClaimMigration, /complete_aqua_tag_capture/);
+    assert.match(captureClaimMigration, /p_facts ->> 'captureDigest'[\s\S]*submission\.tag_capture_digest/);
+    assert.match(captureClaimMigration, /release_aqua_tag_capture/);
 
     const cron = read("../src/app/api/cron/inbox/route.ts");
     assert.match(cron, /import "@\/app\/api\/public\/brand-enquiry\/route"/);

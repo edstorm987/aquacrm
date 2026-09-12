@@ -9,8 +9,16 @@ export {
   isPlausibleEmail,
 } from "../lib/domain";
 export type {
+  PendingCapturePromotion,
+  PendingCapturePromotionCredential,
+  PromotePendingCaptureInput,
+  PromotePendingCaptureResult,
+} from "../lib/domain";
+export type {
   ActivityLogPort, EventBusPort, FunnelEventName,
-  LeadUserPort, LogActivityInput,
+  LeadUserPort, LogActivityInput, PendingCapturePromotionAuthorityGrant,
+  PendingCaptureErasurePort, PendingCapturePromotionAuthorityPort,
+  PendingCapturePromotionPort, PendingCapturePromotionLineage,
   StoragePort, TenantPort, UserPort,
 } from "./ports";
 export {
@@ -27,16 +35,22 @@ export type { FunnelFoundation, ContainerForArgs } from "./foundationAdapter";
 import type { AgencyId } from "../lib/tenancy";
 import type { PluginStorage } from "../lib/aquaPluginTypes";
 import type {
-  ActivityLogPort, EventBusPort, LeadUserPort, StoragePort,
+  ActivityLogPort, EventBusPort, LeadUserPort, PendingCaptureErasurePort,
+  PendingCapturePromotionAuthorityPort,
+  PendingCapturePromotionPort, StoragePort,
 } from "./ports";
 import { FunnelService } from "./services";
 
 export interface FunnelDepsInput {
   agencyId: AgencyId;
+  installId: string;
   storage: PluginStorage | StoragePort;
   activity: ActivityLogPort;
   events: EventBusPort;
   leadUsers: LeadUserPort;
+  promotionAuthority: PendingCapturePromotionAuthorityPort;
+  promotions: PendingCapturePromotionPort;
+  promotionErasure: PendingCaptureErasurePort;
 }
 
 export interface FunnelContainer {
@@ -46,9 +60,12 @@ export interface FunnelContainer {
 export function buildFunnelContainer(deps: FunnelDepsInput): FunnelContainer {
   const storage = deps.storage as StoragePort;
   const funnel = new FunnelService({
-    agencyId: deps.agencyId, storage,
+    agencyId: deps.agencyId, installId: deps.installId, storage,
     activity: deps.activity, events: deps.events,
     leadUsers: deps.leadUsers,
+    promotionAuthority: deps.promotionAuthority,
+    promotions: deps.promotions,
+    promotionErasure: deps.promotionErasure,
   });
   return { funnel };
 }

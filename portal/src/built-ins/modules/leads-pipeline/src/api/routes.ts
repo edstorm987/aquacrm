@@ -95,7 +95,7 @@ export const ROUTES: PluginApiRoute[] = [
   { path: "commercial/send", methods: ["POST"], handler: sendCommercialPackHandler, visibleToRoles: [...AGENCY_ADMIN] },
   { path: "commercial/payment", methods: ["POST"], handler: recordCommercialPaymentHandler, visibleToRoles: [...AGENCY_ADMIN] },
   { path: "commercial/stripe-checkout", methods: ["POST"], handler: createCommercialStripeCheckoutHandler, visibleToRoles: [...AGENCY_ADMIN] },
-  { path: "commercial/stripe-webhook", methods: ["POST"], handler: commercialStripeWebhookHandler, public: true },
+  { path: "commercial/stripe-webhook", methods: ["POST"], handler: commercialStripeWebhookHandler, public: true, publicAuthority: "provider-webhook" },
 
   // Campaigns
   { path: "campaigns", methods: ["GET"], handler: listCampaignsHandler, visibleToRoles: [...AGENCY_ALL] },

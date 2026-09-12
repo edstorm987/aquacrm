@@ -24,8 +24,24 @@ import type { ShippingRate, ShippingZone } from "../lib/admin/shipping";
 import type { ProductCollection } from "../lib/admin/collections";
 import { installConfigWithSecrets } from "@/lib/server/plugins/pluginSecretConfig";
 import { clientIpFromHeaders } from "@/lib/server/rateLimit";
+import { exactProviderClientScope } from "@/lib/server/portal/providerWebhookScope";
+import { readBoundedPublicWebhookBody } from "@/lib/server/portal/publicWebhookBody";
+import {
+  publicWebhookProcessingFailed,
+  publicWebhookRefused,
+  publicWebhookUnavailable,
+} from "@/lib/server/portal/publicWebhookResponse";
 import { toPublicProduct } from "../lib/publicProducts";
-import { takeStorefrontRateLimit } from "../server/storefrontRateLimit";
+import {
+  storefrontRateLimitDimension,
+  takeStorefrontRateLimit,
+  takeStorefrontRateLimitDimensions,
+} from "../server/storefrontRateLimit";
+import {
+  exactStorefrontRequestHost,
+  verifyStorefrontCheckoutAdmission,
+  type StorefrontCheckoutKind,
+} from "../server/storefrontCheckoutSecurity";
 
 // Stripe keys are declared in the manifest but stored in the encrypted
 // integrations vault, NOT on `install.config` (that record is handed to page
@@ -73,11 +89,73 @@ async function safeJson<T = unknown>(req: Request): Promise<T | null> {
   try { return (await req.json()) as T; } catch { return null; }
 }
 
+const MAX_STOREFRONT_JSON_BYTES = 64 * 1_024;
+
+type StorefrontJson<T> =
+  | { ok: true; value: T }
+  | { ok: false; response: Response };
+
+async function readStorefrontJson<T = unknown>(req: Request): Promise<StorefrontJson<T>> {
+  const rawLength = req.headers.get("content-length");
+  if (rawLength) {
+    const declared = Number(rawLength);
+    if (!Number.isSafeInteger(declared) || declared < 0) {
+      return { ok: false, response: badRequest("Invalid Content-Length.") };
+    }
+    if (declared > MAX_STOREFRONT_JSON_BYTES) {
+      return {
+        ok: false,
+        response: json({ ok: false, error: "Checkout request is too large." }, 413, { "cache-control": "no-store" }),
+      };
+    }
+  }
+  if (!req.body) return { ok: false, response: badRequest("body required.") };
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      total += chunk.value.byteLength;
+      if (total > MAX_STOREFRONT_JSON_BYTES) {
+        await reader.cancel("storefront body too large").catch(() => undefined);
+        return {
+          ok: false,
+          response: json({ ok: false, error: "Checkout request is too large." }, 413, { "cache-control": "no-store" }),
+        };
+      }
+      chunks.push(chunk.value);
+    }
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    return { ok: true, value: JSON.parse(text) as T };
+  } catch {
+    return { ok: false, response: badRequest("Invalid JSON body.") };
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 function requireClientScope(ctx: PluginCtx): string | Response {
   if (!ctx.clientId) {
     return badRequest("Ecommerce is client-scoped — clientId required.");
   }
   return ctx.clientId;
+}
+
+function storefrontOriginGuard(req: Request, ctx: PluginCtx): Response | null {
+  if (exactStorefrontRequestHost(ctx, req)) return null;
+  return json(
+    { ok: false, error: "This storefront could not be verified." },
+    403,
+    { "cache-control": "no-store" },
+  );
 }
 
 async function storefrontThrottle(
@@ -164,6 +242,7 @@ export async function getProductHandler(req: Request, ctx: PluginCtx): Promise<R
 
 /** Published catalogue only: hidden and archived products never cross this facade. */
 export async function storefrontListProductsHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const originRefusal = storefrontOriginGuard(req, ctx); if (originRefusal) return originRefusal;
   const throttled = await storefrontThrottle(req, ctx, "catalogue", 120); if (throttled) return throttled;
   const url = new URL(req.url);
   try {
@@ -189,6 +268,7 @@ export async function storefrontListProductsHandler(req: Request, ctx: PluginCtx
 }
 
 export async function storefrontGetProductHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const originRefusal = storefrontOriginGuard(req, ctx); if (originRefusal) return originRefusal;
   const throttled = await storefrontThrottle(req, ctx, "catalogue", 120); if (throttled) return throttled;
   const slug = new URL(req.url).searchParams.get("slug");
   if (!slug) return badRequest("slug required.");
@@ -448,6 +528,7 @@ async function executeStripeCheckout(
   ctx: PluginCtx,
   rawBody: unknown,
   publicRequest = false,
+  expectedKind?: StorefrontCheckoutKind,
 ): Promise<Response> {
   const guard = methodGuard(req, "POST"); if (guard) return guard;
   const scope = requireClientScope(ctx); if (typeof scope !== "string") return scope;
@@ -456,7 +537,17 @@ async function executeStripeCheckout(
     const c = containerFor(ctx.storage);
     const config = ctx.install.config as Record<string, unknown>;
     const operation = await c.checkout.prepare(body, checkoutServiceConfig(ctx, scope));
-    const origin = getOrigin(req);
+    const actualKind: StorefrontCheckoutKind = operation.amountTotal === 0 ? "free" : "paid";
+    if (expectedKind && expectedKind !== actualKind) {
+      // The UI's preflight quote can become stale after a product/discount
+      // edit. Never let a paid-checkout proof silently authorize a zero-value
+      // completion (or vice versa). Keep the idempotent operation intact: this
+      // path cannot safely distinguish a newly prepared operation from a
+      // concurrent/existing provider session, and releasing the latter would
+      // let a wrong-class replay sabotage its inventory reservation.
+      throw new CheckoutValidationError("The checkout total changed. Review the cart and try again.");
+    }
+    const origin = publicRequest ? (req.headers.get("origin") ?? getOrigin(req)) : getOrigin(req);
     const successUrl = checkoutReturnUrl(
       body.successPath,
       typeof config.successUrl === "string" ? config.successUrl : undefined,
@@ -536,10 +627,67 @@ export async function stripeCheckoutHandler(req: Request, ctx: PluginCtx): Promi
 }
 
 export async function storefrontCheckoutHandler(req: Request, ctx: PluginCtx): Promise<Response> {
-  const throttled = await storefrontThrottle(req, ctx, "checkout", 20); if (throttled) return throttled;
-  const body = await safeJson<unknown>(req);
-  const identityRefusal = checkoutIdentityGuard(body); if (identityRefusal) return identityRefusal;
-  return executeStripeCheckout(req, ctx, body, true);
+  const originRefusal = storefrontOriginGuard(req, ctx); if (originRefusal) return originRefusal;
+  const decoded = await readStorefrontJson<unknown>(req); if (!decoded.ok) return decoded.response;
+  const body = decoded.value;
+  const admission = await verifyStorefrontCheckoutAdmission(req, ctx, body);
+  if (!admission.ok) {
+    return json(
+      { ok: false, error: admission.error },
+      admission.status,
+      {
+        "cache-control": "no-store",
+        ...(admission.retryAfterSec ? { "retry-after": String(admission.retryAfterSec) } : {}),
+      },
+    );
+  }
+  const identityRefusal = checkoutIdentityGuard(admission.checkout); if (identityRefusal) return identityRefusal;
+  try {
+    const scope = requireClientScope(ctx); if (typeof scope !== "string") return scope;
+    const parsed = parseCheckoutRequest(admission.checkout);
+    const c = containerFor(ctx.storage);
+    // Quote is read-only. It turns caller product ids into authoritative SKU,
+    // total, country and subject dimensions before inventory or provider work.
+    // A replay must use the already-committed snapshot: a gift card or stock
+    // reservation may have changed the current quote after the first attempt,
+    // while `prepare` below still verifies that the request fingerprint is the
+    // exact owner of that operation id.
+    const existing = await c.checkout.getOperation(parsed.operationId);
+    const authoritative = existing ?? await c.checkout.quote(parsed, checkoutServiceConfig(ctx, scope));
+    const actualKind: StorefrontCheckoutKind = authoritative.amountTotal === 0 ? "free" : "paid";
+    if (actualKind !== admission.kind) {
+      return badRequest("The checkout total changed. Review the cart and try again.");
+    }
+    const dimensions = [
+      { key: storefrontRateLimitDimension("ip", admission.clientIp), max: 20 },
+      { key: storefrontRateLimitDimension("provider", `stripe:${ctx.install.id}`), max: 60 },
+      { key: storefrontRateLimitDimension("tenant", `${ctx.agencyId}:${scope}`), max: 80 },
+      ...(parsed.customerEmail
+        ? [{ key: storefrontRateLimitDimension("subject", parsed.customerEmail.toLowerCase()), max: 6 }]
+        : []),
+      ...(parsed.shippingCountry
+        ? [{ key: storefrontRateLimitDimension("country", parsed.shippingCountry), max: 40 }]
+        : []),
+      ...[...new Set(authoritative.lines.map(line => line.sku || `${line.productId}:${line.variantId ?? "base"}`))]
+        .map(value => ({ key: storefrontRateLimitDimension("inventory", value), max: 30 })),
+    ];
+    const budget = await takeStorefrontRateLimitDimensions(ctx.storage, {
+      action: "checkout",
+      dimensions,
+      windowMs: 60_000,
+    });
+    if (!budget.allowed) {
+      return json(
+        { ok: false, error: "Too many checkout attempts. Please try again shortly." },
+        429,
+        { "retry-after": String(budget.retryAfterSec), "cache-control": "no-store" },
+      );
+    }
+    return executeStripeCheckout(req, ctx, admission.checkout, true, admission.kind);
+  } catch (err) {
+    if (err instanceof CheckoutValidationError) return badRequest(err.message);
+    return storefrontServerError("checkout admission", err);
+  }
 }
 
 export async function checkoutQuoteHandler(req: Request, ctx: PluginCtx): Promise<Response> {
@@ -558,10 +706,12 @@ export async function checkoutQuoteHandler(req: Request, ctx: PluginCtx): Promis
 }
 
 export async function storefrontCheckoutQuoteHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const originRefusal = storefrontOriginGuard(req, ctx); if (originRefusal) return originRefusal;
   const throttled = await storefrontThrottle(req, ctx, "quote", 90); if (throttled) return throttled;
   const guard = methodGuard(req, "POST"); if (guard) return guard;
   const scope = requireClientScope(ctx); if (typeof scope !== "string") return scope;
-  const body = await safeJson<unknown>(req);
+  const decoded = await readStorefrontJson<unknown>(req); if (!decoded.ok) return decoded.response;
+  const body = decoded.value;
   const identityRefusal = checkoutIdentityGuard(body); if (identityRefusal) return identityRefusal;
   try {
     const parsed = parseCheckoutRequest(body);
@@ -574,6 +724,7 @@ export async function storefrontCheckoutQuoteHandler(req: Request, ctx: PluginCt
 }
 
 export async function storefrontGetOrderBySessionHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  const originRefusal = storefrontOriginGuard(req, ctx); if (originRefusal) return originRefusal;
   const throttled = await storefrontThrottle(req, ctx, "order", 90); if (throttled) return throttled;
   const scope = requireClientScope(ctx); if (typeof scope !== "string") return scope;
   const sessionId = new URL(req.url).searchParams.get("sessionId")?.trim();
@@ -680,18 +831,37 @@ async function localWebhookExclusive<T>(key: string, operation: () => Promise<T>
 export async function stripeWebhookHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   const guard = methodGuard(req, "POST"); if (guard) return guard;
   const sig = req.headers.get("stripe-signature");
-  if (!sig) return badRequest("Missing stripe-signature header.");
-  let rawBody: string;
-  try { rawBody = await req.text(); } catch { return badRequest("Could not read body."); }
+  if (!sig) return publicWebhookRefused();
+  let keys: ReturnType<typeof readStripeKeysFromInstall>;
+  try {
+    keys = readStripeKeysFromInstall(stripeConfig(ctx));
+  } catch (error) {
+    return publicWebhookUnavailable("stripe-ecommerce", "configuration", error);
+  }
+  if (!keys.webhookSecret) {
+    return publicWebhookUnavailable("stripe-ecommerce", "configuration");
+  }
+  const body = await readBoundedPublicWebhookBody(req);
+  if (!body.ok) return body.response;
+  const rawBody = body.rawBody;
+
+  let event: EcommerceWebhookEvent;
+  try {
+    event = (await constructWebhookEvent(keys, rawBody, sig)) as EcommerceWebhookEvent;
+  } catch {
+    return publicWebhookRefused();
+  }
 
   try {
-    const keys = readStripeKeysFromInstall(stripeConfig(ctx));
-    const event = (await constructWebhookEvent(keys, rawBody, sig)) as EcommerceWebhookEvent;
     const result = await applyVerifiedEcommerceWebhookEvent(event, ctx);
-    if (!result.ok) return json({ ok: false, error: result.error, retryable: true }, 503);
+    if (!result.ok) {
+      return result.retryable === true
+        ? publicWebhookProcessingFailed("stripe-ecommerce", "apply", result.error, 503)
+        : publicWebhookRefused();
+    }
     return json({ ok: true, deduped: result.duplicate, orderId: result.orderId, ignored: result.ignored });
   } catch (err) {
-    return serverError(err);
+    return publicWebhookProcessingFailed("stripe-ecommerce", "apply", err, 500);
   }
 }
 
@@ -699,6 +869,12 @@ export async function applyVerifiedEcommerceWebhookEvent(
   event: EcommerceWebhookEvent,
   ctx: PluginCtx,
 ): Promise<EcommerceWebhookApplyResult> {
+  if (event.type === "checkout.session.completed" || event.type === "checkout.session.expired") {
+    const metadata = (event.data.object as { metadata?: Record<string, string> }).metadata;
+    if (!exactProviderClientScope(metadata, ctx.agencyId, ctx.clientId)) {
+      return { ok: false, retryable: false, error: "Webhook scope does not match this ecommerce install." };
+    }
+  }
   const execute = async (): Promise<EcommerceWebhookApplyResult> => {
     const stored = await ctx.storage.get<EcommerceWebhookDelivery>(webhookDeliveryKey(event.id));
     if (stored?.status === "completed") {
@@ -874,11 +1050,7 @@ async function applyEcommerceWebhookState(
     }
     const currency = sess.currency?.trim().toLowerCase();
     if (!currency) throw new Error(`Checkout session ${sess.id} currency is required.`);
-    const clientId = ctx.clientId ?? sess.metadata?.clientId;
-    if (!clientId) throw new Error(`Checkout session ${sess.id} has no client scope.`);
-    if (ctx.clientId && sess.metadata?.clientId && sess.metadata.clientId !== ctx.clientId) {
-      throw new Error(`Checkout session ${sess.id} client scope does not match this install.`);
-    }
+    const clientId = ctx.clientId!;
     const operationId = sess.metadata?.checkoutOperationId;
     if (!operationId) throw new Error(`Checkout session ${sess.id} has no authoritative checkout operation.`);
     const checkout = await c.checkout.getOperation(operationId);

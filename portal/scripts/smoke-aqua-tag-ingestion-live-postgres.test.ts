@@ -2,8 +2,9 @@
 //
 // Everything else in the #87 gate runs against a reference model of the SQL.
 // This file is the only proof of the SQL itself: it applies
-// `20260902093000_aqua_tag_submission_delivery.sql` to a database that the
-// operator has EXPLICITLY marked disposable, twice (idempotency), and then
+// `20260902093000_aqua_tag_submission_delivery.sql` and the additive
+// `20260912140000_aqua_tag_capture_admission_claims.sql` to a database that
+// the operator has EXPLICITLY marked disposable, twice (idempotency), and then
 // exercises the contract with real transactions, real `for update skip
 // locked`, real separate Node processes and a real SIGKILL.
 //
@@ -45,6 +46,8 @@ function refuseProtectedTargets(): void {
 
 const migrationPath = new URL("../../supabase/migrations/20260902093000_aqua_tag_submission_delivery.sql", import.meta.url);
 const MIGRATION = readFileSync(migrationPath, "utf8");
+const captureClaimMigrationPath = new URL("../../supabase/migrations/20260912140000_aqua_tag_capture_admission_claims.sql", import.meta.url);
+const CAPTURE_CLAIM_MIGRATION = readFileSync(captureClaimMigrationPath, "utf8");
 const SCOPE = `live-test-${randomUUID().slice(0, 8)}`;
 const submissionId = (suffix: string) => `aqua_sub_live${suffix.padEnd(14, "0").slice(0, 14)}`;
 
@@ -182,11 +185,17 @@ describe("Aqua Tag ingestion migration on a disposable PostgreSQL", { skip: skip
     }
     await pool.query(MIGRATION);
     await pool.query(MIGRATION); // applying twice must be a no-op
+    await pool.query(CAPTURE_CLAIM_MIGRATION);
+    await pool.query(CAPTURE_CLAIM_MIGRATION); // the additive gate is idempotent too
   });
 
   after(async () => {
     if (!pool) return;
     await pool.query("delete from public.brand_enquiries where agency_id = $1", [SCOPE]).catch(() => undefined);
+    await pool.query("drop function if exists public.release_aqua_tag_capture(text, text, uuid)");
+    await pool.query("drop function if exists public.complete_aqua_tag_capture(text, text, text, uuid, jsonb, jsonb, jsonb)");
+    await pool.query("drop function if exists public.claim_aqua_tag_capture(text, text, text, text, text, integer)");
+    await pool.query("drop function if exists public.claim_aqua_tag_capture(text, text, text, text, integer)");
     await pool.query("drop function if exists public.settle_aqua_tag_submission_work(text, text, text, uuid, text, text, jsonb, jsonb)");
     await pool.query("drop function if exists public.checkpoint_aqua_tag_submission_work(text, text, text, uuid, text, jsonb)");
     await pool.query("drop function if exists public.claim_aqua_tag_submission_work(text, integer, text, text, integer)");
@@ -201,10 +210,75 @@ describe("Aqua Tag ingestion migration on a disposable PostgreSQL", { skip: skip
   it("the table, its identity and the four functions exist after an idempotent apply", async () => {
     const { rows } = await pool.query(`select conname from pg_constraint where conrelid = 'public.aqua_tag_submissions'::regclass and contype = 'p'`);
     assert.equal(rows.length, 1);
-    const { rows: fns } = await pool.query(`select proname from pg_proc where proname in ('ingest_aqua_tag_submission','claim_aqua_tag_submission_work','checkpoint_aqua_tag_submission_work','settle_aqua_tag_submission_work','aqua_tag_merge_facts') order by proname`);
-    assert.equal(fns.length, 5);
+    const { rows: fns } = await pool.query(`select proname from pg_proc where proname in ('ingest_aqua_tag_submission','claim_aqua_tag_submission_work','checkpoint_aqua_tag_submission_work','settle_aqua_tag_submission_work','aqua_tag_merge_facts','claim_aqua_tag_capture','complete_aqua_tag_capture','release_aqua_tag_capture') order by proname`);
+    assert.equal(fns.length, 8);
     const { rows: rls } = await pool.query(`select relrowsecurity from pg_class where oid = 'public.aqua_tag_submissions'::regclass`);
     assert.equal(rls[0].relrowsecurity, true);
+  });
+
+  it("adopts a legacy tag-first row as an exact attached:false replay", async () => {
+    const id = submissionId("legacytagfirst");
+    const legacyFingerprint = "d".repeat(64);
+    const held = await ingest(pool, {
+      id,
+      arrival: "tag",
+      facts: { captureFingerprint: legacyFingerprint, pagePath: "/contact" },
+      capture: { fields: [{ key: "email", value: "taylor@example.test" }] },
+      row: enquiryRow({ consent: false, contact_method: null, metadata: { captureOnly: true, agencyId: SCOPE } }),
+    });
+    assert.equal(held.created, true);
+    await pool.query(CAPTURE_CLAIM_MIGRATION);
+    const claimSql = "select public.claim_aqua_tag_capture($1, $2, $3, $4, $5, 15000) as receipt";
+    const replay = await pool.query(claimSql, [
+      SCOPE,
+      id,
+      "aqua_public_milesymedia_v1",
+      "e".repeat(64),
+      legacyFingerprint,
+    ]);
+    assert.equal(replay.rows[0].receipt.kind, "replay");
+    assert.equal(replay.rows[0].receipt.receipt.attached, false);
+    assert.equal(replay.rows[0].receipt.receipt.enquiryId, held.enquiryId);
+    await assert.rejects(
+      pool.query(claimSql, [SCOPE, id, "aqua_public_milesymedia_v1", "e".repeat(64), "f".repeat(64)]),
+      (error: { code?: string; message?: string }) => error.code === "AQ409" && /legacyCaptureFingerprint/.test(error.message ?? ""),
+    );
+  });
+
+  it("classifies concurrent exact captures before mutation and replays the original receipt", async () => {
+    const id = submissionId("captureclaim");
+    const digest = "a".repeat(64);
+    const legacyFingerprint = "c".repeat(64);
+    const claimSql = "select public.claim_aqua_tag_capture($1, $2, $3, $4, $5, 15000) as receipt";
+    const claims = await Promise.all([
+      pool.query(claimSql, [SCOPE, id, "aqua_public_milesymedia_v1", digest, legacyFingerprint]),
+      pool.query(claimSql, [SCOPE, id, "aqua_public_milesymedia_v1", digest, legacyFingerprint]),
+    ]);
+    const receipts = claims.map(result => result.rows[0].receipt as Record<string, any>);
+    assert.deepEqual(receipts.map(receipt => receipt.kind).sort(), ["new", "pending"]);
+    const owner = receipts.find(receipt => receipt.kind === "new")!;
+    const completed = await pool.query(
+      "select public.complete_aqua_tag_capture($1, $2, $3, $4::uuid, $5::jsonb, $6::jsonb, $7::jsonb) as receipt",
+      [
+        SCOPE,
+        id,
+        "aqua_public_milesymedia_v1",
+        owner.claimToken,
+        JSON.stringify({ captureDigest: digest, pagePath: "/contact" }),
+        JSON.stringify({ fields: [{ key: "email", value: "taylor@example.test" }] }),
+        JSON.stringify(enquiryRow({ consent: false, contact_method: null, metadata: { captureOnly: true, agencyId: SCOPE } })),
+      ],
+    );
+    const original = completed.rows[0].receipt.receipt as Record<string, unknown>;
+    const replay = await pool.query(claimSql, [SCOPE, id, "aqua_public_milesymedia_v1", digest, legacyFingerprint]);
+    assert.equal(replay.rows[0].receipt.kind, "replay");
+    assert.deepEqual(replay.rows[0].receipt.receipt, original);
+    await assert.rejects(
+      pool.query(claimSql, [SCOPE, id, "aqua_public_milesymedia_v1", "b".repeat(64), legacyFingerprint]),
+      (error: { code?: string; message?: string }) => error.code === "AQ409" && /captureDigest/.test(error.message ?? ""),
+    );
+    const { rows } = await pool.query("select count(*)::int as n from public.brand_enquiries where metadata->>'submissionId' = $1", [id]);
+    assert.equal(rows[0].n, 1);
   });
 
   it("tag-first then brand: one identity, the hold row promoted in place, work enqueued once", async () => {
@@ -345,11 +419,15 @@ describe("Aqua Tag ingestion migration on a disposable PostgreSQL", { skip: skip
       has_table_privilege('authenticated', 'public.aqua_tag_submissions', 'SELECT') as auth_select,
       has_table_privilege('service_role', 'public.aqua_tag_submissions', 'UPDATE') as service_update,
       has_function_privilege('anon', 'public.ingest_aqua_tag_submission(text, text, text, text, jsonb, jsonb, jsonb, jsonb)', 'EXECUTE') as anon_ingest,
-      has_function_privilege('service_role', 'public.ingest_aqua_tag_submission(text, text, text, text, jsonb, jsonb, jsonb, jsonb)', 'EXECUTE') as service_ingest`);
+      has_function_privilege('service_role', 'public.ingest_aqua_tag_submission(text, text, text, text, jsonb, jsonb, jsonb, jsonb)', 'EXECUTE') as service_ingest,
+      has_function_privilege('anon', 'public.claim_aqua_tag_capture(text, text, text, text, text, integer)', 'EXECUTE') as anon_capture,
+      has_function_privilege('service_role', 'public.claim_aqua_tag_capture(text, text, text, text, text, integer)', 'EXECUTE') as service_capture`);
     assert.equal(rows[0].anon_select, false);
     assert.equal(rows[0].auth_select, false);
     assert.equal(rows[0].service_update, true);
     assert.equal(rows[0].anon_ingest, false);
     assert.equal(rows[0].service_ingest, true);
+    assert.equal(rows[0].anon_capture, false);
+    assert.equal(rows[0].service_capture, true);
   });
 });

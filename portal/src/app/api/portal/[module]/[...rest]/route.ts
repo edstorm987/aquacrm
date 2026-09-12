@@ -40,6 +40,8 @@ import {
   isAgencyPluginApiRouteClassified,
 } from "@/lib/server/portal/pluginAgencyRouteAccess";
 import { accessErrorResponse, requireCurrentAccessActor } from "@/server/accessControl";
+import { isClassifiedPublicPluginRoute } from "@/lib/server/portal/pluginPublicRouteAuthority";
+import { logPluginDispatcherFlushFailure } from "@/lib/server/portal/publicWebhookResponse";
 
 interface RouteParams {
   params: Promise<{ module: string; rest: string[] }>;
@@ -69,7 +71,10 @@ async function dispatch(req: NextRequest, params: RouteParams["params"], method:
   const peeked = queryAgencyId
     ? resolvePluginApiRoute(moduleId, rest, { agencyId: queryAgencyId, clientId: queryClientId }, method)
     : null;
-  const isPublic = peeked?.route.public === true;
+  if (peeked?.route.public === true && !isClassifiedPublicPluginRoute(peeked.route)) {
+    return NextResponse.json({ ok: false, error: "public_route_unclassified" }, { status: 503 });
+  }
+  const isPublic = isClassifiedPublicPluginRoute(peeked?.route);
 
   let session: Awaited<ReturnType<typeof requireSession>> | null = null;
   if (!isPublic) {
@@ -101,6 +106,9 @@ async function dispatch(req: NextRequest, params: RouteParams["params"], method:
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
   const { plugin, route, install } = resolved;
+  if (route.public === true && !isClassifiedPublicPluginRoute(route)) {
+    return NextResponse.json({ ok: false, error: "public_route_unclassified" }, { status: 503 });
+  }
 
   // Role gate — only when session present (public routes skip).
   //
@@ -204,10 +212,7 @@ async function dispatch(req: NextRequest, params: RouteParams["params"], method:
     try {
       await flushPendingWrites();
     } catch (error) {
-      console.error(
-        `[portal] ${moduleId}/${rest.join("/")} could not be persisted:`,
-        error instanceof Error ? error.message : error,
-      );
+      logPluginDispatcherFlushFailure(error);
       return NextResponse.json(
         { ok: false, error: "storage_unavailable", message: "The change could not be saved. Please try again." },
         { status: 503 },
