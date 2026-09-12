@@ -290,8 +290,17 @@ export async function createLeadHandler(req: Request, ctx: PluginCtx): Promise<R
   if (guard) return guard;
   const body = await safeJson<CreateLeadInput>(req);
   if (!body?.email) return badRequest("email required.");
+  // PLUGIN-LINEAGE-001: client/person lineage is stamped server-side only. An
+  // authenticated caller must not be able to attach a lead to an arbitrary
+  // client or person by naming one in the body — a spoofed `clientId` would
+  // misfile the lead into another client's records and erasure scope, and a
+  // spoofed `personId` would forge a canonical-Person link that SEC-004/005
+  // require to come from server-recorded routing, manual review or typed
+  // lineage. Both reserved fields are dropped here; the lead is created
+  // unlinked and later attributed through those server-side paths.
+  const { clientId: _clientId, personId: _personId, ...safe } = body;
   try {
-    const lead = await buildContainer(ctx).leads.create(body, ctx.actor);
+    const lead = await buildContainer(ctx).leads.create(safe, ctx.actor);
     return json({ ok: true, lead }, 201);
   } catch (err) {
     if (err instanceof MarketingLeadIdentityConflictError) {
