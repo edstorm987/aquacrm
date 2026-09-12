@@ -23,12 +23,17 @@ import {
   loginMfaStep,
   raisedToSecondFactor,
 } from "@/lib/server/auth/mfa";
+import { verifyBotChallenge } from "@/lib/server/security/botChallenge";
 
 interface Body {
   email?: unknown;
   username?: unknown;
   password?: unknown;
   brand?: unknown;
+  // AUTH-001: opaque managed-challenge (Turnstile) token. Verified server-side
+  // before any credential work. Absent/invalid is a fail-closed denial when the
+  // challenge is configured; skipped only outside production when it is not.
+  captchaToken?: unknown;
   // The six-digit code from an authenticator app. Optional on the wire, never
   // optional in effect: an account with a verified factor is refused a session
   // when this is missing. See `loginMfaStep`.
@@ -161,6 +166,11 @@ async function handleFormLogin(req: NextRequest): Promise<NextResponse> {
       // Dropping it here would leave anybody with an authenticator unable to
       // sign in from a published site at all.
       code: field("code"),
+      // AUTH-001: Turnstile's script injects its token into the form as the
+      // `cf-turnstile-response` field, so a no-JS native form still carries it
+      // once the published-site Login block renders the widget. `captchaToken`
+      // is accepted as an alias for a block that names the field itself.
+      captchaToken: field("cf-turnstile-response") ?? field("captchaToken"),
     }),
   });
 
@@ -235,6 +245,33 @@ async function handleJsonLogin(req: NextRequest) {
     return NextResponse.json(
       { ok: false, error: "Username/email and password are required." },
       { status: 400 },
+    );
+  }
+
+  // ─── Managed bot-challenge — the human gate in front of the password ─────
+  //
+  // AUTH-001 / DECISIONS #13. Verified server-side before any credential work,
+  // so a bot never reaches `signInWithPassword`. Fail-closed: a missing,
+  // invalid, replayed, expired, or wrong-action/hostname token is a denial the
+  // moment the challenge is configured. When it is NOT configured this is a
+  // no-op outside production (local dev + the suite keep working) and a
+  // fail-closed denial in production (the readiness blocker). The verifier
+  // records its own security events and applies its own per-IP limiter.
+  const challenge = await verifyBotChallenge({
+    action: "login",
+    token: body.captchaToken,
+    remoteIp: ip,
+    hostname: req.nextUrl.hostname,
+  });
+  if (!challenge.ok) {
+    return NextResponse.json(
+      { ok: false, error: challenge.message },
+      {
+        status: challenge.reason === "rate-limited" ? 429 : 403,
+        headers: challenge.retryAfterSec
+          ? { "retry-after": String(challenge.retryAfterSec) }
+          : undefined,
+      },
     );
   }
 

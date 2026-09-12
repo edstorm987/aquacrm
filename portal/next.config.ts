@@ -74,9 +74,16 @@ const DEV_LOOPBACK_FRAME_SOURCES = process.env.NODE_ENV === "production"
 // per-request nonce through the layouts' inline scripts, which is a larger,
 // separately-tested change — but narrowing script hosts is the higher-value
 // half and ships now. `'unsafe-eval'` stays dev-only.
+// AUTH-001: the managed bot-challenge (Cloudflare Turnstile) loads its widget
+// script from this ONE pinned host — the sanctioned "CDNs the app genuinely
+// loads, pinned by host" extension referenced above. The widget's own iframe
+// and network calls are already covered by `frame-src https:` / `connect-src
+// https:` below. No wildcard is added; if Turnstile is not configured the host
+// is simply unused. Kept in both variants so the dev widget renders too.
+const TURNSTILE_SCRIPT_HOST = "https://challenges.cloudflare.com";
 const SCRIPT_SRC = process.env.NODE_ENV === "production"
-  ? "script-src 'self' 'unsafe-inline'"
-  : "script-src 'self' 'unsafe-inline' 'unsafe-eval'";
+  ? `script-src 'self' 'unsafe-inline' ${TURNSTILE_SCRIPT_HOST}`
+  : `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${TURNSTILE_SCRIPT_HOST}`;
 
 const SECURITY_HEADERS = [
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },

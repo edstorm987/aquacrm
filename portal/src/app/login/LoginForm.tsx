@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { BotChallenge, type BotChallengeHandle } from "@/components/security/BotChallenge";
 
 interface Props {
   embedded?: boolean;
@@ -20,6 +21,9 @@ interface Props {
   // R9: surfaces the magic-link button. Only meaningful when clientId
   // is set (magic-link is end-customer-scoped).
   magicLinkEnabled?: boolean;
+  // AUTH-001: public Turnstile site key. Null → the widget renders nothing and
+  // the server decides enforcement (fail-closed in production when unset).
+  captchaSiteKey?: string | null;
 }
 
 type Mode = "signin" | "signup" | "magic";
@@ -27,6 +31,7 @@ type Mode = "signin" | "signup" | "magic";
 export function LoginForm({
   embedded = false, clientId, allowSignup = false,
   googleEnabled = false, magicLinkEnabled = false,
+  captchaSiteKey = null,
 }: Props) {
   const router = useRouter();
   const params = useSearchParams();
@@ -72,6 +77,10 @@ export function LoginForm({
   // the one chance they will ever get to save them.
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
   const [pendingRedirect, setPendingRedirect] = useState<string | null>(null);
+  // AUTH-001: the managed-challenge token. Single-use, so it is reset after
+  // every submit and re-issued for the next attempt (including the MFA re-post).
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const captchaRef = useRef<BotChallengeHandle>(null);
 
   function navigate(url: string) {
     if (embedded && typeof window !== "undefined" && window.parent !== window) {
@@ -121,7 +130,11 @@ export function LoginForm({
         res = await fetch("/api/auth/login", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ email, password, clientId, brand: brandParam, ...(code.trim() ? { code: code.trim() } : {}) }),
+          body: JSON.stringify({
+            email, password, clientId, brand: brandParam,
+            ...(code.trim() ? { code: code.trim() } : {}),
+            ...(captchaToken ? { captchaToken } : {}),
+          }),
         });
       }
       const data = (await res.json()) as {
@@ -136,6 +149,10 @@ export function LoginForm({
           setMfaRequired(true);
           setCode("");
         }
+        // AUTH-001: the challenge token was single-use and is now spent (or the
+        // attempt failed before it could be). Re-issue a fresh one so the next
+        // submit — a retry, or the MFA code re-post — carries a valid token.
+        captchaRef.current?.reset();
         setError(data.error ?? `${mode === "signup" ? "Sign-up" : "Sign-in"} failed.`);
         setBusy(false);
         return;
@@ -282,6 +299,18 @@ export function LoginForm({
         >
           Forgot password?
         </a>
+      )}
+      {/* AUTH-001: managed bot-challenge, shown for the password sign-in only
+          (not the magic-link / signup side doors, which are governed elsewhere).
+          Renders nothing when no site key is configured. */}
+      {mode === "signin" && (
+        <BotChallenge
+          ref={captchaRef}
+          siteKey={captchaSiteKey}
+          action="login"
+          onToken={setCaptchaToken}
+          className="mm-auth-captcha"
+        />
       )}
       {error && <p role="alert" className="mm-form-error">{error}</p>}
       {magicSent && (
