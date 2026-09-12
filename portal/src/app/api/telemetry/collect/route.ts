@@ -146,6 +146,15 @@ export async function POST(req: NextRequest) {
     const occurredAt = typeof body.occurredAt === "number" && Number.isFinite(body.occurredAt)
       ? new Date(body.occurredAt).toISOString()
       : new Date().toISOString();
+    const metadata: Record<string, unknown> = { origin: requestedOrigin || "unknown" };
+    metadata.resolvedScope = {
+      agencyId: scope.agencyId,
+      clientId: scope.clientId ?? null,
+      siteId: scope.siteId,
+      siteKey: scope.siteKey,
+      host: scope.host,
+      keyClass: scope.keyClass,
+    };
     const { error } = await supabase.from("website_consent_events").insert({
       brand_slug: publicSite?.brand ?? null,
       site_key: siteKey,
@@ -158,7 +167,12 @@ export async function POST(req: NextRequest) {
       consent_version: typeof body.consentVersion === "number" ? Math.max(1, Math.floor(body.consentVersion)) : 1,
       source: "aqua-tag",
       occurred_at: occurredAt,
-      metadata: { origin: requestedOrigin || "unknown" },
+      // Copy the resolver's immutable result into the durable audit row. The
+      // browser-public key and host may later be rotated or reassigned; neither
+      // can then erase which exact tenant/client/site accepted this choice.
+      // These are operational identifiers and a public origin, never captured
+      // form fields, challenge material or other visitor PII.
+      metadata,
     });
     if (error) {
       console.error("[telemetry] consent audit insert failed", error.message);

@@ -34,7 +34,7 @@ Four browser-emitted key classes, one authoritative resolver and one routing
 registry:
 
 - **Per-client key** — `newTelemetrySiteKey()` (`src/lib/server/…`), stored as `telemetrySiteKey` on the client. Identifies a specific client's site.
-- **Agency master key** — `ensureAgencyMasterSiteKey(agencyId)`: one stable key per agency, generated on first ask and **kept forever** (the tag lives in people's sites — it must never rotate). The reverse lookup on the ingestion path is `resolveAgencyByMasterSiteKey(siteKey)`. The paste-in snippet is `masterTagSnippet(origin, siteKey)`. Stored in `agencyMasterTagKeys` on `PortalState`.
+- **Agency master key** — `ensureAgencyMasterSiteKey(agencyId)`: one stable key per agency, generated on first ask and **kept forever** (the tag lives in people's sites — it must never rotate). `listAgenciesByMasterSiteKey(siteKey)` lets the admission resolver count every persisted owner; the compatibility lookup `resolveAgencyByMasterSiteKey(siteKey)` answers only for exactly one owner. The paste-in snippet is `masterTagSnippet(origin, siteKey)`. Stored in `agencyMasterTagKeys` on `PortalState`.
 - **Hardcoded public-project key** — a first-party Aqua property in
   `publicSites`; accepted only on that property's fixed origin allowlist.
 - **Agency-website key** — the key on `agencyWebsites`; accepted only on that
@@ -43,7 +43,9 @@ registry:
 
 `resolveAquaTagAdmissionScope` is the one public request resolver for all four
 classes. It requires one unambiguous key owner plus the exact registered host;
-key collisions or an unregistered host fail closed. It keeps both the canonical
+key collisions or an unregistered host fail closed. Master-key lookup enumerates
+every persisted owner before applying the host boundary, so corrupt duplicate
+agency keys cannot silently select the first agency. It keeps both the canonical
 routing host (`www.example.com` → `example.com`) and the exact request hostname.
 Turnstile must attest that exact hostname, so an apex proof cannot satisfy a
 `www` request (or vice versa) even though both may map to the same routing rule.
@@ -158,7 +160,7 @@ The step-2/3 logic is real, not stubbed:
   one-time evidence-backed backfill records the true original receipt; the
   migration never invents `attached:true`.
 - **`POST /api/public/brand-enquiry`** *(LIVE `brand_enquiries`)* — website enquiry submission; carries the same routing + a 2-minute **dedupe guard**.
-- **`POST /api/telemetry/collect`** *(LIVE `website_consent_events`)* — page telemetry + consent events, CORS + consent-gated. The route passes the exact resolved tenant/client/site scope into the sink; the sink rechecks it instead of choosing the first client carrying a browser-public key. Distinct hosts can therefore route a collided key to their exact owners, while an ambiguous exact key/host fails closed. Telemetry beacons do not use CAPTCHA.
+- **`POST /api/telemetry/collect`** *(LIVE `website_consent_events`)* — page telemetry + consent events, CORS + consent-gated. The route passes the exact resolved tenant/client/site scope into the sink; the sink rechecks it instead of choosing the first client carrying a browser-public key. Distinct hosts can therefore route a collided key to their exact owners, while an ambiguous exact key/host fails closed. Consent audit rows copy that exact agency/client/site/key/host scope into governed metadata so later key rotation or routing changes cannot erase attribution; it contains operational identifiers only, not captured form values or challenge tokens. Telemetry beacons do not use CAPTCHA.
 - **`src/server/agencyWebsite.ts`** — records/summarises agency-site telemetry (`recordAgencyWebsiteTelemetry`, `resetAgencyWebsiteTelemetryKey`, `summarizeAgencyWebsite`). Client telemetry mirrors this via `/api/tenants/client-telemetry` + `lib/…/clientTelemetry`.
 
 ## 6. Embed (tag-adjacent)

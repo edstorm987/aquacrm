@@ -12,8 +12,8 @@ import { FOUNDER_AGENCY_SLUG } from "@/lib/server/seeds/founderSeed";
 import { getState } from "@/server/storage";
 import { getAgencyBySlug } from "@/server/tenants";
 import {
+  listAgenciesByMasterSiteKey,
   listWebsiteSources,
-  resolveAgencyByMasterSiteKey,
 } from "@/server/websiteSources";
 
 const VERSION = 1;
@@ -197,10 +197,8 @@ export function resolveAquaTagAdmissionScope(siteKeyValue: unknown, originValue:
   }
 
   const candidates: AquaTagAdmissionScope[] = [];
-  const masterAgencyId = resolveAgencyByMasterSiteKey(siteKey);
-  if (masterAgencyId) {
-    const source = listWebsiteSources(masterAgencyId).find(entry => entry.host === host);
-    if (source) {
+  for (const masterAgencyId of listAgenciesByMasterSiteKey(siteKey)) {
+    for (const source of listWebsiteSources(masterAgencyId).filter(entry => entry.host === host)) {
       candidates.push({
         agencyId: masterAgencyId,
         siteKey,

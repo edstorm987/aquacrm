@@ -359,7 +359,7 @@ not live.
 | `/api/assistant` | GET, POST | AI assistant workspace: threads, memory, ask OpenAI | agency owner/manager | |
 | `/api/mcp` | POST, GET, DELETE | External-assistant MCP JSON-RPC (POST); GET 405 / DELETE 204 | external assistant token | |
 | `/api/webhooks/meta` | GET, POST | Meta webhook verify (GET) + signed event ingest → inbox queue | public (verify-token / signature) | **LIVE (inbox store)** |
-| `/api/telemetry/collect` | OPTIONS, POST | Ingest website telemetry/consent events using the exact resolved tenant/client/site target → Supabase | public (exact key+host scope, CORS, consent-gated; no CAPTCHA) | **LIVE (admin, consent events)** |
+| `/api/telemetry/collect` | OPTIONS, POST | Ingest website telemetry/consent events using the exact resolved tenant/client/site target; consent rows retain that immutable lineage in governed metadata → Supabase | public (exact key+host scope, CORS, consent-gated; no CAPTCHA) | **LIVE (admin, consent events)** |
 | `/api/cron/inbox` | GET | Cron (daily): drain inbox webhook queue + prune + full radar sweeps + evidence rollup | `CRON_SECRET` bearer | **LIVE (inbox store)** |
 | `/api/cron/radar-probes` | GET | Cron (~10 min): fast Deep + Infra probe refresh only (no Pulse rebuild) — radar upgrade probe cadence | `CRON_SECRET` bearer | **LIVE (probes DB/network)** |
 | `/api/internal/sweep` | GET | Founder diagnostic: sweep rate-limit/lockout + automations + inbox queue | agency owner (founder) | **LIVE (inbox store)** |

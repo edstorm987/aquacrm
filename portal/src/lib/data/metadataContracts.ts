@@ -235,6 +235,13 @@ export const METADATA_KEY_CONTRACTS: readonly MetadataKeyContract[] = [
   // ── consent — versions and purposes ─────────────────────────────────────
   plain("consentVersion", "consent", "number — consent text version agreed", "lib/enquiries", "enquiry"),
   plain("consentPurpose", "consent", "string — purpose the consent covers", "lib/enquiries", "enquiry"),
+  plain(
+    "resolvedScope",
+    "routing",
+    "object — immutable agency/client/site/key/host attribution resolved when a website consent choice was accepted",
+    "app/api/telemetry/collect",
+    "consent",
+  ),
 
   // ── client requests / records / files ───────────────────────────────────
   plain("clientRequests", "delivery", "array — requests raised by the client", "server/clientRelationships", "client", "personal"),

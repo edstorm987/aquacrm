@@ -41,7 +41,12 @@ test("every callable function is expected with its migration; trigger functions 
 
 test("the added columns and the eight buckets are expected", () => {
   const { columns, buckets } = expectedObjects();
-  assert.deepEqual([...columns.keys()].sort(), ["brand_enquiries.agency_id", "inbox_webhook_events.lease_owner", "profiles.agency_id"]);
+  assert.deepEqual([...columns.keys()].sort(), [
+    "aqua_tag_submissions.tag_capture_digest",
+    "brand_enquiries.agency_id",
+    "inbox_webhook_events.lease_owner",
+    "profiles.agency_id",
+  ]);
   assert.equal(buckets.size, 8);
   assert.equal(buckets.get("aquacrm-uploads")?.isPublic, false);
   assert.equal(buckets.get("aquacrm-public")?.isPublic, true);

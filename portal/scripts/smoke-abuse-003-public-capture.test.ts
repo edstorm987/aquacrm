@@ -8,6 +8,11 @@ process.env.PORTAL_BACKEND ??= "memory";
 process.env.PORTAL_SESSION_SECRET ??= "abuse-003-local-admission-secret";
 process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = "1x00000000000000000000AA";
 process.env.TURNSTILE_SECRET_KEY = "1x0000000000000000000000000000000AA";
+// Consent-audit persistence is intercepted by the fixture fetch below. Force a
+// non-live target so this behavioral suite can never inherit real credentials.
+process.env.NEXT_PUBLIC_SUPABASE_URL = "https://abuse-003.invalid";
+process.env.SUPABASE_SECRET_KEY = "";
+process.env.SUPABASE_SERVICE_ROLE_KEY = "abuse-003-local-only-service-key";
 
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
@@ -25,9 +30,14 @@ import {
 } from "../src/lib/server/security/aquaTagFormAdmission";
 import { ensureClientTelemetry } from "../src/lib/server/clients/clientTelemetryService";
 import { ensureAgencyWebsite } from "../src/server/agencyWebsite";
-import { getState } from "../src/server/storage";
+import { getState, mutate } from "../src/server/storage";
 import { createAgency, createClient, updateClient } from "../src/server/tenants";
-import { addWebsiteSource, ensureAgencyMasterSiteKey } from "../src/server/websiteSources";
+import {
+  addWebsiteSource,
+  ensureAgencyMasterSiteKey,
+  resolveAgencyByMasterSiteKey,
+  updateWebsiteSourceRouting,
+} from "../src/server/websiteSources";
 import {
   __resetBotChallengeForTest,
 } from "../src/lib/server/security/botChallenge";
@@ -53,6 +63,7 @@ const ORIGIN = "https://portal.example.test";
 const CONTACT_STATEMENT = "I agree that this site may use these details to respond to my request.";
 const NEWSLETTER_STATEMENT = "I agree to receive the newsletter by email.";
 let realFetch: typeof fetch;
+const capturedConsentRows: Array<Record<string, unknown>> = [];
 
 function memoryStorage(): PluginStorage {
   const data = new Map<string, unknown>();
@@ -156,7 +167,14 @@ function request(path: string, body: unknown, ip: string) {
 
 before(() => {
   realFetch = globalThis.fetch;
-  globalThis.fetch = (async (_input, init) => {
+  globalThis.fetch = (async (input, init) => {
+    const url = typeof input === "string" || input instanceof URL ? String(input) : input.url;
+    if (url.startsWith("https://abuse-003.invalid/rest/v1/website_consent_events")) {
+      const raw = typeof init?.body === "string" ? init.body : await new Request(input, init).text();
+      const parsed = JSON.parse(raw) as Record<string, unknown> | Array<Record<string, unknown>>;
+      capturedConsentRows.push(...(Array.isArray(parsed) ? parsed : [parsed]));
+      return new Response(null, { status: 201 });
+    }
     const params = new URLSearchParams(String(init?.body ?? ""));
     const token = params.get("response") ?? "";
     const action = token.startsWith("tag-wrong-action")
@@ -179,7 +197,10 @@ before(() => {
   }) as typeof fetch;
 });
 
-beforeEach(() => __resetBotChallengeForTest());
+beforeEach(() => {
+  __resetBotChallengeForTest();
+  capturedConsentRows.length = 0;
+});
 after(() => { globalThis.fetch = realFetch; });
 
 describe("Website Editor public visitor challenge boundary", { concurrency: false }, () => {
@@ -495,6 +516,45 @@ describe("Aqua Tag signed form admission", { concurrency: false }, () => {
     await issueFor(website.telemetrySiteKey, website.productionUrl, 3);
   });
 
+  it("refuses a shared master key when two agencies register the same exact host", async () => {
+    const sharedKey = `aqua_shared_master_${Date.now()}`;
+    const sharedHost = "shared-master.example";
+    const agencyA = createAgency({ name: "Master collision A", slug: `master-collision-a-${Date.now()}` });
+    const agencyB = createAgency({ name: "Master collision B", slug: `master-collision-b-${Date.now()}` });
+    for (const agency of [agencyA, agencyB]) {
+      addWebsiteSource({ agencyId: agency.id, host: sharedHost, createdBy: "owner" });
+    }
+    mutate(state => {
+      state.agencyMasterTagKeys ??= {};
+      state.agencyMasterTagKeys[agencyA.id] = sharedKey;
+      state.agencyMasterTagKeys[agencyB.id] = sharedKey;
+    });
+
+    assert.equal(resolveAgencyByMasterSiteKey(sharedKey), undefined,
+      "the compatibility resolver must not pick the first corrupt owner");
+    assert.equal(resolveAquaTagAdmissionScope(sharedKey, `https://${sharedHost}`), null,
+      "admission must count both exact key/host owners and fail closed");
+
+    const response = await issueAdmission(new NextRequest("http://localhost/api/public/aqua-tag-admission", {
+      method: "POST",
+      headers: {
+        origin: `https://${sharedHost}`,
+        "content-type": "application/json",
+        "x-forwarded-for": "198.51.100.184",
+      },
+      body: JSON.stringify({
+        siteKey: sharedKey,
+        submissionId: "aqua_sub_mastercollision0001",
+        pageUrl: `https://${sharedHost}/contact`,
+        pagePath: "/contact",
+        formName: "Shared host form",
+        fields: [{ key: "email", value: "visitor@example.test" }],
+        captchaToken: `tag@${sharedHost}`,
+      }),
+    }));
+    assert.equal(response.status, 403, "a duplicate master-key owner received a signed admission");
+  });
+
   it("host-validates non-hardcoded telemetry without adding CAPTCHA to beacons", async () => {
     const agency = createAgency({ name: "ABUSE 003 telemetry", slug: `abuse-003-telemetry-${Date.now()}` });
     const client = createClient(agency.id, { name: "Telemetry client", websiteUrl: "https://telemetry-client.example" });
@@ -550,5 +610,81 @@ describe("Aqua Tag signed form admission", { concurrency: false }, () => {
     assert.equal((await post("https://tenant-b.example", { ...body, occurredAt: body.occurredAt + 1 })).status, 403,
       "two owners for one exact key/host must fail closed");
     assert.equal((getState().clients[clientB.id]?.metadata?.telemetryEvents as unknown[] | undefined)?.length ?? 0, 1);
+  });
+
+  it("persists immutable consent lineage through key rotation, rerouting and later collision", async () => {
+    const origin = "https://consent-lineage.example";
+    const agency = createAgency({ name: "Consent lineage agency", slug: `consent-lineage-${Date.now()}` });
+    const firstClient = createClient(agency.id, { name: "First consent owner", websiteUrl: "https://first-owner.example" });
+    const secondClient = createClient(agency.id, { name: "Second consent owner", websiteUrl: "https://second-owner.example" });
+    const siteKey = ensureClientTelemetry(agency.id, firstClient.id)?.siteKey;
+    assert.ok(siteKey);
+    const source = addWebsiteSource({
+      agencyId: agency.id,
+      host: origin,
+      destinationClientId: firstClient.id,
+      createdBy: "owner",
+    });
+    const consent = (anonymousId: string, occurredAt: number) => ({
+      siteKey,
+      propertyId: "lineage-property",
+      anonymousId,
+      type: "consent",
+      category: "necessary",
+      consentNecessary: true,
+      consentPreferences: false,
+      consentAnalytics: false,
+      consentMarketing: false,
+      consentVersion: 3,
+      occurredAt,
+    });
+    const post = (body: Record<string, unknown>, ip: string) => collectTelemetry(new NextRequest(
+      "http://localhost/api/telemetry/collect",
+      {
+        method: "POST",
+        headers: { origin, "content-type": "application/json", "x-forwarded-for": ip },
+        body: JSON.stringify(body),
+      },
+    ));
+
+    assert.equal((await post(consent("anon-first-visitor", 1_750_000_000_000), "203.0.113.190")).status, 202);
+    assert.equal(capturedConsentRows.length, 1);
+    const firstMetadata = structuredClone(capturedConsentRows[0]!.metadata) as Record<string, unknown>;
+    assert.deepEqual(firstMetadata, {
+      origin,
+      resolvedScope: {
+        agencyId: agency.id,
+        clientId: firstClient.id,
+        siteId: source.id,
+        siteKey,
+        host: "consent-lineage.example",
+        keyClass: "client-telemetry",
+      },
+    });
+    assert.doesNotMatch(JSON.stringify(firstMetadata), /anon-first-visitor|email|captcha/i,
+      "lineage metadata leaked visitor or challenge material");
+
+    updateClient(agency.id, firstClient.id, { metadata: { telemetrySiteKey: `aqua_rotated_${Date.now()}` } });
+    updateClient(agency.id, secondClient.id, { metadata: { telemetrySiteKey: siteKey, telemetryEvents: [] } });
+    assert.equal(updateWebsiteSourceRouting({
+      agencyId: agency.id,
+      id: source.id,
+      destinationClientId: secondClient.id,
+    })?.destinationClientId, secondClient.id);
+    assert.equal((await post(consent("anon-second-visitor", 1_750_000_000_100), "203.0.113.191")).status, 202);
+    assert.equal(capturedConsentRows.length, 2);
+    assert.deepEqual(capturedConsentRows[0]!.metadata, firstMetadata,
+      "later key/routing state rewrote the first consent attribution");
+    assert.equal(
+      (capturedConsentRows[1]!.metadata as { resolvedScope?: { clientId?: string } }).resolvedScope?.clientId,
+      secondClient.id,
+    );
+
+    const otherAgency = createAgency({ name: "Consent collision agency", slug: `consent-collision-${Date.now()}` });
+    const collidingClient = createClient(otherAgency.id, { name: "Colliding consent owner", websiteUrl: origin });
+    updateClient(otherAgency.id, collidingClient.id, { metadata: { telemetrySiteKey: siteKey, telemetryEvents: [] } });
+    assert.equal((await post(consent("anon-collision", 1_750_000_000_200), "203.0.113.192")).status, 403);
+    assert.equal(capturedConsentRows.length, 2, "an ambiguous key/host collision wrote an unattributable consent row");
+    assert.deepEqual(capturedConsentRows[0]!.metadata, firstMetadata);
   });
 });

@@ -231,6 +231,17 @@ describe("the master tag", () => {
     assert.equal(sources.resolveAgencyByMasterSiteKey("aqua_notreal"), undefined);
   });
 
+  it("never selects the first agency when durable master keys collide", () => {
+    const other = tenants.createAgency({ name: "Other collision master", slug: `ocm-${Math.floor(performance.now())}` }).id;
+    const key = sources.ensureAgencyMasterSiteKey(agencyId);
+    storage.mutate(state => {
+      state.agencyMasterTagKeys ??= {};
+      state.agencyMasterTagKeys[other] = key;
+    });
+    assert.deepEqual(sources.listAgenciesByMasterSiteKey(key), [agencyId, other].sort());
+    assert.equal(sources.resolveAgencyByMasterSiteKey(key), undefined);
+  });
+
   it("builds a one-line install snippet on the given origin", () => {
     assert.equal(
       sources.masterTagSnippet("https://aqua-crm.com/", "aqua_abc"),
