@@ -30,6 +30,7 @@ import { signPasswordResetToken } from "@/lib/server/auth/passwordReset";
 import { sendTransactionalEmail } from "@/lib/server/email/transactionalEmail";
 import { getAuthBrand } from "@/lib/brands/authBrand";
 import { verifyBotChallenge } from "@/lib/server/security/botChallenge";
+import { configuredPublicAuthOrigin } from "@/lib/server/auth/publicAuthOrigin";
 
 interface Body {
   email?: unknown;
@@ -93,6 +94,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const publicOrigin = configuredPublicAuthOrigin();
+  if (!publicOrigin) {
+    // Keep the public result indistinguishable from an unknown account, but do
+    // not mint a security link from the attacker-controlled request Host.
+    return NextResponse.json({ ok: true });
+  }
+
   await ensureHydrated();
 
   const user = getUser(email);
@@ -101,9 +109,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  const { token } = signPasswordResetToken({ userId: user.id, email: user.email });
-  const origin = req.nextUrl.origin;
-  const resetUrl = `${origin}/login/reset?token=${encodeURIComponent(token)}&brand=${encodeURIComponent(authBrand.id)}`;
+  const { token } = signPasswordResetToken({
+    userId: user.id,
+    email: user.email,
+    sessionRev: user.sessionRev ?? 0,
+  });
+  const resetUrl = `${publicOrigin}/login/reset?token=${encodeURIComponent(token)}&brand=${encodeURIComponent(authBrand.id)}`;
 
   const sent = await sendTransactionalEmail({
     to: user.email,

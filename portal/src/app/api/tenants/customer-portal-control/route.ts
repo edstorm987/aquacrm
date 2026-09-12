@@ -10,6 +10,7 @@ import { ensureClientPortalInstance, ensureProductPortalTemplate } from "@/serve
 import { getAgencyProduct, listAgencyProducts } from "@/server/agencyProducts";
 import { reconcileClientProductWorkspaces } from "@/server/productWorkspaces";
 import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
+import { configuredPublicAuthOrigin } from "@/lib/server/auth/publicAuthOrigin";
 
 type PortalMode = "onboarding" | "designing" | "developed-launch" | "maintenance";
 
@@ -251,7 +252,14 @@ export async function POST(req: NextRequest) {
     clientId: client.id,
     agencyId,
   });
-  const magicUrl = new URL("/login/magic", req.nextUrl.origin);
+  const publicOrigin = configuredPublicAuthOrigin();
+  if (!publicOrigin) {
+    return NextResponse.json(
+      { ok: false, error: "Secure public portal address is not configured." },
+      { status: 503 },
+    );
+  }
+  const magicUrl = new URL("/login/magic", publicOrigin);
   magicUrl.searchParams.set("token", token);
   // Setup rather than the portal itself. A first-timer has no password yet,
   // and the portal would send them straight back here anyway — landing them on

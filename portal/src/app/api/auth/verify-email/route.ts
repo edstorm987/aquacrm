@@ -12,7 +12,7 @@
 // dev-mode console-logged so retry is cheap.
 
 import { NextResponse, type NextRequest } from "next/server";
-import { ensureHydrated } from "@/server/storage";
+import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import {
   verifyVerifyEmailToken,
   consumeVerifyNonce,
@@ -20,8 +20,13 @@ import {
 import { getUserById, markEmailVerified } from "@/server/users";
 import { logActivity } from "@/server/activity";
 import { AGENCY_SIGNUP_SETUP_COOKIE, claimAgencySignupVerification } from "@/server/agencySignup";
+import { configuredPublicAuthOrigin } from "@/lib/server/auth/publicAuthOrigin";
 
 export async function GET(req: NextRequest) {
+  const publicOrigin = configuredPublicAuthOrigin();
+  if (!publicOrigin) {
+    return NextResponse.json({ ok: false, error: "auth_origin_unavailable" }, { status: 503 });
+  }
   await ensureHydrated();
 
   const token = req.nextUrl.searchParams.get("token") ?? "";
@@ -43,9 +48,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, error: claim.error }, { status: 400 });
     }
     if (claim.state === "complete") {
-      return NextResponse.redirect(new URL("/login?signup=complete", req.url));
+      return NextResponse.redirect(new URL("/login?signup=complete", publicOrigin));
     }
-    const response = NextResponse.redirect(new URL("/signup/setup", req.url));
+    const response = NextResponse.redirect(new URL("/signup/setup", publicOrigin));
     response.cookies.set(AGENCY_SIGNUP_SETUP_COOKIE, claim.setupToken, {
       httpOnly: true,
       sameSite: "lax",
@@ -54,6 +59,7 @@ export async function GET(req: NextRequest) {
       maxAge: 30 * 60,
       priority: "high",
     });
+    await flushPendingWrites();
     return response;
   }
 
@@ -85,5 +91,6 @@ export async function GET(req: NextRequest) {
     message: `${user.email} verified their email.`,
   });
 
-  return NextResponse.redirect(new URL("/portal/agency?verified=1", req.url));
+  await flushPendingWrites();
+  return NextResponse.redirect(new URL("/portal/agency?verified=1", publicOrigin));
 }

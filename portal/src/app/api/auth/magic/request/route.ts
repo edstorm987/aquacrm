@@ -16,6 +16,7 @@ import { getClient } from "@/server/tenants";
 import { getUser } from "@/server/users";
 import { signMagicToken, deliverMagicLink } from "@/lib/server/auth/magicLink";
 import { verifyBotChallenge } from "@/lib/server/security/botChallenge";
+import { configuredPublicAuthOrigin } from "@/lib/server/auth/publicAuthOrigin";
 
 interface Body { email?: unknown; clientId?: unknown; returnUrl?: unknown; captchaToken?: unknown; }
 
@@ -81,6 +82,9 @@ export async function POST(req: NextRequest) {
 
   await ensureHydrated();
 
+  const publicOrigin = configuredPublicAuthOrigin();
+  if (!publicOrigin) return NextResponse.json(ACCEPTED);
+
   const client = getClient(clientId);
   if (!client || !["active", "suspended"].includes(client.status)) {
     return NextResponse.json(ACCEPTED);
@@ -97,8 +101,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { token } = signMagicToken({ email, clientId, agencyId: client.agencyId });
-  const origin = req.nextUrl.origin;
-  const verifyPath = new URL("/login/magic", origin);
+  const verifyPath = new URL("/login/magic", publicOrigin);
   verifyPath.searchParams.set("token", token);
   verifyPath.searchParams.set("return", returnUrl);
   const magicUrl = verifyPath.toString();

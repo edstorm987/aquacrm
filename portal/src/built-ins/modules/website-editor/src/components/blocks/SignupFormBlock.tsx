@@ -54,13 +54,9 @@ export default function SignupFormBlock({ block, editorMode }: BlockRenderProps)
   const showName    = block.props.showName !== false;
   const showPhone   = block.props.showPhone !== false;
   const showMessage = block.props.showMessage !== false;
-  const requireTerms = block.props.requireTerms === true;
   const termsHref   = (block.props.termsHref as string | undefined)   ?? "/terms";
   const loginHref   = (block.props.loginHref as string | undefined)   ?? "/login";
   const showLoginLink = block.props.showLoginLink !== false;
-  // Optional agency slug, for a site whose host is not registered in the app.
-  // The route treats it as a preference it looks up, never as a grant.
-  const brand       = (block.props.brand as string | undefined)       ?? "";
   const protectedLeadCapture = action.trim() === "/api/auth/signup";
   const challenge = usePublicBotChallengeConfig();
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
@@ -142,7 +138,6 @@ export default function SignupFormBlock({ block, editorMode }: BlockRenderProps)
         </p>
       )}
       <form action={action} method="POST" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {brand && <input type="hidden" name="brand" value={brand} />}
         {/* Honeypot — off-screen, never tabbable, never autofilled. Bots fill
             it; the route answers them with the same friendly success and
             writes nothing. */}
@@ -176,12 +171,10 @@ export default function SignupFormBlock({ block, editorMode }: BlockRenderProps)
             <textarea name="message" rows={4} disabled={editorMode} style={{ ...inputStyle, minHeight: 88, resize: "vertical" }} />
           </label>
         )}
-        {requireTerms && (
-          <label style={{ display: "inline-flex", alignItems: "flex-start", gap: 8, fontSize: 11, opacity: 0.85 }}>
-            <input name="terms" type="checkbox" required disabled={editorMode} style={{ marginTop: 3 }} />
-            <span>I agree to the <a href={termsHref} style={{ color: "var(--theme-primary, #ff6b35)" }}>terms of service</a>.</span>
-          </label>
-        )}
+        <label style={{ display: "inline-flex", alignItems: "flex-start", gap: 8, fontSize: 11, opacity: 0.85 }}>
+          <input name="terms" type="checkbox" required disabled={editorMode} style={{ marginTop: 3 }} />
+          <span>I agree to the <a href={termsHref} style={{ color: "var(--theme-primary, #ff6b35)" }}>terms of service</a>.</span>
+        </label>
         {protectedLeadCapture && !editorMode ? (
           <>
             <input type="hidden" name="captchaToken" value={captchaToken ?? ""} />

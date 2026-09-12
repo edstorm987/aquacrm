@@ -9,7 +9,7 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import crypto from "crypto";
-import { ensureHydrated } from "@/server/storage";
+import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { issueSession, sessionCookie } from "@/lib/server/auth/auth";
 import { getClient } from "@/server/tenants";
 import { createUser, getUser, markEmailVerified } from "@/server/users";
@@ -17,14 +17,16 @@ import { logActivity } from "@/server/activity";
 import {
   consumeClientPortalInviteNonce,
   consumeMagicNonce,
+  magicLinkSessionRevision,
   verifyMagicToken,
   type MagicLinkPurpose,
 } from "@/lib/server/auth/magicLink";
 import { checkSideDoorMfa } from "@/lib/server/auth/mfa";
 import { resolvePostLoginPath } from "@/lib/server/auth/postLoginRedirect";
+import { configuredPublicAuthOrigin } from "@/lib/server/auth/publicAuthOrigin";
 
-function err(req: NextRequest, code: string) {
-  const url = new URL("/login", req.nextUrl.origin);
+function err(origin: string, code: string) {
+  const url = new URL("/login", origin);
   url.searchParams.set("magic_error", code);
   return NextResponse.redirect(url, 302);
 }
@@ -51,14 +53,18 @@ async function consumePurposeNonce(
 }
 
 export async function GET(req: NextRequest) {
+  const publicOrigin = configuredPublicAuthOrigin();
+  if (!publicOrigin) {
+    return NextResponse.json({ ok: false, error: "auth_origin_unavailable" }, { status: 503 });
+  }
   await ensureHydrated();
 
   const token = req.nextUrl.searchParams.get("token");
   const ret = req.nextUrl.searchParams.get("return");
-  if (!token) return err(req, "missing_token");
+  if (!token) return err(publicOrigin, "missing_token");
 
   const v = verifyMagicToken(token);
-  if (!v.ok) return err(req, v.error);
+  if (!v.ok) return err(publicOrigin, v.error);
   const { purpose, email, clientId, agencyId, exp, nonce } = v.payload;
 
   const client = getClient(clientId);
@@ -66,7 +72,7 @@ export async function GET(req: NextRequest) {
     ? client?.status === "active"
     : !!client && ["active", "suspended"].includes(client.status);
   if (!client || !clientStateAllowed || client.agencyId !== agencyId) {
-    return err(req, "client_inactive");
+    return err(publicOrigin, "client_inactive");
   }
 
   // Invitation issuance is tied to the managed portal lifecycle. Requiring
@@ -79,21 +85,21 @@ export async function GET(req: NextRequest) {
       || typeof client.metadata?.portalBuiltAt !== "number"
     )
   ) {
-    return err(req, "invite_not_allowed");
+    return err(publicOrigin, "invite_not_allowed");
   }
 
   const scope = { email, clientId, agencyId };
   const beforeConsume = getUser(email, { clientId, role: "end-customer" });
   if (beforeConsume && !isExactEndCustomer(beforeConsume, scope)) {
-    return err(req, "membership_invalid");
+    return err(publicOrigin, "membership_invalid");
   }
   if (purpose === "sign-in" && !beforeConsume) {
-    return err(req, "membership_required");
+    return err(publicOrigin, "membership_required");
   }
   // Never manufacture a new scoped identity over an existing unscoped
   // agency/client/lead account. No role is mutated or widened here.
   if (purpose === "client-portal-invite" && !beforeConsume && getUser(email)) {
-    return err(req, "account_conflict");
+    return err(publicOrigin, "account_conflict");
   }
 
   // ─── The second-factor side door check ──────────────────────────────────
@@ -106,20 +112,20 @@ export async function GET(req: NextRequest) {
   // closed. Placed before nonce consumption, membership creation, and session
   // issuance so a refused sign-in cannot mutate admission state.
   const mfaGate = await checkSideDoorMfa(email);
-  if (mfaGate.status === "refuse") return err(req, mfaGate.error);
+  if (mfaGate.status === "refuse") return err(publicOrigin, mfaGate.error);
 
   // R028: atomic single-use check. Purpose-specific nonce kinds make the
   // admission capability explicit in both the signed claim and durable ledger.
   const consumed = await consumePurposeNonce(purpose, nonce, exp);
-  if (!consumed) return err(req, "already_used");
+  if (!consumed) return err(publicOrigin, "already_used");
 
   // Re-read after the awaited atomic consume so a concurrent redemption cannot
   // race the membership check and create two records.
   let user = getUser(email, { clientId, role: "end-customer" });
-  if (user && !isExactEndCustomer(user, scope)) return err(req, "membership_invalid");
+  if (user && !isExactEndCustomer(user, scope)) return err(publicOrigin, "membership_invalid");
   if (!user) {
-    if (purpose !== "client-portal-invite") return err(req, "membership_required");
-    if (getUser(email)) return err(req, "account_conflict");
+    if (purpose !== "client-portal-invite") return err(publicOrigin, "membership_required");
+    if (getUser(email)) return err(publicOrigin, "account_conflict");
     user = createUser({
       email,
       // Random password — magic-link is the auth method; password path
@@ -151,26 +157,30 @@ export async function GET(req: NextRequest) {
   // The token was delivered to this exact signed email and survived the
   // single-use redemption gate. Persist that proof so first-time setup can
   // refuse sessions that did not arrive through a verified auth ceremony.
-  markEmailVerified(user.id);
+  const verifiedUser = markEmailVerified(user.id);
+  if (!verifiedUser) return err(publicOrigin, "membership_invalid");
+  user = verifiedUser;
 
   const sessionToken = issueSession({
     userId: user.id, email: user.email, role: user.role,
     agencyId: user.agencyId, ...(user.clientId ? { clientId: user.clientId } : {}),
+    sessionRev: magicLinkSessionRevision(user),
     // One factor was proven here (mailbox access), and the cookie says so.
     aal: "aal1",
   });
   const cookie = sessionCookie(sessionToken);
   const fallback = resolvePostLoginPath(null, user);
-  let redirectTo = new URL(fallback, req.nextUrl.origin);
+  let redirectTo = new URL(fallback, publicOrigin);
   if (ret && ret.startsWith("/") && !ret.startsWith("//")) {
     try {
-      const candidate = new URL(ret, req.nextUrl.origin);
-      if (candidate.origin === req.nextUrl.origin) redirectTo = candidate;
+      const candidate = new URL(ret, publicOrigin);
+      if (candidate.origin === publicOrigin) redirectTo = candidate;
     } catch {
       // Keep the role-derived fallback.
     }
   }
   const res = NextResponse.redirect(redirectTo, 302);
   res.cookies.set(cookie.name, cookie.value, cookie.options);
+  await flushPendingWrites();
   return res;
 }

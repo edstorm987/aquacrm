@@ -19,6 +19,7 @@ import {
 import { signPasswordResetToken } from "@/lib/server/auth/passwordReset";
 import { sendTransactionalEmail } from "@/lib/server/email/transactionalEmail";
 import { flushPendingWrites } from "@/server/storage";
+import { configuredPublicAuthOrigin } from "@/lib/server/auth/publicAuthOrigin";
 
 export interface FreelancerAdminRow {
   employeeId: string;
@@ -65,7 +66,6 @@ export function createFreelancer(
   const email = (input.email ?? "").trim().toLowerCase();
   if (!name) return { ok: false, error: "name_required" };
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: "email_invalid" };
-
   let user = getUser(email);
   if (user && user.agencyId !== agencyId) return { ok: false, error: "email_in_use" };
   if (!user) {
@@ -111,7 +111,7 @@ export interface InviteFreelancerDependencies {
 export async function inviteFreelancer(
   agencyId: string,
   actorUserId: string,
-  input: { name?: string; email?: string; title?: string; origin: string },
+  input: { name?: string; email?: string; title?: string },
   dependencies: InviteFreelancerDependencies = {},
 ): Promise<InviteFreelancerResult> {
   const name = (input.name ?? "").trim();
@@ -119,6 +119,8 @@ export async function inviteFreelancer(
   const title = (input.title ?? "").trim() || "Freelancer";
   if (!name) return { ok: false, error: "name_required" };
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: "email_invalid" };
+  const publicOrigin = configuredPublicAuthOrigin();
+  if (!publicOrigin) return { ok: false, error: "auth_origin_unavailable" };
 
   const existingUser = getUser(email);
   if (existingUser && (existingUser.agencyId !== agencyId || existingUser.role !== "freelancer")) {
@@ -155,8 +157,12 @@ export async function inviteFreelancer(
       await flushPendingWrites();
     }
 
-    const { token } = (dependencies.signSetupToken ?? signPasswordResetToken)({ userId: result.user.id, email: result.user.email });
-    const setupUrl = `${input.origin.replace(/\/$/, "")}/login/reset?token=${encodeURIComponent(token)}`;
+    const { token } = (dependencies.signSetupToken ?? signPasswordResetToken)({
+      userId: result.user.id,
+      email: result.user.email,
+      sessionRev: result.user.sessionRev ?? 0,
+    });
+    const setupUrl = `${publicOrigin}/login/reset?token=${encodeURIComponent(token)}`;
     const sent = await (dependencies.sendEmail ?? sendTransactionalEmail)({
       to: result.user.email,
       agencyId,

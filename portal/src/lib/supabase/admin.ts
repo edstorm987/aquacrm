@@ -146,26 +146,46 @@ export async function provisionSupabaseIdentity(input: ProvisionIdentityInput) {
 /**
  * Create a new Supabase subject for one exact, verified client-portal member.
  *
- * Deliberately does not search by email or adopt an existing result. A global
- * email match may be an agency owner (or another tenant's user), so the only
- * safe outcomes are a newly-created subject returned by this call or a hard
- * refusal from Supabase's unique-email constraint.
+ * A first attempt deliberately does not search by email or adopt an existing
+ * result. When a durable reset operation is resumed after an ambiguous provider
+ * response, it may adopt only a subject bearing both the exact immutable client
+ * binding and that operation's private marker. A global email match alone is
+ * never authority because it may belong to another tenant or account role.
  */
 export async function provisionBoundClientPortalIdentity(input: {
   email: string;
   password: string;
   name?: string;
   binding: ClientPortalIdentityBinding;
+  /** Stable durable operation allowed to adopt only its own lost response. */
+  operationId?: string;
 }) {
   const admin = createSupabaseAdminClient();
   const email = input.email.trim().toLowerCase();
   const binding = normaliseClientPortalBinding(input.binding);
+  if (input.operationId) {
+    const existing = await findSupabaseUserByEmail(email);
+    if (existing) {
+      const expected = clientPortalAppMetadata(binding);
+      const metadata = existing.app_metadata ?? {};
+      const exactBinding = Object.entries(expected).every(([key, value]) => metadata[key] === value);
+      if (!exactBinding || metadata.aqua_password_reset_operation_id !== input.operationId) {
+        throw new Error("An unrelated Supabase sign-in already exists for this email.");
+      }
+      const { data, error } = await admin.auth.admin.updateUserById(existing.id, { password: input.password });
+      if (error || !data.user) throw new Error(error?.message ?? "Could not resume the client portal sign-in reset.");
+      return data.user;
+    }
+  }
   const { data, error } = await admin.auth.admin.createUser({
     email,
     password: input.password,
     email_confirm: true,
     user_metadata: { full_name: input.name?.trim() || email.split("@")[0] },
-    app_metadata: clientPortalAppMetadata(binding),
+    app_metadata: {
+      ...clientPortalAppMetadata(binding),
+      ...(input.operationId ? { aqua_password_reset_operation_id: input.operationId } : {}),
+    },
   });
   if (error || !data.user) {
     throw new Error(error?.message ?? "Could not create the client portal sign-in.");
@@ -215,6 +235,27 @@ export async function updateBoundClientPortalPassword(input: {
   const { data, error } = await admin.auth.admin.updateUserById(authUserId, { password: input.password });
   if (error || !data.user || data.user.id !== authUserId) {
     throw new Error(error?.message ?? "Could not update the bound client portal password.");
+  }
+  return data.user;
+}
+
+/** Update one immutable non-client Supabase subject; never search by email. */
+export async function updateSupabasePasswordById(input: {
+  authUserId: string;
+  email: string;
+  password: string;
+}) {
+  const admin = createSupabaseAdminClient();
+  const authUserId = input.authUserId.trim();
+  const email = input.email.trim().toLowerCase();
+  if (!authUserId) throw new Error("The Supabase sign-in is not bound.");
+  const { data: found, error: findError } = await admin.auth.admin.getUserById(authUserId);
+  if (findError || !found.user || found.user.id !== authUserId || found.user.email?.trim().toLowerCase() !== email) {
+    throw new Error(findError?.message ?? "The bound Supabase sign-in could not be verified.");
+  }
+  const { data, error } = await admin.auth.admin.updateUserById(authUserId, { password: input.password });
+  if (error || !data.user || data.user.id !== authUserId) {
+    throw new Error(error?.message ?? "Could not update the bound Supabase password.");
   }
   return data.user;
 }

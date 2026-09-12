@@ -18,6 +18,8 @@ import {
   _clearUsedForTests,
   registerMagicLinkDelivery,
   deliverMagicLink,
+  magicLinkDeliveryOperationRef,
+  magicLinkSessionRevision,
 } from "../src/lib/server/auth/magicLink";
 
 test("signMagicToken → verifyMagicToken round-trip", () => {
@@ -102,6 +104,11 @@ test("single-use: mark + replay rejection", () => {
   assert.equal(isUsed(payload.nonce), true);
 });
 
+test("magic-link sessions preserve the current user sessionRev", () => {
+  assert.equal(magicLinkSessionRevision({ sessionRev: 12 }), 12);
+  assert.equal(magicLinkSessionRevision({}), 0);
+});
+
 test("delivery hook: registered hook is called and reports email-sender via", async () => {
   const calls: unknown[] = [];
   registerMagicLinkDelivery(async input => { calls.push(input); });
@@ -111,7 +118,78 @@ test("delivery hook: registered hook is called and reports email-sender via", as
   assert.equal(r.delivered, true);
   assert.equal(r.via, "email-sender");
   assert.equal(calls.length, 1);
+  assert.equal(typeof (calls[0] as { operationRef?: unknown }).operationRef, "string");
   registerMagicLinkDelivery(null);
+});
+
+test("delivery ambiguity retries the same token generation with the same provider operation key", async () => {
+  registerMagicLinkDelivery(null);
+  const { token } = signMagicToken({
+    email: "Retry@Example.test",
+    clientId: "client_retry",
+    agencyId: "agency_retry",
+  });
+  const input = {
+    email: "retry@example.test",
+    clientId: "client_retry",
+    agencyId: "agency_retry",
+    magicUrl: `https://portal.example.test/login/magic?token=${encodeURIComponent(token)}`,
+  };
+  const refs: string[] = [];
+  let attempt = 0;
+  const sendEmail: typeof import("../src/lib/server/email/transactionalEmail").sendTransactionalEmail = async sent => {
+    refs.push(sent.externalRef);
+    attempt += 1;
+    return attempt === 1
+      ? {
+          delivered: false,
+          via: "resend",
+          reason: "provider response lost",
+          code: "REMOTE_OPERATION_TIMEOUT",
+          outcomeUnknown: true,
+          retry: "same-operation-key",
+        }
+      : { delivered: true, via: "resend", externalMessageId: "msg_retry" };
+  };
+  const origLog = console.log;
+  console.log = () => {};
+  try {
+    const lost = await deliverMagicLink(input, { sendEmail });
+    assert.equal(lost.delivered, false);
+    assert.equal(lost.outcomeUnknown, true);
+    assert.equal(lost.retry, "same-operation-key");
+    const retried = await deliverMagicLink(input, { sendEmail });
+    assert.equal(retried.delivered, true);
+    assert.equal(refs.length, 2);
+    assert.equal(refs[0], refs[1]);
+    assert.equal(lost.operationRef, retried.operationRef);
+    assert.equal(lost.operationRef, magicLinkDeliveryOperationRef(input));
+    assert.doesNotMatch(lost.operationRef, /retry@example\.test/);
+    assert.ok(!lost.operationRef.includes(token), "provider key must not contain the bearer token");
+  } finally {
+    console.log = origLog;
+  }
+});
+
+test("a subsequent genuinely new magic request receives a different provider operation key", async () => {
+  registerMagicLinkDelivery(null);
+  const subject = {
+    email: "new-request@example.test",
+    clientId: "client_new_request",
+    agencyId: "agency_new_request",
+  };
+  const firstToken = signMagicToken(subject).token;
+  const secondToken = signMagicToken(subject).token;
+  assert.notEqual(firstToken, secondToken, "each request must mint a fresh nonce");
+  const first = magicLinkDeliveryOperationRef({
+    ...subject,
+    magicUrl: `https://portal.example.test/login/magic?token=${encodeURIComponent(firstToken)}`,
+  });
+  const second = magicLinkDeliveryOperationRef({
+    ...subject,
+    magicUrl: `https://portal.example.test/login/magic?token=${encodeURIComponent(secondToken)}`,
+  });
+  assert.notEqual(first, second, "provider dedupe must not suppress a later legitimate link");
 });
 
 test("delivery hook: when unregistered falls back to console (delivered:false, via:console)", async () => {

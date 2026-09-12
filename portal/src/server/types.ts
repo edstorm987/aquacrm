@@ -4537,6 +4537,31 @@ export type AgencySignupStage =
 
 export type AgencySignupDeliveryStatus = "pending" | "delivered" | "failed";
 
+export type PasswordResetOperationStatus = "accepted" | "provider-applied" | "complete";
+
+/** Durable checkpoint joining one mailbox reset proof to provider + local state. */
+export interface PasswordResetOperation {
+  id: string;
+  userId: string;
+  email: string;
+  agencyId: string;
+  clientId?: string;
+  role: Role;
+  tokenNonce: string;
+  tokenExpiresAt: number;
+  expectedSessionRev: number;
+  passwordFingerprint: string;
+  initialSupabaseAuthUserId?: string;
+  providerUserId?: string;
+  status: PasswordResetOperationStatus;
+  providerAttempts: number;
+  providerLastError?: string;
+  providerOutcomeUnknown?: boolean;
+  completedAt?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
 /**
  * Durable, password-free admission and recovery ledger for self-service agency
  * signup. No Agency or ServerUser exists while the row is awaiting mailbox
@@ -5154,6 +5179,7 @@ export interface PortalState {
   peopleTrainingModules: Record<string, PeopleTrainingModule>;
   staffProvisioningOperations: Record<string, StaffProvisioningOperation>;
   agencySignupOperations: Record<string, AgencySignupOperation>;
+  passwordResetOperations: Record<string, PasswordResetOperation>;
   // Durable checkpoints for client-website provision/publish/deploy, so a retry
   // after a lost save adopts the external thing that already exists.
   clientProjectOperations: Record<string, ClientProjectOperation>;

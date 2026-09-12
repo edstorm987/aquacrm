@@ -61,9 +61,12 @@ import { containerFor } from "@aqua/plugin-leads-pipeline/server";
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { getInstall } from "@/server/pluginInstalls";
-import { getAgencyBySlug, listAgencies } from "@/server/tenants";
-import { FOUNDER_AGENCY_SLUG, seedFounder } from "@/lib/server/seeds/founderSeed";
+import { listAgencies } from "@/server/tenants";
 import { listWebsiteSources, normalizeHost, resolveWebsiteSourceRouting } from "@/server/websiteSources";
+import {
+  configuredPublicAuthOrigin,
+  isExactConfiguredRequestOrigin,
+} from "@/lib/server/auth/publicAuthOrigin";
 
 interface Body {
   companyName?: unknown;
@@ -82,6 +85,7 @@ const SIGNUP_MESSAGE_COOKIE = "aqua_signup_message";
 const LEAD_THANKS = "Thanks — we have your details and will be in touch shortly.";
 const LEAD_GENERIC_ERROR = "We could not send your details. Please try again.";
 const LEAD_FIELDS_ERROR = "Please add your name and a valid email address.";
+const LEAD_CONSENT_ERROR = "Please confirm the terms before sending your details.";
 const LEAD_UNAVAILABLE = "This form is temporarily unavailable. Please email us instead.";
 const LEAD_TOO_MANY = "Too many submissions. Please try again shortly.";
 
@@ -93,6 +97,13 @@ function isFormPost(req: NextRequest): boolean {
     contentType.includes("application/x-www-form-urlencoded") ||
     contentType.includes("multipart/form-data")
   );
+}
+
+function isJsonPost(req: NextRequest): boolean {
+  return (req.headers.get("content-type") ?? "")
+    .split(";", 1)[0]
+    ?.trim()
+    .toLowerCase() === "application/json";
 }
 
 // Where a form post goes back to — the SAME-ORIGIN referring page (the site
@@ -147,49 +158,50 @@ function field(form: FormData, name: string, max: number): string {
 /**
  * Whose lead is this?
  *
- * Resolution is entirely server-side. Nothing a visitor can type can pick an
- * agency that does not already exist, and nothing here can create one.
+ * Resolution is entirely server-side. Nothing a visitor can post or set as a
+ * cookie is tenant authority, and nothing here can create an agency.
  *
- *   1. The submitting site's HOST, matched against the website sources an
- *      operator registered in the app (`listWebsiteSources`). This is the real
- *      answer — "cedar-dental.com goes to Cedar" — and it also tells us which
- *      client or company the site belongs to.
- *   2. The `brand` field / `aqua_public_brand` cookie, looked up as an agency
- *      SLUG. A preference, never a grant: an unknown slug simply falls through.
- *   3. The founder agency, the same fallback `api/public/contact` uses.
- *   4. A single-agency portal — if there is exactly one, the lead is obviously
- *      its. With two or more and no other signal we refuse rather than guess,
- *      because filing one agency's lead under another is worse than a retry.
+ * The request URL's host must match exactly one operator-registered WebsiteSource.
+ * Origin and Referer, when present, only corroborate that host; they never name
+ * the tenant themselves. There is intentionally no posted-brand, public-cookie,
+ * founder, or single-agency fallback. A central cross-origin form will need a
+ * future server-signed source capability before it can be admitted safely.
  */
-function resolveLeadOwner(
-  req: NextRequest,
-  brandHint: string,
-  host: string,
-): { agencyId: string; clientId?: string; companyId?: string } | null {
+function resolveLeadOwner(req: NextRequest): {
+  agencyId: string;
+  host: string;
+  clientId?: string;
+  companyId?: string;
+} | null {
+  const host = req.nextUrl.host;
   const normalizedHost = normalizeHost(host);
-  const agencies = listAgencies();
+  if (!normalizedHost) return null;
 
-  if (normalizedHost) {
-    for (const agency of agencies) {
-      const match = listWebsiteSources(agency.id).find(source => source.host === normalizedHost);
-      if (!match) continue;
-      const destination = resolveWebsiteSourceRouting(agency.id, normalizedHost);
-      return {
-        agencyId: agency.id,
-        clientId: destination.kind === "client" ? destination.clientId : undefined,
-        companyId: destination.kind === "company" ? destination.companyId : undefined,
-      };
+  for (const header of ["origin", "referer"] as const) {
+    const raw = req.headers.get(header);
+    if (!raw) continue;
+    try {
+      if (normalizeHost(new URL(raw).host) !== normalizedHost) return null;
+    } catch {
+      return null;
     }
   }
 
-  const slug = brandHint || req.cookies.get("aqua_public_brand")?.value || "";
-  const byBrand = slug ? getAgencyBySlug(slug) : null;
-  if (byBrand) return { agencyId: byBrand.id };
+  const matches = listAgencies().flatMap(agency => (
+    listWebsiteSources(agency.id).some(source => source.host === normalizedHost)
+      ? [agency]
+      : []
+  ));
+  if (matches.length !== 1 || !matches[0]) return null;
 
-  const founder = getAgencyBySlug(FOUNDER_AGENCY_SLUG);
-  if (founder) return { agencyId: founder.id };
-
-  return agencies.length === 1 && agencies[0] ? { agencyId: agencies[0].id } : null;
+  const agencyId = matches[0].id;
+  const destination = resolveWebsiteSourceRouting(agencyId, normalizedHost);
+  return {
+    agencyId,
+    host: normalizedHost,
+    clientId: destination.kind === "client" ? destination.clientId : undefined,
+    companyId: destination.kind === "company" ? destination.companyId : undefined,
+  };
 }
 
 async function handleWebsiteLead(req: NextRequest): Promise<NextResponse> {
@@ -216,12 +228,14 @@ async function handleWebsiteLead(req: NextRequest): Promise<NextResponse> {
   const phone = field(form, "phone", 40);
   const company = field(form, "company", 160);
   const message = field(form, "message", 4_000);
-  const brandHint = field(form, "brand", 60);
   // NOTE: `password` is deliberately never read. A lead form has no business
   // holding one, and the current block does not render the input at all.
 
   if (!name || !PLAUSIBLE_EMAIL.test(email)) {
     return leadOutcome(req, false, LEAD_FIELDS_ERROR);
+  }
+  if (field(form, "terms", 12) !== "on") {
+    return leadOutcome(req, false, LEAD_CONSENT_ERROR);
   }
 
   const challenge = await verifyBotChallenge({
@@ -247,7 +261,6 @@ async function handleWebsiteLead(req: NextRequest): Promise<NextResponse> {
   // the same regardless of whether the address has an account.
 
   const referer = req.headers.get("referer") ?? "";
-  const origin = req.headers.get("origin") ?? "";
   try {
     await ensureHydrated();
   } catch (cause) {
@@ -260,19 +273,10 @@ async function handleWebsiteLead(req: NextRequest): Promise<NextResponse> {
   } catch {
     pagePath = "/";
   }
-  const host = (() => {
-    try { return referer ? new URL(referer).host : new URL(origin || req.nextUrl.origin).host; }
-    catch { return req.nextUrl.host; }
-  })();
-
   try {
-    // Best-effort: the founder fallback below needs the founder agency to
-    // exist. This is a no-op when it already does (or when FOUNDER_PASSWORD is
-    // unset), and must never take the visitor's submission down with it.
-    await seedFounder().catch(() => {});
     ensureLeadsPipelineFoundationRegistered();
 
-    const owner = resolveLeadOwner(req, brandHint, host);
+    const owner = resolveLeadOwner(req);
     if (!owner) return leadOutcome(req, false, LEAD_UNAVAILABLE);
 
     const install = getInstall({ agencyId: owner.agencyId }, "leads-pipeline");
@@ -293,7 +297,7 @@ async function handleWebsiteLead(req: NextRequest): Promise<NextResponse> {
         name,
         phone: phone || undefined,
         company: company || undefined,
-        source: `website:${normalizeHost(host) || "signup"}`,
+        source: `website:${owner.host}`,
         tags: ["website-enquiry", "website-signup"],
         notes: message || undefined,
         customFields: {
@@ -353,6 +357,9 @@ export async function POST(req: NextRequest) {
 //      atomically bootstrap one agency + owner, then issue the first session.
 
 async function handleAccountSignup(req: NextRequest) {
+  if (!isJsonPost(req)) {
+    return NextResponse.json({ ok: false, error: "JSON content type required." }, { status: 415 });
+  }
   let body: Body;
   try {
     body = (await req.json()) as Body;
@@ -362,6 +369,10 @@ async function handleAccountSignup(req: NextRequest) {
 
   const ip = clientIpFromHeaders(req.headers);
   if (body.phase === "complete") {
+    const publicOrigin = configuredPublicAuthOrigin();
+    if (!publicOrigin || !isExactConfiguredRequestOrigin(req, publicOrigin)) {
+      return NextResponse.json({ ok: false, error: "Account setup request was not accepted." }, { status: 403 });
+    }
     const completeLimit = rateLimit({ key: `agency-signup-complete:${ip}`, max: 5, windowMs: 10 * 60_000 });
     if (!completeLimit.allowed) {
       return NextResponse.json(
@@ -455,10 +466,18 @@ async function handleAccountSignup(req: NextRequest) {
     );
   }
 
+  const publicOrigin = configuredPublicAuthOrigin();
+  if (!publicOrigin) {
+    return NextResponse.json({
+      ok: true,
+      accepted: true,
+      message: "If this address can be used, a verification link is on its way.",
+    }, { status: 202 });
+  }
+
   const prepared = await prepareAgencySignup({ email, companyName });
-  const origin = req.nextUrl.origin;
   const verifyUrl = prepared.verificationToken
-    ? `${origin}/api/auth/verify-email?token=${encodeURIComponent(prepared.verificationToken)}`
+    ? `${publicOrigin}/api/auth/verify-email?token=${encodeURIComponent(prepared.verificationToken)}`
     : undefined;
   if (prepared.shouldDeliver && prepared.operation && verifyUrl) {
     const fromEmail = (process.env.AQUACRM_AUTH_FROM_EMAIL ?? process.env.MILESYMEDIA_FROM_EMAIL ?? "").trim();

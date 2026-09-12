@@ -3,7 +3,7 @@
 // kind so a forgotten-password token can't be replayed against the
 // email-verify surface and vice-versa.
 //
-// Token shape:    base64url(JSON({userId, email, exp, nonce})) "." HMAC
+// Token shape:    base64url(JSON({purpose,userId,email,sessionRev,exp,nonce})) "." HMAC
 // TTL:            24 hours — comfortable inbox-latency window; longer
 //                 than magic-link (15 min) since users may walk away
 //                 before clicking through.
@@ -22,8 +22,11 @@ import { resolveSigningSecret } from "@/lib/server/auth/sessionToken";
 const TOKEN_TTL_SECONDS = 60 * 60 * 24;
 
 export interface PasswordResetPayload {
+  purpose: "password-reset";
   userId: string;
   email: string;
+  /** Per-user reset epoch. A completed sibling reset increments this value. */
+  sessionRev: number;
   exp: number;
   nonce: string;
 }
@@ -32,13 +35,15 @@ function getSecret(): string {
   return resolveSigningSecret();
 }
 
-export function signPasswordResetToken(input: { userId: string; email: string }): {
+export function signPasswordResetToken(input: { userId: string; email: string; sessionRev: number }): {
   token: string;
   payload: PasswordResetPayload;
 } {
   const payload: PasswordResetPayload = {
+    purpose: "password-reset",
     userId: input.userId,
     email: input.email.trim().toLowerCase(),
+    sessionRev: input.sessionRev,
     exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS,
     nonce: crypto.randomBytes(16).toString("base64url"),
   };
@@ -51,6 +56,7 @@ export function signPasswordResetToken(input: { userId: string; email: string })
 export function verifyPasswordResetToken(
   token: string,
 ): { ok: true; payload: PasswordResetPayload } | { ok: false; error: string } {
+  if (token.length > 4_096) return { ok: false, error: "malformed_token" };
   const dot = token.indexOf(".");
   if (dot <= 0) return { ok: false, error: "malformed_token" };
   const b64 = token.slice(0, dot);
@@ -61,15 +67,31 @@ export function verifyPasswordResetToken(
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
     return { ok: false, error: "invalid_signature" };
   }
-  let payload: PasswordResetPayload;
+  let decoded: unknown;
   try {
-    payload = JSON.parse(Buffer.from(b64, "base64url").toString("utf8")) as PasswordResetPayload;
+    decoded = JSON.parse(Buffer.from(b64, "base64url").toString("utf8"));
   } catch {
     return { ok: false, error: "malformed_payload" };
   }
-  if (!payload.userId || !payload.email || !payload.exp || !payload.nonce) {
+  if (!decoded || typeof decoded !== "object" || Array.isArray(decoded)) {
+    return { ok: false, error: "malformed_payload" };
+  }
+  const candidate = decoded as Record<string, unknown>;
+  // No purpose-less compatibility branch: the purpose-bearing token has not
+  // shipped, so accepting the old shape would preserve cross-verifier token
+  // confusion for no user benefit.
+  if (candidate.purpose === undefined) return { ok: false, error: "missing_claims" };
+  if (candidate.purpose !== "password-reset") return { ok: false, error: "invalid_purpose" };
+  if (
+    typeof candidate.userId !== "string" || !candidate.userId
+    || typeof candidate.email !== "string" || !candidate.email
+    || typeof candidate.sessionRev !== "number" || !Number.isSafeInteger(candidate.sessionRev) || candidate.sessionRev < 0
+    || typeof candidate.exp !== "number" || !Number.isSafeInteger(candidate.exp)
+    || typeof candidate.nonce !== "string" || !candidate.nonce
+  ) {
     return { ok: false, error: "missing_claims" };
   }
+  const payload = candidate as unknown as PasswordResetPayload;
   if (payload.exp < Math.floor(Date.now() / 1000)) return { ok: false, error: "expired" };
   return { ok: true, payload };
 }
@@ -82,17 +104,4 @@ export async function consumeResetNonce(nonce: string, expSec: number): Promise<
   const ttlMs = Math.max(0, expSec * 1000 - Date.now());
   // `password-reset` kind added to NonceKind union in nonceStore.ts.
   return getNonceStore().consumeNonce(nonce, "password-reset", ttlMs);
-}
-
-/**
- * Give a consumed reset nonce back — ONLY when the provider write it was
- * protecting failed after the consume. Ed's finding (2026-08-30): consume-first
- * is right for single-use, but it meant a transient Supabase outage burnt the
- * person's only link, so the failure mode of "email provider hiccuped" was
- * "request a whole new reset". The release is scoped to the failure path; a
- * successful reset still spends the nonce exactly once.
- */
-export async function restoreResetNonce(nonce: string): Promise<void> {
-  const { getNonceStore } = await import("@/lib/server/auth/nonceStore");
-  await getNonceStore().releaseNonce(nonce, "password-reset");
 }

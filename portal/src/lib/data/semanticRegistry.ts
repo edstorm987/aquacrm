@@ -919,6 +919,7 @@ export const PORTAL_STATE_COVERAGE: Readonly<Record<string, CollectionClassifica
   accessRequests: { entity: "approvalRequest", plane: "operational", note: "pending|approved|denied|cancelled." },
   staffProvisioningOperations: { entity: "staffMember", plane: "operational", note: "Idempotency ledger for staff provisioning." },
   agencySignupOperations: { entity: "userAccount", plane: "operational", note: "Password-free, app-wide admission and recovery ledger for mailbox-verified self-service agency signup." },
+  passwordResetOperations: { entity: "userAccount", plane: "operational", note: "Exact-user password-reset receipts joining mailbox proof, provider reconciliation and local session-revocation state." },
   clientProjectOperations: { entity: "client", plane: "operational", note: "Idempotency ledger for client-website provision/publish/deploy; retries adopt the recorded folder, repository or deployment." },
 
   // CRM people & organisations

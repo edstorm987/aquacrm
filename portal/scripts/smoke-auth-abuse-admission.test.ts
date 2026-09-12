@@ -30,6 +30,7 @@ import { SESSION_COOKIE_NAME } from "../src/lib/server/auth/auth";
 
 const ORIGIN = "http://localhost:3030";
 const savedEnvironment = {
+  baseUrl: process.env.NEXT_PUBLIC_PORTAL_BASE_URL,
   site: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
   secret: process.env.TURNSTILE_SECRET_KEY,
   resend: process.env.RESEND_API_KEY,
@@ -46,7 +47,7 @@ function challengeAction(token: string): string {
 function jsonRequest(path: string, body: unknown, ip: string): NextRequest {
   return new NextRequest(`${ORIGIN}${path}`, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-forwarded-for": ip },
+    headers: { "content-type": "application/json", "x-forwarded-for": ip, origin: ORIGIN },
     body: JSON.stringify(body),
   });
 }
@@ -59,7 +60,7 @@ function formRequest(fields: Record<string, string>, ip: string): NextRequest {
       "x-forwarded-for": ip,
       referer: `${ORIGIN}/published/contact`,
     },
-    body: new URLSearchParams(fields).toString(),
+    body: new URLSearchParams({ terms: "on", ...fields }).toString(),
   });
 }
 
@@ -72,6 +73,7 @@ function setupCookie(response: Response): string | undefined {
 }
 
 before(() => {
+  process.env.NEXT_PUBLIC_PORTAL_BASE_URL = ORIGIN;
   process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = "1x00000000000000000000AA";
   process.env.TURNSTILE_SECRET_KEY = "1x0000000000000000000000000000000AA";
   delete process.env.RESEND_API_KEY;
@@ -108,6 +110,7 @@ after(() => {
     if (value === undefined) delete process.env[key]; else process.env[key] = value;
   };
   restore("NEXT_PUBLIC_TURNSTILE_SITE_KEY", savedEnvironment.site);
+  restore("NEXT_PUBLIC_PORTAL_BASE_URL", savedEnvironment.baseUrl);
   restore("TURNSTILE_SECRET_KEY", savedEnvironment.secret);
   restore("RESEND_API_KEY", savedEnvironment.resend);
   restore("AQUACRM_AUTH_FROM_EMAIL", savedEnvironment.from);
@@ -317,6 +320,86 @@ describe("agency owner mailbox-first state machine", () => {
     assert.ok(retry.operation && retry.shouldDeliver);
     assert.equal(retry.operation.deliveryGeneration, first.operation.deliveryGeneration);
     assert.equal(retry.verificationToken, first.verificationToken);
+  });
+
+  it("an expired setup receipt cannot be re-minted by replaying the original email link", async () => {
+    const now = Date.now();
+    const email = "expired-setup@example.test";
+    const prepared = await prepareAgencySignup({ email, companyName: "Expired Setup Ltd", now });
+    assert.ok(prepared.operation && prepared.verificationToken);
+    const verified = verifyVerifyEmailToken(prepared.verificationToken);
+    assert.equal(verified.ok, true);
+    if (!verified.ok) return;
+    const first = await claimAgencySignupVerification(verified.payload, now + 1);
+    assert.equal(first.ok, true);
+    const expiredReplay = await claimAgencySignupVerification(
+      verified.payload,
+      now + 31 * 60_000,
+    );
+    assert.deepEqual(expiredReplay, { ok: false, error: "setup_expired" });
+
+    const redelivery = await prepareAgencySignup({
+      email,
+      companyName: "Expired Setup Ltd",
+      now: now + 31 * 60_000 + 1,
+    });
+    assert.ok(redelivery.operation && redelivery.verificationToken && redelivery.shouldDeliver);
+    assert.equal(redelivery.operation.deliveryGeneration, prepared.operation.deliveryGeneration + 1);
+    assert.notEqual(redelivery.operation.verificationNonce, prepared.operation.verificationNonce);
+    assert.notEqual(redelivery.verificationToken, prepared.verificationToken);
+    assert.deepEqual(
+      await claimAgencySignupVerification(verified.payload, now + 31 * 60_000 + 2),
+      { ok: false, error: "signup_not_found" },
+      "the older email proof cannot claim the replacement delivery generation",
+    );
+  });
+
+  it("setup completion requires JSON and the exact configured browser origin", async () => {
+    const email = "same-origin-setup@example.test";
+    const admitted = await signupPOST(jsonRequest(
+      "/api/auth/signup",
+      {
+        email,
+        companyName: "Same Origin Setup Ltd",
+        captchaToken: "valid:agency-signup:same-origin",
+      },
+      "41.0.0.31",
+    ));
+    const admittedBody = await admitted.json() as { devVerifyUrl?: string };
+    assert.ok(admittedBody.devVerifyUrl);
+    const verified = await verifyEmailGET(new NextRequest(admittedBody.devVerifyUrl!));
+    const setup = setupCookie(verified);
+    assert.ok(setup);
+    const cookie = setup!.split(";")[0]!;
+
+    const crossOrigin = await signupPOST(new NextRequest(`${ORIGIN}/api/auth/signup`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "https://attacker.example",
+        cookie,
+        "x-forwarded-for": "41.0.0.32",
+      },
+      body: JSON.stringify({ phase: "complete", password: "Same-origin-password-123" }),
+    }));
+    assert.equal(crossOrigin.status, 403);
+    assert.equal(getUser(email), null);
+
+    const wrongContentType = await signupPOST(new NextRequest(`${ORIGIN}/api/auth/signup`, {
+      method: "POST",
+      headers: { "content-type": "text/plain", origin: ORIGIN, cookie },
+      body: JSON.stringify({ phase: "complete", password: "Same-origin-password-123" }),
+    }));
+    assert.equal(wrongContentType.status, 415);
+    assert.equal(getUser(email), null);
+
+    const deceptiveContentType = await signupPOST(new NextRequest(`${ORIGIN}/api/auth/signup`, {
+      method: "POST",
+      headers: { "content-type": "application/jsonp", origin: ORIGIN, cookie },
+      body: JSON.stringify({ phase: "complete", password: "Same-origin-password-123" }),
+    }));
+    assert.equal(deceptiveContentType.status, 415);
+    assert.equal(getUser(email), null);
   });
 
   it("verification replay and lost provider responses converge on one agency and owner", async () => {

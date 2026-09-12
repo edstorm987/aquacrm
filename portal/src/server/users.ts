@@ -291,6 +291,38 @@ export function setUserPassword(
   return ok;
 }
 
+/**
+ * Reset one immutable local subject only when its per-user epoch is unchanged.
+ * This is the completion-side compare-and-swap for password-reset links: the
+ * first successful sibling increments sessionRev, so every other link minted
+ * at the old revision fails without mutating a same-email account.
+ */
+export function setUserPasswordById(
+  userId: string,
+  password: string,
+  expectedSessionRev: number,
+): ServerUser | null {
+  const check = validatePassword(password);
+  if (!check.ok) throw new Error(check.error ?? "Invalid password");
+  let saved: ServerUser | null = null;
+  mutate(state => {
+    for (const [key, stored] of Object.entries(state.users)) {
+      if (stored.id !== userId || (stored.sessionRev ?? 0) !== expectedSessionRev) continue;
+      const next: ServerUser = {
+        ...stored,
+        passwordHash: hashPassword(password),
+        mustChangePassword: false,
+        sessionRev: expectedSessionRev + 1,
+        updatedAt: Date.now(),
+      };
+      state.users[key] = next;
+      saved = next;
+      return;
+    }
+  });
+  return saved;
+}
+
 export interface UpdateUserPatch {
   name?: string;
   username?: string;

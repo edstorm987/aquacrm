@@ -153,6 +153,9 @@ export async function prepareAgencySignup(input: {
     const existing = currentOperation(id);
     if (existing?.stage === "complete") return { accepted: true, shouldDeliver: false };
     const tokenExpired = !existing || existing.verificationExpiresAt * 1_000 <= now;
+    const setupExpired = existing?.stage === "email-verified"
+      && (!existing.setupExpiresAt || existing.setupExpiresAt <= now);
+    const needsFreshVerification = tokenExpired || setupExpired;
     const fingerprint = intentFingerprint(email, companyName);
 
     // While a live request owns this mailbox, a public replay cannot rewrite
@@ -160,7 +163,7 @@ export async function prepareAgencySignup(input: {
     if (existing && !tokenExpired && existing.intentFingerprint !== fingerprint) {
       return { accepted: true, shouldDeliver: false };
     }
-    if (existing && existing.stage !== "awaiting-email-verification") {
+    if (existing && existing.stage !== "awaiting-email-verification" && !setupExpired) {
       return { accepted: true, shouldDeliver: false };
     }
     if (
@@ -184,7 +187,7 @@ export async function prepareAgencySignup(input: {
     }
 
     const userId = existing?.userId ?? `usr_signup_${digest("agency-signup-user", id).slice(0, 20)}`;
-    const signed = tokenExpired
+    const signed = needsFreshVerification
       ? (() => {
           const payload: VerifyEmailPayload & { purpose: "agency-signup-email-verify" } = {
             purpose: "agency-signup-email-verify",
@@ -216,7 +219,7 @@ export async function prepareAgencySignup(input: {
     // provider result may already have sent the email. Retrying the same
     // generation preserves the exact Resend idempotency key; a definitive
     // failure starts a new generation after the cooldown.
-    const retrySameProviderOperation = !tokenExpired && (
+    const retrySameProviderOperation = !needsFreshVerification && (
       existing?.deliveryStatus === "pending"
       || (existing?.deliveryStatus === "failed" && existing.deliveryOutcomeUnknown === true)
     );
@@ -237,7 +240,10 @@ export async function prepareAgencySignup(input: {
       deliveryAttempts: (existing?.deliveryAttempts ?? 0) + 1,
       deliveryLastAttemptAt: now,
       deliveryOutcomeUnknown: undefined,
+      setupNonce: needsFreshVerification ? undefined : existing?.setupNonce,
+      setupExpiresAt: needsFreshVerification ? undefined : existing?.setupExpiresAt,
       activationAttempts: existing?.activationAttempts ?? 0,
+      verifiedAt: needsFreshVerification ? undefined : existing?.verifiedAt,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
     };
@@ -281,18 +287,27 @@ export async function claimAgencySignupVerification(payload: VerifyEmailPayload,
     if (!operation || !sameVerification(operation, payload)) return { ok: false, error: "signup_not_found" };
     if (operation.stage === "complete") return { ok: true, state: "complete" };
 
-    if (operation.stage === "awaiting-email-verification") {
-      // Atomic nonce admission. If a process died after consuming this exact
-      // nonce but before committing the local receipt, the still-valid signed
-      // token may safely repair the password-free receipt: it grants only the
-      // narrow setup capability, never a portal session.
-      await consumeVerifyNonce(payload.nonce, payload.exp);
+    if (operation.stage !== "awaiting-email-verification" && operation.stage !== "email-verified") {
+      return { ok: false, error: "signup_state_invalid" };
     }
 
     const setupStillLive = operation.setupNonce
       && operation.setupExpiresAt
       && operation.setupExpiresAt > now;
-    const setupNonce = setupStillLive ? operation.setupNonce! : crypto.randomBytes(16).toString("base64url");
+    if (operation.stage === "email-verified" && !setupStillLive) {
+      // The email proof bought one short setup window, not an evergreen setup
+      // token factory. A fresh challenged request must mint and deliver a new
+      // verification generation.
+      return { ok: false, error: "setup_expired" };
+    }
+    if (operation.stage === "awaiting-email-verification") {
+      const consumed = await consumeVerifyNonce(payload.nonce, payload.exp);
+      if (!consumed) return { ok: false, error: "already_used" };
+    }
+
+    const setupNonce = setupStillLive
+      ? operation.setupNonce!
+      : crypto.randomBytes(16).toString("base64url");
     const setupExpiresAt = setupStillLive
       ? operation.setupExpiresAt!
       : Math.floor((now + SETUP_TTL_MS) / 1_000) * 1_000;
