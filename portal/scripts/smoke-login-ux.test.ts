@@ -53,3 +53,31 @@ test("LOGIN-UX-001: the sign-in surface honours prefers-reduced-motion", () => {
     "reduced motion must neutralise the sign-in button's hover movement",
   );
 });
+
+// ─── Approved re-skin (ORCHESTRATOR-FEEDBACK 2026-09-12) ──────────────────
+
+test("LOGIN-UX-001: the dated two-panel treatment and vague filler are gone", () => {
+  assert.doesNotMatch(page, /mm-auth-brand-panel/, "the marketing panel is removed from the sign-in DOM");
+  assert.doesNotMatch(page, /mm-auth-split/, "the two-panel split wrapper is gone from the sign-in page");
+  assert.doesNotMatch(page, /One account|Secure access issued/, "the vague filler is removed");
+  assert.match(page, /className="mm-auth-card"/, "the sign-in renders a single centred card");
+  assert.match(page, /mm-auth-logo/, "a concise in-card brand lockup replaces the panel");
+});
+
+test("LOGIN-UX-001: the background is a restrained CSS-only field (no photo/glass)", () => {
+  const shell = /\.mm-auth-shell \{[\s\S]*?\n\}/.exec(css)?.[0] ?? "";
+  assert.match(shell, /linear-gradient|radial-gradient/, "the shell paints a CSS gradient field");
+  assert.match(shell, /--auth-bg-/, "brand-retintable background tokens are present");
+  assert.doesNotMatch(css, /aquacrm-workspace\.png/, "the sign-in background photo is removed");
+  assert.match(
+    css,
+    /\.mm-auth-split \{[\s\S]*?backdrop-filter: none;[\s\S]*?\}/,
+    "the retired split carries no glass blur",
+  );
+  assert.match(css, /\.mm-auth-brand-panel \{ display: none; \}/, "the marketing panel is retired in CSS too");
+});
+
+test("LOGIN-UX-001: the card is a single centred column sized ~520-600px", () => {
+  assert.match(css, /\.mm-auth-card \{[\s\S]*?max-width: 560px;/, "the card is centred at ~560px, not a wide split");
+  assert.match(css, /\.mm-auth-split \{[\s\S]*?max-width: 560px;[\s\S]*?margin: 0 auto;/, "recovery pages collapse to the same single centred card");
+});
