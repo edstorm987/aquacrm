@@ -45,6 +45,12 @@ export function isGoogleOAuthConfigured(): boolean {
 export interface OAuthStartUrl {
   url: string;
   state: string;
+  /**
+   * Opaque, host-only cookie value that binds this state to the browser which
+   * started the flow. It also carries the PKCE verifier and is never exposed to
+   * client JavaScript.
+   */
+  browserProof: string;
 }
 
 export interface OAuthStateContext {
@@ -55,6 +61,59 @@ export interface OAuthStateContext {
 
 const MAX_OAUTH_STATE_LENGTH = 4_096;
 const MAX_OAUTH_CONTEXT_LENGTH = 120;
+export const GOOGLE_OAUTH_FLOW_COOKIE = "__Host-aqua-google-oauth";
+export const GOOGLE_OAUTH_FLOW_TTL_SECONDS = 10 * 60;
+
+export function googleOAuthFlowCookie(value: string) {
+  return {
+    name: GOOGLE_OAUTH_FLOW_COOKIE,
+    value,
+    options: {
+      httpOnly: true,
+      sameSite: "lax" as const,
+      secure: true,
+      path: "/",
+      maxAge: GOOGLE_OAUTH_FLOW_TTL_SECONDS,
+    },
+  };
+}
+
+export function clearGoogleOAuthFlowCookie() {
+  return {
+    name: GOOGLE_OAUTH_FLOW_COOKIE,
+    value: "",
+    options: {
+      httpOnly: true,
+      sameSite: "lax" as const,
+      secure: true,
+      path: "/",
+      maxAge: 0,
+      expires: new Date(0),
+    },
+  };
+}
+
+function sha256Base64Url(domain: string, value: string): string {
+  return crypto.createHash("sha256")
+    .update(domain)
+    .update("\0")
+    .update(value)
+    .digest("base64url");
+}
+
+function browserProofDigest(browserProof: string): string {
+  return sha256Base64Url("aqua-google-oauth-browser-proof-v1", browserProof);
+}
+
+function createBrowserProof(): { value: string; codeVerifier: string; codeChallenge: string } {
+  const binding = crypto.randomBytes(32).toString("base64url");
+  const codeVerifier = crypto.randomBytes(32).toString("base64url");
+  return {
+    value: `v1.${binding}.${codeVerifier}`,
+    codeVerifier,
+    codeChallenge: crypto.createHash("sha256").update(codeVerifier).digest("base64url"),
+  };
+}
 
 function safeReturnPath(value: string | undefined): string {
   const raw = value?.trim() ?? "";
@@ -95,12 +154,14 @@ export function buildAuthorizeUrl(
   if ((opts.brand !== undefined && brand !== opts.brand) || (opts.clientId !== undefined && clientId !== opts.clientId)) {
     throw new Error("invalid_oauth_context");
   }
-  const nonce = crypto.randomBytes(12).toString("base64url");
-  const exp = Math.floor(Date.now() / 1000) + 600; // 10 min
+  const nonce = crypto.randomBytes(24).toString("base64url");
+  const browserProof = createBrowserProof();
+  const exp = Math.floor(Date.now() / 1000) + GOOGLE_OAUTH_FLOW_TTL_SECONDS;
   const stateBody = JSON.stringify({
-    v: 2,
+    v: 3,
     nonce,
     exp,
+    browserProofHash: browserProofDigest(browserProof.value),
     returnUrl: safeReturnPath(opts.returnUrl),
     ...(brand ? { brand } : {}),
     ...(clientId ? { clientId } : {}),
@@ -117,13 +178,21 @@ export function buildAuthorizeUrl(
   url.searchParams.set("access_type", "online");
   url.searchParams.set("prompt", "select_account");
   url.searchParams.set("state", state);
-  return { url: url.toString(), state };
+  url.searchParams.set("code_challenge", browserProof.codeChallenge);
+  url.searchParams.set("code_challenge_method", "S256");
+  return { url: url.toString(), state, browserProof: browserProof.value };
 }
+
+export type VerifiedOAuthState = { ok: true } & OAuthStateContext & {
+  nonce: string;
+  expiresAt: number;
+  browserProofHash: string;
+};
 
 export function verifyOAuthState(
   state: string,
   secret: string,
-): ({ ok: true } & OAuthStateContext) | { ok: false; error: string } {
+): VerifiedOAuthState | { ok: false; error: string } {
   if (state.length > MAX_OAUTH_STATE_LENGTH) return { ok: false, error: "malformed_state" };
   const dot = state.indexOf(".");
   if (dot <= 0) return { ok: false, error: "malformed_state" };
@@ -150,9 +219,11 @@ export function verifyOAuthState(
   const candidate = body as Record<string, unknown>;
   const exp = candidate.exp;
   if (
-    candidate.v !== 2
+    candidate.v !== 3
     || typeof candidate.nonce !== "string"
-    || !candidate.nonce
+    || !/^[A-Za-z0-9_-]{32}$/.test(candidate.nonce)
+    || typeof candidate.browserProofHash !== "string"
+    || !/^[A-Za-z0-9_-]{43}$/.test(candidate.browserProofHash)
     || typeof exp !== "number"
     || !Number.isSafeInteger(exp)
     || typeof candidate.returnUrl !== "string"
@@ -168,15 +239,33 @@ export function verifyOAuthState(
   ) {
     return { ok: false, error: "malformed_state" };
   }
-  if (exp < Math.floor(Date.now() / 1000)) {
+  if (exp <= Math.floor(Date.now() / 1000)) {
     return { ok: false, error: "expired_state" };
   }
   return {
     ok: true,
+    nonce: candidate.nonce,
+    expiresAt: exp,
+    browserProofHash: candidate.browserProofHash,
     returnUrl: candidate.returnUrl,
     ...(typeof candidate.brand === "string" ? { brand: candidate.brand } : {}),
     ...(typeof candidate.clientId === "string" ? { clientId: candidate.clientId } : {}),
   };
+}
+
+export function verifyOAuthBrowserProof(
+  state: VerifiedOAuthState,
+  browserProof: string | undefined,
+): { ok: true; codeVerifier: string } | { ok: false; error: "missing_browser_proof" | "invalid_browser_proof" } {
+  if (!browserProof) return { ok: false, error: "missing_browser_proof" };
+  const match = /^v1\.([A-Za-z0-9_-]{43})\.([A-Za-z0-9_-]{43})$/.exec(browserProof);
+  if (!match) return { ok: false, error: "invalid_browser_proof" };
+  const actual = Buffer.from(browserProofDigest(browserProof), "utf8");
+  const expected = Buffer.from(state.browserProofHash, "utf8");
+  if (actual.length !== expected.length || !crypto.timingSafeEqual(actual, expected)) {
+    return { ok: false, error: "invalid_browser_proof" };
+  }
+  return { ok: true, codeVerifier: match[2]! };
 }
 
 // ─── Token exchange + ID-token verification ─────────────────────────────────
@@ -194,6 +283,7 @@ export interface GoogleIdTokenClaims {
 
 export interface ExchangeDeps {
   fetchImpl?: typeof fetch;
+  codeVerifier?: string;
 }
 
 // Exchange the auth code for tokens, then verify the ID token via
@@ -214,6 +304,7 @@ export async function exchangeAndVerify(
       client_secret: config.clientSecret,
       redirect_uri: config.redirectUri,
       grant_type: "authorization_code",
+      ...(deps.codeVerifier ? { code_verifier: deps.codeVerifier } : {}),
     }).toString(),
   });
   if (!tokenRes.ok) {

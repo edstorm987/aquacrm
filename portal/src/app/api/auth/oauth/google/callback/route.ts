@@ -10,7 +10,10 @@ import { ensureHydrated } from "@/server/storage";
 import { issueSession, sessionCookie } from "@/lib/server/auth/auth";
 import {
   exchangeAndVerify,
+  clearGoogleOAuthFlowCookie,
+  GOOGLE_OAUTH_FLOW_COOKIE,
   readGoogleOAuthConfig,
+  verifyOAuthBrowserProof,
   verifyOAuthState,
   type OAuthStateContext,
 } from "@/lib/server/integrations/oauthGoogle";
@@ -25,6 +28,14 @@ import { isKnownAuthBrandId } from "@/lib/brands/authBrand";
 import type { ServerUser } from "@/server/types";
 import crypto from "crypto";
 import { resolveSigningSecret } from "@/lib/server/auth/sessionToken";
+import { getNonceStore } from "@/lib/server/auth/nonceStore";
+
+function clearOAuthCookie<T extends NextResponse>(response: T): T {
+  const cookie = clearGoogleOAuthFlowCookie();
+  response.cookies.set(cookie.name, cookie.value, cookie.options);
+  response.headers.set("cache-control", "no-store");
+  return response;
+}
 
 function safeErrorCode(value: string): string {
   return /^[a-z0-9_-]{1,80}$/i.test(value) ? value : "oauth_failed";
@@ -44,9 +55,23 @@ function err(
 }
 
 export async function GET(req: NextRequest) {
+  try {
+    return clearOAuthCookie(await handleCallback(req));
+  } catch {
+    // The browser proof is always removed, including unexpected provider or
+    // persistence failures. A failed callback can never leave a reusable PKCE
+    // verifier sitting in the browser.
+    return clearOAuthCookie(err(req, "oauth_failed"));
+  }
+}
+
+async function handleCallback(req: NextRequest): Promise<NextResponse> {
   const origin = req.nextUrl.origin;
   const config = readGoogleOAuthConfig(`${origin}/api/auth/oauth/google/callback`);
-  if (!config) return NextResponse.json({ ok: false, error: "google_oauth_not_configured" }, { status: 404 });
+  if (!config) return NextResponse.json(
+    { ok: false, error: "google_oauth_not_configured" },
+    { status: 404 },
+  );
 
   const code = req.nextUrl.searchParams.get("code");
   const state = req.nextUrl.searchParams.get("state");
@@ -56,11 +81,28 @@ export async function GET(req: NextRequest) {
   const secret = resolveSigningSecret();
   const stateCheck = verifyOAuthState(state, secret);
   if (!stateCheck.ok) return err(req, stateCheck.error);
+  const browserCheck = verifyOAuthBrowserProof(
+    stateCheck,
+    req.cookies.get(GOOGLE_OAUTH_FLOW_COOKIE)?.value,
+  );
+  // Do not reflect even correctly signed tenant context until this callback is
+  // proven to belong to the browser which initiated it.
+  if (!browserCheck.ok) return err(req, browserCheck.error);
+
+  const ttlMs = stateCheck.expiresAt * 1_000 - Date.now();
+  if (ttlMs <= 0) return err(req, "expired_state");
+  let firstUse: boolean;
+  try {
+    firstUse = await getNonceStore().consumeNonce(stateCheck.nonce, "google-oauth", ttlMs);
+  } catch {
+    return err(req, "oauth_state_unavailable");
+  }
+  if (!firstUse) return err(req, "oauth_state_replayed");
   const trustedContext = { brand: stateCheck.brand, clientId: stateCheck.clientId };
   if (oauthErr) return err(req, oauthErr, 400, trustedContext);
   if (!code) return err(req, "missing_params", 400, trustedContext);
 
-  const result = await exchangeAndVerify(config, code);
+  const result = await exchangeAndVerify(config, code, { codeVerifier: browserCheck.codeVerifier });
   if (!result.ok) return err(req, result.error, 400, trustedContext);
   const claims = result.claims;
   if (!claims.emailVerified) return err(req, "email_not_verified", 400, trustedContext);

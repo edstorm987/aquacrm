@@ -4594,6 +4594,12 @@ export interface PublicAuthLinkDeliveryOperation {
   expectedSessionRev: number;
   /** Non-secret presentation context: safe return path or stable brand id. */
   presentation: string;
+  /**
+   * Version of the exact provider bytes reconstructed from this generation.
+   * Older persisted rows omit it and must rotate before a corrected template
+   * is sent, so an idempotency key never names two different messages.
+   */
+  deliveryContentVersion?: number;
   generation: number;
   tokenNonce: string;
   tokenExpiresAt: number;

@@ -7,10 +7,13 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 
 import {
   buildAuthorizeUrl,
+  GOOGLE_OAUTH_FLOW_COOKIE,
   verifyOAuthState,
+  verifyOAuthBrowserProof,
   verifyIdToken,
   exchangeAndVerify,
   isGoogleOAuthConfigured,
@@ -40,7 +43,7 @@ test("env gating: both set → configured", () => {
 });
 
 test("buildAuthorizeUrl: contains all required params", () => {
-  const { url, state } = buildAuthorizeUrl(CFG, { returnUrl: "/portal/agency", secret: SECRET });
+  const { url, state, browserProof } = buildAuthorizeUrl(CFG, { returnUrl: "/portal/agency", secret: SECRET });
   const u = new URL(url);
   assert.equal(u.origin + u.pathname, "https://accounts.google.com/o/oauth2/v2/auth");
   assert.equal(u.searchParams.get("client_id"), CFG.clientId);
@@ -48,13 +51,28 @@ test("buildAuthorizeUrl: contains all required params", () => {
   assert.equal(u.searchParams.get("response_type"), "code");
   assert.equal(u.searchParams.get("scope"), "openid email profile");
   assert.equal(u.searchParams.get("state"), state);
+  assert.equal(u.searchParams.get("code_challenge_method"), "S256");
+  const verifier = browserProof.split(".")[2]!;
+  assert.equal(
+    u.searchParams.get("code_challenge"),
+    crypto.createHash("sha256").update(verifier).digest("base64url"),
+  );
+  assert.equal(GOOGLE_OAUTH_FLOW_COOKIE.startsWith("__Host-"), true);
 });
 
 test("verifyOAuthState: round-trip preserves returnUrl", () => {
-  const { state } = buildAuthorizeUrl(CFG, { returnUrl: "/portal/agency/clients", secret: SECRET });
+  const { state, browserProof } = buildAuthorizeUrl(CFG, { returnUrl: "/portal/agency/clients", secret: SECRET });
   const r = verifyOAuthState(state, SECRET);
   assert.equal(r.ok, true);
-  if (r.ok) assert.equal(r.returnUrl, "/portal/agency/clients");
+  if (r.ok) {
+    assert.equal(r.returnUrl, "/portal/agency/clients");
+    assert.equal(verifyOAuthBrowserProof(r, browserProof).ok, true);
+    assert.deepEqual(verifyOAuthBrowserProof(r, undefined), { ok: false, error: "missing_browser_proof" });
+    assert.deepEqual(
+      verifyOAuthBrowserProof(r, buildAuthorizeUrl(CFG, { secret: SECRET }).browserProof),
+      { ok: false, error: "invalid_browser_proof" },
+    );
+  }
 });
 
 test("verifyOAuthState: bad signature rejected", () => {
@@ -66,6 +84,19 @@ test("verifyOAuthState: bad signature rejected", () => {
 test("verifyOAuthState: malformed rejected", () => {
   const r = verifyOAuthState("not.a.valid.token", SECRET);
   assert.equal(r.ok, false);
+});
+
+test("verifyOAuthState: an otherwise valid state is refused at expiry", () => {
+  const { state } = buildAuthorizeUrl(CFG, { returnUrl: "/portal", secret: SECRET });
+  const encoded = state.split(".")[0]!;
+  const body = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8"));
+  body.exp = Math.floor(Date.now() / 1_000);
+  const expiredBody = Buffer.from(JSON.stringify(body), "utf8").toString("base64url");
+  const signature = crypto.createHmac("sha256", SECRET).update(expiredBody).digest("base64url");
+  assert.deepEqual(verifyOAuthState(`${expiredBody}.${signature}`, SECRET), {
+    ok: false,
+    error: "expired_state",
+  });
 });
 
 // Mock fetch helper for tokeninfo / token-exchange paths.
@@ -145,8 +176,32 @@ test("exchangeAndVerify: combines token-exchange + verify", async () => {
       aud: CFG.clientId, iss: "https://accounts.google.com", exp: String(exp),
     } },
   ]);
-  const r = await exchangeAndVerify(CFG, "real-code", { fetchImpl: f });
+  const r = await exchangeAndVerify(CFG, "real-code", { fetchImpl: f, codeVerifier: "test-code-verifier" });
   assert.equal(r.ok, true);
+});
+
+test("exchangeAndVerify: sends the callback-bound PKCE verifier", async () => {
+  let tokenBody = "";
+  const f = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+    if (url.endsWith("/token")) {
+      tokenBody = String(init?.body ?? "");
+      return new Response(JSON.stringify({ id_token: "pkce-id-token" }), { status: 200 });
+    }
+    return new Response(JSON.stringify({
+      sub: "pkce-sub",
+      email: "pkce@example.test",
+      email_verified: "true",
+      aud: CFG.clientId,
+      iss: "https://accounts.google.com",
+      exp: String(Math.floor(Date.now() / 1000) + 600),
+    }), { status: 200 });
+  }) as typeof fetch;
+  assert.equal((await exchangeAndVerify(CFG, "fresh-code", {
+    fetchImpl: f,
+    codeVerifier: "callback-bound-verifier",
+  })).ok, true);
+  assert.equal(new URLSearchParams(tokenBody).get("code_verifier"), "callback-bound-verifier");
 });
 
 test("exchangeAndVerify: missing id_token in token response", async () => {

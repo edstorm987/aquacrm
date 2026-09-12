@@ -6,15 +6,15 @@ import { ApplicationForm } from "./_ApplicationForm";
 
 export default function CareersPage() {
   return (
-    <main className="min-h-screen bg-[#f1f1ec] text-[#151813]">
+    <main className="min-h-screen w-full max-w-full overflow-x-clip bg-[#f1f1ec] text-[#151813]">
       <header className="relative min-h-[20rem] overflow-hidden bg-[#0a1916]">
         <Image src="/aquacrm-site/assets/aquacrm-workspace.png" alt="AquaCRM operating workspace" fill priority className="object-cover opacity-35" />
         <div className="absolute inset-0 bg-black/35" />
         <div className="relative mx-auto flex min-h-[20rem] max-w-6xl flex-col justify-between px-5 py-6 sm:px-8">
           <Link href="/" className="inline-flex w-fit items-center gap-2 text-sm font-medium text-white/80 hover:text-white"><ArrowLeft size={16} /> AquaCRM</Link>
-          <div className="max-w-3xl pb-3">
+          <div className="min-w-0 max-w-3xl pb-3">
             <p className="flex items-center gap-2 text-xs font-semibold uppercase text-[#b9dfd3]"><Radar size={15} /> People & opportunities</p>
-            <h1 className="mt-3 text-4xl font-semibold text-white sm:text-5xl">Bring your judgement, not just your CV.</h1>
+            <h1 className="mt-3 break-words text-4xl font-semibold text-white sm:text-5xl">Bring your judgement, not just your CV.</h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-white/70">Apply for a role, contract, commission or future opportunity. You will receive a private progress space immediately.</p>
           </div>
         </div>

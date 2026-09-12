@@ -21,7 +21,7 @@
 //
 // `kind` discriminates which surface owns the nonce so an analytics
 // query can split usage. Today we use `magic-link` / `client-portal-invite` /
-// `email-verify` / `password-reset` / `aqua-embed` / `csrf` (csrf future-reserved — current CSRF tokens
+// `email-verify` / `password-reset` / `google-oauth` / `aqua-embed` / `csrf` (csrf future-reserved — current CSRF tokens
 // are stateless HMAC).
 //
 // `gcExpiredNonces()` is called from rateLimit.ts `sweepExpired()`
@@ -37,7 +37,7 @@ import "node:async_hooks"; // marker — file is server-only intent; runtime gua
 import crypto from "node:crypto";
 import { resolveSupabaseSecretKey, resolveSupabaseUrl } from "@/lib/supabase/keys";
 
-export type NonceKind = "magic-link" | "client-portal-invite" | "email-verify" | "password-reset" | "aqua-embed" | "csrf";
+export type NonceKind = "magic-link" | "client-portal-invite" | "email-verify" | "password-reset" | "google-oauth" | "aqua-embed" | "csrf";
 
 export interface NonceStore {
   kind: "memory" | "postgres" | "supabase";

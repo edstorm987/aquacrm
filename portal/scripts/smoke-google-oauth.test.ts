@@ -21,6 +21,8 @@ import {
   isGoogleOAuthConfigured,
   readGoogleOAuthConfig,
   buildAuthorizeUrl,
+  GOOGLE_OAUTH_FLOW_COOKIE,
+  googleOAuthFlowCookie,
   verifyOAuthState,
 } from "../src/lib/server/integrations/oauthGoogle";
 import { ENV_ALLOWLIST } from "../src/lib/server/env";
@@ -58,7 +60,7 @@ test("env gating: client_id + client_secret set → configured + redirect derive
 });
 
 // ── 3. start route: 302s to Google with required params + state ─────────────
-test("start route: builds an authorize URL with all 5 required params + state", () => {
+test("start route: builds an authorize URL with state + PKCE", () => {
   // We replicate what /start does: read config, build URL, redirect.
   // The route file shape is also asserted (test 4) so a regression in
   // either place trips this smoke.
@@ -67,7 +69,7 @@ test("start route: builds an authorize URL with all 5 required params + state", 
     clientSecret: "secret",
     redirectUri: "https://example.test/api/auth/oauth/google/callback",
   };
-  const { url, state } = buildAuthorizeUrl(cfg, { returnUrl: "/portal", secret: "sess-secret" });
+  const { url, state, browserProof } = buildAuthorizeUrl(cfg, { returnUrl: "/portal", secret: "sess-secret" });
   const u = new URL(url);
   assert.equal(u.origin + u.pathname, "https://accounts.google.com/o/oauth2/v2/auth");
   for (const p of ["client_id", "redirect_uri", "response_type", "scope", "state"]) {
@@ -75,6 +77,9 @@ test("start route: builds an authorize URL with all 5 required params + state", 
   }
   assert.equal(u.searchParams.get("scope"), "openid email profile");
   assert.equal(u.searchParams.get("state"), state);
+  assert.equal(u.searchParams.get("code_challenge_method"), "S256");
+  assert.ok(u.searchParams.get("code_challenge"));
+  assert.match(browserProof, /^v1\.[A-Za-z0-9_-]{43}\.[A-Za-z0-9_-]{43}$/);
 });
 
 // ── 4. start route: file shape (404 + redirect + return-param plumbing) ─────
@@ -90,6 +95,8 @@ test("start route: file shape — config gate, 302 redirect, return param", () =
   assert.match(src, /resolvePublicAuthContext\(\{ brand, clientId \}\)/,
     "OAuth initiation must fail before Google when public tenant/client context conflicts");
   assert.match(src, /invalid_context/);
+  assert.match(src, /googleOAuthFlowCookie/);
+  assert.match(src, /cache-control", "no-store"/);
 });
 
 // ── 5. callback route: bad state rejected ───────────────────────────────────
@@ -116,6 +123,31 @@ test("callback route: file shape — state + email_verified + session + role-awa
   assert.match(src, /getUser\([\s\S]*?claims\.email,[\s\S]*?stateCheck\.clientId/);
   // Role-aware fallback via resolvePostLoginPath.
   assert.match(src, /resolvePostLoginPath/);
+  assert.match(src, /consumeNonce\(stateCheck\.nonce, "google-oauth"/,
+    "the callback atomically spends signed state before provider exchange");
+  assert.match(src, /verifyOAuthBrowserProof/);
+  assert.match(src, /codeVerifier: browserCheck\.codeVerifier/);
+  assert.match(src, /clearOAuthCookie\(await handleCallback\(req\)\)/,
+    "all callback outcomes clear the browser-bound proof");
+});
+
+test("OAuth correlation cookie is host-only, HttpOnly, Secure and SameSite=Lax", () => {
+  assert.equal(GOOGLE_OAUTH_FLOW_COOKIE.startsWith("__Host-"), true);
+  const cookie = googleOAuthFlowCookie("opaque-browser-proof");
+  assert.equal(cookie.options.httpOnly, true);
+  assert.equal(cookie.options.sameSite, "lax");
+  assert.equal(cookie.options.secure, true);
+  assert.equal(cookie.options.path, "/");
+  assert.equal("domain" in cookie.options, false);
+});
+
+test("Supabase accepts google-oauth only through the service-role nonce RPC", () => {
+  const migration = read("../supabase/migrations/20260912180000_google_oauth_nonce_kind.sql");
+  assert.match(migration, /'google-oauth'/);
+  assert.match(migration, /security definer/);
+  assert.match(migration, /revoke all .* from public, anon, authenticated/i);
+  assert.match(migration, /grant execute .* to service_role/i);
+  assert.doesNotMatch(migration, /grant\s+(?:select|insert|update|delete|all).*on table/i);
 });
 
 // ── 7. callback route: unknown email → /login?oauth_error=unknown_email ─────

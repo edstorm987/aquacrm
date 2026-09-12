@@ -6,7 +6,20 @@
 
 export function SkipToContent({ targetId = "main-content" }: { targetId?: string }) {
   function moveFocus() {
-    const target = document.getElementById(targetId);
+    let target = document.getElementById(targetId);
+    if (!target) {
+      // Standalone roots (connections, proposals, embeds, previews and error
+      // documents) predate the shared landmark id. Normalise the first visible
+      // real <main> at activation time so the href keeps native fragment,
+      // history and scrolling semantics instead of becoming a dead skip link.
+      const mains = Array.from(document.querySelectorAll<HTMLElement>("main"));
+      target = mains.find(main => (
+        !main.hidden
+        && main.getAttribute("aria-hidden") !== "true"
+        && main.getClientRects().length > 0
+      )) ?? mains[0] ?? null;
+      if (target) target.id = targetId;
+    }
     if (!target) return;
 
     // Most application shells use a plain <main>, which is not focusable by

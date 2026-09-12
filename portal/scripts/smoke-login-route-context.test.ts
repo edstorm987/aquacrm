@@ -16,7 +16,12 @@ import {
   resolvePublicAuthContext,
   resolveUserAuthContext,
 } from "../src/lib/server/auth/authContext";
-import { buildAuthorizeUrl, verifyOAuthState } from "../src/lib/server/integrations/oauthGoogle";
+import {
+  buildAuthorizeUrl,
+  GOOGLE_OAUTH_FLOW_COOKIE,
+  verifyOAuthBrowserProof,
+  verifyOAuthState,
+} from "../src/lib/server/integrations/oauthGoogle";
 import { signPasswordResetToken, verifyPasswordResetToken } from "../src/lib/server/auth/passwordReset";
 import { handlePasswordResetRequest } from "../src/app/api/auth/password/request-reset/handler";
 import { GET as leaveShowcase } from "../src/app/login/live/route";
@@ -194,12 +199,21 @@ describe("signed OAuth navigation context", () => {
       assert.equal(exact.status, 302);
       const provider = new URL(exact.headers.get("location")!);
       assert.equal(provider.hostname, "accounts.google.com");
-      assert.deepEqual(verifyOAuthState(provider.searchParams.get("state")!, process.env.PORTAL_SESSION_SECRET!), {
-        ok: true,
-        returnUrl: "/portal/customer",
-        brand: agencyA.slug,
-        clientId: clientA.id,
-      });
+      const state = verifyOAuthState(provider.searchParams.get("state")!, process.env.PORTAL_SESSION_SECRET!);
+      assert.equal(state.ok, true);
+      if (!state.ok) throw new Error(state.error);
+      assert.equal(state.returnUrl, "/portal/customer");
+      assert.equal(state.brand, agencyA.slug);
+      assert.equal(state.clientId, clientA.id);
+      const flowCookie = exact.headers.getSetCookie()
+        .find(cookie => cookie.startsWith(`${GOOGLE_OAUTH_FLOW_COOKIE}=`));
+      assert.ok(flowCookie, "start binds state to a host-only response cookie");
+      const browserProof = decodeURIComponent(flowCookie!.split(";")[0]!.split("=").slice(1).join("="));
+      assert.equal(verifyOAuthBrowserProof(state, browserProof).ok, true);
+      assert.match(flowCookie!, /; HttpOnly/i);
+      assert.match(flowCookie!, /; Secure/i);
+      assert.match(flowCookie!, /; SameSite=lax/i);
+      assert.doesNotMatch(flowCookie!, /; Domain=/i);
 
       for (const [brand, clientId] of [
         [agencyB.slug, clientA.id],
@@ -224,18 +238,19 @@ describe("signed OAuth navigation context", () => {
   });
 
   it("round-trips exact brand/client context and normalises unsafe returns", () => {
-    const { state } = buildAuthorizeUrl(config, {
+    const { state, browserProof } = buildAuthorizeUrl(config, {
       secret: "oauth-state-context-secret",
       returnUrl: "/portal/customer?tab=files",
       brand: "context-a",
       clientId: "client-context-a",
     });
-    assert.deepEqual(verifyOAuthState(state, "oauth-state-context-secret"), {
-      ok: true,
-      returnUrl: "/portal/customer?tab=files",
-      brand: "context-a",
-      clientId: "client-context-a",
-    });
+    const verified = verifyOAuthState(state, "oauth-state-context-secret");
+    assert.equal(verified.ok, true);
+    if (!verified.ok) throw new Error(verified.error);
+    assert.equal(verified.returnUrl, "/portal/customer?tab=files");
+    assert.equal(verified.brand, "context-a");
+    assert.equal(verified.clientId, "client-context-a");
+    assert.equal(verifyOAuthBrowserProof(verified, browserProof).ok, true);
     for (const returnUrl of [
       "//attacker.test/x",
       "/\\attacker.test/x",

@@ -110,11 +110,18 @@ describe("durable public-auth link delivery generations", () => {
       now: 2_000_000,
     };
     const first = await preparePublicAuthLinkDelivery(input);
-    const retry = await preparePublicAuthLinkDelivery({ ...input, now: input.now + 10 });
+    const retry = await preparePublicAuthLinkDelivery({
+      ...input,
+      presentation: "attacker-selected-change",
+      now: input.now + 10,
+    });
     const bearer = resetBearer(first);
     assert.equal(resetBearer(retry), bearer);
+    assert.equal(retry.presentation, input.presentation,
+      "a current live generation never changes provider bytes under its existing key");
     assert.doesNotMatch(JSON.stringify(getState().publicAuthLinkDeliveryOperations), new RegExp(bearer.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     assert.equal(Object.keys(getState().publicAuthLinkDeliveryOperations).length, 1);
+    assert.equal(first.deliveryContentVersion, 2);
 
     await markPublicAuthLinkConsumed({
       kind: first.kind,
@@ -127,6 +134,35 @@ describe("durable public-auth link delivery generations", () => {
     const replacement = await preparePublicAuthLinkDelivery({ ...input, now: input.now + 30 });
     assert.equal(replacement.generation, first.generation + 1);
     assert.notEqual(resetBearer(replacement), bearer);
+  });
+
+  it("rotates a seeded pre-correction reset row before using corrected provider bytes", async () => {
+    const input = {
+      kind: "password-reset" as const,
+      userId: "usr_legacy_reset_subject",
+      email: "legacy-reset@example.test",
+      agencyId: "agency_exact_reset",
+      clientId: null,
+      sessionRev: 3,
+      presentation: "agency_exact_reset",
+      now: 2_500_000,
+    };
+    const seeded = await preparePublicAuthLinkDelivery(input);
+    const seededBearer = resetBearer(seeded);
+    getState().publicAuthLinkDeliveryOperations[seeded.id] = {
+      ...seeded,
+      presentation: "milesymedia",
+      deliveryContentVersion: undefined,
+    };
+
+    const corrected = await preparePublicAuthLinkDelivery({ ...input, now: input.now + 1_000 });
+    assert.equal(corrected.generation, seeded.generation + 1);
+    assert.equal(corrected.presentation, input.agencyId);
+    assert.equal(corrected.deliveryContentVersion, 2);
+    assert.notEqual(corrected.tokenNonce, seeded.tokenNonce);
+    assert.notEqual(corrected.providerOperationRef, seeded.providerOperationRef,
+      "corrected bytes must never reuse the legacy provider idempotency key");
+    assert.notEqual(resetBearer(corrected), seededBearer);
   });
 
   it("fences a late old-generation receipt after post-consumption resend", async () => {

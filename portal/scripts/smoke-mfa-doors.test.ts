@@ -18,6 +18,7 @@
 
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import { createServer, type Server } from "node:http";
 import { NextRequest } from "next/server";
 
@@ -36,7 +37,11 @@ import {
 import { GET as magicVerify } from "../src/app/api/auth/magic/verify/route";
 import { GET as oauthCallback } from "../src/app/api/auth/oauth/google/callback/route";
 import { signMagicToken } from "../src/lib/server/auth/magicLink";
-import { buildAuthorizeUrl, readGoogleOAuthConfig } from "../src/lib/server/integrations/oauthGoogle";
+import {
+  buildAuthorizeUrl,
+  GOOGLE_OAUTH_FLOW_COOKIE,
+  readGoogleOAuthConfig,
+} from "../src/lib/server/integrations/oauthGoogle";
 import { ensureHydrated } from "../src/server/storage";
 import { createAgency, createClient } from "../src/server/tenants";
 import { createUser, getUser } from "../src/server/users";
@@ -177,6 +182,8 @@ const realFetch = globalThis.fetch;
 const GOOGLE_CLIENT_ID = "doors-google-client-id";
 /** What the fake Google says about the identity being signed in. */
 let googleEmail = PLAIN_EMAIL;
+let googleTokenFailure = false;
+let googleTokenCalls = 0;
 
 function jsonResponse(payload: unknown): Response {
   return new Response(JSON.stringify(payload), {
@@ -220,6 +227,8 @@ before(async () => {
       });
     }
     if (url.startsWith("https://oauth2.googleapis.com/token")) {
+      googleTokenCalls += 1;
+      if (googleTokenFailure) return new Response("", { status: 503 });
       return jsonResponse({ id_token: "stub-google-id-token" });
     }
     return realFetch(input as never, init);
@@ -336,10 +345,12 @@ function oauthCallbackRequest(options: {
   clientId?: string;
   transformState?: (state: string) => string;
   providerError?: string;
+  omitCookie?: boolean;
+  wrongCookie?: boolean;
 } = {}): NextRequest {
   const config = readGoogleOAuthConfig(`${ORIGIN}/api/auth/oauth/google/callback`);
   assert.ok(config, "Google OAuth env must be configured for this test");
-  const { url } = buildAuthorizeUrl(config!, {
+  const { url, browserProof } = buildAuthorizeUrl(config!, {
     returnUrl: "/portal",
     brand: options.brand,
     clientId: options.clientId,
@@ -351,7 +362,16 @@ function oauthCallbackRequest(options: {
   if (options.providerError) callback.searchParams.set("error", options.providerError);
   else callback.searchParams.set("code", "stub-auth-code");
   callback.searchParams.set("state", state);
-  return new NextRequest(callback, { method: "GET" });
+  return new NextRequest(callback, {
+    method: "GET",
+    headers: options.omitCookie ? undefined : {
+      cookie: `${GOOGLE_OAUTH_FLOW_COOKIE}=${options.wrongCookie ? "v1." + "a".repeat(43) + "." + "b".repeat(43) : browserProof}`,
+    },
+  });
+}
+
+function clearedOAuthCookieOf(res: Response): string | undefined {
+  return res.headers.getSetCookie().find(cookie => cookie.startsWith(`${GOOGLE_OAUTH_FLOW_COOKIE}=`));
 }
 
 describe("the Google OAuth door", () => {
@@ -361,6 +381,7 @@ describe("the Google OAuth door", () => {
     assert.equal(res.status, 302);
     assert.ok(sessionCookieOf(res), "Google sign-in stays a real sign-in for unenrolled accounts");
     assert.equal(sessionAalOf(res), "aal1", "Google is one factor, and the cookie must say so");
+    assert.match(clearedOAuthCookieOf(res) ?? "", /Max-Age=0/i);
   });
 
   it("selects the exact authorised agency/client carried by signed state", async () => {
@@ -401,6 +422,109 @@ describe("the Google OAuth door", () => {
     assert.equal(location.searchParams.get("oauth_error"), "invalid_state");
     assert.equal(location.searchParams.has("brand"), false);
     assert.equal(location.searchParams.has("clientId"), false);
+    assert.match(clearedOAuthCookieOf(res) ?? "", /Max-Age=0/i);
+  });
+
+  it("refuses an expired but correctly signed state without reaching Google or minting a session", async () => {
+    googleEmail = OAUTH_CLIENT_EMAIL;
+    const before = googleTokenCalls;
+    const res = await oauthCallback(oauthCallbackRequest({
+      brand: agencyId,
+      clientId,
+      transformState: state => {
+        const encoded = state.split(".")[0]!;
+        const body = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8"));
+        body.exp = Math.floor(Date.now() / 1_000);
+        const expiredBody = Buffer.from(JSON.stringify(body), "utf8").toString("base64url");
+        const signature = crypto.createHmac("sha256", process.env.PORTAL_SESSION_SECRET!)
+          .update(expiredBody)
+          .digest("base64url");
+        return `${expiredBody}.${signature}`;
+      },
+    }));
+    assert.equal(sessionCookieOf(res), undefined);
+    assert.equal(googleTokenCalls, before);
+    const location = new URL(res.headers.get("location") ?? "", ORIGIN);
+    assert.equal(location.searchParams.get("oauth_error"), "expired_state");
+    assert.equal(location.searchParams.has("brand"), false);
+    assert.equal(location.searchParams.has("clientId"), false);
+    assert.match(clearedOAuthCookieOf(res) ?? "", /Max-Age=0/i);
+  });
+
+  it("refuses missing, wrong and cross-browser correlation cookies before provider exchange", async () => {
+    googleEmail = OAUTH_PLAIN_EMAIL;
+    for (const request of [
+      oauthCallbackRequest({ omitCookie: true }),
+      oauthCallbackRequest({ wrongCookie: true }),
+    ]) {
+      const before = googleTokenCalls;
+      const res = await oauthCallback(request);
+      assert.equal(sessionCookieOf(res), undefined);
+      assert.equal(googleTokenCalls, before, "an unbound browser never reaches Google token exchange");
+      assert.match(clearedOAuthCookieOf(res) ?? "", /Max-Age=0/i);
+      const location = new URL(res.headers.get("location") ?? "", ORIGIN);
+      assert.match(location.searchParams.get("oauth_error") ?? "", /browser_proof/);
+      assert.equal(location.searchParams.has("brand"), false);
+      assert.equal(location.searchParams.has("clientId"), false);
+    }
+  });
+
+  it("atomically spends one state across concurrent callbacks and fresh codes", async () => {
+    googleEmail = OAUTH_PLAIN_EMAIL;
+    const config = readGoogleOAuthConfig(`${ORIGIN}/api/auth/oauth/google/callback`)!;
+    const flow = buildAuthorizeUrl(config, {
+      returnUrl: "/portal",
+      secret: process.env.PORTAL_SESSION_SECRET!,
+    });
+    const state = new URL(flow.url).searchParams.get("state")!;
+    const request = (code: string) => {
+      const callback = new URL("/api/auth/oauth/google/callback", ORIGIN);
+      callback.searchParams.set("state", state);
+      callback.searchParams.set("code", code);
+      return new NextRequest(callback, {
+        headers: { cookie: `${GOOGLE_OAUTH_FLOW_COOKIE}=${flow.browserProof}` },
+      });
+    };
+    const before = googleTokenCalls;
+    const [first, second] = await Promise.all([
+      oauthCallback(request("concurrent-code-a")),
+      oauthCallback(request("concurrent-code-b")),
+    ]);
+    assert.equal([first, second].filter(response => sessionCookieOf(response)).length, 1);
+    assert.equal(googleTokenCalls - before, 1, "only the atomic nonce winner reaches token exchange");
+    const replay = await oauthCallback(request("fresh-code-after-success"));
+    assert.equal(sessionCookieOf(replay), undefined);
+    assert.equal(googleTokenCalls - before, 1, "a fresh provider code cannot revive spent state");
+    assert.equal(
+      new URL(replay.headers.get("location") ?? "", ORIGIN).searchParams.get("oauth_error"),
+      "oauth_state_replayed",
+    );
+    for (const response of [first, second, replay]) {
+      assert.match(clearedOAuthCookieOf(response) ?? "", /Max-Age=0/i);
+    }
+  });
+
+  it("spends state and clears browser proof when the provider fails", async () => {
+    googleEmail = OAUTH_PLAIN_EMAIL;
+    const request = oauthCallbackRequest();
+    googleTokenFailure = true;
+    try {
+      const failed = await oauthCallback(request);
+      assert.equal(sessionCookieOf(failed), undefined);
+      assert.match(clearedOAuthCookieOf(failed) ?? "", /Max-Age=0/i);
+      assert.match(
+        new URL(failed.headers.get("location") ?? "", ORIGIN).searchParams.get("oauth_error") ?? "",
+        /token_exchange_failed/,
+      );
+    } finally {
+      googleTokenFailure = false;
+    }
+    const replay = await oauthCallback(request);
+    assert.equal(sessionCookieOf(replay), undefined);
+    assert.equal(
+      new URL(replay.headers.get("location") ?? "", ORIGIN).searchParams.get("oauth_error"),
+      "oauth_state_replayed",
+    );
   });
 
   it("refuses to mint a session for an enrolled account", async () => {
@@ -422,8 +546,10 @@ describe("the Google OAuth door", () => {
       providerError: "access_denied",
     }));
     const trustedLocation = new URL(trusted.headers.get("location") ?? "", ORIGIN);
+    assert.equal(sessionCookieOf(trusted), undefined);
     assert.equal(trustedLocation.searchParams.get("oauth_error"), "access_denied");
     assert.equal(trustedLocation.searchParams.get("brand"), agencyId);
+    assert.match(clearedOAuthCookieOf(trusted) ?? "", /Max-Age=0/i);
 
     const tampered = await oauthCallback(oauthCallbackRequest({
       brand: agencyId,
@@ -431,8 +557,10 @@ describe("the Google OAuth door", () => {
       transformState: state => `${state}.tampered`,
     }));
     const tamperedLocation = new URL(tampered.headers.get("location") ?? "", ORIGIN);
+    assert.equal(sessionCookieOf(tampered), undefined);
     assert.notEqual(tamperedLocation.searchParams.get("oauth_error"), "access_denied");
     assert.equal(tamperedLocation.searchParams.has("brand"), false);
+    assert.match(clearedOAuthCookieOf(tampered) ?? "", /Max-Age=0/i);
   });
 
   it("refuses everyone when enrolment cannot be checked at all", async () => {

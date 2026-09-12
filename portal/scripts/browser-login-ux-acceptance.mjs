@@ -38,7 +38,14 @@ const ROUTES = [
 const SKIP_SURFACES = [
   { path: "/login?brand=aqua", kind: "auth" },
   { path: "/for-agencies", kind: "website" },
-  { path: "/showcase", kind: "portal" },
+  { path: "/careers", kind: "standalone", id: "careers-320" },
+  { path: "/signup/setup", kind: "standalone" },
+  { path: "/connect/missing-browser-fixture", kind: "standalone" },
+  { path: "/proposal/missing-browser-fixture", kind: "standalone", expectedNotFound: true },
+  { path: "/embed/account", kind: "standalone" },
+  { path: "/client-preview/missing", kind: "auth-redirect", expectedPath: "/login" },
+  { path: "/portal/dev-workspace", kind: "auth-redirect", expectedPath: "/login" },
+  { path: "/missing-browser-fixture", kind: "standalone", expectedNotFound: true },
 ];
 const SKIP_VIEWPORTS = [
   { width: 320, height: 568 },
@@ -89,9 +96,31 @@ async function installTurnstileFixture(context) {
   });
 }
 
+function captureExternalRequests(context) {
+  const externalRequests = [];
+  context.on("request", request => {
+    const url = new URL(request.url());
+    if ((url.protocol === "http:" || url.protocol === "https:") && url.origin !== parsed.origin) {
+      externalRequests.push(url.href);
+    }
+  });
+  return externalRequests;
+}
+
+function assertNoExternalRequests(externalRequests, label) {
+  assert.deepEqual(externalRequests, [], `${label}: browser gate made no external HTTP requests`);
+}
+
 async function verifySkipTarget(page, surface, viewport) {
   const route = typeof surface === "string" ? surface : surface.path;
   const kind = typeof surface === "string" ? "auth" : surface.kind;
+  const errors = [];
+  const onPageError = error => errors.push(error.message);
+  const onConsole = message => {
+    if (message.type() === "error") errors.push(message.text());
+  };
+  page.on("pageerror", onPageError);
+  page.on("console", onConsole);
   await page.goto(`${BASE}${route}`, { waitUntil: "networkidle" });
   // Next's development-only toolbar is injected ahead of the application and
   // participates in Tab order through a shadow root. It is absent from the
@@ -136,15 +165,34 @@ async function verifySkipTarget(page, surface, viewport) {
   assert.equal(focus.hash, "#main-content", `${route} records the skip destination in the URL`);
   assert.equal(focus.tabIndex, "-1", `${route} has robust programmatic focus semantics`);
   assert.ok(focus.historyLength >= before.historyLength, `${route} retains native history semantics`);
+  assert.equal(
+    await page.locator("[data-nextjs-dialog], .vite-error-overlay, #webpack-dev-server-client-overlay").count(),
+    0,
+    `${route} exposes no framework error overlay`,
+  );
+  const unexpectedErrors = errors.filter(message => !(
+    surface.expectedNotFound
+    && (
+      /Failed to load resource: the server responded with a status of 404/.test(message)
+      || /Encountered a script tag while rendering React component/.test(message)
+    )
+  ));
+  assert.deepEqual(unexpectedErrors, [], `${route} emits no unexpected browser errors`);
   if (kind === "website" || kind === "portal") {
     assert.equal(before.tabIndex, null, `${route} exercises a genuinely non-focusable main`);
   }
+  if (kind === "standalone") {
+    assert.equal(before.target, false, `${route} exercises the target-absent fallback`);
+  }
   if (kind === "website") assert.equal(focus.pathname, "/for-agencies");
+  if (surface.expectedPath) assert.equal(focus.pathname, surface.expectedPath);
   if (kind === "portal") {
     assert.match(focus.pathname, /^\/portal\//, `${route} reached a real portal surface`);
     assert.equal(focus.portalMain, true, `${route} focused the portal shell rather than an auth fallback`);
   }
-  return kind === "portal" ? 10 : kind === "website" ? 9 : 7;
+  page.off("pageerror", onPageError);
+  page.off("console", onConsole);
+  return kind === "portal" ? 12 : kind === "website" ? 11 : 9;
 }
 
 async function main() {
@@ -156,6 +204,7 @@ async function main() {
         viewport: { width: viewport.width, height: viewport.height },
         deviceScaleFactor: viewport.scale,
       });
+      const externalRequests = captureExternalRequests(context);
       await installTurnstileFixture(context);
       const page = await context.newPage();
       const errors = [];
@@ -199,11 +248,13 @@ async function main() {
         assert.deepEqual(axe.violations.map(violation => violation.id), [], `${viewport.id}: axe WCAG A/AA`);
         checks += 1;
       }
-      checks += 8;
+      assertNoExternalRequests(externalRequests, viewport.id);
+      checks += 9;
       await context.close();
     }
 
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const externalRequests = captureExternalRequests(context);
     await installTurnstileFixture(context);
     const page = await context.newPage();
     for (const route of ROUTES) {
@@ -212,17 +263,68 @@ async function main() {
       assert.equal(brand?.trim(), route.brand, `${route.path}: visible tenant lockup is retained`);
       checks += 1;
     }
+    assertNoExternalRequests(externalRequests, "auth route matrix");
+    checks += 1;
     await context.close();
+
+    const reducedMotionContext = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      reducedMotion: "reduce",
+    });
+    const reducedMotionExternalRequests = captureExternalRequests(reducedMotionContext);
+    await installTurnstileFixture(reducedMotionContext);
+    const reducedMotionPage = await reducedMotionContext.newPage();
+    await reducedMotionPage.goto(`${BASE}/login?brand=aqua`, { waitUntil: "networkidle" });
+    await reducedMotionPage.locator(".mm-btn-primary").hover();
+    const reducedMotion = await reducedMotionPage.evaluate(() => ({
+      requested: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+      transform: getComputedStyle(document.querySelector(".mm-btn-primary")).transform,
+      transitionDuration: getComputedStyle(document.querySelector(".mm-btn-primary")).transitionDuration,
+    }));
+    assert.equal(reducedMotion.requested, true, "reduced-motion browser context exposes the user preference");
+    assert.equal(reducedMotion.transform, "none", "reduced-motion primary action does not animate on hover");
+    assert.equal(reducedMotion.transitionDuration, "0s", "reduced-motion primary action has no transition duration");
+    assertNoExternalRequests(reducedMotionExternalRequests, "reduced-motion login");
+    checks += 4;
+    await reducedMotionContext.close();
 
     for (const viewport of SKIP_VIEWPORTS) {
       for (const surface of SKIP_SURFACES) {
         const skipContext = await browser.newContext({ viewport });
+        const skipExternalRequests = captureExternalRequests(skipContext);
         await installTurnstileFixture(skipContext);
         const skipPage = await skipContext.newPage();
         checks += await verifySkipTarget(skipPage, surface, viewport);
+        assertNoExternalRequests(skipExternalRequests, `${surface.path} at ${viewport.width}x${viewport.height}`);
+        checks += 1;
         await skipContext.close();
       }
     }
+
+    // Establish the public showcase once and keep its exact cookie/realm for
+    // every portal assertion. Re-entering /showcase in disposable contexts
+    // raced fixture hydration and intermittently tested the login fallback.
+    const showcaseContext = await browser.newContext({ viewport: SKIP_VIEWPORTS[0] });
+    const showcaseExternalRequests = captureExternalRequests(showcaseContext);
+    await installTurnstileFixture(showcaseContext);
+    const showcasePage = await showcaseContext.newPage();
+    await showcasePage.goto(`${BASE}/showcase`, { waitUntil: "networkidle" });
+    assert.equal(new URL(showcasePage.url()).pathname, "/portal/agency",
+      "showcase setup reaches the real portal before skip acceptance");
+    checks += 1;
+    for (const viewport of SKIP_VIEWPORTS) {
+      await showcasePage.setViewportSize(viewport);
+      checks += await verifySkipTarget(showcasePage, { path: "/portal/agency", kind: "portal" }, viewport);
+    }
+    await showcasePage.setViewportSize(SKIP_VIEWPORTS[0]);
+    checks += await verifySkipTarget(showcasePage, {
+      path: "/portal/missing-browser-fixture",
+      kind: "standalone",
+      expectedNotFound: true,
+    }, SKIP_VIEWPORTS[0]);
+    assertNoExternalRequests(showcaseExternalRequests, "showcase portal matrix");
+    checks += 1;
+    await showcaseContext.close();
   } finally {
     await browser.close();
   }

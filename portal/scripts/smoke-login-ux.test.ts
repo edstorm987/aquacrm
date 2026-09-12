@@ -24,6 +24,19 @@ const websiteShell = readFileSync("src/app/(website)/WebsiteShell.tsx", "utf8");
 const portalLayout = readFileSync("src/app/portal/agency/layout.tsx", "utf8");
 const css = readFileSync("src/app/globals.css", "utf8");
 const browserGate = readFileSync("scripts/browser-login-ux-acceptance.mjs", "utf8");
+const browserRunner = readFileSync("scripts/run-browser-login-ux.mjs", "utf8");
+const packageJson = readFileSync("package.json", "utf8");
+const standaloneRoots = [
+  ["src/app/careers/page.tsx", "/careers"],
+  ["src/app/signup/setup/page.tsx", "/signup/setup"],
+  ["src/app/connect/[connectionId]/page.tsx", "/connect/missing-browser-fixture"],
+  ["src/app/proposal/[token]/page.tsx", "/proposal/missing-browser-fixture"],
+  ["src/app/embed/account/page.tsx", "/embed/account"],
+  ["src/app/client-website-preview/[clientId]/[siteId]/[pageId]/page.tsx", "/client-preview/missing"],
+  ["src/app/portal/dev-workspace/page.tsx", "/portal/dev-workspace"],
+  ["src/app/not-found.tsx", "/missing-browser-fixture"],
+  ["src/app/portal/not-found.tsx", "/portal/missing-browser-fixture"],
+] as const;
 const challengeFrameCss = /\.mm-captcha-frame \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
 
 function relativeLuminance(hex: string): number {
@@ -125,11 +138,41 @@ test("LOGIN-UX-001: global skip navigation focuses auth, website and portal targ
   assert.match(portalLayout, /<main id="main-content"/, "the portal shell exposes the global target");
   assert.match(skipLink, /<a[\s\S]*?href=\{`#\$\{targetId\}`\}/, "the skip control retains native fragment navigation");
   assert.match(skipLink, /target\.setAttribute\("tabindex", "-1"\)/, "non-focusable main elements become programmatically focusable");
+  assert.match(skipLink, /document\.querySelectorAll<HTMLElement>\("main"\)/,
+    "a standalone root without the canonical id resolves its first real main");
+  assert.match(skipLink, /if \(target\) target\.id = targetId/,
+    "the fallback normalises that main to the native fragment destination");
   assert.match(skipLink, /target\.focus\(\{ preventScroll: true \}\)/, "the global skip control moves focus explicitly");
   assert.doesNotMatch(skipLink, /preventDefault|pushState|replaceState|scrollIntoView/, "native navigation/history/scroll are not reimplemented");
   assert.match(browserGate, /assert\.equal\(focus\.activeElement, "main-content"/, "the browser gate proves focus moves to the target");
   assert.match(browserGate, /\/for-agencies/, "the browser gate covers a non-focusable website shell");
   assert.match(browserGate, /\/showcase/, "the browser gate covers a portal shell");
+  for (const [path, browserMarker] of standaloneRoots) {
+    const source = readFileSync(path, "utf8");
+    assert.match(source, /<main\b/, `${path} contains a real main for shared skip fallback`);
+    assert.ok(browserGate.includes(browserMarker),
+      `${path} remains represented in the permanent skip inventory`);
+  }
+  assert.match(browserGate, /showcaseContext/, "showcase setup is reused instead of racing repeated fixture sessions");
+  assert.match(browserGate, /\/portal\/agency/, "portal skip checks run inside the established showcase session");
+  assert.match(browserGate, /captureExternalRequests/, "every browser context records attempted off-origin calls");
+  assert.match(browserGate, /assertNoExternalRequests/, "the acceptance gate refuses external browser traffic");
+  assert.match(browserGate, /reducedMotion: "reduce"/, "the real-browser matrix emulates reduced motion");
+  assert.match(browserGate, /transitionDuration, "0s"/, "the real browser proves auth motion is disabled");
+  assert.match(browserRunner, /PORTAL_BACKEND: "file"/,
+    "the committed gate shares showcase state across development route bundles");
+  assert.match(browserRunner, /mkdtempSync/, "the browser gate owns an isolated temporary state file");
+  assert.match(packageJson, /"browser:login-ux": "node scripts\/run-browser-login-ux\.mjs"/,
+    "the default command runs the deterministic hermetic launcher");
+});
+
+test("LOGIN-UX-001: careers retains a hard 320px overflow boundary", () => {
+  const careers = readFileSync("src/app/careers/page.tsx", "utf8");
+  assert.match(careers, /w-full max-w-full overflow-x-clip/,
+    "the standalone careers canvas cannot expand the document around intrinsic controls");
+  assert.match(browserGate, /careers-320/);
+  assert.match(browserGate, /documentWidth, facts\.viewportWidth/,
+    "the browser gate compares exact document and viewport widths");
 });
 
 test("LOGIN-UX-001: recovery routes retain the visible tenant lockup", () => {

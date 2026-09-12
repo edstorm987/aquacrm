@@ -12,6 +12,7 @@ import { withPortalStateTransaction } from "./productWorkspaceCoordinator";
 
 const MAGIC_LINK_TTL_SECONDS = 15 * 60;
 const PASSWORD_RESET_TTL_SECONDS = 24 * 60 * 60;
+const PASSWORD_RESET_CONTENT_VERSION = 2;
 
 export interface PublicAuthLinkSubject {
   kind: PublicAuthLinkKind;
@@ -122,10 +123,18 @@ export async function preparePublicAuthLinkDelivery(
     if (existing && !exactSubject(existing, subject)) {
       throw new Error("public_auth_link_subject_changed");
     }
+    // Password-reset copy and signed context changed when recovery became
+    // exact-tenant. A pre-correction durable row has no content version (and
+    // often a static front such as `milesymedia` in `presentation`). Reusing
+    // its provider key with corrected bytes would violate provider
+    // idempotency; rotate the generation, nonce and key instead.
+    const currentPasswordResetGeneration = subject.kind !== "password-reset"
+      || existing?.deliveryContentVersion === PASSWORD_RESET_CONTENT_VERSION;
     const reusable = existing
       && existing.deliveryStatus !== "consumed"
       && existing.tokenExpiresAt > Math.floor(now / 1_000)
       && existing.expectedSessionRev === subject.sessionRev
+      && currentPasswordResetGeneration
       ? existing
       : null;
     const generation = reusable?.generation ?? (existing?.generation ?? 0) + 1;
@@ -140,6 +149,9 @@ export async function preparePublicAuthLinkDelivery(
       clientId: subject.clientId,
       expectedSessionRev: subject.sessionRev,
       presentation: reusable?.presentation ?? subject.presentation,
+      deliveryContentVersion: subject.kind === "password-reset"
+        ? PASSWORD_RESET_CONTENT_VERSION
+        : reusable?.deliveryContentVersion,
       generation,
       tokenNonce,
       tokenExpiresAt: reusable?.tokenExpiresAt
