@@ -7,7 +7,7 @@ import {
 } from "@/built-ins/runtime/foundation-adapters/publicFunnelFoundation";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
 import { verifyBotChallenge } from "@/lib/server/security/botChallenge";
-import { FOUNDER_AGENCY_SLUG, seedFounder } from "@/lib/server/seeds/founderSeed";
+import { FOUNDER_AGENCY_SLUG } from "@/lib/server/seeds/founderSeed";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { flushPendingWrites, ensureHydrated } from "@/server/storage";
 import { getInstall } from "@/server/pluginInstalls";
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
   }
 
   // ABUSE-002 / DECISIONS #13: exact action + request-host proof is required
-  // before any address/install allowance, hydration, seeding, or capture work.
+  // before any address/install allowance, hydration or capture work.
   // The verifier has its own per-IP provider budget and single-use token guard.
   const challenge = await verifyBotChallenge({
     action: "health-check-complete",
@@ -117,7 +117,9 @@ export async function POST(request: NextRequest) {
 
   try {
     await ensureHydrated({ fresh: true });
-    await seedFounder();
+    // This public request must never bootstrap an agency, account or plugin.
+    // Provisioning owns that privileged work; an unconfigured installation
+    // fails closed below without creating any authentication surface.
     const agency = getAgencyBySlug(FOUNDER_AGENCY_SLUG);
     if (!agency) {
       return failure(503, "funnel_unavailable", "The Health Check handoff is not configured yet. Please try again.");

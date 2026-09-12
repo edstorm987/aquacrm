@@ -68,6 +68,27 @@ export interface AquaEvent<T = unknown> {
 type EventName = AquaEventName | string;
 type Handler = (event: AquaEvent) => void | Promise<void>;
 
+const PUBLIC_FUNNEL_AUTOMATION_FIELDS: Readonly<Record<string, readonly string[]>> = {
+  "public-funnel.lead.captured": ["id", "source"],
+  "public-funnel.hc.completed": ["id", "bucket"],
+  "public-funnel.tool.completed": ["id", "toolId"],
+};
+
+function payloadForAutomation(name: EventName, payload: unknown): Record<string, unknown> {
+  const record = payload && typeof payload === "object" && !Array.isArray(payload)
+    ? payload as Record<string, unknown>
+    : { value: payload };
+  const allowed = PUBLIC_FUNNEL_AUTOMATION_FIELDS[name];
+  if (!allowed) return record;
+
+  // Funnel subscribers need the address in-memory to create the CRM lead, but
+  // generic automation runs are durable and have independent retention. Give
+  // those runs only opaque routing/summary fields: never an address, pending
+  // identity, or the complete Health Check answer object.
+  return Object.fromEntries(allowed.flatMap(key =>
+    Object.prototype.hasOwnProperty.call(record, key) ? [[key, record[key]]] : []));
+}
+
 const SUBSCRIBERS: Map<EventName, Set<Handler>> = new Map();
 const WILDCARD: Set<Handler> = new Set();
 
@@ -147,9 +168,7 @@ export function emit<T = unknown>(
     Promise.resolve()
       .then(async () => {
         const { triggerAutomations } = await import("./automations");
-        const eventPayload = payload && typeof payload === "object" && !Array.isArray(payload)
-          ? payload as Record<string, unknown>
-          : { value: payload as unknown };
+        const eventPayload = payloadForAutomation(name, payload);
         await triggerAutomations(event.agencyId, name, {
           ...eventPayload,
           ...(event.clientId ? { clientId: event.clientId } : {}),

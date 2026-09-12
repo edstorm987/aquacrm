@@ -1,7 +1,7 @@
 // `@aqua/plugin-public-funnel` — wires the Health Check (and future
-// Resources tools) completion to capture-only lead registration. Anonymous
-// completion never authenticates; a future mailbox-verified continuation owns
-// sign-in.
+// Resources tools) completion to pending-only lead capture. Anonymous
+// completion creates no User, session, membership or provider identity; a
+// future mailbox-verified continuation owns promotion and sign-in.
 // `core: true` so it auto-installs on bootstrap.
 //
 // Scope policy note: the round 021 prompt suggests `"global"` (leads
@@ -31,12 +31,11 @@ const manifest: AquaPlugin = {
   tagline: "Health Check + tool completions → safe lead capture for BOS.",
   description:
     "The public funnel link. Static `public/health-check/` POSTs the " +
-    "completed slot through `/api/public/health-check/complete`; this plugin creates a brand-new `lead` user via the " +
-    "foundation `LeadUserPort`, captures the slot for BOS " +
-    "personalisation, and responds with a BOS redirect without issuing authentication. " +
-    "Existing identities and repeated completion ids fail closed. A future " +
-    "mailbox-verified, single-use flow may authenticate the lead. Anonymous capture has one canonical mounted " +
-    "admission; the former query-scoped plugin completion routes are retired.",
+    "completed slot through `/api/public/health-check/complete`; after managed challenge verification this plugin " +
+    "creates only a non-authenticatable pending capture in install storage. It creates no User, session, membership " +
+    "or provider identity. Existing identities, canonical-address repeats and repeated completion ids fail closed " +
+    "without returning capture authority. A future mailbox-verified, single-use flow owns promotion and sign-in. " +
+    "Anonymous capture has one canonical mounted admission; the former query-scoped plugin completion routes are retired.",
 
   core: true,
   scopePolicy: "agency",

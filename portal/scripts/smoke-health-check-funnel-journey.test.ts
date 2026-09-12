@@ -6,7 +6,7 @@
 // a session or attach to an existing identity. Mailbox-verified continuation
 // is a separate future promotion flow.
 
-import { describe, it } from "node:test";
+import { before, describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 process.env.PORTAL_BACKEND = "memory";
@@ -42,6 +42,18 @@ function completionRequest(
     body: JSON.stringify(body),
   });
 }
+
+before(async () => {
+  const [{ reset }, { _resetFounderSeedForTests, seedFounder }] = await Promise.all([
+    import("../src/server/storage"),
+    import("../src/lib/server/seeds/founderSeed"),
+  ]);
+  await reset();
+  _resetFounderSeedForTests();
+  // Privileged provisioning is an explicit operator/test-fixture step. The
+  // anonymous completion route must only resolve this existing installation.
+  await seedFounder();
+});
 
 describe("Health Check public-funnel journey", () => {
   it("persists a pending lead once without creating or returning authentication", async () => {

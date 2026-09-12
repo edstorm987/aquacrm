@@ -2,7 +2,7 @@
   "name": "@aqua/plugin-public-funnel",
   "version": "0.1.0",
   "private": true,
-  "description": "Aqua portal public funnel \u2014 wires Health Check (and future Resources tools) completion to lead identity, session handoff and Business OS context. Lead identity is reused by canonical email and stable completion IDs make capture retries idempotent.",
+  "description": "Aqua portal public funnel \u2014 accepts managed-challenge-protected Health Check completions into non-authenticatable pending capture storage. Anonymous requests create no User or session; existing identities, canonical-address repeats and completion-id replays fail closed pending future mailbox-proof promotion.",
   "main": "index.ts",
   "exports": {
     ".": "./index.ts",

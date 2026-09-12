@@ -44,6 +44,21 @@ function hasExactFieldReference(
 
 const LEAD_USER_REFERENCE_FIELDS = new Set(["leadUserId"]);
 const CAPTURE_REFERENCE_FIELDS = new Set(["captureId", "captureIds"]);
+const PUBLIC_FUNNEL_PLUGIN_ID = "public-funnel";
+const CAPTURE_ROW_PREFIX = "captures/by-id/";
+
+function publicFunnelHasCanonicalCapture(email: string): boolean {
+  const state = getState();
+  return Object.values(state.pluginInstalls)
+    .filter(install => install.pluginId === PUBLIC_FUNNEL_PLUGIN_ID)
+    .some(install => Object.entries(state.pluginData[install.id] ?? {}).some(([key, value]) => {
+      if (!key.startsWith(CAPTURE_ROW_PREFIX) || !value || typeof value !== "object" || Array.isArray(value)) {
+        return false;
+      }
+      const storedEmail = (value as { email?: unknown }).email;
+      return typeof storedEmail === "string" && storedEmail.trim().toLowerCase() === email;
+    }));
+}
 
 export const leadUserPort = {
   async withPendingLeadByEmail<T>(
@@ -59,6 +74,13 @@ export const leadUserPort = {
       // use `<email>|c:<clientId>` storage keys and are equally protected.
       const existing = Object.values(getState().users).some(user => user.email.trim().toLowerCase() === norm);
       if (existing) return { created: false };
+
+      // Pending identities live outside Users, but their canonical address is
+      // still one global admission namespace. Inspect only authoritative
+      // public-funnel capture rows, across every registered install, while the
+      // global transaction is held. That makes two-agency races atomic without
+      // treating arbitrary plugin data as identity evidence.
+      if (publicFunnelHasCanonicalCapture(norm)) return { created: false };
 
       let pendingLead: { id: string } | null = null;
       const createPendingLead = () => {

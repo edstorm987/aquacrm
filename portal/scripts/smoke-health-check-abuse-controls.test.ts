@@ -17,8 +17,14 @@ import { POST } from "../src/app/api/public/health-check/complete/route";
 import { ROUTES } from "../src/built-ins/modules/public-funnel/src/api/routes";
 import {
   ensurePublicFunnelFoundationRegistered,
+  FunnelInputError,
   publicFunnelContainerFor,
 } from "../src/built-ins/runtime/foundation-adapters/publicFunnelFoundation";
+import {
+  createAutomationWorkflow,
+  listAutomationRuns,
+  runAutomationWorkflow,
+} from "../src/server/automations";
 import { makePluginStorage } from "../src/lib/server/pluginStorage";
 import { __resetBotChallengeForTest } from "../src/lib/server/security/botChallenge";
 import { _resetFounderSeedForTests, seedFounder } from "../src/lib/server/seeds/founderSeed";
@@ -98,7 +104,6 @@ before(async () => {
 
   await reset();
   _resetFounderSeedForTests();
-  await seedFounder();
 });
 
 beforeEach(() => {
@@ -118,6 +123,29 @@ after(() => {
 });
 
 describe("mounted Health Check managed-challenge admission", () => {
+  it("fails closed on fresh state without bootstrapping privileged identities", async () => {
+    await reset();
+    _resetFounderSeedForTests();
+
+    const response = await POST(request(
+      body("hc-unconfigured@example.com", "hc_unconfigured_01", "valid-unconfigured"),
+      "42.0.0.200",
+    ));
+    assert.equal(response.status, 503);
+
+    const state = getState();
+    assert.equal(Object.keys(state.users).length, 0, "public completion created an authenticatable User");
+    assert.equal(Object.keys(state.agencies).length, 0, "public completion bootstrapped an Agency");
+    assert.equal(Object.keys(state.pluginInstalls).length, 0, "public completion installed a plugin");
+    assert.equal(Object.keys(state.outbox).length, 0, "public completion queued an identity outbox event");
+    assert.equal(state.activity.length, 0, "public completion created an auth/system actor trail");
+    assert.equal(Object.keys(state.accessGrants).length, 0);
+    assert.equal(Object.keys(state.securityControl?.sessions ?? {}).length, 0);
+
+    // Explicit fixture provisioning belongs to test setup, never to the route.
+    await seedFounder();
+  });
+
   it("requires proof without spending a victim budget or preclaiming signup identity", async () => {
     const victim = "hc-abuse-victim@example.com";
     for (let attempt = 0; attempt < 7; attempt += 1) {
@@ -155,6 +183,63 @@ describe("mounted Health Check managed-challenge admission", () => {
     });
     assert.equal(signedUp.email, victim);
     assert.equal(getUser(victim)?.id, signedUp.id);
+  });
+
+  it("atomically refuses one canonical address across two agency installs", async () => {
+    ensurePublicFunnelFoundationRegistered();
+    const agencyA = createAgency({ name: "Capture namespace A", slug: "capture-namespace-a" });
+    const agencyB = createAgency({ name: "Capture namespace B", slug: "capture-namespace-b" });
+    const installA = upsertInstall({
+      scope: { agencyId: agencyA.id },
+      pluginId: "public-funnel",
+      enabled: true,
+      config: {},
+      features: {},
+      installedBy: "abuse-002-test",
+    });
+    const installB = upsertInstall({
+      scope: { agencyId: agencyB.id },
+      pluginId: "public-funnel",
+      enabled: true,
+      config: {},
+      features: {},
+      installedBy: "abuse-002-test",
+    });
+    const funnelA = publicFunnelContainerFor({
+      agencyId: agencyA.id,
+      install: installA,
+      storage: makePluginStorage(installA.id),
+    }).funnel;
+    const funnelB = publicFunnelContainerFor({
+      agencyId: agencyB.id,
+      install: installB,
+      storage: makePluginStorage(installB.id),
+    }).funnel;
+    const email = "hc-global-pending@example.com";
+
+    const settled = await Promise.allSettled([
+      funnelA.captureHcCompletion({
+        email,
+        completionId: "hc_global_pending_a",
+        slot: { slot: 2 },
+      }),
+      funnelB.captureHcCompletion({
+        email: "  HC-GLOBAL-PENDING@EXAMPLE.COM ",
+        completionId: "hc_global_pending_b",
+        slot: { slot: 4 },
+      }),
+    ]);
+    assert.equal(settled.filter(result => result.status === "fulfilled").length, 1);
+    const refused = settled.find(result => result.status === "rejected");
+    assert.ok(refused?.status === "rejected");
+    assert.ok(refused.reason instanceof FunnelInputError);
+    assert.equal(refused.reason.message, "identity_unavailable");
+    const [rowsA, rowsB] = await Promise.all([
+      funnelA.listByEmail(email),
+      funnelB.listByEmail(email),
+    ]);
+    assert.equal(rowsA.length + rowsB.length, 1, "the canonical address was admitted in two tenants");
+    assert.equal(getUser(email), null, "global pending uniqueness reserved the User namespace");
   });
 
   it("rejects tokens minted for another action or hostname before capture", async () => {
@@ -267,14 +352,48 @@ describe("mounted Health Check managed-challenge admission", () => {
 
   it("erases an exact pending capture without auth residue or collateral rows", async () => {
     const email = "hc-exact-pending-erasure@example.com";
+    const founder = getAgencyBySlug("milesymedia");
+    assert.ok(founder);
+    const actor = Object.values(getState().users).find(user => user.agencyIds.includes(founder.id));
+    assert.ok(actor);
+    const workflow = createAutomationWorkflow(founder.id, {
+      name: "Minimal Health Check capture event",
+      status: "active",
+      nodes: [
+        {
+          id: "trigger",
+          kind: "trigger",
+          position: { x: 0, y: 0 },
+          config: {
+            label: "Health Check completed",
+            triggerType: "custom.event",
+            eventName: "public-funnel.hc.completed",
+          },
+        },
+        {
+          id: "activity",
+          kind: "action",
+          position: { x: 240, y: 0 },
+          config: { label: "Record receipt", actionType: "log-activity", message: "Health Check received." },
+        },
+      ],
+      edges: [{ id: "trigger-to-activity", source: "trigger", target: "activity" }],
+    }, actor.id);
+    const unrelatedRun = await runAutomationWorkflow(
+      founder.id,
+      workflow.id,
+      "test",
+      actor.id,
+      { marker: "preserve-unrelated-run" },
+    );
+    const unrelatedBefore = JSON.stringify(unrelatedRun);
+
     const response = await POST(request(
       body(email, "hc_exact_pending_erasure_01", "valid-exact-erasure"),
       "42.0.5.1",
     ));
     assert.equal(response.status, 200);
 
-    const founder = getAgencyBySlug("milesymedia");
-    assert.ok(founder);
     const install = getInstall({ agencyId: founder.id }, "public-funnel");
     assert.ok(install);
     const store = makePluginStorage(install.id);
@@ -284,6 +403,25 @@ describe("mounted Health Check managed-challenge admission", () => {
     const capture = rows[0]!;
     assert.ok(capture.pendingLeadId);
     assert.equal(capture.leadUserId, undefined);
+
+    let matchingRun = listAutomationRuns(founder.id).find(run =>
+      run.workflowId === workflow.id
+      && run.id !== unrelatedRun.id
+      && run.eventData.id === capture.id);
+    for (let attempt = 0; !matchingRun && attempt < 25; attempt += 1) {
+      await new Promise<void>(resolve => setImmediate(resolve));
+      matchingRun = listAutomationRuns(founder.id).find(run =>
+        run.workflowId === workflow.id
+        && run.id !== unrelatedRun.id
+        && run.eventData.id === capture.id);
+    }
+    assert.ok(matchingRun, "active matching automation did not receive the capture event");
+    assert.equal(matchingRun.eventData.email, undefined);
+    assert.equal(matchingRun.eventData.pendingLeadId, undefined);
+    assert.equal(matchingRun.eventData.slot, undefined);
+    assert.equal(JSON.stringify(matchingRun).includes(email), false);
+    assert.equal(JSON.stringify(matchingRun).includes(capture.pendingLeadId!), false);
+
     const clientId = "client_hc_exact_pending_erasure";
     await store.set(`captures/by-id/${capture.id}`, { ...capture, clientId });
 
@@ -300,6 +438,12 @@ describe("mounted Health Check managed-challenge admission", () => {
     assert.equal(getState().activity.some(entry =>
       (entry.metadata as { captureId?: string } | undefined)?.captureId === capture.id), false,
     "exact capture activity survived erasure");
+    assert.equal(JSON.stringify(getState().automationRuns[unrelatedRun.id]), unrelatedBefore,
+      "exact capture erasure changed an unrelated automation run");
+    const durableRuns = JSON.stringify(getState().automationRuns);
+    assert.equal(durableRuns.includes(email), false, "capture email survived in an automation run");
+    assert.equal(durableRuns.includes(capture.pendingLeadId!), false,
+      "pending identity survived in an automation run");
   });
 });
 
@@ -321,11 +465,12 @@ describe("alternate-path retirement and ordering contract", () => {
     const capture = source.indexOf(".funnel.captureHcCompletion");
     assert.ok(proof > 0);
     assert.ok(address > proof, "victim address quota moved above human proof");
-    assert.ok(hydrate > proof, "hydration/seeding moved above human proof");
+    assert.ok(hydrate > proof, "hydration moved above human proof");
     assert.ok(install > proof, "shared install budget moved above human proof");
     assert.ok(capture > install, "capture must remain below every admission budget");
     assert.match(source, /health-check-complete-ip:/);
     assert.match(source, /addressDigest\(email\)/);
+    assert.doesNotMatch(source, /seedFounder/, "public completion may not provision privileged state");
   });
 
   it("mounts a dedicated purpose-bound challenge and forwards/resets its token", () => {
