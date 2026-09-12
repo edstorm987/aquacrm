@@ -32,6 +32,38 @@ before(async () => {
 
 const MONTH_ISH = 27 * 24 * 60 * 60 * 1000;
 
+function preparedExport(personId: string, input: { generatedAt?: number; recordCount?: number; reviewCount?: number } = {}) {
+  const generatedAt = input.generatedAt ?? 123;
+  const recordCount = input.recordCount ?? 0;
+  const reviewCount = input.reviewCount ?? 0;
+  const json = JSON.stringify({
+    format: "aqua-subject-access-v2",
+    generatedAt: new Date(generatedAt).toISOString(),
+    subject: { personId },
+    records: {},
+    totalRecords: recordCount,
+    collectionsSearched: [],
+    reviewRequired: {
+      recordsNotAttributableToThisAgency: 0,
+      unclassifiedSubjectMentions: 0,
+      ambiguousOwnership: 0,
+      coMingledThirdPartyPii: 0,
+      recordsBeyondInspectionDepth: 0,
+      unsupportedCollections: 0,
+      omittedFields: reviewCount,
+    },
+    completeness: { status: reviewCount === 0 ? "automatic-safe-subset-complete" : "human-review-required" },
+  });
+  return {
+    digest: crypto.createHash("sha256").update(json, "utf8").digest("hex"),
+    generatedAt,
+    recordCount,
+    reviewCount,
+    byteLength: Buffer.byteLength(json, "utf8"),
+    json,
+  };
+}
+
 test("the clock is one calendar month from RECEIPT, not from logging", () => {
   // A request that arrives by post and is logged three days later is already
   // three days into its month. Running the clock from data entry would give
@@ -115,13 +147,21 @@ test("subject-access preparation, review and delivery require the exact open ver
     "another tenant cannot use the request id",
   );
 
-  const digest = crypto.createHash("sha256").update("{}", "utf8").digest("hex");
+  const preparedInput = preparedExport(personId, { recordCount: 4, reviewCount: 2 });
+  const digest = preparedInput.digest;
+  assert.throws(
+    () => requests.recordPreparedSubjectAccessExport(
+      agencyId, request.id, personId, "owner", preparedExport("per_someone_else", { recordCount: 4, reviewCount: 2 }),
+    ),
+    (error: unknown) => (error as { code?: string }).code === "request_not_ready",
+    "the staged manifest must name the exact request-bound person",
+  );
   const prepared = requests.recordPreparedSubjectAccessExport(
     agencyId,
     request.id,
     personId,
     "owner",
-    { digest, generatedAt: 123, recordCount: 4, reviewCount: 2, byteLength: 2, json: "{}" },
+    preparedInput,
   );
   assert.equal(prepared.fulfilledAt, undefined, "preparation cannot close the request");
   assert.equal(prepared.preparedExportDigest, digest);
@@ -186,12 +226,13 @@ test("subject-access preparation, review and delivery require the exact open ver
       createdBy: "owner",
     });
     requests.verifySubjectRequestIdentity(collision.agencyId, collidingRequest.id, "owner");
+    const collisionPrepared = preparedExport(collision.personId);
     requests.recordPreparedSubjectAccessExport(
       collision.agencyId,
       collidingRequest.id,
       collision.personId,
       "owner",
-      { digest, generatedAt: 123, recordCount: 0, reviewCount: 0, byteLength: 2, json: "{}" },
+      collisionPrepared,
     );
     assert.throws(
       () => requests.fulfilPreparedSubjectAccessDelivery(
@@ -199,7 +240,7 @@ test("subject-access preparation, review and delivery require the exact open ver
         collidingRequest.id,
         collision.personId,
         "owner",
-        digest,
+        collisionPrepared.digest,
         "verified-portal",
         "delivery-1",
       ),
@@ -209,7 +250,7 @@ test("subject-access preparation, review and delivery require the exact open ver
     const unchangedCollision = requests.findSubjectRequest(collision.agencyId, collidingRequest.id);
     assert.equal(unchangedCollision?.fulfilledAt, undefined);
     assert.equal(unchangedCollision?.deliveryEvidenceId, undefined);
-    assert.equal(unchangedCollision?.preparedExportJson, "{}", "a rejected collision preserves the replayable staged file");
+    assert.equal(unchangedCollision?.preparedExportJson, collisionPrepared.json, "a rejected collision preserves the replayable staged file");
   }
 
   for (const collision of [
@@ -224,16 +265,17 @@ test("subject-access preparation, review and delivery require the exact open ver
       createdBy: "owner",
     });
     requests.verifySubjectRequestIdentity(collision.agencyId, collidingRequest.id, "owner");
+    const collisionPrepared = preparedExport(collision.personId, { reviewCount: 1 });
     requests.recordPreparedSubjectAccessExport(
       collision.agencyId,
       collidingRequest.id,
       collision.personId,
       "owner",
-      { digest, generatedAt: 123, recordCount: 0, reviewCount: 1, byteLength: 2, json: "{}" },
+      collisionPrepared,
     );
     assert.throws(
       () => requests.recordSubjectAccessReviewCompletion(
-        collision.agencyId, collidingRequest.id, collision.personId, "owner", digest, "review-1",
+        collision.agencyId, collidingRequest.id, collision.personId, "owner", collisionPrepared.digest, "review-1",
       ),
       (error: unknown) => (error as { code?: string }).code === "request_not_ready",
       `${collision.label} cannot reuse evidence already bound to another review`,
@@ -242,7 +284,7 @@ test("subject-access preparation, review and delivery require the exact open ver
     assert.equal(unchanged?.preparedExportReviewResolvedAt, undefined);
     assert.equal(unchanged?.preparedExportReviewEvidenceId, undefined);
     assert.equal(unchanged?.preparedExportReviewResultId, undefined);
-    assert.equal(unchanged?.preparedExportJson, "{}");
+    assert.equal(unchanged?.preparedExportJson, collisionPrepared.json);
   }
   assert.throws(
     () => requests.requireSubjectAccessRequestForExport(agencyId, request.id, personId),

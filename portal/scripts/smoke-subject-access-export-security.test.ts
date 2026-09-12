@@ -103,7 +103,7 @@ function personFixture(input: {
     emails: input.emails.map(value => ({ value, raw: value })),
     phones: input.phones.map(entry => ({ value: entry.value, raw: entry.value, shared: entry.shared })),
     organisationLinks: [],
-    classification: "client",
+    classification: "existing-client",
     classificationHistory: [],
     facets: input.facets ?? {},
     relationshipId: input.relationshipId,
@@ -589,7 +589,7 @@ test("typed projections preserve Person history and finance fields while unknown
       at: occurredAt,
       by: "usr_operator",
       note: `${THIRD_PARTY_NAME} approved it`,
-      sourceType: "manual",
+      sourceType: "lead",
       sourceId: `source_${sequence}`,
     }];
     subject.record = [{
@@ -722,17 +722,18 @@ test("typed projections preserve Person history and finance fields while unknown
   const person = (result.found.persons ?? []).find(row => (row as { id?: string }).id === world.personId) as Record<string, unknown>;
   assert.deepEqual((person.facets as { enquiryIds: string[] }).enquiryIds, [`enquiry_one_${sequence}`, `enquiry_two_${sequence}`]);
   assert.deepEqual(person.classificationHistory, [{
-    from: "sales", to: "existing-client", at: occurredAt, by: "usr_operator", sourceType: "manual", sourceId: `source_${sequence}`,
+    from: "sales", to: "existing-client", at: occurredAt, by: "usr_operator", sourceType: "lead", sourceId: `source_${sequence}`,
   }]);
   assert.deepEqual(person.record, [{ id: `person_record_${sequence}`, kind: "meeting", at: occurredAt, createdAt: occurredAt }]);
 
   const ledger = result.found.clientRecordLedger ?? [];
   const safeLedger = ledger.find(row => (row as { id?: string }).id === `safe_ledger_${sequence}`) as Record<string, unknown>;
-  assert.equal(safeLedger.title, "Growth plan");
-  assert.equal(safeLedger.body, "3 milestones · GBP 100.00 paid of GBP 300.00");
+  assert.equal(safeLedger.title, undefined, "human-authored ledger titles are always review-only");
+  assert.equal(safeLedger.body, undefined, "human-authored ledger bodies are always review-only");
   assert.equal(safeLedger.occurredAt, occurredAt, "typed dates remain numeric and unmodified");
-  assert.equal(ledger.some(row => (row as { id?: string }).id === `unsafe_ledger_${sequence}`), false);
-  assert.equal(ledger.some(row => (row as { id?: string }).id === `unsafe_phone_ledger_${sequence}`), false);
+  assert.equal(ledger.some(row => (row as { id?: string }).id === `unsafe_ledger_${sequence}`), true,
+    "typed ledger metadata survives while unsafe prose is quarantined");
+  assert.equal(ledger.some(row => (row as { id?: string }).id === `unsafe_phone_ledger_${sequence}`), true);
 
   const pluginInvoice = (result.found.pluginData ?? []).find(row => (row as { key?: string }).key === `invoices/by-id/invoice_${sequence}`) as {
     installId: string;
@@ -926,6 +927,28 @@ test("dynamic keys and realistic UK addresses are withheld without corrupting ca
       createdAt: 1_725_555_000_123,
       updatedAt: 1_725_555_000_123,
     };
+    for (const [id, title, body] of [
+      ["unregistered_third_party_name", "Contact update", "Spoke with Evelyn Stone about the payment"],
+      ["named_premise_variant", "Post papers", "Send papers to The Old Rectory, Church Lane Oxford"],
+      ["embedded_bare_bank_identifier", "Supplier payment", "Payment details 87654321 for the supplier"],
+    ] as const) {
+      state.clientRecordLedger[id] = {
+        id,
+        agencyId: world.agencyId,
+        clientId,
+        sourceType: "payment-plan",
+        sourceId: id === "embedded_bare_bank_identifier"
+          ? "payment-plan:supplier-87654321"
+          : `payment-plan:${id}`,
+        group: "commercial",
+        title,
+        body,
+        occurredAt: 1_725_555_000_123,
+        visibility: "system",
+        createdAt: 1_725_555_000_123,
+        updatedAt: 1_725_555_000_123,
+      };
+    }
     state.pluginInstalls[installId] = {
       id: installId,
       pluginId: "agency-finance",
@@ -964,15 +987,20 @@ test("dynamic keys and realistic UK addresses are withheld without corrupting ca
 
   const result = exportsApi.collectSubjectAccessExport(world.agencyId, world.personId)!;
   const ledger = result.found.clientRecordLedger ?? [];
-  assert.equal(ledger.some(row => (row as { id?: string }).id === "address_without_postcode"), false,
-    "house number plus UK street suffix/locality is review-only even without a postcode");
-  assert.equal(ledger.some(row => (row as { id?: string }).id === "named_premise_address"), false,
-    "a named UK premise and unnumbered street/locality is review-only");
-  assert.equal(
-    (ledger.find(row => (row as { id?: string }).id === "close_without_address") as { body?: string }).body,
-    "Close the quarter in 12 ways after review",
-    "ordinary uses of close/ways are not address false positives",
-  );
+  for (const id of ["address_without_postcode", "named_premise_address", "close_without_address"]) {
+    const projected = ledger.find(row => (row as { id?: string }).id === id) as { body?: string };
+    assert.ok(projected, "typed ledger metadata remains available");
+    assert.equal(projected.body, undefined, "all ledger prose is review-only, including previously undetected named premises");
+  }
+  for (const id of ["unregistered_third_party_name", "named_premise_variant", "embedded_bare_bank_identifier"]) {
+    const projected = ledger.find(row => (row as { id?: string }).id === id) as { title?: string; body?: string; sourceId?: string };
+    assert.ok(projected, "typed ledger metadata survives review quarantine");
+    assert.equal(projected.title, undefined);
+    assert.equal(projected.body, undefined);
+    if (id === "embedded_bare_bank_identifier") {
+      assert.equal(projected.sourceId, "[redacted:restricted-identifier]", "embedded bare bank identifiers redact in ledger references too");
+    }
+  }
   const install = (result.found.pluginInstalls ?? []).find(row => (row as { id?: string }).id === installId) as {
     features: Record<string, boolean>;
   };
@@ -990,6 +1018,7 @@ test("dynamic keys and realistic UK addresses are withheld without corrupting ca
   assert.ok((result.omittedFields.pluginInstalls ?? 0) >= 5);
   assert.ok(exportsApi.subjectAccessExportReviewCount(result) > 0, "unknown plugin feature fields cannot auto-release at review=0");
   const json = exportsApi.subjectAccessExportJson(result);
+  for (const secret of ["Evelyn Stone", "The Old Rectory", "87654321"]) assert.equal(json.includes(secret), false);
   assert.equal(json.includes(THIRD_PARTY_EMAIL), false);
   assert.equal(json.includes("12 Baker Close, London"), false);
   assert.equal(json.includes("Rose Cottage, Church Lane, Oxford"), false);
@@ -1056,6 +1085,51 @@ test("scalar rows and malformed Person classification history cannot disappear a
   assert.ok((malformedHistory.omittedFields.persons ?? 0) >= 1, "the malformed typed nested array has an explicit omission");
   assert.throws(
     () => exportsApi.subjectAccessExportJson(malformedHistory),
+    (error: unknown) => error instanceof exportsApi.SubjectAccessExportIncompleteError,
+  );
+});
+
+test("malformed recognised Person and Client arrays, objects and enums are explicit incomplete omissions", async () => {
+  const world = await seedWorld();
+  const clientId = `client_malformed_nested_${sequence}`;
+  putClient(clientFixture({
+    id: clientId,
+    agencyId: world.agencyId,
+    personId: world.personId,
+    relationshipId: `relationship_malformed_nested_${sequence}`,
+    name: "Subject Person",
+  }));
+  realStorage.mutate(state => {
+    const person = state.persons[world.personId] as unknown as Record<string, unknown>;
+    person.classification = "vip-secret-enum";
+    person.facets = { clientIds: "not-an-array", enquiryIds: ["enquiry-valid", 42] };
+    person.classificationHistory = [{ from: "vip-secret-enum", to: "sales", at: "yesterday" }];
+    person.organisationLinks = "not-an-array";
+    person.record = [{ id: "record-invalid", kind: "email", at: "now", summary: "unsafe prose", createdAt: {} }];
+    const client = state.clients[clientId] as unknown as Record<string, unknown>;
+    client.stage = "vip-secret-stage";
+    client.status = "enabled-secret-status";
+    client.brand = "not-a-brand-object";
+  });
+
+  const result = exportsApi.collectSubjectAccessExport(world.agencyId, world.personId)!;
+  assert.ok(result.incompleteReasons.includes("invalid-stored-value"));
+  assert.ok((result.omittedFields.persons ?? 0) >= 7, "each malformed nested value contributes an explicit omission");
+  assert.ok((result.omittedFields.clients ?? 0) >= 3);
+  const person = (result.found.persons ?? []).find(row => (row as { id?: string }).id === world.personId) as Record<string, unknown>;
+  assert.equal(person.classification, undefined);
+  assert.deepEqual(person.classificationHistory, []);
+  assert.deepEqual(person.organisationLinks, []);
+  assert.deepEqual(person.record, []);
+  assert.deepEqual((person.facets as Record<string, unknown>).clientIds, []);
+  assert.deepEqual((person.facets as Record<string, unknown>).enquiryIds, ["enquiry-valid"]);
+  const client = (result.found.clients ?? []).find(row => (row as { id?: string }).id === clientId) as Record<string, unknown>;
+  assert.equal(client.stage, undefined);
+  assert.equal(client.status, undefined);
+  assert.equal(client.brand, undefined);
+  assert.equal(JSON.stringify(result).includes("vip-secret"), false, "invalid enum payloads never enter the export result");
+  assert.throws(
+    () => exportsApi.subjectAccessExportJson(result),
     (error: unknown) => error instanceof exportsApi.SubjectAccessExportIncompleteError,
   );
 });
@@ -1132,13 +1206,20 @@ test("other-person PII matching uses bounded indexed work as people and emitted 
   }
 });
 
-test("a two-character other-person name cannot poison unrelated collection names or annual invoice text", async () => {
+test("short other-person names use token boundaries and cannot poison schema keys or annual invoice references", async () => {
   const world = await seedWorld();
   const clientId = `client_short_name_${sequence}`;
   putPerson(personFixture({
     id: `per_al_${sequence}`,
     agencyId: world.agencyId,
     name: "Al Smith",
+    emails: [],
+    phones: [],
+  }));
+  putPerson(personFixture({
+    id: `per_ann_${sequence}`,
+    agencyId: world.agencyId,
+    name: "Ann Lee",
     emails: [],
     phones: [],
   }));
@@ -1155,10 +1236,23 @@ test("a two-character other-person name cannot poison unrelated collection names
       agencyId: world.agencyId,
       clientId,
       sourceType: "invoice",
-      sourceId: "invoice:INV-20260912",
+      sourceId: "invoice:Annual-20260912",
       group: "commercial",
       title: "Invoice summary",
       body: "Annual invoice INV-20260912",
+      occurredAt: 1_725_555_000_123,
+      visibility: "system",
+      createdAt: 1_725_555_000_123,
+      updatedAt: 1_725_555_000_123,
+    };
+    state.clientRecordLedger.short_name_true_positive = {
+      id: "short_name_true_positive",
+      agencyId: world.agencyId,
+      clientId,
+      sourceType: "invoice",
+      sourceId: "invoice:Ann",
+      group: "commercial",
+      title: "Invoice summary",
       occurredAt: 1_725_555_000_123,
       visibility: "system",
       createdAt: 1_725_555_000_123,
@@ -1171,8 +1265,15 @@ test("a two-character other-person name cannot poison unrelated collection names
   assert.ok(result.searchedCollections.includes("clientRecordLedger"));
   const ledger = (result.found.clientRecordLedger ?? []).find(row => (
     row as { id?: string }
-  ).id === "short_name_false_positive") as { body?: string };
-  assert.equal(ledger.body, "Annual invoice INV-20260912");
+  ).id === "short_name_false_positive") as { sourceId?: string; body?: string };
+  assert.equal(ledger.sourceId, "invoice:Annual-20260912");
+  assert.equal(ledger.body, undefined, "ledger prose remains review-only independently of name matching");
+  assert.ok(result.searchedCollections.includes("peopleChannels"), "Ann cannot poison peopleChannels");
+  assert.ok(result.searchedCollections.includes("peopleEmployees"), "Lee cannot poison peopleEmployees");
+  const trueMatch = (result.found.clientRecordLedger ?? []).find(row => (
+    row as { id?: string }
+  ).id === "short_name_true_positive") as { sourceId?: string };
+  assert.equal(trueMatch.sourceId, "[redacted:restricted-identifier]", "a real standalone short name remains detected");
   assert.doesNotThrow(() => exportsApi.subjectAccessExportJson(result));
 });
 
@@ -1560,6 +1661,60 @@ test("preparation is replayable but only evidenced review and delivery fulfil; f
     "an exact review replay cannot duplicate audit evidence",
   );
   assert.equal(requests.findSubjectRequest(world.agencyId, ready.id)?.fulfilledAt, undefined);
+
+  const reviewedState = requests.findSubjectRequest(world.agencyId, ready.id)!;
+  const stagedJson = reviewedState.preparedExportJson!;
+  realStorage.mutate(state => {
+    state.subjectRequests[ready.id].preparedExportJson = `${stagedJson} `;
+  });
+  const contentTamper = await patch(world.token, {
+    requestId: ready.id,
+    personId: world.personId,
+    preparedExportDigest: digest,
+    deliveryMethod: "verified-portal",
+    deliveryEvidenceId: "delivery-content-tamper",
+  });
+  assert.equal(contentTamper.status, 409, "delivery recomputes the digest from the exact stored reviewed bytes");
+  realStorage.mutate(state => {
+    state.subjectRequests[ready.id].preparedExportJson = stagedJson;
+    state.subjectRequests[ready.id].preparedExportReviewResultId = "a".repeat(64);
+  });
+  const arbitraryReviewResult = await patch(world.token, {
+    requestId: ready.id,
+    personId: world.personId,
+    preparedExportDigest: digest,
+    deliveryMethod: "verified-portal",
+    deliveryEvidenceId: "delivery-arbitrary-review-result",
+  });
+  assert.equal(arbitraryReviewResult.status, 409, "an arbitrary 64-hex review result is not evidence");
+  realStorage.mutate(state => {
+    state.subjectRequests[ready.id].preparedExportReviewResultId = reviewedBody.resultId;
+  });
+
+  const forgedReviewRequest = makeRequest(world, { verify: true });
+  const forgedPreparation = await post(world.token, { requestId: forgedReviewRequest.id, personId: world.personId });
+  assert.equal(forgedPreparation.status, 200);
+  const forgedDigest = forgedPreparation.headers.get("x-subject-access-digest")!;
+  realStorage.mutate(state => {
+    Object.assign(state.subjectRequests[forgedReviewRequest.id], {
+      preparedExportReviewResolvedAt: Date.now(),
+      preparedExportReviewResolvedBy: world.ownerId,
+      preparedExportReviewResolvedDigest: forgedDigest,
+      preparedExportReviewEvidenceId: "forged-review-evidence",
+      preparedExportReviewResultId: "b".repeat(64),
+    });
+  });
+  const forgedDelivery = await patch(world.token, {
+    requestId: forgedReviewRequest.id,
+    personId: world.personId,
+    preparedExportDigest: forgedDigest,
+    deliveryMethod: "secure-email",
+    deliveryEvidenceId: "forged-review-delivery",
+  });
+  assert.equal(forgedDelivery.status, 409, "field presence and arbitrary hashes cannot forge request-bound review evidence");
+  assert.equal(requests.findSubjectRequest(world.agencyId, forgedReviewRequest.id)?.fulfilledAt, undefined);
+  assert.ok(requests.findSubjectRequest(world.agencyId, forgedReviewRequest.id)?.preparedExportJson,
+    "a failed proof check preserves the staged artifact and open request");
 
   const delivered = await patch(world.token, {
     requestId: ready.id,

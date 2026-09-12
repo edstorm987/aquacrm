@@ -2182,7 +2182,7 @@ everything we hold about you". **A wrong subject-access response is worse than
 none: it is a false statement made under a legal obligation.** So there is no
 list. Descriptor-backed object collections are inspected and reported as
 searched. A non-data descriptor, scalar collection, scalar row in a recognised
-typed collection, malformed recognised nested Person history, or exhausted
+typed collection, malformed recognised nested Person/Client object, array or enum, or exhausted
 traversal/matcher/output cap records explicit incompleteness and blocks export
 preparation. Other resident scalar containers are not presumed to be record
 collections.
@@ -2197,17 +2197,22 @@ assignee, is review-only.
 
 An attributable row is still not automatically safe. Known releasable
 collections use explicit typed projections; there is no generic recursive
-release rule. Safe Person facets/classification history, finance-ledger fields
+release rule. Validated Person facets/classification history and typed finance-ledger metadata
 and `pluginData[installId][key]` for the explicitly supported finance invoice
 shape reached through install/client lineage are preserved. Plugin-install
 features are released only when the key is in the current first-party manifest
 allowlist and the stored value is boolean; every other feature key is withheld
 and counted for review. A bounded final scan also drops recognised restricted
-PII in emitted keys and redacts it in emitted strings. Tested patterns include
+PII in emitted keys and redacts it in emitted structured strings. Ledger
+title/body/eyebrow prose is always withheld and counted for review: no finite
+name/address detector can prove that an unregistered person or named premise
+belongs to the subject. Tested bounded patterns include
 email, phone, formatted sort code/NINO/postcode, contextual bank-account data,
 numbered streets and named-premise addresses such as `Rose Cottage, Church
 Lane, Oxford`. This is a conservative pattern set, not proof that every possible
-name or address can be recognised. Unknown fields, co-mingled/free-text values
+name or address can be recognised. Other-person names use full-token boundaries,
+so short names such as Ann or Lee do not poison schema keys or ordinary words.
+Unknown fields, co-mingled/free-text values
 and content beyond inspection depth are withheld as review metadata. Known
 third-party contact fields may be fixed-marker redacted; numeric timestamps are
 not string-scanned and invoice references such as `INV-20260912` are retained.
@@ -2227,7 +2232,10 @@ digest and preparation activity. It returns the automatic safe subset but does
 counts require PUT review evidence against that exact digest. The review receipt
 is bound to one agency/request/person/digest result identity: an exact replay
 returns the same result id, while changed or cross-request reuse is refused.
-PATCH separately binds delivery evidence and only then fulfils, atomically with
+Before PATCH can fulfil, it recomputes the staged byte digest, validates the
+stored manifest's exact person/generated-at/record/review totals, recomputes the
+request-bound review result and checks evidence uniqueness. It then separately
+binds delivery evidence and fulfils atomically with
 delivery activity. The generic request helper cannot bypass this sequence.
 Work, string, record and serialised-size limits fail explicitly before
 transition; every success/error, including auth and malformed/oversized input,
@@ -2238,12 +2246,14 @@ Permanent adversarial coverage lives in
 and emails; actor/assignee mentions; stale and nested contradictory ownership;
 shared identifiers; exact client facets and relationship siblings; unknown
 name/NI/bank fields; third-party name/address/postcode/email/phone/prose; Person
-history (including malformed arrays); finance ledger fields; real pluginData
+history plus malformed Person/Client objects, arrays and enums; typed finance
+ledger metadata with all ledger prose quarantined; real pluginData
 lineage; allowlisted versus arbitrary plugin features; numbered and named-premise
 addresses; lazy-sidecar classification; scalar typed rows; traversal depth;
 10k/100k linear work; 2k/4k/8k/16k typed claims; short-name false positives;
 other tenants/requests; every request gate; malformed/oversized bodies; output
-caps; request-bound review and delivery evidence/replay; no-store; and
+caps; token-boundary short-name probes; stored-byte/manifest tampering; arbitrary
+review-result hashes; request-bound review and delivery evidence/replay; no-store; and
 preparation/delivery storage-failure rollback.
 
 **The posture remains `partial`, not `met`.** The request register, identity

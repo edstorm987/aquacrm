@@ -451,20 +451,21 @@ interface ExportContext {
 interface IndexedMatcherNode {
   next: Map<string, number>;
   failure: number;
-  terminal: boolean;
+  terminalLengths: number[];
 }
 
 interface IndexedStringMatcher {
   readonly nodes: IndexedMatcherNode[];
   readonly caseInsensitive: boolean;
+  readonly boundaryAware: boolean;
 }
 
 function buildIndexedStringMatcher(
   patterns: Iterable<string>,
   meter: Pick<TraversalMeter, "maxValues" | "result">,
-  options: { caseInsensitive?: boolean; nameTokens?: boolean } = {},
+  options: { caseInsensitive?: boolean; nameTokens?: boolean; boundaryAware?: boolean } = {},
 ): IndexedStringMatcher {
-  const nodes: IndexedMatcherNode[] = [{ next: new Map(), failure: 0, terminal: false }];
+  const nodes: IndexedMatcherNode[] = [{ next: new Map(), failure: 0, terminalLengths: [] }];
   const unique = new Set<string>();
   const addPattern = (raw: string) => {
     const pattern = options.caseInsensitive ? raw.toLocaleLowerCase("en-GB") : raw;
@@ -476,11 +477,11 @@ function buildIndexedStringMatcher(
       if (next === undefined) {
         next = nodes.length;
         nodes[nodeIndex].next.set(character, next);
-        nodes.push({ next: new Map(), failure: 0, terminal: false });
+        nodes.push({ next: new Map(), failure: 0, terminalLengths: [] });
       }
       nodeIndex = next;
     }
-    nodes[nodeIndex].terminal = true;
+    nodes[nodeIndex].terminalLengths.push(Array.from(pattern).length);
   };
 
   for (const raw of patterns) {
@@ -509,11 +510,19 @@ function buildIndexedStringMatcher(
       while (failure !== 0 && !nodes[failure].next.has(character)) failure = nodes[failure].failure;
       const fallback = nodes[failure].next.get(character);
       nodes[child].failure = fallback !== undefined && fallback !== child ? fallback : 0;
-      nodes[child].terminal = nodes[child].terminal || nodes[nodes[child].failure].terminal;
+      nodes[child].terminalLengths.push(...nodes[nodes[child].failure].terminalLengths);
       queue.push(child);
     }
   }
-  return { nodes, caseInsensitive: Boolean(options.caseInsensitive) };
+  return {
+    nodes,
+    caseInsensitive: Boolean(options.caseInsensitive),
+    boundaryAware: Boolean(options.boundaryAware),
+  };
+}
+
+function isNameTokenCharacter(character: string | undefined): boolean {
+  return Boolean(character && /[\p{L}\p{N}'’-]/u.test(character));
 }
 
 /** Aho-Corasick lookup: matching cost is linear in the inspected string, not
@@ -535,13 +544,21 @@ function indexedMatcherHas(
   }
   meter.result.work.matcherCharactersInspected += raw.length;
   const value = matcher.caseInsensitive ? raw.toLocaleLowerCase("en-GB") : raw;
+  const characters = Array.from(value);
   let nodeIndex = 0;
-  for (const character of value) {
+  for (let index = 0; index < characters.length; index += 1) {
+    const character = characters[index];
     while (nodeIndex !== 0 && !matcher.nodes[nodeIndex].next.has(character)) {
       nodeIndex = matcher.nodes[nodeIndex].failure;
     }
     nodeIndex = matcher.nodes[nodeIndex].next.get(character) ?? 0;
-    if (matcher.nodes[nodeIndex].terminal) return true;
+    for (const length of matcher.nodes[nodeIndex].terminalLengths) {
+      if (!matcher.boundaryAware) return true;
+      const start = index - length + 1;
+      if (start >= 0
+        && !isNameTokenCharacter(characters[start - 1])
+        && !isNameTokenCharacter(characters[index + 1])) return true;
+    }
   }
   return false;
 }
@@ -875,6 +892,81 @@ function noteUnknownFields(
   }
 }
 
+const PERSON_CLASSIFICATIONS = new Set([
+  "unclassified", "sales", "existing-client", "supplier", "partnership", "marketer", "recruitment", "spam", "other",
+]);
+const IDENTITY_RESOLUTION_SOURCES = new Set(["website-enquiry", "social-inbox", "lead", "contact"]);
+const ORGANISATION_LINK_STATUSES = new Set(["suggested", "confirmed", "rejected"]);
+const PERSON_RECORD_KINDS = new Set(["meeting", "call", "note"]);
+const CLIENT_STAGES = new Set([
+  "lead", "discovery", "design", "development", "onboarding", "live", "churned", "aqua-epic-intro",
+  "aqua-blueprint", "aqua-diagnostics", "aqua-brand-builder", "aqua-traffic", "aqua-mastery",
+]);
+const AGENCY_STATUSES = new Set(["active", "suspended", "archived"]);
+
+function projectStrictEnum(
+  source: JsonRecord,
+  out: JsonRecord,
+  field: string,
+  allowed: ReadonlySet<string>,
+  collection: string,
+  context: ExportContext,
+  required = false,
+): boolean {
+  const value = ownDataValue(source, field);
+  if (value === undefined && !required) return true;
+  if (typeof value === "string" && allowed.has(value)) {
+    out[field] = value;
+    return true;
+  }
+  markStoredValueIssue(context, collection, "invalid-stored-value");
+  return false;
+}
+
+function projectStrictNumber(
+  source: JsonRecord,
+  out: JsonRecord,
+  field: string,
+  collection: string,
+  context: ExportContext,
+  options: { required?: boolean; maximum?: number; integer?: boolean } = {},
+): boolean {
+  const value = ownDataValue(source, field);
+  if (value === undefined && !options.required) return true;
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0
+    && (options.integer === false || Number.isInteger(value))
+    && (options.maximum === undefined || value <= options.maximum)) {
+    out[field] = value;
+    return true;
+  }
+  markStoredValueIssue(context, collection, "invalid-stored-value");
+  return false;
+}
+
+function projectStrictString(
+  source: JsonRecord,
+  out: JsonRecord,
+  field: string,
+  collection: string,
+  context: ExportContext,
+  required = false,
+): boolean {
+  const value = ownDataValue(source, field);
+  if (value === undefined && !required) return true;
+  if (typeof value === "string" && value.length > 0) {
+    if (textHasRestrictedPii(value, context, false)) {
+      out[field] = "[redacted:restricted-identifier]";
+      addCount(context.result.redactedFields, collection);
+      addCount(context.result.coMingledPiiMatches, collection);
+    } else {
+      out[field] = value;
+    }
+    return true;
+  }
+  markStoredValueIssue(context, collection, "invalid-stored-value");
+  return false;
+}
+
 function projectPerson(record: JsonRecord, context: ExportContext): JsonRecord {
   const collection = "persons";
   const allowed = new Set([
@@ -884,43 +976,99 @@ function projectPerson(record: JsonRecord, context: ExportContext): JsonRecord {
   ]);
   noteUnknownFields(collection, record, allowed, context);
   const out = copyScalarFields(record, [
-    "id", "agencyId", "name", "company", "organisationId", "jobTitle", "isPrimaryContact", "classification",
+    "id", "agencyId", "name", "company", "organisationId", "jobTitle", "isPrimaryContact",
     "classifiedAt", "classifiedBy", "relationshipId", "source", "createdAt", "updatedAt",
   ], collection, context);
+  projectStrictEnum(record, out, "classification", PERSON_CLASSIFICATIONS, collection, context, true);
 
-  out.emails = (Array.isArray(record.emails) ? record.emails : []).flatMap(entry => {
+  const emailsValue = ownDataValue(record, "emails");
+  if (!Array.isArray(emailsValue)) markStoredValueIssue(context, collection, "invalid-stored-value");
+  out.emails = (Array.isArray(emailsValue) ? emailsValue : []).flatMap(entry => {
     const item = asRecord(entry);
-    if (!item || typeof item.value !== "string") return [];
-    if (!context.identifiers.exclusiveEmails.has(normaliseEmail(item.value))) {
+    const value = item ? ownDataValue(item, "value") : undefined;
+    if (!item || typeof value !== "string" || !value) {
+      markStoredValueIssue(context, collection, "invalid-stored-value");
+      return [];
+    }
+    noteUnknownFields(collection, item, new Set(["value", "raw", "label", "isPrimary"]), context);
+    const isPrimary = ownDataValue(item, "isPrimary");
+    if (isPrimary !== undefined && typeof isPrimary !== "boolean") {
+      markStoredValueIssue(context, collection, "invalid-stored-value");
+    }
+    if (!context.identifiers.exclusiveEmails.has(normaliseEmail(value))) {
       noteOmitted(collection, item, context, { coMingled: true });
       return [];
     }
-    const projected = copyScalarFields(item, ["value", "isPrimary"], collection, context);
-    if (typeof item.raw === "string" && normaliseEmail(item.raw) === normaliseEmail(item.value)) projected.raw = item.raw;
-    else if (item.raw !== undefined) noteOmitted(collection, item.raw, context, { coMingled: true });
-    if (item.label !== undefined) noteOmitted(collection, item.label, context, { coMingled: true });
+    const projected: JsonRecord = { value };
+    if (typeof isPrimary === "boolean") projected.isPrimary = isPrimary;
+    const raw = ownDataValue(item, "raw");
+    if (typeof raw === "string" && normaliseEmail(raw) === normaliseEmail(value)) projected.raw = raw;
+    else if (raw !== undefined) {
+      if (typeof raw !== "string") markStoredValueIssue(context, collection, "invalid-stored-value");
+      noteOmitted(collection, raw, context, { coMingled: true });
+    }
+    const label = ownDataValue(item, "label");
+    if (label !== undefined) noteOmitted(collection, label, context, { coMingled: true });
     return [projected];
   });
-  out.phones = (Array.isArray(record.phones) ? record.phones : []).flatMap(entry => {
+  const phonesValue = ownDataValue(record, "phones");
+  if (!Array.isArray(phonesValue)) markStoredValueIssue(context, collection, "invalid-stored-value");
+  out.phones = (Array.isArray(phonesValue) ? phonesValue : []).flatMap(entry => {
     const item = asRecord(entry);
-    if (!item || typeof item.value !== "string") return [];
-    const valueKey = phoneMatchKey(item.value);
+    const value = item ? ownDataValue(item, "value") : undefined;
+    if (!item || typeof value !== "string" || !value) {
+      markStoredValueIssue(context, collection, "invalid-stored-value");
+      return [];
+    }
+    noteUnknownFields(collection, item, new Set(["value", "raw", "label", "isPrimary", "shared"]), context);
+    const isPrimary = ownDataValue(item, "isPrimary");
+    const shared = ownDataValue(item, "shared");
+    if (isPrimary !== undefined && typeof isPrimary !== "boolean") markStoredValueIssue(context, collection, "invalid-stored-value");
+    if (shared !== undefined && typeof shared !== "boolean") markStoredValueIssue(context, collection, "invalid-stored-value");
+    const valueKey = phoneMatchKey(value);
     if (!valueKey || !context.identifiers.exclusivePhones.has(valueKey)) {
       noteOmitted(collection, item, context, { coMingled: true });
       return [];
     }
-    const projected = copyScalarFields(item, ["value", "isPrimary", "shared"], collection, context);
-    if (typeof item.raw === "string" && phoneMatchKey(item.raw) === valueKey) projected.raw = item.raw;
-    else if (item.raw !== undefined) noteOmitted(collection, item.raw, context, { coMingled: true });
-    if (item.label !== undefined) noteOmitted(collection, item.label, context, { coMingled: true });
+    const projected: JsonRecord = { value };
+    if (typeof isPrimary === "boolean") projected.isPrimary = isPrimary;
+    if (typeof shared === "boolean") projected.shared = shared;
+    const raw = ownDataValue(item, "raw");
+    if (typeof raw === "string" && phoneMatchKey(raw) === valueKey) projected.raw = raw;
+    else if (raw !== undefined) {
+      if (typeof raw !== "string") markStoredValueIssue(context, collection, "invalid-stored-value");
+      noteOmitted(collection, raw, context, { coMingled: true });
+    }
+    const label = ownDataValue(item, "label");
+    if (label !== undefined) noteOmitted(collection, label, context, { coMingled: true });
     return [projected];
   });
-  const facets = asRecord(record.facets) ?? {};
-  out.facets = {
-    ...copyScalarFields(facets, ["leadId", "contactId"], collection, context),
-    clientIds: Array.isArray(facets.clientIds) ? facets.clientIds.filter(value => typeof value === "string") : [],
-    enquiryIds: Array.isArray(facets.enquiryIds) ? facets.enquiryIds.filter(value => typeof value === "string") : [],
-  };
+  const facetsValue = ownDataValue(record, "facets");
+  const facets = asRecord(facetsValue);
+  if (!facets) markStoredValueIssue(context, collection, "invalid-stored-value");
+  const projectedFacets: JsonRecord = { clientIds: [], enquiryIds: [] };
+  if (facets) {
+    noteUnknownFields(collection, facets, new Set(["leadId", "contactId", "clientIds", "enquiryIds"]), context);
+    projectStrictString(facets, projectedFacets, "leadId", collection, context);
+    projectStrictString(facets, projectedFacets, "contactId", collection, context);
+    for (const field of ["clientIds", "enquiryIds"] as const) {
+      const values = ownDataValue(facets, field);
+      if (values !== undefined && !Array.isArray(values)) {
+        markStoredValueIssue(context, collection, "invalid-stored-value");
+        continue;
+      }
+      const projected: string[] = [];
+      for (const value of Array.isArray(values) ? values : []) {
+        if (typeof value !== "string" || !value || textHasRestrictedPii(value, context, false)) {
+          markStoredValueIssue(context, collection, "invalid-stored-value");
+          continue;
+        }
+        projected.push(value);
+      }
+      projectedFacets[field] = projected;
+    }
+  }
+  out.facets = projectedFacets;
   const classificationHistoryValue = ownDataValue(record, "classificationHistory");
   if (classificationHistoryValue !== undefined && !Array.isArray(classificationHistoryValue)) {
     markStoredValueIssue(context, collection, "invalid-stored-value");
@@ -931,26 +1079,61 @@ function projectPerson(record: JsonRecord, context: ExportContext): JsonRecord {
       markStoredValueIssue(context, collection, "invalid-stored-value");
       return [];
     }
+    noteUnknownFields(collection, item, new Set(["from", "to", "at", "by", "note", "sourceType", "sourceId"]), context);
     const note = ownDataValue(item, "note");
     if (note !== undefined) noteOmitted(collection, note, context, { coMingled: true });
-    return [copyScalarFields(item, ["from", "to", "at", "by", "sourceType", "sourceId"], collection, context)];
+    const projected: JsonRecord = {};
+    const fromValid = projectStrictEnum(item, projected, "from", PERSON_CLASSIFICATIONS, collection, context, true);
+    const toValid = projectStrictEnum(item, projected, "to", PERSON_CLASSIFICATIONS, collection, context, true);
+    const atValid = projectStrictNumber(item, projected, "at", collection, context, { required: true });
+    projectStrictString(item, projected, "by", collection, context);
+    projectStrictEnum(item, projected, "sourceType", IDENTITY_RESOLUTION_SOURCES, collection, context);
+    projectStrictString(item, projected, "sourceId", collection, context);
+    return fromValid && toValid && atValid ? [projected] : [];
   });
-  out.organisationLinks = (Array.isArray(record.organisationLinks) ? record.organisationLinks : []).flatMap(entry => {
+  const linksValue = ownDataValue(record, "organisationLinks");
+  if (!Array.isArray(linksValue)) markStoredValueIssue(context, collection, "invalid-stored-value");
+  out.organisationLinks = (Array.isArray(linksValue) ? linksValue : []).flatMap(entry => {
     const item = asRecord(entry);
-    if (!item) return [];
-    if (item.reason !== undefined) noteOmitted(collection, item.reason, context, { coMingled: true });
-    return [copyScalarFields(item, ["organisationId", "status", "confidence", "suggestedAt", "decidedAt", "decidedBy"], collection, context)];
-  });
-  out.record = (Array.isArray(record.record) ? record.record : []).flatMap(entry => {
-    const item = asRecord(entry);
-    if (!item) return [];
-    for (const field of ["summary", "body", "location", "outcome", "createdBy"] as const) {
-      if (item[field] !== undefined) noteOmitted(collection, item[field], context, { coMingled: true });
+    if (!item) {
+      markStoredValueIssue(context, collection, "invalid-stored-value");
+      return [];
     }
-    return [copyScalarFields(item, ["id", "kind", "at", "createdAt"], collection, context)];
+    noteUnknownFields(collection, item, new Set(["organisationId", "status", "confidence", "reason", "suggestedAt", "decidedAt", "decidedBy"]), context);
+    const reason = ownDataValue(item, "reason");
+    if (reason !== undefined) noteOmitted(collection, reason, context, { coMingled: true });
+    const projected: JsonRecord = {};
+    const organisationIdValid = projectStrictString(item, projected, "organisationId", collection, context, true);
+    const statusValid = projectStrictEnum(item, projected, "status", ORGANISATION_LINK_STATUSES, collection, context, true);
+    const confidenceValid = projectStrictNumber(item, projected, "confidence", collection, context, { maximum: 1, integer: false });
+    const suggestedAtValid = projectStrictNumber(item, projected, "suggestedAt", collection, context);
+    const decidedAtValid = projectStrictNumber(item, projected, "decidedAt", collection, context);
+    projectStrictString(item, projected, "decidedBy", collection, context);
+    return organisationIdValid && statusValid && confidenceValid && suggestedAtValid && decidedAtValid ? [projected] : [];
+  });
+  const recordValue = ownDataValue(record, "record");
+  if (recordValue !== undefined && !Array.isArray(recordValue)) markStoredValueIssue(context, collection, "invalid-stored-value");
+  out.record = (Array.isArray(recordValue) ? recordValue : []).flatMap(entry => {
+    const item = asRecord(entry);
+    if (!item) {
+      markStoredValueIssue(context, collection, "invalid-stored-value");
+      return [];
+    }
+    noteUnknownFields(collection, item, new Set(["id", "kind", "at", "summary", "body", "location", "outcome", "createdBy", "createdAt"]), context);
+    for (const field of ["summary", "body", "location", "outcome", "createdBy"] as const) {
+      const value = ownDataValue(item, field);
+      if (value !== undefined) noteOmitted(collection, value, context, { coMingled: true });
+    }
+    const projected: JsonRecord = {};
+    const idValid = projectStrictString(item, projected, "id", collection, context, true);
+    const kindValid = projectStrictEnum(item, projected, "kind", PERSON_RECORD_KINDS, collection, context, true);
+    const atValid = projectStrictNumber(item, projected, "at", collection, context, { required: true });
+    const createdAtValid = projectStrictNumber(item, projected, "createdAt", collection, context, { required: true });
+    return idValid && kindValid && atValid && createdAtValid ? [projected] : [];
   });
   for (const field of ["notes", "customFields"] as const) {
-    if (record[field] !== undefined) noteOmitted(collection, record[field], context, { coMingled: true });
+    const value = ownDataValue(record, field);
+    if (value !== undefined) noteOmitted(collection, value, context, { coMingled: true });
   }
   return out;
 }
@@ -968,32 +1151,59 @@ function projectClient(record: JsonRecord, context: ExportContext): JsonRecord {
   ]);
   noteUnknownFields(collection, record, allowed, context);
   const out = copyScalarFields(record, [
-    "id", "agencyId", "relationshipId", "personId", "companyId", "slug", "stage",
-    "status", "createdAt", "updatedAt",
+    "id", "agencyId", "relationshipId", "personId", "companyId", "slug", "createdAt", "updatedAt",
   ], collection, context);
+  projectStrictEnum(record, out, "stage", CLIENT_STAGES, collection, context, true);
+  projectStrictEnum(record, out, "status", AGENCY_STATUSES, collection, context, true);
   projectSafeStringFields(record, out, ["websiteUrl"], collection, context);
   for (const field of ["name", "workspaceLabel"] as const) {
-    if (typeof record[field] !== "string") continue;
-    if (record[field] === context.person.name || record[field] === context.person.company) out[field] = record[field];
-    else noteOmitted(collection, record[field], context, { coMingled: true });
+    const value = ownDataValue(record, field);
+    if (value === undefined && field === "workspaceLabel") continue;
+    if (typeof value !== "string" || !value) {
+      markStoredValueIssue(context, collection, "invalid-stored-value");
+      continue;
+    }
+    if (value === context.person.name || value === context.person.company) out[field] = value;
+    else noteOmitted(collection, value, context, { coMingled: true });
   }
-  const brand = asRecord(record.brand);
+  const brandValue = ownDataValue(record, "brand");
+  const brand = asRecord(brandValue);
+  if (!brand) markStoredValueIssue(context, collection, "invalid-stored-value");
   if (brand) {
-    out.brand = copyScalarFields(brand, [...BRAND_FIELDS], collection, context);
-    for (const [key, value] of Object.entries(brand)) {
+    const projectedBrand: JsonRecord = {};
+    for (const key of BRAND_FIELDS) {
+      const value = ownDataValue(brand, key);
+      if (value === undefined) continue;
+      if (typeof value !== "string") {
+        markStoredValueIssue(context, collection, "invalid-stored-value");
+        continue;
+      }
+      if (textHasRestrictedPii(value, context, false)) {
+        projectedBrand[key] = "[redacted:restricted-identifier]";
+        addCount(context.result.redactedFields, collection);
+        addCount(context.result.coMingledPiiMatches, collection);
+      } else projectedBrand[key] = value;
+    }
+    if (typeof ownDataValue(brand, "primaryColor") !== "string") {
+      markStoredValueIssue(context, collection, "invalid-stored-value");
+    }
+    out.brand = projectedBrand;
+    for (const [key, value] of ownDataEntries(brand)) {
       if (!BRAND_FIELDS.has(key)) noteOmitted(collection, value, context, { coMingled: true });
     }
   }
-  if (typeof record.ownerEmail === "string") {
-    if (context.identifiers.exclusiveEmails.has(normaliseEmail(record.ownerEmail))) out.ownerEmail = record.ownerEmail;
+  const ownerEmail = ownDataValue(record, "ownerEmail");
+  if (typeof ownerEmail === "string") {
+    if (context.identifiers.exclusiveEmails.has(normaliseEmail(ownerEmail))) out.ownerEmail = ownerEmail;
     else {
       out.ownerEmail = "[redacted:third-party-email]";
       addCount(context.result.redactedFields, collection);
       addCount(context.result.coMingledPiiMatches, collection);
     }
-  }
+  } else if (ownerEmail !== undefined) markStoredValueIssue(context, collection, "invalid-stored-value");
   for (const field of ["endCustomers", "metadata"] as const) {
-    if (record[field] !== undefined) noteOmitted(collection, record[field], context, { coMingled: true });
+    const value = ownDataValue(record, field);
+    if (value !== undefined) noteOmitted(collection, value, context, { coMingled: true });
   }
   return out;
 }
@@ -1186,10 +1396,13 @@ function projectActivity(record: JsonRecord, context: ExportContext): JsonRecord
 }
 
 const LEDGER_SCALAR_FIELDS = [
-  "id", "agencyId", "clientId", "sourceType", "occurredAt", "visibility",
-  "attention", "createdAt", "updatedAt",
+  "id", "agencyId", "clientId", "occurredAt", "createdAt", "updatedAt",
 ] as const;
-const LEDGER_SAFE_STRING_FIELDS = ["sourceId", "group", "eyebrow", "href", "parentSourceId"] as const;
+const LEDGER_SAFE_STRING_FIELDS = ["sourceId", "href", "parentSourceId"] as const;
+const LEDGER_SOURCE_TYPES = new Set(["invoice", "payment-plan"]);
+const LEDGER_GROUPS = new Set(["messages", "notes", "calls", "commercial", "delivery", "files", "activity"]);
+const LEDGER_VISIBILITIES = new Set(["internal", "client", "inherent", "system"]);
+const LEDGER_ATTENTION = new Set(["critical", "warning"]);
 
 const EMAIL_TOKEN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i;
 const UK_SORT_CODE = /(?:^|[^0-9])\d{2}[\s\-/]\d{2}[\s\-/]\d{2}(?:$|[^0-9])/;
@@ -1200,7 +1413,7 @@ const UK_PHONE = /(?:^|[^A-Z0-9_])(?:\+44\s?(?:\(0\)\s?)?|0)(?:\d[\s().-]?){9,10
 const UK_STREET_ADDRESS = /\b(?:flat|apartment|unit|suite|room)?\s*(?:\d{1,5}[A-Z]?(?:\s*[-/]\s*\d{1,5}[A-Z]?)?)\s+(?:[\p{L}][\p{L}'’.-]*\s+){0,6}(?:road|street|avenue|lane|drive|close|court|way|place|terrace|crescent|gardens?|grove|mews|square|parade|rise|row|walk|hill|view|vale)\b/iu;
 const UK_NAMED_PREMISE_ADDRESS = /\b(?:[\p{L}][\p{L}'’.-]*\s+){1,4}(?:cottage|house|lodge|farm|barn|hall|manor|grange|croft|bungalow|vicarage)\s*,?\s+(?:[\p{L}][\p{L}'’.-]*\s+){1,5}(?:road|street|avenue|lane|drive|close|court|way|place|terrace|crescent|gardens?|grove|mews|square|parade|rise|row|walk|hill|view|vale)\s*,\s*(?:[\p{L}][\p{L}'’.-]*\s*){1,4}\b/iu;
 const BANK_ACCOUNT_CONTEXT = /\b(?:bank[\s_-]*account|account[\s_-]*(?:number|no)|acct)\s*[:#=-]?\s*\d{8}\b/i;
-const BARE_EIGHT_DIGIT = /^\s*(\d{8})\s*$/;
+const EIGHT_DIGIT_TOKEN = /(?:^|\D)(\d{8})(?=$|\D)/g;
 
 function isCompactCalendarDate(value: string): boolean {
   const year = Number(value.slice(0, 4));
@@ -1213,8 +1426,10 @@ function isCompactCalendarDate(value: string): boolean {
 
 function containsBankAccountIdentifier(value: string): boolean {
   if (BANK_ACCOUNT_CONTEXT.test(value)) return true;
-  const bare = value.match(BARE_EIGHT_DIGIT)?.[1];
-  return Boolean(bare && !isCompactCalendarDate(bare));
+  for (const match of value.matchAll(EIGHT_DIGIT_TOKEN)) {
+    if (!isCompactCalendarDate(match[1])) return true;
+  }
+  return false;
 }
 
 function exactSubjectString(value: string, context: ExportContext): boolean {
@@ -1229,6 +1444,7 @@ function textHasRestrictedPii(
   context: ExportContext,
   title: boolean,
   allowExactSubject = true,
+  matchOtherPersonNames = true,
 ): boolean {
   if (value.length > MAX_SUBJECT_ACCESS_STRING_CHARACTERS) return true;
   const labels = [
@@ -1255,7 +1471,7 @@ function textHasRestrictedPii(
       || UK_STREET_ADDRESS.test(candidate)
       || UK_NAMED_PREMISE_ADDRESS.test(candidate)
       || (!title && containsBankAccountIdentifier(candidate))) return true;
-    if (indexedMatcherHas(context.otherPersonNameMatcher, lower, context)) return true;
+    if (matchOtherPersonNames && indexedMatcherHas(context.otherPersonNameMatcher, lower, context)) return true;
     const digits = digitsOnly(candidate);
     if (digits.length >= 7 && indexedMatcherHas(context.ambiguousPhoneMatcher, digits, context)) return true;
     if (indexedMatcherHas(context.ambiguousEmailMatcher, lower, context)) return true;
@@ -1289,22 +1505,36 @@ function projectSafeStringFields(
 
 function projectLedger(record: JsonRecord, context: ExportContext): JsonRecord | null {
   const collection = "clientRecordLedger";
-  if (record.sourceType !== "invoice" && record.sourceType !== "payment-plan") {
+  const sourceType = ownDataValue(record, "sourceType");
+  if (typeof sourceType !== "string" || !LEDGER_SOURCE_TYPES.has(sourceType)) {
     addCount(context.result.unsupportedCollectionMatches, collection);
     return null;
   }
-  const allowed = new Set([...LEDGER_SCALAR_FIELDS, ...LEDGER_SAFE_STRING_FIELDS, "title", "body"]);
+  const allowed = new Set([
+    ...LEDGER_SCALAR_FIELDS, ...LEDGER_SAFE_STRING_FIELDS, "sourceType", "group", "visibility", "attention",
+    "eyebrow", "title", "body",
+  ]);
   noteUnknownFields(collection, record, allowed, context);
-  const title = typeof record.title === "string" ? record.title : "";
-  const body = typeof record.body === "string" ? record.body : undefined;
-  if (textHasRestrictedPii(title, context, true) || (body !== undefined && textHasRestrictedPii(body, context, false))) {
-    addCount(context.result.coMingledPiiMatches, collection);
-    return null;
-  }
   const out = copyScalarFields(record, LEDGER_SCALAR_FIELDS, collection, context);
+  projectStrictEnum(record, out, "sourceType", LEDGER_SOURCE_TYPES, collection, context, true);
+  projectStrictEnum(record, out, "group", LEDGER_GROUPS, collection, context, true);
+  projectStrictEnum(record, out, "visibility", LEDGER_VISIBILITIES, collection, context, true);
+  projectStrictEnum(record, out, "attention", LEDGER_ATTENTION, collection, context);
   projectSafeStringFields(record, out, LEDGER_SAFE_STRING_FIELDS, collection, context);
-  out.title = title;
-  if (body !== undefined) out.body = body;
+
+  // Ledger title/body/eyebrow are human-authored prose. A finite detector can
+  // catch known identifiers, but cannot prove that an unregistered name or
+  // named premise belongs to the subject. Keep the typed commercial metadata
+  // useful while making every prose field explicitly review-only.
+  for (const field of ["title", "body", "eyebrow"] as const) {
+    const value = ownDataValue(record, field);
+    if (value === undefined) {
+      if (field === "title") markStoredValueIssue(context, collection, "invalid-stored-value");
+      continue;
+    }
+    if (typeof value !== "string") markStoredValueIssue(context, collection, "invalid-stored-value");
+    noteOmitted(collection, value, context, { coMingled: true });
+  }
   return out;
 }
 
@@ -1815,7 +2045,11 @@ export function collectSubjectAccessExport(
     person,
     identifiers,
     lineage,
-    otherPersonNameMatcher: buildIndexedStringMatcher(otherPersonNames, meter, { caseInsensitive: true, nameTokens: true }),
+    otherPersonNameMatcher: buildIndexedStringMatcher(otherPersonNames, meter, {
+      caseInsensitive: true,
+      nameTokens: true,
+      boundaryAware: true,
+    }),
     subjectReferenceMatcher: buildIndexedStringMatcher(subjectReferencePatterns, meter, { caseInsensitive: true }),
     subjectPhoneMatcher: buildIndexedStringMatcher(subjectPhonePatterns, meter),
     ambiguousEmailMatcher: buildIndexedStringMatcher(identifiers.ambiguousEmails, meter, { caseInsensitive: true }),
@@ -1845,7 +2079,10 @@ export function collectSubjectAccessExport(
       markStoredValueIssue(context, collection, "invalid-stored-value");
       continue;
     }
-    if (textHasRestrictedPii(collection, context, false)) {
+    // Resident collection identifiers are first-party schema, not tenant
+    // prose. Never let a short person's name (for example Ann or Lee) poison
+    // `peopleChannels`/`peopleEmployees`; all stored values remain inspected.
+    if (textHasRestrictedPii(collection, context, false, false, false)) {
       markStoredValueIssue(context, "portalState", "invalid-stored-value");
       continue;
     }

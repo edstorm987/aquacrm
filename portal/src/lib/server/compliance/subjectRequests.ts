@@ -312,7 +312,7 @@ export interface PreparedSubjectAccessExport {
   json: string;
 }
 
-function validPreparedExport(prepared: PreparedSubjectAccessExport): boolean {
+function validPreparedExport(prepared: PreparedSubjectAccessExport, personId: string): boolean {
   const actualBytes = Buffer.byteLength(prepared.json, "utf8");
   return /^[a-f0-9]{64}$/.test(prepared.digest)
     && crypto.createHash("sha256").update(prepared.json, "utf8").digest("hex") === prepared.digest
@@ -322,7 +322,82 @@ function validPreparedExport(prepared: PreparedSubjectAccessExport): boolean {
     && Number.isInteger(prepared.recordCount)
     && prepared.recordCount >= 0
     && Number.isInteger(prepared.reviewCount)
-    && prepared.reviewCount >= 0;
+    && prepared.reviewCount >= 0
+    && validPreparedExportManifest(prepared.json, {
+      generatedAt: prepared.generatedAt,
+      recordCount: prepared.recordCount,
+      reviewCount: prepared.reviewCount,
+      personId,
+    });
+}
+
+const SUBJECT_ACCESS_REVIEW_TOTAL_FIELDS = [
+  "recordsNotAttributableToThisAgency",
+  "unclassifiedSubjectMentions",
+  "ambiguousOwnership",
+  "coMingledThirdPartyPii",
+  "recordsBeyondInspectionDepth",
+  "unsupportedCollections",
+  "omittedFields",
+] as const;
+
+function validPreparedExportManifest(
+  json: string,
+  expected: { generatedAt: number; recordCount: number; reviewCount: number; personId?: string },
+): boolean {
+  try {
+    const parsed = JSON.parse(json) as unknown;
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return false;
+    const root = parsed as Record<string, unknown>;
+    const subject = root.subject;
+    const reviewRequired = root.reviewRequired;
+    const completeness = root.completeness;
+    if (root.format !== "aqua-subject-access-v2"
+      || root.generatedAt !== new Date(expected.generatedAt).toISOString()
+      || root.totalRecords !== expected.recordCount
+      || subject === null || typeof subject !== "object" || Array.isArray(subject)
+      || (expected.personId !== undefined && (subject as Record<string, unknown>).personId !== expected.personId)
+      || reviewRequired === null || typeof reviewRequired !== "object" || Array.isArray(reviewRequired)
+      || completeness === null || typeof completeness !== "object" || Array.isArray(completeness)) return false;
+    const totals = reviewRequired as Record<string, unknown>;
+    if (Object.keys(totals).length !== SUBJECT_ACCESS_REVIEW_TOTAL_FIELDS.length) return false;
+    let reviewCount = 0;
+    for (const field of SUBJECT_ACCESS_REVIEW_TOTAL_FIELDS) {
+      const value = totals[field];
+      if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) return false;
+      reviewCount += value;
+      if (!Number.isSafeInteger(reviewCount)) return false;
+    }
+    if (reviewCount !== expected.reviewCount) return false;
+    const expectedStatus = reviewCount === 0 ? "automatic-safe-subset-complete" : "human-review-required";
+    return (completeness as Record<string, unknown>).status === expectedStatus;
+  } catch {
+    return false;
+  }
+}
+
+function validStoredPreparedExport(request: SubjectRequest, digest: string, requireBytes: boolean): boolean {
+  if (request.preparedExportDigest !== digest
+    || !/^[a-f0-9]{64}$/.test(digest)
+    || !Number.isSafeInteger(request.preparedExportGeneratedAt)
+    || !Number.isSafeInteger(request.preparedExportRecordCount)
+    || !Number.isSafeInteger(request.preparedExportReviewCount)
+    || !Number.isSafeInteger(request.preparedExportByteLength)
+    || (request.preparedExportGeneratedAt ?? -1) < 0
+    || (request.preparedExportRecordCount ?? -1) < 0
+    || (request.preparedExportReviewCount ?? -1) < 0
+    || (request.preparedExportByteLength ?? -1) < 0
+    || (request.preparedExportByteLength ?? Number.POSITIVE_INFINITY) > MAX_STAGED_SUBJECT_ACCESS_BYTES) return false;
+  if (!requireBytes) return request.preparedExportJson === undefined;
+  if (typeof request.preparedExportJson !== "string") return false;
+  return Buffer.byteLength(request.preparedExportJson, "utf8") === request.preparedExportByteLength
+    && crypto.createHash("sha256").update(request.preparedExportJson, "utf8").digest("hex") === digest
+    && validPreparedExportManifest(request.preparedExportJson, {
+      generatedAt: request.preparedExportGeneratedAt!,
+      recordCount: request.preparedExportRecordCount!,
+      reviewCount: request.preparedExportReviewCount!,
+      personId: request.personId,
+    });
 }
 
 function validEvidenceId(value: string): boolean {
@@ -341,7 +416,7 @@ export function recordPreparedSubjectAccessExport(
   actorUserId: string,
   prepared: PreparedSubjectAccessExport,
 ): SubjectRequest {
-  if (!validPreparedExport(prepared)) throw new SubjectAccessRequestGateError();
+  if (!validPreparedExport(prepared, personId)) throw new SubjectAccessRequestGateError();
   let updated: SubjectRequest | null = null;
   mutate(state => {
     const stored = storedSubjectRequest(subjectRequestStore(state, accessStateError), id, accessStateError);
@@ -418,6 +493,41 @@ function assertReviewEvidenceBinding(
   }
 }
 
+function assertStoredReviewBinding(
+  store: SubjectRequestStore,
+  request: SubjectRequest,
+  binding: { agencyId: string; requestId: string; personId: string; digest: string },
+): void {
+  const reviewCount = request.preparedExportReviewCount;
+  if (!Number.isSafeInteger(reviewCount) || (reviewCount ?? -1) < 0) throw new SubjectAccessRequestGateError();
+  if (reviewCount === 0) {
+    if (request.preparedExportReviewResolvedAt !== undefined
+      || request.preparedExportReviewResolvedBy !== undefined
+      || request.preparedExportReviewResolvedDigest !== undefined
+      || request.preparedExportReviewEvidenceId !== undefined
+      || request.preparedExportReviewResultId !== undefined) throw new SubjectAccessRequestGateError();
+    return;
+  }
+  if (!request.preparedExportReviewResolvedAt
+    || typeof request.preparedExportReviewResolvedBy !== "string"
+    || !request.preparedExportReviewResolvedBy
+    || request.preparedExportReviewResolvedDigest !== binding.digest
+    || typeof request.preparedExportReviewEvidenceId !== "string"
+    || !validEvidenceId(request.preparedExportReviewEvidenceId)) throw new SubjectAccessRequestGateError();
+  const resultId = subjectAccessReviewResultId({
+    ...binding,
+    evidenceId: request.preparedExportReviewEvidenceId,
+  });
+  if (request.preparedExportReviewResultId !== resultId) throw new SubjectAccessRequestGateError();
+  assertReviewEvidenceBinding(store, {
+    agencyId: binding.agencyId,
+    requestId: binding.requestId,
+    personId: binding.personId,
+    resultId,
+    evidenceId: request.preparedExportReviewEvidenceId,
+  });
+}
+
 /** Record human review against the exact prepared file, without delivery. */
 export function recordSubjectAccessReviewCompletion(
   agencyId: string,
@@ -450,12 +560,15 @@ export function recordSubjectAccessReviewCompletion(
       && request.preparedExportReviewResultId === resultId,
     );
     if (exactReplay) {
+      const requireBytes = request!.preparedExportJson !== undefined;
+      if (!validStoredPreparedExport(request!, digest, requireBytes)) throw new SubjectAccessRequestGateError();
+      assertStoredReviewBinding(store, request!, { agencyId, requestId: id, personId, digest });
       updated = { request: request!, replay: true, resultId };
       return;
     }
     if (!isOpenVerifiedSubjectAccessRequest(request, agencyId, personId)
       || request.preparedExportDigest !== digest
-      || !request.preparedExportJson
+      || !validStoredPreparedExport(request, digest, true)
       || !(request.preparedExportReviewCount && request.preparedExportReviewCount > 0)) {
       throw new SubjectAccessRequestGateError();
     }
@@ -553,14 +666,15 @@ export function fulfilPreparedSubjectAccessDelivery(
     });
     const stored = storedSubjectRequest(store, id, accessStateError);
     const request = stored?.view;
+    if (!request
+      || request.agencyId !== agencyId
+      || !SUBJECT_ACCESS_KINDS.has(request.kind)
+      || request.personId !== personId
+      || !request.identityVerifiedAt
+      || request.preparedExportDigest !== digest) throw new SubjectAccessRequestGateError();
     const exactCompletedReplay = Boolean(
-      request
-      && request.agencyId === agencyId
-      && SUBJECT_ACCESS_KINDS.has(request.kind)
-      && request.personId === personId
-      && request.fulfilledAt
+      request.fulfilledAt
       && request.deliveredAt
-      && request.preparedExportDigest === digest
       && request.deliveryMethod === deliveryMethod
       && request.deliveryEvidenceId === evidenceId
       && request.deliveryResultId === resultId
@@ -568,18 +682,16 @@ export function fulfilPreparedSubjectAccessDelivery(
       && request.preparedExportJson === undefined,
     );
     if (exactCompletedReplay) {
+      if (!validStoredPreparedExport(request, digest, false)) throw new SubjectAccessRequestGateError();
+      assertStoredReviewBinding(store, request, { agencyId, requestId: id, personId, digest });
       updated = { request: request!, replay: true, resultId };
       return;
     }
     if (!isOpenVerifiedSubjectAccessRequest(request, agencyId, personId)
-      || request.preparedExportDigest !== digest
-      || !request.preparedExportJson
-      || (Boolean(request.preparedExportReviewCount)
-        && (request.preparedExportReviewResolvedDigest !== digest
-          || !request.preparedExportReviewEvidenceId
-          || !request.preparedExportReviewResultId))) {
+      || !validStoredPreparedExport(request, digest, true)) {
       throw new SubjectAccessRequestGateError();
     }
+    assertStoredReviewBinding(store, request, { agencyId, requestId: id, personId, digest });
     const now = Date.now();
     const committed = applyStoredSubjectRequestPatch(stored!, {
       deliveredAt: now,
