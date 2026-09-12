@@ -88,7 +88,7 @@ export default async function LoginPage({
   // unchanged LoginForm below. Useful support/recovery and the single
   // `Privacy & cookies` Policies link are kept.
   return (
-    <main className="mm-auth-shell" data-auth-brand={brand.id}>
+    <main id="main-content" tabIndex={-1} className="mm-auth-shell" data-auth-brand={brand.id}>
       <section className="mm-auth-card" aria-labelledby="mm-auth-heading">
         <div className="mm-auth-logo">
           <span className="mm-auth-logo-mark" aria-hidden="true">{brand.mark}</span>

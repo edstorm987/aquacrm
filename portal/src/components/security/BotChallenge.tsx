@@ -34,6 +34,7 @@ interface TurnstileRenderOptions {
   sitekey: string;
   action?: string;
   theme?: "auto" | "light" | "dark";
+  size?: "normal" | "compact" | "flexible";
   retry?: "auto" | "never";
   "refresh-expired"?: "auto" | "manual" | "never";
   callback?: (token: string) => void;
@@ -178,12 +179,19 @@ export const BotChallenge = forwardRef<BotChallengeHandle, Props>(function BotCh
   { siteKey, action, onToken, className, required = false },
   ref,
 ) {
+  const frameRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const widgetIdRef = useRef<string | null>(null);
   // Keep the latest onToken without re-running the render effect.
   const onTokenRef = useRef(onToken);
   onTokenRef.current = onToken;
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  // Turnstile's normal/flexible treatment is 300px wide. On the smallest
+  // supported auth layout the card has less room than that, so ask the provider
+  // for its real compact widget instead of clipping or shrinking an interactive
+  // iframe. Re-evaluate on resize so browser zoom and orientation changes can
+  // cross the boundary without stranding the old widget.
+  const [widgetSize, setWidgetSize] = useState<"flexible" | "compact" | null>(null);
   // Bumping this forces a fresh mount+render attempt (used by "Try again").
   const [attempt, setAttempt] = useState(0);
 
@@ -203,6 +211,23 @@ export const BotChallenge = forwardRef<BotChallengeHandle, Props>(function BotCh
 
   useEffect(() => {
     if (!siteKey) return;
+    const el = frameRef.current;
+    if (!el) return;
+
+    const chooseSize = () => {
+      const next = el.getBoundingClientRect().width < 300 ? "compact" : "flexible";
+      setWidgetSize(current => current === next ? current : next);
+    };
+    chooseSize();
+
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(chooseSize);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [siteKey]);
+
+  useEffect(() => {
+    if (!siteKey || !widgetSize) return;
     let cancelled = false;
     setStatus("loading");
     loadTurnstileScript()
@@ -220,6 +245,7 @@ export const BotChallenge = forwardRef<BotChallengeHandle, Props>(function BotCh
           sitekey: siteKey,
           action,
           theme: "auto",
+          size: widgetSize,
           retry: "auto",
           "refresh-expired": "auto",
           callback: (token: string) => {
@@ -265,7 +291,7 @@ export const BotChallenge = forwardRef<BotChallengeHandle, Props>(function BotCh
       }
     };
     // `attempt` is included so "Try again" forces a clean re-render.
-  }, [siteKey, action, attempt]);
+  }, [siteKey, action, widgetSize, attempt]);
 
   const retry = useCallback(() => {
     const api = window.turnstile;
@@ -295,7 +321,13 @@ export const BotChallenge = forwardRef<BotChallengeHandle, Props>(function BotCh
 
   return (
     <div className={className}>
-      <div ref={containerRef} className="mm-captcha" data-testid="bot-challenge" />
+      <div
+        ref={frameRef}
+        className="mm-captcha-frame"
+        data-widget-size={widgetSize ?? undefined}
+      >
+        <div ref={containerRef} className="mm-captcha" data-testid="bot-challenge" />
+      </div>
       <p role="status" aria-live="polite" className="mm-captcha-status">
         {status === "loading" ? "Loading the verification challenge…" : null}
       </p>

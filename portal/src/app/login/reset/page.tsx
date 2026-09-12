@@ -38,7 +38,7 @@ export default async function ResetPage({
   const params = await searchParams;
   const brand = getAuthBrand(params.brand);
   return (
-    <main className="mm-auth-shell" data-auth-brand={brand.id}>
+    <main id="main-content" tabIndex={-1} className="mm-auth-shell" data-auth-brand={brand.id}>
       <div className="mm-auth-split">
         <aside className="mm-auth-brand-panel" aria-hidden="true">
           <div className="mm-auth-brand-mark">
@@ -60,6 +60,10 @@ export default async function ResetPage({
         </aside>
 
         <div className="mm-auth-card">
+          <div className="mm-auth-logo">
+            <span className="mm-auth-logo-mark" aria-hidden="true">{brand.mark}</span>
+            <span className="mm-auth-logo-name">{brand.name}</span>
+          </div>
           <div className="mm-auth-card-head">
             <h1>Reset password</h1>
             <p>Pick something at least 8 characters long.</p>

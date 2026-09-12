@@ -15,8 +15,14 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 const page = readFileSync("src/app/login/page.tsx", "utf8");
+const forgot = readFileSync("src/app/login/forgot/page.tsx", "utf8");
+const reset = readFileSync("src/app/login/reset/page.tsx", "utf8");
 const form = readFileSync("src/app/login/LoginForm.tsx", "utf8");
+const challenge = readFileSync("src/components/security/BotChallenge.tsx", "utf8");
+const skipLink = readFileSync("src/components/ui/SkipToContent.tsx", "utf8");
 const css = readFileSync("src/app/globals.css", "utf8");
+const browserGate = readFileSync("scripts/browser-login-ux-acceptance.mjs", "utf8");
+const challengeFrameCss = /\.mm-captcha-frame \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
 
 test("LOGIN-UX-001: tenancy + the canonical Policies destination are preserved", () => {
   assert.match(page, /data-auth-brand=\{brand\.id\}/, "the shell stays brand-scoped (tenant-safe theming)");
@@ -80,4 +86,31 @@ test("LOGIN-UX-001: the background is a restrained CSS-only field (no photo/glas
 test("LOGIN-UX-001: the card is a single centred column sized ~520-600px", () => {
   assert.match(css, /\.mm-auth-card \{[\s\S]*?max-width: 560px;/, "the card is centred at ~560px, not a wide split");
   assert.match(css, /\.mm-auth-split \{[\s\S]*?max-width: 560px;[\s\S]*?margin: 0 auto;/, "recovery pages collapse to the same single centred card");
+});
+
+test("LOGIN-UX-001: every auth route is a working skip-link target", () => {
+  for (const [route, source] of [["login", page], ["forgot", forgot], ["reset", reset]] as const) {
+    assert.match(source, /<main id="main-content" tabIndex=\{-1\}/, `${route} exposes the exact focusable skip target`);
+  }
+  assert.match(skipLink, /target\.focus\(\{ preventScroll: true \}\)/, "the global skip control moves focus explicitly");
+  assert.match(skipLink, /target\.scrollIntoView\(\{ block: "start" \}\)/, "the global skip control scrolls to the target");
+  assert.match(browserGate, /activeElement\?\.id === "main-content"/, "the browser gate proves focus moves to the target");
+});
+
+test("LOGIN-UX-001: recovery routes retain the visible tenant lockup", () => {
+  for (const [route, source] of [["forgot", forgot], ["reset", reset]] as const) {
+    assert.match(source, /className="mm-auth-logo"/, `${route} has the in-card tenant lockup`);
+    assert.match(source, /className="mm-auth-logo-mark" aria-hidden="true"/, `${route} hides the decorative mark`);
+    assert.match(source, /className="mm-auth-logo-name">\{brand\.name\}/, `${route} exposes one readable tenant name`);
+    assert.match(source, /href=\{`\/login\?brand=\$\{brand\.id\}`\}/, `${route} preserves the tenant-scoped sign-in destination`);
+  }
+});
+
+test("LOGIN-UX-001: narrow challenges use the provider compact mode, never clipping", () => {
+  assert.match(challenge, /size\?: "normal" \| "compact" \| "flexible"/, "the provider size contract is typed");
+  assert.match(challenge, /getBoundingClientRect\(\)\.width < 300 \? "compact" : "flexible"/, "layout selects the provider's compact mode below 300px");
+  assert.match(challenge, /size: widgetSize/, "the measured size reaches the real Turnstile render call");
+  assert.doesNotMatch(challengeFrameCss, /overflow: hidden;/, "the challenge iframe is never cropped");
+  assert.match(challengeFrameCss, /overflow: visible;/, "provider controls may paint without clipping");
+  assert.match(browserGate, /const iframeWidth = size === "compact" \? 150 : 300/, "the browser fixture uses provider-sized iframe dimensions");
 });

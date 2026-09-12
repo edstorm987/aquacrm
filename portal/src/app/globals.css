@@ -2955,8 +2955,11 @@ aside[aria-label="Primary navigation"][data-workspace="growth"]    [data-workspa
   min-height: 44px;
 }
 @media (max-width: 400px) {
+  .mm-auth-shell {
+    padding-inline: 8px;
+  }
   .mm-auth-card {
-    padding: 26px 18px 22px;
+    padding: 26px 12px 22px;
     border-radius: 14px;
   }
 }
@@ -3036,11 +3039,25 @@ aside[aria-label="Primary navigation"][data-workspace="growth"]    [data-workspa
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
+}
+.mm-captcha-frame {
+  /* The provider is rendered with `size: flexible` when 300px is available and
+     its native 150x140 compact treatment below that. Never crop the provider's
+     interactive iframe: clipping can make its checkbox/help controls unusable. */
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: visible;
 }
 .mm-captcha {
-  /* The 300px managed widget must never overflow a narrow card. */
-  max-width: 100%;
-  overflow: hidden;
+  width: 100%;
+  min-width: 0;
+}
+.mm-captcha-frame[data-widget-size="compact"] .mm-captcha {
+  width: 150px;
+  min-height: 140px;
+  margin-inline: auto;
 }
 .mm-captcha-status {
   margin: 0;
