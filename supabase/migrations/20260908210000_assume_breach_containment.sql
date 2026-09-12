@@ -78,8 +78,11 @@ on public.profiles for select
 to authenticated
 using (id = auth.uid());
 
-revoke all on table public.profiles from public, anon;
-revoke insert, update, delete on table public.profiles from authenticated;
+-- `REVOKE ALL` is intentional. The live project's inherited defaults include
+-- TRUNCATE / REFERENCES / TRIGGER as well as CRUD, and TRUNCATE bypasses RLS.
+-- Revoking only DML would therefore leave a table-wide destructive browser
+-- capability behind while the policy checks below appeared green.
+revoke all on table public.profiles from public, anon, authenticated;
 grant select on table public.profiles to authenticated;
 grant select, insert, update, delete on table public.profiles to service_role;
 
@@ -92,9 +95,9 @@ drop policy if exists "Authenticated users can read brands" on public.brands; --
 drop policy if exists "Internal users manage shoots" on public.shoots;
 drop policy if exists "Internal users manage shoot photos" on public.shoot_photos;
 
-revoke insert, update, delete on table public.brands from public, anon, authenticated;
-revoke insert, update, delete on table public.shoots from public, anon, authenticated;
-revoke insert, update, delete on table public.shoot_photos from public, anon, authenticated;
+revoke all on table
+  public.brands, public.shoots, public.shoot_photos
+from public, anon, authenticated;
 grant select on table public.brands, public.shoots, public.shoot_photos to anon, authenticated;
 grant select, insert, update, delete on table
   public.brands, public.shoots, public.shoot_photos
@@ -115,12 +118,9 @@ on public.client_portal_members for select
 to authenticated
 using (user_id = auth.uid());
 
-revoke all on table public.clients from public, anon;
-revoke all on table public.client_portals from public, anon;
-revoke all on table public.client_portal_members from public, anon;
-revoke insert, update, delete on table public.clients from authenticated;
-revoke insert, update, delete on table public.client_portals from authenticated;
-revoke insert, update, delete on table public.client_portal_members from authenticated;
+revoke all on table
+  public.clients, public.client_portals, public.client_portal_members
+from public, anon, authenticated;
 grant select on table public.clients, public.client_portals, public.client_portal_members to authenticated;
 grant select, insert, update, delete on table
   public.clients, public.client_portals, public.client_portal_members
@@ -147,7 +147,7 @@ grant select, insert, update, delete on table public.audit_events to service_rol
 drop policy if exists "Internal users manage brand enquiries" on public.brand_enquiries;
 drop policy if exists "Internal users manage their agency's brand enquiries" on public.brand_enquiries;
 
-revoke select, update, delete on table public.brand_enquiries from public, anon, authenticated;
+revoke all on table public.brand_enquiries from public, anon, authenticated;
 grant insert on table public.brand_enquiries to anon, authenticated;
 grant select, insert, update, delete on table public.brand_enquiries to service_role;
 
@@ -166,6 +166,13 @@ grant select, insert, update, delete on table public.website_consent_events to s
 drop policy if exists "Internal users manage ecosystem storage" on storage.objects;
 drop policy if exists "Portal users manage their own upload folder" on storage.objects;
 
+-- The hosted project also inherited ALL table privileges here. RLS constrains
+-- ordinary DML, but it does not make TRUNCATE safe. Remove the whole inherited
+-- ACL and return only the SELECT capability needed by the public-bucket policy.
+-- Server-mediated storage keeps using service_role / supabase_storage_admin.
+revoke all on table storage.objects from public, anon, authenticated;
+grant select on table storage.objects to anon, authenticated;
+
 drop policy if exists "Public can read public ecosystem assets" on storage.objects;
 create policy "Public can read public ecosystem assets"
 on storage.objects for select
@@ -179,9 +186,11 @@ using (
 -- browser role should be able to probe them (is_internal_user() is SECURITY
 -- DEFINER and reads profiles). Trigger functions never need direct EXECUTE.
 
-revoke execute on function public.current_profile_role() from public, anon, authenticated;
-revoke execute on function public.is_internal_user() from public, anon, authenticated;
-revoke execute on function public.touch_updated_at() from public, anon, authenticated;
+-- No public-schema routine is a browser RPC. The portal invokes its RPCs with
+-- the service role, while policy/trigger functions execute through PostgreSQL's
+-- policy and trigger machinery. Revoke the inherited/default PUBLIC EXECUTE
+-- across the existing schema instead of trying to maintain a fragile denylist.
+revoke execute on all functions in schema public from public, anon, authenticated;
 do $$ begin
   -- These two arrived in later migrations; guard for rebuilt projects that
   -- run the chain from scratch (they exist by this point) vs partial stacks.
@@ -199,15 +208,62 @@ do $$ begin
   end if;
 end $$;
 
+-- The history identity sequence was also created under the inherited cloud
+-- defaults. Browser roles never insert history directly, so even USAGE/UPDATE
+-- would only provide an avoidable sequence-exhaustion denial path.
+revoke all on all sequences in schema public from public, anon, authenticated;
+grant usage, select on all sequences in schema public to service_role;
+
 -- ─── 10. Default privileges: future objects default-deny ───────────────────
 -- The original hole existed because the cloud project's default privileges
 -- granted ALL to anon/authenticated and early tables inherited it silently.
 -- Future tables/sequences/functions created by the migration role now grant
 -- browser roles NOTHING until a migration says otherwise, in writing.
 
-alter default privileges in schema public revoke all on tables from anon, authenticated;
-alter default privileges in schema public revoke all on sequences from anon, authenticated;
-alter default privileges in schema public revoke execute on functions from public, anon, authenticated;
+do $$
+declare
+  owner_role text;
+begin
+  -- Default privileges belong to the object creator, not the schema. Close the
+  -- defaults for every role that already owns a public object (plus the
+  -- migration role), otherwise a historic `postgres` default can survive when
+  -- this migration is executed by `supabase_admin`, or vice versa.
+  for owner_role in
+    select distinct role_name
+    from (
+      select current_user::text as role_name
+      union all
+      select pg_get_userbyid(c.relowner)
+      from pg_class c
+      join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public'
+      union all
+      select pg_get_userbyid(p.proowner)
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public'
+      union all
+      select pg_get_userbyid(t.typowner)
+      from pg_type t
+      join pg_namespace n on n.oid = t.typnamespace
+      where n.nspname = 'public'
+    ) owners
+    where role_name is not null
+  loop
+    execute format(
+      'alter default privileges for role %I in schema public revoke all privileges on tables from public, anon, authenticated',
+      owner_role
+    );
+    execute format(
+      'alter default privileges for role %I in schema public revoke all privileges on sequences from public, anon, authenticated',
+      owner_role
+    );
+    execute format(
+      'alter default privileges for role %I in schema public revoke execute on functions from public, anon, authenticated',
+      owner_role
+    );
+  end loop;
+end $$;
 
 -- ─── 11. Self-verification: fail loudly if any broad path survived ─────────
 do $$
@@ -221,20 +277,22 @@ begin
   from (values ('public.app_datastores'), ('public.audit_events'),
                ('public.website_consent_events'), ('public.app_datastore_history')) as t(tbl)
   cross join (values ('anon'), ('authenticated')) as r(role)
-  cross join (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE')) as p(priv)
+  cross join (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE'),
+                     ('TRUNCATE'), ('REFERENCES'), ('TRIGGER'), ('MAINTAIN')) as p(priv)
   where has_table_privilege(r.role, t.tbl, p.priv);
   if offending is not null then
     raise exception 'assume-breach containment failed: browser-role table privilege survived: %', offending;
   end if;
 
-  -- 11b. No browser-role WRITE may remain on the read-only surfaces.
+  -- 11b. SELECT is the only browser privilege on the read-only surfaces.
   select string_agg(t.tbl || ':' || r.role || ':' || p.priv, ', ')
     into offending
   from (values ('public.profiles'), ('public.brands'), ('public.shoots'),
                ('public.shoot_photos'), ('public.clients'), ('public.client_portals'),
                ('public.client_portal_members')) as t(tbl)
   cross join (values ('anon'), ('authenticated')) as r(role)
-  cross join (values ('INSERT'), ('UPDATE'), ('DELETE')) as p(priv)
+  cross join (values ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE'),
+                     ('REFERENCES'), ('TRIGGER'), ('MAINTAIN')) as p(priv)
   where has_table_privilege(r.role, t.tbl, p.priv);
   if offending is not null then
     raise exception 'assume-breach containment failed: browser-role write privilege survived: %', offending;
@@ -244,7 +302,8 @@ begin
   select string_agg(r.role || ':' || p.priv, ', ')
     into offending
   from (values ('anon'), ('authenticated')) as r(role)
-  cross join (values ('SELECT'), ('UPDATE'), ('DELETE')) as p(priv)
+  cross join (values ('SELECT'), ('UPDATE'), ('DELETE'), ('TRUNCATE'),
+                     ('REFERENCES'), ('TRIGGER'), ('MAINTAIN')) as p(priv)
   where has_table_privilege(r.role, 'public.brand_enquiries', p.priv);
   if offending is not null then
     raise exception 'assume-breach containment failed: brand_enquiries browser access beyond INSERT: %', offending;
@@ -253,7 +312,38 @@ begin
     raise exception 'assume-breach containment broke the public contact form: anon lost INSERT on brand_enquiries';
   end if;
 
-  -- 11d. The broad policies must be gone (by exact name), everywhere.
+  -- 11d. Only the explicitly named browser-policy allowlist may remain on
+  -- these surfaces. Checking names to remove is insufficient: a differently
+  -- named broad policy would otherwise survive unnoticed.
+  select string_agg(schemaname || '.' || tablename || ' → ' || policyname, ', ')
+    into offending
+  from pg_policies
+  where (
+    (schemaname = 'public' and tablename in (
+      'app_datastores', 'app_datastore_history', 'app_datastore_patch_receipts',
+      'audit_events', 'website_consent_events', 'profiles', 'brands', 'shoots',
+      'shoot_photos', 'clients', 'client_portals', 'client_portal_members',
+      'brand_enquiries'
+    ))
+    or (schemaname = 'storage' and tablename = 'objects')
+  )
+  and not (
+    (schemaname = 'public' and tablename = 'profiles' and policyname = 'Users can read their own profile')
+    or (schemaname = 'public' and tablename = 'brands' and policyname = 'Public brand metadata is readable')
+    or (schemaname = 'public' and tablename = 'shoots' and policyname = 'Public shoot library is readable')
+    or (schemaname = 'public' and tablename = 'shoot_photos' and policyname = 'Public shoot photos are readable')
+    or (schemaname = 'public' and tablename = 'clients' and policyname = 'Portal members read their client')
+    or (schemaname = 'public' and tablename = 'client_portals' and policyname = 'Portal members read portals')
+    or (schemaname = 'public' and tablename = 'client_portal_members' and policyname = 'Portal members read their memberships')
+    or (schemaname = 'public' and tablename = 'brand_enquiries' and policyname = 'Public can create consented brand enquiries')
+    or (schemaname = 'storage' and tablename = 'objects' and policyname = 'Public can read public ecosystem assets')
+  );
+  if offending is not null then
+    raise exception 'assume-breach containment failed: browser policy outside the exact allowlist survived: %', offending;
+  end if;
+
+  -- The historical broad policy names are also checked globally so moving one
+  -- to a different table cannot evade the scoped allowlist above.
   select string_agg(schemaname || '.' || tablename || ' → ' || policyname, ', ')
     into offending
   from pg_policies
@@ -297,7 +387,117 @@ begin
     raise exception 'assume-breach containment lost the own-row profile read (milesymedia login)';
   end if;
 
-  -- 11f. Inventory, not enforcement: surface BYPASSRLS roles for the audit
+  -- 11f. storage.objects is browser-readable for public buckets, never mutable
+  -- or administrable directly by a browser role.
+  select string_agg(r.role || ':' || p.priv, ', ')
+    into offending
+  from (values ('anon'), ('authenticated')) as r(role)
+  cross join (values ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE'),
+                     ('REFERENCES'), ('TRIGGER'), ('MAINTAIN')) as p(priv)
+  where has_table_privilege(r.role, 'storage.objects', p.priv);
+  if offending is not null then
+    raise exception 'assume-breach containment failed: storage.objects browser privilege beyond SELECT survived: %', offending;
+  end if;
+  if not has_table_privilege('anon', 'storage.objects', 'SELECT') then
+    raise exception 'assume-breach containment broke public storage reads: anon lost SELECT on storage.objects';
+  end if;
+
+  -- 11g. No direct column grant may re-open an operation after the table-level
+  -- ACL was narrowed. has_column_privilege also sees table-level grants, so the
+  -- allowed read/insert cases are excluded explicitly.
+  select string_agg(r.role || ':' || c.table_schema || '.' || c.table_name || '.' || c.column_name || ':' || p.priv, ', ')
+    into offending
+  from information_schema.columns c
+  cross join (values ('anon'), ('authenticated')) as r(role)
+  cross join (values ('SELECT'), ('INSERT'), ('UPDATE'), ('REFERENCES')) as p(priv)
+  where c.table_schema = 'public'
+    and (
+      (c.table_name in (
+        'app_datastores', 'app_datastore_history', 'app_datastore_patch_receipts',
+        'audit_events', 'website_consent_events'
+      ))
+      or (c.table_name in (
+        'profiles', 'brands', 'shoots', 'shoot_photos', 'clients',
+        'client_portals', 'client_portal_members'
+      ) and p.priv <> 'SELECT')
+    )
+    and has_column_privilege(r.role, format('%I.%I', c.table_schema, c.table_name), c.column_name, p.priv);
+  if offending is not null then
+    raise exception 'assume-breach containment failed: browser-role public column privilege survived: %', offending;
+  end if;
+
+  select string_agg(r.role || ':public.brand_enquiries.' || c.column_name || ':' || p.priv, ', ')
+    into offending
+  from information_schema.columns c
+  cross join (values ('anon'), ('authenticated')) as r(role)
+  cross join (values ('SELECT'), ('UPDATE'), ('REFERENCES')) as p(priv)
+  where c.table_schema = 'public'
+    and c.table_name = 'brand_enquiries'
+    and has_column_privilege(r.role, 'public.brand_enquiries', c.column_name, p.priv);
+  if offending is not null then
+    raise exception 'assume-breach containment failed: brand_enquiries column privilege beyond INSERT survived: %', offending;
+  end if;
+
+  select string_agg(r.role || ':storage.objects.' || c.column_name || ':' || p.priv, ', ')
+    into offending
+  from information_schema.columns c
+  cross join (values ('anon'), ('authenticated')) as r(role)
+  cross join (values ('INSERT'), ('UPDATE'), ('REFERENCES')) as p(priv)
+  where c.table_schema = 'storage'
+    and c.table_name = 'objects'
+    and has_column_privilege(r.role, 'storage.objects', c.column_name, p.priv);
+  if offending is not null then
+    raise exception 'assume-breach containment failed: storage.objects browser column privilege beyond SELECT survived: %', offending;
+  end if;
+
+  -- 11h. No browser role may consume or advance any public sequence.
+  select string_agg(r.role || ':' || n.nspname || '.' || s.relname || ':' || p.priv, ', ')
+    into offending
+  from pg_class s
+  join pg_namespace n on n.oid = s.relnamespace
+  cross join (values ('anon'), ('authenticated')) as r(role)
+  cross join (values ('USAGE'), ('SELECT'), ('UPDATE')) as p(priv)
+  where n.nspname = 'public'
+    and s.relkind = 'S'
+    and has_sequence_privilege(r.role, s.oid, p.priv);
+  if offending is not null then
+    raise exception 'assume-breach containment failed: browser-role sequence privilege survived: %', offending;
+  end if;
+
+  -- 11i. Public-schema routines are server/trigger/policy only, never direct
+  -- browser RPCs.
+  select string_agg(r.role || ':' || n.nspname || '.' || p.proname, ', ')
+    into offending
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  cross join (values ('anon'), ('authenticated')) as r(role)
+  where n.nspname = 'public'
+    and has_function_privilege(r.role, p.oid, 'EXECUTE');
+  if offending is not null then
+    raise exception 'assume-breach containment failed: browser-role helper EXECUTE survived: %', offending;
+  end if;
+
+  -- 11j. Default ACLs for every public-schema creator must also be closed. The
+  -- ALTER DEFAULT PRIVILEGES statements above cover the migration owner; this
+  -- verifier refuses the migration if another creator has an unsafe default
+  -- instead of silently claiming future objects are protected.
+  select string_agg(
+      pg_get_userbyid(d.defaclrole) || ':' || d.defaclobjtype::text || ':' ||
+      coalesce(grantee.rolname, 'PUBLIC') || ':' || acl.privilege_type,
+      ', '
+    )
+    into offending
+  from pg_default_acl d
+  join pg_namespace n on n.oid = d.defaclnamespace
+  cross join lateral aclexplode(d.defaclacl) acl
+  left join pg_roles grantee on grantee.oid = acl.grantee
+  where n.nspname = 'public'
+    and (acl.grantee = 0 or grantee.rolname in ('anon', 'authenticated'));
+  if offending is not null then
+    raise exception 'assume-breach containment failed: unsafe public default ACL survived: %', offending;
+  end if;
+
+  -- 11k. Inventory, not enforcement: surface BYPASSRLS roles for the audit
   -- record. supabase platform roles legitimately carry it; anything else
   -- deserves eyes.
   select string_agg(rolname, ', ') into bypass_roles
