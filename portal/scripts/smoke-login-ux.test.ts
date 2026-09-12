@@ -128,8 +128,13 @@ test("LOGIN-UX-001: recovery routes retain the visible tenant lockup", () => {
     assert.match(source, /className="mm-auth-logo"/, `${route} has the in-card tenant lockup`);
     assert.match(source, /className="mm-auth-logo-mark" aria-hidden="true"/, `${route} hides the decorative mark`);
     assert.match(source, /className="mm-auth-logo-name">\{brand\.name\}/, `${route} exposes one readable tenant name`);
-    assert.match(source, /href=\{`\/login\?brand=\$\{brand\.id\}`\}/, `${route} preserves the tenant-scoped sign-in destination`);
   }
+  assert.match(
+    forgot,
+    /new URLSearchParams\(\{[\s\S]*?brand: brand\.id,[\s\S]*?clientId: params\.clientId/,
+    "forgot preserves both the tenant brand and the newer client-scoped admission context",
+  );
+  assert.match(reset, /href=\{`\/login\?brand=\$\{brand\.id\}`\}/, "reset preserves the tenant-scoped sign-in destination");
 });
 
 test("LOGIN-UX-001: narrow challenges use the provider compact mode, never clipping", () => {
