@@ -158,6 +158,23 @@ This migration is present in source but **not applied by this local hardening
 run**. Its filename deliberately follows the Aqua Tag `20260912140000`
 migration so the two changes do not share a migration version.
 
+### `abuse_admission_*` (Supabase service-role limiter foundation)
+
+Unapplied migration `20260912190000_abuse_admission_limiter.sql` adds a bounded
+atomic admission counter and its singleton capacity ledger. It remains unwired.
+Only `service_role` can execute the fixed-search-path RPCs or access the RLS-enabled
+tables. The application validates and canonicalizes each server-derived key,
+then persists only a fixed 64-character HMAC-SHA256 digest; raw IP, subject,
+tenant/install and provider-budget identifiers do not enter the schema. Rows
+carry their exact policy window and expiry, expired rows are removed during
+new-window allocation, and an atomic 100,000-row capacity ledger fails closed
+instead of accepting unbounded distinct-key cardinality. Production memory is
+forbidden. Canonical Supabase authority is required; the separate PostgreSQL
+portal backend has no limiter adapter and reports that configuration exactly.
+The same migration exposes service-role-only `gc_abuse_admission_counters` for
+deterministic scheduled expiry; like admission itself, scheduler wiring remains
+a separate reviewed lane and is not claimed active by this foundation.
+
 ### `inbox_*` tables (service-role) — Master Inbox / Meta messaging
 > **Live-evidence timeline:** these tables returned `404 PGRST205` in the
 > 2026-08-20 probe. The verified 2026-09-03 alignment record says the master
@@ -232,7 +249,7 @@ appear nowhere in the repo).
 | storageSupabase / migrate | service-role (PostgREST) | **Bypasses RLS** |
 
 ### Security posture (verified 2026-08-20)
-- **Service-role usage is now measured and pinned.** Excluding the definition file (`lib/supabase/admin.ts`), `src/` had **23** `createSupabaseAdminClient()` call sites in **18** files on the morning of 2026-08-20; the phase-4 reduction that afternoon moved the ten website-inbox route sites onto the user's scoped client, leaving **13 sites in 8 files** — pinned, with per-site justifications, in `scripts/smoke-service-role-usage.test.ts` (the count can only change knowingly). Counting admin.ts's own three internal `auth.admin` helpers too, the older "27 sites / 19 files" figure becomes 17/9. The anon-key surface is now `profiles` (login) **plus `brand_enquiries` via the scoped client in the website-inbox routes**. Everything still on the service role enforces tenancy **in application code only** (`.eq("agency_id",…)`, metadata routing, `withTenantScope`). **RLS is defence-in-depth plus the inbox-route paths, not blanket database-enforced tenant isolation** — do not oversell it.
+- **Service-role usage is now measured and pinned.** Excluding the definition file (`lib/supabase/admin.ts`), `src/` had **23** `createSupabaseAdminClient()` call sites in **18** files on the morning of 2026-08-20; the phase-4 reduction that afternoon moved the ten website-inbox route sites onto the user's scoped client, leaving 13 sites in 8 files. The later unwired ABUSE-BASE limiter authority adds one reviewed RPC client, so the current posture is **14 sites in 9 files** — pinned, with per-site justifications, in `scripts/smoke-service-role-usage.test.ts` (the count can only change knowingly). Including `admin.ts` itself, the current literal whole-tree measurement is 23 sites in 10 files (one definition plus eight internal calls in that file). The anon-key surface is now `profiles` (login) **plus `brand_enquiries` via the scoped client in the website-inbox routes**. Everything still on the service role enforces tenancy **in application code only** (`.eq("agency_id",…)`, metadata routing, `withTenantScope`), except the limiter's cross-tenant abuse counters, which persist only purpose-separated HMAC digests and expose no tenant data. **RLS is defence-in-depth plus the inbox-route paths, not blanket database-enforced tenant isolation** — do not oversell it.
 - **RLS IS in the repo** — in `../../../supabase/migrations/`, not in `portal/`. Enabled on every table the app touches, with policies built on two `security definer` helpers with pinned `search_path` (`current_profile_role()`, `is_internal_user()`). Live-verified: anon reads 0 rows from `brand_enquiries`/`profiles`/`app_datastores`/`website_consent_events`, and is denied outright on `app_datastore_history`. Only `brands`/`shoots`/`shoot_photos` are anon-readable, deliberately — they hold public website content and no PII. `scripts/schema.sql` deferring RLS applies **only** to `portal_kv`, a different database.
 - **Security-definer database functions are version-controlled with pinned
   `search_path` and restricted execution where required.** The 2026-09-03

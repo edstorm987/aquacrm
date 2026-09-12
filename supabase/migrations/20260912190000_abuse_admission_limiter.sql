@@ -1,37 +1,47 @@
--- ABUSE-BASE-001 — durable atomic admission limiter.
+-- ABUSE-BASE — bounded durable atomic admission limiter.
 --
--- Additive and self-contained: one new table and one service-role-only RPC.
--- Nothing existing is altered. NOT auto-applied by this run (the isolated
--- worker does not apply migrations or contact a database); it is a release-gate
--- artifact for the durable adapter in
--- portal/src/lib/server/security/admissionLimiter.ts.
---
--- The RPC is the AUTHORITY behind the process-local fast pre-filter: it counts
--- admissions for (dimension, key) within a fixed window in ONE atomic upsert, so
--- concurrent callers across instances cannot lose a hit. Fixed `search_path`,
--- SECURITY DEFINER, and service-role-only grants keep it off the anon/
--- authenticated surface entirely.
+-- Additive, unapplied foundation. Raw caller keys never enter this schema: the
+-- server supplies a fixed-size HMAC-SHA256 digest. One row per
+-- (dimension, digest, policy-window) carries its own expiry. A service-role-only
+-- singleton ledger serializes NEW-key allocation so the active table cannot
+-- exceed its hard cap without making the existing hot-key increment path global.
 
 CREATE TABLE IF NOT EXISTS public.abuse_admission_counters (
-  dimension    text    NOT NULL,
-  bucket_key   text    NOT NULL,
-  window_start bigint  NOT NULL,
-  hits         integer NOT NULL DEFAULT 0,
-  PRIMARY KEY (dimension, bucket_key, window_start)
+  dimension       text    NOT NULL
+    CHECK (dimension IN ('ip', 'subject', 'tenant-install', 'provider-budget')),
+  bucket_key_hash char(64) NOT NULL
+    CHECK (bucket_key_hash ~ '^[0-9a-f]{64}$'),
+  window_ms       bigint  NOT NULL
+    CHECK (window_ms BETWEEN 1000 AND 2592000000),
+  window_start    bigint  NOT NULL,
+  expires_at      bigint  NOT NULL,
+  hits            integer NOT NULL DEFAULT 0 CHECK (hits >= 0),
+  PRIMARY KEY (dimension, bucket_key_hash, window_ms)
 );
 
-CREATE INDEX IF NOT EXISTS abuse_admission_counters_window_idx
-  ON public.abuse_admission_counters (window_start);
+CREATE INDEX IF NOT EXISTS abuse_admission_counters_expires_idx
+  ON public.abuse_admission_counters (expires_at);
 
--- Only service_role (which bypasses RLS) may touch the counters; anon and
--- authenticated are denied by default with RLS enabled and grants revoked.
+CREATE TABLE IF NOT EXISTS public.abuse_admission_capacity (
+  singleton       boolean PRIMARY KEY DEFAULT TRUE CHECK (singleton),
+  active_counters integer NOT NULL DEFAULT 0
+    CHECK (active_counters BETWEEN 0 AND 100000)
+);
+
+INSERT INTO public.abuse_admission_capacity(singleton, active_counters)
+VALUES (TRUE, 0)
+ON CONFLICT (singleton) DO NOTHING;
+
 ALTER TABLE public.abuse_admission_counters ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.abuse_admission_capacity ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.abuse_admission_counters FROM public, anon, authenticated;
+REVOKE ALL ON TABLE public.abuse_admission_capacity FROM public, anon, authenticated;
 GRANT ALL ON TABLE public.abuse_admission_counters TO service_role;
+GRANT ALL ON TABLE public.abuse_admission_capacity TO service_role;
 
 CREATE OR REPLACE FUNCTION public.abuse_admission_check(
   p_dimension text,
-  p_key       text,
+  p_key_hash  text,
   p_max       integer,
   p_window_ms bigint,
   p_now_ms    bigint DEFAULT NULL
@@ -39,34 +49,141 @@ CREATE OR REPLACE FUNCTION public.abuse_admission_check(
 RETURNS TABLE(allowed boolean, hits integer, reset_at bigint)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
-  v_now          bigint := COALESCE(p_now_ms, (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint);
-  v_window_start bigint;
-  v_hits         integer;
+  v_now            bigint := COALESCE(p_now_ms, (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint);
+  v_window_start   bigint;
+  v_reset_at       bigint;
+  v_hits           integer;
+  v_active         integer;
+  v_deleted        integer;
+  v_capacity_limit constant integer := 100000;
 BEGIN
-  IF p_dimension IS NULL OR BTRIM(p_dimension) = '' THEN RAISE EXCEPTION 'dimension is required'; END IF;
-  IF p_key IS NULL OR BTRIM(p_key) = '' THEN RAISE EXCEPTION 'key is required'; END IF;
-  IF p_max IS NULL OR p_max < 0 THEN RAISE EXCEPTION 'max must be non-negative'; END IF;
-  IF p_window_ms IS NULL OR p_window_ms <= 0 THEN RAISE EXCEPTION 'window must be positive'; END IF;
+  IF p_dimension IS NULL OR p_dimension NOT IN ('ip', 'subject', 'tenant-install', 'provider-budget') THEN
+    RAISE EXCEPTION 'invalid dimension';
+  END IF;
+  IF p_key_hash IS NULL OR p_key_hash !~ '^[0-9a-f]{64}$' THEN
+    RAISE EXCEPTION 'invalid key digest';
+  END IF;
+  IF p_max IS NULL OR p_max < 0 OR p_max > 1000000 THEN
+    RAISE EXCEPTION 'max is outside the supported range';
+  END IF;
+  IF p_window_ms IS NULL OR p_window_ms < 1000 OR p_window_ms > 2592000000 THEN
+    RAISE EXCEPTION 'window is outside the supported range';
+  END IF;
+  IF v_now < 0 THEN RAISE EXCEPTION 'time must be non-negative'; END IF;
 
   v_window_start := (v_now / p_window_ms) * p_window_ms;
+  v_reset_at := v_window_start + p_window_ms;
 
-  -- One atomic upsert: the (dimension, key, window) counter is created or
-  -- incremented in a single statement, so concurrent callers cannot lose a hit.
-  INSERT INTO public.abuse_admission_counters(dimension, bucket_key, window_start, hits)
-  VALUES (p_dimension, p_key, v_window_start, 1)
-  ON CONFLICT (dimension, bucket_key, window_start)
-  DO UPDATE SET hits = public.abuse_admission_counters.hits + 1
+  -- Existing live keys never take the global new-key allocation lock. This
+  -- update is row-atomic and the fixed window/expiry predicate prevents an old
+  -- policy row from being incremented into a later window.
+  UPDATE public.abuse_admission_counters
+  SET hits = public.abuse_admission_counters.hits + 1
+  WHERE dimension = p_dimension
+    AND bucket_key_hash = p_key_hash
+    AND window_ms = p_window_ms
+    AND window_start = v_window_start
+    AND expires_at = v_reset_at
   RETURNING public.abuse_admission_counters.hits INTO v_hits;
 
-  -- Bounded, cheap self-cleanup of long-closed windows so no separate reaper is
-  -- required; never touches the current window.
-  DELETE FROM public.abuse_admission_counters
-  WHERE window_start < v_now - GREATEST(p_window_ms * 4, 3600000);
+  IF FOUND THEN
+    allowed := v_hits <= p_max;
+    hits := v_hits;
+    reset_at := v_reset_at;
+    RETURN NEXT;
+    RETURN;
+  END IF;
 
-  allowed  := v_hits <= p_max;
-  hits     := v_hits;
-  reset_at := v_window_start + p_window_ms;
+  -- Serialize only NEW-window/new-key allocation. The capacity row is an exact
+  -- count maintained in the same transaction as expiry deletion and insertion,
+  -- preventing concurrent unique-key floods from racing past the hard cap.
+  SELECT active_counters INTO v_active
+  FROM public.abuse_admission_capacity
+  WHERE singleton = TRUE
+  FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'capacity authority is unavailable'; END IF;
+
+  DELETE FROM public.abuse_admission_counters WHERE expires_at <= v_now;
+  GET DIAGNOSTICS v_deleted = ROW_COUNT;
+  v_active := GREATEST(0, v_active - v_deleted);
+
+  -- A same-key transaction may have inserted while this call waited for the
+  -- capacity lock. Recheck and increment it rather than allocating twice.
+  UPDATE public.abuse_admission_counters
+  SET hits = public.abuse_admission_counters.hits + 1
+  WHERE dimension = p_dimension
+    AND bucket_key_hash = p_key_hash
+    AND window_ms = p_window_ms
+    AND window_start = v_window_start
+    AND expires_at = v_reset_at
+  RETURNING public.abuse_admission_counters.hits INTO v_hits;
+
+  IF FOUND THEN
+    UPDATE public.abuse_admission_capacity SET active_counters = v_active WHERE singleton = TRUE;
+    allowed := v_hits <= p_max;
+    hits := v_hits;
+    reset_at := v_reset_at;
+    RETURN NEXT;
+    RETURN;
+  END IF;
+
+  IF v_active >= v_capacity_limit THEN
+    UPDATE public.abuse_admission_capacity SET active_counters = v_active WHERE singleton = TRUE;
+    allowed := FALSE;
+    hits := p_max + 1;
+    reset_at := v_reset_at;
+    RETURN NEXT;
+    RETURN;
+  END IF;
+
+  INSERT INTO public.abuse_admission_counters(
+    dimension, bucket_key_hash, window_ms, window_start, expires_at, hits
+  ) VALUES (
+    p_dimension, p_key_hash, p_window_ms, v_window_start, v_reset_at, 1
+  )
+  ON CONFLICT (dimension, bucket_key_hash, window_ms)
+  DO UPDATE SET
+    window_start = EXCLUDED.window_start,
+    expires_at = EXCLUDED.expires_at,
+    hits = public.abuse_admission_counters.hits + 1
+  RETURNING public.abuse_admission_counters.hits INTO v_hits;
+  UPDATE public.abuse_admission_capacity
+  SET active_counters = v_active + 1
+  WHERE singleton = TRUE;
+
+  allowed := v_hits <= p_max;
+  hits := v_hits;
+  reset_at := v_reset_at;
   RETURN NEXT;
+END;
+$$;
+
+-- Explicit bounded retention primitive for the separately reviewed scheduler
+-- lane. Admission also performs this cleanup whenever a new window/key is
+-- allocated; this RPC makes expiry deterministic even when only hot keys remain.
+CREATE OR REPLACE FUNCTION public.gc_abuse_admission_counters(
+  p_now_ms bigint DEFAULT NULL
+)
+RETURNS integer
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_now     bigint := COALESCE(p_now_ms, (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint);
+  v_active  integer;
+  v_deleted integer;
+BEGIN
+  IF v_now < 0 THEN RAISE EXCEPTION 'time must be non-negative'; END IF;
+  SELECT active_counters INTO v_active
+  FROM public.abuse_admission_capacity
+  WHERE singleton = TRUE
+  FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'capacity authority is unavailable'; END IF;
+
+  DELETE FROM public.abuse_admission_counters WHERE expires_at <= v_now;
+  GET DIAGNOSTICS v_deleted = ROW_COUNT;
+  UPDATE public.abuse_admission_capacity
+  SET active_counters = GREATEST(0, v_active - v_deleted)
+  WHERE singleton = TRUE;
+  RETURN v_deleted;
 END;
 $$;
 
@@ -74,5 +191,11 @@ REVOKE ALL ON FUNCTION public.abuse_admission_check(text, text, integer, bigint,
   FROM public, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.abuse_admission_check(text, text, integer, bigint, bigint)
   TO service_role;
+REVOKE ALL ON FUNCTION public.gc_abuse_admission_counters(bigint)
+  FROM public, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.gc_abuse_admission_counters(bigint)
+  TO service_role;
 COMMENT ON FUNCTION public.abuse_admission_check(text, text, integer, bigint, bigint) IS
-  'ABUSE-BASE-001: atomic windowed admission counter for IP / subject-digest / tenant-install / provider-budget dimensions. Service-role only.';
+  'ABUSE-BASE: bounded atomic admission counter over server-HMACed IP/subject/tenant-install/provider-budget keys. Service-role only.';
+COMMENT ON FUNCTION public.gc_abuse_admission_counters(bigint) IS
+  'ABUSE-BASE: delete expired pseudonymous admission counters and reconcile the bounded capacity ledger. Service-role only; scheduler wiring is a separate reviewed lane.';
