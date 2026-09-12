@@ -22,8 +22,9 @@ import "server-only";
 // implemented here.
 
 import crypto from "crypto";
+import { resolveSigningSecret } from "@/lib/server/auth/sessionToken";
 import { getState, mutate } from "@/server/storage";
-import type { SubjectRequest } from "@/server/types";
+import type { PortalState, SubjectRequest } from "@/server/types";
 
 /** Art. 12(3). Calendar month, not 30 days — the regulation says month. */
 export function oneMonthAfter(from: number): number {
@@ -48,6 +49,148 @@ export interface RecordSubjectRequestInput {
   receivedAt?: number;
 }
 
+const MAX_STAGED_SUBJECT_ACCESS_BYTES = 1_000_000;
+const ALL_SUBJECT_REQUEST_KINDS = new Set<SubjectRequest["kind"]>([
+  "access", "erasure", "rectification", "portability", "objection", "restriction",
+]);
+const SUBJECT_ACCESS_DELIVERY_METHODS = new Set<NonNullable<SubjectRequest["deliveryMethod"]>>([
+  "verified-portal", "secure-email", "in-person", "other",
+]);
+const STORED_REQUEST_REQUIRED_STRING_FIELDS = new Set(["id", "agencyId", "kind", "subjectLabel", "createdBy"]);
+const STORED_REQUEST_OPTIONAL_STRING_FIELDS = new Set([
+  "personId", "extensionReason", "identityVerifiedBy", "preparedExportBy", "preparedExportDigest",
+  "preparedExportIntegrityTag", "preparedExportJson", "preparedExportReviewResolvedBy", "preparedExportReviewResolvedDigest",
+  "preparedExportReviewEvidenceId", "preparedExportReviewResultId", "deliveredBy", "deliveryMethod", "deliveryEvidenceId",
+  "deliveryResultId", "fulfilledBy", "outcome", "refusalReason",
+]);
+const STORED_REQUEST_REQUIRED_NUMBER_FIELDS = new Set(["receivedAt", "dueAt"]);
+const STORED_REQUEST_OPTIONAL_NUMBER_FIELDS = new Set([
+  "extendedAt", "identityVerifiedAt", "preparedExportAt", "preparedExportGeneratedAt",
+  "preparedExportRecordCount", "preparedExportReviewCount", "preparedExportByteLength",
+  "preparedExportReviewResolvedAt", "deliveredAt", "fulfilledAt", "refusedAt",
+]);
+const STORED_REQUEST_FIELDS = new Set([
+  ...STORED_REQUEST_REQUIRED_STRING_FIELDS,
+  ...STORED_REQUEST_OPTIONAL_STRING_FIELDS,
+  ...STORED_REQUEST_REQUIRED_NUMBER_FIELDS,
+  ...STORED_REQUEST_OPTIONAL_NUMBER_FIELDS,
+]);
+
+class SubjectRequestStoredStateError extends Error {
+  constructor() {
+    super("subject_request_state_invalid");
+    this.name = "SubjectRequestStoredStateError";
+  }
+}
+
+type InvalidStoredRequest = () => Error;
+type SubjectRequestStore = Record<string, SubjectRequest>;
+
+interface StoredSubjectRequest {
+  raw: SubjectRequest;
+  view: SubjectRequest;
+}
+
+const storedStateError: InvalidStoredRequest = () => new SubjectRequestStoredStateError();
+
+/** Resolve the register itself without evaluating a hostile accessor. */
+function subjectRequestStore(
+  state: PortalState,
+  invalid: InvalidStoredRequest = storedStateError,
+): SubjectRequestStore {
+  const descriptor = Object.getOwnPropertyDescriptor(state, "subjectRequests");
+  if (!descriptor?.enumerable || !("value" in descriptor)
+    || descriptor.value === null || typeof descriptor.value !== "object" || Array.isArray(descriptor.value)) {
+    throw invalid();
+  }
+  return descriptor.value as SubjectRequestStore;
+}
+
+/** Materialise the scalar-only audit row through data descriptors. Unknown or
+ * hidden fields are refused too: returning a partially inspected legal record
+ * would make later route serialisation another accessor execution surface. */
+function storedSubjectRequest(
+  store: SubjectRequestStore,
+  id: string,
+  invalid: InvalidStoredRequest = storedStateError,
+): StoredSubjectRequest | null {
+  const rowDescriptor = Object.getOwnPropertyDescriptor(store, id);
+  if (!rowDescriptor) return null;
+  if (!rowDescriptor.enumerable || !("value" in rowDescriptor)
+    || rowDescriptor.value === null || typeof rowDescriptor.value !== "object" || Array.isArray(rowDescriptor.value)) {
+    throw invalid();
+  }
+  const raw = rowDescriptor.value as SubjectRequest;
+  const view = Object.create(null) as Record<string, unknown>;
+  for (const key of Reflect.ownKeys(raw)) {
+    if (typeof key !== "string") throw invalid();
+    if (!STORED_REQUEST_FIELDS.has(key)) throw invalid();
+    const descriptor = Object.getOwnPropertyDescriptor(raw, key);
+    if (!descriptor?.enumerable || !("value" in descriptor)) throw invalid();
+    const value = descriptor.value;
+    if (value === undefined) {
+      if (STORED_REQUEST_REQUIRED_STRING_FIELDS.has(key) || STORED_REQUEST_REQUIRED_NUMBER_FIELDS.has(key)) throw invalid();
+    } else if (STORED_REQUEST_REQUIRED_NUMBER_FIELDS.has(key) || STORED_REQUEST_OPTIONAL_NUMBER_FIELDS.has(key)) {
+      if (typeof value !== "number" || !Number.isFinite(value) || !Number.isInteger(value) || value < 0) throw invalid();
+    } else if (typeof value !== "string" || value.length > MAX_STAGED_SUBJECT_ACCESS_BYTES) throw invalid();
+    view[key] = value;
+  }
+  if (view.id !== id
+    || !ALL_SUBJECT_REQUEST_KINDS.has(view.kind as SubjectRequest["kind"])
+    || (view.deliveryMethod !== undefined
+      && !SUBJECT_ACCESS_DELIVERY_METHODS.has(view.deliveryMethod as NonNullable<SubjectRequest["deliveryMethod"]>))) throw invalid();
+  for (const field of [...STORED_REQUEST_REQUIRED_STRING_FIELDS, ...STORED_REQUEST_REQUIRED_NUMBER_FIELDS]) {
+    if (!Object.hasOwn(view, field)) throw invalid();
+  }
+  return { raw, view: view as unknown as SubjectRequest };
+}
+
+function allStoredSubjectRequests(
+  store: SubjectRequestStore,
+  invalid: InvalidStoredRequest = storedStateError,
+): StoredSubjectRequest[] {
+  const requests: StoredSubjectRequest[] = [];
+  for (const key of Reflect.ownKeys(store)) {
+    if (typeof key !== "string") throw invalid();
+    const request = storedSubjectRequest(store, key, invalid);
+    if (!request) throw invalid();
+    requests.push(request);
+  }
+  return requests;
+}
+
+function applyStoredSubjectRequestPatch(
+  request: StoredSubjectRequest,
+  set: Record<string, string | number | boolean | undefined>,
+  remove: readonly string[] = [],
+  invalid: InvalidStoredRequest = storedStateError,
+): SubjectRequest {
+  for (const key of Object.keys(set)) {
+    const descriptor = Object.getOwnPropertyDescriptor(request.raw, key);
+    if (descriptor && (!descriptor.enumerable || !("value" in descriptor)
+      || (!descriptor.writable && !descriptor.configurable))) throw invalid();
+  }
+  for (const key of remove) {
+    const descriptor = Object.getOwnPropertyDescriptor(request.raw, key);
+    if (descriptor && (!descriptor.enumerable || !("value" in descriptor) || !descriptor.configurable)) throw invalid();
+  }
+  for (const [key, value] of Object.entries(set)) {
+    if (value === undefined) continue;
+    if (!Reflect.defineProperty(request.raw, key, {
+      configurable: true, enumerable: true, writable: true, value,
+    })) throw invalid();
+  }
+  for (const key of remove) if (!Reflect.deleteProperty(request.raw, key)) throw invalid();
+  return storedSubjectRequest({ [request.view.id]: request.raw }, request.view.id, invalid)!.view;
+}
+
+function insertStoredSubjectRequest(store: SubjectRequestStore, request: SubjectRequest): void {
+  if (Object.getOwnPropertyDescriptor(store, request.id)) throw new SubjectRequestStoredStateError();
+  if (!Reflect.defineProperty(store, request.id, {
+    configurable: true, enumerable: true, writable: true, value: request,
+  })) throw new SubjectRequestStoredStateError();
+}
+
 export function recordSubjectRequest(input: RecordSubjectRequestInput): SubjectRequest {
   const receivedAt = input.receivedAt ?? Date.now();
   const request: SubjectRequest = {
@@ -61,20 +204,22 @@ export function recordSubjectRequest(input: RecordSubjectRequestInput): SubjectR
     createdBy: input.createdBy,
   };
   mutate(state => {
-    state.subjectRequests[request.id] = request;
+    insertStoredSubjectRequest(subjectRequestStore(state), request);
   });
   return request;
 }
 
 export function findSubjectRequest(agencyId: string, id: string): SubjectRequest | null {
-  const request = getState().subjectRequests?.[id];
+  const stored = storedSubjectRequest(subjectRequestStore(getState()), id);
+  const request = stored?.view;
   // Scope, then find: another agency's request is simply not there.
   if (!request || request.agencyId !== agencyId) return null;
   return request;
 }
 
 export function listSubjectRequests(agencyId: string): SubjectRequest[] {
-  return Object.values(getState().subjectRequests ?? {})
+  return allStoredSubjectRequests(subjectRequestStore(getState()))
+    .map(request => request.view)
     .filter(request => request.agencyId === agencyId)
     .sort((a, b) => b.receivedAt - a.receivedAt);
 }
@@ -91,12 +236,16 @@ export function verifySubjectRequestIdentity(agencyId: string, id: string, actor
   if (!existing) return null;
   let updated: SubjectRequest | null = null;
   mutate(state => {
-    const request = state.subjectRequests[id];
-    if (!request || request.agencyId !== agencyId) return;
+    const stored = storedSubjectRequest(subjectRequestStore(state), id);
+    const request = stored?.view;
+    if (!stored || !request || request.agencyId !== agencyId) return;
     // Idempotent: re-verifying must not move the timestamp, which is evidence.
     if (!request.identityVerifiedAt) {
-      request.identityVerifiedAt = Date.now();
-      request.identityVerifiedBy = actorUserId;
+      updated = applyStoredSubjectRequestPatch(stored, {
+        identityVerifiedAt: Date.now(),
+        identityVerifiedBy: actorUserId,
+      });
+      return;
     }
     updated = request;
   });
@@ -104,7 +253,7 @@ export function verifySubjectRequestIdentity(agencyId: string, id: string, actor
 }
 
 export class SubjectRequestError extends Error {
-  constructor(public code: "identity_unverified" | "already_closed") {
+  constructor(public code: "identity_unverified" | "already_closed" | "delivery_evidence_required") {
     super(code);
   }
 }
@@ -122,7 +271,57 @@ export class SubjectAccessRequestGateError extends Error {
   }
 }
 
+const accessStateError: InvalidStoredRequest = () => new SubjectAccessRequestGateError();
+
 const SUBJECT_ACCESS_KINDS = new Set<SubjectRequest["kind"]>(["access", "portability"]);
+
+function authenticatedSubjectAccessId(purpose: string, values: readonly (string | number)[]): string {
+  const hmac = crypto.createHmac("sha256", resolveSigningSecret());
+  const parts: readonly (string | number)[] = [purpose, ...values];
+  // Length-prefix each part so embedded delimiters can never make two
+  // different identity/artifact tuples authenticate as the same byte stream.
+  // JSON would also be unambiguous, but the binary frame avoids depending on
+  // serialiser details for an integrity boundary.
+  hmac.update(Buffer.from([1]));
+  for (const value of parts) {
+    const bytes = Buffer.from(String(value), "utf8");
+    const length = Buffer.allocUnsafe(8);
+    length.writeBigUInt64BE(BigInt(bytes.length));
+    hmac.update(length);
+    hmac.update(bytes);
+  }
+  return hmac.digest("hex");
+}
+
+function matchesAuthenticatedId(actual: string | undefined, expected: string): boolean {
+  if (typeof actual !== "string" || !/^[a-f0-9]{64}$/.test(actual)) return false;
+  const actualBytes = Buffer.from(actual, "hex");
+  const expectedBytes = Buffer.from(expected, "hex");
+  return actualBytes.length === expectedBytes.length && crypto.timingSafeEqual(actualBytes, expectedBytes);
+}
+
+interface PreparedExportBinding {
+  agencyId: string;
+  requestId: string;
+  personId: string;
+}
+
+function preparedExportIntegrityTag(
+  binding: PreparedExportBinding,
+  prepared: PreparedSubjectAccessExport,
+): string {
+  return authenticatedSubjectAccessId("aqua-subject-access-artifact-v1", [
+    binding.agencyId,
+    binding.requestId,
+    binding.personId,
+    prepared.json,
+    prepared.digest,
+    prepared.generatedAt,
+    prepared.recordCount,
+    prepared.reviewCount,
+    prepared.byteLength,
+  ]);
+}
 
 function isOpenVerifiedSubjectAccessRequest(
   request: SubjectRequest | undefined,
@@ -146,10 +345,19 @@ export function requireSubjectAccessRequestForExport(
   id: string,
   personId: string,
 ): SubjectRequest {
-  const request = getState().subjectRequests[id];
+  const request = storedSubjectRequest(subjectRequestStore(getState(), accessStateError), id, accessStateError)?.view;
   if (!isOpenVerifiedSubjectAccessRequest(request, agencyId, personId)) {
     throw new SubjectAccessRequestGateError();
   }
+  const hasPreparedState = request.preparedExportDigest !== undefined
+    || request.preparedExportJson !== undefined
+    || request.preparedExportIntegrityTag !== undefined;
+  if (hasPreparedState && (!request.preparedExportDigest || !validStoredPreparedExport(
+    request,
+    { agencyId, requestId: id, personId },
+    request.preparedExportDigest,
+    true,
+  ))) throw new SubjectAccessRequestGateError();
   return request;
 }
 
@@ -160,6 +368,148 @@ export interface PreparedSubjectAccessExport {
   reviewCount: number;
   byteLength: number;
   json: string;
+}
+
+function validPreparedExport(prepared: PreparedSubjectAccessExport, personId: string): boolean {
+  const actualBytes = Buffer.byteLength(prepared.json, "utf8");
+  return /^[a-f0-9]{64}$/.test(prepared.digest)
+    && crypto.createHash("sha256").update(prepared.json, "utf8").digest("hex") === prepared.digest
+    && actualBytes === prepared.byteLength
+    && actualBytes <= MAX_STAGED_SUBJECT_ACCESS_BYTES
+    && Number.isFinite(prepared.generatedAt)
+    && Number.isInteger(prepared.recordCount)
+    && prepared.recordCount >= 0
+    && Number.isInteger(prepared.reviewCount)
+    && prepared.reviewCount >= 0
+    && validPreparedExportManifest(prepared.json, {
+      generatedAt: prepared.generatedAt,
+      recordCount: prepared.recordCount,
+      reviewCount: prepared.reviewCount,
+      personId,
+    });
+}
+
+const SUBJECT_ACCESS_REVIEW_TOTAL_FIELDS = [
+  "recordsNotAttributableToThisAgency",
+  "unclassifiedSubjectMentions",
+  "ambiguousOwnership",
+  "coMingledThirdPartyPii",
+  "recordsBeyondInspectionDepth",
+  "unsupportedCollections",
+  "omittedFields",
+] as const;
+
+function validPreparedExportManifest(
+  json: string,
+  expected: { generatedAt: number; recordCount: number; reviewCount: number; personId?: string },
+): boolean {
+  try {
+    const parsed = JSON.parse(json) as unknown;
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return false;
+    const root = parsed as Record<string, unknown>;
+    const subject = root.subject;
+    const records = root.records;
+    const collectionsSearched = root.collectionsSearched;
+    const reviewRequired = root.reviewRequired;
+    const completeness = root.completeness;
+    if (root.format !== "aqua-subject-access-v2"
+      || root.generatedAt !== new Date(expected.generatedAt).toISOString()
+      || root.totalRecords !== expected.recordCount
+      || subject === null || typeof subject !== "object" || Array.isArray(subject)
+      || (expected.personId !== undefined && (subject as Record<string, unknown>).personId !== expected.personId)
+      || records === null || typeof records !== "object" || Array.isArray(records)
+      || !Array.isArray(collectionsSearched)
+      || !collectionsSearched.every(value => typeof value === "string")
+      || reviewRequired === null || typeof reviewRequired !== "object" || Array.isArray(reviewRequired)
+      || completeness === null || typeof completeness !== "object" || Array.isArray(completeness)) return false;
+    const subjectRecord = subject as Record<string, unknown>;
+    for (const field of ["emails", "phones", "clientIds", "relationshipIds", "facetIds"] as const) {
+      if (!Array.isArray(subjectRecord[field]) || !subjectRecord[field].every(value => typeof value === "string")) return false;
+    }
+    if (subjectRecord.name !== undefined && typeof subjectRecord.name !== "string") return false;
+    let actualRecordCount = 0;
+    for (const value of Object.values(records as Record<string, unknown>)) {
+      if (!Array.isArray(value)) return false;
+      actualRecordCount += value.length;
+      if (!Number.isSafeInteger(actualRecordCount)) return false;
+    }
+    if (actualRecordCount !== expected.recordCount) return false;
+    const totals = reviewRequired as Record<string, unknown>;
+    if (Object.keys(totals).length !== SUBJECT_ACCESS_REVIEW_TOTAL_FIELDS.length) return false;
+    let reviewCount = 0;
+    for (const field of SUBJECT_ACCESS_REVIEW_TOTAL_FIELDS) {
+      const value = totals[field];
+      if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) return false;
+      reviewCount += value;
+      if (!Number.isSafeInteger(reviewCount)) return false;
+    }
+    if (reviewCount !== expected.reviewCount) return false;
+    const detailed = completeness as Record<string, unknown>;
+    for (const field of SUBJECT_ACCESS_REVIEW_TOTAL_FIELDS) {
+      const value = detailed[field];
+      if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+      let detailTotal = 0;
+      for (const count of Object.values(value as Record<string, unknown>)) {
+        if (typeof count !== "number" || !Number.isSafeInteger(count) || count < 0) return false;
+        detailTotal += count;
+        if (!Number.isSafeInteger(detailTotal)) return false;
+      }
+      if (detailTotal !== totals[field]) return false;
+    }
+    const redactedFields = detailed.redactedFields;
+    if (redactedFields === null || typeof redactedFields !== "object" || Array.isArray(redactedFields)
+      || Object.values(redactedFields as Record<string, unknown>).some(value => (
+        typeof value !== "number" || !Number.isSafeInteger(value) || value < 0
+      ))) return false;
+    const expectedStatus = reviewCount === 0 ? "automatic-safe-subset-complete" : "human-review-required";
+    return detailed.status === expectedStatus;
+  } catch {
+    return false;
+  }
+}
+
+function validStoredPreparedExport(
+  request: SubjectRequest,
+  binding: PreparedExportBinding,
+  digest: string,
+  requireBytes: boolean,
+): boolean {
+  if (request.preparedExportDigest !== digest
+    || !/^[a-f0-9]{64}$/.test(digest)
+    || !Number.isSafeInteger(request.preparedExportGeneratedAt)
+    || !Number.isSafeInteger(request.preparedExportRecordCount)
+    || !Number.isSafeInteger(request.preparedExportReviewCount)
+    || !Number.isSafeInteger(request.preparedExportByteLength)
+    || (request.preparedExportGeneratedAt ?? -1) < 0
+    || (request.preparedExportRecordCount ?? -1) < 0
+    || (request.preparedExportReviewCount ?? -1) < 0
+    || (request.preparedExportByteLength ?? -1) < 0
+    || (request.preparedExportByteLength ?? Number.POSITIVE_INFINITY) > MAX_STAGED_SUBJECT_ACCESS_BYTES) return false;
+  if (!requireBytes) return request.preparedExportJson === undefined
+    && typeof request.preparedExportIntegrityTag === "string"
+    && /^[a-f0-9]{64}$/.test(request.preparedExportIntegrityTag);
+  if (typeof request.preparedExportJson !== "string") return false;
+  const prepared: PreparedSubjectAccessExport = {
+    json: request.preparedExportJson,
+    digest,
+    generatedAt: request.preparedExportGeneratedAt!,
+    recordCount: request.preparedExportRecordCount!,
+    reviewCount: request.preparedExportReviewCount!,
+    byteLength: request.preparedExportByteLength!,
+  };
+  return Buffer.byteLength(prepared.json, "utf8") === prepared.byteLength
+    && crypto.createHash("sha256").update(prepared.json, "utf8").digest("hex") === digest
+    && validPreparedExportManifest(prepared.json, {
+      generatedAt: prepared.generatedAt,
+      recordCount: prepared.recordCount,
+      reviewCount: prepared.reviewCount,
+      personId: request.personId,
+    })
+    && matchesAuthenticatedId(request.preparedExportIntegrityTag, preparedExportIntegrityTag(binding, prepared));
+}
+
+function validEvidenceId(value: string): boolean {
+  return value.length > 0 && value.length <= 200 && /^[A-Za-z0-9_.:-]+$/.test(value);
 }
 
 /**
@@ -174,32 +524,147 @@ export function recordPreparedSubjectAccessExport(
   actorUserId: string,
   prepared: PreparedSubjectAccessExport,
 ): SubjectRequest {
+  if (!validPreparedExport(prepared, personId)) throw new SubjectAccessRequestGateError();
+  const binding = { agencyId, requestId: id, personId };
+  const integrityTag = preparedExportIntegrityTag(binding, prepared);
   let updated: SubjectRequest | null = null;
   mutate(state => {
-    const request = state.subjectRequests[id];
+    const stored = storedSubjectRequest(subjectRequestStore(state, accessStateError), id, accessStateError);
+    const request = stored?.view;
     if (!isOpenVerifiedSubjectAccessRequest(request, agencyId, personId)) {
       throw new SubjectAccessRequestGateError();
     }
     if (request.preparedExportDigest === prepared.digest && request.preparedExportJson === prepared.json) {
+      if (!validStoredPreparedExport(request, binding, prepared.digest, true)) throw new SubjectAccessRequestGateError();
       updated = request;
       return;
     }
-    request.preparedExportAt = Date.now();
-    request.preparedExportBy = actorUserId;
-    request.preparedExportDigest = prepared.digest;
-    request.preparedExportGeneratedAt = prepared.generatedAt;
-    request.preparedExportRecordCount = prepared.recordCount;
-    request.preparedExportReviewCount = prepared.reviewCount;
-    request.preparedExportByteLength = prepared.byteLength;
-    request.preparedExportJson = prepared.json;
-    delete request.preparedExportReviewResolvedAt;
-    delete request.preparedExportReviewResolvedBy;
-    delete request.preparedExportReviewResolvedDigest;
-    delete request.preparedExportReviewEvidenceId;
-    updated = request;
+    updated = applyStoredSubjectRequestPatch(stored!, {
+      preparedExportAt: Date.now(),
+      preparedExportBy: actorUserId,
+      preparedExportDigest: prepared.digest,
+      preparedExportGeneratedAt: prepared.generatedAt,
+      preparedExportRecordCount: prepared.recordCount,
+      preparedExportReviewCount: prepared.reviewCount,
+      preparedExportByteLength: prepared.byteLength,
+      preparedExportIntegrityTag: integrityTag,
+      preparedExportJson: prepared.json,
+    }, [
+      "preparedExportReviewResolvedAt",
+      "preparedExportReviewResolvedBy",
+      "preparedExportReviewResolvedDigest",
+      "preparedExportReviewEvidenceId",
+      "preparedExportReviewResultId",
+    ], accessStateError);
   });
   if (!updated) throw new SubjectAccessRequestGateError();
   return updated;
+}
+
+export interface SubjectAccessReviewResult {
+  request: SubjectRequest;
+  replay: boolean;
+  resultId: string;
+}
+
+function subjectAccessReviewResultId(input: {
+  agencyId: string;
+  requestId: string;
+  personId: string;
+  digest: string;
+  integrityTag: string;
+  generatedAt: number;
+  recordCount: number;
+  reviewCount: number;
+  byteLength: number;
+  evidenceId: string;
+}): string {
+  return authenticatedSubjectAccessId("aqua-subject-access-review-v2", [
+    input.agencyId,
+    input.requestId,
+    input.personId,
+    input.digest,
+    input.integrityTag,
+    input.generatedAt,
+    input.recordCount,
+    input.reviewCount,
+    input.byteLength,
+    input.evidenceId,
+  ]);
+}
+
+function reviewResultIdForRequest(
+  request: SubjectRequest,
+  binding: { agencyId: string; requestId: string; personId: string; digest: string },
+  evidenceId: string,
+): string {
+  if (typeof request.preparedExportIntegrityTag !== "string"
+    || !Number.isSafeInteger(request.preparedExportGeneratedAt)
+    || !Number.isSafeInteger(request.preparedExportRecordCount)
+    || !Number.isSafeInteger(request.preparedExportReviewCount)
+    || !Number.isSafeInteger(request.preparedExportByteLength)) throw new SubjectAccessRequestGateError();
+  return subjectAccessReviewResultId({
+    ...binding,
+    integrityTag: request.preparedExportIntegrityTag,
+    generatedAt: request.preparedExportGeneratedAt!,
+    recordCount: request.preparedExportRecordCount!,
+    reviewCount: request.preparedExportReviewCount!,
+    byteLength: request.preparedExportByteLength!,
+    evidenceId,
+  });
+}
+
+/**
+ * A review receipt is evidence for one exact prepared disclosure, not a label
+ * that can be attached to several requests. Descriptor-safe enumeration keeps
+ * poisoned rows fail-closed without executing stored accessors.
+ */
+function assertReviewEvidenceBinding(
+  subjectRequests: SubjectRequestStore,
+  binding: { agencyId: string; requestId: string; personId: string; resultId: string; evidenceId: string },
+): void {
+  for (const stored of allStoredSubjectRequests(subjectRequests, accessStateError)) {
+    const row = stored.view;
+    if (row.preparedExportReviewEvidenceId !== binding.evidenceId) continue;
+    if (row.agencyId !== binding.agencyId
+      || row.id !== binding.requestId
+      || row.personId !== binding.personId
+      || row.preparedExportReviewResultId !== binding.resultId) {
+      throw new SubjectAccessRequestGateError();
+    }
+  }
+}
+
+function assertStoredReviewBinding(
+  store: SubjectRequestStore,
+  request: SubjectRequest,
+  binding: { agencyId: string; requestId: string; personId: string; digest: string },
+): void {
+  const reviewCount = request.preparedExportReviewCount;
+  if (!Number.isSafeInteger(reviewCount) || (reviewCount ?? -1) < 0) throw new SubjectAccessRequestGateError();
+  if (reviewCount === 0) {
+    if (request.preparedExportReviewResolvedAt !== undefined
+      || request.preparedExportReviewResolvedBy !== undefined
+      || request.preparedExportReviewResolvedDigest !== undefined
+      || request.preparedExportReviewEvidenceId !== undefined
+      || request.preparedExportReviewResultId !== undefined) throw new SubjectAccessRequestGateError();
+    return;
+  }
+  if (!request.preparedExportReviewResolvedAt
+    || typeof request.preparedExportReviewResolvedBy !== "string"
+    || !request.preparedExportReviewResolvedBy
+    || request.preparedExportReviewResolvedDigest !== binding.digest
+    || typeof request.preparedExportReviewEvidenceId !== "string"
+    || !validEvidenceId(request.preparedExportReviewEvidenceId)) throw new SubjectAccessRequestGateError();
+  const resultId = reviewResultIdForRequest(request, binding, request.preparedExportReviewEvidenceId);
+  if (!matchesAuthenticatedId(request.preparedExportReviewResultId, resultId)) throw new SubjectAccessRequestGateError();
+  assertReviewEvidenceBinding(store, {
+    agencyId: binding.agencyId,
+    requestId: binding.requestId,
+    personId: binding.personId,
+    resultId,
+    evidenceId: request.preparedExportReviewEvidenceId,
+  });
 }
 
 /** Record human review against the exact prepared file, without delivery. */
@@ -210,23 +675,61 @@ export function recordSubjectAccessReviewCompletion(
   actorUserId: string,
   digest: string,
   evidenceId: string,
-): SubjectRequest {
-  let updated: SubjectRequest | null = null;
+): SubjectAccessReviewResult {
+  if (!/^[a-f0-9]{64}$/.test(digest) || !validEvidenceId(evidenceId)) throw new SubjectAccessRequestGateError();
+  let updated: SubjectAccessReviewResult | null = null;
   mutate(state => {
-    const request = state.subjectRequests[id];
+    const store = subjectRequestStore(state, accessStateError);
+    const stored = storedSubjectRequest(store, id, accessStateError);
+    const request = stored?.view;
+    if (!request || request.agencyId !== agencyId || request.personId !== personId || request.preparedExportDigest !== digest) {
+      throw new SubjectAccessRequestGateError();
+    }
+    const requireBytes = request.preparedExportJson !== undefined;
+    if (!validStoredPreparedExport(request, { agencyId, requestId: id, personId }, digest, requireBytes)) {
+      throw new SubjectAccessRequestGateError();
+    }
+    const resultId = reviewResultIdForRequest(request, { agencyId, requestId: id, personId, digest }, evidenceId);
+    assertReviewEvidenceBinding(store, { agencyId, requestId: id, personId, resultId, evidenceId });
+    const exactReplay = Boolean(
+      request
+      && request.agencyId === agencyId
+      && SUBJECT_ACCESS_KINDS.has(request.kind)
+      && request.personId === personId
+      && request.identityVerifiedAt
+      && request.preparedExportDigest === digest
+      && request.preparedExportReviewCount
+      && request.preparedExportReviewCount > 0
+      && request.preparedExportReviewResolvedAt
+      && request.preparedExportReviewResolvedDigest === digest
+      && request.preparedExportReviewEvidenceId === evidenceId
+      && request.preparedExportReviewResultId === resultId,
+    );
+    if (exactReplay) {
+      assertStoredReviewBinding(store, request!, { agencyId, requestId: id, personId, digest });
+      updated = { request: request!, replay: true, resultId };
+      return;
+    }
     if (!isOpenVerifiedSubjectAccessRequest(request, agencyId, personId)
       || request.preparedExportDigest !== digest
-      || !request.preparedExportJson
+      || !validStoredPreparedExport(request, { agencyId, requestId: id, personId }, digest, true)
       || !(request.preparedExportReviewCount && request.preparedExportReviewCount > 0)) {
       throw new SubjectAccessRequestGateError();
     }
-    if (!request.preparedExportReviewResolvedAt) {
-      request.preparedExportReviewResolvedAt = Date.now();
-      request.preparedExportReviewResolvedBy = actorUserId;
-      request.preparedExportReviewResolvedDigest = digest;
-      request.preparedExportReviewEvidenceId = evidenceId;
+    if (request.preparedExportReviewResolvedAt
+      || request.preparedExportReviewResolvedDigest
+      || request.preparedExportReviewEvidenceId
+      || request.preparedExportReviewResultId) {
+      throw new SubjectAccessRequestGateError();
     }
-    updated = request;
+    const committed = applyStoredSubjectRequestPatch(stored!, {
+      preparedExportReviewResolvedAt: Date.now(),
+      preparedExportReviewResolvedBy: actorUserId,
+      preparedExportReviewResolvedDigest: digest,
+      preparedExportReviewEvidenceId: evidenceId,
+      preparedExportReviewResultId: resultId,
+    }, [], accessStateError);
+    updated = { request: committed, replay: false, resultId };
   });
   if (!updated) throw new SubjectAccessRequestGateError();
   return updated;
@@ -237,6 +740,96 @@ export function recordSubjectAccessReviewCompletion(
  * delivered. Review-bearing exports additionally require evidence that review
  * was completed against this same digest.
  */
+export interface SubjectAccessDeliveryResult {
+  request: SubjectRequest;
+  replay: boolean;
+  resultId: string;
+}
+
+const SUBJECT_ACCESS_DELIVERY_OUTCOME = "Prepared export delivered with separate delivery evidence.";
+
+function subjectAccessDeliveryResultId(input: {
+  agencyId: string;
+  requestId: string;
+  personId: string;
+  digest: string;
+  integrityTag: string;
+  generatedAt: number;
+  recordCount: number;
+  reviewCount: number;
+  byteLength: number;
+  reviewResultId: string;
+  reviewEvidenceId: string;
+  deliveryMethod: NonNullable<SubjectRequest["deliveryMethod"]>;
+  evidenceId: string;
+}): string {
+  return authenticatedSubjectAccessId("aqua-subject-access-delivery-v2", [
+    input.agencyId,
+    input.requestId,
+    input.personId,
+    input.digest,
+    input.integrityTag,
+    input.generatedAt,
+    input.recordCount,
+    input.reviewCount,
+    input.byteLength,
+    input.reviewResultId,
+    input.reviewEvidenceId,
+    input.deliveryMethod,
+    input.evidenceId,
+  ]);
+}
+
+function deliveryResultIdForRequest(
+  request: SubjectRequest,
+  input: {
+    agencyId: string;
+    requestId: string;
+    personId: string;
+    digest: string;
+    deliveryMethod: NonNullable<SubjectRequest["deliveryMethod"]>;
+    evidenceId: string;
+  },
+): string {
+  if (typeof request.preparedExportIntegrityTag !== "string"
+    || !Number.isSafeInteger(request.preparedExportGeneratedAt)
+    || !Number.isSafeInteger(request.preparedExportRecordCount)
+    || !Number.isSafeInteger(request.preparedExportReviewCount)
+    || !Number.isSafeInteger(request.preparedExportByteLength)) throw new SubjectAccessRequestGateError();
+  return subjectAccessDeliveryResultId({
+    ...input,
+    integrityTag: request.preparedExportIntegrityTag,
+    generatedAt: request.preparedExportGeneratedAt!,
+    recordCount: request.preparedExportRecordCount!,
+    reviewCount: request.preparedExportReviewCount!,
+    byteLength: request.preparedExportByteLength!,
+    reviewResultId: request.preparedExportReviewResultId ?? "none",
+    reviewEvidenceId: request.preparedExportReviewEvidenceId ?? "none",
+  });
+}
+
+/**
+ * A delivery evidence identifier is an external receipt/transaction identity,
+ * not a request-local label. Bind it durably to one committed result so a
+ * receipt cannot be presented as proof that two different disclosures were
+ * delivered. Descriptor reads deliberately fail closed on poisoned in-memory
+ * adapters without invoking accessors.
+ */
+function assertDeliveryEvidenceBinding(
+  subjectRequests: SubjectRequestStore,
+  binding: { agencyId: string; requestId: string; resultId: string; evidenceId: string },
+): void {
+  for (const stored of allStoredSubjectRequests(subjectRequests, accessStateError)) {
+    const row = stored.view;
+    if (row.deliveryEvidenceId !== binding.evidenceId) continue;
+    if (row.agencyId !== binding.agencyId
+      || row.id !== binding.requestId
+      || row.deliveryResultId !== binding.resultId) {
+      throw new SubjectAccessRequestGateError();
+    }
+  }
+}
+
 export function fulfilPreparedSubjectAccessDelivery(
   agencyId: string,
   id: string,
@@ -245,27 +838,61 @@ export function fulfilPreparedSubjectAccessDelivery(
   digest: string,
   deliveryMethod: NonNullable<SubjectRequest["deliveryMethod"]>,
   evidenceId: string,
-): SubjectRequest {
-  let updated: SubjectRequest | null = null;
+): SubjectAccessDeliveryResult {
+  if (!/^[a-f0-9]{64}$/.test(digest)
+    || !SUBJECT_ACCESS_DELIVERY_METHODS.has(deliveryMethod)
+    || !validEvidenceId(evidenceId)) throw new SubjectAccessRequestGateError();
+  let updated: SubjectAccessDeliveryResult | null = null;
   mutate(state => {
-    const request = state.subjectRequests[id];
+    const store = subjectRequestStore(state, accessStateError);
+    const stored = storedSubjectRequest(store, id, accessStateError);
+    const request = stored?.view;
+    if (!request
+      || request.agencyId !== agencyId
+      || !SUBJECT_ACCESS_KINDS.has(request.kind)
+      || request.personId !== personId
+      || !request.identityVerifiedAt
+      || request.preparedExportDigest !== digest) throw new SubjectAccessRequestGateError();
+    const resultId = deliveryResultIdForRequest(request, {
+      agencyId, requestId: id, personId, digest, deliveryMethod, evidenceId,
+    });
+    assertDeliveryEvidenceBinding(store, {
+      agencyId, requestId: id, resultId, evidenceId,
+    });
+    const exactCompletedReplay = Boolean(
+      request.fulfilledAt
+      && request.deliveredAt
+      && request.deliveryMethod === deliveryMethod
+      && request.deliveryEvidenceId === evidenceId
+      && request.deliveryResultId === resultId
+      && request.outcome === SUBJECT_ACCESS_DELIVERY_OUTCOME
+      && request.preparedExportJson === undefined,
+    );
+    if (exactCompletedReplay) {
+      if (!validStoredPreparedExport(request, { agencyId, requestId: id, personId }, digest, false)) {
+        throw new SubjectAccessRequestGateError();
+      }
+      assertStoredReviewBinding(store, request, { agencyId, requestId: id, personId, digest });
+      updated = { request: request!, replay: true, resultId };
+      return;
+    }
     if (!isOpenVerifiedSubjectAccessRequest(request, agencyId, personId)
-      || request.preparedExportDigest !== digest
-      || !request.preparedExportJson
-      || (Boolean(request.preparedExportReviewCount)
-        && request.preparedExportReviewResolvedDigest !== digest)) {
+      || !validStoredPreparedExport(request, { agencyId, requestId: id, personId }, digest, true)) {
       throw new SubjectAccessRequestGateError();
     }
+    assertStoredReviewBinding(store, request, { agencyId, requestId: id, personId, digest });
     const now = Date.now();
-    request.deliveredAt = now;
-    request.deliveredBy = actorUserId;
-    request.deliveryMethod = deliveryMethod;
-    request.deliveryEvidenceId = evidenceId;
-    request.fulfilledAt = now;
-    request.fulfilledBy = actorUserId;
-    request.outcome = "Prepared export delivered with separate delivery evidence.";
-    delete request.preparedExportJson;
-    updated = request;
+    const committed = applyStoredSubjectRequestPatch(stored!, {
+      deliveredAt: now,
+      deliveredBy: actorUserId,
+      deliveryMethod,
+      deliveryEvidenceId: evidenceId,
+      deliveryResultId: resultId,
+      fulfilledAt: now,
+      fulfilledBy: actorUserId,
+      outcome: SUBJECT_ACCESS_DELIVERY_OUTCOME,
+    }, ["preparedExportJson"], accessStateError);
+    updated = { request: committed, replay: false, resultId };
   });
   if (!updated) throw new SubjectAccessRequestGateError();
   return updated;
@@ -288,17 +915,21 @@ export function fulfilSubjectRequest(
   if (!existing) return null;
   if (!existing.identityVerifiedAt) throw new SubjectRequestError("identity_unverified");
   if (existing.fulfilledAt || existing.refusedAt) throw new SubjectRequestError("already_closed");
+  if (SUBJECT_ACCESS_KINDS.has(existing.kind)) throw new SubjectRequestError("delivery_evidence_required");
 
   let updated: SubjectRequest | null = null;
   mutate(state => {
-    const request = state.subjectRequests[id];
-    if (!request || request.agencyId !== agencyId) return;
+    const stored = storedSubjectRequest(subjectRequestStore(state), id);
+    const request = stored?.view;
+    if (!stored || !request || request.agencyId !== agencyId) return;
     if (!request.identityVerifiedAt) throw new SubjectRequestError("identity_unverified");
     if (request.fulfilledAt || request.refusedAt) throw new SubjectRequestError("already_closed");
-    request.fulfilledAt = Date.now();
-    request.fulfilledBy = actorUserId;
-    request.outcome = outcome.trim().slice(0, 2_000);
-    updated = request;
+    if (SUBJECT_ACCESS_KINDS.has(request.kind)) throw new SubjectRequestError("delivery_evidence_required");
+    updated = applyStoredSubjectRequestPatch(stored, {
+      fulfilledAt: Date.now(),
+      fulfilledBy: actorUserId,
+      outcome: outcome.trim().slice(0, 2_000),
+    });
   });
   return updated;
 }
@@ -317,14 +948,19 @@ export function extendSubjectRequest(agencyId: string, id: string, reason: strin
   if (!existing || existing.extendedAt) return null;
   let updated: SubjectRequest | null = null;
   mutate(state => {
-    const request = state.subjectRequests[id];
-    if (!request) return;
-    request.extendedAt = Date.now();
-    request.extensionReason = trimmed.slice(0, 500);
+    const stored = storedSubjectRequest(subjectRequestStore(state), id);
+    const request = stored?.view;
+    if (!stored || !request || request.agencyId !== agencyId || request.extendedAt) return;
+    if (typeof request.dueAt !== "number" || !Number.isFinite(request.dueAt)) {
+      throw new SubjectRequestStoredStateError();
+    }
     // Two further months, from the ORIGINAL due date rather than from today —
     // extending from "now" would quietly reward answering late.
-    request.dueAt = oneMonthAfter(oneMonthAfter(request.dueAt));
-    updated = request;
+    updated = applyStoredSubjectRequestPatch(stored, {
+      extendedAt: Date.now(),
+      extensionReason: trimmed.slice(0, 500),
+      dueAt: oneMonthAfter(oneMonthAfter(request.dueAt)),
+    });
   });
   return updated;
 }

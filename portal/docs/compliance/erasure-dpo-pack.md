@@ -58,9 +58,12 @@ treated as proof that every system completed the erasure.
 
 **Partially built process:** the DSAR register now records receipt, the statutory
 clock and identity-verification evidence. A subject-access export is bound to an
-exact verified request. Intake is still manual, however, and the erasure button is
-not yet bound to that request record, so an owner must still connect the out-of-band
-request to the destructive action correctly. See §8.
+exact verified request. Its bounded staged bytes/digest remain on the open request
+for replay until separate review (when required) and delivery evidence fulfil it;
+delivery clears the staged bytes but retains the audit fingerprint. Intake is still
+manual, however, and the erasure button is not yet bound to that request record, so
+an owner must still connect the out-of-band request to the destructive action
+correctly. See §8.
 
 ---
 
@@ -232,9 +235,11 @@ A maintained Records-of-Processing map (ROPA) and automated DSAR intake are not
 built. The register, clock, breach register, configurable retention mechanism and a
 safe automatic access/portability export now exist, but remain **partial**: retention
 periods are unset, the export withholds review-required rows and excludes systems
-outside hydrated PortalState, final delivery is not evidenced, and erasure is not
-bound to the verified request. A legal-document register and cookie-consent capture
-also exist today.
+outside hydrated PortalState, and final delivery evidence is an operator-supplied
+reference rather than independent proof of receipt. The access workflow stages exact
+bounded bytes for replay, keeps non-zero-review requests open, and fulfils only after
+separate review/delivery evidence; erasure is not bound to the verified request. A
+legal-document register and cookie-consent capture also exist today.
 
 **Since 2026-08-20 these gaps are visible in the product, not only in this document.**
 A compliance posture at `/portal/agency/company?view=legal` lists each control, its

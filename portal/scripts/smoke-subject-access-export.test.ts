@@ -135,7 +135,7 @@ test("a person from another agency is not found rather than refused", async () =
   assert.equal(sar.collectSubjectAccessExport(a.id, person.id), null, "scope, then find");
 });
 
-test("the route binds a verified request and logs without subject contact details", async () => {
+test("the route binds a verified request and separates preparation from delivery evidence", async () => {
   // Two compliance properties at once. The fulfilment must leave evidence —
   // `compliancePosture` records that a handled request currently cannot be
   // evidenced. And the evidence must not itself be a data-protection problem:
@@ -145,17 +145,22 @@ test("the route binds a verified request and logs without subject contact detail
   const route = readFileSync("src/app/api/portal/governance/subject-access/route.ts", "utf8");
 
   assert.match(route, /logActivity\(/, "the fulfilment must be recorded");
-  assert.match(route, /action: "subject_access\.exported"/, "under a stable action name");
+  assert.match(route, /action: "subject_access\.export-prepared"/, "preparation has a stable action name");
+  assert.match(route, /action: "subject_access\.delivered"/, "delivery has a separate stable action name");
   assert.match(route, /metadata: \{[\s\S]*?requestId: body\.requestId,[\s\S]*?personId: body\.personId,/, "the request and subject must be named by opaque ids");
   // The metadata block must carry no email or name field.
-  const metadata = /metadata: \{([\s\S]*?)\n {8}\},\n {6}\}\);/.exec(route);
+  const metadata = /action: "subject_access\.export-prepared",[\s\S]*?metadata: \{([\s\S]*?)\n {8}\},\n {6}\}\);/.exec(route);
   assert.ok(metadata, "the activity metadata must still be a literal");
   assert.doesNotMatch(metadata[1], /email|name/i, "no email or name may enter the audit trail");
 
   // The agency comes from the session, never the body.
-  assert.match(route, /const agencyId = getActiveAgencyId\(session\);/, "agency must come from the session");
+  assert.match(route, /agencyId: getActiveAgencyId\(session\)/, "agency must come from the session");
   assert.doesNotMatch(route, /body\??\.agencyId/, "the body must not be able to name an agency");
   assert.match(route, /requireSubjectAccessRequestForExport\(agencyId, body\.requestId, body\.personId\)/,
     "an existing verified access/portability request is the export gate");
   assert.match(route, /withPortalStateTransaction/, "activity and fulfilment must share one durable transaction");
+  assert.match(route, /ensureHydrated\(\{ include: SUBJECT_ACCESS_REQUIRED_SIDECARS \}\)/,
+    "lazy sidecars must be explicitly loaded before the walk");
+  assert.match(route, /recordPreparedSubjectAccessExport/, "POST must stage rather than fulfil");
+  assert.match(route, /fulfilPreparedSubjectAccessDelivery/, "only the delivery endpoint may fulfil");
 });

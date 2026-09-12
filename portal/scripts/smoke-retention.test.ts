@@ -120,7 +120,7 @@ test("an open subject request never expires, however old", () => {
     receivedAt: Date.now() - 900 * DAY,
   });
   const closed = requests.recordSubjectRequest({
-    agencyId, kind: "access", subjectLabel: "done@example.com", createdBy: "owner",
+    agencyId, kind: "rectification", subjectLabel: "done@example.com", createdBy: "owner",
     receivedAt: Date.now() - 900 * DAY,
   });
   requests.verifySubjectRequestIdentity(agencyId, closed.id, "owner");

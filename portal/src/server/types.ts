@@ -4882,6 +4882,9 @@ export interface SubjectRequest {
   preparedExportRecordCount?: number;
   preparedExportReviewCount?: number;
   preparedExportByteLength?: number;
+  /** Server-authenticated binding of the request identity, staged bytes,
+   * digest and manifest totals. Missing or mismatched tags fail closed. */
+  preparedExportIntegrityTag?: string;
   /** Bounded staged payload so a lost response can replay the identical file.
    * Cleared after evidenced delivery; the digest remains as audit evidence. */
   preparedExportJson?: string;
@@ -4891,11 +4894,19 @@ export interface SubjectRequest {
   preparedExportReviewResolvedBy?: string;
   preparedExportReviewResolvedDigest?: string;
   preparedExportReviewEvidenceId?: string;
+  /** Server-authenticated identity of the exact staged artifact and review
+   * evidence. Retained so exact replay is idempotent while forged, changed or
+   * reused evidence is refused. */
+  preparedExportReviewResultId?: string;
   /** Separate evidence that the exact prepared export was handed over. */
   deliveredAt?: number;
   deliveredBy?: string;
   deliveryMethod?: "verified-portal" | "secure-email" | "in-person" | "other";
   deliveryEvidenceId?: string;
+  /** Server-authenticated identity of the exact staged artifact, review,
+   * method and delivery evidence. Retained after staged bytes are deleted so
+   * a lost success response can replay without trusting caller-derived hashes. */
+  deliveryResultId?: string;
   fulfilledAt?: number;
   fulfilledBy?: string;
   /** What was actually done — free text for the file, no personal data. */

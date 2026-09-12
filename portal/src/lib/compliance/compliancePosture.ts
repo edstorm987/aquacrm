@@ -517,11 +517,11 @@ function buildGdprControls(input: ComplianceEvidenceInput): ComplianceControl[] 
     evidence: [
       "The DSAR register records each request against the right exercised, who asked, and when it was RECEIVED — the clock runs from receipt, not from data entry, so a request logged days after it arrived is already that far into its month.",
       "Art. 12(3) is enforced as a stored deadline: one calendar month, clamped at month-end so 31 Jan + 1 month lands on 28 Feb rather than rolling into March and handing back time the rule does not allow.",
-      "Art. 12(6) is enforced as a SEQUENCE, not a prompt: `fulfilSubjectRequest` throws `identity_unverified` until identity has been checked, and the verification timestamp is write-once so it cannot be quietly reassigned.",
+      "Art. 12(6) is enforced as a SEQUENCE, not a prompt: `fulfilSubjectRequest` throws `identity_unverified` until identity has been checked, and access/portability additionally refuses that generic completion path until an exact prepared digest has separate delivery evidence.",
       "One extension is allowed, requires a written reason, and runs from the ORIGINAL deadline — extending from today would reward answering late.",
       "`subjectRequestClock` reports open / overdue / due-within-7-days / awaiting-identity. Pinned by smoke-subject-requests.",
       "Surfaced on the Governance workspace under Subject requests: the clock, every request with its due date, and overdue ones marked — so a deadline is visible without going looking for it.",
-      "The subject-access route will act only on an existing open access/portability request for the exact same agency and person after identity verification; successful export evidence and fulfilment commit together.",
+      "The subject-access route will act only on an existing open access/portability request for the exact same agency and person after identity verification. Preparation is durable and replayable but stays open; review evidence and delivery/fulfilment are separate transitions against the exact prepared digest.",
     ],
     gap: "The register, its clock and the screen that surfaces them all exist. What is still missing is INTAKE: requests arrive by email and are logged by hand, so the register is only as complete as somebody's diligence. Choosing an intake channel — a form, a monitored address — is the remaining half.",
     evidenceLimit: "",
@@ -536,15 +536,15 @@ function buildGdprControls(input: ComplianceEvidenceInput): ComplianceControl[] 
     conferredBy: "app",
     status: "partial",
     evidence: [
-      "POST /api/portal/governance/subject-access prepares the automatic safe portion of one verified access/portability request as structured JSON; it does not claim that review-only or external data has been handed over.",
-      "It walks EVERY collection in hydrated PortalState rather than a maintained list. Exact Person, reciprocal client/facet/relationship lineage and exclusive typed contact identifiers can establish ownership; free-text ids/emails/phones and actor/assignee references cannot.",
-      "Only same-agency rows are eligible. Unscoped, unclassified and conflicting/shared ownership is withheld into value-free review counts rather than silently omitted or released.",
-      "Attributable rows have deterministic third-party name, postal address/postcode, email and phone fields redacted. Rows with free text or content beyond the inspection depth are withheld for review so co-mingled personal data is not automatically released.",
-      "The route accepts a bounded requestId/personId body and requires an exact open, identity-verified request of access/portability kind. JSON preparation, id-only activity evidence and request fulfilment share one transaction; failures leave the request open.",
-      "The export states its scope as hydrated PortalState only and states that a point-in-time export neither deletes source data nor changes configured retention.",
+      "POST /api/portal/governance/subject-access prepares the automatic safe portion only for one exact open, identity-verified request of access/portability kind as structured JSON; it does not claim that review-only or external data has been handed over.",
+      "It walks EVERY collection in hydrated PortalState rather than a maintained list, explicitly loading the lazy dev-workspace sidecar. Exact Person, reciprocal client/facet/relationship lineage and exclusive typed contact identifiers can establish ownership; free-text ids/emails/phones and actor/assignee references cannot.",
+      "Any contradictory typed root or nested owner/scope person/client claim vetoes weaker contact authority, including stale or missing ids. Only same-agency rows are eligible; unscoped, unclassified, ambiguous and schema-unsupported matches become value-free review counts.",
+      "Known releasable collections use collection-specific projections. Person facets/classification history, finance ledger fields and finance pluginData reached through installId → install → client lineage are preserved where safe; unknown fields, identifiers such as NI/bank details, unsafe free text and content beyond inspection depth are withheld rather than heuristically mutated.",
+      "POST stages bounded immutable bytes plus their digest and returns the safe subset without fulfilling. Non-zero review totals require PUT review evidence against that digest; PATCH records separate delivery evidence and only then fulfils. Every transition is atomic with activity evidence, and failures leave the prior state intact.",
+      "Work, string, record and serialised output limits fail explicitly before a state transition. The export states its PortalState/external-system boundary and that the point-in-time copy does not alter source retention; its bounded staged payload is retained with the open request and cleared on evidenced delivery.",
     ],
-    gap: "The safe automatic portion exists, but a complete response still requires explicit human review of every reported count and separate collection from client-owned databases, connected providers and other systems outside hydrated PortalState. The app does not evidence final identity-channel delivery or receipt by the subject, and retention periods remain a policy decision.",
-    evidenceLimit: "The tests prove local classification, redaction, tenant/request gates and rollback. They do not prove a live external-system search, reviewer disposition, lawful scope, or final handover to the verified subject.",
+    gap: "The safe automatic portion and local review/delivery evidence sequence exist, but a complete response still requires human review and disposition of every reported count and separate collection from client-owned databases, connected providers and other systems outside hydrated PortalState. Delivery evidence is an operator-supplied opaque reference, not independent proof of receipt, and retention periods remain a policy decision.",
+    evidenceLimit: "The tests prove local typed classification/projection, tenant/request gates, limits, replay and transactional rollback. They do not prove a live external-system search, lawful reviewer disposition, the truth of operator-supplied delivery evidence, or receipt by the verified subject.",
   });
 
   // ── Processors & incidents ──
