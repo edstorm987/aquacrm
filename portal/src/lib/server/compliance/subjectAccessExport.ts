@@ -7,7 +7,7 @@ import "server-only";
 
 import { phoneMatchKey } from "@/lib/telephony/phoneNumbers";
 import { getState } from "@/server/storage";
-import type { Person, PortalState, SubjectRequest } from "@/server/types";
+import type { Client, Person, SubjectRequest } from "@/server/types";
 
 export const SUBJECT_ACCESS_REQUIRED_SIDECARS = ["devTeamWorkspaceFiles"] as const;
 
@@ -28,7 +28,9 @@ export type SubjectAccessIncompleteReason =
   | "value-limit"
   | "character-limit"
   | "string-limit"
-  | "output-size-limit";
+  | "output-size-limit"
+  | "accessor-value"
+  | "invalid-stored-value";
 
 export interface SubjectAccessSubject {
   personId: string;
@@ -89,6 +91,23 @@ function asRecord(value: unknown): JsonRecord | null {
     : null;
 }
 
+interface TraversalMeter {
+  maxValues: number;
+  result: SubjectAccessResult;
+  materialised: WeakMap<object, MaterialisedValue>;
+}
+
+interface MaterialisedValue {
+  value: unknown;
+  unsafe: boolean;
+}
+
+interface StoredDataEntries {
+  entries: Array<[string, unknown]>;
+  nonDataKeys: Set<string>;
+  complete: boolean;
+}
+
 /** Enumerate stored JSON data without invoking accessors on a poisoned value. */
 function* ownDataEntries(value: object): IterableIterator<[string, unknown]> {
   for (const key of Object.keys(value)) {
@@ -102,6 +121,7 @@ function ownDataValue(record: JsonRecord, key: string): unknown {
   return descriptor && descriptor.enumerable && "value" in descriptor ? descriptor.value : undefined;
 }
 
+/** Defensive check for already-materialised values; never reads the property. */
 function hasEnumerableAccessor(value: object): boolean {
   return Object.keys(value).some(key => {
     const descriptor = Object.getOwnPropertyDescriptor(value, key);
@@ -134,12 +154,27 @@ function digitsOnly(value: string): string {
   return result;
 }
 
-function copyScalarFields(source: JsonRecord, fields: readonly string[]): JsonRecord {
+function copyScalarFields(
+  source: JsonRecord,
+  fields: readonly string[],
+  collection: string,
+  context: ExportContext,
+): JsonRecord {
   const out: JsonRecord = {};
   for (const field of fields) {
     const value = ownDataValue(source, field);
-    if (value === null || ["string", "number", "boolean"].includes(typeof value)) {
-      if (value !== undefined) out[field] = value;
+    if (value === null || typeof value === "number" || typeof value === "boolean") {
+      out[field] = value;
+      continue;
+    }
+    if (typeof value === "string") {
+      if (textHasRestrictedPii(value, context, false)) {
+        out[field] = "[redacted:restricted-identifier]";
+        addCount(context.result.redactedFields, collection);
+        addCount(context.result.coMingledPiiMatches, collection);
+      } else {
+        out[field] = value;
+      }
     }
   }
   return out;
@@ -157,19 +192,34 @@ interface IdentifierPartition {
 }
 
 function partitionIdentifiers(
-  state: PortalState,
+  persons: readonly Person[],
   agencyId: string,
   person: Person,
+  meter: TraversalMeter,
 ): IdentifierPartition {
   const emailOwners = new Map<string, Set<string>>();
   const phoneOwners = new Map<string, Set<string>>();
   const sharedPhones = new Set<string>();
 
-  for (const candidate of Object.values(state.persons ?? {})) {
+  for (const candidate of persons) {
+    if (!meterTraversalValue(candidate, meter)) break;
     if (candidate.agencyId !== agencyId) continue;
-    for (const entry of candidate.emails ?? []) {
-      const equivalentRaw = entry.raw && normaliseEmail(entry.raw) === normaliseEmail(entry.value) ? entry.raw : undefined;
-      for (const raw of [entry.value, equivalentRaw]) {
+    const candidateEmails = Array.isArray(candidate.emails) ? candidate.emails : [];
+    if (candidate.emails !== undefined && !Array.isArray(candidate.emails)) {
+      markStoredValueIssue(meter, "persons", "invalid-stored-value");
+    }
+    for (const rawEntry of candidateEmails) {
+      if (!meterTraversalValue(rawEntry, meter)) break;
+      const entry = asRecord(rawEntry);
+      const value = entry ? ownDataValue(entry, "value") : undefined;
+      const storedRaw = entry ? ownDataValue(entry, "raw") : undefined;
+      if (typeof value !== "string") {
+        markStoredValueIssue(meter, "persons", "invalid-stored-value");
+        continue;
+      }
+      const equivalentRaw = typeof storedRaw === "string" && normaliseEmail(storedRaw) === normaliseEmail(value) ? storedRaw : undefined;
+      for (const raw of [value, equivalentRaw]) {
+        if (!meterTraversalValue(raw, meter)) break;
         if (!raw) continue;
         const key = normaliseEmail(raw);
         let owners = emailOwners.get(key);
@@ -177,17 +227,30 @@ function partitionIdentifiers(
         owners.add(candidate.id);
       }
     }
-    for (const entry of candidate.phones ?? []) {
-      const valueKey = phoneMatchKey(entry.value);
-      const equivalentRaw = entry.raw && phoneMatchKey(entry.raw) === valueKey ? entry.raw : undefined;
-      for (const raw of [entry.value, equivalentRaw]) {
+    const candidatePhones = Array.isArray(candidate.phones) ? candidate.phones : [];
+    if (candidate.phones !== undefined && !Array.isArray(candidate.phones)) {
+      markStoredValueIssue(meter, "persons", "invalid-stored-value");
+    }
+    for (const rawEntry of candidatePhones) {
+      if (!meterTraversalValue(rawEntry, meter)) break;
+      const entry = asRecord(rawEntry);
+      const value = entry ? ownDataValue(entry, "value") : undefined;
+      const storedRaw = entry ? ownDataValue(entry, "raw") : undefined;
+      if (typeof value !== "string") {
+        markStoredValueIssue(meter, "persons", "invalid-stored-value");
+        continue;
+      }
+      const valueKey = phoneMatchKey(value);
+      const equivalentRaw = typeof storedRaw === "string" && phoneMatchKey(storedRaw) === valueKey ? storedRaw : undefined;
+      for (const raw of [value, equivalentRaw]) {
+        if (!meterTraversalValue(raw, meter)) break;
         if (!raw) continue;
         const key = phoneMatchKey(raw);
         if (!key) continue;
         let owners = phoneOwners.get(key);
         if (!owners) phoneOwners.set(key, owners = new Set());
         owners.add(candidate.id);
-        if (entry.shared) sharedPhones.add(key);
+        if (ownDataValue(entry!, "shared") === true) sharedPhones.add(key);
       }
     }
   }
@@ -203,9 +266,20 @@ function partitionIdentifiers(
   const ambiguousEmails = new Set<string>();
   const ambiguousPhones = new Set<string>();
 
-  for (const entry of person.emails ?? []) {
-    const equivalentRaw = entry.raw && normaliseEmail(entry.raw) === normaliseEmail(entry.value) ? entry.raw : undefined;
-    for (const raw of [entry.value, equivalentRaw]) {
+  const subjectEmails = Array.isArray(person.emails) ? person.emails : [];
+  if (person.emails !== undefined && !Array.isArray(person.emails)) markStoredValueIssue(meter, "persons", "invalid-stored-value");
+  for (const rawEntry of subjectEmails) {
+    if (!meterTraversalValue(rawEntry, meter)) break;
+    const entry = asRecord(rawEntry);
+    const value = entry ? ownDataValue(entry, "value") : undefined;
+    const storedRaw = entry ? ownDataValue(entry, "raw") : undefined;
+    if (typeof value !== "string") {
+      markStoredValueIssue(meter, "persons", "invalid-stored-value");
+      continue;
+    }
+    const equivalentRaw = typeof storedRaw === "string" && normaliseEmail(storedRaw) === normaliseEmail(value) ? storedRaw : undefined;
+    for (const raw of [value, equivalentRaw]) {
+      if (!meterTraversalValue(raw, meter)) break;
       if (!raw) continue;
       const key = normaliseEmail(raw);
       allSubjectEmails.add(key);
@@ -221,10 +295,21 @@ function partitionIdentifiers(
       }
     }
   }
-  for (const entry of person.phones ?? []) {
-    const valueKey = phoneMatchKey(entry.value);
-    const equivalentRaw = entry.raw && phoneMatchKey(entry.raw) === valueKey ? entry.raw : undefined;
-    for (const raw of [entry.value, equivalentRaw]) {
+  const subjectPhones = Array.isArray(person.phones) ? person.phones : [];
+  if (person.phones !== undefined && !Array.isArray(person.phones)) markStoredValueIssue(meter, "persons", "invalid-stored-value");
+  for (const rawEntry of subjectPhones) {
+    if (!meterTraversalValue(rawEntry, meter)) break;
+    const entry = asRecord(rawEntry);
+    const value = entry ? ownDataValue(entry, "value") : undefined;
+    const storedRaw = entry ? ownDataValue(entry, "raw") : undefined;
+    if (typeof value !== "string") {
+      markStoredValueIssue(meter, "persons", "invalid-stored-value");
+      continue;
+    }
+    const valueKey = phoneMatchKey(value);
+    const equivalentRaw = typeof storedRaw === "string" && phoneMatchKey(storedRaw) === valueKey ? storedRaw : undefined;
+    for (const raw of [value, equivalentRaw]) {
+      if (!meterTraversalValue(raw, meter)) break;
       if (!raw) continue;
       const key = phoneMatchKey(raw);
       if (!key) continue;
@@ -261,18 +346,54 @@ interface SubjectLineage {
   facetIds: Set<string>;
 }
 
-function deriveLineage(state: PortalState, agencyId: string, person: Person): SubjectLineage {
+function deriveLineage(
+  clients: readonly Client[],
+  agencyId: string,
+  person: Person,
+  meter: TraversalMeter,
+): SubjectLineage {
   const clientIds = new Set<string>();
   const conflictingClientIds = new Set<string>();
   const relationshipIds = new Set<string>();
   const facetIds = new Set<string>();
-  if (person.relationshipId) relationshipIds.add(person.relationshipId);
-  for (const value of [person.facets?.leadId, person.facets?.contactId, ...(person.facets?.enquiryIds ?? [])]) {
-    if (value) facetIds.add(value);
+  if (typeof person.relationshipId === "string" && person.relationshipId) relationshipIds.add(person.relationshipId);
+  else if (person.relationshipId !== undefined) markStoredValueIssue(meter, "persons", "invalid-stored-value");
+  const facets = asRecord(person.facets) ?? Object.create(null) as JsonRecord;
+  if (person.facets !== undefined && !asRecord(person.facets)) markStoredValueIssue(meter, "persons", "invalid-stored-value");
+  const enquiryIds = ownDataValue(facets, "enquiryIds");
+  const facetValues: unknown[] = [ownDataValue(facets, "leadId"), ownDataValue(facets, "contactId")];
+  for (const value of facetValues) {
+    if (!meterTraversalValue(value, meter)) break;
+    if (typeof value === "string" && value) facetIds.add(value);
+    else if (value !== undefined) markStoredValueIssue(meter, "persons", "invalid-stored-value");
+  }
+  if (Array.isArray(enquiryIds)) {
+    for (const value of enquiryIds) {
+      if (!meterTraversalValue(value, meter)) break;
+      if (typeof value === "string" && value) facetIds.add(value);
+      else if (value !== undefined) markStoredValueIssue(meter, "persons", "invalid-stored-value");
+    }
+  } else if (enquiryIds !== undefined) {
+    markStoredValueIssue(meter, "persons", "invalid-stored-value");
   }
 
-  for (const clientId of person.facets?.clientIds ?? []) {
-    const client = state.clients?.[clientId];
+  const clientsById = new Map<string, Client>();
+  for (const client of clients) {
+    if (!meterTraversalValue(client, meter)) break;
+    if (typeof client.id === "string") clientsById.set(client.id, client);
+    else markStoredValueIssue(meter, "clients", "invalid-stored-value");
+  }
+  const facetClientIds = ownDataValue(facets, "clientIds");
+  const clientIdValues = Array.isArray(facetClientIds) ? facetClientIds : [];
+  if (facetClientIds !== undefined && !Array.isArray(facetClientIds)) markStoredValueIssue(meter, "persons", "invalid-stored-value");
+  for (const rawClientId of clientIdValues) {
+    if (!meterTraversalValue(rawClientId, meter)) break;
+    if (typeof rawClientId !== "string" || !rawClientId) {
+      markStoredValueIssue(meter, "persons", "invalid-stored-value");
+      continue;
+    }
+    const clientId = rawClientId;
+    const client = clientsById.get(clientId);
     if (client && (client.agencyId !== agencyId || (client.personId && client.personId !== person.id))) {
       conflictingClientIds.add(clientId);
       continue;
@@ -283,14 +404,16 @@ function deriveLineage(state: PortalState, agencyId: string, person: Person): Su
     if (client?.relationshipId) relationshipIds.add(client.relationshipId);
   }
 
-  for (const client of Object.values(state.clients ?? {})) {
+  for (const client of clients) {
+    if (!meterTraversalValue(client, meter)) break;
     if (client.agencyId !== agencyId) continue;
     if (client.personId === person.id) {
       clientIds.add(client.id);
       if (client.relationshipId) relationshipIds.add(client.relationshipId);
     }
   }
-  for (const client of Object.values(state.clients ?? {})) {
+  for (const client of clients) {
+    if (!meterTraversalValue(client, meter)) break;
     if (client.agencyId !== agencyId || !client.relationshipId || !relationshipIds.has(client.relationshipId)) continue;
     if (client.personId && client.personId !== person.id) conflictingClientIds.add(client.id);
     else clientIds.add(client.id);
@@ -309,6 +432,7 @@ interface ExportContext {
   subjectPhoneDigitNeedles: string[];
   maxValues: number;
   result: SubjectAccessResult;
+  materialised: WeakMap<object, MaterialisedValue>;
 }
 
 interface TypedClaims {
@@ -318,23 +442,112 @@ interface TypedClaims {
   depthUnknown: boolean;
 }
 
-function meterTraversalValue(value: unknown, context: ExportContext): boolean {
-  context.result.work.valuesVisited += 1;
-  if (context.result.work.valuesVisited > context.maxValues) {
+function meterTraversalValue(value: unknown, context: Pick<TraversalMeter, "maxValues" | "result">): boolean {
+  if (context.result.work.valuesVisited >= context.maxValues) {
     addIncomplete(context.result, "value-limit");
     return false;
   }
+  context.result.work.valuesVisited += 1;
   if (typeof value !== "string") return true;
   if (value.length > MAX_SUBJECT_ACCESS_STRING_CHARACTERS) {
     addIncomplete(context.result, "string-limit");
     return false;
   }
-  context.result.work.charactersInspected += value.length;
-  if (context.result.work.charactersInspected > MAX_SUBJECT_ACCESS_CHARACTERS) {
+  if (context.result.work.charactersInspected + value.length > MAX_SUBJECT_ACCESS_CHARACTERS) {
     addIncomplete(context.result, "character-limit");
     return false;
   }
+  context.result.work.charactersInspected += value.length;
   return true;
+}
+
+function markStoredValueIssue(
+  meter: Pick<TraversalMeter, "result">,
+  collection: string,
+  reason: Extract<SubjectAccessIncompleteReason, "accessor-value" | "invalid-stored-value">,
+): void {
+  addIncomplete(meter.result, reason);
+  addCount(meter.result.omittedFields, collection);
+}
+
+/**
+ * Enumerate a stored object without invoking getters. Property-name work is
+ * charged before a descriptor is admitted, including descriptors that are
+ * rejected because they are accessors.
+ */
+function storedDataEntries(
+  value: object,
+  meter: Pick<TraversalMeter, "maxValues" | "result">,
+  collection: string,
+): StoredDataEntries {
+  const entries: Array<[string, unknown]> = [];
+  const nonDataKeys = new Set<string>();
+  let complete = true;
+  for (const key of Object.keys(value)) {
+    if (!meterTraversalValue(key, meter)) {
+      complete = false;
+      break;
+    }
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (!descriptor?.enumerable) continue;
+    if (!("value" in descriptor)) {
+      nonDataKeys.add(key);
+      markStoredValueIssue(meter, collection, "accessor-value");
+      continue;
+    }
+    entries.push([key, descriptor.value]);
+  }
+  return { entries, nonDataKeys, complete };
+}
+
+/**
+ * Convert stored data into null-prototype objects/ordinary arrays using data
+ * descriptors only. Projectors therefore never receive an accessor-bearing
+ * value, even when a hostile in-memory adapter supplies one.
+ */
+function materialiseStoredValue(
+  value: unknown,
+  meter: TraversalMeter,
+  collection: string,
+  depth = 0,
+  visiting = new WeakSet<object>(),
+): MaterialisedValue {
+  if (!meterTraversalValue(value, meter)) return { value: undefined, unsafe: true };
+  if (value === undefined || value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return { value, unsafe: false };
+  }
+  if (typeof value !== "object") {
+    markStoredValueIssue(meter, collection, "invalid-stored-value");
+    return { value: undefined, unsafe: true };
+  }
+  if (depth > MAX_REVIEW_SCAN_DEPTH || visiting.has(value)) {
+    addCount(meter.result.depthLimitMatches, collection);
+    return { value: undefined, unsafe: true };
+  }
+  const cached = meter.materialised.get(value);
+  if (cached) return cached;
+
+  const output: JsonRecord | unknown[] = Array.isArray(value) ? [] : Object.create(null) as JsonRecord;
+  const materialised: MaterialisedValue = { value: output, unsafe: false };
+  meter.materialised.set(value, materialised);
+  visiting.add(value);
+  const descriptors = storedDataEntries(value, meter, collection);
+  if (!descriptors.complete || descriptors.nonDataKeys.size > 0) materialised.unsafe = true;
+  for (const [key, child] of descriptors.entries) {
+    if (Array.isArray(output) && !/^(?:0|[1-9][0-9]*)$/.test(key)) {
+      markStoredValueIssue(meter, collection, "invalid-stored-value");
+      materialised.unsafe = true;
+      continue;
+    }
+    const cloned = materialiseStoredValue(child, meter, collection, depth + 1, visiting);
+    if (cloned.unsafe) materialised.unsafe = true;
+    if (cloned.value !== undefined) {
+      if (Array.isArray(output)) output[Number(key)] = cloned.value;
+      else output[key] = cloned.value;
+    }
+  }
+  visiting.delete(value);
+  return materialised;
 }
 
 function extractTypedClaims(record: JsonRecord, context: ExportContext): TypedClaims {
@@ -564,7 +777,7 @@ function projectPerson(record: JsonRecord, context: ExportContext): JsonRecord {
   const out = copyScalarFields(record, [
     "id", "agencyId", "name", "company", "organisationId", "jobTitle", "isPrimaryContact", "classification",
     "classifiedAt", "classifiedBy", "relationshipId", "source", "createdAt", "updatedAt",
-  ]);
+  ], collection, context);
 
   out.emails = (Array.isArray(record.emails) ? record.emails : []).flatMap(entry => {
     const item = asRecord(entry);
@@ -573,7 +786,7 @@ function projectPerson(record: JsonRecord, context: ExportContext): JsonRecord {
       noteOmitted(collection, item, context, { coMingled: true });
       return [];
     }
-    const projected = copyScalarFields(item, ["value", "isPrimary"]);
+    const projected = copyScalarFields(item, ["value", "isPrimary"], collection, context);
     if (typeof item.raw === "string" && normaliseEmail(item.raw) === normaliseEmail(item.value)) projected.raw = item.raw;
     else if (item.raw !== undefined) noteOmitted(collection, item.raw, context, { coMingled: true });
     if (item.label !== undefined) noteOmitted(collection, item.label, context, { coMingled: true });
@@ -587,7 +800,7 @@ function projectPerson(record: JsonRecord, context: ExportContext): JsonRecord {
       noteOmitted(collection, item, context, { coMingled: true });
       return [];
     }
-    const projected = copyScalarFields(item, ["value", "isPrimary", "shared"]);
+    const projected = copyScalarFields(item, ["value", "isPrimary", "shared"], collection, context);
     if (typeof item.raw === "string" && phoneMatchKey(item.raw) === valueKey) projected.raw = item.raw;
     else if (item.raw !== undefined) noteOmitted(collection, item.raw, context, { coMingled: true });
     if (item.label !== undefined) noteOmitted(collection, item.label, context, { coMingled: true });
@@ -595,7 +808,7 @@ function projectPerson(record: JsonRecord, context: ExportContext): JsonRecord {
   });
   const facets = asRecord(record.facets) ?? {};
   out.facets = {
-    ...copyScalarFields(facets, ["leadId", "contactId"]),
+    ...copyScalarFields(facets, ["leadId", "contactId"], collection, context),
     clientIds: Array.isArray(facets.clientIds) ? facets.clientIds.filter(value => typeof value === "string") : [],
     enquiryIds: Array.isArray(facets.enquiryIds) ? facets.enquiryIds.filter(value => typeof value === "string") : [],
   };
@@ -603,13 +816,13 @@ function projectPerson(record: JsonRecord, context: ExportContext): JsonRecord {
     const item = asRecord(entry);
     if (!item) return [];
     if (item.note !== undefined) noteOmitted(collection, item.note, context, { coMingled: true });
-    return [copyScalarFields(item, ["from", "to", "at", "by", "sourceType", "sourceId"])];
+    return [copyScalarFields(item, ["from", "to", "at", "by", "sourceType", "sourceId"], collection, context)];
   });
   out.organisationLinks = (Array.isArray(record.organisationLinks) ? record.organisationLinks : []).flatMap(entry => {
     const item = asRecord(entry);
     if (!item) return [];
     if (item.reason !== undefined) noteOmitted(collection, item.reason, context, { coMingled: true });
-    return [copyScalarFields(item, ["organisationId", "status", "confidence", "suggestedAt", "decidedAt", "decidedBy"])];
+    return [copyScalarFields(item, ["organisationId", "status", "confidence", "suggestedAt", "decidedAt", "decidedBy"], collection, context)];
   });
   out.record = (Array.isArray(record.record) ? record.record : []).flatMap(entry => {
     const item = asRecord(entry);
@@ -617,7 +830,7 @@ function projectPerson(record: JsonRecord, context: ExportContext): JsonRecord {
     for (const field of ["summary", "body", "location", "outcome", "createdBy"] as const) {
       if (item[field] !== undefined) noteOmitted(collection, item[field], context, { coMingled: true });
     }
-    return [copyScalarFields(item, ["id", "kind", "at", "createdAt"])];
+    return [copyScalarFields(item, ["id", "kind", "at", "createdAt"], collection, context)];
   });
   for (const field of ["notes", "customFields"] as const) {
     if (record[field] !== undefined) noteOmitted(collection, record[field], context, { coMingled: true });
@@ -640,7 +853,7 @@ function projectClient(record: JsonRecord, context: ExportContext): JsonRecord {
   const out = copyScalarFields(record, [
     "id", "agencyId", "relationshipId", "personId", "companyId", "slug", "stage",
     "status", "createdAt", "updatedAt",
-  ]);
+  ], collection, context);
   projectSafeStringFields(record, out, ["websiteUrl"], collection, context);
   for (const field of ["name", "workspaceLabel"] as const) {
     if (typeof record[field] !== "string") continue;
@@ -649,7 +862,7 @@ function projectClient(record: JsonRecord, context: ExportContext): JsonRecord {
   }
   const brand = asRecord(record.brand);
   if (brand) {
-    out.brand = copyScalarFields(brand, [...BRAND_FIELDS]);
+    out.brand = copyScalarFields(brand, [...BRAND_FIELDS], collection, context);
     for (const [key, value] of Object.entries(brand)) {
       if (!BRAND_FIELDS.has(key)) noteOmitted(collection, value, context, { coMingled: true });
     }
@@ -698,6 +911,28 @@ function projectContact(contact: JsonRecord, collection: string, context: Export
   return out;
 }
 
+const TASK_STATUSES = new Set(["todo", "in-progress", "done"]);
+const TASK_PRIORITIES = new Set(["low", "normal", "high", "urgent"]);
+const TASK_ORIGINS = new Set(["manual", "radar", "advisor", "crm", "inbox"]);
+const TASK_BOARD_COLUMNS = new Set(["backlog", "this-week", "doing", "waiting-on-client", "review", "done"]);
+
+function projectEnumStringField(
+  record: JsonRecord,
+  out: JsonRecord,
+  field: string,
+  allowed: ReadonlySet<string>,
+  collection: string,
+  context: ExportContext,
+): void {
+  const value = ownDataValue(record, field);
+  if (value === undefined) return;
+  if (typeof value === "string" && allowed.has(value) && !textHasRestrictedPii(value, context, false)) {
+    out[field] = value;
+    return;
+  }
+  noteOmitted(collection, value, context, { coMingled: typeof value === "string" || typeof value === "object" });
+}
+
 function projectTask(record: JsonRecord, context: ExportContext): JsonRecord {
   const collection = "tasks";
   const allowed = new Set([
@@ -710,9 +945,13 @@ function projectTask(record: JsonRecord, context: ExportContext): JsonRecord {
   noteUnknownFields(collection, record, allowed, context);
   const out = copyScalarFields(record, [
     "id", "agencyId", "personId", "ownerPersonId", "subjectPersonId", "clientId", "ownerClientId", "subjectClientId",
-    "relationshipId", "status", "priority", "startAt", "dueAt", "reminderAt", "origin",
-    "acceptedAt", "revision", "clientBoardColumn", "clientBoardOrder", "createdAt", "updatedAt", "completedAt",
-  ]);
+    "relationshipId", "startAt", "dueAt", "reminderAt",
+    "acceptedAt", "revision", "clientBoardOrder", "createdAt", "updatedAt", "completedAt",
+  ], collection, context);
+  projectEnumStringField(record, out, "status", TASK_STATUSES, collection, context);
+  projectEnumStringField(record, out, "priority", TASK_PRIORITIES, collection, context);
+  projectEnumStringField(record, out, "origin", TASK_ORIGINS, collection, context);
+  projectEnumStringField(record, out, "clientBoardColumn", TASK_BOARD_COLUMNS, collection, context);
   projectSafeStringFields(record, out, ["seriesId", "sourceId", "sourceHref"], collection, context);
   if (typeof record.title === "string") {
     if (record.title === context.person.name) out.title = record.title;
@@ -822,7 +1061,7 @@ function projectActivity(record: JsonRecord, context: ExportContext): JsonRecord
   const collection = "activity";
   const allowed = new Set(["id", "ts", "agencyId", "clientId", "actorUserId", "actorEmail", "category", "action", "message", "metadata"]);
   noteUnknownFields(collection, record, allowed, context);
-  const out = copyScalarFields(record, ["id", "ts", "agencyId", "clientId", "category", "action"]);
+  const out = copyScalarFields(record, ["id", "ts", "agencyId", "clientId", "category", "action"], collection, context);
   for (const field of ["actorUserId", "actorEmail", "message", "metadata"] as const) {
     if (record[field] !== undefined) noteOmitted(collection, record[field], context, { coMingled: true });
   }
@@ -835,46 +1074,19 @@ const LEDGER_SCALAR_FIELDS = [
 ] as const;
 const LEDGER_SAFE_STRING_FIELDS = ["sourceId", "group", "eyebrow", "href", "parentSourceId"] as const;
 
-function containsDigitRun(value: string, minimum: number): boolean {
-  let digits = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
-    if (code >= 48 && code <= 57) {
-      digits += 1;
-      if (digits >= minimum) return true;
-    } else if (value[index] !== " " && value[index] !== "-" && value[index] !== "." && value[index] !== "(" && value[index] !== ")" && value[index] !== "+") {
-      digits = 0;
-    }
-  }
-  return false;
-}
+const EMAIL_TOKEN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i;
+const UK_SORT_CODE = /(?:^|[^0-9])\d{2}[\s\-/]\d{2}[\s\-/]\d{2}(?:$|[^0-9])/;
+const UK_NINO = /\b[A-CEGHJ-PR-TW-Z]{2}\s*\d{2}\s*\d{2}\s*\d{2}\s*[A-D]\b/i;
+const UK_POSTCODE = /\b(?:GIR\s?0AA|(?:[A-PR-UWYZ][0-9][0-9A-HJKSTUW]?|[A-PR-UWYZ][A-HK-Y][0-9][0-9ABEHMNPRV-Y]?)\s?[0-9][ABD-HJLNP-UW-Z]{2})\b/i;
+const IBAN_TOKEN = /\b[A-Z]{2}\d{2}(?:[\s-]?[A-Z0-9]){11,30}\b/i;
+const EIGHT_DIGIT_ACCOUNT = /(?:^|[^0-9A-Z_])\d{8}(?:$|[^0-9A-Z_])/i;
+const UK_PHONE = /(?:^|[^A-Z0-9_])(?:\+44\s?(?:\(0\)\s?)?|0)(?:\d[\s().-]?){9,10}(?:$|[^A-Z0-9_])/i;
 
-function looksLikeRestrictedIdentifierToken(raw: string): boolean {
-  let token = "";
-  for (let index = 0; index <= raw.length; index += 1) {
-    const char = raw[index] ?? " ";
-    const code = char.charCodeAt(0);
-    const alphaNumeric = (code >= 48 && code <= 57) || (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
-    if (alphaNumeric) {
-      token += char.toUpperCase();
-      continue;
-    }
-    if (token.length >= 5 && token.length <= 9) {
-      let letters = 0;
-      let digits = 0;
-      for (let tokenIndex = 0; tokenIndex < token.length; tokenIndex += 1) {
-        const tokenCode = token.charCodeAt(tokenIndex);
-        if (tokenCode >= 48 && tokenCode <= 57) digits += 1;
-        else letters += 1;
-      }
-      const nationalInsuranceShape = token.length === 9 && letters === 3 && digits === 6;
-      const postcodeShape = token.length >= 5 && token.length <= 7 && letters >= 3 && digits >= 1
-        && token.charCodeAt(token.length - 1) >= 65 && token.charCodeAt(token.length - 2) >= 65;
-      if (nationalInsuranceShape || postcodeShape) return true;
-    }
-    token = "";
-  }
-  return false;
+function exactSubjectString(value: string, context: ExportContext): boolean {
+  if (value === context.person.name || value === context.person.company) return true;
+  if (context.identifiers.exclusiveEmails.has(normaliseEmail(value))) return true;
+  const phone = phoneMatchKey(value);
+  return Boolean(phone && context.identifiers.exclusivePhones.has(phone));
 }
 
 function textHasRestrictedPii(value: string, context: ExportContext, title: boolean): boolean {
@@ -891,9 +1103,16 @@ function textHasRestrictedPii(value: string, context: ExportContext, title: bool
     // Invalid percent encoding is inspected verbatim and never widened.
   }
   for (const candidate of candidates) {
+    if (exactSubjectString(candidate, context)) continue;
     const lower = candidate.toLowerCase();
     if (labels.some(label => lower.includes(label))) return true;
-    if (candidate.includes("@") || containsDigitRun(candidate, title ? 10 : 8) || looksLikeRestrictedIdentifierToken(candidate)) return true;
+    if (EMAIL_TOKEN.test(candidate)
+      || UK_SORT_CODE.test(candidate)
+      || UK_NINO.test(candidate)
+      || UK_POSTCODE.test(candidate)
+      || IBAN_TOKEN.test(candidate)
+      || UK_PHONE.test(candidate)
+      || (!title && EIGHT_DIGIT_ACCOUNT.test(candidate))) return true;
     if (context.otherPersonNames.some(name => name && lower.includes(name.toLowerCase()))) return true;
     const digits = digitsOnly(candidate);
     for (const phone of context.identifiers.ambiguousPhones) {
@@ -945,7 +1164,7 @@ function projectLedger(record: JsonRecord, context: ExportContext): JsonRecord |
     addCount(context.result.coMingledPiiMatches, collection);
     return null;
   }
-  const out = copyScalarFields(record, LEDGER_SCALAR_FIELDS);
+  const out = copyScalarFields(record, LEDGER_SCALAR_FIELDS, collection, context);
   projectSafeStringFields(record, out, LEDGER_SAFE_STRING_FIELDS, collection, context);
   out.title = title;
   if (body !== undefined) out.body = body;
@@ -956,9 +1175,9 @@ function projectPluginInstall(record: JsonRecord, context: ExportContext): JsonR
   const collection = "pluginInstalls";
   const allowed = new Set(["id", "pluginId", "agencyId", "clientId", "enabled", "config", "features", "setupAnswers", "installedAt", "installedBy", "health", "healthCheckedAt"]);
   noteUnknownFields(collection, record, allowed, context);
-  const out = copyScalarFields(record, ["id", "pluginId", "agencyId", "clientId", "enabled", "installedAt", "healthCheckedAt"]);
+  const out = copyScalarFields(record, ["id", "pluginId", "agencyId", "clientId", "enabled", "installedAt", "healthCheckedAt"], collection, context);
   const features = asRecord(record.features);
-  if (features) out.features = copyScalarFields(features, Object.keys(features));
+  if (features) out.features = copyScalarFields(features, Object.keys(features), collection, context);
   const health = asRecord(record.health);
   if (health && typeof health.ok === "boolean") out.health = { ok: health.ok };
   for (const field of ["config", "setupAnswers", "installedBy"] as const) {
@@ -977,7 +1196,7 @@ const INVOICE_SAFE_STRING_FIELDS = ["number", "externalRef", "paidVia"] as const
 function projectFinanceInvoice(record: JsonRecord, context: ExportContext): JsonRecord {
   const allowed = new Set([...INVOICE_FIELDS, ...INVOICE_SAFE_STRING_FIELDS, "lineItems", "notes", "issuerSnapshot"]);
   noteUnknownFields("pluginData", record, allowed, context);
-  const out = copyScalarFields(record, INVOICE_FIELDS);
+  const out = copyScalarFields(record, INVOICE_FIELDS, "pluginData", context);
   projectSafeStringFields(record, out, INVOICE_SAFE_STRING_FIELDS, "pluginData", context);
   for (const field of ["lineItems", "notes", "issuerSnapshot"] as const) {
     if (record[field] !== undefined) noteOmitted("pluginData", record[field], context, { coMingled: true });
@@ -997,7 +1216,39 @@ function projectKnownCollection(collection: string, record: JsonRecord, context:
   return null;
 }
 
+function inspectEveryEmittedString(value: unknown, collection: string, context: ExportContext): void {
+  const stack: Array<{ parent: JsonRecord | unknown[]; key: string | number; value: unknown }> = [];
+  if (value !== null && typeof value === "object") {
+    for (const [key, child] of ownDataEntries(value as object)) {
+      stack.push({ parent: value as JsonRecord | unknown[], key: Array.isArray(value) ? Number(key) : key, value: child });
+    }
+  }
+  const seen = new WeakSet<object>();
+  while (stack.length) {
+    const current = stack.pop()!;
+    if (typeof current.value === "string") {
+      if (textHasRestrictedPii(current.value, context, false)) {
+        if (Array.isArray(current.parent)) current.parent[current.key as number] = "[redacted:restricted-identifier]";
+        else current.parent[current.key as string] = "[redacted:restricted-identifier]";
+        addCount(context.result.redactedFields, collection);
+        addCount(context.result.coMingledPiiMatches, collection);
+      }
+      continue;
+    }
+    if (current.value === null || typeof current.value !== "object" || seen.has(current.value)) continue;
+    seen.add(current.value);
+    for (const [key, child] of ownDataEntries(current.value)) {
+      stack.push({
+        parent: current.value as JsonRecord | unknown[],
+        key: Array.isArray(current.value) ? Number(key) : key,
+        value: child,
+      });
+    }
+  }
+}
+
 function addProjectedRecord(collection: string, projected: unknown, context: ExportContext): void {
+  inspectEveryEmittedString(projected, collection, context);
   // Projectors only produce acyclic scalar/object/array shapes. Measure each
   // bounded projection before retaining it, so a huge in-memory state cannot
   // make JSON.stringify allocate an unbounded response and then discover the
@@ -1031,22 +1282,39 @@ function addProjectedRecord(collection: string, projected: unknown, context: Exp
   context.result.totalRecords += 1;
 }
 
-function agencyOf(record: JsonRecord): string | undefined {
-  const agencyId = ownDataValue(record, "agencyId");
-  return typeof agencyId === "string" ? agencyId : undefined;
+function storedDataField(
+  record: JsonRecord,
+  key: string,
+  meter: TraversalMeter,
+  collection: string,
+): { value: unknown; unsafe: boolean } {
+  if (!meterTraversalValue(key, meter)) return { value: undefined, unsafe: true };
+  const descriptor = Object.getOwnPropertyDescriptor(record, key);
+  if (!descriptor?.enumerable) return { value: undefined, unsafe: false };
+  if (!("value" in descriptor)) {
+    markStoredValueIssue(meter, collection, "accessor-value");
+    return { value: undefined, unsafe: true };
+  }
+  if (!meterTraversalValue(descriptor.value, meter)) return { value: undefined, unsafe: true };
+  return { value: descriptor.value, unsafe: false };
 }
 
 function inspectRecord(collection: string, value: unknown, context: ExportContext): void {
-  const record = asRecord(value);
-  if (!record) {
+  const rawRecord = asRecord(value);
+  if (!rawRecord) {
     const scan = scanForSubject(value, context);
     if (scan.mentioned) addCount(context.result.unclassifiedMatches, collection);
     if (scan.depthExceeded) addCount(context.result.depthLimitMatches, collection);
     return;
   }
-  const ownerAgency = agencyOf(record);
+  const ownerField = storedDataField(rawRecord, "agencyId", context, collection);
+  if (ownerField.unsafe) {
+    addCount(context.result.unclassifiedMatches, collection);
+    return;
+  }
+  const ownerAgency = typeof ownerField.value === "string" ? ownerField.value : undefined;
   // Scope before inspection: another tenant's contents must neither enter the
-  // export nor influence its review counts/work budget.
+  // export nor consume the tenant-local record budget.
   if (ownerAgency !== undefined && ownerAgency !== context.agencyId) return;
   if (ownerAgency === context.agencyId) {
     if (context.result.work.recordsVisited >= MAX_SUBJECT_ACCESS_RECORDS) {
@@ -1054,6 +1322,18 @@ function inspectRecord(collection: string, value: unknown, context: ExportContex
       return;
     }
     context.result.work.recordsVisited += 1;
+  }
+  const materialised = materialiseStoredValue(rawRecord, context, collection);
+  const record = asRecord(materialised.value);
+  if (!record || materialised.unsafe) {
+    if (record) {
+      const partialClassification = classifyOwnership(record, context);
+      if (partialClassification.ownership !== "none") addCount(context.result.ambiguousMatches, collection);
+      else addCount(context.result.unclassifiedMatches, collection);
+    } else {
+      addCount(context.result.unclassifiedMatches, collection);
+    }
+    return;
   }
   const classification = classifyOwnership(record, context);
   const ownership = classification.ownership;
@@ -1076,18 +1356,30 @@ function inspectRecord(collection: string, value: unknown, context: ExportContex
   if (projected) addProjectedRecord(collection, projected, context);
 }
 
-function inspectPluginData(state: PortalState, context: ExportContext): void {
+function inspectPluginData(rawPluginData: object, rawPluginInstalls: object | null, context: ExportContext): void {
   const collection = "pluginData";
-  const installs = state.pluginInstalls ?? {};
-  for (const [installId, values] of ownDataEntries(state.pluginData ?? {})) {
-    const install = installs[installId];
+  const installValues = rawPluginInstalls
+    ? new Map(storedDataEntries(rawPluginInstalls, context, "pluginInstalls").entries)
+    : new Map<string, unknown>();
+  for (const [installId, values] of storedDataEntries(rawPluginData, context, collection).entries) {
+    const rawInstall = installValues.get(installId);
+    const installRecord = asRecord(rawInstall);
+    let install: JsonRecord | null = null;
+    if (installRecord) {
+      const agencyField = storedDataField(installRecord, "agencyId", context, "pluginInstalls");
+      if (agencyField.unsafe) continue;
+      if (typeof agencyField.value === "string" && agencyField.value !== context.agencyId) continue;
+      const materialisedInstall = materialiseStoredValue(installRecord, context, "pluginInstalls");
+      install = asRecord(materialisedInstall.value);
+      if (!install || materialisedInstall.unsafe) continue;
+    }
     if (!values || typeof values !== "object") continue;
-    for (const [key, rawValue] of ownDataEntries(values as object)) {
-      if (install && install.agencyId !== context.agencyId) continue;
+    for (const [key, rawValue] of storedDataEntries(values as object, context, collection).entries) {
       if (!install) {
-        const scan = scanForSubject(rawValue, context);
+        const materialisedUnknown = materialiseStoredValue(rawValue, context, collection);
+        const scan = scanForSubject(materialisedUnknown.value, context);
         if (scan.mentioned) addCount(context.result.unclassifiedMatches, collection);
-        if (scan.depthExceeded) addCount(context.result.depthLimitMatches, collection);
+        if (scan.depthExceeded || materialisedUnknown.unsafe) addCount(context.result.depthLimitMatches, collection);
         continue;
       }
       if (context.result.work.recordsVisited >= MAX_SUBJECT_ACCESS_RECORDS) {
@@ -1095,25 +1387,28 @@ function inspectPluginData(state: PortalState, context: ExportContext): void {
         continue;
       }
       context.result.work.recordsVisited += 1;
-      const record = asRecord(rawValue);
-      const installOwnsSubject = typeof install.clientId === "string" && context.lineage.clientIds.has(install.clientId);
+      const materialisedRecord = materialiseStoredValue(rawValue, context, collection);
+      const record = asRecord(materialisedRecord.value);
+      if (!record || materialisedRecord.unsafe) {
+        addCount(context.result.unclassifiedMatches, collection);
+        continue;
+      }
+      const installClientId = ownDataValue(install, "clientId");
+      const installOwnsSubject = typeof installClientId === "string" && context.lineage.clientIds.has(installClientId);
       const classification = record ? classifyOwnership(record, context) : null;
       let ownership: Ownership = classification?.ownership ?? "none";
       if (classification?.inspectionIncomplete) addCount(context.result.depthLimitMatches, collection);
-      if (record && typeof record.agencyId === "string" && record.agencyId !== install.agencyId) ownership = "ambiguous";
+      const recordAgencyId = ownDataValue(record, "agencyId");
+      const installAgencyId = ownDataValue(install, "agencyId");
+      if (typeof recordAgencyId === "string" && recordAgencyId !== installAgencyId) ownership = "ambiguous";
       if (installOwnsSubject) {
-        if (record) {
-          const claims = extractTypedClaims(record, context);
-          if ((typeof record.agencyId === "string" && record.agencyId !== install.agencyId)
-            || setSome(claims.personIds, id => id !== context.person.id)
-            || setSome(claims.clientIds, id => !context.lineage.clientIds.has(id))
-            || setSome(claims.relationshipIds, id => !context.lineage.relationshipIds.has(id))
-            || claims.depthUnknown) ownership = "ambiguous";
-          else ownership = "authoritative";
-        } else {
-          addCount(context.result.unsupportedCollectionMatches, collection);
-          continue;
-        }
+        const claims = extractTypedClaims(record, context);
+        if ((typeof recordAgencyId === "string" && recordAgencyId !== installAgencyId)
+          || setSome(claims.personIds, id => id !== context.person.id)
+          || setSome(claims.clientIds, id => !context.lineage.clientIds.has(id))
+          || setSome(claims.relationshipIds, id => !context.lineage.relationshipIds.has(id))
+          || claims.depthUnknown) ownership = "ambiguous";
+        else ownership = "authoritative";
       }
       if (ownership === "none") continue;
       if (ownership === "ambiguous") {
@@ -1124,7 +1419,8 @@ function inspectPluginData(state: PortalState, context: ExportContext): void {
         addCount(context.result.unclassifiedMatches, collection);
         continue;
       }
-      if (install.pluginId !== "agency-finance" || !key.startsWith("invoices/by-id/")) {
+      const installPluginId = ownDataValue(install, "pluginId");
+      if (installPluginId !== "agency-finance" || !key.startsWith("invoices/by-id/")) {
         addCount(context.result.unsupportedCollectionMatches, collection);
         continue;
       }
@@ -1133,7 +1429,7 @@ function inspectPluginData(state: PortalState, context: ExportContext): void {
       projectSafeStringFields({ key }, projectedReference, ["key"], collection, context);
       addProjectedRecord(collection, {
         installId,
-        pluginId: install.pluginId,
+        pluginId: installPluginId,
         key: projectedReference.key,
         value: projected,
       }, context);
@@ -1158,29 +1454,19 @@ export function subjectAccessExportReviewCount(result: SubjectAccessResult): num
   return Object.values(result.reviewTotals).reduce((sum, value) => sum + value, 0);
 }
 
-export function collectSubjectAccessExport(
-  agencyId: string,
-  personId: string,
-  options: { generatedAt?: number; maxValues?: number } = {},
-): SubjectAccessResult | null {
-  const state = getState();
-  const person = state.persons?.[personId];
-  if (!person || person.agencyId !== agencyId) return null;
-  const identifiers = partitionIdentifiers(state, agencyId, person);
-  const lineage = deriveLineage(state, agencyId, person);
-  const result: SubjectAccessResult = {
+function initialSubjectAccessResult(personId: string, generatedAt: number): SubjectAccessResult {
+  return {
     subject: {
       personId,
-      name: person.name,
-      emails: identifiers.displayedEmails,
-      phones: identifiers.displayedPhones,
-      clientIds: [...lineage.clientIds].sort(),
-      relationshipIds: [...lineage.relationshipIds].sort(),
-      facetIds: [...lineage.facetIds].sort(),
+      emails: [],
+      phones: [],
+      clientIds: [],
+      relationshipIds: [],
+      facetIds: [],
     },
-    generatedAt: options.generatedAt ?? Date.now(),
+    generatedAt,
     found: {},
-    searchedCollections: Object.keys(state as unknown as JsonRecord),
+    searchedCollections: [],
     totalRecords: 0,
     unscopedMatches: {},
     unclassifiedMatches: {},
@@ -1203,29 +1489,174 @@ export function collectSubjectAccessExport(
     incompleteReasons: [],
     work: { recordsVisited: 0, valuesVisited: 0, charactersInspected: 0, serializedBytes: 0 },
   };
+}
+
+function safeHeaderValues(values: Iterable<string>, collection: string, context: ExportContext): string[] {
+  const safe: string[] = [];
+  for (const value of values) {
+    if (!meterTraversalValue(value, context)) break;
+    if (textHasRestrictedPii(value, context, false)) {
+      noteOmitted(collection, value, context, { coMingled: true });
+      continue;
+    }
+    safe.push(value);
+  }
+  return safe;
+}
+
+export function collectSubjectAccessExport(
+  agencyId: string,
+  personId: string,
+  options: { generatedAt?: number; maxValues?: number } = {},
+): SubjectAccessResult | null {
+  const state = getState();
+  const result = initialSubjectAccessResult(personId, options.generatedAt ?? Date.now());
+  const meter: TraversalMeter = {
+    maxValues: Math.max(1, Math.min(MAX_SUBJECT_ACCESS_VALUES, Math.floor(options.maxValues ?? MAX_SUBJECT_ACCESS_VALUES))),
+    result,
+    materialised: new WeakMap(),
+  };
+  const root = storedDataEntries(state as unknown as JsonRecord, meter, "portalState");
+  const resident = new Map(root.entries);
+  const rawPersons = asRecord(resident.get("persons"));
+  if (!rawPersons) {
+    if (root.nonDataKeys.has("persons") || result.incompleteReasons.length) return result;
+    return null;
+  }
+  const personEntries = storedDataEntries(rawPersons, meter, "persons");
+  const rawTargetPerson = new Map(personEntries.entries).get(personId);
+  if (rawTargetPerson === undefined) {
+    if (personEntries.nonDataKeys.has(personId) || result.incompleteReasons.length) return result;
+    return null;
+  }
+  const rawTargetRecord = asRecord(rawTargetPerson);
+  if (!rawTargetRecord) {
+    markStoredValueIssue(meter, "persons", "invalid-stored-value");
+    return result;
+  }
+  const targetAgency = storedDataField(rawTargetRecord, "agencyId", meter, "persons");
+  if (targetAgency.unsafe) return result;
+  if (targetAgency.value !== agencyId) return null;
+
+  const persons: Person[] = [];
+  let person: Person | null = null;
+  for (const [storedId, rawValue] of personEntries.entries) {
+    const rawRecord = asRecord(rawValue);
+    if (!rawRecord) {
+      markStoredValueIssue(meter, "persons", "invalid-stored-value");
+      continue;
+    }
+    const storedAgency = storedDataField(rawRecord, "agencyId", meter, "persons");
+    if (storedAgency.unsafe || storedAgency.value !== agencyId) continue;
+    const materialised = materialiseStoredValue(rawRecord, meter, "persons");
+    const safeRecord = asRecord(materialised.value);
+    if (!safeRecord) continue;
+    const safeId = ownDataValue(safeRecord, "id");
+    if (typeof safeId !== "string" || safeId !== storedId) {
+      markStoredValueIssue(meter, "persons", "invalid-stored-value");
+      if (storedId === personId) return result;
+      continue;
+    }
+    const safePerson = safeRecord as unknown as Person;
+    persons.push(safePerson);
+    if (storedId === personId) person = safePerson;
+  }
+  if (!person) return result;
+
+  const clients: Client[] = [];
+  const rawClients = asRecord(resident.get("clients"));
+  if (rawClients) {
+    const clientEntries = storedDataEntries(rawClients, meter, "clients");
+    for (const [storedId, rawValue] of clientEntries.entries) {
+      const rawRecord = asRecord(rawValue);
+      if (!rawRecord) {
+        markStoredValueIssue(meter, "clients", "invalid-stored-value");
+        continue;
+      }
+      const materialised = materialiseStoredValue(rawRecord, meter, "clients");
+      const safeRecord = asRecord(materialised.value);
+      if (!safeRecord) continue;
+      if (ownDataValue(safeRecord, "id") !== storedId) {
+        markStoredValueIssue(meter, "clients", "invalid-stored-value");
+        continue;
+      }
+      clients.push(safeRecord as unknown as Client);
+    }
+  } else if (root.nonDataKeys.has("clients")) {
+    addIncomplete(result, "accessor-value");
+  }
+
+  const identifiers = partitionIdentifiers(persons, agencyId, person, meter);
+  const lineage = deriveLineage(clients, agencyId, person, meter);
+  const otherPersonNames: string[] = [];
+  for (const candidate of persons) {
+    if (!meterTraversalValue(candidate, meter)) break;
+    if (candidate.id === person.id || candidate.name === undefined) continue;
+    if (typeof candidate.name !== "string") {
+      markStoredValueIssue(meter, "persons", "invalid-stored-value");
+      continue;
+    }
+    if (!meterTraversalValue(candidate.name, meter)) break;
+    if (candidate.name) otherPersonNames.push(candidate.name);
+  }
+  const subjectIdNeedles: string[] = [];
+  for (const value of [person.id, ...lineage.relationshipIds, ...lineage.facetIds]) {
+    if (subjectIdNeedles.length >= 1_000 || !meterTraversalValue(value, meter)) break;
+    if (typeof value === "string" && value) subjectIdNeedles.push(value);
+  }
+  const subjectEmailNeedles: string[] = [];
+  for (const value of identifiers.allSubjectEmails) {
+    if (!meterTraversalValue(value, meter)) break;
+    subjectEmailNeedles.push(value);
+  }
+  const subjectPhoneDigitNeedles: string[] = [];
+  for (const value of identifiers.allSubjectPhones) {
+    if (!meterTraversalValue(value, meter)) break;
+    const digits = digitsOnly(value);
+    if (digits.length >= 7) subjectPhoneDigitNeedles.push(digits);
+  }
   const context: ExportContext = {
     agencyId,
     person,
     identifiers,
     lineage,
-    otherPersonNames: Object.values(state.persons ?? {})
-      .filter(candidate => candidate.agencyId === agencyId && candidate.id !== person.id && candidate.name)
-      .map(candidate => candidate.name!),
-    subjectIdNeedles: [person.id, ...lineage.relationshipIds, ...lineage.facetIds].slice(0, 1_000),
-    subjectEmailNeedles: [...identifiers.allSubjectEmails],
-    subjectPhoneDigitNeedles: [...identifiers.allSubjectPhones].map(digitsOnly).filter(phone => phone.length >= 7),
-    maxValues: Math.max(1, Math.min(MAX_SUBJECT_ACCESS_VALUES, Math.floor(options.maxValues ?? MAX_SUBJECT_ACCESS_VALUES))),
+    otherPersonNames,
+    subjectIdNeedles,
+    subjectEmailNeedles,
+    subjectPhoneDigitNeedles,
+    maxValues: meter.maxValues,
     result,
+    materialised: meter.materialised,
   };
 
-  for (const [collection, rawCollection] of ownDataEntries(state as unknown as JsonRecord)) {
-    if (collection === "pluginData") {
-      inspectPluginData(state, context);
+  if (textHasRestrictedPii(result.subject.personId, context, false)) {
+    result.subject.personId = "[redacted:restricted-identifier]";
+    addCount(result.redactedFields, "persons");
+    addCount(result.coMingledPiiMatches, "persons");
+    addIncomplete(result, "invalid-stored-value");
+  }
+  if (typeof person.name === "string") result.subject.name = person.name;
+  else if (person.name !== undefined) markStoredValueIssue(context, "persons", "invalid-stored-value");
+  result.subject.emails = safeHeaderValues(identifiers.displayedEmails, "persons", context);
+  result.subject.phones = safeHeaderValues(identifiers.displayedPhones, "persons", context);
+  result.subject.clientIds = safeHeaderValues([...lineage.clientIds].sort(), "clients", context);
+  result.subject.relationshipIds = safeHeaderValues([...lineage.relationshipIds].sort(), "clients", context);
+  result.subject.facetIds = safeHeaderValues([...lineage.facetIds].sort(), "persons", context);
+
+  const rawPluginInstalls = asRecord(resident.get("pluginInstalls"));
+  for (const [collection, rawCollection] of root.entries) {
+    if (rawCollection === null || typeof rawCollection !== "object") continue;
+    if (textHasRestrictedPii(collection, context, false)) {
+      markStoredValueIssue(context, "portalState", "invalid-stored-value");
       continue;
     }
-    if (rawCollection === null || typeof rawCollection !== "object") continue;
-    const rows = ownDataEntries(rawCollection as object);
-    for (const [, row] of rows) {
+    result.searchedCollections.push(collection);
+    if (collection === "pluginData") {
+      inspectPluginData(rawCollection, rawPluginInstalls, context);
+      continue;
+    }
+    const rows = storedDataEntries(rawCollection, context, collection);
+    for (const [, row] of rows.entries) {
       inspectRecord(collection, row, context);
     }
   }
@@ -1256,7 +1687,7 @@ export function subjectAccessExportJson(result: SubjectAccessResult): string {
       unsupportedCollections: result.unsupportedCollectionMatches,
       omittedFields: result.omittedFields,
       loadedSidecars: SUBJECT_ACCESS_REQUIRED_SIDECARS,
-      statement: "Every resident collection was walked. Counted review items are not included in the automatic safe subset.",
+      statement: "Every enumerable resident collection backed by stored data descriptors was inspected. Non-data descriptors and bounded-traversal failures make preparation incomplete. Counted review items are excluded from the automatic safe subset.",
     },
     retention: "This point-in-time export does not delete source data or change its configured retention.",
     delivery: "Preparation is not delivery. The request remains open until separate, evidenced delivery is recorded.",

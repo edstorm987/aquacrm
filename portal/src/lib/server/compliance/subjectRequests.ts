@@ -288,6 +288,53 @@ function subjectAccessDeliveryResultId(input: {
   ].join("\0"), "utf8").digest("hex");
 }
 
+function storedRequestField(record: object, key: string): { value: unknown; valid: boolean } {
+  const descriptor = Object.getOwnPropertyDescriptor(record, key);
+  if (!descriptor || !descriptor.enumerable || !("value" in descriptor)) {
+    return { value: undefined, valid: false };
+  }
+  return { value: descriptor.value, valid: true };
+}
+
+/**
+ * A delivery evidence identifier is an external receipt/transaction identity,
+ * not a request-local label. Bind it durably to one committed result so a
+ * receipt cannot be presented as proof that two different disclosures were
+ * delivered. Descriptor reads deliberately fail closed on poisoned in-memory
+ * adapters without invoking accessors.
+ */
+function assertDeliveryEvidenceBinding(
+  subjectRequests: Record<string, SubjectRequest>,
+  binding: { agencyId: string; requestId: string; resultId: string; evidenceId: string },
+): void {
+  for (const storedRequestId of Object.keys(subjectRequests)) {
+    const rowDescriptor = Object.getOwnPropertyDescriptor(subjectRequests, storedRequestId);
+    if (!rowDescriptor?.enumerable || !("value" in rowDescriptor)
+      || rowDescriptor.value === null || typeof rowDescriptor.value !== "object") {
+      throw new SubjectAccessRequestGateError();
+    }
+    const row = rowDescriptor.value as object;
+    const evidence = storedRequestField(row, "deliveryEvidenceId");
+    if (!evidence.valid) {
+      if (Object.getOwnPropertyDescriptor(row, "deliveryEvidenceId")) {
+        throw new SubjectAccessRequestGateError();
+      }
+      continue;
+    }
+    if (evidence.value !== binding.evidenceId) continue;
+    const agency = storedRequestField(row, "agencyId");
+    const id = storedRequestField(row, "id");
+    const result = storedRequestField(row, "deliveryResultId");
+    if (!agency.valid || !id.valid || !result.valid
+      || agency.value !== binding.agencyId
+      || id.value !== binding.requestId
+      || storedRequestId !== binding.requestId
+      || result.value !== binding.resultId) {
+      throw new SubjectAccessRequestGateError();
+    }
+  }
+}
+
 export function fulfilPreparedSubjectAccessDelivery(
   agencyId: string,
   id: string,
@@ -303,6 +350,9 @@ export function fulfilPreparedSubjectAccessDelivery(
   const resultId = subjectAccessDeliveryResultId({ agencyId, requestId: id, personId, digest, deliveryMethod, evidenceId });
   let updated: SubjectAccessDeliveryResult | null = null;
   mutate(state => {
+    assertDeliveryEvidenceBinding(state.subjectRequests, {
+      agencyId, requestId: id, resultId, evidenceId,
+    });
     const request = state.subjectRequests[id];
     const exactCompletedReplay = Boolean(
       request

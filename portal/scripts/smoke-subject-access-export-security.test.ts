@@ -321,6 +321,7 @@ test("only typed exclusive ownership authorises rows; client facets and relation
   assert.equal(json.includes(SHARED_EMAIL), false);
   assert.equal(json.includes(SUBJECT_PHONE), false);
   assert.deepEqual(result.searchedCollections.sort(), Object.keys(realStorage.getState()).sort(), "every collection is walked");
+  assert.match(json, /stored data descriptors was inspected/, "the completeness wording describes only collections that were safely inspected");
 });
 
 test("stale root owners and conflicting nested scopes veto otherwise exclusive contact authority", async () => {
@@ -420,6 +421,88 @@ test("canonical phone equivalence and typed owners at arbitrary valid depth work
   assert.equal(ids.includes("poisoned_owner_claim"), false, "an accessor makes the otherwise matching row review-only");
   assert.equal(getterCalls, 0, "neither ownership extraction nor review scanning may invoke stored getters");
   assert.ok(result.ambiguousMatches.tasks >= 1);
+});
+
+test("stored accessors in subjects, identifiers, rows and root collections never execute and force explicit incompleteness", async () => {
+  const world = await seedWorld();
+  let getterCalls = 0;
+  const poison = () => {
+    getterCalls += 1;
+    throw new Error("subject access export executed a stored accessor");
+  };
+  realStorage.mutate(state => {
+    const subject = state.persons[world.personId] as unknown as Record<string, unknown>;
+    Object.defineProperty(subject, "name", { configurable: true, enumerable: true, get: poison });
+    Object.defineProperty(subject, "facets", { configurable: true, enumerable: true, get: poison });
+    Object.defineProperty(subject, "emails", { configurable: true, enumerable: true, get: poison });
+    const other = state.persons[world.otherPersonId] as unknown as Record<string, unknown>;
+    Object.defineProperty(other, "id", { configurable: true, enumerable: true, get: poison });
+    const otherEmail = (other.emails as Array<Record<string, unknown>>)[0];
+    Object.defineProperty(otherEmail, "value", { configurable: true, enumerable: true, get: poison });
+    const clientId = `accessor_lineage_client_${sequence}`;
+    state.clients[clientId] = clientFixture({
+      id: clientId,
+      agencyId: world.agencyId,
+      personId: world.personId,
+      relationshipId: `accessor_lineage_relationship_${sequence}`,
+      name: "Subject Person",
+    });
+    Object.defineProperty(state.clients[clientId], "personId", {
+      configurable: true, enumerable: true, get: poison,
+    });
+    const nested: Record<string, unknown> = { subjectPersonId: world.personId };
+    Object.defineProperty(nested, "computed", { configurable: true, enumerable: true, get: poison });
+    state.tasks.poisoned_projector = {
+      id: "poisoned_projector", agencyId: world.agencyId, personId: world.personId, metadata: nested,
+    } as never;
+    Object.defineProperty(state.tasks.poisoned_projector, "status", {
+      configurable: true, enumerable: true, get: poison,
+    });
+    Object.defineProperty(state.tasks, "poisoned_collection_row", {
+      configurable: true, enumerable: true, get: poison,
+    });
+    Object.defineProperty(state, "dashboardWeekPlans", {
+      configurable: true, enumerable: true, get: poison,
+    });
+  });
+
+  const result = exportsApi.collectSubjectAccessExport(world.agencyId, world.personId)!;
+  assert.equal(getterCalls, 0, "descriptor-only traversal must not execute any stored getter");
+  assert.ok(result.incompleteReasons.includes("accessor-value"));
+  assert.ok((result.omittedFields.persons ?? 0) > 0);
+  assert.ok((result.omittedFields.tasks ?? 0) > 0);
+  assert.ok((result.omittedFields.portalState ?? 0) > 0);
+  assert.equal(result.searchedCollections.includes("dashboardWeekPlans"), false, "an accessor collection was not searched");
+  assert.equal(result.searchedCollections.includes("tasks"), true, "the data-backed portion of tasks was inspected but remains incomplete");
+  assert.throws(
+    () => exportsApi.subjectAccessExportJson(result),
+    (error: unknown) => error instanceof exportsApi.SubjectAccessExportIncompleteError,
+    "an accessor-bearing resident state cannot claim automatic safe-subset completeness",
+  );
+});
+
+test("hostile subject and collection identifiers are never emitted as an uninspected string", async () => {
+  const world = await seedWorld();
+  const hostilePersonId = `person:${THIRD_PARTY_EMAIL}`;
+  const hostileCollection = `collection:${THIRD_PARTY_EMAIL}`;
+  realStorage.mutate(state => {
+    const person = state.persons[world.personId];
+    delete state.persons[world.personId];
+    person.id = hostilePersonId;
+    state.persons[hostilePersonId] = person;
+    (state as unknown as Record<string, unknown>)[hostileCollection] = {
+      hostile: { id: "hostile", agencyId: world.agencyId, personId: hostilePersonId },
+    };
+  });
+
+  const result = exportsApi.collectSubjectAccessExport(world.agencyId, hostilePersonId)!;
+  assert.equal(result.subject.personId, "[redacted:restricted-identifier]");
+  assert.equal(result.searchedCollections.includes(hostileCollection), false);
+  assert.ok(result.incompleteReasons.includes("invalid-stored-value"));
+  assert.throws(
+    () => exportsApi.subjectAccessExportJson(result),
+    (error: unknown) => error instanceof exportsApi.SubjectAccessExportIncompleteError,
+  );
 });
 
 test("third-party fields are redacted while free text and depth-limit rows are quarantined", async () => {
@@ -684,8 +767,25 @@ test("allowlisted task, ledger and finance reference strings redact third-party 
       id: "reference_leak",
       agencyId: world.agencyId,
       personId: world.personId,
-      sourceId: `source:${THIRD_PARTY_EMAIL}`,
-      sourceHref: `https://example.test/profile?email=${encodeURIComponent(THIRD_PARTY_EMAIL)}`,
+      sourceId: "sort-code:20-12-34",
+      sourceHref: "https://example.test/profile?nino=AB%2012%2034%2056%20C",
+      seriesId: "postcode:SW1A 1AA",
+      status: THIRD_PARTY_EMAIL,
+      priority: "20/12/34",
+      origin: THIRD_PARTY_ADDRESS,
+      clientBoardColumn: "bank account 87654321",
+    } as never;
+    state.tasks.reference_safe = {
+      id: "reference_safe",
+      agencyId: world.agencyId,
+      personId: world.personId,
+      sourceId: "invoice:INV-2026-0001",
+      sourceHref: "https://example.test/invoices/INV-2026-0001",
+      seriesId: "series_2026_42",
+      status: "todo",
+      priority: "normal",
+      origin: "manual",
+      clientBoardColumn: "backlog",
     } as never;
     state.clientRecordLedger.reference_leak = {
       id: "ledger_reference_leak",
@@ -720,7 +820,7 @@ test("allowlisted task, ledger and finance reference strings redact third-party 
         agencyId: world.agencyId,
         clientId,
         number: "INV-42",
-        externalRef: `stripe:${THIRD_PARTY_EMAIL}`,
+        externalRef: "nino:AB 12 34 56 C",
         paidVia: "bank account 87654321",
         issuedAt: 1_725_555_000_123,
         dueAt: 1_725_555_100_123,
@@ -739,19 +839,35 @@ test("allowlisted task, ledger and finance reference strings redact third-party 
   const task = (result.found.tasks ?? []).find(row => (row as { id?: string }).id === "reference_leak") as Record<string, unknown>;
   assert.equal(task.sourceId, "[redacted:restricted-identifier]");
   assert.equal(task.sourceHref, "[redacted:restricted-identifier]");
+  assert.equal(task.seriesId, "[redacted:restricted-identifier]");
+  for (const field of ["status", "priority", "origin", "clientBoardColumn"]) {
+    assert.equal(task[field], undefined, `${field} must be runtime-validated instead of blindly copied`);
+  }
+  const safeTask = (result.found.tasks ?? []).find(row => (row as { id?: string }).id === "reference_safe") as Record<string, unknown>;
+  assert.equal(safeTask.sourceId, "invoice:INV-2026-0001", "ordinary machine references must not be false positives");
+  assert.equal(safeTask.status, "todo");
+  assert.equal(safeTask.priority, "normal");
+  assert.equal(safeTask.origin, "manual");
+  assert.equal(safeTask.clientBoardColumn, "backlog");
   const ledger = (result.found.clientRecordLedger ?? []).find(row => (row as { id?: string }).id === "ledger_reference_leak") as Record<string, unknown>;
   assert.equal(ledger.href, "[redacted:restricted-identifier]");
   assert.equal(ledger.parentSourceId, "[redacted:restricted-identifier]");
   const invoice = (result.found.pluginData ?? [])[0] as { value: Record<string, unknown> };
   assert.equal(invoice.value.externalRef, "[redacted:restricted-identifier]");
   assert.equal(invoice.value.paidVia, "[redacted:restricted-identifier]");
-  assert.equal(result.redactedFields.tasks, 2);
+  assert.equal(result.redactedFields.tasks, 3);
+  assert.ok((result.omittedFields.tasks ?? 0) >= 4, "malformed runtime enum strings are explicitly counted for review");
   assert.equal(result.redactedFields.clientRecordLedger, 2);
   assert.equal(result.redactedFields.pluginData, 2);
   const json = exportsApi.subjectAccessExportJson(result);
   const exported = JSON.parse(json) as { completeness: { redactedFields: Record<string, number> } };
   assert.deepEqual(exported.completeness.redactedFields, result.redactedFields, "the delivered completeness statement carries exact redaction counters");
   assert.equal(json.includes(THIRD_PARTY_EMAIL), false);
+  assert.equal(json.includes("20-12-34"), false);
+  assert.equal(json.includes("20/12/34"), false);
+  assert.equal(json.includes("AB 12 34 56 C"), false);
+  assert.equal(json.includes("SW1A 1AA"), false);
+  assert.equal(json.includes(THIRD_PARTY_ADDRESS), false);
   assert.equal(json.includes("12345678"), false);
   assert.equal(json.includes("87654321"), false);
 });
@@ -854,7 +970,7 @@ test("typed owner accumulation is Set-linear at 2k, 4k, 8k and 16k claims and ne
     const result = exportsApi.collectSubjectAccessExport(world.agencyId, world.personId)!;
     observations.push({ size, values: result.work.valuesVisited });
     assert.ok(result.work.valuesVisited > size, "typed-claim traversal must be present in the work meter");
-    assert.ok(result.work.valuesVisited < size * 4 + 2_000, "the bounded walker must visit O(n) values");
+    assert.ok(result.work.valuesVisited < size * 8 + 4_000, `the descriptor clone and typed-claim passes must remain O(n): ${JSON.stringify(observations)}`);
     assert.deepEqual(result.incompleteReasons, []);
   }
   for (let index = 1; index < observations.length; index += 1) {
@@ -875,6 +991,49 @@ test("typed owner accumulation is Set-linear at 2k, 4k, 8k and 16k claims and ne
   assert.ok(capped.incompleteReasons.includes("value-limit"), "every nested ownership path shares the hard value budget");
   assert.throws(
     () => exportsApi.subjectAccessExportJson(capped),
+    (error: unknown) => error instanceof exportsApi.SubjectAccessExportIncompleteError,
+  );
+});
+
+test("person partition, lineage and descriptor discovery share one hard traversal budget", async () => {
+  const world = await seedWorld();
+  let getterCalls = 0;
+  realStorage.mutate(state => {
+    for (let index = 0; index < 4_000; index += 1) {
+      const id = `partition_bound_person_${index}`;
+      state.persons[id] = personFixture({
+        id,
+        agencyId: world.agencyId,
+        name: `Bounded Person ${index}`,
+        emails: [`bounded-${index}@example.test`],
+        phones: [{ value: `+44 7701 ${String(index).padStart(6, "0")}` }],
+      });
+      const clientId = `partition_bound_client_${index}`;
+      state.clients[clientId] = clientFixture({
+        id: clientId,
+        agencyId: world.agencyId,
+        personId: id,
+        relationshipId: `partition_bound_relationship_${index}`,
+        name: `Bounded Client ${index}`,
+      });
+    }
+    Object.defineProperty(state.tasks, "descriptor_bound_accessor", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        getterCalls += 1;
+        throw new Error("bounded descriptor discovery executed an accessor");
+      },
+    });
+  });
+
+  const maxValues = 512;
+  const result = exportsApi.collectSubjectAccessExport(world.agencyId, world.personId, { maxValues })!;
+  assert.equal(getterCalls, 0);
+  assert.equal(result.work.valuesVisited, maxValues, "the shared meter never increments beyond its configured cap");
+  assert.ok(result.incompleteReasons.includes("value-limit"));
+  assert.throws(
+    () => exportsApi.subjectAccessExportJson(result),
     (error: unknown) => error instanceof exportsApi.SubjectAccessExportIncompleteError,
   );
 });
@@ -1114,6 +1273,51 @@ test("preparation is replayable but only evidenced review and delivery fulfil; f
     const refusedReplay = await patch(world.token, { requestId: ready.id, personId: world.personId, ...mismatch });
     assert.equal(refusedReplay.status, 409, "a changed digest, method or evidence is not an idempotent replay");
   }
+
+  const collisionA = makeRequest(world, { verify: true });
+  const collisionB = makeRequest(world, { verify: true });
+  const collisionPreparedA = await post(world.token, { requestId: collisionA.id, personId: world.personId });
+  const collisionPreparedB = await post(world.token, { requestId: collisionB.id, personId: world.personId });
+  assert.equal(collisionPreparedA.status, 200);
+  assert.equal(collisionPreparedB.status, 200);
+  const collisionDigestA = collisionPreparedA.headers.get("x-subject-access-digest")!;
+  const collisionDigestB = collisionPreparedB.headers.get("x-subject-access-digest")!;
+  for (const [requestId, collisionDigest] of [
+    [collisionA.id, collisionDigestA],
+    [collisionB.id, collisionDigestB],
+  ] as const) {
+    const review = await put(world.token, {
+      requestId,
+      personId: world.personId,
+      preparedExportDigest: collisionDigest,
+      reviewEvidenceId: `review-${requestId}`,
+    });
+    assert.equal(review.status, 200);
+  }
+  const collisionResponses = await Promise.all([
+    patch(world.token, {
+      requestId: collisionA.id,
+      personId: world.personId,
+      preparedExportDigest: collisionDigestA,
+      deliveryMethod: "verified-portal",
+      deliveryEvidenceId: "delivery-shared-race",
+    }),
+    patch(world.token, {
+      requestId: collisionB.id,
+      personId: world.personId,
+      preparedExportDigest: collisionDigestB,
+      deliveryMethod: "verified-portal",
+      deliveryEvidenceId: "delivery-shared-race",
+    }),
+  ]);
+  assert.deepEqual(collisionResponses.map(response => response.status).sort(), [200, 409], "one evidence identity can commit only one raced disclosure");
+  const collisionStates = [
+    requests.findSubjectRequest(world.agencyId, collisionA.id),
+    requests.findSubjectRequest(world.agencyId, collisionB.id),
+  ];
+  assert.equal(collisionStates.filter(request => request?.fulfilledAt).length, 1);
+  const rejectedCollision = collisionStates.find(request => !request?.fulfilledAt);
+  assert.ok(rejectedCollision?.preparedExportJson, "the rejected collision remains open with its staged bytes intact");
 
   const rollback = makeRequest(world, { verify: true });
   const beforeActivity = activity.listActivity({ agencyId: world.agencyId, limit: 100 }).length;

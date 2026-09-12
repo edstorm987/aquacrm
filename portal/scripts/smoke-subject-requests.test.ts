@@ -159,6 +159,44 @@ test("subject-access preparation, review and delivery require the exact open ver
       "only the exact durable result identity may replay",
     );
   }
+
+  for (const collision of [
+    { agencyId, personId, label: "same tenant, different request" },
+    { agencyId: "agency_subject_access_gate_other", personId: "per_subject_access_gate_other", label: "different tenant and request" },
+  ]) {
+    const collidingRequest = requests.recordSubjectRequest({
+      agencyId: collision.agencyId,
+      kind: "access",
+      subjectLabel: "collision@example.test",
+      personId: collision.personId,
+      createdBy: "owner",
+    });
+    requests.verifySubjectRequestIdentity(collision.agencyId, collidingRequest.id, "owner");
+    requests.recordPreparedSubjectAccessExport(
+      collision.agencyId,
+      collidingRequest.id,
+      collision.personId,
+      "owner",
+      { digest, generatedAt: 123, recordCount: 0, reviewCount: 0, byteLength: 2, json: "{}" },
+    );
+    assert.throws(
+      () => requests.fulfilPreparedSubjectAccessDelivery(
+        collision.agencyId,
+        collidingRequest.id,
+        collision.personId,
+        "owner",
+        digest,
+        "verified-portal",
+        "delivery-1",
+      ),
+      (error: unknown) => (error as { code?: string }).code === "request_not_ready",
+      `${collision.label} cannot reuse evidence already bound to a committed result`,
+    );
+    const unchangedCollision = requests.findSubjectRequest(collision.agencyId, collidingRequest.id);
+    assert.equal(unchangedCollision?.fulfilledAt, undefined);
+    assert.equal(unchangedCollision?.deliveryEvidenceId, undefined);
+    assert.equal(unchangedCollision?.preparedExportJson, "{}", "a rejected collision preserves the replayable staged file");
+  }
   assert.throws(
     () => requests.requireSubjectAccessRequestForExport(agencyId, request.id, personId),
     (error: unknown) => (error as { code?: string }).code === "request_not_ready",

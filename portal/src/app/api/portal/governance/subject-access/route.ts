@@ -237,7 +237,8 @@ export async function PATCH(request: NextRequest) {
   if (!body) return failure(400, "invalid_request");
   try {
     const { session, agencyId } = await actor();
-    const delivery = await withPortalStateTransaction(`subject-access:deliver:${agencyId}:${body.requestId}`, () => {
+    const evidenceLockId = crypto.createHash("sha256").update(body.deliveryEvidenceId, "utf8").digest("hex");
+    const delivery = await withPortalStateTransaction(`subject-access:delivery-evidence:${evidenceLockId}`, () => {
       const result = fulfilPreparedSubjectAccessDelivery(
         agencyId, body.requestId, body.personId, session.userId, body.preparedExportDigest, body.deliveryMethod, body.deliveryEvidenceId,
       );
