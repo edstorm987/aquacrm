@@ -281,8 +281,19 @@ export function SettingsTabs({ ctx }: { ctx: SettingsContext }) {
       </label>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start">
-        {/* The rail. Every section visible at once — the point of the change. */}
-        <nav aria-label="Settings sections" className="hidden lg:block">
+        {/* The rail. Every section visible at once — the point of the change.
+            SETTINGS-SCROLL-001 / DECISIONS #10: at desktop (lg+) the rail is
+            sticky so it stays in view while the right pane scrolls past it — the
+            grid's `lg:items-start` is what gives a sticky grid item room to
+            travel. When the rail itself is taller than the viewport (e.g. 200%
+            zoom on a wide screen) it scrolls internally rather than clipping.
+            Below lg the rail is hidden and the grouped `<select>` above drives a
+            normal single-column document flow, so small widths and 200% zoom
+            (which drops below the lg breakpoint) keep one column. */}
+        <nav
+          aria-label="Settings sections"
+          className="hidden lg:block lg:sticky lg:top-6 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto lg:overscroll-contain lg:pb-2"
+        >
           <label className="mb-3 block px-2">
             <span className="sr-only">Search settings</span>
             <input
