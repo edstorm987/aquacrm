@@ -91,7 +91,7 @@ const authenticates = (source: string): boolean =>
   READS_SESSION.test(source) || READS_ACCESS_KERNEL.test(source);
 const READS_QUERY_AGENCY = /searchParams\.get\(["']agencyId["']\)|x-aqua-agency-id/;
 const READS_REQUEST_CLIENT =
-  /searchParams\.get\(["']clientId["']\)|x-aqua-client-id|body[\w?.]*\.clientId|input\.clientId|params[\w?.()]*\)?\.clientId|\{[^}]*\bclientId\b[^}]*\}\s*=\s*(body|input|payload|await)/;
+  /searchParams\.get\(["']clientId["']\)|x-aqua-client-id|body[\w?.]*\.clientId|input\.clientId|parsed[\w?.]*\.clientId|params[\w?.()]*\)?\.clientId|\{[^}]*\bclientId\b[^}]*\}\s*=\s*(body|input|payload|await)/;
 
 describe("the non-plugin app API routes — the class with no class-level guard", () => {
   it("the enumeration is pinned, so a new route cannot join unnoticed", () => {
@@ -225,8 +225,15 @@ describe("the non-plugin app API routes — the class with no class-level guard"
     // the request; actions additionally re-verify the owner's password, require
     // a typed confirmation, refuse cross-tenant user/session targets, and gate
     // platform-wide switches to the operator's own owner.
-    assert.equal(routes.length, 164,
-      `there are now ${routes.length} non-plugin routes under src/app/api/portal, not 164.`
+    // 164 → 165 on 2026-09-12: `settings/embed-credentials`, the management
+    // door for independently revocable portal-embed bearers. GET and POST both
+    // require an owner/manager SESSION and take the agency only from
+    // `session.agencyId`; POST's optional clientId is paired with that agency
+    // before creation and checked again inside the transaction. Mutations also
+    // require exact same-origin and signed CSRF, and the reviewed auth registry
+    // therefore classifies this as gated rather than adding it to PUBLIC.
+    assert.equal(routes.length, 165,
+      `there are now ${routes.length} non-plugin routes under src/app/api/portal, not 165.`
       + " A new one has appeared: decide where IT gets its tenant from, then update this count.");
   });
 
@@ -290,6 +297,10 @@ describe("the non-plugin app API routes — the class with no class-level guard"
       "portal/plugins/health/route.ts",
       "portal/plugins/settings/route.ts",
       "portal/products/rollout/route.ts",
+      // Takes an optional clientId from bounded JSON, but pairs it with the
+      // SESSION agency through getClientForAgency both before and inside the
+      // transaction. Audited when it joined this list (2026-09-12).
+      "portal/settings/embed-credentials/route.ts",
       "portal/settings/integrations/route.ts",
       "portal/tasks/route.ts",
       "portal/tasks/templates/route.ts",
