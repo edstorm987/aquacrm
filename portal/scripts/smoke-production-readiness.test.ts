@@ -12,6 +12,7 @@ function productionEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     PORTAL_BACKEND: "postgres",
     DATABASE_URL: "postgres://portal.example.invalid/milesymedia",
     PORTAL_SESSION_SECRET: "a-production-session-secret-over-32-characters",
+    PORTAL_DSAR_INTEGRITY_KEY: Buffer.from("0123456789abcdef0123456789abcdef", "utf8").toString("base64url"),
     NEXT_PUBLIC_PORTAL_SECURITY: "strict",
     NEXT_PUBLIC_PORTAL_BASE_URL: "https://portal.milesymedia.co.uk",
     MILESYMEDIA_FROM_EMAIL: "portal@milesymedia.co.uk",
@@ -44,6 +45,20 @@ describe("production readiness", () => {
     }));
     assert.equal(result.ready, false);
     assert.equal(result.items.find(item => item.id === "security")?.status, "needs-setup");
+  });
+
+  it("requires an independent valid DSAR integrity key for launch readiness", () => {
+    for (const PORTAL_DSAR_INTEGRITY_KEY of ["", "short", "x".repeat(43)]) {
+      const result = inspectProductionReadiness(productionEnv({ PORTAL_DSAR_INTEGRITY_KEY }));
+      assert.equal(result.ready, false);
+      assert.equal(result.items.find(item => item.id === "security")?.status, "needs-setup");
+    }
+    const reused = productionEnv();
+    reused.PORTAL_DSAR_INTEGRITY_PREVIOUS_KEY = reused.PORTAL_DSAR_INTEGRITY_KEY;
+    assert.equal(inspectProductionReadiness(reused).items.find(item => item.id === "security")?.status, "needs-setup");
+    const sessionReuse = productionEnv();
+    sessionReuse.PORTAL_DSAR_INTEGRITY_KEY = sessionReuse.PORTAL_SESSION_SECRET;
+    assert.equal(inspectProductionReadiness(sessionReuse).items.find(item => item.id === "security")?.status, "needs-setup");
   });
 
   it("requires durable customer data", () => {

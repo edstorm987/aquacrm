@@ -2,6 +2,7 @@ import {
   inspectObservabilityCapability,
   type ObservabilityCapability,
 } from "./observabilityCapability";
+import { validSubjectAccessIntegrityKeyMaterial } from "./env";
 
 export type ReadinessStatus = "ready" | "needs-setup" | "optional";
 export type ReadinessGroup = "core" | "communication" | "money" | "development" | "intelligence";
@@ -153,6 +154,12 @@ export function inspectProductionReadiness(
       ? supabaseReady
       : postgresReady || supabaseReady;
   const securityReady = (env.PORTAL_SESSION_SECRET?.length ?? 0) >= 32
+    && validSubjectAccessIntegrityKeyMaterial(env.PORTAL_DSAR_INTEGRITY_KEY)
+    && env.PORTAL_DSAR_INTEGRITY_KEY !== env.PORTAL_SESSION_SECRET
+    && (!env.PORTAL_DSAR_INTEGRITY_PREVIOUS_KEY
+      || (validSubjectAccessIntegrityKeyMaterial(env.PORTAL_DSAR_INTEGRITY_PREVIOUS_KEY)
+        && env.PORTAL_DSAR_INTEGRITY_PREVIOUS_KEY !== env.PORTAL_DSAR_INTEGRITY_KEY
+        && env.PORTAL_DSAR_INTEGRITY_PREVIOUS_KEY !== env.PORTAL_SESSION_SECRET))
     && env.NEXT_PUBLIC_PORTAL_SECURITY === "strict"
     && isSecurePublicOrigin(env.NEXT_PUBLIC_PORTAL_BASE_URL);
   const vaultReady = (env.PORTAL_VAULT_ENCRYPTION_KEY?.length ?? 0) >= 32;
@@ -203,14 +210,14 @@ export function inspectProductionReadiness(
       id: "security",
       label: "Secure access",
       status: securityReady ? "ready" : "needs-setup",
-      summary: securityReady ? "Strict sessions and a secure public origin are configured." : "Production session security is incomplete.",
+      summary: securityReady ? "Strict sessions, DSAR integrity and a secure public origin are configured." : "Production access or DSAR integrity security is incomplete.",
       action: securityReady
         ? "No action needed."
-        : "Set a 32+ character session secret, strict security mode, and the HTTPS portal URL.",
+        : "Set independent session and base64url DSAR integrity keys, strict security mode, and the HTTPS portal URL.",
       required: true,
       group: "core",
       scope: "platform",
-      envKeys: ["PORTAL_SESSION_SECRET", "NEXT_PUBLIC_PORTAL_SECURITY", "NEXT_PUBLIC_PORTAL_BASE_URL"],
+      envKeys: ["PORTAL_SESSION_SECRET", "PORTAL_DSAR_INTEGRITY_KEY", "PORTAL_DSAR_INTEGRITY_PREVIOUS_KEY", "NEXT_PUBLIC_PORTAL_SECURITY", "NEXT_PUBLIC_PORTAL_BASE_URL"],
     },
     {
       id: "vault",

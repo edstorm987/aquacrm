@@ -1310,6 +1310,7 @@ function projectTask(record: JsonRecord, context: ExportContext): JsonRecord {
 const SUBJECT_REQUEST_NUMBER_FIELDS = [
   "receivedAt", "dueAt", "extendedAt", "identityVerifiedAt", "preparedExportAt", "preparedExportGeneratedAt",
   "preparedExportRecordCount", "preparedExportReviewCount", "preparedExportByteLength", "preparedExportReviewResolvedAt",
+  "preparedExportIntegrityKeyVersion", "preparedExportReviewIntegrityKeyVersion", "deliveryIntegrityKeyVersion",
   "deliveredAt", "fulfilledAt", "refusedAt",
 ] as const satisfies readonly (keyof SubjectRequest)[];
 const SUBJECT_REQUEST_ID_FIELDS = [
@@ -1317,6 +1318,9 @@ const SUBJECT_REQUEST_ID_FIELDS = [
 ] as const satisfies readonly (keyof SubjectRequest)[];
 const SUBJECT_REQUEST_DIGEST_FIELDS = [
   "preparedExportDigest", "preparedExportIntegrityTag", "preparedExportReviewResolvedDigest", "preparedExportReviewResultId", "deliveryResultId",
+] as const satisfies readonly (keyof SubjectRequest)[];
+const SUBJECT_REQUEST_KEY_ID_FIELDS = [
+  "preparedExportIntegrityKeyId", "preparedExportReviewIntegrityKeyId", "deliveryIntegrityKeyId",
 ] as const satisfies readonly (keyof SubjectRequest)[];
 const SUBJECT_REQUEST_ENUM_FIELDS = ["kind", "deliveryMethod"] as const satisfies readonly (keyof SubjectRequest)[];
 const SUBJECT_REQUEST_SAFE_STRING_FIELDS = [
@@ -1329,6 +1333,7 @@ const SUBJECT_REQUEST_OMITTED_FIELDS = [
 type HandledSubjectRequestField = typeof SUBJECT_REQUEST_NUMBER_FIELDS[number]
   | typeof SUBJECT_REQUEST_ID_FIELDS[number]
   | typeof SUBJECT_REQUEST_DIGEST_FIELDS[number]
+  | typeof SUBJECT_REQUEST_KEY_ID_FIELDS[number]
   | typeof SUBJECT_REQUEST_ENUM_FIELDS[number]
   | typeof SUBJECT_REQUEST_SAFE_STRING_FIELDS[number]
   | typeof SUBJECT_REQUEST_OMITTED_FIELDS[number]
@@ -1357,6 +1362,12 @@ function projectSubjectRequestTypedFields(record: JsonRecord, out: JsonRecord, c
     if (typeof value === "string" && /^[a-f0-9]{64}$/.test(value)) out[field] = value;
     else noteOmitted(collection, value, context, { coMingled: typeof value === "string" || typeof value === "object" });
   }
+  for (const field of SUBJECT_REQUEST_KEY_ID_FIELDS) {
+    const value = ownDataValue(record, field);
+    if (value === undefined) continue;
+    if (typeof value === "string" && /^dsar_[a-f0-9]{24}$/.test(value)) out[field] = value;
+    else noteOmitted(collection, value, context, { coMingled: typeof value === "string" || typeof value === "object" });
+  }
   const kind = ownDataValue(record, "kind");
   if (kind !== undefined) {
     if (typeof kind === "string" && SUBJECT_REQUEST_KINDS.has(kind as SubjectRequest["kind"])) out.kind = kind;
@@ -1376,6 +1387,7 @@ function projectSubjectRequest(record: JsonRecord, context: ExportContext): Json
     ...SUBJECT_REQUEST_NUMBER_FIELDS,
     ...SUBJECT_REQUEST_ID_FIELDS,
     ...SUBJECT_REQUEST_DIGEST_FIELDS,
+    ...SUBJECT_REQUEST_KEY_ID_FIELDS,
     ...SUBJECT_REQUEST_ENUM_FIELDS,
     ...SUBJECT_REQUEST_SAFE_STRING_FIELDS,
     ...SUBJECT_REQUEST_OMITTED_FIELDS,

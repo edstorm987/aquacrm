@@ -2,7 +2,7 @@
 
 > The catalogues, runbooks and entry-point instructions for people and agents.
 >
-> Consolidated 2026-09-12 from **25** source documents / **53,431 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-12 from **25** source documents / **53,462 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -21,7 +21,7 @@
 - [`docs/DEVELOPMENT-HANDOFF.md`](#source-docs-development-handoff-md) — 1,621 words · `38e159caa2a5`
 - [`docs/development-workspace-cleanup.md`](#source-docs-development-workspace-cleanup-md) — 793 words · `bdb46a5cecd3`
 - [`docs/development.md`](#source-docs-development-md) — 3,625 words · `c5aae51179a7`
-- [`docs/development/BLOCKERS-FOR-ED.md`](#source-docs-development-blockers-for-ed-md) — 1,494 words · `48e28e6022ec`
+- [`docs/development/BLOCKERS-FOR-ED.md`](#source-docs-development-blockers-for-ed-md) — 1,525 words · `c15dac81ed8f`
 - [`docs/development/CAMPAIGN-LEDGER.md`](#source-docs-development-campaign-ledger-md) — 11,397 words · `b3678421ef01`
 - [`docs/development/CLOUD-RESUME.md`](#source-docs-development-cloud-resume-md) — 500 words · `03458cdf18bf`
 - [`docs/development/ED-QUESTIONS.md`](#source-docs-development-ed-questions-md) — 2,202 words · `4a98fb4ade57`
@@ -2453,7 +2453,7 @@ else hangs from.*
 
 ## Source document — `docs/development/BLOCKERS-FOR-ED.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/BLOCKERS-FOR-ED.md" sha256="48e28e6022ec8fbc5ead0562f0b42a9f8ba7a9159c5c820068af7ecb872bdb6c" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/BLOCKERS-FOR-ED.md" sha256="c15dac81ed8f86e7ef92193e3ae472d33a8b1e1c59cf4cefdb947dd6eb94c3d8" -->
 # Blockers for Ed — things I can't do without your keys/accounts/decisions
 
 Owner-controlled list, reconciled 2026-09-08 against the current
@@ -2521,6 +2521,10 @@ verifying. Cross-check against `src/lib/server/productionReadiness.ts`.
   `PORTAL_SESSION_SECRET`, `PORTAL_HANDOFF_SECRET`, `PORTAL_PREVIEW_SECRET`,
   `AQUA_EMBED_SIGNING_SECRET`, `CRON_SECRET` (also gates the radar-probe cron). Embed caller
   credentials are created per agency/client in Settings and stored encrypted in the vault.
+- **Subject-access evidence — new required independent key:**
+  `PORTAL_DSAR_INTEGRITY_KEY`; during a bounded rotation also set
+  `PORTAL_DSAR_INTEGRITY_PREVIOUS_KEY` to the former value. Generate the current
+  value independently from `PORTAL_SESSION_SECRET`; live installation remains unproven.
 - **Radar probe self-scheduler (#170, optional — OFF unless set):** `RADAR_PROBE_INTERVAL_MINUTES` — set to a
   positive number of minutes (e.g. `180`) on the Railway instance to run the probe sweep in-process on the
   persistent server. Leave unset to keep it off (and instead use a Railway cron / GitHub Action on

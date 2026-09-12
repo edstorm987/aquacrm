@@ -26,6 +26,7 @@ export interface EnvIssue {
 
 const PRODUCTION_REQUIRED = [
   "PORTAL_SESSION_SECRET",
+  "PORTAL_DSAR_INTEGRITY_KEY",
   "NEXT_PUBLIC_PORTAL_BASE_URL",
   "NEXT_PUBLIC_PORTAL_SECURITY",
   "NEXT_PUBLIC_SUPABASE_URL",
@@ -59,6 +60,8 @@ const EXAMPLE_SENTINELS: Record<string, string[]> = {
 // every framework's own surface) are ignored.
 export const ENV_ALLOWLIST: readonly string[] = [
   "PORTAL_SESSION_SECRET",
+  "PORTAL_DSAR_INTEGRITY_KEY",
+  "PORTAL_DSAR_INTEGRITY_PREVIOUS_KEY",
   "PORTAL_SESSION_TTL_SECONDS",
   "PORTAL_STATE_KEY",
   "PORTAL_VAULT_ENCRYPTION_KEY",
@@ -170,6 +173,20 @@ export function optionalEnv<T extends string>(name: string, fallback: T): string
   return fallback;
 }
 
+/** Canonical base64url encoding of 32–64 bytes of operator-generated entropy. */
+export function validSubjectAccessIntegrityKeyMaterial(value: string | undefined): boolean {
+  if (!value || value !== value.trim() || !/^[A-Za-z0-9_-]+$/.test(value)) return false;
+  try {
+    const decoded = Buffer.from(value, "base64url");
+    return decoded.length >= 32
+      && decoded.length <= 64
+      && new Set(decoded).size >= 16
+      && decoded.toString("base64url") === value;
+  } catch {
+    return false;
+  }
+}
+
 // Pure validation helper. Splits the side-effect (throw / warn) from
 // the analysis so the smoke can drive every branch.
 export function inspectEnv(env: NodeJS.ProcessEnv = process.env): EnvIssue[] {
@@ -203,6 +220,41 @@ export function inspectEnv(env: NodeJS.ProcessEnv = process.env): EnvIssue[] {
         reason: "matches a known dev / example sentinel — rotate before deploying",
       });
     }
+  }
+
+  const dsarKey = env.PORTAL_DSAR_INTEGRITY_KEY;
+  const previousDsarKey = env.PORTAL_DSAR_INTEGRITY_PREVIOUS_KEY;
+  if (dsarKey && !validSubjectAccessIntegrityKeyMaterial(dsarKey)) {
+    issues.push({
+      name: "PORTAL_DSAR_INTEGRITY_KEY",
+      severity: isProd ? "error" : "warn",
+      reason: "must be canonical base64url containing 32 to 64 random bytes",
+    });
+  } else if (dsarKey && dsarKey === env.PORTAL_SESSION_SECRET) {
+    issues.push({
+      name: "PORTAL_DSAR_INTEGRITY_KEY",
+      severity: isProd ? "error" : "warn",
+      reason: "must be generated independently and must not reuse PORTAL_SESSION_SECRET",
+    });
+  }
+  if (previousDsarKey && !validSubjectAccessIntegrityKeyMaterial(previousDsarKey)) {
+    issues.push({
+      name: "PORTAL_DSAR_INTEGRITY_PREVIOUS_KEY",
+      severity: isProd ? "error" : "warn",
+      reason: "must be canonical base64url containing 32 to 64 random bytes",
+    });
+  } else if (previousDsarKey && previousDsarKey === env.PORTAL_SESSION_SECRET) {
+    issues.push({
+      name: "PORTAL_DSAR_INTEGRITY_PREVIOUS_KEY",
+      severity: isProd ? "error" : "warn",
+      reason: "must not reuse PORTAL_SESSION_SECRET",
+    });
+  } else if (dsarKey && previousDsarKey && dsarKey === previousDsarKey) {
+    issues.push({
+      name: "PORTAL_DSAR_INTEGRITY_PREVIOUS_KEY",
+      severity: isProd ? "error" : "warn",
+      reason: "must differ from PORTAL_DSAR_INTEGRITY_KEY during rotation",
+    });
   }
 
   // NEXT_PUBLIC_PORTAL_SECURITY in prod must be exactly "strict".

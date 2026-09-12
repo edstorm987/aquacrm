@@ -2,7 +2,7 @@
 
 > Source maps, subsystem dossiers, components, routes, state and built-in module notes.
 >
-> Consolidated 2026-09-12 from **23** source documents / **59,814 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-12 from **23** source documents / **59,891 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -10,12 +10,12 @@
 - [`docs/WORKSPACE-FILE-TREE.md`](#source-docs-workspace-file-tree-md) — 1,376 words · `6cd666857aba`
 - [`docs/workspace/advisor.md`](#source-docs-workspace-advisor-md) — 1,445 words · `d5b9b4fc79dc`
 - [`docs/workspace/api-and-routes.md`](#source-docs-workspace-api-and-routes-md) — 946 words · `8bbf0d2e9c9f`
-- [`docs/workspace/api-reference.md`](#source-docs-workspace-api-reference-md) — 8,990 words · `27c9c214a987`
+- [`docs/workspace/api-reference.md`](#source-docs-workspace-api-reference-md) — 9,002 words · `68167fa9280d`
 - [`docs/workspace/aqua-tag.md`](#source-docs-workspace-aqua-tag-md) — 4,196 words · `c0acfad152f7`
 - [`docs/workspace/components.md`](#source-docs-workspace-components-md) — 1,142 words · `5ef3bf2f75be`
-- [`docs/workspace/database.md`](#source-docs-workspace-database-md) — 2,557 words · `d445039e1a3d`
-- [`docs/workspace/env-and-sellability.md`](#source-docs-workspace-env-and-sellability-md) — 3,741 words · `b5f5e0fa72a6`
-- [`docs/workspace/feature-index.md`](#source-docs-workspace-feature-index-md) — 5,488 words · `d987932e0720`
+- [`docs/workspace/database.md`](#source-docs-workspace-database-md) — 2,565 words · `e47ecd1d4c1a`
+- [`docs/workspace/env-and-sellability.md`](#source-docs-workspace-env-and-sellability-md) — 3,793 words · `01fddedba84f`
+- [`docs/workspace/feature-index.md`](#source-docs-workspace-feature-index-md) — 5,493 words · `53ba77968126`
 - [`docs/workspace/hazards-and-duplication.md`](#source-docs-workspace-hazards-and-duplication-md) — 7,826 words · `b6f50763caef`
 - [`docs/workspace/kpi-intelligence.md`](#source-docs-workspace-kpi-intelligence-md) — 2,283 words · `d641f1291cbc`
 - [`docs/workspace/plugins.md`](#source-docs-workspace-plugins-md) — 2,193 words · `85bf55b735d1`
@@ -600,7 +600,7 @@ switcher — membership-only, session ∩ live record), `showcase-mode`, `dev-mo
 
 ## Source document — `docs/workspace/api-reference.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/api-reference.md" sha256="27c9c214a987b1ecd26abb69e223df2629244cd6a11f50f53d77724f9574b675" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/api-reference.md" sha256="68167fa9280d8bafbd480dcc2f3bb6978d356370c7df8270eade3202e7d7a55f" -->
 # Chapter — Hand-maintained API reference
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md) · [API & routes overview](api-and-routes.md)
@@ -1016,7 +1016,7 @@ Two Live-column edge cases (they don't match a naive `supabase/admin` grep):
 | `/api/portal/governance/hipaa` | POST | Toggle the HIPAA readiness track (owner-only); returns HIPAA_HONESTY | agency | new 2026-08-20 |
 | `/api/portal/governance/legal` | POST | Add a legal-register record (owner/manager) | agency | new 2026-08-20 |
 | `/api/portal/governance/erasure/preview` | POST | Non-destructive erasure blast-radius preview (owner/manager) | agency | new 2026-08-20 |
-| `/api/portal/governance/subject-access` | POST / PUT / PATCH | GDPR Art. 15/20 staged safe JSON export (owner/manager). Every body is bounded and binds an exact same-agency identity-verified access/portability request. POST enumerates every enumerable hydrated state entry (including required lazy sidecars); malformed or missing required recognised Person/Client members, accessors and cap exhaustion block preparation, while typed owner/scope vetoes and explicit measured projections produce a reviewable safe subset. Human-authored ledger prose and heterogeneous ledger references are review-only; structured strings use bounded restricted-PII checks with boundary-aware name matching. POST stages exact bytes/digest/manifest totals under a server-secret HMAC and replay revalidates it. PUT creates an authenticated review receipt over the exact artifact and evidence, with stable exact replay and changed/cross-request reuse refusal. PATCH recomputes actual records and detailed/top-level review totals, verifies the artifact/review bindings, then separately authenticates delivery method/evidence before atomic fulfilment. Stored requests are descriptor-read/accessor-refused, transitions are atomic with activity, and every response is no-store. Scope excludes client-owned/provider stores and still requires manual/legal completion. | agency | new 2026-08-28; hardened 2026-09-12 |
+| `/api/portal/governance/subject-access` | POST / PUT / PATCH | GDPR Art. 15/20 staged safe JSON export (owner/manager). Every body is bounded and binds an exact same-agency identity-verified access/portability request. POST enumerates every enumerable hydrated state entry (including required lazy sidecars); malformed or missing required recognised Person/Client members, accessors and cap exhaustion block preparation, while typed owner/scope vetoes and explicit measured projections produce a reviewable safe subset. Human-authored ledger prose and heterogeneous ledger references are review-only; structured strings use bounded restricted-PII checks with boundary-aware name matching. POST stages exact bytes/digest/manifest totals under a dedicated DSAR-key HMAC and persists its derived key id/framing version. PUT and PATCH do the same for exact review and delivery evidence. Current+previous key verification keeps bounded rotation replays stable; unavailable, malformed or retired keys fail through the existing opaque 503 response without a session-secret fallback. PATCH still recomputes actual records and detailed/top-level review totals before atomic fulfilment. Stored requests are descriptor-read/accessor-refused, transitions are atomic with activity, and every response is no-store. Scope excludes client-owned/provider stores and still requires manual/legal completion. | agency | new 2026-08-28; hardened 2026-09-12 |
 | `/api/portal/governance/retention` | POST | Set the retention period per category; blank clears to keep-forever. Returns a fresh preview, never sweeps (owner only) | agency | new 2026-08-28 |
 | `/api/portal/governance/breaches` | POST | GDPR Art. 33/34 breach register — `record`/`notify-authority`/`notify-subjects` (owner/manager), `assess`/`close` (owner only). The 72-hour clock runs from discovery; it records that a human notified, never notifies | agency | new 2026-08-31 |
 | `/api/portal/sop-guides` | GET/POST/PATCH/DELETE | SOP guides CRUD (ordered SOP sequences); GET all-roles, writes owner/manager | agency | new 2026-08-20 |
@@ -1575,7 +1575,7 @@ does not use these; if anything the arrow runs the other way
 
 ## Source document — `docs/workspace/database.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/database.md" sha256="d445039e1a3d36662d9295e83aa9d99a56f9b309c8070fe0187d45c41fbda991" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/database.md" sha256="e47ecd1d4c1aa131e610e0f86538e965eea7b40335fa577941a77f8095f68627" -->
 # Chapter — Database (Supabase / Postgres) dossier
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
@@ -1826,7 +1826,8 @@ appear nowhere in the repo).
 Prod-required and enforced by `env.ts` (throws in prod):
 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
 `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET`,
-`NEXT_PUBLIC_SUPABASE_PUBLIC_BUCKET`, `PORTAL_SESSION_SECRET` (≥32 chars).
+`NEXT_PUBLIC_SUPABASE_PUBLIC_BUCKET`, `PORTAL_SESSION_SECRET` (≥32 chars), and
+the independent base64url `PORTAL_DSAR_INTEGRITY_KEY` (32–64 random bytes).
 Others: `PORTAL_BACKEND`, `PORTAL_STATE_KEY`, `DATABASE_URL` (+ `PORTAL_PG_*`
 pool tuning), `INBOX_STORAGE_BACKEND`, `INBOX_WEBHOOK_RETENTION_DAYS`, Vercel
 Blob fallback (`BLOB_*`), Upstash (`PORTAL_KV_*`, the stub backend).
@@ -1846,7 +1847,7 @@ ingestion; the blob backend holds everything else described across the
 
 ## Source document — `docs/workspace/env-and-sellability.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/env-and-sellability.md" sha256="b5f5e0fa72a67e0d6eadea0124c7fcebcf54e7a124f388db4c3236fc80a729b5" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/env-and-sellability.md" sha256="01fddedba84fe6c2676c126ef9dd860b0d047f560e347a37fb0194ef4a77eea3" -->
 # Chapter — Env-only settings & the cost of selling AquaCRM
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md) · Sibling: [feature-index](feature-index.md) · [hazards-and-duplication](hazards-and-duplication.md)
@@ -2046,7 +2047,8 @@ them to a tenant (§3).
 
 | Var(s) | Read in | Note |
 | --- | --- | --- |
-| `PORTAL_SESSION_SECRET` | `lib/server/auth.ts`, `csrf.ts`, `magicLink.ts`, `emailVerification.ts`, `passwordReset.ts`, `connectionConfirmation.ts`, `inboxMedia.ts`, `metaMessaging.ts`, + 3 OAuth routes | Signs everything. Correct. |
+| `PORTAL_SESSION_SECRET` | `lib/server/auth.ts`, `csrf.ts`, `magicLink.ts`, `emailVerification.ts`, `passwordReset.ts`, `connectionConfirmation.ts`, `inboxMedia.ts`, `metaMessaging.ts`, + 3 OAuth routes | Signs authentication/session flows. It is deliberately not the DSAR evidence key. |
+| `PORTAL_DSAR_INTEGRITY_KEY`, `PORTAL_DSAR_INTEGRITY_PREVIOUS_KEY` | `lib/server/compliance/subjectAccessIntegrity.ts`, `subjectRequests.ts` | Dedicated platform evidence key plus one bounded rotation predecessor. The derived key id and framing version are persisted on each export/review/delivery signature; missing or retired keys fail closed. Correctly env-only, but live installation remains operator evidence. |
 | `PORTAL_VAULT_ENCRYPTION_KEY` | `integrationConnections.ts`, `calendarVault.ts`, `inboxVault.ts`, `server/developmentToolkit.ts` | The key that *enables* per-company credentials. Platform-level by definition. |
 | `DATABASE_URL`, `PORTAL_BACKEND`, `PORTAL_STATE_KEY`, `PORTAL_DATA_FILE`, `PORTAL_ALLOW_SHARED_STATE`, `PORTAL_PG_POOL_MAX/_IDLE_MS/_CONNECT_MS` | `server/storage.ts`, `storagePostgres.ts`, `storageSupabase.ts`, `nonceStore.ts`, `databaseStorageHealth.ts` | The store. Correct. |
 | `NEXT_PUBLIC_SUPABASE_URL/_ANON_KEY/_PUBLIC_BUCKET/_UPLOAD_BUCKET`, `SUPABASE_SERVICE_ROLE_KEY` | `lib/supabase/{config,admin}.ts`, `privateUploadStorage.ts`, `publicUploadStorage.ts`, `inboxStore.ts` | Correct. |
@@ -2285,7 +2287,7 @@ store.
 
 ## Source document — `docs/workspace/feature-index.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/workspace/feature-index.md" sha256="d987932e0720ed9820ff40877d5d4d85bb357570b783b65d8aea0d1fcbe4a983" -->
+<!-- AQUACRM_SOURCE_START path="docs/workspace/feature-index.md" sha256="53ba7796812610a854e78a06a06fda39fb72d3720f0bd2dc46a75f84841344ef" -->
 # Chapter — Feature → files index (the conflict-avoider)
 
 ← Back to [the contents page](../WORKSPACE-FILE-TREE.md)
@@ -2300,7 +2302,7 @@ layers (state → logic → API → UI). Edit these; don't duplicate them.
 | **Nested dev projects (Ed's two levels)** | `parentProjectId` on `DevProject` (`server/types.ts`); rules in `engines/editor/server/devProjects.ts` — `resolveParentProjectId` (two-level rule both ways + self-guard, tenant first, omission carries), `listDevProjectChildren`, `devProjectDeleteRefusal` (parent delete refuses NAMING children; route checks it BEFORE AI cleanup). Display grouping: `lib/shared/devProjectGrouping.ts` (pure, orphan-tolerant), drawn by `app/portal/dev-team/editor/setup/_DevEditorSetup.tsx` (indented children, "Inside" select, per-card "Add a project inside"; editor panel creates pre-parented only). A child is a FULL project. The in-editor family switcher is `devProjectDoorFamily` (door-anchored: the project the editor was OPENED on plus its direct children — a child-scoped door never offers the walk up to the parent). Tests: `scripts/smoke-dev-project-nesting.test.ts`. New 2026-08-22 |
 | **Governance / compliance / legal / DPO** | `app/portal/agency/governance/**` (`_GovernanceWorkspace.tsx`, `_governanceData.ts`), `app/api/portal/governance/**`; reuses `server/legalDocuments.ts`, `lib/compliance/compliancePosture.ts`, `server/clientErasure.ts`. KNOW-first — never a false green. New 2026-08-20 |
 | **Client-owned form data (their Supabase, our pointer)** | A client's enquiries live in THEIR database; we hold a pointer only. `lib/server/clientForms/**` — `clientSupabaseConnection.ts` (the vault connection), `clientFormNotices.ts` (`recordClientFormNotice` is idempotent per row, so a Supabase retry is not a second enquiry), `clientFormReader.ts` (reads values live, never stores them), `clientFormConfirmation.ts`, `clientSupabaseExport.ts` (**public half only — cannot return `webhookSecret`, which is the guarantee**), `clientSupabaseMapping.ts` (narrow mutator; `saveIntegrationConnection` would wipe `projectUrl`/`submissionsTable`). Door: `app/api/public/client-forms/[connectionId]/` (HMAC, timing-safe; unknown connection and bad secret BOTH answer 202). Mapping detection: `lib/enquiries/clientFormMapping.ts`. Client's inbox: the `enquiries` section in `app/portal/customer/_CustomerPortalViews.tsx`. Tests: `scripts/smoke-client-form-notices.test.ts`. New 2026-08-28 |
-| **Subject access & portability (GDPR Art. 15/20)** | `lib/server/compliance/subjectAccessExport.ts` enumerates every enumerable hydrated PortalState entry (including required lazy sidecars); descriptor-backed object collections are reported searched, while non-data descriptors, scalar roots/rows, malformed or missing required recognised Person/Client members, and cap exhaustion block preparation. Exact typed Person/client/facet/relationship ownership and nested owner/scope conflicts decide authority; free-text and actor/assignee mentions never authorise. Explicit projections release only measured shapes: current first-party plugin feature ids require boolean values; unknown features, unsupported/free-text/co-mingled/deep data are review-only; all human-authored ledger prose and heterogeneous ledger references are review-only. Bounded structured-string PII matching covers tested UK shapes and uses name-token boundaries, but is not claimed exhaustive. Door: `app/api/portal/governance/subject-access/` (owner/manager): bounded POST stages replayable bytes/digest/manifest totals under a server-secret HMAC and revalidates it before replay; PUT authenticates review evidence against the exact artifact; PATCH recomputes actual records and detailed/top-level totals, verifies artifact/review bindings, then authenticates delivery evidence before atomic fulfilment with activity. Stored requests are descriptor-read/accessor-refused. All responses are no-store; external stores and legal/manual review remain out of scope, so D10c stays partial. Tests: `scripts/smoke-subject-access-export.test.ts`, `scripts/smoke-subject-access-export-security.test.ts`, `scripts/smoke-subject-requests.test.ts`. New 2026-08-28; hardened 2026-09-12 |
+| **Subject access & portability (GDPR Art. 15/20)** | `lib/server/compliance/subjectAccessExport.ts` enumerates every enumerable hydrated PortalState entry (including required lazy sidecars); descriptor-backed object collections are reported searched, while non-data descriptors, scalar roots/rows, malformed or missing required recognised Person/Client members, and cap exhaustion block preparation. Exact typed Person/client/facet/relationship ownership and nested owner/scope conflicts decide authority; free-text and actor/assignee mentions never authorise. Explicit projections release only measured shapes: current first-party plugin feature ids require boolean values; unknown features, unsupported/free-text/co-mingled/deep data are review-only; all human-authored ledger prose and heterogeneous ledger references are review-only. Bounded structured-string PII matching covers tested UK shapes and uses name-token boundaries, but is not claimed exhaustive. Door: `app/api/portal/governance/subject-access/` (owner/manager): bounded POST stages replayable bytes/digest/manifest totals under a dedicated `PORTAL_DSAR_INTEGRITY_KEY` HMAC and persists a derived key id/framing version; PUT and PATCH authenticate exact review/delivery evidence the same way. One explicit previous key supports rotation; missing or retired keys fail closed with no `PORTAL_SESSION_SECRET` fallback. Stored requests are descriptor-read/accessor-refused. All responses are no-store; external stores, live key installation and legal/manual review remain out of scope, so D10c stays partial. Tests: `scripts/smoke-subject-access-export.test.ts`, `scripts/smoke-subject-access-export-security.test.ts`, `scripts/smoke-subject-requests.test.ts`. New 2026-08-28; hardened 2026-09-12 |
 | **DSAR register & the statutory clock (Art. 12)** | `lib/server/compliance/subjectRequests.ts` — one calendar month from RECEIPT (clamped at month-end), identity verification enforced as a sequence, one extension from the ORIGINAL deadline with a written reason. Access/portability cannot use generic fulfilment: staged bytes/digest, any required review evidence and final delivery evidence are distinct durable states. Staged bytes are cleared after delivery; the digest/evidence remains. Surface: Governance → **Subject requests** (`_GovernanceWorkspace.tsx`). Tests: `scripts/smoke-subject-requests.test.ts`. New 2026-08-28; hardened 2026-09-12 |
 | **Retention (Art. 5(1)(e))** | `lib/server/compliance/retention.ts` — periods per category on `AgencyWorkspaceSettings.retention`; **unset means keep forever**, which is the shipping default and the whole safety story. `findExpired` reads only (split out so a render cannot reach `mutate`); `previewRetentionSweep` counts, `runRetentionSweep` deletes. An OPEN subject request never expires. Form: Governance → Subject requests (owner only). Door: `app/api/portal/governance/retention/`. Tests: `scripts/smoke-retention.test.ts`. New 2026-08-28 |
 | **Where a claim in the privacy notice meets the code** | `scripts/smoke-privacy-notice-truth.test.ts` pins BOTH halves of two known contradictions (form-field values; "the server independently rejects"), so neither side can be changed without the other. Options drafted in `docs/development/plans/supabase-cutover-and-policy-drafts.md` §2f/§2g. New 2026-08-28 |

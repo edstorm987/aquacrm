@@ -2,14 +2,14 @@
 
 > The current readiness assessment, one task list, status history, roadmap, goals, decisions and working queue.
 >
-> Consolidated 2026-09-12 from **7** source documents / **57,702 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-12 from **7** source documents / **57,800 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
 - [`docs/CURRENT-IMPLEMENTATION.md`](#source-docs-current-implementation-md) — 4,996 words · `434edcc94699`
 - [`docs/development/goals.md`](#source-docs-development-goals-md) — 532 words · `62f18b439951`
 - [`docs/development/notes.md`](#source-docs-development-notes-md) — 1,730 words · `f68ea59936dd`
-- [`docs/development/PRODUCTION-READINESS.md`](#source-docs-development-production-readiness-md) — 2,257 words · `69689073325f`
+- [`docs/development/PRODUCTION-READINESS.md`](#source-docs-development-production-readiness-md) — 2,355 words · `3e00be1441e6`
 - [`docs/development/roadmap.md`](#source-docs-development-roadmap-md) — 21,836 words · `6f32b3711a26`
 - [`docs/development/status.md`](#source-docs-development-status-md) — 22,170 words · `6fa2f79af09c`
 - [`docs/development/TODO.md`](#source-docs-development-todo-md) — 4,181 words · `1803d5dd4755`
@@ -893,7 +893,7 @@ the [file map](../WORKSPACE-FILE-TREE.md); issues/risks live in
 
 ## Source document — `docs/development/PRODUCTION-READINESS.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/PRODUCTION-READINESS.md" sha256="69689073325f254a4639a7af63e847988e74c1cfbbac89dd5e34d0fcfedcb536" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/PRODUCTION-READINESS.md" sha256="3e00be1441e6d5cafd9c96bcf171732cfd3f9a61eedc8bc78d967f1b4a31a722" -->
 # Production readiness — current assessment
 
 **Last verified:** 8 September 2026
@@ -922,6 +922,16 @@ verification.
 > always lands). See
 > [UI-WAVE9-EVIDENCE.md](UI-WAVE9-EVIDENCE.md). Not committed/deployed; shared data and the
 > live Supabase project untouched; no live Supabase data written.
+
+> **SEC-006 integrity-key candidate (2026-09-12, local integration only).** The
+> subject-access export/review/delivery chain now uses its own high-entropy
+> `PORTAL_DSAR_INTEGRITY_KEY`, persists the derived signing-key id and framing
+> version at every durable stage, and verifies one explicit previous key during
+> rotation. Exact retries remain immutable across that window; missing,
+> malformed or retired key material fails through the existing opaque 503 path
+> without using `PORTAL_SESSION_SECRET`. Source, focused tests and the readiness
+> model are updated, but no live key was configured and nothing was deployed;
+> therefore this does not change the dated live verdict below.
 
 ## Headline rating
 

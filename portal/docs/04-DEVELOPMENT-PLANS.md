@@ -2,7 +2,7 @@
 
 > Every active, completed and archived phased implementation plan and handoff.
 >
-> Consolidated 2026-09-12 from **63** source documents / **131,184 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-12 from **63** source documents / **131,403 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -43,7 +43,7 @@
 - [`docs/development/plans/information-architecture-v2.md`](#source-docs-development-plans-information-architecture-v2-md) — 893 words · `d2d34f2ce729`
 - [`docs/development/plans/internal-chat-attention.md`](#source-docs-development-plans-internal-chat-attention-md) — 434 words · `5f94a11ee09b`
 - [`docs/development/plans/kpi-intelligence-overhaul.md`](#source-docs-development-plans-kpi-intelligence-overhaul-md) — 1,995 words · `166a3cc9b521`
-- [`docs/development/plans/launch-order-and-blockers.md`](#source-docs-development-plans-launch-order-and-blockers-md) — 21,654 words · `fefbf127a893`
+- [`docs/development/plans/launch-order-and-blockers.md`](#source-docs-development-plans-launch-order-and-blockers-md) — 21,873 words · `705d8c40692b`
 - [`docs/development/plans/marketing-workspace-overhaul.md`](#source-docs-development-plans-marketing-workspace-overhaul-md) — 1,849 words · `c42bb1c185ed`
 - [`docs/development/plans/meta-inbox-connect.md`](#source-docs-development-plans-meta-inbox-connect-md) — 1,197 words · `48c3b40b0764`
 - [`docs/development/plans/mfa-login.md`](#source-docs-development-plans-mfa-login-md) — 1,513 words · `b48b0cc1945d`
@@ -6917,7 +6917,7 @@ plan in flight._
 
 ## Source document — `docs/development/plans/launch-order-and-blockers.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/launch-order-and-blockers.md" sha256="fefbf127a89363502074e4bb04c414673ac3b9d956c8e67ed3beb8003ed37cf0" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/launch-order-and-blockers.md" sha256="705d8c40692bc9a6e84bd66ca7ffa2134014de4c92adcf9892983c64122a0fb3" -->
 # Launch: the order, and what is stopping us
 
 > **HISTORICAL LAUNCH PLAN (written 27–28 August 2026).** Its Vercel steps,
@@ -7045,6 +7045,13 @@ saving never sweeps.
 ---
 
 ## The one fact that decides today
+
+> **2026-09-12 supersession for the SEC-006 integration candidate.** The
+> 2026-08-28 measurements below predate the dedicated DSAR integrity-key gate.
+> They remain historical evidence, but “only those two deployment values” and
+> “nothing else is missing” are no longer current launch instructions. Secure
+> access now also requires an independently generated
+> `PORTAL_DSAR_INTEGRITY_KEY`; live installation has not been proven.
 
 > **This section was WRONG for a full day and is corrected here rather than
 > lower down.** It used to open with a table of twelve ❌ and the sentence
@@ -7263,10 +7270,11 @@ Nothing below can be worked around in code. Grouped by what it unblocks.
 | A hosting environment (Vercel project or equivalent) | There is nowhere to deploy to | — |
 | `NEXT_PUBLIC_PORTAL_BASE_URL` on **https** | Secure-access readiness; OAuth callbacks; cookie security | env |
 | `PORTAL_SESSION_SECRET` (≥32 chars, random) | Signs every session cookie | env |
+| `PORTAL_DSAR_INTEGRITY_KEY` (32–64 random bytes, base64url) | Authenticates staged subject-access exports and review/delivery evidence independently from login sessions | env |
 | `PORTAL_VAULT_ENCRYPTION_KEY` (≥32 chars, random) | Encrypts every stored provider credential | env |
 | `NEXT_PUBLIC_PORTAL_SECURITY=strict` | Turns on the strict security posture | env |
 
-I can generate the two secrets and tell you the values to paste, but **I will
+I can generate the three secrets and tell you the values to paste, but **I will
 not enter them anywhere myself** — that is your rule and it is the right one.
 
 ### 1b. Supabase — blocks SIGNING IN, not just data *(verified 2026-08-27)*
@@ -9150,18 +9158,29 @@ The body is bounded before hydration/auth work; tenant and actor come from the
 session. The request must already exist in the exact agency, be
 access/portability kind, bind the exact Person, be identity-verified, and remain
 open. POST constructs a bounded export, then atomically stages the exact bytes,
-digest, manifest totals, server-secret HMAC integrity tag and preparation
-activity. It returns the automatic safe subset but does **not** fulfil; a lost
-response replays only bytes that still match that authenticated binding.
+digest, manifest totals, dedicated DSAR-key HMAC integrity tag, derived key id,
+framing version and preparation activity. It returns the automatic safe subset
+but does **not** fulfil; a lost response replays only bytes that still match that
+authenticated binding.
 Non-zero review counts require PUT review evidence against that exact artifact.
-The review receipt is a server-secret HMAC over the exact
+The review receipt is a dedicated DSAR-key HMAC over the exact
 agency/request/person/bytes/digest/manifest totals and evidence: an exact replay
 returns the same result id, while publicly recomputed hashes, changed state and
 cross-request reuse are refused. Before PATCH can fulfil, it recomputes the
 staged digest, actual record count, detailed review maps and top-level totals,
 then verifies the artifact tag and authenticated review receipt. It separately
-HMAC-binds delivery method/evidence to that exact artifact and fulfils atomically with
-delivery activity. The generic request helper cannot bypass this sequence.
+HMAC-binds delivery method/evidence to that exact artifact and persists the
+signing key id/version on the review and delivery evidence before fulfilling
+atomically with delivery activity. The generic request helper cannot bypass
+this sequence. `PORTAL_DSAR_INTEGRITY_KEY` is independent of
+`PORTAL_SESSION_SECRET`; one optional `PORTAL_DSAR_INTEGRITY_PREVIOUS_KEY`
+verifies in-flight artifacts and stable retries during rotation. Missing,
+malformed, duplicated or retired key material returns the existing opaque 503
+failure and never silently falls back. Operators must retain the previous key
+until all staged exports and required retry windows signed by it have completed.
+Pre-upgrade staged rows that have no persisted key id/version are not silently
+treated as session-signed evidence or rewritten during a retry: they fail the
+opaque request-state gate and require controlled operator reconciliation.
 Work, string, record and serialised-size limits fail explicitly before
 transition; every success/error, including auth and malformed/oversized input,
 carries `no-store`.
@@ -9181,7 +9200,8 @@ other tenants/requests; every request gate; malformed/oversized bodies; output
 caps; token-boundary short-name probes; consistently rehashed stored-byte/manifest
 tampering with injected PII and contradictory detailed totals; arbitrary and
 publicly recomputed review-result hashes; authenticated request-bound artifact,
-review and delivery evidence/replay; no-store; and
+review and delivery evidence/replay; current/previous-key rotation, immutable
+cross-rotation replay, missing/retired-key fail-closed behavior; no-store; and
 preparation/delivery storage-failure rollback.
 
 **The posture remains `partial`, not `met`.** The request register, identity
@@ -9191,7 +9211,9 @@ systems still need collection; lawful scope and final handover still need a
 human process; and configured retention periods remain unset. The bounded
 staged file lives with the open request until evidenced delivery, when its bytes
 are cleared but digest/evidence remain. A point-in-time export does not alter
-source retention.
+source retention. The dedicated production DSAR key is an operator-supplied
+secret and remains a deployment/launch configuration step, not evidence that a
+key has been installed on any live environment.
 
 > Two existing guards caught this work before it landed, which is the system
 > behaving correctly: the app-route tenancy test refused a new route until its

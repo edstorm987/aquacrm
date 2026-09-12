@@ -2,7 +2,7 @@
 
 ← Back to [the reference index](00-index.md) · [the map](../WORKSPACE-FILE-TREE.md) · [development.md](../development.md)
 
-Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2846 source files; 0 per-source stubs.**
+Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2848 source files; 0 per-source stubs.**
 
 ## Engines — `src/engines/` (89)
 
@@ -175,7 +175,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/server/websiteSources.ts`](server.md#file-src-server-websitesources-ts-88eac3242d)
 - [`src/server/zimanteTradingCompanies.ts`](server.md#file-src-server-zimantetradingcompanies-ts-ef9a41c5a6)
 
-## Shared logic — `src/lib/` (400)
+## Shared logic — `src/lib/` (401)
 
 - [`src/lib/a11y/contrastValidator.ts`](lib.md#file-src-lib-a11y-contrastvalidator-ts-7c6889cfca) — components. We default to 4.5 for the strictest check.
 - [`src/lib/a11y/isEmbedded.ts`](lib.md#file-src-lib-a11y-isembedded-ts-e91cac9938)
@@ -411,6 +411,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/lib/server/compliance/breachRegister.ts`](lib.md#file-src-lib-server-compliance-breachregister-ts-23901fd01c)
 - [`src/lib/server/compliance/retention.ts`](lib.md#file-src-lib-server-compliance-retention-ts-ba422f7289)
 - [`src/lib/server/compliance/subjectAccessExport.ts`](lib.md#file-src-lib-server-compliance-subjectaccessexport-ts-0cf0955bd6)
+- [`src/lib/server/compliance/subjectAccessIntegrity.ts`](lib.md#file-src-lib-server-compliance-subjectaccessintegrity-ts-125a2aa17c)
 - [`src/lib/server/compliance/subjectRequests.ts`](lib.md#file-src-lib-server-compliance-subjectrequests-ts-dfa2bdbaf1)
 - [`src/lib/server/compliancePostureSource.ts`](lib.md#file-src-lib-server-complianceposturesource-ts-5dd4c4aa77)
 - [`src/lib/server/connectionConfirmation.ts`](lib.md#file-src-lib-server-connectionconfirmation-ts-d9ab616d97)
@@ -2180,7 +2181,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/signup/setup/page.tsx`](app.md#file-src-app-signup-setup-page-tsx-e3c8edbab5)
 - [`src/app/signup/setup/SetupForm.tsx`](app.md#file-src-app-signup-setup-setupform-tsx-4ad89f7f91)
 
-## Scripts — `scripts/` (682)
+## Scripts — `scripts/` (683)
 
 - [`scripts/attention-protection.test.ts`](scripts.md#file-scripts-attention-protection-test-ts-d64d01714c)
 - [`scripts/audit-actions.ts`](scripts.md#file-scripts-audit-actions-ts-862ea31175) — What state Actions is actually in — measured, not remembered. For every alert the checks currently …
@@ -2788,6 +2789,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-settings-hash-navigation.test.ts`](scripts.md#file-scripts-smoke-settings-hash-navigation-test-ts-dc18304a76)
 - [`scripts/smoke-settings-hub.test.ts`](scripts.md#file-scripts-smoke-settings-hub-test-ts-326468fa4c) — Plan: docs/development/plans/settings-consolidation.md
 - [`scripts/smoke-settings-restructure.test.ts`](scripts.md#file-scripts-smoke-settings-restructure-test-ts-0f0078a222) — search over a hand-authored keyword registry.
+- [`scripts/smoke-settings-scroll.test.ts`](scripts.md#file-scripts-smoke-settings-scroll-test-ts-637cc80e06) — hermetic `npm run browser:settings-scroll` loopback fixture.
 - [`scripts/smoke-shared-chrome-speed.test.ts`](scripts.md#file-scripts-smoke-shared-chrome-speed-test-ts-cd4191f6b2)
 - [`scripts/smoke-shared-graph-split.test.ts`](scripts.md#file-scripts-smoke-shared-graph-split-test-ts-fee8143b6a)
 - [`scripts/smoke-showcase-mode.test.ts`](scripts.md#file-scripts-smoke-showcase-mode-test-ts-a1d2a86c7a)

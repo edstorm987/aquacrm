@@ -197,7 +197,8 @@ them to a tenant (§3).
 
 | Var(s) | Read in | Note |
 | --- | --- | --- |
-| `PORTAL_SESSION_SECRET` | `lib/server/auth.ts`, `csrf.ts`, `magicLink.ts`, `emailVerification.ts`, `passwordReset.ts`, `connectionConfirmation.ts`, `inboxMedia.ts`, `metaMessaging.ts`, + 3 OAuth routes | Signs everything. Correct. |
+| `PORTAL_SESSION_SECRET` | `lib/server/auth.ts`, `csrf.ts`, `magicLink.ts`, `emailVerification.ts`, `passwordReset.ts`, `connectionConfirmation.ts`, `inboxMedia.ts`, `metaMessaging.ts`, + 3 OAuth routes | Signs authentication/session flows. It is deliberately not the DSAR evidence key. |
+| `PORTAL_DSAR_INTEGRITY_KEY`, `PORTAL_DSAR_INTEGRITY_PREVIOUS_KEY` | `lib/server/compliance/subjectAccessIntegrity.ts`, `subjectRequests.ts` | Dedicated platform evidence key plus one bounded rotation predecessor. The derived key id and framing version are persisted on each export/review/delivery signature; missing or retired keys fail closed. Correctly env-only, but live installation remains operator evidence. |
 | `PORTAL_VAULT_ENCRYPTION_KEY` | `integrationConnections.ts`, `calendarVault.ts`, `inboxVault.ts`, `server/developmentToolkit.ts` | The key that *enables* per-company credentials. Platform-level by definition. |
 | `DATABASE_URL`, `PORTAL_BACKEND`, `PORTAL_STATE_KEY`, `PORTAL_DATA_FILE`, `PORTAL_ALLOW_SHARED_STATE`, `PORTAL_PG_POOL_MAX/_IDLE_MS/_CONNECT_MS` | `server/storage.ts`, `storagePostgres.ts`, `storageSupabase.ts`, `nonceStore.ts`, `databaseStorageHealth.ts` | The store. Correct. |
 | `NEXT_PUBLIC_SUPABASE_URL/_ANON_KEY/_PUBLIC_BUCKET/_UPLOAD_BUCKET`, `SUPABASE_SERVICE_ROLE_KEY` | `lib/supabase/{config,admin}.ts`, `privateUploadStorage.ts`, `publicUploadStorage.ts`, `inboxStore.ts` | Correct. |

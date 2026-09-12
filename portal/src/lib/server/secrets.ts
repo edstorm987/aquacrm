@@ -20,6 +20,17 @@ export function sessionSecret(): string | undefined {
   return requireEnv("PORTAL_SESSION_SECRET");
 }
 
+/** Dedicated DSAR evidence key. Never substitute the session secret. */
+export function subjectAccessIntegrityKey(): string | undefined {
+  return requireEnv("PORTAL_DSAR_INTEGRITY_KEY");
+}
+
+/** One retired DSAR key retained only for bounded rotation verification. */
+export function previousSubjectAccessIntegrityKey(): string | undefined {
+  const value = optionalEnv("PORTAL_DSAR_INTEGRITY_PREVIOUS_KEY", "");
+  return value.length > 0 ? value : undefined;
+}
+
 export function databaseUrl(): string | undefined {
   return requireEnv("DATABASE_URL");
 }

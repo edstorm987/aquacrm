@@ -22,7 +22,12 @@ import "server-only";
 // implemented here.
 
 import crypto from "crypto";
-import { resolveSigningSecret } from "@/lib/server/auth/sessionToken";
+import {
+  SUBJECT_ACCESS_INTEGRITY_KEY_ID_PATTERN,
+  signSubjectAccessIntegrity,
+  verifySubjectAccessIntegrity,
+  type SubjectAccessIntegrityStamp,
+} from "@/lib/server/compliance/subjectAccessIntegrity";
 import { getState, mutate } from "@/server/storage";
 import type { PortalState, SubjectRequest } from "@/server/types";
 
@@ -59,15 +64,16 @@ const SUBJECT_ACCESS_DELIVERY_METHODS = new Set<NonNullable<SubjectRequest["deli
 const STORED_REQUEST_REQUIRED_STRING_FIELDS = new Set(["id", "agencyId", "kind", "subjectLabel", "createdBy"]);
 const STORED_REQUEST_OPTIONAL_STRING_FIELDS = new Set([
   "personId", "extensionReason", "identityVerifiedBy", "preparedExportBy", "preparedExportDigest",
-  "preparedExportIntegrityTag", "preparedExportJson", "preparedExportReviewResolvedBy", "preparedExportReviewResolvedDigest",
+  "preparedExportIntegrityTag", "preparedExportIntegrityKeyId", "preparedExportJson", "preparedExportReviewResolvedBy", "preparedExportReviewResolvedDigest",
   "preparedExportReviewEvidenceId", "preparedExportReviewResultId", "deliveredBy", "deliveryMethod", "deliveryEvidenceId",
-  "deliveryResultId", "fulfilledBy", "outcome", "refusalReason",
+  "preparedExportReviewIntegrityKeyId", "deliveryResultId", "deliveryIntegrityKeyId", "fulfilledBy", "outcome", "refusalReason",
 ]);
 const STORED_REQUEST_REQUIRED_NUMBER_FIELDS = new Set(["receivedAt", "dueAt"]);
 const STORED_REQUEST_OPTIONAL_NUMBER_FIELDS = new Set([
   "extendedAt", "identityVerifiedAt", "preparedExportAt", "preparedExportGeneratedAt",
   "preparedExportRecordCount", "preparedExportReviewCount", "preparedExportByteLength",
-  "preparedExportReviewResolvedAt", "deliveredAt", "fulfilledAt", "refusedAt",
+  "preparedExportIntegrityKeyVersion", "preparedExportReviewResolvedAt", "preparedExportReviewIntegrityKeyVersion",
+  "deliveredAt", "deliveryIntegrityKeyVersion", "fulfilledAt", "refusedAt",
 ]);
 const STORED_REQUEST_FIELDS = new Set([
   ...STORED_REQUEST_REQUIRED_STRING_FIELDS,
@@ -275,42 +281,17 @@ const accessStateError: InvalidStoredRequest = () => new SubjectAccessRequestGat
 
 const SUBJECT_ACCESS_KINDS = new Set<SubjectRequest["kind"]>(["access", "portability"]);
 
-function authenticatedSubjectAccessId(purpose: string, values: readonly (string | number)[]): string {
-  const hmac = crypto.createHmac("sha256", resolveSigningSecret());
-  const parts: readonly (string | number)[] = [purpose, ...values];
-  // Length-prefix each part so embedded delimiters can never make two
-  // different identity/artifact tuples authenticate as the same byte stream.
-  // JSON would also be unambiguous, but the binary frame avoids depending on
-  // serialiser details for an integrity boundary.
-  hmac.update(Buffer.from([1]));
-  for (const value of parts) {
-    const bytes = Buffer.from(String(value), "utf8");
-    const length = Buffer.allocUnsafe(8);
-    length.writeBigUInt64BE(BigInt(bytes.length));
-    hmac.update(length);
-    hmac.update(bytes);
-  }
-  return hmac.digest("hex");
-}
-
-function matchesAuthenticatedId(actual: string | undefined, expected: string): boolean {
-  if (typeof actual !== "string" || !/^[a-f0-9]{64}$/.test(actual)) return false;
-  const actualBytes = Buffer.from(actual, "hex");
-  const expectedBytes = Buffer.from(expected, "hex");
-  return actualBytes.length === expectedBytes.length && crypto.timingSafeEqual(actualBytes, expectedBytes);
-}
-
 interface PreparedExportBinding {
   agencyId: string;
   requestId: string;
   personId: string;
 }
 
-function preparedExportIntegrityTag(
+function preparedExportIntegrityValues(
   binding: PreparedExportBinding,
   prepared: PreparedSubjectAccessExport,
-): string {
-  return authenticatedSubjectAccessId("aqua-subject-access-artifact-v1", [
+): readonly (string | number)[] {
+  return [
     binding.agencyId,
     binding.requestId,
     binding.personId,
@@ -320,7 +301,17 @@ function preparedExportIntegrityTag(
     prepared.recordCount,
     prepared.reviewCount,
     prepared.byteLength,
-  ]);
+  ];
+}
+
+function preparedExportIntegrityStamp(
+  binding: PreparedExportBinding,
+  prepared: PreparedSubjectAccessExport,
+): SubjectAccessIntegrityStamp {
+  return signSubjectAccessIntegrity(
+    "aqua-subject-access-artifact-v1",
+    preparedExportIntegrityValues(binding, prepared),
+  );
 }
 
 function isOpenVerifiedSubjectAccessRequest(
@@ -351,7 +342,9 @@ export function requireSubjectAccessRequestForExport(
   }
   const hasPreparedState = request.preparedExportDigest !== undefined
     || request.preparedExportJson !== undefined
-    || request.preparedExportIntegrityTag !== undefined;
+    || request.preparedExportIntegrityTag !== undefined
+    || request.preparedExportIntegrityKeyId !== undefined
+    || request.preparedExportIntegrityKeyVersion !== undefined;
   if (hasPreparedState && (!request.preparedExportDigest || !validStoredPreparedExport(
     request,
     { agencyId, requestId: id, personId },
@@ -485,9 +478,13 @@ function validStoredPreparedExport(
     || (request.preparedExportReviewCount ?? -1) < 0
     || (request.preparedExportByteLength ?? -1) < 0
     || (request.preparedExportByteLength ?? Number.POSITIVE_INFINITY) > MAX_STAGED_SUBJECT_ACCESS_BYTES) return false;
-  if (!requireBytes) return request.preparedExportJson === undefined
-    && typeof request.preparedExportIntegrityTag === "string"
-    && /^[a-f0-9]{64}$/.test(request.preparedExportIntegrityTag);
+  const stamp = storedIntegrityStamp(
+    request.preparedExportIntegrityTag,
+    request.preparedExportIntegrityKeyId,
+    request.preparedExportIntegrityKeyVersion,
+  );
+  if (!stamp) return false;
+  if (!requireBytes) return request.preparedExportJson === undefined;
   if (typeof request.preparedExportJson !== "string") return false;
   const prepared: PreparedSubjectAccessExport = {
     json: request.preparedExportJson,
@@ -505,7 +502,22 @@ function validStoredPreparedExport(
       reviewCount: prepared.reviewCount,
       personId: request.personId,
     })
-    && matchesAuthenticatedId(request.preparedExportIntegrityTag, preparedExportIntegrityTag(binding, prepared));
+    && verifySubjectAccessIntegrity(
+      stamp,
+      "aqua-subject-access-artifact-v1",
+      preparedExportIntegrityValues(binding, prepared),
+    );
+}
+
+function storedIntegrityStamp(
+  tag: string | undefined,
+  keyId: string | undefined,
+  keyVersion: number | undefined,
+): SubjectAccessIntegrityStamp | null {
+  if (typeof tag !== "string" || !/^[a-f0-9]{64}$/.test(tag)
+    || typeof keyId !== "string" || !SUBJECT_ACCESS_INTEGRITY_KEY_ID_PATTERN.test(keyId)
+    || !Number.isSafeInteger(keyVersion) || (keyVersion ?? 0) <= 0) return null;
+  return { tag, keyId, keyVersion: keyVersion! };
 }
 
 function validEvidenceId(value: string): boolean {
@@ -526,7 +538,7 @@ export function recordPreparedSubjectAccessExport(
 ): SubjectRequest {
   if (!validPreparedExport(prepared, personId)) throw new SubjectAccessRequestGateError();
   const binding = { agencyId, requestId: id, personId };
-  const integrityTag = preparedExportIntegrityTag(binding, prepared);
+  const integrity = preparedExportIntegrityStamp(binding, prepared);
   let updated: SubjectRequest | null = null;
   mutate(state => {
     const stored = storedSubjectRequest(subjectRequestStore(state, accessStateError), id, accessStateError);
@@ -547,7 +559,9 @@ export function recordPreparedSubjectAccessExport(
       preparedExportRecordCount: prepared.recordCount,
       preparedExportReviewCount: prepared.reviewCount,
       preparedExportByteLength: prepared.byteLength,
-      preparedExportIntegrityTag: integrityTag,
+      preparedExportIntegrityTag: integrity.tag,
+      preparedExportIntegrityKeyId: integrity.keyId,
+      preparedExportIntegrityKeyVersion: integrity.keyVersion,
       preparedExportJson: prepared.json,
     }, [
       "preparedExportReviewResolvedAt",
@@ -555,6 +569,8 @@ export function recordPreparedSubjectAccessExport(
       "preparedExportReviewResolvedDigest",
       "preparedExportReviewEvidenceId",
       "preparedExportReviewResultId",
+      "preparedExportReviewIntegrityKeyId",
+      "preparedExportReviewIntegrityKeyVersion",
     ], accessStateError);
   });
   if (!updated) throw new SubjectAccessRequestGateError();
@@ -567,7 +583,7 @@ export interface SubjectAccessReviewResult {
   resultId: string;
 }
 
-function subjectAccessReviewResultId(input: {
+function subjectAccessReviewIntegrityValues(input: {
   agencyId: string;
   requestId: string;
   personId: string;
@@ -578,8 +594,8 @@ function subjectAccessReviewResultId(input: {
   reviewCount: number;
   byteLength: number;
   evidenceId: string;
-}): string {
-  return authenticatedSubjectAccessId("aqua-subject-access-review-v2", [
+}): readonly (string | number)[] {
+  return [
     input.agencyId,
     input.requestId,
     input.personId,
@@ -590,20 +606,44 @@ function subjectAccessReviewResultId(input: {
     input.reviewCount,
     input.byteLength,
     input.evidenceId,
-  ]);
+  ];
 }
 
-function reviewResultIdForRequest(
+function reviewIntegrityStampForRequest(
   request: SubjectRequest,
   binding: { agencyId: string; requestId: string; personId: string; digest: string },
   evidenceId: string,
-): string {
+): SubjectAccessIntegrityStamp {
   if (typeof request.preparedExportIntegrityTag !== "string"
     || !Number.isSafeInteger(request.preparedExportGeneratedAt)
     || !Number.isSafeInteger(request.preparedExportRecordCount)
     || !Number.isSafeInteger(request.preparedExportReviewCount)
     || !Number.isSafeInteger(request.preparedExportByteLength)) throw new SubjectAccessRequestGateError();
-  return subjectAccessReviewResultId({
+  return signSubjectAccessIntegrity(
+    "aqua-subject-access-review-v2",
+    subjectAccessReviewIntegrityValues({
+      ...binding,
+      integrityTag: request.preparedExportIntegrityTag,
+      generatedAt: request.preparedExportGeneratedAt!,
+      recordCount: request.preparedExportRecordCount!,
+      reviewCount: request.preparedExportReviewCount!,
+      byteLength: request.preparedExportByteLength!,
+      evidenceId,
+    }),
+  );
+}
+
+function reviewIntegrityValuesForRequest(
+  request: SubjectRequest,
+  binding: { agencyId: string; requestId: string; personId: string; digest: string },
+  evidenceId: string,
+): readonly (string | number)[] {
+  if (typeof request.preparedExportIntegrityTag !== "string"
+    || !Number.isSafeInteger(request.preparedExportGeneratedAt)
+    || !Number.isSafeInteger(request.preparedExportRecordCount)
+    || !Number.isSafeInteger(request.preparedExportReviewCount)
+    || !Number.isSafeInteger(request.preparedExportByteLength)) throw new SubjectAccessRequestGateError();
+  return subjectAccessReviewIntegrityValues({
     ...binding,
     integrityTag: request.preparedExportIntegrityTag,
     generatedAt: request.preparedExportGeneratedAt!,
@@ -647,7 +687,9 @@ function assertStoredReviewBinding(
       || request.preparedExportReviewResolvedBy !== undefined
       || request.preparedExportReviewResolvedDigest !== undefined
       || request.preparedExportReviewEvidenceId !== undefined
-      || request.preparedExportReviewResultId !== undefined) throw new SubjectAccessRequestGateError();
+      || request.preparedExportReviewResultId !== undefined
+      || request.preparedExportReviewIntegrityKeyId !== undefined
+      || request.preparedExportReviewIntegrityKeyVersion !== undefined) throw new SubjectAccessRequestGateError();
     return;
   }
   if (!request.preparedExportReviewResolvedAt
@@ -656,13 +698,21 @@ function assertStoredReviewBinding(
     || request.preparedExportReviewResolvedDigest !== binding.digest
     || typeof request.preparedExportReviewEvidenceId !== "string"
     || !validEvidenceId(request.preparedExportReviewEvidenceId)) throw new SubjectAccessRequestGateError();
-  const resultId = reviewResultIdForRequest(request, binding, request.preparedExportReviewEvidenceId);
-  if (!matchesAuthenticatedId(request.preparedExportReviewResultId, resultId)) throw new SubjectAccessRequestGateError();
+  const reviewStamp = storedIntegrityStamp(
+    request.preparedExportReviewResultId,
+    request.preparedExportReviewIntegrityKeyId,
+    request.preparedExportReviewIntegrityKeyVersion,
+  );
+  if (!reviewStamp || !verifySubjectAccessIntegrity(
+    reviewStamp,
+    "aqua-subject-access-review-v2",
+    reviewIntegrityValuesForRequest(request, binding, request.preparedExportReviewEvidenceId),
+  )) throw new SubjectAccessRequestGateError();
   assertReviewEvidenceBinding(store, {
     agencyId: binding.agencyId,
     requestId: binding.requestId,
     personId: binding.personId,
-    resultId,
+    resultId: reviewStamp.tag,
     evidenceId: request.preparedExportReviewEvidenceId,
   });
 }
@@ -689,8 +739,6 @@ export function recordSubjectAccessReviewCompletion(
     if (!validStoredPreparedExport(request, { agencyId, requestId: id, personId }, digest, requireBytes)) {
       throw new SubjectAccessRequestGateError();
     }
-    const resultId = reviewResultIdForRequest(request, { agencyId, requestId: id, personId, digest }, evidenceId);
-    assertReviewEvidenceBinding(store, { agencyId, requestId: id, personId, resultId, evidenceId });
     const exactReplay = Boolean(
       request
       && request.agencyId === agencyId
@@ -703,11 +751,14 @@ export function recordSubjectAccessReviewCompletion(
       && request.preparedExportReviewResolvedAt
       && request.preparedExportReviewResolvedDigest === digest
       && request.preparedExportReviewEvidenceId === evidenceId
-      && request.preparedExportReviewResultId === resultId,
+      && typeof request.preparedExportReviewResultId === "string",
     );
     if (exactReplay) {
       assertStoredReviewBinding(store, request!, { agencyId, requestId: id, personId, digest });
-      updated = { request: request!, replay: true, resultId };
+      assertReviewEvidenceBinding(store, {
+        agencyId, requestId: id, personId, resultId: request!.preparedExportReviewResultId!, evidenceId,
+      });
+      updated = { request: request!, replay: true, resultId: request!.preparedExportReviewResultId! };
       return;
     }
     if (!isOpenVerifiedSubjectAccessRequest(request, agencyId, personId)
@@ -719,17 +770,29 @@ export function recordSubjectAccessReviewCompletion(
     if (request.preparedExportReviewResolvedAt
       || request.preparedExportReviewResolvedDigest
       || request.preparedExportReviewEvidenceId
-      || request.preparedExportReviewResultId) {
+      || request.preparedExportReviewResultId
+      || request.preparedExportReviewIntegrityKeyId
+      || request.preparedExportReviewIntegrityKeyVersion) {
       throw new SubjectAccessRequestGateError();
     }
+    const reviewStamp = reviewIntegrityStampForRequest(
+      request,
+      { agencyId, requestId: id, personId, digest },
+      evidenceId,
+    );
+    assertReviewEvidenceBinding(store, {
+      agencyId, requestId: id, personId, resultId: reviewStamp.tag, evidenceId,
+    });
     const committed = applyStoredSubjectRequestPatch(stored!, {
       preparedExportReviewResolvedAt: Date.now(),
       preparedExportReviewResolvedBy: actorUserId,
       preparedExportReviewResolvedDigest: digest,
       preparedExportReviewEvidenceId: evidenceId,
-      preparedExportReviewResultId: resultId,
+      preparedExportReviewResultId: reviewStamp.tag,
+      preparedExportReviewIntegrityKeyId: reviewStamp.keyId,
+      preparedExportReviewIntegrityKeyVersion: reviewStamp.keyVersion,
     }, [], accessStateError);
-    updated = { request: committed, replay: false, resultId };
+    updated = { request: committed, replay: false, resultId: reviewStamp.tag };
   });
   if (!updated) throw new SubjectAccessRequestGateError();
   return updated;
@@ -748,7 +811,7 @@ export interface SubjectAccessDeliveryResult {
 
 const SUBJECT_ACCESS_DELIVERY_OUTCOME = "Prepared export delivered with separate delivery evidence.";
 
-function subjectAccessDeliveryResultId(input: {
+function subjectAccessDeliveryIntegrityValues(input: {
   agencyId: string;
   requestId: string;
   personId: string;
@@ -762,8 +825,8 @@ function subjectAccessDeliveryResultId(input: {
   reviewEvidenceId: string;
   deliveryMethod: NonNullable<SubjectRequest["deliveryMethod"]>;
   evidenceId: string;
-}): string {
-  return authenticatedSubjectAccessId("aqua-subject-access-delivery-v2", [
+}): readonly (string | number)[] {
+  return [
     input.agencyId,
     input.requestId,
     input.personId,
@@ -777,10 +840,10 @@ function subjectAccessDeliveryResultId(input: {
     input.reviewEvidenceId,
     input.deliveryMethod,
     input.evidenceId,
-  ]);
+  ];
 }
 
-function deliveryResultIdForRequest(
+function deliveryIntegrityValuesForRequest(
   request: SubjectRequest,
   input: {
     agencyId: string;
@@ -790,13 +853,13 @@ function deliveryResultIdForRequest(
     deliveryMethod: NonNullable<SubjectRequest["deliveryMethod"]>;
     evidenceId: string;
   },
-): string {
+): readonly (string | number)[] {
   if (typeof request.preparedExportIntegrityTag !== "string"
     || !Number.isSafeInteger(request.preparedExportGeneratedAt)
     || !Number.isSafeInteger(request.preparedExportRecordCount)
     || !Number.isSafeInteger(request.preparedExportReviewCount)
     || !Number.isSafeInteger(request.preparedExportByteLength)) throw new SubjectAccessRequestGateError();
-  return subjectAccessDeliveryResultId({
+  return subjectAccessDeliveryIntegrityValues({
     ...input,
     integrityTag: request.preparedExportIntegrityTag,
     generatedAt: request.preparedExportGeneratedAt!,
@@ -806,6 +869,46 @@ function deliveryResultIdForRequest(
     reviewResultId: request.preparedExportReviewResultId ?? "none",
     reviewEvidenceId: request.preparedExportReviewEvidenceId ?? "none",
   });
+}
+
+function deliveryIntegrityStampForRequest(
+  request: SubjectRequest,
+  input: {
+    agencyId: string;
+    requestId: string;
+    personId: string;
+    digest: string;
+    deliveryMethod: NonNullable<SubjectRequest["deliveryMethod"]>;
+    evidenceId: string;
+  },
+): SubjectAccessIntegrityStamp {
+  return signSubjectAccessIntegrity(
+    "aqua-subject-access-delivery-v2",
+    deliveryIntegrityValuesForRequest(request, input),
+  );
+}
+
+function assertStoredDeliveryBinding(
+  request: SubjectRequest,
+  input: {
+    agencyId: string;
+    requestId: string;
+    personId: string;
+    digest: string;
+    deliveryMethod: NonNullable<SubjectRequest["deliveryMethod"]>;
+    evidenceId: string;
+  },
+): void {
+  const deliveryStamp = storedIntegrityStamp(
+    request.deliveryResultId,
+    request.deliveryIntegrityKeyId,
+    request.deliveryIntegrityKeyVersion,
+  );
+  if (!deliveryStamp || !verifySubjectAccessIntegrity(
+    deliveryStamp,
+    "aqua-subject-access-delivery-v2",
+    deliveryIntegrityValuesForRequest(request, input),
+  )) throw new SubjectAccessRequestGateError();
 }
 
 /**
@@ -853,18 +956,12 @@ export function fulfilPreparedSubjectAccessDelivery(
       || request.personId !== personId
       || !request.identityVerifiedAt
       || request.preparedExportDigest !== digest) throw new SubjectAccessRequestGateError();
-    const resultId = deliveryResultIdForRequest(request, {
-      agencyId, requestId: id, personId, digest, deliveryMethod, evidenceId,
-    });
-    assertDeliveryEvidenceBinding(store, {
-      agencyId, requestId: id, resultId, evidenceId,
-    });
     const exactCompletedReplay = Boolean(
       request.fulfilledAt
       && request.deliveredAt
       && request.deliveryMethod === deliveryMethod
       && request.deliveryEvidenceId === evidenceId
-      && request.deliveryResultId === resultId
+      && typeof request.deliveryResultId === "string"
       && request.outcome === SUBJECT_ACCESS_DELIVERY_OUTCOME
       && request.preparedExportJson === undefined,
     );
@@ -873,7 +970,13 @@ export function fulfilPreparedSubjectAccessDelivery(
         throw new SubjectAccessRequestGateError();
       }
       assertStoredReviewBinding(store, request, { agencyId, requestId: id, personId, digest });
-      updated = { request: request!, replay: true, resultId };
+      assertStoredDeliveryBinding(request, {
+        agencyId, requestId: id, personId, digest, deliveryMethod, evidenceId,
+      });
+      assertDeliveryEvidenceBinding(store, {
+        agencyId, requestId: id, resultId: request.deliveryResultId!, evidenceId,
+      });
+      updated = { request: request!, replay: true, resultId: request.deliveryResultId! };
       return;
     }
     if (!isOpenVerifiedSubjectAccessRequest(request, agencyId, personId)
@@ -881,18 +984,26 @@ export function fulfilPreparedSubjectAccessDelivery(
       throw new SubjectAccessRequestGateError();
     }
     assertStoredReviewBinding(store, request, { agencyId, requestId: id, personId, digest });
+    const deliveryStamp = deliveryIntegrityStampForRequest(request, {
+      agencyId, requestId: id, personId, digest, deliveryMethod, evidenceId,
+    });
+    assertDeliveryEvidenceBinding(store, {
+      agencyId, requestId: id, resultId: deliveryStamp.tag, evidenceId,
+    });
     const now = Date.now();
     const committed = applyStoredSubjectRequestPatch(stored!, {
       deliveredAt: now,
       deliveredBy: actorUserId,
       deliveryMethod,
       deliveryEvidenceId: evidenceId,
-      deliveryResultId: resultId,
+      deliveryResultId: deliveryStamp.tag,
+      deliveryIntegrityKeyId: deliveryStamp.keyId,
+      deliveryIntegrityKeyVersion: deliveryStamp.keyVersion,
       fulfilledAt: now,
       fulfilledBy: actorUserId,
       outcome: SUBJECT_ACCESS_DELIVERY_OUTCOME,
     }, ["preparedExportJson"], accessStateError);
-    updated = { request: committed, replay: false, resultId };
+    updated = { request: committed, replay: false, resultId: deliveryStamp.tag };
   });
   if (!updated) throw new SubjectAccessRequestGateError();
   return updated;

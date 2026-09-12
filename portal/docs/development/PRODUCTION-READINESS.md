@@ -27,6 +27,16 @@ verification.
 > [UI-WAVE9-EVIDENCE.md](UI-WAVE9-EVIDENCE.md). Not committed/deployed; shared data and the
 > live Supabase project untouched; no live Supabase data written.
 
+> **SEC-006 integrity-key candidate (2026-09-12, local integration only).** The
+> subject-access export/review/delivery chain now uses its own high-entropy
+> `PORTAL_DSAR_INTEGRITY_KEY`, persists the derived signing-key id and framing
+> version at every durable stage, and verifies one explicit previous key during
+> rotation. Exact retries remain immutable across that window; missing,
+> malformed or retired key material fails through the existing opaque 503 path
+> without using `PORTAL_SESSION_SECRET`. Source, focused tests and the readiness
+> model are updated, but no live key was configured and nothing was deployed;
+> therefore this does not change the dated live verdict below.
+
 ## Headline rating
 
 | View | Rating | Meaning |

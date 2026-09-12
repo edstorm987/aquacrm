@@ -248,7 +248,8 @@ appear nowhere in the repo).
 Prod-required and enforced by `env.ts` (throws in prod):
 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
 `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_UPLOAD_BUCKET`,
-`NEXT_PUBLIC_SUPABASE_PUBLIC_BUCKET`, `PORTAL_SESSION_SECRET` (≥32 chars).
+`NEXT_PUBLIC_SUPABASE_PUBLIC_BUCKET`, `PORTAL_SESSION_SECRET` (≥32 chars), and
+the independent base64url `PORTAL_DSAR_INTEGRITY_KEY` (32–64 random bytes).
 Others: `PORTAL_BACKEND`, `PORTAL_STATE_KEY`, `DATABASE_URL` (+ `PORTAL_PG_*`
 pool tuning), `INBOX_STORAGE_BACKEND`, `INBOX_WEBHOOK_RETENTION_DAYS`, Vercel
 Blob fallback (`BLOB_*`), Upstash (`PORTAL_KV_*`, the stub backend).

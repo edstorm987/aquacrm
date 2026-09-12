@@ -7315,6 +7315,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-settings-scroll-test-ts-637cc80e06"></a>
+
+### `scripts/smoke-settings-scroll.test.ts`
+
+**What it is:** hermetic `npm run browser:settings-scroll` loopback fixture.
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on:** _No internal imports._
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-shared-chrome-speed-test-ts-cd4191f6b2"></a>
 
 ### `scripts/smoke-shared-chrome-speed.test.ts`

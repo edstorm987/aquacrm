@@ -6,9 +6,15 @@
 // redacted deterministically or withheld for review; and a request is not
 // fulfilled unless the export and its activity evidence commit together.
 
+const DSAR_KEY_A = Buffer.from("subject-access-integrity-key-a1!!", "utf8").toString("base64url");
+const DSAR_KEY_B = Buffer.from("subject-access-integrity-key-b2!!", "utf8").toString("base64url");
+const DSAR_KEY_C = Buffer.from("subject-access-integrity-key-c3!!", "utf8").toString("base64url");
+
 process.env.PORTAL_BACKEND = "memory";
 process.env.NODE_ENV = "test";
 process.env.PORTAL_SESSION_SECRET = "subject-access-export-security-smoke-secret";
+process.env.PORTAL_DSAR_INTEGRITY_KEY = DSAR_KEY_A;
+delete process.env.PORTAL_DSAR_INTEGRITY_PREVIOUS_KEY;
 
 import { withRequestScope, withSession } from "./dev-console-request-scope";
 
@@ -252,6 +258,8 @@ function makeRequest(
 
 beforeEach(() => {
   failNextCommit = false;
+  process.env.PORTAL_DSAR_INTEGRITY_KEY = DSAR_KEY_A;
+  delete process.env.PORTAL_DSAR_INTEGRITY_PREVIOUS_KEY;
 });
 
 test("only typed exclusive ownership authorises rows; client facets and relationships remain complete", async () => {
@@ -1338,17 +1346,23 @@ test("every SubjectRequest lifecycle field is exported or explicitly counted, so
       preparedExportReviewCount: 2,
       preparedExportByteLength: 1234,
       preparedExportIntegrityTag: "e".repeat(64),
+      preparedExportIntegrityKeyId: `dsar_${"1".repeat(24)}`,
+      preparedExportIntegrityKeyVersion: 1,
       preparedExportJson: JSON.stringify({ subject: SUBJECT_EMAIL }),
       preparedExportReviewResolvedAt: 104,
       preparedExportReviewResolvedBy: "usr_reviewer",
       preparedExportReviewResolvedDigest: "b".repeat(64),
       preparedExportReviewEvidenceId: "review-evidence-1",
       preparedExportReviewResultId: "d".repeat(64),
+      preparedExportReviewIntegrityKeyId: `dsar_${"2".repeat(24)}`,
+      preparedExportReviewIntegrityKeyVersion: 1,
       deliveredAt: 105,
       deliveredBy: "usr_deliverer",
       deliveryMethod: "secure-email",
       deliveryEvidenceId: "delivery-evidence-1",
       deliveryResultId: "c".repeat(64),
+      deliveryIntegrityKeyId: `dsar_${"3".repeat(24)}`,
+      deliveryIntegrityKeyVersion: 1,
       fulfilledAt: 105,
       fulfilledBy: "usr_deliverer",
       outcome: "Delivered after review",
@@ -1364,10 +1378,10 @@ test("every SubjectRequest lifecycle field is exported or explicitly counted, so
   const result = exportsApi.collectSubjectAccessExport(world.agencyId, world.personId)!;
   const projected = (result.found.subjectRequests ?? []).find(row => (row as { id?: string }).id === request.id) as Record<string, unknown>;
   for (const field of [
-    "identityVerifiedBy", "preparedExportAt", "preparedExportBy", "preparedExportDigest", "preparedExportIntegrityTag", "preparedExportGeneratedAt",
+    "identityVerifiedBy", "preparedExportAt", "preparedExportBy", "preparedExportDigest", "preparedExportIntegrityTag", "preparedExportIntegrityKeyId", "preparedExportIntegrityKeyVersion", "preparedExportGeneratedAt",
     "preparedExportRecordCount", "preparedExportReviewCount", "preparedExportByteLength", "preparedExportReviewResolvedAt",
-    "preparedExportReviewResolvedBy", "preparedExportReviewResolvedDigest", "preparedExportReviewEvidenceId", "preparedExportReviewResultId", "deliveredAt",
-    "deliveredBy", "deliveryMethod", "deliveryEvidenceId", "deliveryResultId", "fulfilledAt", "fulfilledBy", "refusedAt", "createdBy",
+    "preparedExportReviewResolvedBy", "preparedExportReviewResolvedDigest", "preparedExportReviewEvidenceId", "preparedExportReviewResultId", "preparedExportReviewIntegrityKeyId", "preparedExportReviewIntegrityKeyVersion", "deliveredAt",
+    "deliveredBy", "deliveryMethod", "deliveryEvidenceId", "deliveryResultId", "deliveryIntegrityKeyId", "deliveryIntegrityKeyVersion", "fulfilledAt", "fulfilledBy", "refusedAt", "createdBy",
   ]) assert.notEqual(projected[field], undefined, `${field} must not disappear from a recognised request`);
   for (const field of ["extensionReason", "preparedExportJson", "outcome", "refusalReason"]) {
     assert.equal(projected[field], undefined, `${field} is deliberately withheld rather than silently copied`);
@@ -1632,6 +1646,177 @@ test("POST, PUT and PATCH require a valid signed double-submit CSRF token before
   assert.deepEqual(await mismatch.json(), { ok: false, error: "csrf_mismatch" });
   assert.equal(requests.findSubjectRequest(world.agencyId, ready.id)?.preparedExportDigest, undefined);
   assert.equal(activity.listActivity({ agencyId: world.agencyId, limit: 100 }).length, 0);
+});
+
+test("dedicated DSAR keys rotate through current+previous without rewriting exact replay evidence and retire fail closed", async () => {
+  const world = await seedWorld();
+  const ready = makeRequest(world, { kind: "portability", verify: true });
+
+  const prepared = await post(world.token, { requestId: ready.id, personId: world.personId });
+  assert.equal(prepared.status, 200);
+  const preparedJson = await prepared.text();
+  const digest = prepared.headers.get("x-subject-access-digest")!;
+  const stagedUnderA = requests.findSubjectRequest(world.agencyId, ready.id)!;
+  assert.match(stagedUnderA.preparedExportIntegrityKeyId ?? "", /^dsar_[a-f0-9]{24}$/);
+  assert.equal(stagedUnderA.preparedExportIntegrityKeyVersion, 1);
+  const artifactEvidence = {
+    at: stagedUnderA.preparedExportAt,
+    by: stagedUnderA.preparedExportBy,
+    tag: stagedUnderA.preparedExportIntegrityTag,
+    keyId: stagedUnderA.preparedExportIntegrityKeyId,
+    keyVersion: stagedUnderA.preparedExportIntegrityKeyVersion,
+  };
+  realStorage.mutate(state => {
+    delete state.subjectRequests[ready.id]!.preparedExportIntegrityKeyId;
+    delete state.subjectRequests[ready.id]!.preparedExportIntegrityKeyVersion;
+  });
+  assert.equal((await post(world.token, { requestId: ready.id, personId: world.personId })).status, 409,
+    "legacy metadata cannot silently fall back to PORTAL_SESSION_SECRET");
+  realStorage.mutate(state => {
+    state.subjectRequests[ready.id]!.preparedExportIntegrityKeyId = artifactEvidence.keyId;
+    state.subjectRequests[ready.id]!.preparedExportIntegrityKeyVersion = artifactEvidence.keyVersion;
+  });
+  realStorage.mutate(state => {
+    state.subjectRequests[ready.id]!.preparedExportIntegrityKeyVersion = 2;
+  });
+  assert.equal((await post(world.token, { requestId: ready.id, personId: world.personId })).status, 409,
+    "a forged artifact framing version cannot be replayed");
+  realStorage.mutate(state => {
+    state.subjectRequests[ready.id]!.preparedExportIntegrityKeyVersion = artifactEvidence.keyVersion;
+  });
+
+  process.env.PORTAL_DSAR_INTEGRITY_KEY = DSAR_KEY_B;
+  process.env.PORTAL_DSAR_INTEGRITY_PREVIOUS_KEY = DSAR_KEY_A;
+  const preparedReplay = await post(world.token, { requestId: ready.id, personId: world.personId });
+  assert.equal(preparedReplay.status, 200);
+  assert.equal(preparedReplay.headers.get("x-subject-access-replay"), "true");
+  assert.equal(await preparedReplay.text(), preparedJson);
+  const replayedArtifact = requests.findSubjectRequest(world.agencyId, ready.id)!;
+  assert.deepEqual({
+    at: replayedArtifact.preparedExportAt,
+    by: replayedArtifact.preparedExportBy,
+    tag: replayedArtifact.preparedExportIntegrityTag,
+    keyId: replayedArtifact.preparedExportIntegrityKeyId,
+    keyVersion: replayedArtifact.preparedExportIntegrityKeyVersion,
+  }, artifactEvidence, "rotation verifies the old artifact through PREVIOUS without rewriting its evidence");
+
+  const review = await put(world.token, {
+    requestId: ready.id,
+    personId: world.personId,
+    preparedExportDigest: digest,
+    reviewEvidenceId: "review-rotation-window",
+  });
+  assert.equal(review.status, 200);
+  const reviewBody = await review.json() as { resultId: string };
+  const reviewedUnderB = requests.findSubjectRequest(world.agencyId, ready.id)!;
+  assert.match(reviewedUnderB.preparedExportReviewIntegrityKeyId ?? "", /^dsar_[a-f0-9]{24}$/);
+  assert.notEqual(reviewedUnderB.preparedExportReviewIntegrityKeyId, artifactEvidence.keyId);
+  assert.equal(reviewedUnderB.preparedExportReviewIntegrityKeyVersion, 1);
+  realStorage.mutate(state => {
+    state.subjectRequests[ready.id]!.preparedExportReviewIntegrityKeyVersion = 2;
+  });
+  assert.equal((await patch(world.token, {
+    requestId: ready.id,
+    personId: world.personId,
+    preparedExportDigest: digest,
+    deliveryMethod: "secure-email",
+    deliveryEvidenceId: "delivery-forged-review-version",
+  })).status, 409, "a forged review key version cannot authorise delivery");
+  realStorage.mutate(state => {
+    state.subjectRequests[ready.id]!.preparedExportReviewIntegrityKeyVersion = 1;
+  });
+
+  const delivery = await patch(world.token, {
+    requestId: ready.id,
+    personId: world.personId,
+    preparedExportDigest: digest,
+    deliveryMethod: "secure-email",
+    deliveryEvidenceId: "delivery-rotation-window",
+  });
+  assert.equal(delivery.status, 200);
+  const deliveryBody = await delivery.json() as { resultId: string };
+  const deliveredUnderB = requests.findSubjectRequest(world.agencyId, ready.id)!;
+  assert.equal(deliveredUnderB.deliveryIntegrityKeyId, reviewedUnderB.preparedExportReviewIntegrityKeyId);
+  assert.equal(deliveredUnderB.deliveryIntegrityKeyVersion, 1);
+  assert.equal(deliveredUnderB.preparedExportJson, undefined);
+  realStorage.mutate(state => {
+    state.subjectRequests[ready.id]!.deliveryIntegrityKeyVersion = 2;
+  });
+  assert.equal((await patch(world.token, {
+    requestId: ready.id,
+    personId: world.personId,
+    preparedExportDigest: digest,
+    deliveryMethod: "secure-email",
+    deliveryEvidenceId: "delivery-rotation-window",
+  })).status, 409, "a forged delivery key version cannot replay a completed result");
+  realStorage.mutate(state => {
+    state.subjectRequests[ready.id]!.deliveryIntegrityKeyVersion = 1;
+  });
+
+  process.env.PORTAL_DSAR_INTEGRITY_KEY = DSAR_KEY_C;
+  process.env.PORTAL_DSAR_INTEGRITY_PREVIOUS_KEY = DSAR_KEY_B;
+  const reviewReplay = await put(world.token, {
+    requestId: ready.id,
+    personId: world.personId,
+    preparedExportDigest: digest,
+    reviewEvidenceId: "review-rotation-window",
+  });
+  assert.equal(reviewReplay.status, 200, "the persisted B review remains verifiable after B moves to PREVIOUS");
+  assert.equal((await reviewReplay.json() as { resultId: string }).resultId, reviewBody.resultId);
+  const deliveryReplay = await patch(world.token, {
+    requestId: ready.id,
+    personId: world.personId,
+    preparedExportDigest: digest,
+    deliveryMethod: "secure-email",
+    deliveryEvidenceId: "delivery-rotation-window",
+  });
+  assert.equal(deliveryReplay.status, 200, "the persisted B delivery remains verifiable after B moves to PREVIOUS");
+  assert.equal((await deliveryReplay.json() as { resultId: string }).resultId, deliveryBody.resultId);
+  const stable = requests.findSubjectRequest(world.agencyId, ready.id)!;
+
+  delete process.env.PORTAL_DSAR_INTEGRITY_PREVIOUS_KEY;
+  for (const response of [
+    await put(world.token, {
+      requestId: ready.id,
+      personId: world.personId,
+      preparedExportDigest: digest,
+      reviewEvidenceId: "review-rotation-window",
+    }),
+    await patch(world.token, {
+      requestId: ready.id,
+      personId: world.personId,
+      preparedExportDigest: digest,
+      deliveryMethod: "secure-email",
+      deliveryEvidenceId: "delivery-rotation-window",
+    }),
+  ]) {
+    assert.equal(response.status, 503, "a retired signing key is an opaque operational failure, never an unsafe fallback");
+    assert.deepEqual(await response.json(), { ok: false, error: "export_failed" });
+    assertNoStore(response);
+  }
+  assert.deepEqual(requests.findSubjectRequest(world.agencyId, ready.id), stable, "failed verification cannot rewrite durable evidence");
+  assert.equal(activity.listActivity({ agencyId: world.agencyId, limit: 100 }).filter(entry => entry.action === "subject_access.export-prepared").length, 1);
+  assert.equal(activity.listActivity({ agencyId: world.agencyId, limit: 100 }).filter(entry => entry.action === "subject_access.review-recorded").length, 1);
+  assert.equal(activity.listActivity({ agencyId: world.agencyId, limit: 100 }).filter(entry => entry.action === "subject_access.delivered").length, 1);
+});
+
+test("missing or malformed dedicated DSAR configuration refuses preparation without state or activity mutation", async () => {
+  for (const key of [undefined, "not-base64url!", DSAR_KEY_A] as const) {
+    const world = await seedWorld();
+    const ready = makeRequest(world, { verify: true });
+    if (key === undefined) delete process.env.PORTAL_DSAR_INTEGRITY_KEY;
+    else process.env.PORTAL_DSAR_INTEGRITY_KEY = key;
+    if (key === DSAR_KEY_A) process.env.PORTAL_DSAR_INTEGRITY_PREVIOUS_KEY = DSAR_KEY_A;
+    const before = requests.findSubjectRequest(world.agencyId, ready.id);
+    const response = await post(world.token, { requestId: ready.id, personId: world.personId });
+    assert.equal(response.status, 503);
+    assert.deepEqual(await response.json(), { ok: false, error: "export_failed" });
+    assertNoStore(response);
+    assert.deepEqual(requests.findSubjectRequest(world.agencyId, ready.id), before);
+    assert.equal(activity.listActivity({ agencyId: world.agencyId, limit: 100 }).length, 0);
+    process.env.PORTAL_DSAR_INTEGRITY_KEY = DSAR_KEY_A;
+    delete process.env.PORTAL_DSAR_INTEGRITY_PREVIOUS_KEY;
+  }
 });
 
 test("preparation is replayable but only evidenced review and delivery fulfil; failures roll back", async () => {

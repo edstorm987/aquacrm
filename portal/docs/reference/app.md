@@ -2519,12 +2519,12 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (4):**
 
-- `async POST(request: Request)` — Prepare and stage a replayable safe subset. Preparation never fulfils.
-- `async PUT(request: Request)` — Record human review against an exact staged digest, without delivery.
-- `async PATCH(request: Request)` — Fulfil only after separate evidence of delivery for the exact staged file.
+- `async POST(request: NextRequest)` — Prepare and stage a replayable safe subset. Preparation never fulfils.
+- `async PUT(request: NextRequest)` — Record human review against an exact staged digest, without delivery.
+- `async PATCH(request: NextRequest)` — Fulfil only after separate evidence of delivery for the exact staged file.
 - `runtime = "nodejs"`
 
-**Depends on (7):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/boundedRequestBody.ts`](lib.md#file-src-lib-server-boundedrequestbody-ts-b28de71542) · [`src/lib/server/compliance/subjectAccessExport.ts`](lib.md#file-src-lib-server-compliance-subjectaccessexport-ts-0cf0955bd6) · [`src/lib/server/compliance/subjectRequests.ts`](lib.md#file-src-lib-server-compliance-subjectrequests-ts-dfa2bdbaf1) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/productWorkspaceCoordinator.ts`](server.md#file-src-server-productworkspacecoordinator-ts-746a08d0be) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
+**Depends on (8):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/lib/server/auth/csrf.ts`](lib.md#file-src-lib-server-auth-csrf-ts-ff75131bd7) · [`src/lib/server/boundedRequestBody.ts`](lib.md#file-src-lib-server-boundedrequestbody-ts-b28de71542) · [`src/lib/server/compliance/subjectAccessExport.ts`](lib.md#file-src-lib-server-compliance-subjectaccessexport-ts-0cf0955bd6) · [`src/lib/server/compliance/subjectRequests.ts`](lib.md#file-src-lib-server-compliance-subjectrequests-ts-dfa2bdbaf1) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/productWorkspaceCoordinator.ts`](server.md#file-src-server-productworkspacecoordinator-ts-746a08d0be) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 

@@ -3739,7 +3739,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (1):** [`src/lib/server/auth/sessionToken.ts`](#file-src-lib-server-auth-sessiontoken-ts-b0b933a575)
 
-**Used by (6):** [`scripts/smoke-people-cv-security.test.ts`](scripts.md#file-scripts-smoke-people-cv-security-test-ts-a34dfd75a7) · [`scripts/smoke-session-security.test.ts`](scripts.md#file-scripts-smoke-session-security-test-ts-94105d5d43) · [`src/app/api/auth/csrf/route.ts`](app.md#file-src-app-api-auth-csrf-route-ts-d4f333b39f) · [`src/app/api/portal/agency/command-scan/route.ts`](app.md#file-src-app-api-portal-agency-command-scan-route-ts-81ee6ef409) · [`src/app/api/portal/people/cv/route.ts`](app.md#file-src-app-api-portal-people-cv-route-ts-e56d36d5ab) · [`src/app/api/portal/settings/embed-credentials/route.ts`](app.md#file-src-app-api-portal-settings-embed-credentials-route-ts-d8f154e7d7)
+**Used by (7):** [`scripts/smoke-people-cv-security.test.ts`](scripts.md#file-scripts-smoke-people-cv-security-test-ts-a34dfd75a7) · [`scripts/smoke-session-security.test.ts`](scripts.md#file-scripts-smoke-session-security-test-ts-94105d5d43) · [`src/app/api/auth/csrf/route.ts`](app.md#file-src-app-api-auth-csrf-route-ts-d4f333b39f) · [`src/app/api/portal/agency/command-scan/route.ts`](app.md#file-src-app-api-portal-agency-command-scan-route-ts-81ee6ef409) · [`src/app/api/portal/governance/subject-access/route.ts`](app.md#file-src-app-api-portal-governance-subject-access-route-ts-2dbcab7186) · [`src/app/api/portal/people/cv/route.ts`](app.md#file-src-app-api-portal-people-cv-route-ts-e56d36d5ab) · [`src/app/api/portal/settings/embed-credentials/route.ts`](app.md#file-src-app-api-portal-settings-embed-credentials-route-ts-d8f154e7d7)
 
 <a id="file-src-lib-server-auth-effectiverole-ts-800cbe7bd9"></a>
 
@@ -4642,7 +4642,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports (14):**
 
 - `subjectAccessExportReviewCount(result: SubjectAccessResult): number`
-- `collectSubjectAccessExport(agencyId: string, personId: string, options: { generatedAt?: number } = {}): SubjectAccessResult | null`
+- `collectSubjectAccessExport(agencyId: string, personId: string, options: { generatedAt?: number; maxValues?: number } = {}): SubjectAccessResult | null`
 - `subjectAccessExportJson(result: SubjectAccessResult): string`
 - `class SubjectAccessExportIncompleteError`
     - `constructor(public readonly reasons: SubjectAccessIncompleteReason[])`
@@ -4652,14 +4652,34 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `MAX_SUBJECT_ACCESS_CHARACTERS = 5_000_000`
 - `MAX_SUBJECT_ACCESS_STRING_CHARACTERS = 100_000`
 - `MAX_SUBJECT_ACCESS_EXPORT_BYTES = 1_000_000`
-- `type SubjectAccessIncompleteReason = | "record-limit" | "value-limit" | "character-limit" | "string-limit" | "output-size-limit"`
+- `type SubjectAccessIncompleteReason = | "record-limit" | "value-limit" | "character-limit" | "string-limit" | "output-size-limit" | "accessor-value" | "invalid-stored-value"`
 - `interface SubjectAccessSubject (7 members)`
 - `interface SubjectAccessReviewTotals (7 members)`
 - `interface SubjectAccessResult (17 members)`
 
-**Depends on (2):** [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (3):** [`src/lib/telephony/phoneNumbers.ts`](#file-src-lib-telephony-phonenumbers-ts-b7be228e55) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (1):** [`src/app/api/portal/governance/subject-access/route.ts`](app.md#file-src-app-api-portal-governance-subject-access-route-ts-2dbcab7186)
+
+<a id="file-src-lib-server-compliance-subjectaccessintegrity-ts-125a2aa17c"></a>
+
+### `src/lib/server/compliance/subjectAccessIntegrity.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (6):**
+
+- `signSubjectAccessIntegrity(purpose: string, values: readonly (string | number)[]): SubjectAccessIntegrityStamp`
+- `verifySubjectAccessIntegrity(stamp: SubjectAccessIntegrityStamp, purpose: string, values: readonly (string | number)[]): boolean`
+- `class SubjectAccessIntegrityUnavailableError` — Configuration failures are operational failures, not request-state facts. Routes deliberately map this to their existing generic 503 response so a missing/retired key never become…
+    - `constructor()`
+- `SUBJECT_ACCESS_INTEGRITY_VERSION = 1`
+- `SUBJECT_ACCESS_INTEGRITY_KEY_ID_PATTERN = /^dsar_[a-f0-9]{24}$/`
+- `interface SubjectAccessIntegrityStamp (3 members)`
+
+**Depends on (2):** [`src/lib/server/env.ts`](#file-src-lib-server-env-ts-e409426595) · [`src/lib/server/secrets.ts`](#file-src-lib-server-secrets-ts-99a4129f8d)
+
+**Used by (1):** [`src/lib/server/compliance/subjectRequests.ts`](#file-src-lib-server-compliance-subjectrequests-ts-dfa2bdbaf1)
 
 <a id="file-src-lib-server-compliance-subjectrequests-ts-dfa2bdbaf1"></a>
 
@@ -4667,7 +4687,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (17):**
+**Exports (19):**
 
 - `oneMonthAfter(from: number): number` — Art. 12(3). Calendar month, not 30 days — the regulation says month.
 - `recordSubjectRequest(input: RecordSubjectRequestInput): SubjectRequest`
@@ -4676,8 +4696,8 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `verifySubjectRequestIdentity(agencyId: string, id: string, actorUserId: string): SubjectRequest | null` — Art. 12(6) — confirm who is asking, before anything is released. Separate from fulfilment on purpose. Handing somebody's data to whoever emailed in is itself a breach, and a singl…
 - `requireSubjectAccessRequestForExport(agencyId: string, id: string, personId: string): SubjectRequest` — Read-side gate used inside the same coordinated transaction as fulfilment.
 - `recordPreparedSubjectAccessExport(agencyId: string, id: string, personId: string, actorUserId: string, prepared: PreparedSubjectAccessExport): SubjectRequest` — Durably stage an immutable, bounded export. This never closes the request: successful generation is not evidence that the subject received anything. Retaining the staged bytes mak…
-- `recordSubjectAccessReviewCompletion(agencyId: string, id: string, personId: string, actorUserId: string, digest: string, evidenceId: string): SubjectRequest` — Record human review against the exact prepared file, without delivery.
-- `fulfilPreparedSubjectAccessDelivery(agencyId: string, id: string, personId: string, actorUserId: string, digest: string, deliveryMethod: NonNullable<SubjectRequest["deliveryMethod"]>, evidenceId: string): SubjectRequest` — Close only after separate evidence says the exact prepared file was delivered. Review-bearing exports additionally require evidence that review was completed against this same dig…
+- `recordSubjectAccessReviewCompletion(agencyId: string, id: string, personId: string, actorUserId: string, digest: string, evidenceId: string): SubjectAccessReviewResult` — Record human review against the exact prepared file, without delivery.
+- `fulfilPreparedSubjectAccessDelivery(agencyId: string, id: string, personId: string, actorUserId: string, digest: string, deliveryMethod: NonNullable<SubjectRequest["deliveryMethod"]>, evidenceId: string): SubjectAccessD…`
 - `fulfilSubjectRequest(agencyId: string, id: string, actorUserId: string, outcome: string): SubjectRequest | null` — Close a request as fulfilled. Refuses when identity has not been verified. That refusal is the point of the whole module — it is the one place the sequence can be enforced rather …
 - `extendSubjectRequest(agencyId: string, id: string, reason: string): SubjectRequest | null` — Art. 12(3) — two further months, for complex or numerous requests. The subject must be told within the first month, and told why. The reason is therefore required rather than opti…
 - `subjectRequestClock(agencyId: string, now = Date.now()): SubjectRequestClock` — The register at a glance — what Radar and the governance screen need.
@@ -4687,9 +4707,11 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
     - `constructor()`
 - `interface RecordSubjectRequestInput (6 members)`
 - `interface PreparedSubjectAccessExport (6 members)`
+- `interface SubjectAccessReviewResult (3 members)`
+- `interface SubjectAccessDeliveryResult (3 members)` — Close only after separate evidence says the exact prepared file was delivered. Review-bearing exports additionally require evidence that review was completed against this same dig…
 - `interface SubjectRequestClock (4 members)`
 
-**Depends on (2):** [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (3):** [`src/lib/server/compliance/subjectAccessIntegrity.ts`](#file-src-lib-server-compliance-subjectaccessintegrity-ts-125a2aa17c) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (2):** [`src/app/api/portal/governance/subject-access/route.ts`](app.md#file-src-app-api-portal-governance-subject-access-route-ts-2dbcab7186) · [`src/app/portal/agency/governance/_governanceData.ts`](app.md#file-src-app-portal-agency-governance-governancedata-ts-ecdaa49f02)
 
@@ -5725,10 +5747,11 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** tsx --test.
 
-**Exports (6):**
+**Exports (7):**
 
 - `requireEnv(name: string, opts: RequireOpts = {}): string | undefined`
 - `optionalEnv<T extends string>(name: string, fallback: T): string`
+- `validSubjectAccessIntegrityKeyMaterial(value: string | undefined): boolean` — Canonical base64url encoding of 32–64 bytes of operator-generated entropy.
 - `inspectEnv(env: NodeJS.ProcessEnv = process.env): EnvIssue[]` — the analysis so the smoke can drive every branch.
 - `runStartupEnvCheck(env: NodeJS.ProcessEnv = process.env): EnvIssue[]` — to surface them (e.g. /api/internal/sweep diagnostic).
 - `ENV_ALLOWLIST: readonly string[]` — every framework's own surface) are ignored.
@@ -5736,7 +5759,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (1):** [`src/lib/public/publicOrigin.ts`](#file-src-lib-public-publicorigin-ts-ccb00c7487)
 
-**Used by (5):** [`scripts/smoke-auth-fail-closed.test.ts`](scripts.md#file-scripts-smoke-auth-fail-closed-test-ts-5ef4c04eef) · [`scripts/smoke-env-secrets.test.ts`](scripts.md#file-scripts-smoke-env-secrets-test-ts-25feb9d192) · [`scripts/smoke-google-oauth.test.ts`](scripts.md#file-scripts-smoke-google-oauth-test-ts-5c6ba97fe0) · [`scripts/smoke-google-places-scouting.test.ts`](scripts.md#file-scripts-smoke-google-places-scouting-test-ts-e72e446213) · [`src/lib/server/secrets.ts`](#file-src-lib-server-secrets-ts-99a4129f8d)
+**Used by (7):** [`scripts/smoke-auth-fail-closed.test.ts`](scripts.md#file-scripts-smoke-auth-fail-closed-test-ts-5ef4c04eef) · [`scripts/smoke-env-secrets.test.ts`](scripts.md#file-scripts-smoke-env-secrets-test-ts-25feb9d192) · [`scripts/smoke-google-oauth.test.ts`](scripts.md#file-scripts-smoke-google-oauth-test-ts-5c6ba97fe0) · [`scripts/smoke-google-places-scouting.test.ts`](scripts.md#file-scripts-smoke-google-places-scouting-test-ts-e72e446213) · [`src/lib/server/compliance/subjectAccessIntegrity.ts`](#file-src-lib-server-compliance-subjectaccessintegrity-ts-125a2aa17c) · [`src/lib/server/productionReadiness.ts`](#file-src-lib-server-productionreadiness-ts-4763c179fe) · [`src/lib/server/secrets.ts`](#file-src-lib-server-secrets-ts-99a4129f8d)
 
 
 ## `src/lib/server/finance/`
@@ -7016,7 +7039,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface ProductionReadiness (4 members)`
 - `interface ReadinessContext (9 members)`
 
-**Depends on (1):** [`src/lib/server/observabilityCapability.ts`](#file-src-lib-server-observabilitycapability-ts-6b60d0fb67)
+**Depends on (2):** [`src/lib/server/env.ts`](#file-src-lib-server-env-ts-e409426595) · [`src/lib/server/observabilityCapability.ts`](#file-src-lib-server-observabilitycapability-ts-6b60d0fb67)
 
 **Used by (7):** [`scripts/launch-audit.ts`](scripts.md#file-scripts-launch-audit-ts-afda06cb8a) · [`scripts/smoke-production-readiness.test.ts`](scripts.md#file-scripts-smoke-production-readiness-test-ts-c66909fadb) · [`src/app/healthz/full/route.ts`](app.md#file-src-app-healthz-full-route-ts-1932591a27) · [`src/app/portal/agency/settings/SettingsTabs.tsx`](app.md#file-src-app-portal-agency-settings-settingstabs-tsx-e999a7955b) · [`src/app/portal/agency/settings/page.tsx`](app.md#file-src-app-portal-agency-settings-page-tsx-05d4a95f14) · [`src/app/portal/dev-team/auditor/_Section.tsx`](app.md#file-src-app-portal-dev-team-auditor-section-tsx-f67ee3b69b) · [`src/lib/server/dev/devTeamAuditor.ts`](#file-src-lib-server-dev-devteamauditor-ts-55e1f27e86)
 
@@ -7238,9 +7261,11 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (12):**
+**Exports (14):**
 
 - `sessionSecret(): string | undefined` — the first request lands) layer their own dev fallback on top.
+- `subjectAccessIntegrityKey(): string | undefined` — Dedicated DSAR evidence key. Never substitute the session secret.
+- `previousSubjectAccessIntegrityKey(): string | undefined` — One retired DSAR key retained only for bounded rotation verification.
 - `databaseUrl(): string | undefined`
 - `portalBaseUrl(): string | undefined`
 - `portalSecurity(): "strict" | "relaxed"`
@@ -7255,7 +7280,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (2):** [`src/lib/server/env.ts`](#file-src-lib-server-env-ts-e409426595) · [`src/lib/shared/internalWorkspace.ts`](#file-src-lib-shared-internalworkspace-ts-469a3bb9e7)
 
-**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+**Used by (1):** [`src/lib/server/compliance/subjectAccessIntegrity.ts`](#file-src-lib-server-compliance-subjectaccessintegrity-ts-125a2aa17c)
 
 
 ## `src/lib/server/security/`
@@ -8138,7 +8163,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on:** _No internal imports._
 
-**Used by (10):** [`scripts/smoke-telephony-caller-identity.test.ts`](scripts.md#file-scripts-smoke-telephony-caller-identity-test-ts-2ed21c8e2e) · [`src/app/api/portal/telephony/call/route.ts`](app.md#file-src-app-api-portal-telephony-call-route-ts-a6edf486bf) · [`src/app/api/webhooks/twilio/voice/route.ts`](app.md#file-src-app-api-webhooks-twilio-voice-route-ts-e6acb0932a) · [`src/app/portal/agency/leads-pipeline/contacts/_ContactsWorkspace.tsx`](app.md#file-src-app-portal-agency-leads-pipeline-contacts-contactsworkspace-tsx-9e6c6879f9) · [`src/components/telephony/CallControls.tsx`](components.md#file-src-components-telephony-callcontrols-tsx-13a6a3e9b1) · [`src/lib/server/email/outboundCommunications.ts`](#file-src-lib-server-email-outboundcommunications-ts-2c4deea1df) · [`src/lib/server/telephony/resolveCaller.ts`](#file-src-lib-server-telephony-resolvecaller-ts-e095b8d96b) · [`src/lib/telephony/callerIdentity.ts`](#file-src-lib-telephony-calleridentity-ts-41bffc243e) · [`src/lib/telephony/contactRecipientPolicy.ts`](#file-src-lib-telephony-contactrecipientpolicy-ts-29789d003b) · [`src/lib/telephony/prospectOutreachPolicy.ts`](#file-src-lib-telephony-prospectoutreachpolicy-ts-5efdbc00c8)
+**Used by (11):** [`scripts/smoke-telephony-caller-identity.test.ts`](scripts.md#file-scripts-smoke-telephony-caller-identity-test-ts-2ed21c8e2e) · [`src/app/api/portal/telephony/call/route.ts`](app.md#file-src-app-api-portal-telephony-call-route-ts-a6edf486bf) · [`src/app/api/webhooks/twilio/voice/route.ts`](app.md#file-src-app-api-webhooks-twilio-voice-route-ts-e6acb0932a) · [`src/app/portal/agency/leads-pipeline/contacts/_ContactsWorkspace.tsx`](app.md#file-src-app-portal-agency-leads-pipeline-contacts-contactsworkspace-tsx-9e6c6879f9) · [`src/components/telephony/CallControls.tsx`](components.md#file-src-components-telephony-callcontrols-tsx-13a6a3e9b1) · [`src/lib/server/compliance/subjectAccessExport.ts`](#file-src-lib-server-compliance-subjectaccessexport-ts-0cf0955bd6) · [`src/lib/server/email/outboundCommunications.ts`](#file-src-lib-server-email-outboundcommunications-ts-2c4deea1df) · [`src/lib/server/telephony/resolveCaller.ts`](#file-src-lib-server-telephony-resolvecaller-ts-e095b8d96b) · [`src/lib/telephony/callerIdentity.ts`](#file-src-lib-telephony-calleridentity-ts-41bffc243e) · [`src/lib/telephony/contactRecipientPolicy.ts`](#file-src-lib-telephony-contactrecipientpolicy-ts-29789d003b) · [`src/lib/telephony/prospectOutreachPolicy.ts`](#file-src-lib-telephony-prospectoutreachpolicy-ts-5efdbc00c8)
 
 <a id="file-src-lib-telephony-prospectoutreachpolicy-ts-5efdbc00c8"></a>
 

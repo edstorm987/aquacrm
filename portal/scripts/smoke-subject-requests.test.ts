@@ -25,6 +25,8 @@ let requests: typeof import("../src/lib/server/compliance/subjectRequests");
 
 before(async () => {
   process.env.PORTAL_BACKEND = "memory";
+  process.env.PORTAL_DSAR_INTEGRITY_KEY = Buffer.from("subject-request-integrity-key-a1!!!", "utf8").toString("base64url");
+  delete process.env.PORTAL_DSAR_INTEGRITY_PREVIOUS_KEY;
   storage = await import("../src/server/storage");
   await storage.ensureHydrated();
   requests = await import("../src/lib/server/compliance/subjectRequests");

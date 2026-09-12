@@ -16,16 +16,20 @@ import {
   optionalEnv,
   requireEnv,
   runStartupEnvCheck,
+  validSubjectAccessIntegrityKeyMaterial,
 } from "../src/lib/server/env";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 const ENV_EXAMPLE = join(ROOT, ".env.example");
 const SECRETS = join(ROOT, "src", "lib", "server", "secrets.ts");
+const DSAR_KEY_A = Buffer.from("0123456789abcdef0123456789abcdef", "utf8").toString("base64url");
+const DSAR_KEY_B = Buffer.from("fedcba9876543210fedcba9876543210", "utf8").toString("base64url");
 
 const PROD_REQUIRED_ENV: NodeJS.ProcessEnv = {
   NODE_ENV: "production",
   PORTAL_SESSION_SECRET: "x".repeat(48),
+  PORTAL_DSAR_INTEGRITY_KEY: DSAR_KEY_A,
   DATABASE_URL: "postgres://user:pass@host/db",
   NEXT_PUBLIC_PORTAL_BASE_URL: "https://milesymedia.com",
   NEXT_PUBLIC_PORTAL_SECURITY: "strict",
@@ -134,6 +138,35 @@ describe("Env secrets — inspectEnv issues (R029)", () => {
     assert.ok(e, "expected length-check issue");
   });
 
+  it("requires a canonical 256-bit or stronger dedicated DSAR integrity key", () => {
+    assert.equal(validSubjectAccessIntegrityKeyMaterial(DSAR_KEY_A), true);
+    for (const value of ["short", "x".repeat(43), Buffer.alloc(32).toString("base64url"), `${DSAR_KEY_A}=`, ` ${DSAR_KEY_A}`]) {
+      const issues = inspectEnv({ ...PROD_REQUIRED_ENV, PORTAL_DSAR_INTEGRITY_KEY: value });
+      assert.ok(issues.some(issue => issue.name === "PORTAL_DSAR_INTEGRITY_KEY" && issue.severity === "error"), value);
+    }
+  });
+
+  it("validates the optional previous DSAR key and refuses current-key reuse", () => {
+    assert.equal(inspectEnv({
+      ...PROD_REQUIRED_ENV,
+      PORTAL_DSAR_INTEGRITY_PREVIOUS_KEY: DSAR_KEY_B,
+    }).length, 0);
+    for (const value of ["not-base64url!", DSAR_KEY_A]) {
+      const issues = inspectEnv({ ...PROD_REQUIRED_ENV, PORTAL_DSAR_INTEGRITY_PREVIOUS_KEY: value });
+      assert.ok(issues.some(issue => issue.name === "PORTAL_DSAR_INTEGRITY_PREVIOUS_KEY" && issue.severity === "error"), value);
+    }
+  });
+
+  it("rejects reuse of the session secret as either DSAR key", () => {
+    for (const env of [
+      { ...PROD_REQUIRED_ENV, PORTAL_SESSION_SECRET: DSAR_KEY_A },
+      { ...PROD_REQUIRED_ENV, PORTAL_SESSION_SECRET: DSAR_KEY_B, PORTAL_DSAR_INTEGRITY_PREVIOUS_KEY: DSAR_KEY_B },
+    ]) {
+      const issues = inspectEnv(env);
+      assert.ok(issues.some(issue => issue.name.startsWith("PORTAL_DSAR_INTEGRITY") && issue.severity === "error"));
+    }
+  });
+
   it("FOUNDER_PASSWORD shorter than 12 chars flagged", () => {
     const env = { ...PROD_REQUIRED_ENV, FOUNDER_PASSWORD: "short" };
     const issues = inspectEnv(env);
@@ -213,6 +246,7 @@ describe("Env secrets — ENV_ALLOWLIST (R029)", () => {
   it("includes every PRODUCTION_REQUIRED key", () => {
     const required = [
       "PORTAL_SESSION_SECRET",
+      "PORTAL_DSAR_INTEGRITY_KEY",
       "NEXT_PUBLIC_PORTAL_BASE_URL",
       "NEXT_PUBLIC_PORTAL_SECURITY",
       "NEXT_PUBLIC_SUPABASE_URL",
@@ -227,7 +261,7 @@ describe("Env secrets — ENV_ALLOWLIST (R029)", () => {
   });
 
   it("includes the FOUNDER_AGENCY_NAME + Sentry + Vercel keys", () => {
-    for (const k of ["FOUNDER_AGENCY_NAME", "SENTRY_DSN", "VERCEL_TOKEN"]) {
+    for (const k of ["FOUNDER_AGENCY_NAME", "SENTRY_DSN", "VERCEL_TOKEN", "PORTAL_DSAR_INTEGRITY_PREVIOUS_KEY"]) {
       assert.ok(ENV_ALLOWLIST.includes(k), `missing ${k}`);
     }
   });
@@ -238,6 +272,8 @@ describe("Env secrets — secrets.ts typed accessors (R029, source-marker)", () 
     const src = readFileSync(SECRETS, "utf8");
     for (const name of [
       "export function sessionSecret",
+      "export function subjectAccessIntegrityKey",
+      "export function previousSubjectAccessIntegrityKey",
       "export function databaseUrl",
       "export function portalBaseUrl",
       "export function portalSecurity",
@@ -255,12 +291,15 @@ describe("Env secrets — secrets.ts typed accessors (R029, source-marker)", () 
 describe("Env secrets — `.env.example` shape (R029)", () => {
   it("has all required keys + no real-looking secrets", () => {
     const env = readFileSync(ENV_EXAMPLE, "utf8");
-    for (const k of ["PORTAL_SESSION_SECRET", "FOUNDER_EMAIL", "FOUNDER_PASSWORD"]) {
+    for (const k of ["PORTAL_SESSION_SECRET", "PORTAL_DSAR_INTEGRITY_KEY", "PORTAL_DSAR_INTEGRITY_PREVIOUS_KEY", "FOUNDER_EMAIL", "FOUNDER_PASSWORD"]) {
       assert.ok(env.includes(k), `missing ${k} in .env.example`);
     }
     // FOUNDER_PASSWORD must be present + empty (no default).
     assert.ok(env.match(/^FOUNDER_PASSWORD=\s*$/m));
     // PORTAL_SESSION_SECRET must be present + empty.
     assert.ok(env.match(/^PORTAL_SESSION_SECRET=\s*$/m));
+    assert.ok(env.match(/^PORTAL_DSAR_INTEGRITY_KEY=\s*$/m));
+    assert.ok(env.match(/^PORTAL_DSAR_INTEGRITY_PREVIOUS_KEY=\s*$/m));
+    assert.match(env, /must never reuse PORTAL_SESSION_SECRET/);
   });
 });

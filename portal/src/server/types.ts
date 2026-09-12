@@ -4885,6 +4885,10 @@ export interface SubjectRequest {
   /** Server-authenticated binding of the request identity, staged bytes,
    * digest and manifest totals. Missing or mismatched tags fail closed. */
   preparedExportIntegrityTag?: string;
+  /** Non-secret derived key identity and framing version used to authenticate
+   * the staged export. Persisted so current+previous key rotation is explicit. */
+  preparedExportIntegrityKeyId?: string;
+  preparedExportIntegrityKeyVersion?: number;
   /** Bounded staged payload so a lost response can replay the identical file.
    * Cleared after evidenced delivery; the digest remains as audit evidence. */
   preparedExportJson?: string;
@@ -4898,6 +4902,9 @@ export interface SubjectRequest {
    * evidence. Retained so exact replay is idempotent while forged, changed or
    * reused evidence is refused. */
   preparedExportReviewResultId?: string;
+  /** Key identity/version for the authenticated review result. */
+  preparedExportReviewIntegrityKeyId?: string;
+  preparedExportReviewIntegrityKeyVersion?: number;
   /** Separate evidence that the exact prepared export was handed over. */
   deliveredAt?: number;
   deliveredBy?: string;
@@ -4907,6 +4914,9 @@ export interface SubjectRequest {
    * method and delivery evidence. Retained after staged bytes are deleted so
    * a lost success response can replay without trusting caller-derived hashes. */
   deliveryResultId?: string;
+  /** Key identity/version for the authenticated delivery result. */
+  deliveryIntegrityKeyId?: string;
+  deliveryIntegrityKeyVersion?: number;
   fulfilledAt?: number;
   fulfilledBy?: string;
   /** What was actually done — free text for the file, no personal data. */

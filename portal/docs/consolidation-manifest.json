@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-12T18:31:19.514Z",
+  "generatedAt": "2026-09-12T19:18:00.990Z",
   "canonicalMarkdownCount": 20,
   "authoredVolumes": [
     {
@@ -423,9 +423,9 @@
       "path": "docs/development/BLOCKERS-FOR-ED.md",
       "volume": "docs/00-START-HERE.md",
       "anchor": "source-docs-development-blockers-for-ed-md",
-      "sha256": "48e28e6022ec8fbc5ead0562f0b42a9f8ba7a9159c5c820068af7ecb872bdb6c",
-      "words": 1494,
-      "bytes": 11180
+      "sha256": "c15dac81ed8f86e7ef92193e3ae472d33a8b1e1c59cf4cefdb947dd6eb94c3d8",
+      "words": 1525,
+      "bytes": 11479
     },
     {
       "path": "docs/development/CAMPAIGN-LEDGER.md",
@@ -831,9 +831,9 @@
       "path": "docs/development/plans/launch-order-and-blockers.md",
       "volume": "docs/04-DEVELOPMENT-PLANS.md",
       "anchor": "source-docs-development-plans-launch-order-and-blockers-md",
-      "sha256": "fefbf127a89363502074e4bb04c414673ac3b9d956c8e67ed3beb8003ed37cf0",
-      "words": 21654,
-      "bytes": 138037
+      "sha256": "705d8c40692bc9a6e84bd66ca7ffa2134014de4c92adcf9892983c64122a0fb3",
+      "words": 21873,
+      "bytes": 139740
     },
     {
       "path": "docs/development/plans/marketing-workspace-overhaul.md",
@@ -1031,9 +1031,9 @@
       "path": "docs/development/PRODUCTION-READINESS.md",
       "volume": "docs/02-CURRENT-STATE-AND-WORK.md",
       "anchor": "source-docs-development-production-readiness-md",
-      "sha256": "69689073325f254a4639a7af63e847988e74c1cfbbac89dd5e34d0fcfedcb536",
-      "words": 2257,
-      "bytes": 16386
+      "sha256": "3e00be1441e6d5cafd9c96bcf171732cfd3f9a61eedc8bc78d967f1b4a31a722",
+      "words": 2355,
+      "bytes": 17075
     },
     {
       "path": "docs/development/roadmap.md",
@@ -1191,9 +1191,9 @@
       "path": "docs/workspace/api-reference.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-api-reference-md",
-      "sha256": "27c9c214a987b1ecd26abb69e223df2629244cd6a11f50f53d77724f9574b675",
-      "words": 8990,
-      "bytes": 63632
+      "sha256": "68167fa9280d8bafbd480dcc2f3bb6978d356370c7df8270eade3202e7d7a55f",
+      "words": 9002,
+      "bytes": 63681
     },
     {
       "path": "docs/workspace/aqua-tag.md",
@@ -1215,25 +1215,25 @@
       "path": "docs/workspace/database.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-database-md",
-      "sha256": "d445039e1a3d36662d9295e83aa9d99a56f9b309c8070fe0187d45c41fbda991",
-      "words": 2557,
-      "bytes": 20814
+      "sha256": "e47ecd1d4c1aa131e610e0f86538e965eea7b40335fa577941a77f8095f68627",
+      "words": 2565,
+      "bytes": 20896
     },
     {
       "path": "docs/workspace/env-and-sellability.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-env-and-sellability-md",
-      "sha256": "b5f5e0fa72a67e0d6eadea0124c7fcebcf54e7a124f388db4c3236fc80a729b5",
-      "words": 3741,
-      "bytes": 29230
+      "sha256": "01fddedba84fe6c2676c126ef9dd860b0d047f560e347a37fb0194ef4a77eea3",
+      "words": 3793,
+      "bytes": 29703
     },
     {
       "path": "docs/workspace/feature-index.md",
       "volume": "docs/05-WORKSPACE-ENGINEERING.md",
       "anchor": "source-docs-workspace-feature-index-md",
-      "sha256": "d987932e0720ed9820ff40877d5d4d85bb357570b783b65d8aea0d1fcbe4a983",
-      "words": 5488,
-      "bytes": 51950
+      "sha256": "53ba7796812610a854e78a06a06fda39fb72d3720f0bd2dc46a75f84841344ef",
+      "words": 5493,
+      "bytes": 51968
     },
     {
       "path": "docs/workspace/hazards-and-duplication.md",
