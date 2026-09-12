@@ -16,6 +16,7 @@ import type {
   UpdateLeadPatch,
 } from "../lib/domain";
 import type { ActivityLogPort, EventBusPort, StoragePort } from "./ports";
+import { allowlistedLeadUpdate } from "../lib/mutationAllowlist";
 
 const LEAD_INDEX_KEY = "leads/index";
 const leadKey = (id: string): string => `leads/by-id/${id}`;
@@ -286,7 +287,8 @@ export class LeadService {
     return { erased, reviewRequired };
   }
 
-  async update(id: string, patch: UpdateLeadPatch, actor: UserId): Promise<Lead | null> {
+  async update(id: string, untrustedPatch: UpdateLeadPatch, actor: UserId): Promise<Lead | null> {
+    const patch = allowlistedLeadUpdate(untrustedPatch);
     return withLeadMutationLock(this.agencyId, this.storage, () => this.updateUnlocked(id, patch, actor));
   }
 
@@ -343,14 +345,22 @@ export class LeadService {
     }
 
     const next: Lead = {
-      ...existing,
-      ...patch,
+      id: existing.id,
+      agencyId: existing.agencyId,
+      clientId: existing.clientId,
+      personId: existing.personId,
       campaignId: patch.campaignId === null ? undefined : patch.campaignId ?? existing.campaignId,
-      assignedStaffId: patch.assignedStaffId === null ? undefined : patch.assignedStaffId ?? existing.assignedStaffId,
       email: nextEmail,
       name: patch.name?.trim() ?? existing.name,
       phone: patch.phone?.trim() ?? existing.phone,
+      source: existing.source,
+      status: patch.status ?? existing.status,
+      assignedStaffId: patch.assignedStaffId === null ? undefined : patch.assignedStaffId ?? existing.assignedStaffId,
+      notes: patch.notes ?? existing.notes,
+      contactHistory: existing.contactHistory,
+      createdAt: existing.createdAt,
       updatedAt: now(),
+      lastContactedAt: existing.lastContactedAt,
     };
     await this.storage.set(leadKey(id), next);
 

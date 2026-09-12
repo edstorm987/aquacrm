@@ -5,7 +5,6 @@ import { containerFor } from "../server/foundationAdapter";
 import { redactProviderConfig } from "../server/provider";
 import type {
   CreateIdentityInput,
-  EnqueueInput,
   MessageFilter,
   UpdateIdentityPatch,
   UpdateProviderInput,
@@ -182,19 +181,4 @@ export async function postmarkWebhookHandler(req: Request, ctx: PluginCtx): Prom
     ?? "";
   const result = await buildContainer(ctx).webhook.handle({ rawBody, signatureHeader });
   return json(result, result.ok ? 200 : 400);
-}
-
-// ─── Internal enqueue (plugin-to-plugin via foundation routing) ──────────
-
-export async function internalEnqueueHandler(req: Request, ctx: PluginCtx): Promise<Response> {
-  const guard = methodGuard(req, "POST");
-  if (guard) return guard;
-  const body = await safeJson<EnqueueInput>(req);
-  if (!body?.to) return badRequest("to required.");
-  try {
-    const message = await buildContainer(ctx).emails.enqueue(body, ctx.actor);
-    return json({ ok: true, message }, 201);
-  } catch (err) {
-    return unprocessable(err instanceof Error ? err.message : String(err));
-  }
 }
