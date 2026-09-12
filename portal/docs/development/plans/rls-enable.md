@@ -94,7 +94,9 @@ at all. Superseded first-cut model, or unfinished? Decide and record it.
 > does not read — so a plan the Status line calls "mostly done" rendered `0/5`.
 > They carry ✅ leads, and phase 3 is now also marked complete from the verified
 > 2026-09-03 application record. Phase 4 landed only its *first* reduction
-> (23 → 13 service-role call sites), so it is genuinely still open. Verified
+> (23 → 13 service-role call sites), so it is genuinely still open. The later
+> unwired ABUSE-BASE foundation adds one reviewed service-role RPC client, making
+> the current measured posture 14 sites / 9 files. Verified
 > 2026-08-31 that phase 5's two halves exist —
 > [`supabase/rls-verify.sql`](../../../../supabase/rls-verify.sql) and
 > `portal/scripts/smoke-rls-policy-coverage.test.ts` — and that phase 4's pin,
@@ -113,7 +115,9 @@ at all. Superseded first-cut model, or unfinished? Decide and record it.
 4. **Reduce service-role reliance where feasible** — **first reduction landed
    2026-08-20.** Measured by grep for `createSupabaseAdminClient(` in `src/`,
    excluding its definition file (`src/lib/supabase/admin.ts`): **before 23
-   call sites in 18 files → after 13 call sites in 8 files.** The count is
+   call sites in 18 files → after 13 call sites in 8 files.** ABUSE-BASE later
+   added one unwired, service-role-only atomic limiter RPC, so the current count
+   is **14 sites in 9 files**. The count is
    pinned in `scripts/smoke-service-role-usage.test.ts`, which fails on any
    drift and demands the table below stay in step.
 
@@ -145,7 +149,7 @@ at all. Superseded first-cut model, or unfinished? Decide and record it.
    through these routes — they get a 401 unless real Supabase cookies are also
    present (Ed's own dev-mode keeps his cookies, so his flows still work).
 
-   **What stays on the service role, and why (13 sites, 8 files):**
+   **What stays on the service role, and why (14 sites, 9 files):**
 
    | Site | Why it must keep the service role |
    |---|---|
@@ -156,12 +160,13 @@ at all. Superseded first-cut model, or unfinished? Decide and record it.
    | `src/lib/server/websiteEnquiries.ts` (3) | Shared read/annotate layer for radar, operational alerts, marketing intelligence and server components — paths with no request/user context. **The remaining phase-4 candidate**: converting it means deciding those engines run as somebody. |
    | `src/lib/server/privateUploadStorage.ts` (3) | Private buckets deny anon/authenticated by design; the app proxies bytes itself. |
    | `src/lib/server/publicUploadStorage.ts` (2) | Public-assets bucket is service-role-writable only. |
+   | `src/lib/server/security/admissionLimiter.ts` (1) | Unwired abuse-control foundation; its Supabase migration exposes the bounded atomic counter only to `service_role`. The client validates and HMACs bounded keys before RPC, so raw IP/subject identifiers never reach the table. PostgreSQL and missing-authority configurations fail closed rather than using this client. |
    | `src/lib/server/databaseStorageHealth.ts` (1) | Diagnostics must count ALL rows to report truthfully; runs without a user session. |
 
    (`src/lib/supabase/admin.ts` is outside the count as the definition file;
-   its three internal call sites are `auth.admin.*` operations that exist only
-   on the service role. `src/server/clientErasure.ts` takes the admin client
-   injected — counted at its injection site, the erase route above.)
+   its eight current internal call sites are privileged Auth/profile operations
+   that exist only on the service role. `src/server/clientErasure.ts` takes the
+   admin client injected — counted at its injection site, the erase route above.)
 5. ✅ **Verify** — both halves now exist:
    - live posture → `../../../../supabase/rls-verify.sql`, read-only, run it in
      the SQL editor after any `db push` or dashboard change;

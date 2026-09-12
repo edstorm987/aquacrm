@@ -20,18 +20,26 @@ test("every table the migrations create is expected, and the one they drop is no
     "inbox_conversations", "inbox_messages", "inbox_webhook_events", "editor_ai_reply_claims",
     "lead_conversion_operations", "product_workspace_leases", "app_datastore_patch_receipts",
     "aqua_tag_submissions", "aqua_auth_nonces", "inbox_client_erasure_tombstones",
+    "abuse_admission_counters", "abuse_admission_capacity",
   ]) assert.ok(tables.has(name), `expected table ${name}`);
-  assert.equal(tables.size, 24);
+  assert.equal(tables.size, 26);
   // 20260731133000 drops the first app_datastores; 20260807010000 restores it.
   assert.equal(tables.get("app_datastores"), "20260807010000_restore_aquacrm_datastore.sql");
 });
 
 test("every callable function is expected with its migration; trigger functions are not RPCs", () => {
   const { rpcs } = expectedObjects();
-  assert.ok(rpcs.size >= 26, `expected at least 26 callable functions, saw ${rpcs.size}`);
+  assert.ok(rpcs.size >= 28, `expected at least 28 callable functions, saw ${rpcs.size}`);
   assert.deepEqual(rpcs.get("apply_app_datastore_patch")?.params, ["p_app_key", "p_operation_id", "p_operations"]);
   assert.equal(rpcs.get("apply_app_datastore_patch")?.file, "20260902090000_merge_app_datastore_patch_objects.sql");
-  for (const name of ["apply_app_datastore_patch_with_sidecars", "load_app_datastore_with_sidecars", "renew_product_workspace_lease", "ingest_aqua_tag_submission", "claim_aqua_tag_submission_work", "settle_aqua_tag_submission_work", "consume_aqua_auth_nonce", "release_aqua_auth_nonce", "gc_aqua_auth_nonces", "current_profile_agency_id", "claim_inbox_webhook_events", "claim_lead_conversion", "claim_product_workspace_lease", "claim_editor_ai_reply"]) {
+  assert.deepEqual(rpcs.get("abuse_admission_check")?.params,
+    ["p_dimension", "p_key_hash", "p_max", "p_window_ms", "p_now_ms"]);
+  assert.equal(rpcs.get("abuse_admission_check")?.file,
+    "20260912190000_abuse_admission_limiter.sql");
+  assert.deepEqual(rpcs.get("gc_abuse_admission_counters")?.params, ["p_now_ms"]);
+  assert.equal(rpcs.get("gc_abuse_admission_counters")?.file,
+    "20260912190000_abuse_admission_limiter.sql");
+  for (const name of ["apply_app_datastore_patch_with_sidecars", "load_app_datastore_with_sidecars", "renew_product_workspace_lease", "ingest_aqua_tag_submission", "claim_aqua_tag_submission_work", "settle_aqua_tag_submission_work", "consume_aqua_auth_nonce", "release_aqua_auth_nonce", "gc_aqua_auth_nonces", "abuse_admission_check", "gc_abuse_admission_counters", "current_profile_agency_id", "claim_inbox_webhook_events", "claim_lead_conversion", "claim_product_workspace_lease", "claim_editor_ai_reply"]) {
     assert.ok(rpcs.has(name), `expected rpc ${name}`);
   }
   for (const trigger of ["touch_updated_at", "handle_new_auth_user", "archive_app_datastore_version", "brand_enquiries_default_agency", "reject_erased_client_inbox_link"]) {

@@ -86,6 +86,7 @@
     "smoke:sidebar-collapse-toggle": "tsx --test scripts/smoke-sidebar-collapse-toggle.test.ts",
     "smoke:postgres-backend-wired": "NODE_OPTIONS='--conditions react-server' tsx --test scripts/smoke-postgres-backend-wired.test.ts",
     "smoke:durable-nonce-store": "tsx --test scripts/smoke-durable-nonce-store.test.ts",
+    "smoke:admission-limiter:postgres": "tsx --test scripts/smoke-admission-limiter-live-postgres.test.ts",
     "smoke:env-secrets": "tsx --test scripts/smoke-env-secrets.test.ts",
     "smoke:observability": "NODE_OPTIONS='--conditions react-server' tsx --test scripts/smoke-observability.test.ts",
     "smoke:production-readiness": "tsx --test scripts/smoke-production-readiness.test.ts",

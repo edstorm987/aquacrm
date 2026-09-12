@@ -43,8 +43,9 @@ const MARKER = "createSupabaseAdminClient(";
 
 /**
  * The pinned posture. 23 sites / 18 files before the 2026-08-20 reduction;
- * 13 sites / 8 files after it. Every entry here must also appear, with its
- * reason, in the plan's phase-4 "what stays and why" table.
+ * 13 sites / 8 files after it; ABUSE-BASE then added one reviewed, unwired
+ * service-only RPC site, giving 14 sites / 9 files. Every entry here must also
+ * appear, with its reason, in the plan's phase-4 "what stays and why" table.
  */
 const EXPECTED_SITES: Record<string, number> = {
   // GDPR erasure must scrub every row and storage object regardless of what
@@ -68,6 +69,9 @@ const EXPECTED_SITES: Record<string, number> = {
   "src/lib/server/privateUploadStorage.ts": 3,
   // Writes to the public-assets bucket; only the service role may write it.
   "src/lib/server/publicUploadStorage.ts": 2,
+  // Unwired abuse-control foundation. Its atomic counter RPC is deliberately
+  // service-role-only, and receives only bounded server-HMACed key digests.
+  "src/lib/server/security/admissionLimiter.ts": 1,
   // Shared read/annotate layer used by radar, operational alerts, marketing
   // intelligence and server components — paths that run without a request or
   // user session. Moving it under a user session would make radar evidence
@@ -102,7 +106,7 @@ describe("service-role usage stays measured and documented", () => {
   const foundTotal = Object.values(found).reduce((sum, n) => sum + n, 0);
   const expectedTotal = Object.values(EXPECTED_SITES).reduce((sum, n) => sum + n, 0);
 
-  it("matches the pinned call-site count (13 sites in 8 files as of 2026-08-20)", () => {
+  it("matches the pinned call-site count (14 sites in 9 files after ABUSE-BASE)", () => {
     assert.deepEqual(
       found,
       EXPECTED_SITES,
