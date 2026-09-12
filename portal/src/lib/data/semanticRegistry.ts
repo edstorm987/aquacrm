@@ -415,7 +415,7 @@ export const SEMANTIC_ENTITIES: readonly SemanticEntity[] = [
     tenantFields: ["agencyId", "clientId"],
     sourceOfTruth: "PortalState.endCustomers",
     plane: "operational",
-    provenance: "Customer-portal signup (gated by ClientEndCustomerConfig.signupsEnabled).",
+    provenance: "Authenticated client-portal invitation admission (gated by ClientEndCustomerConfig.invitationsEnabled; legacy signupsEnabled rows remain read-compatible).",
     timestamps: { created: "createdAt" },
     sensitivity: "personal",
     retention: "Erased with the owning client's erasure sweep.",
@@ -886,7 +886,7 @@ export const TIMESTAMP_DOCTRINE = {
 export const VALUE_DOCTRINE = {
   missing: "null/undefined — never captured or not yet measured. Renders as '—' or 'No reading'; a missing date must never render as today (issue #169).",
   zero: "A real measured zero (0 leads captured). Only valid when the instrument was live; demandFlow.pageviews is null when no Aqua Tag reading exists, never a fabricated 0.",
-  false: "An explicit negative answer (consent declined, signupsEnabled: false).",
+  false: "An explicit negative answer (consent declined, invitationsEnabled: false).",
   unknown: "Instrumented but currently unanswerable — Radar 'blind' status; surfaced as a blind spot, never a healthy pass.",
   notApplicable: "The dimension does not exist for this record (denominatorId absent on a single-operand custom KPI) — modelled by field absence, not sentinel values.",
 } as const;
@@ -918,6 +918,7 @@ export const PORTAL_STATE_COVERAGE: Readonly<Record<string, CollectionClassifica
   accessGrants: { entity: "resourceEntitlement", plane: "operational", note: "Grants; revoked retained as audit." },
   accessRequests: { entity: "approvalRequest", plane: "operational", note: "pending|approved|denied|cancelled." },
   staffProvisioningOperations: { entity: "staffMember", plane: "operational", note: "Idempotency ledger for staff provisioning." },
+  agencySignupOperations: { entity: "userAccount", plane: "operational", note: "Password-free, app-wide admission and recovery ledger for mailbox-verified self-service agency signup." },
   clientProjectOperations: { entity: "client", plane: "operational", note: "Idempotency ledger for client-website provision/publish/deploy; retries adopt the recorded folder, repository or deployment." },
 
   // CRM people & organisations

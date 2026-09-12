@@ -39,6 +39,7 @@ export function starterForRole(role: PortalRole): Block[] {
             showRemember: true,
             showForgot: true,
             showSignupLink: true,
+            signupHref: "",
           }),
         ]),
       ];

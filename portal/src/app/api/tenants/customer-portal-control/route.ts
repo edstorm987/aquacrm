@@ -183,7 +183,7 @@ export async function POST(req: NextRequest) {
     : null;
 
   const saved = updateClient(agencyId, client.id, {
-    endCustomers: { signupsEnabled: true, postLoginReturnUrl: "/portal/customer" },
+    endCustomers: { invitationsEnabled: true, postLoginReturnUrl: "/portal/customer" },
     metadata: {
       portalMode,
       portalLoginEmail,

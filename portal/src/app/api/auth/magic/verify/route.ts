@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
   if (
     purpose === "client-portal-invite"
     && (
-      client.endCustomers?.signupsEnabled !== true
+      (client.endCustomers?.invitationsEnabled ?? client.endCustomers?.signupsEnabled) !== true
       || typeof client.metadata?.portalBuiltAt !== "number"
     )
   ) {

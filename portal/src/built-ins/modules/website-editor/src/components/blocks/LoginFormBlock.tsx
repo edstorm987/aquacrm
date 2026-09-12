@@ -44,7 +44,7 @@ export default function LoginFormBlock({ block, editorMode }: BlockRenderProps) 
   const showRemember = block.props.showRemember !== false;
   const showForgot   = block.props.showForgot !== false;
   const forgotHref   = (block.props.forgotHref as string | undefined)   ?? "/account/forgot-password";
-  const signupHref   = (block.props.signupHref as string | undefined)   ?? "/signup";
+  const signupHref   = (block.props.signupHref as string | undefined)?.trim() ?? "";
   const showSignupLink = block.props.showSignupLink !== false;
   const protectedLogin = action.trim() === "/api/auth/login";
   const challenge = usePublicBotChallengeConfig();
@@ -149,7 +149,11 @@ export default function LoginFormBlock({ block, editorMode }: BlockRenderProps) 
       </form>
       {showSignupLink && (
         <p style={{ marginTop: 16, fontSize: 12, opacity: 0.65, textAlign: "center" }}>
-          New here? <a href={signupHref} style={{ color: "var(--theme-primary, #ff6b35)", textDecoration: "none" }}>Create an account</a>
+          {signupHref && signupHref !== "/signup" ? (
+            <>New here? <a href={signupHref} style={{ color: "var(--theme-primary, #ff6b35)", textDecoration: "none" }}>Create an account</a></>
+          ) : (
+            <>Client portal access is invitation-only. Ask your agency contact to send access.</>
+          )}
         </p>
       )}
     </section>

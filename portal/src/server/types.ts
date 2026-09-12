@@ -232,10 +232,13 @@ export type ClientStage =
   | "aqua-traffic"
   | "aqua-mastery";
 
-// End-customer surface configuration. Optional — when absent the client
-// uses the foundation defaults (signups enabled, no return URL).
+// End-customer surface configuration. Public registration is never enabled;
+// this controls only purpose-bound invitations issued by an authenticated
+// agency operator.
 export interface ClientEndCustomerConfig {
-  signupsEnabled?: boolean;        // default true
+  invitationsEnabled?: boolean;
+  /** @deprecated Read-only compatibility for existing invitation-ready rows. */
+  signupsEnabled?: boolean;
   postLoginReturnUrl?: string;     // default `${portalBase}/portal/customer`
 }
 
@@ -4526,6 +4529,49 @@ export interface StaffProvisioningOperation {
   completedAt?: number;
 }
 
+export type AgencySignupStage =
+  | "awaiting-email-verification"
+  | "email-verified"
+  | "provider-ready"
+  | "complete";
+
+export type AgencySignupDeliveryStatus = "pending" | "delivered" | "failed";
+
+/**
+ * Durable, password-free admission and recovery ledger for self-service agency
+ * signup. No Agency or ServerUser exists while the row is awaiting mailbox
+ * proof. Provider and local activation resume from the stable operation/user/
+ * agency ids, so a lost response cannot create a sibling tenant or identity.
+ */
+export interface AgencySignupOperation {
+  id: string;
+  email: string;
+  companyName: string;
+  intentFingerprint: string;
+  userId: string;
+  agencyId: string;
+  stage: AgencySignupStage;
+  verificationNonce: string;
+  verificationExpiresAt: number;
+  deliveryGeneration: number;
+  deliveryStatus: AgencySignupDeliveryStatus;
+  deliveryAttempts: number;
+  deliveryLastAttemptAt?: number;
+  deliveryExternalMessageId?: string;
+  deliveryLastError?: string;
+  /** Retry the same provider idempotency key after an ambiguous response. */
+  deliveryOutcomeUnknown?: boolean;
+  setupNonce?: string;
+  setupExpiresAt?: number;
+  providerUserId?: string;
+  activationAttempts: number;
+  activationLastError?: string;
+  verifiedAt?: number;
+  completedAt?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export type ClientProjectOperationKind = "provision" | "publish" | "deploy";
 export type ClientProjectOperationStatus = "pending" | "external-created" | "succeeded" | "failed";
 
@@ -5107,6 +5153,7 @@ export interface PortalState {
   peopleChannelReads: Record<string, PeopleChannelRead>;
   peopleTrainingModules: Record<string, PeopleTrainingModule>;
   staffProvisioningOperations: Record<string, StaffProvisioningOperation>;
+  agencySignupOperations: Record<string, AgencySignupOperation>;
   // Durable checkpoints for client-website provision/publish/deploy, so a retry
   // after a lost save adopts the external thing that already exists.
   clientProjectOperations: Record<string, ClientProjectOperation>;

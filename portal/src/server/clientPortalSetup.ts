@@ -63,7 +63,7 @@ export async function setupClientStarterPortal(input: {
   });
   const saved = updateClient(input.agencyId, input.clientId, {
     endCustomers: {
-      signupsEnabled: true,
+      invitationsEnabled: true,
       postLoginReturnUrl: "/portal/customer",
     },
     metadata: {

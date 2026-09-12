@@ -15,8 +15,8 @@
 //      decision: the block creates a WEBSITE LEAD. Both halves are asserted,
 //      and the "not a new agency" half explicitly.
 //
-// Also pinned: the JSON product-signup contract is untouched, the rate limiter
-// still counts form posts, no password is ever stored, and nothing about the
+// Also pinned: the JSON product-signup contract is mailbox-first, the rate limiter
+// still protects form posts, no password is ever stored, and nothing about the
 // submission reaches the redirect URL.
 
 import { describe, it, before } from "node:test";
@@ -362,7 +362,7 @@ describe("Signup block form POST — creates a website LEAD", () => {
 
 // ─── the JSON product-signup contract must not move ───────────────────────
 
-describe("Signup JSON contract — unchanged for the product signup path", () => {
+describe("Signup JSON contract — mailbox proof precedes product activation", () => {
   it("a JSON POST with missing fields still returns the exact 400 body", async () => {
     const res = await POST(jsonRequest({ email: "x@y.z" }, { ip: "20.2.0.1" }));
     assert.equal(res.status, 400);
@@ -381,7 +381,7 @@ describe("Signup JSON contract — unchanged for the product signup path", () =>
     assert.deepEqual(await res.json(), { ok: false, error: "Invalid JSON." });
   });
 
-  it("a JSON POST still bootstraps an agency + owner + session", async () => {
+  it("a JSON POST creates only a pending admission, with no agency, owner or session", async () => {
     const before = listAgencies().length;
     const res = await POST(
       jsonRequest(
@@ -389,21 +389,20 @@ describe("Signup JSON contract — unchanged for the product signup path", () =>
         { ip: "20.2.0.3" },
       ),
     );
-    assert.equal(res.status, 200);
+    assert.equal(res.status, 202);
     const body = (await res.json()) as Record<string, unknown>;
     assert.equal(body.ok, true);
-    assert.equal(body.redirect, "/portal/agency");
-    assert.equal(listAgencies().length, before + 1, "the product path still creates an agency");
-    assert.ok(res.headers.getSetCookie().some(c => c.startsWith(`${SESSION_COOKIE_NAME}=`)));
-    // Keep the "no new agency" baseline honest for anything that runs after.
-    baselineAgencies = listAgencies().length;
+    assert.equal(body.accepted, true);
+    assert.equal(listAgencies().length, before, "mailbox-unverified product signup must not create an agency");
+    assert.equal(getUser("founder@deliberate.test"), null);
+    assert.ok(!res.headers.getSetCookie().some(c => c.startsWith(`${SESSION_COOKIE_NAME}=`)));
   });
 });
 
 // ─── the limiter is in front of the branch, not behind it ─────────────────
 
 describe("Signup block form POST — rate limiter untouched", () => {
-  it("form posts are counted by the same per-IP limiter the JSON path uses", async () => {
+  it("form posts are protected by their own per-IP limiter", async () => {
     const ip = "20.3.0.1";
     for (let i = 0; i < 5; i += 1) {
       const res = await POST(
@@ -421,11 +420,10 @@ describe("Signup block form POST — rate limiter untouched", () => {
     assert.match(cookieValue(limited, MESSAGE_COOKIE) ?? "", /too many/i);
     assert.equal(await findLead("burst5@visitor.test"), undefined, "a limited post must write nothing");
 
-    // …and the same IP arriving as a JSON caller is genuinely rate-limited,
-    // which proves the form posts were counted rather than bypassing it.
-    const asJson = await POST(jsonRequest({ companyName: "X", email: "x@y.z", password: "12345678" }, { ip }));
-    assert.equal(asJson.status, 429);
-    assert.ok(asJson.headers.get("retry-after"));
+    // The owner-signup path has a separate key: a lead-form flood cannot lock a
+    // legitimate future AquaCRM owner out of its admission surface.
+    const asJson = await POST(jsonRequest({ companyName: "X", email: "x@y.z" }, { ip }));
+    assert.notEqual(asJson.status, 429);
   });
 });
 
@@ -438,10 +436,12 @@ describe("SignupFormBlock — the surface that sends the form post", () => {
   );
   const src = readFileSync(BLOCK, "utf8");
 
-  it("still submits natively (no JS) to /api/auth/signup", () => {
+  it("still uses a native browser navigation to /api/auth/signup", () => {
     assert.ok(src.includes('<form action={action} method="POST"'));
     assert.ok(src.includes('?? "/api/auth/signup"'));
-    assert.ok(!src.includes("onSubmit"), "the block must keep working without JS");
+    assert.ok(!src.includes("onSubmit"), "the block must keep native form navigation");
+    assert.ok(src.includes('action="website-lead-signup"'));
+    assert.ok(src.includes('name="captchaToken"'));
   });
 
   it("collects no password — there is no account at the end of this form", () => {

@@ -884,6 +884,13 @@ export const PROMOTION_DISPOSITION = {
     keying: "own-id",
     reason: "Password-free staff account recovery checkpoints belong to the holding agency and never follow a promoted company.",
   },
+  agencySignupOperations: {
+    disposition: "na",
+    ownership: "app-wide",
+    keying: "own-id",
+    reason:
+      "Password-free, pre-tenant admission receipts are platform security lineage. They are neither moved nor copied during a company promotion.",
+  },
   clientProjectOperations: {
     disposition: "leave",
     ownership: "agency-scoped",
@@ -942,7 +949,7 @@ type _NoStaleCollections = AssertNever<StaleCollections>;
 // tenant key and live outside the live data realm entirely.
 // 98 → 99 on 2026-09-03: `personalMetricDays`, the bounded actor-owned
 // semantic projection behind personal recurring targets.
-export const PROMOTION_COLLECTION_COUNT = 101;
+export const PROMOTION_COLLECTION_COUNT = 102;
 
 /** Every classified collection name, in `PortalState` order. */
 export const PROMOTION_COLLECTIONS = Object.keys(PROMOTION_DISPOSITION) as Array<

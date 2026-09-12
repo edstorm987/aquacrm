@@ -13,13 +13,17 @@
 // a CLIENT's website had a whole new AGENCY created for them, and then landed
 // on a raw `{"ok":false,…}` JSON blob because the route only parsed JSON.
 //
-// This is still a NATIVE form post (no JS required): the browser navigates to
+// This is still a NATIVE form post: the browser navigates to
 // `action` with an `application/x-www-form-urlencoded` body and the route
 // answers with a 303 back to this same page, carrying the outcome in two
 // short-lived cookies. Nothing about the submission goes in the URL, so no
 // name or email lands in history, logs or referers.
 
 import { useEffect, useState } from "react";
+import {
+  BotChallenge,
+  usePublicBotChallengeConfig,
+} from "@/components/security/BotChallenge";
 import type { BlockRenderProps } from "../blockRegistry";
 import { blockStylesToCss } from "../blockStyles";
 
@@ -57,6 +61,9 @@ export default function SignupFormBlock({ block, editorMode }: BlockRenderProps)
   // Optional agency slug, for a site whose host is not registered in the app.
   // The route treats it as a preference it looks up, never as a grant.
   const brand       = (block.props.brand as string | undefined)       ?? "";
+  const protectedLeadCapture = action.trim() === "/api/auth/signup";
+  const challenge = usePublicBotChallengeConfig();
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
   // Read-once, mirroring `LoginFormBlock`: only overwrite state when a value is
   // actually present, so React 19 Strict Mode's second effect pass (which finds
@@ -175,7 +182,27 @@ export default function SignupFormBlock({ block, editorMode }: BlockRenderProps)
             <span>I agree to the <a href={termsHref} style={{ color: "var(--theme-primary, #ff6b35)" }}>terms of service</a>.</span>
           </label>
         )}
-        <button type="submit" disabled={editorMode} style={{ marginTop: 4, padding: "12px 20px", borderRadius: "var(--theme-radius, 12px)", border: "none", background: "var(--theme-primary, #ff6b35)", color: "#fff", fontSize: 14, fontWeight: 600, cursor: editorMode ? "default" : "pointer" }}>
+        {protectedLeadCapture && !editorMode ? (
+          <>
+            <input type="hidden" name="captchaToken" value={captchaToken ?? ""} />
+            <BotChallenge
+              siteKey={challenge.siteKey}
+              action="website-lead-signup"
+              onToken={setCaptchaToken}
+              required={challenge.required || challenge.error}
+            />
+          </>
+        ) : null}
+        <button
+          type="submit"
+          disabled={
+            editorMode
+            || (protectedLeadCapture && challenge.loading)
+            || (protectedLeadCapture && (challenge.required || challenge.error) && !challenge.siteKey)
+            || (protectedLeadCapture && Boolean(challenge.siteKey) && !captchaToken)
+          }
+          style={{ marginTop: 4, padding: "12px 20px", borderRadius: "var(--theme-radius, 12px)", border: "none", background: "var(--theme-primary, #ff6b35)", color: "#fff", fontSize: 14, fontWeight: 600, cursor: editorMode ? "default" : "pointer" }}
+        >
           {submitLabel}
         </button>
       </form>

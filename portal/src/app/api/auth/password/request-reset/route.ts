@@ -2,16 +2,18 @@
 // T1 R038 — chapter #160.
 //
 // Flow:
-//   1. IP rate-limit (5/min) — same `rateLimit` helper as signup.
-//   2. Look up user by email. If missing, fall through to the generic
+//   1. Validate shape and apply the coarse IP rate-limit (5/min).
+//   2. Verify the exact `password-reset-request` managed challenge.
+//   3. Spend the per-address budget only after proof, then look up the user.
+//      If missing, fall through to the generic
 //      success response — never confirm-or-deny existence.
-//   3. Mint HMAC-signed reset token (24h TTL, single-use nonce).
-//   4. Build URL `/login/reset?token=<...>` and try to enqueue an email
+//   4. Mint HMAC-signed reset token (24h TTL, single-use nonce).
+//   5. Build URL `/login/reset?token=<...>` and try to enqueue an email
 //      via the email-sender plugin (chapter #144). The plugin isn't
 //      registered in foundation yet (see #159 foundation-pending), so
 //      until it lands we log the URL to the dev console and surface it
 //      as `devResetUrl` in the response — Ed can click through locally.
-//   5. Always return `{ ok: true }` (with optional dev field) so the UI
+//   6. Always return `{ ok: true }` (with optional dev field) so the UI
 //      shows the same "check your inbox" copy regardless of email
 //      existence — defends against email-enumeration.
 //
@@ -27,24 +29,15 @@ import { getUser } from "@/server/users";
 import { signPasswordResetToken } from "@/lib/server/auth/passwordReset";
 import { sendTransactionalEmail } from "@/lib/server/email/transactionalEmail";
 import { getAuthBrand } from "@/lib/brands/authBrand";
+import { verifyBotChallenge } from "@/lib/server/security/botChallenge";
 
 interface Body {
   email?: unknown;
   brand?: unknown;
+  captchaToken?: unknown;
 }
 
 export async function POST(req: NextRequest) {
-  await ensureHydrated();
-
-  const ip = clientIpFromHeaders(req.headers);
-  const limit = rateLimit({ key: `password-reset-request:${ip}`, max: 5, windowMs: 60_000 });
-  if (!limit.allowed) {
-    return NextResponse.json(
-      { ok: false, error: "Too many reset attempts. Try again shortly." },
-      { status: 429, headers: { "retry-after": String(limit.retryAfterSec) } },
-    );
-  }
-
   let body: Body;
   try {
     body = (await req.json()) as Body;
@@ -59,6 +52,48 @@ export async function POST(req: NextRequest) {
     // before any lookup).
     return NextResponse.json({ ok: false, error: "A valid email is required." }, { status: 400 });
   }
+
+  const ip = clientIpFromHeaders(req.headers);
+  const limit = rateLimit({ key: `password-reset-request:${ip}`, max: 5, windowMs: 60_000 });
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { ok: false, error: "Too many reset attempts. Try again shortly." },
+      { status: 429, headers: { "retry-after": String(limit.retryAfterSec) } },
+    );
+  }
+
+  const challenge = await verifyBotChallenge({
+    action: "password-reset-request",
+    token: body.captchaToken,
+    remoteIp: ip,
+    hostname: req.nextUrl.hostname,
+  });
+  if (!challenge.ok) {
+    return NextResponse.json(
+      { ok: false, error: challenge.message },
+      {
+        status: challenge.reason === "rate-limited" ? 429 : 403,
+        headers: challenge.retryAfterSec ? { "retry-after": String(challenge.retryAfterSec) } : undefined,
+      },
+    );
+  }
+
+  // A public caller may name somebody else's mailbox. Spend that subject's
+  // budget only after managed human proof, and before any lookup or provider
+  // call. Unknown and existing addresses take the same admission path.
+  const emailLimit = rateLimit({
+    key: `password-reset-email:${email}`,
+    max: 3,
+    windowMs: 60 * 60 * 1_000,
+  });
+  if (!emailLimit.allowed) {
+    return NextResponse.json(
+      { ok: false, error: "Too many reset attempts. Try again later." },
+      { status: 429, headers: { "retry-after": String(emailLimit.retryAfterSec) } },
+    );
+  }
+
+  await ensureHydrated();
 
   const user = getUser(email);
   if (!user) {

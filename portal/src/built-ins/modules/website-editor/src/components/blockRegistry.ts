@@ -854,7 +854,7 @@ export const BLOCK_REGISTRY: Record<string, BlockDefinition> = {
     defaultProps: {
       title: "Sign in", action: "/api/auth/login", submitLabel: "Sign in",
       showRemember: true, showForgot: true, showSignupLink: true,
-      signupHref: "/signup", forgotHref: "/account/forgot-password",
+      signupHref: "", forgotHref: "/account/forgot-password",
     },
     fields: [
       { key: "title", label: "Title", type: "text", default: "Sign in" },
@@ -865,7 +865,7 @@ export const BLOCK_REGISTRY: Record<string, BlockDefinition> = {
       { key: "showForgot", label: "Show forgot link", type: "boolean", default: true },
       { key: "forgotHref", label: "Forgot URL", type: "url", default: "/account/forgot-password" },
       { key: "showSignupLink", label: "Show sign-up link", type: "boolean", default: true },
-      { key: "signupHref", label: "Sign-up URL", type: "url", default: "/signup" },
+      { key: "signupHref", label: "Custom sign-up URL", type: "url", default: "" },
     ],
   },
   "signup-form": {

@@ -31,10 +31,11 @@
 //
 // ─── 2. A JSON post (the product path) ───────────────────────────────────
 //
-// Unchanged, deliberately. AquaCRM's own product signup — somebody choosing to
-// create an AquaCRM workspace — is a real thing and still bootstraps an agency
-// + owner + verification email + auto-login. Every byte of that handler below
-// is as it was; the form branch is in front of it, not around it.
+// AquaCRM's own product signup remains available, but admission is now
+// mailbox-first. The initial request stores only a password-free durable
+// intent and sends a verification link. Mailbox proof grants a short-lived
+// setup capability; only the completion request provisions the provider,
+// tenant and owner and then issues the first session.
 //
 // The two are told apart by content-type, exactly as `api/auth/login` tells a
 // browser post from a fetch caller. A published-site block can only ever
@@ -45,12 +46,17 @@ import { NextResponse, type NextRequest } from "next/server";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { issueSession, sessionCookie } from "@/lib/server/auth/auth";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
-import { bootstrapAgency } from "@/server/agencyBootstrap";
-import { createUser, getUser } from "@/server/users";
-import { signVerifyEmailToken } from "@/lib/server/auth/emailVerification";
+import { getUser } from "@/server/users";
 import { logActivity } from "@/server/activity";
 import { resolvePostLoginPath } from "@/lib/server/auth/postLoginRedirect";
-import { sendTransactionalEmail } from "@/lib/server/email/transactionalEmail";
+import { sendResendEmail } from "@/lib/server/email/resendEmail";
+import { verifyBotChallenge } from "@/lib/server/security/botChallenge";
+import {
+  activateAgencySignup,
+  AGENCY_SIGNUP_SETUP_COOKIE,
+  prepareAgencySignup,
+  recordAgencySignupDelivery,
+} from "@/server/agencySignup";
 import { containerFor } from "@aqua/plugin-leads-pipeline/server";
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
@@ -63,6 +69,8 @@ interface Body {
   companyName?: unknown;
   email?: unknown;
   password?: unknown;
+  phase?: unknown;
+  captchaToken?: unknown;
 }
 
 // ─── Website-lead capture (the form branch) ──────────────────────────────
@@ -216,6 +224,23 @@ async function handleWebsiteLead(req: NextRequest): Promise<NextResponse> {
     return leadOutcome(req, false, LEAD_FIELDS_ERROR);
   }
 
+  const challenge = await verifyBotChallenge({
+    action: "website-lead-signup",
+    token: field(form, "captchaToken", 4_096),
+    remoteIp: ip,
+    hostname: req.nextUrl.hostname,
+  });
+  if (!challenge.ok) return leadOutcome(req, false, challenge.message);
+
+  // Only a human-verified submission may spend another person's address
+  // budget. This is intentionally before tenant lookup and lead mutation.
+  const emailLimit = rateLimit({
+    key: `website-lead-signup-email:${email}`,
+    max: 3,
+    windowMs: 60 * 60 * 1_000,
+  });
+  if (!emailLimit.allowed) return leadOutcome(req, false, LEAD_TOO_MANY);
+
   // No `getUser(email)` check on this path — on purpose. Telling an anonymous
   // visitor "an account already exists for that email" is an account-existence
   // oracle, and a lead capture has no reason to ask. Every response below is
@@ -223,6 +248,12 @@ async function handleWebsiteLead(req: NextRequest): Promise<NextResponse> {
 
   const referer = req.headers.get("referer") ?? "";
   const origin = req.headers.get("origin") ?? "";
+  try {
+    await ensureHydrated();
+  } catch (cause) {
+    console.error("[signup] website lead state unavailable", cause);
+    return leadOutcome(req, false, LEAD_UNAVAILABLE);
+  }
   let pagePath = "/";
   try {
     if (referer) pagePath = new URL(referer).pathname.slice(0, 300);
@@ -306,37 +337,22 @@ async function handleWebsiteLead(req: NextRequest): Promise<NextResponse> {
 // ─── Entry point ─────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  await ensureHydrated();
   if (isFormPost(req)) return handleWebsiteLead(req);
   return handleAccountSignup(req);
 }
 
-// ─── Product signup (JSON) — unchanged ───────────────────────────────────
+// ─── Product signup (JSON) — mailbox proof before privileged state ───────
 //
 // Flow:
-//   1. IP rate-limit (5/min) — slows scripted signup floods.
-//   2. Validate email + password (≥8) + companyName.
-//   3. `getUser(email)` collision → 409 (existing account → redirect to /login).
-//   4. `bootstrapAgency` (creates Agency + auto-installs core plugins —
-//      kanban / sops / agency-hr / fulfillment seed defaults via their
-//      onInstall hooks).
-//   5. `createUser(role:"agency-owner")`.
-//   6. Sign verification token (HMAC, 24h TTL); dev-mode includes the
-//      verify URL in the response body and console-logs it. Production
-//      response just hands back the auto-login session cookie.
-//   7. `issueSession` → `lk_session_v1` cookie set on response → user is
-//      auto-logged-in. Client-side form redirects to /portal/agency.
+//   1. Parse + validate non-secret intent, then apply the coarse IP limit.
+//   2. Verify the exact `agency-signup` managed challenge.
+//   3. Spend the victim-address budget only after challenge proof.
+//   4. Persist/reuse a stable password-free operation and deliver its email.
+//   5. Verification grants only an HttpOnly setup capability, never a session.
+//   6. Completion uses that capability to create/adopt the provider identity,
+//      atomically bootstrap one agency + owner, then issue the first session.
 
 async function handleAccountSignup(req: NextRequest) {
-  const ip = clientIpFromHeaders(req.headers);
-  const limit = rateLimit({ key: `signup:${ip}`, max: 5, windowMs: 60_000 });
-  if (!limit.allowed) {
-    return NextResponse.json(
-      { ok: false, error: "Too many signup attempts. Try again shortly." },
-      { status: 429, headers: { "retry-after": String(limit.retryAfterSec) } },
-    );
-  }
-
   let body: Body;
   try {
     body = (await req.json()) as Body;
@@ -344,86 +360,139 @@ async function handleAccountSignup(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "Invalid JSON." }, { status: 400 });
   }
 
+  const ip = clientIpFromHeaders(req.headers);
+  if (body.phase === "complete") {
+    const completeLimit = rateLimit({ key: `agency-signup-complete:${ip}`, max: 5, windowMs: 10 * 60_000 });
+    if (!completeLimit.allowed) {
+      return NextResponse.json(
+        { ok: false, error: "Too many setup attempts. Try again shortly." },
+        { status: 429, headers: { "retry-after": String(completeLimit.retryAfterSec) } },
+      );
+    }
+    const setupToken = req.cookies.get(AGENCY_SIGNUP_SETUP_COOKIE)?.value ?? "";
+    const password = typeof body.password === "string" ? body.password : "";
+    try {
+      const { user, completedNow } = await activateAgencySignup({ setupToken, password });
+      const response = NextResponse.json({
+        ok: true,
+        redirect: completedNow ? resolvePostLoginPath(null, user) : "/login?signup=complete",
+      });
+      if (completedNow) {
+        const sessionToken = issueSession({
+          userId: user.id,
+          email: user.email,
+          role: user.role,
+          agencyId: user.agencyId,
+          sessionRev: user.sessionRev ?? 0,
+          aal: "aal1",
+        });
+        const cookie = sessionCookie(sessionToken);
+        response.cookies.set(cookie.name, cookie.value, cookie.options);
+      }
+      response.cookies.set(AGENCY_SIGNUP_SETUP_COOKIE, "", {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: 0,
+      });
+      return response;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Account setup failed.";
+      const isInput = /password|setup_|mailbox_verification_required/.test(message);
+      return NextResponse.json(
+        { ok: false, error: isInput ? message : "Account setup could not be completed. Please try again." },
+        { status: isInput ? 400 : 503 },
+      );
+    }
+  }
+
   const companyName = typeof body.companyName === "string" ? body.companyName.trim() : "";
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-  const password = typeof body.password === "string" ? body.password : "";
 
   if (!companyName) {
     return NextResponse.json({ ok: false, error: "Company name is required." }, { status: 400 });
   }
-  if (!email || !email.includes("@")) {
+  if (companyName.length > 160) {
+    return NextResponse.json({ ok: false, error: "Company name is too long (max 160 characters)." }, { status: 400 });
+  }
+  if (email.length > 254 || !PLAUSIBLE_EMAIL.test(email)) {
     return NextResponse.json({ ok: false, error: "A valid email is required." }, { status: 400 });
   }
-  if (password.length < 8) {
-    return NextResponse.json({ ok: false, error: "Password must be at least 8 characters." }, { status: 400 });
-  }
-
-  // Email collision check — we hit the plain-email key (agency/client tier).
-  // End-customer emails are scoped per-client so we don't need to scan
-  // every client tier here; an agency-owner with a colliding plain-email
-  // entry blocks signup.
-  if (getUser(email)) {
+  const ipLimit = rateLimit({ key: `agency-signup:${ip}`, max: 5, windowMs: 60_000 });
+  if (!ipLimit.allowed) {
     return NextResponse.json(
-      { ok: false, error: "An account already exists for that email. Try signing in." },
-      { status: 409 },
+      { ok: false, error: "Too many signup attempts. Try again shortly." },
+      { status: 429, headers: { "retry-after": String(ipLimit.retryAfterSec) } },
     );
   }
 
-  const provisional = `usr_pending_${Date.now()}`;
-  const { agency } = await bootstrapAgency(
-    { name: companyName, ownerEmail: email },
-    provisional,
-  );
-
-  const user = createUser({
-    email,
-    password,
-    role: "agency-owner",
-    agencyId: agency.id,
-    name: email.split("@")[0] ?? companyName,
+  const challenge = await verifyBotChallenge({
+    action: "agency-signup",
+    token: body.captchaToken,
+    remoteIp: ip,
+    hostname: req.nextUrl.hostname,
   });
-
-  // HMAC-signed verification token (24h TTL).
-  const { token } = signVerifyEmailToken({ userId: user.id, email: user.email });
-  const origin = req.nextUrl.origin;
-  const verifyUrl = `${origin}/api/auth/verify-email?token=${encodeURIComponent(token)}`;
-
-  const verification = await sendTransactionalEmail({
-    to: user.email,
-    agencyId: agency.id,
-    externalRef: `verify-email:${user.id}:${crypto.randomUUID()}`,
-    signal: req.signal,
-    subject: "Verify your AquaCRM account",
-    bodyText: `Confirm your Milesymedia email address using this secure link. It expires in 24 hours.\n\n${verifyUrl}`,
-    bodyHtml: `<p>Confirm your Milesymedia email address using the secure link below. It expires in 24 hours.</p><p><a href="${verifyUrl}">Verify email address</a></p>`,
-  });
-  if (!verification.delivered && process.env.NODE_ENV !== "production") {
-    // eslint-disable-next-line no-console
-    console.log(`[signup] verify-email URL for ${user.email}: ${verifyUrl}`);
+  if (!challenge.ok) {
+    return NextResponse.json(
+      { ok: false, error: challenge.message },
+      {
+        status: challenge.reason === "rate-limited" ? 429 : 403,
+        headers: challenge.retryAfterSec ? { "retry-after": String(challenge.retryAfterSec) } : undefined,
+      },
+    );
   }
 
-  logActivity({
-    agencyId: agency.id,
-    actorUserId: user.id,
-    actorEmail: user.email,
-    category: "auth",
-    action: "agency.signup",
-    message: `Signup: created agency "${agency.name}" and owner ${user.email}.`,
+  const emailLimit = rateLimit({
+    key: `agency-signup-email:${email}`,
+    max: 3,
+    windowMs: 60 * 60 * 1_000,
   });
+  if (!emailLimit.allowed) {
+    return NextResponse.json(
+      { ok: false, error: "Too many signup requests. Try again later." },
+      { status: 429, headers: { "retry-after": String(emailLimit.retryAfterSec) } },
+    );
+  }
 
-  // Auto-login (Goal B).
-  const sessionToken = issueSession({
-    userId: user.id, email: user.email, role: user.role, agencyId: user.agencyId,
-    sessionRev: user.sessionRev ?? 0,
-  });
-  const cookie = sessionCookie(sessionToken);
+  const prepared = await prepareAgencySignup({ email, companyName });
+  const origin = req.nextUrl.origin;
+  const verifyUrl = prepared.verificationToken
+    ? `${origin}/api/auth/verify-email?token=${encodeURIComponent(prepared.verificationToken)}`
+    : undefined;
+  if (prepared.shouldDeliver && prepared.operation && verifyUrl) {
+    const fromEmail = (process.env.AQUACRM_AUTH_FROM_EMAIL ?? process.env.MILESYMEDIA_FROM_EMAIL ?? "").trim();
+    const senderName = (process.env.AQUACRM_AUTH_FROM_NAME ?? "AquaCRM").trim();
+    const sent = fromEmail
+      ? await sendResendEmail({
+          to: prepared.operation.email,
+          from: `${senderName} <${fromEmail}>`,
+          replyTo: process.env.MILESYMEDIA_REPLY_TO?.trim() || fromEmail,
+          idempotencyKey: `agency-signup-verify:${prepared.operation.id}:${prepared.operation.deliveryGeneration}`,
+          signal: req.signal,
+          subject: "Verify your AquaCRM account",
+          text: `Confirm your email address to continue setting up AquaCRM. This link expires in 24 hours.\n\n${verifyUrl}`,
+          html: `<p>Confirm your email address to continue setting up AquaCRM. This link expires in 24 hours.</p><p><a href="${verifyUrl}">Verify email address</a></p>`,
+        })
+      : { ok: false as const, reason: "AquaCRM auth email sender is not configured.", unconfigured: true };
+    await recordAgencySignupDelivery(
+      prepared.operation.id,
+      prepared.operation.deliveryGeneration,
+      sent.ok
+        ? { delivered: true, externalMessageId: sent.id }
+        : { delivered: false, error: sent.reason, outcomeUnknown: sent.outcomeUnknown },
+    );
+  }
+
   const isDev = process.env.NODE_ENV !== "production";
-  const res = NextResponse.json({
+  if (isDev && verifyUrl) {
+    // eslint-disable-next-line no-console
+    console.log(`[signup] verify-email URL prepared for local development: ${verifyUrl}`);
+  }
+  return NextResponse.json({
     ok: true,
-    user: { id: user.id, email: user.email, role: user.role, agencyId: user.agencyId },
-    redirect: resolvePostLoginPath(null, user),
-    ...(isDev ? { devVerifyUrl: verifyUrl } : {}),
-  });
-  res.cookies.set(cookie.name, cookie.value, cookie.options);
-  return res;
+    accepted: true,
+    message: "If this address can be used, a verification link is on its way.",
+    ...(isDev && verifyUrl ? { devVerifyUrl: verifyUrl } : {}),
+  }, { status: 202 });
 }

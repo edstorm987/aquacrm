@@ -1,13 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { AuthBrandId } from "@/lib/brands/authBrand";
+import {
+  BotChallenge,
+  type BotChallengeHandle,
+  usePublicBotChallengeConfig,
+} from "@/components/security/BotChallenge";
 
 export function ForgotForm({ brand }: { brand: AuthBrandId }) {
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<{ devUrl?: string } | null>(null);
+  const challenge = usePublicBotChallengeConfig();
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const captchaRef = useRef<BotChallengeHandle>(null);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -18,21 +26,21 @@ export function ForgotForm({ brand }: { brand: AuthBrandId }) {
       const res = await fetch("/api/auth/password/request-reset", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, brand }),
+        body: JSON.stringify({ email, brand, ...(captchaToken ? { captchaToken } : {}) }),
       });
       const data = (await res.json()) as { ok: boolean; error?: string; devResetUrl?: string };
       if (!res.ok || !data.ok) {
         setError(data.error ?? "Couldn't send reset link.");
-        setBusy(false);
         return;
       }
       // Success path always lands here regardless of email existence —
       // the API returns ok:true even when the email is unknown so we
       // don't leak account presence.
       setSent({ devUrl: data.devResetUrl });
-      setBusy(false);
     } catch {
       setError("Network error. Try again.");
+    } finally {
+      captchaRef.current?.reset();
       setBusy(false);
     }
   }
@@ -62,10 +70,23 @@ export function ForgotForm({ brand }: { brand: AuthBrandId }) {
           data-testid="forgot-email"
         />
       </label>
+      <BotChallenge
+        ref={captchaRef}
+        siteKey={challenge.siteKey}
+        action="password-reset-request"
+        onToken={setCaptchaToken}
+        className="mm-auth-captcha"
+        required={challenge.required || challenge.error}
+      />
       {error && <p role="alert" className="mm-form-error" data-testid="forgot-error">{error}</p>}
       <button
         type="submit"
-        disabled={busy}
+        disabled={
+          busy
+          || challenge.loading
+          || ((challenge.required || challenge.error) && !challenge.siteKey)
+          || (Boolean(challenge.siteKey) && !captchaToken)
+        }
         className="mm-btn-primary"
         data-testid="forgot-submit"
       >
