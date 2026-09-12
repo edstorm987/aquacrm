@@ -2,14 +2,30 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
-import { getUserById, validatePassword, markWelcomeComplete } from "@/server/users";
 import {
-  findSupabaseUserByEmail,
-  provisionSupabaseIdentity,
-  updateSupabasePassword,
+  bindSupabaseAuthIdentity,
+  getUserById,
+  markWelcomeComplete,
+  validatePassword,
+} from "@/server/users";
+import {
+  deleteSupabaseIdentityById,
+  provisionBoundClientPortalIdentity,
+  updateBoundClientPortalPassword,
 } from "@/lib/supabase/admin";
 import { logActivity } from "@/server/activity";
 import { CUSTOMER_PORTAL_ROLES } from "@/server/types";
+
+const PASSWORD_SETUP_MAX_AUTH_AGE_SECONDS = 15 * 60;
+const SESSION_IAT_FUTURE_SKEW_SECONDS = 60;
+
+function hasRecentPasswordAuthentication(session: { aal?: unknown; iat?: unknown }): boolean {
+  if (session.aal !== "aal1" && session.aal !== "aal2") return false;
+  if (typeof session.iat !== "number" || !Number.isSafeInteger(session.iat)) return false;
+  const ageSeconds = Math.floor(Date.now() / 1000) - session.iat;
+  return ageSeconds >= -SESSION_IAT_FUTURE_SKEW_SECONDS
+    && ageSeconds <= PASSWORD_SETUP_MAX_AUTH_AGE_SECONDS;
+}
 
 /**
  * A customer choosing their own password, on their way in for the first time.
@@ -50,6 +66,15 @@ export async function POST(request: NextRequest) {
 
     const user = getUserById(session.userId);
     if (!user) return NextResponse.json({ ok: false, error: "Account not found." }, { status: 404 });
+    if (
+      user.email !== session.email
+      || user.role !== session.role
+      || user.agencyId !== session.agencyId
+      || !user.clientId
+      || user.clientId !== session.clientId
+    ) {
+      return NextResponse.json({ ok: false, error: "Portal account scope does not match." }, { status: 403 });
+    }
 
     // Sandbox accounts never reach Supabase.
     //
@@ -75,20 +100,50 @@ export async function POST(request: NextRequest) {
       }, { status: 409 });
     }
 
+    // Password administration needs a recent, explicit authentication
+    // ceremony. `getSessionFromRequest` has already verified the signature,
+    // so `iat` is a trusted server-issued claim rather than caller input.
+    // Invitation/magic verification and password/MFA sign-in stamp the
+    // assurance level; old, future-dated, legacy, or synthetic sessions fail
+    // closed here. A normal seven-day Aqua session is not itself reauth proof.
+    if (!hasRecentPasswordAuthentication(session)) {
+      return NextResponse.json({ ok: false, error: "Verify your access again before setting a password." }, { status: 403 });
+    }
+
     try {
-      const existing = await findSupabaseUserByEmail(user.email);
-      if (existing) {
-        await updateSupabasePassword(user.email, password);
+      const binding = {
+        aquaUserId: user.id,
+        agencyId: user.agencyId,
+        clientId: user.clientId,
+      };
+      if (user.supabaseAuthUserId) {
+        await updateBoundClientPortalPassword({
+          authUserId: user.supabaseAuthUserId,
+          email: user.email,
+          password,
+          binding,
+        });
       } else {
-        await provisionSupabaseIdentity({
+        // A first setup may create a NEW exact subject after the invitation
+        // proved mailbox control. It must never adopt the global account that
+        // happens to share this email — that may be an owner or another role.
+        if (!user.emailVerifiedAt) {
+          return NextResponse.json(
+            { ok: false, error: "Use a fresh client portal access invitation before setting a password." },
+            { status: 403 },
+          );
+        }
+        const provisioned = await provisionBoundClientPortalIdentity({
           email: user.email,
           password,
           name: user.name,
-          role: "client",
-          // A client identity carries its agency where the account records one,
-          // so its profile is tenant-stamped like staff; omitted when unknown.
-          agencyId: user.agencyId || undefined,
+          binding,
         });
+        const bound = bindSupabaseAuthIdentity(user.id, provisioned.id);
+        if (!bound) {
+          await deleteSupabaseIdentityById(provisioned.id);
+          throw new Error("The new Supabase sign-in could not be bound to this portal account.");
+        }
       }
     } catch (error) {
       // Said plainly rather than swallowed: somebody halfway through setting up

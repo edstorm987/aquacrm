@@ -18,6 +18,8 @@
 import type { AgencyId, UserId } from "../lib/tenancy";
 import type { LeadService } from "./leads";
 import type { ContactService } from "./contacts";
+import type { ProspectService } from "./prospects";
+import { ensureAcquisitionDossierForLead } from "./prospectAcquisition";
 
 export interface FunnelLeadCapturedPayload {
   email: string;
@@ -42,8 +44,9 @@ export const SYSTEM_ACTOR: UserId = "system";
 export async function handleFunnelLeadCaptured(
   leads: LeadService,
   payload: FunnelLeadCapturedPayload,
+  prospects?: ProspectService,
 ): Promise<void> {
-  await leads.upsert(
+  const result = await leads.upsert(
     {
       email: payload.email,
       name: payload.name,
@@ -55,6 +58,9 @@ export async function handleFunnelLeadCaptured(
     },
     SYSTEM_ACTOR,
   );
+  if (prospects) {
+    await ensureAcquisitionDossierForLead({ leads, prospects }, result.lead, SYSTEM_ACTOR);
+  }
 }
 
 export async function handlePipelineCardMoved(

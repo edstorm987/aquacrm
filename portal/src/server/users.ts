@@ -204,6 +204,23 @@ export function getUserById(userId: string): ServerUser | null {
   return null;
 }
 
+/**
+ * Resolve an exact Supabase Auth subject binding.
+ *
+ * Corrupt duplicate bindings deliberately resolve to null rather than picking
+ * whichever record happens to be enumerated first. Client-password login also
+ * checks the signed-in subject's client markers, so missing, duplicate, or
+ * mismatched bindings all fail closed.
+ */
+export function getUserBySupabaseAuthId(supabaseAuthUserId: string): ServerUser | null {
+  const remoteId = supabaseAuthUserId.trim();
+  if (!remoteId) return null;
+  const matches = Object.values(getState().users).filter(
+    user => user.supabaseAuthUserId === remoteId,
+  );
+  return matches.length === 1 ? matches[0]! : null;
+}
+
 const DUMMY_HASH = (() => {
   const salt = Buffer.alloc(SCRYPT_SALT_BYTES, 0);
   const derived = crypto.scryptSync("x", salt, SCRYPT_KEYLEN, { N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P });
@@ -351,6 +368,36 @@ export function markWelcomeComplete(userId: string): ServerUser | null {
         saved = next;
         return;
       }
+    }
+  });
+  return saved;
+}
+
+/**
+ * Bind one local portal subject to one exact Supabase Auth subject.
+ *
+ * The binding is write-once and globally unique: neither a later request nor
+ * another local user can repoint/adopt the remote identity. This intentionally
+ * is not part of `UpdateUserPatch`, so generic profile routes cannot set it.
+ */
+export function bindSupabaseAuthIdentity(userId: string, supabaseAuthUserId: string): ServerUser | null {
+  const remoteId = supabaseAuthUserId.trim();
+  if (!remoteId) return null;
+  let saved: ServerUser | null = null;
+  mutate(state => {
+    const duplicate = Object.values(state.users).some(
+      user => user.id !== userId && user.supabaseAuthUserId === remoteId,
+    );
+    if (duplicate) return;
+    for (const [key, user] of Object.entries(state.users)) {
+      if (user.id !== userId) continue;
+      if (user.supabaseAuthUserId && user.supabaseAuthUserId !== remoteId) return;
+      const next: ServerUser = user.supabaseAuthUserId === remoteId
+        ? user
+        : { ...user, supabaseAuthUserId: remoteId, updatedAt: Date.now() };
+      state.users[key] = next;
+      saved = next;
+      return;
     }
   });
   return saved;

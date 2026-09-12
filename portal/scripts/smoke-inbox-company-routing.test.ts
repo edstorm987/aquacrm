@@ -218,9 +218,8 @@ describe("an enquiry routed to a company has no owningClientId and is not attrib
       slug: `attr-${Math.floor(performance.now())}-${Math.random().toString(36).slice(2, 7)}`,
     });
     agencyId = agency.id;
-    // A client whose account email is the enquirer's — identity resolution will
-    // match this with authoritative evidence and auto-link, unless something
-    // stops it.
+    // A client whose account email is the enquirer's. Public identity
+    // resolution must retain it as a suggestion, never client-link authority.
     clientId = tenants.createClient(agencyId, {
       name: "Nayar Build",
       ownerEmail: "priya@nayar-build.co.uk",
@@ -234,16 +233,14 @@ describe("an enquiry routed to a company has no owningClientId and is not attrib
       .map(event => event.sourceId);
   }
 
-  it("refuses the auto-link even though the identity guess matched", async () => {
+  it("keeps the address match for review without assigning the company-routed enquiry", async () => {
     const routed = enquiries.attachRoutedCompanyNames(
       [enquiries.mapBrandEnquiryRow(row({ id: `enq_company_${Date.now()}`, metadata: { routedCompanyId: companyId } }))],
       companies.listTradingCompanies(agencyId, true),
     );
     const [result] = await enquiries.synchroniseWebsiteEnquiryIdentities(agencyId, routed);
 
-    // The guess DID find the client — this is what makes the refusal meaningful
-    // rather than a test of an enquiry nothing matched.
-    assert.equal(result.identityStatus, "resolved", "the identity guess must have matched, or this proves nothing");
+    assert.equal(result.identityStatus, "ambiguous", "the address match should remain visible for review");
     assert.equal(result.clientId, undefined, "a company-routed enquiry must not be attributed to a client");
     assert.equal(result.routedCompanyId, companyId);
     assert.equal(result.routedCompanyName, "Zimante Digital");
@@ -274,16 +271,14 @@ describe("an enquiry routed to a company has no owningClientId and is not attrib
     assert.equal(person?.facets.clientIds?.includes(clientId) ?? false, false);
   });
 
-  it("still attributes the same enquirer when the site is NOT routed to a company", async () => {
-    // The control. Same contact details, same client — only the routing differs.
-    // `clientId`/`identityStatus` are pre-set so the resolution is unchanged and
-    // the Supabase write-back (which has no credentials here, by design) is not
-    // reached; the attribution being proven is the client ledger entry, which is
-    // written from the same value the routed case suppresses.
+  it("still attributes an enquiry carrying a verified configured-site route", async () => {
+    // The control: the link is not inferred from the matching public address;
+    // it is the server-recorded route for a site already assigned to a client.
     const id = `enq_agency_${Date.now()}`;
     const [result] = await enquiries.synchroniseWebsiteEnquiryIdentities(agencyId, [{
       ...enquiries.mapBrandEnquiryRow(row({ id })),
       clientId,
+      clientLinkSource: "configured-site-route",
       identityStatus: "resolved",
     }]);
     assert.equal(result.routedCompanyId, undefined);

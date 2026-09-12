@@ -3,6 +3,7 @@ import Link from "next/link";
 // Renamed to avoid clashing with the route-level `dynamic` const below.
 import nextDynamic from "next/dynamic";
 import { isGoogleOAuthConfigured } from "@/lib/server/integrations/oauthGoogle";
+import { botChallengeClientConfig } from "@/lib/server/security/botChallenge";
 import { getCurrentUser, getSession } from "@/lib/server/auth/auth";
 import { resolvePostLoginPath } from "@/lib/server/auth/postLoginRedirect";
 import { resolveAuthBrand, type ResolvedAuthBrand } from "@/lib/brands/authBrand";
@@ -53,6 +54,7 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ brand?: string; next?: string }>;
 }) {
+  const botChallenge = botChallengeClientConfig();
   const params = await searchParams;
   const brand = await brandFor(params.brand);
   const contactHref = brand.id === "aquacrm"
@@ -110,13 +112,27 @@ export default async function LoginPage({
             <h1>Welcome back</h1>
             <p>{brand.id === "aquacrm" ? "Sign in with the access issued to you." : `Sign in to your ${brand.name} workspace.`}</p>
           </div>
-          <LoginForm googleEnabled={isGoogleOAuthConfigured()} />
+          <LoginForm
+            googleEnabled={isGoogleOAuthConfigured()}
+            captchaSiteKey={botChallenge.siteKey}
+            captchaRequired={botChallenge.required}
+          />
           <div className="mm-auth-foot">
             <span>One account</span>
             <span>Secure access</span>
           </div>
           <p className="mm-auth-lead-link">
             Not a client yet? <Link href={contactHref}>Let&apos;s get in touch</Link>.
+          </p>
+          {/* AUTH-001 / DECISIONS #16: one Policies link to the canonical,
+              always-served AquaCRM privacy & cookies notice (`/privacy` is a
+              static rewrite in next.config.ts, smoke-tested by
+              smoke-privacy-notice-truth). A plain anchor, not next/link, because
+              the destination is a rewrite outside the app router. There is no
+              always-served canonical Terms route yet (only the demo-gated
+              `(website)/terms`); see QUESTIONS-FOR-CODEX. */}
+          <p className="mm-auth-policies">
+            <a href="/privacy">Privacy &amp; cookies</a>
           </p>
         </div>
       </div>

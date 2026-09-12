@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { containerFor } from "@aqua/plugin-leads-pipeline/server";
+import {
+  containerFor,
+  ensureAcquisitionDossierForLead,
+} from "@aqua/plugin-leads-pipeline/server";
 
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
 import { isTradingBrandSlug, tradingBrandDefinition } from "@/lib/brands/tradingBrands";
@@ -34,6 +37,7 @@ export async function POST(request: Request) {
   try {
     await ensureHydrated({ fresh: true });
     const { actor } = await requireCurrentWorkspaceElementAccess("staff", "workspace.inbox", "use");
+    await requireCurrentWorkspaceElementAccess("growth", "growth.leads", "use");
     const session = actor.session;
     const agencyId = actor.resourceAgencyId;
     const body = await request.json().catch(() => null) as { enquiryId?: unknown } | null;
@@ -85,11 +89,11 @@ export async function POST(request: Request) {
     const contactMethod = enquiry.contact_method || "email";
     const services = enquiry.services ?? [];
     const capturedAt = Date.parse(enquiry.created_at);
-    const { leads } = containerFor({
+    const container = containerFor({
       agencyId,
       storage: makePluginStorage(install.id) as never,
     });
-    const result = await leads.upsert({
+    const result = await container.leads.upsert({
       email,
       name: enquiry.name,
       phone: phone || undefined,
@@ -121,6 +125,7 @@ export async function POST(request: Request) {
         pagePath,
       },
     }, session.userId);
+    await ensureAcquisitionDossierForLead(container, result.lead, session.userId);
 
     await flushPendingWrites();
     const metadata = {

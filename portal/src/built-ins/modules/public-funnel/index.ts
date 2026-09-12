@@ -1,6 +1,7 @@
 // `@aqua/plugin-public-funnel` — wires the Health Check (and future
-// Resources tools) completion to a `lead` user creation + auto-signin
-// + drop into Business OS. The critical link in the public funnel.
+// Resources tools) completion to capture-only lead registration. Anonymous
+// completion never authenticates; a future mailbox-verified continuation owns
+// sign-in.
 // `core: true` so it auto-installs on bootstrap.
 //
 // Scope policy note: the round 021 prompt suggests `"global"` (leads
@@ -27,15 +28,14 @@ const manifest: AquaPlugin = {
   version: "0.1.0",
   status: "alpha",
   category: "growth",
-  tagline: "Health Check + tool completions → lead user → auto-signin into BOS.",
+  tagline: "Health Check + tool completions → safe lead capture for BOS.",
   description:
     "The public funnel link. Static `public/health-check/` POSTs the " +
-    "completed slot through `/api/public/health-check/complete`; this plugin upserts a `lead` user via the " +
+    "completed slot through `/api/public/health-check/complete`; this plugin creates a brand-new `lead` user via the " +
     "foundation `LeadUserPort`, captures the slot for BOS " +
-    "personalisation, issues a session via `SessionPort`, and " +
-    "responds with a BOS redirect so the browser lands signed-in. " +
-    "Lead identity is reused by canonical email; a stable completion id " +
-    "makes capture retries reuse the same authoritative row. Future Resources tools (rank-my-website, …) hit " +
+    "personalisation, and responds with a BOS redirect without issuing authentication. " +
+    "Existing identities and repeated completion ids fail closed. A future " +
+    "mailbox-verified, single-use flow may authenticate the lead. Future Resources tools (rank-my-website, …) hit " +
     "`tool-complete` with the same shape.",
 
   core: true,
@@ -62,13 +62,6 @@ const manifest: AquaPlugin = {
             default: "/business-os",
             helpText: "Where to send the just-captured lead. Default `/business-os`.",
           },
-          {
-            id: "issueSessionCookie",
-            label: "Issue Set-Cookie on capture",
-            type: "boolean",
-            default: true,
-            helpText: "When on, the legacy plugin capture handlers set the `lk_session_v1` cookie so the lead is signed in. The mounted Health Check uses the foundation-owned public completion route.",
-          },
         ],
       },
     ],
@@ -77,17 +70,35 @@ const manifest: AquaPlugin = {
   features: [
     { id: "hc-capture",   label: "Capture HC completions",     default: true },
     { id: "tool-capture", label: "Capture Resources tools",    default: true },
-    { id: "auto-signin",  label: "Issue session cookie",       default: true },
   ],
 
-  // Right-to-be-forgotten. A funnel capture is made LONG before the person is a
-  // client — it carries no `clientId` at all, so the generic value-scan can
-  // never find it, and `captures/by-email/<email>` holds the address in the KEY
-  // NAME. Marketing PII → DELETE, per the disposition policy. Idempotent.
-  onEraseClient: async (ctx: PluginCtx, _clientId: string, subject?: ErasureSubject) => {
+  // Right-to-be-forgotten. Address-only captures are preserved and surfaced
+  // for review; only exact client/exclusive-Person stamps may delete.
+  onEraseClient: async (ctx: PluginCtx, clientId: string, subject?: ErasureSubject) => {
     const c = _containerFromCtx({ agencyId: ctx.agencyId, storage: ctx.storage });
-    if (!c) return; // foundation not registered — nothing to erase
-    await c.funnel.eraseForAddresses(subject?.emails ?? []);
+    if (!c) throw new Error("Public-funnel erasure foundation is unavailable.");
+    const evidence = subject?.identityEvidence;
+    const result = await c.funnel.eraseForClient({
+      clientId,
+      personId: subject?.exactOwnership?.personId,
+      personShared: subject?.exactOwnership?.personShared ?? true,
+      emails: evidence?.emails ?? subject?.emails ?? [],
+      sharedEmails: evidence?.sharedEmails ?? [],
+    });
+    if (result.reviewRequired.legacyUnscoped > 0) {
+      subject?.reviewRequired?.push({
+        system: "public-funnel",
+        reason: "legacy-unscoped",
+        records: result.reviewRequired.legacyUnscoped,
+      });
+    }
+    if (result.reviewRequired.sharedIdentity > 0) {
+      subject?.reviewRequired?.push({
+        system: "public-funnel",
+        reason: "shared-identity",
+        records: result.reviewRequired.sharedIdentity,
+      });
+    }
   },
 
   healthcheck: async (ctx: PluginCtx): Promise<HealthStatus> => {

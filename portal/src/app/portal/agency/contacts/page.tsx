@@ -1,4 +1,5 @@
 import { requireRole } from "@/lib/server/auth/auth";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 import {
   derivePersonState,
   listPersons,
@@ -29,6 +30,7 @@ import { ContactsIndex } from "./_ContactsIndex";
 export default async function ContactsIndexPage() {
   await ensureHydrated();
   const session = await requireRole([...AGENCY_ROLES]);
+  await requireCurrentWorkspaceElementAccess("growth", "growth.contacts", "view");
 
   const people = listPersons(session.agencyId).map(person => ({
     id: person.id,

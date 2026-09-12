@@ -219,11 +219,48 @@ integration, or navigation contract.
 - Identity resolution links enquiries, social contacts, leads, and existing
   contacts while preserving ambiguous matches for manual review.
 - Lead timing records enquiry age, first response, follow-up, and wait state.
-- Journey supports kanban pipelines and direct client workspace access.
-- Cold Scouting includes prospect qualification, channel strategy, notes,
-  follow-up, recontact timing, and conversion into the normal Journey.
+- Journey is the master acquisition board. Active Prospect intake and later
+  Lead stages are projected into that one board; the Scouting, Researching,
+  Outreach Command, Meetings, Inbox, and Contacts views are workbenches over
+  the same records rather than mandatory sequential gates or separate stores.
+- Scouting includes a supported Google Maps Embed canvas, manual/networking
+  capture, mapped CSV/TSV/XLSX intake, prospect qualification, channel plans,
+  notes, follow-up, recontact timing, and guarded conversion into Journey.
+  Research is optional and can be revisited before, during, or after outreach.
+- Website enquiries classified for Sales are admitted through the authenticated
+  Lead write path, receive an acquisition dossier, and deep-link to the exact
+  Journey record.
+- Lead and Contact acquisition paths attach a canonical agency-scoped Person;
+  promotion preserves the exact `personId` and explicit Lead lineage. Shared
+  email addresses or phone numbers are not treated as proof that two records
+  are the same person.
+- Calls and emails support reviewed device handoff or configured providers,
+  server-side suppression and recipient checks, stable replay protection, and
+  separate attribution for the initiating operator and the person who records
+  the final human outcome. DM, SMS, WhatsApp, and in-person work remain manual
+  logged channels rather than unguarded automatic sends.
+- Twilio, Resend, and SMTP execution requires one uniquely resolved CRM subject
+  before the external provider is called. Unknown or ambiguous recipients are
+  refused with a conflict; device/manual handoff remains available and records
+  only the action Aqua can truthfully prove.
+- Outbound provider replay is tenant-scoped, stores no raw recipient or message
+  content, carries exact Prospect/Lead/Contact/Client erasure lineage, and
+  expires after 30 days. Subject-linked call, email, and replay records are
+  removed by exact ids during client erasure without deleting an unrelated
+  shared-address record. A legacy identity-only erasure that resolves to more
+  than one disconnected acquisition subject fails closed and retains the client
+  for operator review and retry instead of claiming success.
+- Contact-to-client conversion claims the exact request before creating the
+  client, so matching concurrent requests converge and changed options conflict.
+  Spreadsheet preview and import share a 5 MB streaming bound, XLSX expansion
+  ceilings, and a 500-row pre-write limit.
 - Meetings include booking, rescheduling, reminders, outcomes, no-shows,
-  recordings, links, notes, and related commercial actions.
+  recordings, safe links, notes, actor-attributed interaction history, and
+  related commercial actions across the same Lead and Contact records. Meeting
+  edits use one bounded mutation with server-owned time and actor evidence.
+- Every declared Leads Pipeline API method has an explicit Growth element
+  policy and unknown methods fail closed. The signed public Stripe webhook is
+  the sole explicit element-policy exemption.
 - Booking funnels are owned by Marketing and can be used by Journey.
 
 ### Fulfilment And Product/Service Operations

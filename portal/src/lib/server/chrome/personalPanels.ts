@@ -52,6 +52,11 @@ export async function withPersonalChrome(panels: NavPanel[]): Promise<NavPanel[]
     // unchanged. Still subtractive: it re-adds only rows already in `panels`.
     const locked = focusLockdown(panels, focused, department);
 
+    // Sales is deliberately a fixed five-step operating loop. Applying saved
+    // sidebar rows after lockdown could re-add unrelated work or reorder the
+    // lifecycle, so personalization resumes when the person returns to Owner.
+    if (department === "sales") return locked;
+
     const layout = getUserChromeLayout(session.agencyId, session.userId);
     // Nothing arranged and nothing saved: return the very same array, so a
     // person who has never touched this gets today's behaviour exactly.

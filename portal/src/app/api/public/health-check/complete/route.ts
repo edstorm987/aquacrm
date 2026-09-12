@@ -4,7 +4,6 @@ import {
   FunnelInputError,
   publicFunnelContainerFor,
 } from "@/built-ins/runtime/foundation-adapters/publicFunnelFoundation";
-import { sessionCookie } from "@/lib/server/auth/auth";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
 import { FOUNDER_AGENCY_SLUG, seedFounder } from "@/lib/server/seeds/founderSeed";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
@@ -27,11 +26,8 @@ function failure(status: number, error: string, message: string) {
 
 // Rate limited 2026-08-27 (Phase D public-surface review).
 //
-// This is an unauthenticated POST that can end with `sessionCookie(...)` — it
-// SIGNS SOMEBODY IN off the back of a Health Check completion. That makes it
-// the most powerful anonymous endpoint in the app after login itself, and it
-// had no limit of any kind while `contact`, `careers` and `brand-enquiry` all
-// did.
+// Anonymous completion is capture-only. It must never mint authentication;
+// mailbox-verified, single-use continuation is a separate future flow.
 //
 // The limit is per-IP and generous enough that a real person finishing the
 // funnel, or retrying after a dropped connection, will never see it.
@@ -92,19 +88,16 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json({
       ok: true,
       persisted: true,
-      captureId: result.capture.id,
-      leadUserId: result.leadUserId,
       created: result.created,
       redirect: "/business-os/app.html?from=hc",
+      authentication: "email_verification_required",
     });
-    if (result.session) {
-      const cookie = sessionCookie(result.session);
-      response.cookies.set(cookie.name, cookie.value, cookie.options);
-    }
     return response;
   } catch (error) {
     if (error instanceof FunnelInputError) {
-      return failure(400, error.message, "The Health Check handoff details are invalid.");
+      // Keep replay, existing-identity and malformed-input refusals
+      // indistinguishable to an anonymous caller.
+      return failure(400, "invalid_completion", "The Health Check handoff details are invalid.");
     }
     console.error(
       "[health-check] completion handoff failed:",

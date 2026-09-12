@@ -10,7 +10,7 @@ export {
 } from "../lib/domain";
 export type {
   ActivityLogPort, EventBusPort, FunnelEventName,
-  LeadUserPort, SessionPort, LogActivityInput,
+  LeadUserPort, LogActivityInput,
   StoragePort, TenantPort, UserPort,
 } from "./ports";
 export {
@@ -27,7 +27,7 @@ export type { FunnelFoundation, ContainerForArgs } from "./foundationAdapter";
 import type { AgencyId } from "../lib/tenancy";
 import type { PluginStorage } from "../lib/aquaPluginTypes";
 import type {
-  ActivityLogPort, EventBusPort, LeadUserPort, SessionPort, StoragePort,
+  ActivityLogPort, EventBusPort, LeadUserPort, StoragePort,
 } from "./ports";
 import { FunnelService } from "./services";
 
@@ -37,7 +37,6 @@ export interface FunnelDepsInput {
   activity: ActivityLogPort;
   events: EventBusPort;
   leadUsers: LeadUserPort;
-  sessions?: SessionPort;
 }
 
 export interface FunnelContainer {
@@ -50,7 +49,6 @@ export function buildFunnelContainer(deps: FunnelDepsInput): FunnelContainer {
     agencyId: deps.agencyId, storage,
     activity: deps.activity, events: deps.events,
     leadUsers: deps.leadUsers,
-    ...(deps.sessions !== undefined ? { sessions: deps.sessions } : {}),
   });
   return { funnel };
 }

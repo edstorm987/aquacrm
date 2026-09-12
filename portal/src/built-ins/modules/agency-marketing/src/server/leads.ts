@@ -20,9 +20,41 @@ import type { ActivityLogPort, EventBusPort, StoragePort } from "./ports";
 const LEAD_INDEX_KEY = "leads/index";
 const leadKey = (id: string): string => `leads/by-id/${id}`;
 const canonEmail = (email: string): string => email.trim().toLowerCase();
+const canonPhone = (phone?: string, defaultCountryCode = "44"): string => {
+  const raw = phone?.trim() ?? "";
+  if (!raw) return "";
+  const extensionless = raw.replace(/(?:ext\.?|extension|x)\s*\d+$/i, "").trim();
+  let digits = extensionless.replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  if (defaultCountryCode && digits.startsWith(`${defaultCountryCode}0`)) {
+    digits = `${defaultCountryCode}${digits.slice(defaultCountryCode.length + 1)}`;
+  }
+  if (digits.startsWith("0") && defaultCountryCode) digits = `${defaultCountryCode}${digits.slice(1)}`;
+  if (digits.length < 7 || digits.length > 15) return "";
+  return `+${digits}`;
+};
 const byEmailKey = (email: string): string => `leads/by-email/${canonEmail(email)}`;
 const byCampaignKey = (cmpId: string): string => `leads/by-campaign/${cmpId}`;
 const byStaffKey = (staffId: string): string => `leads/by-staff/${staffId}`;
+
+export interface MarketingLeadErasureResult {
+  erased: number;
+  reviewRequired: {
+    legacyUnscoped: number;
+    sharedIdentity: number;
+  };
+}
+
+export interface MarketingLeadErasureSubject {
+  clientId: string;
+  personId?: string;
+  personShared: boolean;
+  emails: readonly string[];
+  phones: readonly string[];
+  sharedEmails: readonly string[];
+  sharedPhones: readonly string[];
+}
 
 const leadMutationQueues = new Map<AgencyId, Promise<void>>();
 
@@ -135,6 +167,8 @@ export class LeadService {
     const row: Lead = {
       id,
       agencyId: this.agencyId,
+      clientId: input.clientId,
+      personId: input.personId,
       campaignId: input.campaignId,
       email,
       name: input.name?.trim(),
@@ -181,26 +215,53 @@ export class LeadService {
     return row;
   }
 
-  // Right-to-be-forgotten: delete every marketing lead captured at one of
-  // `addresses`, plus the `leads/by-email/<email>` pointer whose KEY NAME holds
-  // the address, and each index entry. Called by `onEraseClient`.
-  //
-  // DELETE, not anonymise: a marketing lead is marketing PII — the policy's
-  // clearest delete category. The row carries NO `clientId` (it predates the
-  // person being a client), so the address is the only link back to them.
-  //
-  // Idempotent: a second run finds nothing and returns 0.
-  async eraseForAddresses(addresses: readonly string[]): Promise<number> {
-    return withLeadMutationLock(this.agencyId, this.storage, () => this.eraseForAddressesUnlocked(addresses));
+  // Right-to-be-forgotten. Exact client ownership (or an exclusive reciprocal
+  // Person stamp) may delete. Address/phone matches are evidence only: preserve
+  // them and return de-identified review counts.
+  async eraseForClient(subject: MarketingLeadErasureSubject): Promise<MarketingLeadErasureResult> {
+    return withLeadMutationLock(this.agencyId, this.storage, () => this.eraseForClientUnlocked(subject));
   }
 
-  private async eraseForAddressesUnlocked(addresses: readonly string[]): Promise<number> {
+  private async eraseForClientUnlocked(subject: MarketingLeadErasureSubject): Promise<MarketingLeadErasureResult> {
+    const wantedEmails = new Set(subject.emails.map(canonEmail).filter(Boolean));
+    const wantedPhones = new Set(subject.phones.map(value => canonPhone(value)).filter(Boolean));
+    const sharedEmails = new Set(subject.sharedEmails.map(canonEmail).filter(Boolean));
+    const sharedPhones = new Set(subject.sharedPhones.map(value => canonPhone(value)).filter(Boolean));
+    const reviewRequired = { legacyUnscoped: 0, sharedIdentity: 0 };
+    const rows: Lead[] = [];
+    for (const key of await this.storage.list("leads/by-id/")) {
+      const row = await this.storage.get<Lead>(key);
+      if (row?.agencyId === this.agencyId) rows.push(row);
+    }
     let erased = 0;
-    for (const address of new Set(addresses.map(a => a.trim().toLowerCase()).filter(Boolean))) {
-      const existing = await this.getByEmail(address);
-      await this.storage.del(byEmailKey(address));
-      if (!existing) continue;
+    for (const existing of rows) {
+      const conflictingPerson = Boolean(subject.personId && existing.personId && existing.personId !== subject.personId);
+      const exactClient = existing.clientId === subject.clientId && !conflictingPerson;
+      const exactExclusivePerson = Boolean(subject.personId && !subject.personShared
+        && existing.personId === subject.personId
+        && (!existing.clientId || existing.clientId === subject.clientId));
+      if (!exactClient && !exactExclusivePerson) {
+        const email = canonEmail(existing.email);
+        const phone = canonPhone(existing.phone);
+        const sharedPerson = Boolean(subject.personShared && subject.personId
+          && existing.personId === subject.personId);
+        if (!sharedPerson && existing.clientId !== subject.clientId
+          && !wantedEmails.has(email) && !wantedPhones.has(phone)) continue;
+        const shared = Boolean(sharedPerson
+          || conflictingPerson
+          || (existing.clientId && existing.clientId !== subject.clientId)
+          || (existing.personId && existing.personId !== subject.personId)
+          || sharedEmails.has(email)
+          || sharedPhones.has(phone));
+        if (shared) reviewRequired.sharedIdentity++;
+        else reviewRequired.legacyUnscoped++;
+        continue;
+      }
+
       await this.storage.del(leadKey(existing.id));
+      if (await this.storage.get<string>(byEmailKey(existing.email)) === existing.id) {
+        await this.storage.del(byEmailKey(existing.email));
+      }
       const ix = (await this.storage.get<string[]>(LEAD_INDEX_KEY)) ?? [];
       await this.storage.set(LEAD_INDEX_KEY, ix.filter(value => value !== existing.id));
       if (existing.campaignId) {
@@ -222,7 +283,7 @@ export class LeadService {
         metadata: { erased },
       });
     }
-    return erased;
+    return { erased, reviewRequired };
   }
 
   async update(id: string, patch: UpdateLeadPatch, actor: UserId): Promise<Lead | null> {

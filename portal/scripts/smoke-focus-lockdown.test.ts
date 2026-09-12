@@ -3,8 +3,10 @@
 // Ed: *"the modes solely focus on it — no Command Centre or anything it normally
 // would have… focus into that role only, not have access to all operations, the
 // entire journey etc."* So under a focus-home hat the sidebar keeps only the
-// role's own surfaces plus My Radar and the Inbox; the macro shell (Command
-// Centre home, the Operations hub, Tools) is stripped. These pins hold that — AND
+// role's own surfaces plus its deliberately retained personal rows; the macro
+// shell (Command Centre home, the Operations hub, Tools) is stripped. Sales is
+// the exception by product design: it becomes an exact six-view working loop
+// and drops My Radar and the consolidated Journey while the hat is active. These pins hold that — AND
 // the safety model: still subtractive, it never adds a row the person was not
 // already entitled to, and owner / Executive are untouched.
 
@@ -27,10 +29,17 @@ function fixture(): NavPanel[] {
       { id: "inbox", label: "Inbox & actions", href: "/portal/agency/inbox" },
       { id: "operations-home", label: "Operations", href: "/portal/agency/operations" },
       { id: "my-radar", label: "My Radar", href: "/portal/agency/my-radar" },
+      { id: "pipelines", label: "Journey", href: "/portal/clients?view=journey" },
       { id: "tools", label: "Tools", href: "/portal/agency/tools" },
     ] },
+    { id: "sales", label: "Sales", order: 45, hidden: true, items: [
+      { id: "scouting", label: "Scouting", href: "/portal/agency/scouting" },
+      { id: "researching", label: "Researching", href: "/portal/agency/researching" },
+      { id: "prospecting", label: "Outreach Command", href: "/portal/agency/prospecting" },
+      { id: "meetings", label: "Meetings", href: "/portal/agency/meetings" },
+      { id: "contacts", label: "Contacts", href: "/portal/clients?view=contacts" },
+    ] },
     { id: "ops", label: "Operations", order: 50, hidden: true, items: [
-      { id: "pipelines", label: "Journey", href: "/portal/clients?view=journey" },
       { id: "fulfilment", label: "Fulfilment", href: "/portal/agency/fulfilment" },
       { id: "finance", label: "Finance", href: "/portal/agency/agency-finance" },
     ] },
@@ -69,11 +78,10 @@ test("a focus hat strips the macro shell (Command Centre, Operations hub, Tools)
   }
 });
 
-test("a focus hat keeps My Radar and the Inbox, plus the role's own surfaces", () => {
+test("the Sales hat becomes the exact six-view loop and drops macro context", () => {
   const out = ids(lockedFor("sales"));
-  assert.ok(out.includes("my-radar"), "My Radar is kept");
-  assert.ok(out.includes("inbox"), "the Inbox is kept even though the sales lens drops it");
-  assert.ok(out.includes("pipelines"), "the role's own surface (Journey/leads) survives");
+  assert.deepEqual(out, ["scouting", "researching", "prospecting", "meetings", "inbox", "contacts"]);
+  assert.ok(!out.includes("my-radar") && !out.includes("pipelines"), "Sales focus keeps neither My Radar nor consolidated Journey");
   assert.ok(!out.includes("fulfilment") && !out.includes("finance"), "other departments stay gone");
 });
 
@@ -98,7 +106,11 @@ test("every focus-home department locks down; each still paints something", () =
     for (const gone of ["home", "operations-home", "tools"]) {
       assert.ok(!out.includes(gone), `${dept}: ${gone} must be stripped`);
     }
-    assert.ok(out.includes("my-radar") && out.includes("inbox"), `${dept}: keeps My Radar + Inbox`);
+    if (dept === "sales") {
+      assert.deepEqual(out, ["scouting", "researching", "prospecting", "meetings", "inbox", "contacts"]);
+    } else {
+      assert.ok(out.includes("my-radar") && out.includes("inbox"), `${dept}: keeps My Radar + Inbox`);
+    }
   }
 });
 

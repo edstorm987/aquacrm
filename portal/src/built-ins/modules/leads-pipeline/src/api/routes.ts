@@ -33,8 +33,10 @@ import {
   prospectOutreachHandler,
   qualifyProspectHandler,
   dismissProspectHandler,
+  restoreProspectHandler,
   sendCampaignHandler,
   sendCommercialPackHandler,
+  startLeadAcquisitionDossierHandler,
   updateCampaignHandler,
   updateContactHandler,
   updateContactMeetingHandler,
@@ -49,15 +51,17 @@ const AGENCY_ALL = ["agency-owner", "agency-manager", "agency-staff"] as const;
 
 export const ROUTES: PluginApiRoute[] = [
   // Scouting
-  { path: "prospects", methods: ["GET", "POST", "PATCH"], handler: prospectsHandler, visibleToRoles: [...AGENCY_ALL] },
+  { path: "prospects", methods: ["GET", "POST", "PATCH"], handler: prospectsHandler, visibleToRoles: [...AGENCY_ADMIN] },
   { path: "google-places/search", methods: ["POST"], handler: googlePlacesSearchHandler, visibleToRoles: [...AGENCY_ADMIN] },
   { path: "prospects/import", methods: ["POST"], handler: importProspectsHandler, visibleToRoles: [...AGENCY_ADMIN] },
-  { path: "prospects/outreach", methods: ["POST"], handler: prospectOutreachHandler, visibleToRoles: [...AGENCY_ALL] },
-  { path: "prospects/follow-ups", methods: ["POST", "PATCH"], handler: prospectFollowUpsHandler, visibleToRoles: [...AGENCY_ALL] },
-  { path: "prospects/inspection", methods: ["POST"], handler: prospectInspectionHandler, visibleToRoles: [...AGENCY_ALL] },
-  { path: "prospects/notes", methods: ["POST"], handler: prospectNotesHandler, visibleToRoles: [...AGENCY_ALL] },
+  { path: "prospects/outreach", methods: ["POST"], handler: prospectOutreachHandler, visibleToRoles: [...AGENCY_ADMIN] },
+  { path: "prospects/follow-ups", methods: ["POST", "PATCH"], handler: prospectFollowUpsHandler, visibleToRoles: [...AGENCY_ADMIN] },
+  { path: "prospects/inspection", methods: ["POST"], handler: prospectInspectionHandler, visibleToRoles: [...AGENCY_ADMIN] },
+  { path: "prospects/notes", methods: ["POST"], handler: prospectNotesHandler, visibleToRoles: [...AGENCY_ADMIN] },
+  { path: "prospects/start-dossier", methods: ["POST"], handler: startLeadAcquisitionDossierHandler, visibleToRoles: [...AGENCY_ADMIN] },
   { path: "prospects/qualify", methods: ["POST"], handler: qualifyProspectHandler, visibleToRoles: [...AGENCY_ADMIN] },
   { path: "prospects/dismiss", methods: ["POST"], handler: dismissProspectHandler, visibleToRoles: [...AGENCY_ADMIN] },
+  { path: "prospects/restore", methods: ["POST"], handler: restoreProspectHandler, visibleToRoles: [...AGENCY_ADMIN] },
 
   // Leads
   { path: "leads", methods: ["GET"], handler: listLeadsHandler, visibleToRoles: [...AGENCY_ALL] },

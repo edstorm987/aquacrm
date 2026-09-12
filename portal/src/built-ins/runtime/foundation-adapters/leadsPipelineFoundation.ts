@@ -27,6 +27,7 @@ import {
 } from "./_foundationPorts";
 import {
   emailEnqueuePort,
+  personIdentityPort,
   pipelinePort,
 } from "@/lib/server/leadsPipelinePorts";
 import { subscribeForPlugin } from "@/server/eventBus";
@@ -54,6 +55,7 @@ export function ensureLeadsPipelineFoundationRegistered(): void {
     pluginInstalls: pluginInstallStorePort,
     emailEnqueue: emailEnqueuePort,
     pipeline: pipelinePort,
+    personIdentity: personIdentityPort,
   } as unknown as Parameters<typeof registerLeadsPipelineFoundation>[0]);
   registered = true;
 }
@@ -111,7 +113,7 @@ subscribeForPlugin(PLUGIN_ID, "public-funnel.lead.captured", async (event) => {
     company: payload.company,
     source: payload.source,
     agencyId: event.agencyId as never,
-  });
+  }, container.prospects);
 });
 
 subscribeForPlugin(PLUGIN_ID, "pipelines.card.moved", async (event) => {

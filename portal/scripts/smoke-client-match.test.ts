@@ -26,6 +26,7 @@ const client = {
 
 const contact = {
   id: "ctc_new",
+  agencyId: "agency",
   email: "new@example.com",
   type: "lead",
   tags: [],
@@ -36,11 +37,11 @@ const contact = {
 
 const lead = {
   id: "lead_new",
+  agencyId: "agency",
   email: "new@example.com",
   tags: [],
   source: "manual",
   capturedAt: 1,
-  status: "new",
 } satisfies Lead;
 
 describe("lead and contact client matching", () => {
@@ -49,17 +50,31 @@ describe("lead and contact client matching", () => {
     assert.equal(clientMatchesLead(client, lead), false);
   });
 
-  it("matches only a real contact id, promoted lead id, or owner email", () => {
-    assert.equal(clientMatchesContact({ ...client, metadata: { contactId: contact.id } }, contact), true);
-    assert.equal(clientMatchesContact(
-      { ...client, metadata: { promotedFromLeadId: "lead_source" } },
-      { ...contact, promotedFromLeadId: "lead_source" },
-    ), true);
-    assert.equal(clientMatchesContact({ ...client, ownerEmail: " NEW@example.com " }, contact), true);
+  it("does not treat email or free-form client metadata as an identity edge", () => {
+    const forged = {
+      ...client,
+      ownerEmail: " NEW@example.com ",
+      metadata: {
+        leadId: lead.id,
+        contactId: contact.id,
+        promotedFromLeadId: "lead_source",
+        linkedContacts: [{ id: contact.id, email: contact.email }],
+      },
+    };
+    assert.equal(clientMatchesContact(forged, { ...contact, promotedFromLeadId: "lead_source" }), false);
+    assert.equal(clientMatchesLead(forged, lead), false);
   });
 
-  it("matches leads by real lead id or normalized owner email", () => {
-    assert.equal(clientMatchesLead({ ...client, metadata: { leadId: lead.id } }, lead), true);
-    assert.equal(clientMatchesLead({ ...client, ownerEmail: "New@Example.com" }, lead), true);
+  it("matches leads only through a typed direct client id or canonical person id", () => {
+    assert.equal(clientMatchesLead(client, { ...lead, clientId: client.id }), true);
+    assert.equal(clientMatchesLead(client, { ...lead, convertedClientId: client.id }), true);
+    assert.equal(clientMatchesLead({ ...client, personId: "person_exact" }, { ...lead, personId: "person_exact" }), true);
+    assert.equal(clientMatchesLead({ ...client, personId: "person_a" }, { ...lead, personId: "person_b" }), false);
+  });
+
+  it("matches contacts only through a typed direct client id or canonical person id", () => {
+    assert.equal(clientMatchesContact(client, { ...contact, clientId: client.id }), true);
+    assert.equal(clientMatchesContact({ ...client, personId: "person_exact" }, { ...contact, personId: "person_exact" }), true);
+    assert.equal(clientMatchesContact({ ...client, personId: "person_a" }, { ...contact, personId: "person_b" }), false);
   });
 });

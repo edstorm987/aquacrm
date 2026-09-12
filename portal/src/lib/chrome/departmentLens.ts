@@ -29,7 +29,17 @@ import { departmentProfile, type DepartmentProfile } from "@/lib/access/departme
 
 /** Every element key a department covers, whether to use or merely to see. */
 export function lensElementKeys(profile: DepartmentProfile): Set<string> {
-  return new Set<string>([...profile.use, ...profile.view]);
+  // Inbox is part of the complete Sales operating loop, but it is deliberately
+  // not part of the reusable Sales permission preset: granting the agency-wide
+  // inbox to every caller would expose unrelated conversations. The lens is
+  // only an intersection with the already-authorised sidebar, so including the
+  // key here keeps Inbox visible for an owner/manager who already has it and
+  // still cannot reveal it to somebody whose base navigation excluded it.
+  return new Set<string>([
+    ...profile.use,
+    ...profile.view,
+    ...(profile.id === "sales" ? ["workspace.inbox"] : []),
+  ]);
 }
 
 /**
@@ -60,5 +70,14 @@ export function applyDepartmentLens(panels: NavPanel[], departmentId: string | u
  * department they have no access to work in.
  */
 export function departmentHasVisibleNav(panels: NavPanel[], departmentId: string): boolean {
-  return applyDepartmentLens(panels, departmentId).length > 0;
+  const lensed = applyDepartmentLens(panels, departmentId);
+  if (departmentId === "sales") {
+    // A partial Sales hat is misleading: activating it promises the complete
+    // Scouting -> Researching -> Outreach Command -> Meetings -> Inbox -> Contacts loop.
+    const salesDeskIds = ["scouting", "researching", "prospecting", "meetings", "contacts"];
+    const visibleIds = new Set(lensed.flatMap(panel => panel.items.map(item => item.id)));
+    const hasInbox = panels.some(panel => panel.items.some(item => item.id === "inbox" && item.href === "/portal/agency/inbox"));
+    return hasInbox && salesDeskIds.every(id => visibleIds.has(id));
+  }
+  return lensed.length > 0;
 }

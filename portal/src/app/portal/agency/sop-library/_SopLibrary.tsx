@@ -103,16 +103,17 @@ function groupDependants(dependants: SopDependant[]): { kind: string; items: Sop
     .sort((a, b) => dependantKindLabel(a.kind).localeCompare(dependantKindLabel(b.kind)));
 }
 
-export function SopLibrary({ initialSops, initialCategories, initialGuides = [], canManageGuides = false }: {
+export function SopLibrary({ initialSops, initialCategories, initialGuides = [], canManageGuides = false, initialQuery = "" }: {
   initialSops: SopDocument[];
   initialCategories: string[];
   initialGuides?: SopGuide[];
   canManageGuides?: boolean;
+  initialQuery?: string;
 }) {
   const [view, setView] = useState<"library" | "guides">("library");
   const [guides, setGuides] = useState(initialGuides);
   const [sops, setSops] = useState(initialSops);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [tagFilter, setTagFilter] = useState("all");
   const [manualCategories, setManualCategories] = useState(initialCategories);

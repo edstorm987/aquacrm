@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CallButton, CallLinePicker } from "@/components/telephony/CallControls";
 import { EmailButton, EmailLinePicker } from "@/components/telephony/EmailControls";
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
@@ -27,21 +28,30 @@ import {
   ShieldCheck,
   SkipForward,
   Tag,
-  Upload,
   Flame,
   Target,
 } from "lucide-react";
 import { formatElapsed } from "@/lib/enquiries/leadTiming";
 import { formatUkDate } from "@/lib/shared/formatDateTime";
+import { GoogleMapsAttribution } from "@/components/attribution/GoogleMapsAttribution";
+import { prospectVisibleInWorkspace } from "@/lib/sales/prospectWorkflow";
+import type { ProspectOutreachReceipt } from "@/lib/telephony/prospectOutreachReceipt";
 
 export type ProspectQualificationState = "unreviewed" | "researching" | "ready" | "outreach" | "engaged" | "not-now";
 export type ProspectOutreachChannel = "call" | "email" | "sms" | "whatsapp" | "dm" | "in-person";
 export type ProspectOutreachOutcome = "attempted" | "no-answer" | "left-message" | "sent" | "replied" | "interested" | "not-now" | "not-fit" | "wrong-contact" | "meeting-booked";
 export type ProspectInspectionCheck = "business-verified" | "contact-route-verified" | "opportunity-confirmed" | "decision-maker-identified" | "timing-understood";
 export type ProspectFollowUpStatus = "scheduled" | "completed" | "skipped";
+export type ProspectWorkspaceMode = "researching" | "prospecting";
 
 export interface ScoutingProspectView {
   id: string;
+  status: "scouting" | "qualified" | "dismissed";
+  dismissedAt?: number;
+  dismissedActorLabel?: string;
+  restoredAt?: number;
+  restoredActorLabel?: string;
+  qualifiedLeadId?: string;
   name?: string;
   company?: string;
   email?: string;
@@ -70,6 +80,8 @@ export interface ScoutingProspectView {
   lastContactedAt?: number;
   inspectionChecks: ProspectInspectionCheck[];
   inspectedAt?: number;
+  researchUpdatedAt?: number;
+  researchActorLabel?: string;
   followUps: Array<{
     id: string;
     createdAt: number;
@@ -79,6 +91,8 @@ export interface ScoutingProspectView {
     status: ProspectFollowUpStatus;
     resolvedAt?: number;
     resolutionNote?: string;
+    actorLabel?: string;
+    resolverActorLabel?: string;
   }>;
   outreachAttempts: Array<{
     id: string;
@@ -88,14 +102,17 @@ export interface ScoutingProspectView {
     note?: string;
     followUpAt?: number;
     followUpReason?: string;
+    actorLabel?: string;
+    finalisedAt?: number;
+    finaliserActorLabel?: string;
   }>;
-  notes: Array<{ id: string; at: number; body: string }>;
+  notes: Array<{ id: string; at: number; body: string; actorLabel?: string }>;
   capturedAt: number;
   updatedAt: number;
 }
 
-type Queue = "due" | "all" | "untouched" | "research" | "outreach" | "engaged" | "parked";
-type ScoutingView = "command" | "pipeline";
+type Queue = "due" | "all" | "new" | "untouched" | "research" | "outreach" | "engaged" | "parked";
+type ScoutingView = "research" | "power-dialler" | "email" | "pipeline";
 
 const REQUIRED_INSPECTION_CHECKS: ProspectInspectionCheck[] = ["business-verified", "contact-route-verified", "opportunity-confirmed"];
 const INSPECTION_LABELS: Record<ProspectInspectionCheck, { label: string; detail: string }> = {
@@ -131,8 +148,9 @@ const OUTCOME_LABELS: Record<ProspectOutreachOutcome, string> = {
 const QUEUES: Array<{ id: Queue; label: string }> = [
   { id: "due", label: "Due now" },
   { id: "all", label: "All active" },
+  { id: "new", label: "New" },
   { id: "untouched", label: "Untouched" },
-  { id: "research", label: "Research" },
+  { id: "research", label: "In progress" },
   { id: "outreach", label: "Outreach" },
   { id: "engaged", label: "Engaged" },
   { id: "parked", label: "Parked" },
@@ -152,40 +170,50 @@ export interface ScoutingQuotaViewModel {
 }
 
 export function ScoutingCommand({
+  mode,
+  googleMapsEmbedApiKey,
   prospects,
   focusedProspectId,
+  initialOutreachView,
   referenceNow,
   quota,
   quotaWritable,
   canManage,
   canQualify,
-  onNew,
   onEdit,
   onQualify,
   onDismiss,
 }: {
+  mode: ProspectWorkspaceMode;
+  googleMapsEmbedApiKey: string;
   prospects: ScoutingProspectView[];
   /** A just-created record to reveal after the refreshed server list arrives. */
   focusedProspectId?: string;
+  initialOutreachView?: "power-dialler" | "email" | "pipeline";
   referenceNow: number;
   /** Self-set targets with server-derived progress. Absent = none set yet. */
   quota?: ScoutingQuotaViewModel;
   quotaWritable: boolean;
   canManage: boolean;
   canQualify: boolean;
-  onNew: () => void;
   onEdit: (prospect: ScoutingProspectView) => void;
   onQualify: (prospect: ScoutingProspectView) => void;
   onDismiss: (prospect: ScoutingProspectView) => void;
 }) {
   const router = useRouter();
-  const [queue, setQueue] = useState<Queue>("research");
-  const [view, setView] = useState<ScoutingView>("command");
+  const workspaceProspects = useMemo(
+    () => prospects.filter(item => prospectVisibleInWorkspace(item.qualificationState, mode)),
+    [mode, prospects],
+  );
+  const visibleQueues = mode === "researching"
+    ? QUEUES.filter(item => ["all", "new", "research", "parked"].includes(item.id))
+    : QUEUES.filter(item => ["due", "all", "untouched", "outreach", "engaged", "parked"].includes(item.id));
+  const [queue, setQueue] = useState<Queue>("all");
+  const [view, setView] = useState<ScoutingView>(mode === "researching" ? "research" : initialOutreachView ?? "power-dialler");
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState(
-    prospects.find(item => !item.doNotContact && ["unreviewed", "researching", "ready"].includes(item.qualificationState))?.id
-      ?? prospects.find(item => !item.doNotContact)?.id
-      ?? prospects[0]?.id
+    workspaceProspects.find(item => !item.doNotContact)?.id
+      ?? workspaceProspects[0]?.id
       ?? "",
   );
   const [channel, setChannel] = useState<ProspectOutreachChannel>("call");
@@ -194,37 +222,43 @@ export function ScoutingCommand({
   const [followUpAt, setFollowUpAt] = useState("");
   const [followUpReason, setFollowUpReason] = useState("");
   const [fieldNote, setFieldNote] = useState("");
-  const [inspectionChecks, setInspectionChecks] = useState<ProspectInspectionCheck[]>(prospects[0]?.inspectionChecks ?? []);
-  const [importing, setImporting] = useState(false);
+  const [inspectionChecks, setInspectionChecks] = useState<ProspectInspectionCheck[]>(workspaceProspects[0]?.inspectionChecks ?? []);
+  const [readyForNext, setReadyForNext] = useState(false);
+  const [activeAttemptId, setActiveAttemptId] = useState<string | undefined>();
+  const [heldProviderReceipt, setHeldProviderReceipt] = useState(false);
+  const [providerPending, setProviderPending] = useState<{ prospectId: string; channel: "call" | "email" } | null>(null);
   const [busy, setBusy] = useState<"outreach" | "note" | "follow-up" | "inspection" | "resolve" | null>(null);
   const [notice, setNotice] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const dossierRef = useRef<HTMLDivElement>(null);
   const appliedFocusId = useRef("");
+  const selectedProspectIdRef = useRef("");
 
   const now = referenceNow;
-  const dueCount = prospects.filter(item => !item.doNotContact && item.nextContactAt !== undefined && item.nextContactAt <= now).length;
-  const overdueCount = prospects.filter(item => !item.doNotContact && item.nextContactAt !== undefined && item.nextContactAt < now - 86_400_000).length;
-  const untouchedCount = prospects.filter(item => item.outreachAttempts.length === 0 && !item.doNotContact).length;
-  const engagedCount = prospects.filter(item => item.qualificationState === "engaged").length;
-  const readyCount = prospects.filter(item => item.qualificationState === "ready" || (item.fitScore ?? 0) >= 70).length;
+  const dueCount = workspaceProspects.filter(item => !item.doNotContact && item.nextContactAt !== undefined && item.nextContactAt <= now).length;
+  const overdueCount = workspaceProspects.filter(item => !item.doNotContact && item.nextContactAt !== undefined && item.nextContactAt < now - 86_400_000).length;
+  const untouchedCount = workspaceProspects.filter(item => item.outreachAttempts.length === 0 && !item.doNotContact).length;
+  const engagedCount = workspaceProspects.filter(item => item.qualificationState === "engaged").length;
+  const readyCount = workspaceProspects.filter(item => item.qualificationState === "ready" || (item.fitScore ?? 0) >= 70).length;
 
   const queueCounts = useMemo<Record<Queue, number>>(() => ({
     due: dueCount,
-    all: prospects.filter(item => !item.doNotContact).length,
+    all: workspaceProspects.filter(item => !item.doNotContact).length,
+    new: workspaceProspects.filter(item => item.qualificationState === "unreviewed" && !item.doNotContact).length,
     untouched: untouchedCount,
-    research: prospects.filter(item => ["unreviewed", "researching", "ready"].includes(item.qualificationState) && !item.doNotContact).length,
-    outreach: prospects.filter(item => item.qualificationState === "outreach" && !item.doNotContact).length,
+    research: workspaceProspects.filter(item => item.qualificationState === "researching" && !item.doNotContact).length,
+    outreach: workspaceProspects.filter(item => item.qualificationState === "outreach" && !item.doNotContact).length,
     engaged: engagedCount,
-    parked: prospects.filter(item => item.doNotContact || item.qualificationState === "not-now").length,
-  }), [dueCount, engagedCount, prospects, untouchedCount]);
+    parked: workspaceProspects.filter(item => item.doNotContact || item.qualificationState === "not-now").length,
+  }), [dueCount, engagedCount, untouchedCount, workspaceProspects]);
 
   const visibleProspects = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return prospects
+    return workspaceProspects
       .filter(item => {
         if (queue === "due") return !item.doNotContact && item.nextContactAt !== undefined && item.nextContactAt <= now;
+        if (queue === "new") return !item.doNotContact && item.qualificationState === "unreviewed";
         if (queue === "untouched") return !item.doNotContact && item.outreachAttempts.length === 0;
-        if (queue === "research") return !item.doNotContact && ["unreviewed", "researching", "ready"].includes(item.qualificationState);
+        if (queue === "research") return !item.doNotContact && item.qualificationState === "researching";
         if (queue === "outreach") return !item.doNotContact && item.qualificationState === "outreach";
         if (queue === "engaged") return !item.doNotContact && item.qualificationState === "engaged";
         if (queue === "parked") return Boolean(item.doNotContact || item.qualificationState === "not-now");
@@ -241,15 +275,24 @@ export function ScoutingCommand({
         item.tags.join(" "),
       ].filter(Boolean).join(" ").toLowerCase().includes(needle))
       .sort((a, b) => scoutingPriority(a, now) - scoutingPriority(b, now));
-  }, [now, prospects, query, queue]);
+  }, [now, query, queue, workspaceProspects]);
 
-  const selected = visibleProspects.find(item => item.id === selectedId) ?? visibleProspects[0];
+  const modeProspects = useMemo(() => {
+    if (mode !== "prospecting" || view === "pipeline") return visibleProspects;
+    if (view === "power-dialler") return visibleProspects.filter(item => Boolean(item.phone));
+    if (view === "email") return visibleProspects.filter(item => Boolean(item.email));
+    return visibleProspects;
+  }, [mode, view, visibleProspects]);
+
+  const selected = modeProspects.find(item => item.id === selectedId) ?? modeProspects[0];
+  selectedProspectIdRef.current = selected?.id ?? "";
+  const outreachLocked = providerPending !== null || heldProviderReceipt;
 
   useEffect(() => {
-    if (visibleProspects.length && !visibleProspects.some(item => item.id === selectedId)) {
-      setSelectedId(visibleProspects[0]!.id);
+    if (modeProspects.length && !modeProspects.some(item => item.id === selectedId)) {
+      setSelectedId(modeProspects[0]!.id);
     }
-  }, [selectedId, visibleProspects]);
+  }, [modeProspects, selectedId]);
 
   useEffect(() => {
     setInspectionChecks(selected?.inspectionChecks ?? []);
@@ -261,6 +304,9 @@ export function ScoutingCommand({
     setFollowUpAt("");
     setFieldNote("");
     setOutcome("attempted");
+    setReadyForNext(false);
+    setActiveAttemptId(undefined);
+    setHeldProviderReceipt(false);
     setNotice(null);
   }, [selected?.id]);
 
@@ -292,21 +338,25 @@ export function ScoutingCommand({
     }
   }
 
-  // The module's own inspectionComplete() mirrors the server's required
-  // checks; the buttons use it so they can explain themselves instead of
-  // letting the log call 4xx silently after the call was already made.
+  // Research completeness is context, not authorisation. Recipient binding,
+  // access and suppression remain server-enforced; a new scout may be called
+  // immediately and can return here for research before or after contact.
   const selectedInspected = selected ? inspectionComplete(selected) : false;
-  const qualificationBlockReason = !canQualify
+  const qualificationBlockReason = selected?.status === "qualified"
+    ? null
+    : !canQualify
     ? "You need Leads use access to qualify this prospect into Journey."
     : selected?.doNotContact
     ? "Remove the do-not-contact status before moving this prospect into Journey."
     : selected && !selected.email && !selected.phone
       ? "Add and verify an email address or phone number before moving this prospect into Journey."
-      : selected && !selectedInspected
-        ? "Complete the three required inspection checks before moving this prospect into Journey."
-        : null;
+      : null;
+  const qualificationUnavailableReason = outreachLocked
+    ? "Finish or repair the current provider attempt before moving this prospect into Journey."
+    : qualificationBlockReason;
 
-  function selectProspect(prospectId: string) {
+  function selectProspect(prospectId: string, force = false) {
+    if (!force && outreachLocked) return;
     setSelectedId(prospectId);
     if (!window.matchMedia("(min-width: 1024px)").matches) {
       window.requestAnimationFrame(() => {
@@ -317,22 +367,37 @@ export function ScoutingCommand({
     }
   }
 
+  function advanceToNextProspect() {
+    if (!selected || providerPending || !readyForNext || modeProspects.length < 2) return;
+    const index = modeProspects.findIndex(item => item.id === selected.id);
+    const next = modeProspects[(index + 1) % modeProspects.length];
+    if (next) {
+      setActiveAttemptId(undefined);
+      setHeldProviderReceipt(false);
+      selectProspect(next.id, true);
+    }
+  }
+
   useEffect(() => {
     if (!focusedProspectId || appliedFocusId.current === focusedProspectId) return;
-    const prospect = prospects.find(item => item.id === focusedProspectId);
+    const prospect = workspaceProspects.find(item => item.id === focusedProspectId);
     if (!prospect) return;
     appliedFocusId.current = focusedProspectId;
     setQuery("");
-    setView("command");
+    setView(mode === "researching"
+      ? "research"
+      : initialOutreachView ?? (prospect.preferredChannel === "email" && prospect.email
+        ? "email"
+        : "power-dialler"));
     setQueue(
       prospect.doNotContact || prospect.qualificationState === "not-now"
         ? "parked"
-        : ["unreviewed", "researching", "ready"].includes(prospect.qualificationState)
+        : ["unreviewed", "researching"].includes(prospect.qualificationState)
           ? "research"
           : "all",
     );
     selectProspect(prospect.id);
-  }, [focusedProspectId, prospects]);
+  }, [focusedProspectId, initialOutreachView, mode, workspaceProspects]);
 
   /**
    * Ed: *"if i want to cold call a bunch of people i can go press call button
@@ -342,15 +407,69 @@ export function ScoutingCommand({
    * advances qualificationState and auto-completes due follow-ups, and a
    * misclick must not do either.
    */
-  function onOutreachLogged(channel: "call" | "email") {
-    // The SERVER records the attempt now, atomically with delivery (a
-    // fire-and-forget log request could be lost to navigation, and device
-    // calls never fired a callback at all). This is refresh + the nudge to
-    // record the OUTCOME once the call ends.
-    setNotice({ tone: "success", text: channel === "call"
-      ? "Call logged — record the outcome below once you hang up."
-      : "Email sent and logged." });
+  function onOutreachLogged(prospectId: string, channel: "call" | "email", receipt: ProspectOutreachReceipt) {
+    // The server attempts the provider action and its Prospect ledger write in
+    // one request (rather than a fire-and-forget client log). The receipt still
+    // distinguishes delivery from persistence because those two systems cannot
+    // be one database transaction; a failed ledger write must be repaired, not
+    // presented as complete. Device calls also return a receipt before the tel:
+    // hand-off because the handset cannot call Aqua back afterwards.
+    // A provider request can finish after the operator has selected another
+    // dossier. Refresh the old record, but never attach its receipt or notice
+    // to the newly selected person.
+    if (selectedProspectIdRef.current !== prospectId) {
+      router.refresh();
+      return;
+    }
+    setActiveAttemptId(receipt.outreachAttemptId);
+    setHeldProviderReceipt(true);
+    setChannel(channel);
+    setOutcome(channel === "email" ? "sent" : "attempted");
+    if (receipt.outreachRecorded) {
+      setNotice({ tone: "success", text: channel === "call"
+        ? "Call logged — record the outcome below once you hang up."
+        : "Email sent and logged." });
+      if (channel === "email") setReadyForNext(true);
+    } else {
+      setNotice({
+        tone: "error",
+        text: channel === "call"
+          ? "The call was initiated, but Aqua could not save its history. Save the outcome below to repair this attempt before advancing."
+          : "The email was delivered, but Aqua could not save its history. Save the sent outcome below to repair this attempt before advancing.",
+      });
+      setReadyForNext(false);
+    }
     router.refresh();
+  }
+
+  function onDeviceEmailPrepared(prospectId: string, receipt: ProspectOutreachReceipt) {
+    if (selectedProspectIdRef.current !== prospectId) {
+      router.refresh();
+      return;
+    }
+    setActiveAttemptId(receipt.outreachAttemptId);
+    setHeldProviderReceipt(true);
+    setChannel("email");
+    setOutcome("attempted");
+    setReadyForNext(false);
+    setNotice({
+      tone: receipt.outreachRecorded ? "success" : "error",
+      text: receipt.outreachRecorded
+        ? "Draft opened in your default email app. Send or cancel it there, then record the real outcome below."
+        : "The draft opened, but Aqua could not retain the handoff. Record the real outcome below before moving on.",
+    });
+    router.refresh();
+  }
+
+  function onProviderPendingChange(prospectId: string, channel: "call" | "email", pending: boolean) {
+    if (pending) {
+      setReadyForNext(false);
+      setActiveAttemptId(undefined);
+      setHeldProviderReceipt(false);
+      setProviderPending({ prospectId, channel });
+      return;
+    }
+    setProviderPending(current => current?.prospectId === prospectId && current.channel === channel ? null : current);
   }
 
   async function recordOutreach(event: React.FormEvent<HTMLFormElement>) {
@@ -363,18 +482,23 @@ export function ScoutingCommand({
       note: attemptNote || undefined,
       followUpAt: followUpAt ? new Date(followUpAt).getTime() : undefined,
       followUpReason: followUpReason || undefined,
+      attemptId: activeAttemptId,
+      finalise: Boolean(activeAttemptId),
     }, "outreach", `${CHANNEL_LABELS[channel]} outcome recorded.`);
     if (saved) {
       setAttemptNote("");
       setFollowUpAt("");
       setFollowUpReason("");
+      setActiveAttemptId(undefined);
+      setHeldProviderReceipt(false);
+      setReadyForNext(true);
     }
   }
 
   async function addNote(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selected || !fieldNote.trim()) return;
-    const saved = await post("prospects/notes", { id: selected.id, body: fieldNote }, "note", "Scouting note added.");
+    const saved = await post("prospects/notes", { id: selected.id, body: fieldNote }, "note", mode === "researching" ? "Research note added." : "Call note added.");
     if (saved) setFieldNote("");
   }
 
@@ -416,34 +540,15 @@ export function ScoutingCommand({
 
   async function saveInspection() {
     if (!selected) return;
-    await post("prospects/inspection", {
+    const complete = REQUIRED_INSPECTION_CHECKS.every(check => inspectionChecks.includes(check));
+    const saved = await post("prospects/inspection", {
       id: selected.id,
       checks: inspectionChecks,
-    }, "inspection", REQUIRED_INSPECTION_CHECKS.every(check => inspectionChecks.includes(check))
-      ? "Inspection complete. This prospect is ready for a decision."
+    }, "inspection", complete
+      ? "Research complete. This prospect is ready in Outreach Command."
       : "Inspection progress saved.");
-  }
-
-  async function importScoutingFile(file: File) {
-    setImporting(true);
-    setNotice(null);
-    try {
-      const form = new FormData();
-      form.set("file", file);
-      form.set("defaultSource", "google-maps");
-      const response = await fetch("/api/portal/leads-pipeline/prospects/import", { method: "POST", body: form });
-      const payload = await response.json() as { ok?: boolean; error?: string; imported?: number; skipped?: Array<{ reason: string }>; unrecognisedHeaders?: string[] };
-      if (!response.ok || !payload.ok) throw new Error(payload.error ?? "Could not import this scouting list.");
-      const skipped = payload.skipped?.length ?? 0;
-      const headers = payload.unrecognisedHeaders?.length ? ` Unused columns: ${payload.unrecognisedHeaders.join(", ")}.` : "";
-      setNotice({ tone: "success", text: `${payload.imported ?? 0} prospects added to inspection${skipped ? `; ${skipped} duplicate or incomplete rows skipped` : ""}.${headers}` });
-      setQueue("untouched");
-      setView("command");
-      router.refresh();
-    } catch (error) {
-      setNotice({ tone: "error", text: error instanceof Error ? error.message : String(error) });
-    } finally {
-      setImporting(false);
+    if (saved && complete) {
+      router.push(`/portal/agency/prospecting?prospect=${encodeURIComponent(selected.id)}`);
     }
   }
 
@@ -452,20 +557,17 @@ export function ScoutingCommand({
       <header className="border-b border-black/10 bg-[#102f31] px-4 py-4 text-white sm:px-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
-            <span className="grid size-10 shrink-0 place-items-center rounded-md bg-[#72d5ca]/15 text-[#72d5ca]"><Binoculars size={19} aria-hidden="true" /></span>
+            <span className="grid size-10 shrink-0 place-items-center rounded-md bg-[#72d5ca]/15 text-[#72d5ca]">{mode === "researching" ? <Search size={19} aria-hidden="true" /> : <Target size={19} aria-hidden="true" />}</span>
             <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#72d5ca]">Prospect intelligence</p>
-              <h2 className="truncate text-lg font-semibold">Cold scouting command</h2>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#72d5ca]">{mode === "researching" ? "Research workbench" : "Engagement desk"}</p>
+              <h2 className="truncate text-lg font-semibold">{mode === "researching" ? "Research when it helps" : "Outreach Command"}</h2>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {canManage ? <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-md border border-white/20 px-4 text-sm font-semibold text-white hover:bg-white/10 focus-within:outline-none focus-within:ring-2 focus-within:ring-[#72d5ca] focus-within:ring-offset-2 focus-within:ring-offset-[#102f31]" title="Import CSV, TSV, or XLSX from a Maps or prospecting export">
-              <Upload size={15} aria-hidden="true" />{importing ? "Importing..." : "Import scouting list"}
-              <input type="file" accept=".csv,.tsv,.xlsx,text/csv,text/tab-separated-values,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={importing} className="sr-only" onChange={event => { const file = event.target.files?.[0]; if (file) void importScoutingFile(file); event.currentTarget.value = ""; }} />
-            </label> : null}
-            <button type="button" onClick={onNew} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-[#72d5ca] px-4 text-sm font-semibold text-[#082022] hover:bg-[#8be2d8]">
-              <Plus size={16} aria-hidden="true" /> Scout prospect
-            </button>
+            <Link href={mode === "researching" ? "/portal/agency/scouting" : "/portal/agency/researching"} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-white/20 px-4 text-sm font-semibold text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#72d5ca] focus-visible:ring-offset-2 focus-visible:ring-offset-[#102f31]">
+              {mode === "researching" ? <Binoculars size={15} aria-hidden="true" /> : <Search size={15} aria-hidden="true" />}
+              {mode === "researching" ? "Back to Scouting" : "Open Researching"}
+            </Link>
           </div>
         </div>
       </header>
@@ -473,36 +575,42 @@ export function ScoutingCommand({
       {/* Ed: "quotas ... set myself a target ... make it super cool". Rings
           with DERIVED progress — the counters come from the outreach records
           themselves, so this can never disagree with the timeline below it. */}
-      <ScoutingQuotaStrip quota={quota} writable={quotaWritable} />
+      {mode === "prospecting" ? <ScoutingQuotaStrip quota={quota} writable={quotaWritable} /> : null}
 
-      {/* Which line calls go out on, and which address emails send from.
-          Mounted once for the whole scouting queue — the buttons on each
-          prospect read the choice from the shared sender store. Works before
-          Twilio is connected: the device (tel:) sender is the fallback. */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-black/10 bg-white px-4 py-2.5 sm:px-5">
-        <CallLinePicker />
-        <EmailLinePicker />
-      </div>
+      {mode === "prospecting" ? <section className="border-b border-black/10 bg-white px-4 py-3 sm:px-5" aria-labelledby="outreach-mode-heading">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p id="outreach-mode-heading" className="text-xs font-semibold uppercase tracking-wide text-black/65">Choose outreach mode</p>
+            <p className="mt-1 text-xs leading-5 text-black/65">One deliberate contact at a time. Aqua never auto-dials or bulk-sends this queue.</p>
+          </div>
+          <div className="inline-flex max-w-full gap-1 overflow-x-auto rounded-md border border-black/10 bg-[#fbfaf8] p-1" role="group" aria-label="Outreach mode">
+            <button type="button" aria-pressed={view === "power-dialler"} disabled={outreachLocked} onClick={() => setView("power-dialler")} className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded px-3 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45 ${view === "power-dialler" ? "bg-[#102f31] text-white shadow-sm" : "text-black/65"}`}><Phone size={13} aria-hidden="true" /> Power dialler</button>
+            <button type="button" aria-pressed={view === "email"} disabled={outreachLocked} onClick={() => setView("email")} className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded px-3 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45 ${view === "email" ? "bg-[#102f31] text-white shadow-sm" : "text-black/65"}`}><Mail size={13} aria-hidden="true" /> Email</button>
+            <button type="button" aria-pressed={view === "pipeline"} disabled={outreachLocked} onClick={() => setView("pipeline")} className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded px-3 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45 ${view === "pipeline" ? "bg-[#102f31] text-white shadow-sm" : "text-black/65"}`}><Columns3 size={13} aria-hidden="true" /> Pipeline</button>
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {view === "power-dialler" ? <CallLinePicker /> : null}
+          {view === "email" ? <EmailLinePicker /> : null}
+          {view === "pipeline" ? <p className="text-xs text-black/65">Open any stage card to return to the correct one-to-one contact mode.</p> : null}
+        </div>
+      </section> : null}
 
       <div className="grid border-b border-black/10 sm:grid-cols-2 lg:grid-cols-5">
-        <CommandMetric icon={<CalendarClock size={15} />} label="Due now" value={dueCount} tone={overdueCount ? "critical" : dueCount ? "warning" : "calm"} detail={overdueCount ? `${overdueCount} overdue` : "Follow-up queue"} onClick={() => setQueue("due")} />
-        <CommandMetric icon={<ShieldAlert size={15} />} label="Untouched" value={untouchedCount} tone={untouchedCount ? "warning" : "calm"} detail="No attempt yet" onClick={() => setQueue("untouched")} />
-        <CommandMetric icon={<Search size={15} />} label="Ready" value={readyCount} tone="neutral" detail="Qualified by research" onClick={() => setQueue("research")} />
-        <CommandMetric icon={<MessageCircle size={15} />} label="Engaged" value={engagedCount} tone={engagedCount ? "calm" : "neutral"} detail="Reply or interest" onClick={() => setQueue("engaged")} />
-        <CommandMetric icon={<ClipboardList size={15} />} label="Active dossiers" value={prospects.length} tone="neutral" detail="Retained evidence" onClick={() => setQueue("all")} />
+        {mode === "prospecting" ? <CommandMetric disabled={outreachLocked} icon={<CalendarClock size={15} />} label="Due now" value={dueCount} tone={overdueCount ? "critical" : dueCount ? "warning" : "calm"} detail={overdueCount ? `${overdueCount} overdue` : "Follow-up queue"} onClick={() => setQueue("due")} /> : null}
+        <CommandMetric disabled={outreachLocked} icon={<ShieldAlert size={15} />} label="Untouched" value={untouchedCount} tone={untouchedCount ? "warning" : "calm"} detail={mode === "researching" ? "Research not started" : "No attempt yet"} onClick={() => setQueue("untouched")} />
+        <CommandMetric disabled={outreachLocked} icon={<Search size={15} />} label={mode === "researching" ? "Available to research" : "Research ready"} value={mode === "researching" ? workspaceProspects.length : readyCount} tone="neutral" detail={mode === "researching" ? "Optional, revisitable context" : "Brief already prepared"} onClick={() => setQueue("all")} />
+        {mode === "prospecting" ? <CommandMetric disabled={outreachLocked} icon={<MessageCircle size={15} />} label="Engaged" value={engagedCount} tone={engagedCount ? "calm" : "neutral"} detail="Reply or interest" onClick={() => setQueue("engaged")} /> : null}
+        <CommandMetric disabled={outreachLocked} icon={<ClipboardList size={15} />} label="Active dossiers" value={workspaceProspects.length} tone="neutral" detail="Retained evidence" onClick={() => setQueue("all")} />
       </div>
 
-      <nav className="flex flex-wrap items-center justify-between gap-2 border-b border-black/10 bg-white px-3 py-2" aria-label="Scouting queues">
+      <nav className="flex flex-wrap items-center justify-between gap-2 border-b border-black/10 bg-white px-3 py-2" aria-label={mode === "researching" ? "Research queues" : "Outreach Command queues"}>
         <div className="flex min-w-0 gap-1 overflow-x-auto">
-          {QUEUES.map(item => (
-            <button key={item.id} type="button" aria-pressed={queue === item.id && view === "command"} onClick={() => { setQueue(item.id); setView("command"); }} className={`shrink-0 rounded-md px-3 py-2 text-xs font-semibold ${queue === item.id && view === "command" ? "bg-[#102f31] text-white" : "text-black/65 hover:bg-black/[0.04]"}`}>
-              {item.label} <span className={queue === item.id && view === "command" ? "text-white/70" : "text-black/60"}>{queueCounts[item.id]}</span>
+          {visibleQueues.map(item => (
+            <button key={item.id} type="button" disabled={outreachLocked} aria-pressed={queue === item.id && view !== "pipeline"} onClick={() => { setQueue(item.id); if (view === "pipeline") setView(mode === "researching" ? "research" : "power-dialler"); }} className={`min-h-11 shrink-0 rounded-md px-3 py-2 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45 ${queue === item.id && view !== "pipeline" ? "bg-[#102f31] text-white" : "text-black/65 hover:bg-black/[0.04]"}`}>
+              {item.label} <span className={queue === item.id && view !== "pipeline" ? "text-white/70" : "text-black/65"}>{queueCounts[item.id]}</span>
             </button>
           ))}
-        </div>
-        <div className="inline-flex shrink-0 rounded-md border border-black/10 bg-[#fbfaf8] p-1" aria-label="Scouting view">
-          <button type="button" aria-pressed={view === "command"} onClick={() => setView("command")} className={`inline-flex min-h-8 items-center gap-2 rounded px-3 text-xs font-semibold ${view === "command" ? "bg-white text-black shadow-sm" : "text-black/65"}`}><ClipboardList size={13} /> Command</button>
-          <button type="button" aria-pressed={view === "pipeline"} onClick={() => setView("pipeline")} className={`inline-flex min-h-8 items-center gap-2 rounded px-3 text-xs font-semibold ${view === "pipeline" ? "bg-[#102f31] text-white shadow-sm" : "text-black/65"}`}><Columns3 size={13} /> Pipeline</button>
         </div>
       </nav>
 
@@ -510,12 +618,13 @@ export function ScoutingCommand({
 
       {view === "pipeline" ? (
         <ScoutingPipeline
-          prospects={prospects}
+          prospects={workspaceProspects}
           now={now}
           onOpen={prospect => {
+            if (outreachLocked) return;
             selectProspect(prospect.id);
             setQueue(prospect.doNotContact || prospect.qualificationState === "not-now" ? "parked" : "all");
-            setView("command");
+            setView(prospect.preferredChannel === "email" && prospect.email ? "email" : "power-dialler");
           }}
         />
       ) : null}
@@ -523,32 +632,32 @@ export function ScoutingCommand({
       <div className={`${view === "pipeline" ? "hidden" : "grid"} min-h-[650px] lg:grid-cols-[minmax(280px,0.78fr)_minmax(0,2.22fr)]`}>
         <aside className="border-b border-black/10 bg-white lg:border-b-0 lg:border-r">
           <div className="border-b border-black/10 p-3">
-            <label className="flex items-center gap-2 rounded-md border border-black/10 bg-[#fbfaf8] px-3 py-2">
+            <label className="flex min-h-11 items-center gap-2 rounded-md border border-black/10 bg-[#fbfaf8] px-3 py-2 focus-within:ring-2 focus-within:ring-[#16877f] focus-within:ring-offset-2">
               <Search size={15} className="text-black/35" aria-hidden="true" />
-              <input value={query} onChange={event => setQuery(event.target.value)} className="min-w-0 flex-1 bg-transparent text-sm outline-none" placeholder="Search dossiers" aria-label="Search scouting dossiers" />
+              <input value={query} onChange={event => setQuery(event.target.value)} disabled={outreachLocked} className="min-w-0 flex-1 bg-transparent text-sm outline-none disabled:cursor-not-allowed disabled:opacity-50" placeholder="Search dossiers" aria-label="Search scouting dossiers" />
             </label>
           </div>
           <div className="max-h-[420px] overflow-y-auto lg:max-h-[720px]">
-            {visibleProspects.map(prospect => {
+            {modeProspects.map(prospect => {
               const due = prospect.nextContactAt !== undefined && prospect.nextContactAt <= now && !prospect.doNotContact;
               const active = selected?.id === prospect.id;
               return (
-                <button key={prospect.id} type="button" onClick={() => selectProspect(prospect.id)} aria-pressed={active} className={`block w-full border-b border-black/[0.07] px-4 py-4 text-left transition ${active ? "bg-[#e9f5f2] shadow-[inset_3px_0_0_#16877f]" : "hover:bg-black/[0.025]"}`}>
+                <button key={prospect.id} type="button" disabled={outreachLocked} onClick={() => selectProspect(prospect.id)} aria-pressed={active} className={`block w-full border-b border-black/[0.07] px-4 py-4 text-left transition focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-inset disabled:cursor-not-allowed disabled:opacity-60 ${active ? "bg-[#e9f5f2] shadow-[inset_3px_0_0_#16877f]" : "hover:bg-black/[0.025]"}`}>
                   <span className="flex items-start justify-between gap-3">
                     <span className="min-w-0">
                       <strong className="block truncate text-sm font-semibold text-black/85">{prospect.company || prospect.name || prospect.website || "Unnamed prospect"}</strong>
                       <span className="mt-1 block truncate text-xs text-black/65">{[prospect.niche, sourceLabel(prospect.source)].filter(Boolean).join(" · ")}</span>
                     </span>
-                    {prospect.fitScore !== undefined ? <span className="shrink-0 text-xs font-semibold tabular-nums text-black/55">{prospect.fitScore}%</span> : null}
+                    {prospect.fitScore !== undefined ? <span className="shrink-0 text-xs font-semibold tabular-nums text-black/65">{prospect.fitScore}%</span> : null}
                   </span>
                   <span className="mt-3 flex items-center justify-between gap-3 text-[11px]">
-                    <span className={`font-semibold uppercase ${due ? "text-red-700" : prospect.doNotContact ? "text-black/60" : "text-[#16776f]"}`}>{due ? "Follow-up due" : qualificationLabel(prospect)}</span>
-                    <span className="text-black/60">{prospect.outreachAttempts.length} attempt{prospect.outreachAttempts.length === 1 ? "" : "s"}</span>
+                    <span className={`font-semibold uppercase ${due ? "text-red-700" : prospect.doNotContact ? "text-black/65" : "text-[#16776f]"}`}>{due ? "Follow-up due" : qualificationLabel(prospect)}</span>
+                    <span className="text-black/65">{prospect.outreachAttempts.length} attempt{prospect.outreachAttempts.length === 1 ? "" : "s"}</span>
                   </span>
                 </button>
               );
             })}
-            {!visibleProspects.length ? <div className="p-8 text-center text-sm text-black/60">No prospects in this queue.</div> : null}
+            {!modeProspects.length ? <div className="p-8 text-center text-sm text-black/65">{view === "power-dialler" ? "No active prospects with a phone number in this queue." : view === "email" ? "No active prospects with an email address in this queue." : "No prospects in this queue."}</div> : null}
           </div>
         </aside>
 
@@ -557,93 +666,100 @@ export function ScoutingCommand({
             <div className="flex flex-wrap items-start justify-between gap-4 border-b border-black/10 px-4 py-5 sm:px-6">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-xl font-semibold text-black/90">{selected.company || selected.name || selected.website || "Unnamed prospect"}</h3>
+                  <h3 className="min-w-0 break-words text-xl font-semibold text-black/90">{selected.company || selected.name || selected.website || "Unnamed prospect"}</h3>
                   <span className={`rounded-full px-2 py-1 text-xs font-semibold uppercase ${qualificationTone(selected)}`}>{qualificationLabel(selected)}</span>
+                  {selected.status === "qualified" ? <span className="rounded-full bg-violet-50 px-2 py-1 text-xs font-semibold uppercase text-violet-700 ring-1 ring-inset ring-violet-200">In Journey</span> : null}
                   {selected.doNotContact ? <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-semibold uppercase text-red-700">Do not contact</span> : null}
                 </div>
                 <p className="mt-1 text-sm text-black/65">Scouted {formatElapsed(now - selected.capturedAt)} ago{selected.address ? ` · ${selected.address}` : ""}</p>
               </div>
               <div className="flex max-w-sm flex-col items-start gap-2 sm:items-end">
                 <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={() => onEdit(selected)} className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-black/65 hover:bg-black/[0.03]">Edit dossier</button>
-                <button type="button" onClick={() => { if (!qualificationBlockReason) onQualify(selected); }} aria-disabled={Boolean(qualificationBlockReason)} aria-describedby={qualificationBlockReason ? `qualify-block-${selected.id}` : undefined} className={`inline-flex items-center gap-2 rounded-md bg-black px-3 py-2 text-xs font-semibold text-white ${qualificationBlockReason ? "cursor-not-allowed opacity-45" : "hover:bg-black/85"}`}>
+                {mode === "prospecting" ? <button type="button" onClick={advanceToNextProspect} disabled={providerPending !== null || !readyForNext || modeProspects.length < 2} title={!readyForNext ? "Record the outcome or send the reviewed email before advancing." : undefined} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-[#16877f]/25 bg-[#e9f5f2] px-3 py-2 text-xs font-semibold text-[#166a64] hover:bg-[#dff1ed] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45">
+                  Next contact <SkipForward size={13} aria-hidden="true" />
+                </button> : null}
+                <button type="button" disabled={outreachLocked} onClick={() => onEdit(selected)} className="min-h-11 rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-black/65 hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45">Edit dossier</button>
+                {mode === "prospecting" && selected.status === "scouting" ? <button type="button" disabled={Boolean(qualificationUnavailableReason)} onClick={() => { if (!qualificationUnavailableReason) onQualify(selected); }} aria-describedby={qualificationUnavailableReason ? `qualify-block-${selected.id}` : undefined} className={`inline-flex min-h-11 items-center gap-2 rounded-md bg-black px-3 py-2 text-xs font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 ${qualificationUnavailableReason ? "cursor-not-allowed opacity-45" : "hover:bg-black/85"}`}>
                   Qualify to Journey <ArrowRight size={13} aria-hidden="true" />
-                </button>
+                </button> : selected.status === "qualified" && selected.qualifiedLeadId ? <Link href={`/portal/agency/pipelines/leads?lead=${encodeURIComponent(selected.qualifiedLeadId)}`} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-black px-3 py-2 text-xs font-semibold text-white hover:bg-black/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Open in Journey <ArrowRight size={13} aria-hidden="true" /></Link> : null}
                 </div>
-                {qualificationBlockReason ? <p id={`qualify-block-${selected.id}`} className="text-xs leading-5 text-black/65">{qualificationBlockReason}</p> : null}
+                {mode === "prospecting" && selected.status === "scouting" && qualificationUnavailableReason ? <p id={`qualify-block-${selected.id}`} className="text-xs leading-5 text-black/65">{qualificationUnavailableReason}</p> : null}
               </div>
             </div>
 
             <div className="grid xl:grid-cols-[minmax(0,1.15fr)_minmax(330px,0.85fr)]">
               <div className="min-w-0 border-b border-black/10 xl:border-b-0 xl:border-r">
+                {mode === "researching" ? <ProspectResearchBrowser prospect={selected} embedApiKey={googleMapsEmbedApiKey} /> : null}
                 <section className="border-b border-black/10 px-4 py-5 sm:px-6">
-                  <div className="grid gap-4 sm:grid-cols-2">
+                  <dl className="grid gap-4 sm:grid-cols-2">
                     <DossierField label="Opportunity" value={selected.opportunity} />
                     <DossierField label="Research verdict" value={selected.researchNotes} />
-                    <DossierField label="Next research step" value={selected.nextStep} />
+                    <DossierField label={mode === "researching" ? "Next research or contact step" : "Next planned step"} value={selected.nextStep} />
                     <DossierField label="Preferred route" value={selected.preferredChannel ? CHANNEL_LABELS[selected.preferredChannel] : undefined} />
-                  </div>
+                  </dl>
                   <div className="mt-4 flex flex-wrap gap-2">
-                    {selected.tags.map(item => <span key={item} className="inline-flex items-center gap-1 rounded-full bg-black/[0.05] px-2 py-1 text-[11px] text-black/55"><Tag size={10} />{item}</span>)}
+                    {selected.tags.map(item => <span key={item} className="inline-flex items-center gap-1 rounded-full bg-black/[0.05] px-2 py-1 text-[11px] text-black/65"><Tag size={10} />{item}</span>)}
                   </div>
                 </section>
 
                 <section className="border-b border-black/10 px-4 py-5 sm:px-6">
-                  <h4 className="text-xs font-semibold uppercase tracking-wide text-black/65">Contact routes</h4>
-                  {selected.doNotContact ? (
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-black/65">{mode === "researching" ? "Research sources" : "Contact routes"}</h4>
+                  {mode === "prospecting" && selected.doNotContact ? (
                     <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-800">
                       This prospect has opted out of contact. The call and email
                       routes are closed; the record stays for reference.
                     </p>
-                  ) : !selectedInspected ? (
+                  ) : mode === "prospecting" && !selectedInspected ? (
                     <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
-                      Complete the three required inspection checks below before
-                      reaching out — the server refuses to log outreach until
-                      the business, contact route and opportunity are verified.
+                      Research is incomplete. You can still contact this person
+                      now; use Researching before, during, or after the outreach
+                      when extra context would make the conversation stronger.
                     </p>
                   ) : null}
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {/* The protected pair replaces the bare tel:/mailto: routes
+                    {/* These audited controls replace the bare tel:/mailto: routes
                         (Ed's opt-out finding, 2026-08-30): these go through the
                         telephony routes, which enforce suppression server-side
                         and log the attempt — a raw anchor did neither. */}
-                    {selected.phone && !selected.doNotContact && selectedInspected ? (
+                    {mode === "prospecting" && view === "power-dialler" && selected.phone && !selected.doNotContact ? (
                       <CallButton
                         phone={selected.phone}
                         name={selected.name}
                         prospectId={selected.id}
-                        onCalled={() => onOutreachLogged("call")}
+                        disabled={outreachLocked}
+                        onCalled={receipt => onOutreachLogged(selected.id, "call", receipt)}
+                        onPendingChange={pending => onProviderPendingChange(selected.id, "call", pending)}
                       />
                     ) : null}
-                    {selected.email && !selected.doNotContact && selectedInspected ? (
+                    {mode === "prospecting" && view === "email" && selected.email && !selected.doNotContact ? (
                       <EmailButton
                         email={selected.email}
                         phone={selected.phone}
                         name={selected.name}
                         prospectId={selected.id}
-                        onSent={() => onOutreachLogged("email")}
+                        disabled={outreachLocked}
+                        onSent={receipt => onOutreachLogged(selected.id, "email", receipt)}
+                        onPrepared={receipt => onDeviceEmailPrepared(selected.id, receipt)}
+                        onPendingChange={pending => onProviderPendingChange(selected.id, "email", pending)}
                       />
                     ) : null}
-                    {/* Text/WhatsApp have no protected equivalent yet, so the
-                        same gates apply to the raw links: closed for opted-out
-                        AND for un-inspected prospects (Ed, 2026-08-30 — they
-                        were a way around the inspection fence). They still log
-                        nothing; the outreach form below is how those are
-                        recorded until a protected pair exists. */}
-                    {selected.phone && !selected.doNotContact && selectedInspected ? <a href={`sms:${selected.phone}`} className={CONTACT_ROUTE_CLASS}><MessageCircle size={14} /> Text</a> : null}
-                    {selected.phone && !selected.doNotContact && selectedInspected ? <a href={`https://wa.me/${selected.phone.replace(/[^0-9]/g, "")}`} target="_blank" rel="noreferrer" className={CONTACT_ROUTE_CLASS}><MessageCircle size={14} /> WhatsApp</a> : null}
-                    {selected.website ? <a href={selected.website} target="_blank" rel="noreferrer" className={CONTACT_ROUTE_CLASS}><Globe2 size={14} /> Website</a> : null}
-                    {selected.googleMapsUrl ? <a href={selected.googleMapsUrl} target="_blank" rel="noreferrer" className={CONTACT_ROUTE_CLASS}><MapPin size={14} /> Google Maps</a> : null}
-                    {selected.instagramUrl ? <a href={selected.instagramUrl} target="_blank" rel="noreferrer" className={CONTACT_ROUTE_CLASS}><ExternalLink size={14} /> Instagram</a> : null}
-                    {selected.facebookUrl ? <a href={selected.facebookUrl} target="_blank" rel="noreferrer" className={CONTACT_ROUTE_CLASS}><ExternalLink size={14} /> Facebook</a> : null}
-                    {selected.linkedinUrl ? <a href={selected.linkedinUrl} target="_blank" rel="noreferrer" className={CONTACT_ROUTE_CLASS}><ExternalLink size={14} /> LinkedIn</a> : null}
+                    {/* Unlogged raw SMS/WhatsApp anchors do not belong in this
+                        audited outreach queue. They return only when a server
+                        route can re-check suppression and retain the outcome. */}
+                    {selected.website ? <a href={selected.website} target="_blank" rel="noopener noreferrer" className={CONTACT_ROUTE_CLASS}><Globe2 size={14} /> Website</a> : null}
+                    {selected.googleMapsUrl ? <a href={selected.googleMapsUrl} target="_blank" rel="noopener noreferrer" className={CONTACT_ROUTE_CLASS}><MapPin size={14} /> Google Maps</a> : null}
+                    {selected.instagramUrl ? <a href={selected.instagramUrl} target="_blank" rel="noopener noreferrer" onClick={() => { if (!outreachLocked) setChannel("dm"); }} className={CONTACT_ROUTE_CLASS}><ExternalLink size={14} /> Instagram</a> : null}
+                    {selected.facebookUrl ? <a href={selected.facebookUrl} target="_blank" rel="noopener noreferrer" onClick={() => { if (!outreachLocked) setChannel("dm"); }} className={CONTACT_ROUTE_CLASS}><ExternalLink size={14} /> Facebook</a> : null}
+                    {selected.linkedinUrl ? <a href={selected.linkedinUrl} target="_blank" rel="noopener noreferrer" onClick={() => { if (!outreachLocked) setChannel("dm"); }} className={CONTACT_ROUTE_CLASS}><ExternalLink size={14} /> LinkedIn</a> : null}
+                    {mode === "prospecting" ? <Link href={`/portal/agency/researching?prospect=${encodeURIComponent(selected.id)}`} target="_blank" rel="noopener noreferrer" className={CONTACT_ROUTE_CLASS}><Search size={14} /> Research brief</Link> : null}
+                    {mode === "prospecting" ? <Link href="/portal/agency/sop-library?query=call" target="_blank" rel="noopener noreferrer" className={CONTACT_ROUTE_CLASS}><ClipboardList size={14} /> Call playbooks</Link> : null}
                   </div>
                 </section>
 
                 <section className="px-4 py-5 sm:px-6">
                   <div className="flex items-center justify-between gap-3">
                     <h4 className="text-xs font-semibold uppercase tracking-wide text-black/65">Contact and research history</h4>
-                    <span className="text-xs text-black/60">{selected.outreachAttempts.length + selected.notes.length + selected.followUps.length} records</span>
+                    <span className="text-xs text-black/65">{selected.outreachAttempts.length + selected.notes.length + selected.followUps.length} records</span>
                   </div>
                   <div className="mt-4 divide-y divide-black/[0.07] border-y border-black/[0.07]">
                     {timeline(selected).map(item => (
@@ -652,109 +768,203 @@ export function ScoutingCommand({
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <strong className="text-xs font-semibold text-black/75">{item.title}</strong>
-                            <time className="text-xs text-black/60">{formatDateTime(item.at)}</time>
+                            <span className="text-right text-xs text-black/65">
+                              <time>{formatDateTime(item.at)}</time>
+                              {item.actorLabel ? <span className="mt-0.5 block text-[11px] text-black/65">{item.kind === "attempt" ? "started by" : "by"} {item.actorLabel}</span> : <span className="mt-0.5 block text-[11px] text-black/65">actor not recorded</span>}
+                              {item.finaliserActorLabel ? <span className="mt-0.5 block text-[11px] text-black/65">outcome by {item.finaliserActorLabel}{item.finalisedAt ? ` · ${formatDateTime(item.finalisedAt)}` : ""}</span> : null}
+                            </span>
                           </div>
-                          {item.body ? <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-black/55">{item.body}</p> : null}
+                          {item.body ? <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-black/65">{item.body}</p> : null}
                           {item.followUpAt ? <p className="mt-1 text-[11px] font-medium text-amber-700">Recontact {formatDateTime(item.followUpAt)}{item.followUpReason ? ` · ${item.followUpReason}` : ""}</p> : null}
                         </div>
                       </div>
                     ))}
-                    {!selected.outreachAttempts.length && !selected.notes.length && !selected.followUps.length ? <p className="py-6 text-center text-sm text-black/60">No contact, follow-up, or field notes recorded yet.</p> : null}
+                    {!selected.outreachAttempts.length && !selected.notes.length && !selected.followUps.length ? <p className="py-6 text-center text-sm text-black/65">No contact, follow-up, or field notes recorded yet.</p> : null}
                   </div>
                 </section>
               </div>
 
               <aside className="min-w-0 bg-white/55">
-                <div className={`border-b px-4 py-3 text-xs sm:px-5 ${inspectionComplete(selected) ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
-                  <span className="flex items-start gap-2"><ShieldCheck size={14} className="mt-0.5 shrink-0" /><span><strong className="block font-semibold">{inspectionComplete(selected) ? "Outreach cleared" : "Inspection required before outreach"}</strong><span className="mt-0.5 block opacity-75">{inspectionComplete(selected) ? "The required evidence has been reviewed." : "Complete the three required checks in the quality gate below."}</span></span></span>
-                </div>
-                <form onSubmit={recordOutreach} className="border-b border-black/10 px-4 py-5 sm:px-5">
+                <section className="border-b border-black/10 px-4 py-5 sm:px-5" aria-labelledby={`research-contact-${selected.id}`}>
+                    <div className="flex items-center justify-between gap-3">
+                      <div><p className="text-xs font-semibold uppercase text-[#16776f]">{mode === "researching" ? "Right-hand reference" : "Active contact card"}</p><h4 id={`research-contact-${selected.id}`} className="mt-1 text-sm font-semibold text-black/80">Company and contact</h4></div>
+                      <button type="button" disabled={outreachLocked} onClick={() => onEdit(selected)} className="min-h-11 rounded-md border border-black/10 bg-white px-3 py-1.5 text-xs font-semibold text-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45">Edit</button>
+                    </div>
+                    <dl className="mt-3 divide-y divide-black/[0.07] border-y border-black/[0.07] text-xs">
+                      <DossierRow label="Contact" value={selected.name || "Not found yet"} />
+                      <DossierRow label="Email" value={selected.email || "Not found yet"} />
+                      <DossierRow label="Phone" value={selected.phone || "Not found yet"} />
+                      <DossierRow label="Address" value={selected.address || "Not verified"} />
+                      <DossierRow label="Website" value={selected.website || "Not found yet"} />
+                      <DossierRow label="Niche" value={selected.niche || "Not classified"} />
+                      <DossierRow label="Last attempt" value={selected.lastContactedAt ? formatDateTime(selected.lastContactedAt) : "Never"} />
+                      <DossierRow label="Last conversation" value={lastMeaningfulContactLabel(selected)} />
+                      <DossierRow label="Research updated" value={researchUpdatedLabel(selected)} />
+                    </dl>
+                  </section>
+                {mode === "prospecting" ? <div className={`border-b px-4 py-3 text-xs sm:px-5 ${inspectionComplete(selected) ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
+                  <span className="flex items-start gap-2"><ShieldCheck size={14} className="mt-0.5 shrink-0" /><span><strong className="block font-semibold">{inspectionComplete(selected) ? "Research brief prepared" : "Research brief is optional"}</strong><span className="mt-0.5 block opacity-75">{inspectionComplete(selected) ? "The supporting context has been reviewed." : "Outreach is available now; return to Researching whenever extra context is useful."}</span></span></span>
+                </div> : null}
+                {mode === "prospecting" ? <form onSubmit={recordOutreach} className="border-b border-black/10 px-4 py-5 sm:px-5">
                   <h4 className="text-sm font-semibold text-black/80">Record an outreach attempt</h4>
                   <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-                    <SelectField label="Channel" value={channel} onChange={value => setChannel(value as ProspectOutreachChannel)} options={Object.entries(CHANNEL_LABELS)} />
-                    <SelectField label="Outcome" value={outcome} onChange={value => setOutcome(value as ProspectOutreachOutcome)} options={Object.entries(OUTCOME_LABELS)} />
+                    <SelectField label="Channel" value={channel} onChange={value => setChannel(value as ProspectOutreachChannel)} options={Object.entries(CHANNEL_LABELS)} disabled={outreachLocked} />
+                    <SelectField label="Outcome" value={outcome} onChange={value => setOutcome(value as ProspectOutreachOutcome)} options={Object.entries(OUTCOME_LABELS)} disabled={providerPending !== null} />
                   </div>
-                  <label className="mt-3 block text-xs font-medium text-black/55">What happened<textarea value={attemptNote} onChange={event => setAttemptNote(event.target.value)} rows={3} className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-[#16877f]" placeholder="Person spoken to, objection, useful context..." /></label>
+                  {outcome === "meeting-booked" ? <p className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-800">{selected.status === "qualified" && selected.qualifiedLeadId ? <>Save this outcome, then <Link href={`/portal/agency/pipelines/leads?lead=${encodeURIComponent(selected.qualifiedLeadId)}#lead-record`} className="rounded-sm font-semibold underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-1">open the Journey record</Link> to add the time, format, preparation, link, and reminders.</> : <>Save this outcome, then use <strong>Qualify to Journey</strong> above. Aqua will open the meeting record so you can add the time, format, preparation, link, and reminders once.</>}</p> : null}
+                  {heldProviderReceipt ? <p className="mt-2 text-xs leading-5 text-black/65">Channel is locked to the provider receipt until this attempt is finalised.</p> : null}
+                  <label className="mt-3 block text-xs font-medium text-black/65">What happened<textarea value={attemptNote} onChange={event => setAttemptNote(event.target.value)} disabled={providerPending !== null} rows={3} className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-[#16877f] focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-black/[0.035]" placeholder="Person spoken to, objection, useful context..." /></label>
                   <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-                    <label className="text-xs font-medium text-black/55">Recontact at<input type="datetime-local" value={followUpAt} onChange={event => setFollowUpAt(event.target.value)} className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm" /></label>
-                    <label className="text-xs font-medium text-black/55">Reason<input value={followUpReason} onChange={event => setFollowUpReason(event.target.value)} className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm" placeholder="Asked me to call back" /></label>
+                    <label className="text-xs font-medium text-black/65">Recontact at<input type="datetime-local" value={followUpAt} onChange={event => setFollowUpAt(event.target.value)} disabled={providerPending !== null} className="mt-1 min-h-11 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-black/[0.035]" /></label>
+                    <label className="text-xs font-medium text-black/65">Reason<input value={followUpReason} onChange={event => setFollowUpReason(event.target.value)} disabled={providerPending !== null} className="mt-1 min-h-11 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-black/[0.035]" placeholder="Asked me to call back" /></label>
                   </div>
-                  <button type="submit" disabled={busy !== null || selected.doNotContact || !inspectionComplete(selected)} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md bg-[#102f31] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#174246] disabled:opacity-40"><CheckCircle2 size={15} />{busy === "outreach" ? "Saving..." : "Save attempt"}</button>
-                </form>
+                  <button type="submit" disabled={busy !== null || providerPending !== null || selected.doNotContact} className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-[#102f31] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#174246] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:opacity-40"><CheckCircle2 size={15} />{busy === "outreach" ? "Saving..." : "Save attempt"}</button>
+                </form> : null}
 
-                <section className="border-b border-black/10 px-4 py-5 sm:px-5">
-                  <div className="flex items-center justify-between gap-3"><h4 className="text-sm font-semibold text-black/80">Follow-up control</h4>{selected.nextContactAt ? <span className={`text-[11px] font-semibold ${selected.nextContactAt <= now ? "text-red-700" : "text-amber-700"}`}>{selected.nextContactAt <= now ? "Due " : "Next "}{formatDateTime(selected.nextContactAt)}</span> : null}</div>
+                {mode === "prospecting" ? <section className="border-b border-black/10 px-4 py-5 sm:px-5">
+                  <div className="flex items-center justify-between gap-3"><h4 className="text-sm font-semibold text-black/80">Outreach plan & callbacks</h4>{selected.nextContactAt ? <span className={`text-[11px] font-semibold ${selected.nextContactAt <= now ? "text-red-700" : "text-amber-700"}`}>{selected.nextContactAt <= now ? "Due " : "Next "}{formatDateTime(selected.nextContactAt)}</span> : null}</div>
+                  <p className="mt-1 text-xs leading-5 text-black/65">Build the next steps one at a time across calls, email, social DM, WhatsApp, SMS, or in-person contact. Plans stay editable as the conversation changes.</p>
                   <div className="mt-3 space-y-2">
                     {selected.followUps.filter(item => item.status === "scheduled").sort((a, b) => a.dueAt - b.dueAt).map(item => (
                       <div key={item.id} className={`border-l-2 px-3 py-2 ${item.dueAt <= now ? "border-red-500 bg-red-50" : "border-amber-400 bg-amber-50/70"}`}>
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0"><strong className="block text-xs text-black/75">{item.reason}</strong><span className="mt-0.5 block text-xs text-black/65">{item.channel ? CHANNEL_LABELS[item.channel] : "Any channel"} · {formatDateTime(item.dueAt)}</span></div>
                           <div className="flex shrink-0 gap-1">
-                            <button type="button" onClick={() => void resolveFollowUp(item.id, "completed")} disabled={busy !== null} className="grid size-7 place-items-center rounded border border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50" title="Mark completed" aria-label="Mark follow-up completed"><CircleCheck size={13} /></button>
-                            <button type="button" onClick={() => void resolveFollowUp(item.id, "skipped")} disabled={busy !== null} className="grid size-7 place-items-center rounded border border-black/10 bg-white text-black/45 hover:bg-black/[0.03]" title="Skip follow-up" aria-label="Skip follow-up"><SkipForward size={13} /></button>
+                            <button type="button" onClick={() => void resolveFollowUp(item.id, "completed")} disabled={busy !== null || outreachLocked} className="grid size-11 place-items-center rounded border border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45" title="Mark completed" aria-label="Mark follow-up completed"><CircleCheck size={13} /></button>
+                            <button type="button" onClick={() => void resolveFollowUp(item.id, "skipped")} disabled={busy !== null || outreachLocked} className="grid size-11 place-items-center rounded border border-black/10 bg-white text-black/65 hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45" title="Skip follow-up" aria-label="Skip follow-up"><SkipForward size={13} /></button>
                           </div>
                         </div>
                       </div>
                     ))}
-                    {!selected.followUps.some(item => item.status === "scheduled") ? <p className="rounded-md border border-dashed border-black/10 px-3 py-3 text-center text-xs text-black/60">No open follow-up. Set the next responsible contact below.</p> : null}
+                    {!selected.followUps.some(item => item.status === "scheduled") ? <p className="rounded-md border border-dashed border-black/10 px-3 py-3 text-center text-xs text-black/65">No planned step. Add the next responsible contact action below.</p> : null}
                   </div>
-                  <label className="mt-3 block text-xs font-medium text-black/55">Reason<input value={followUpReason} onChange={event => setFollowUpReason(event.target.value)} className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm" placeholder="Timing, decision maker, next opening..." /></label>
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    <label className="text-xs font-medium text-black/55">Exact time<input type="datetime-local" value={followUpAt} onChange={event => setFollowUpAt(event.target.value)} className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm" /></label>
-                    <label className="text-xs font-medium text-black/55">Channel<select value={channel} onChange={event => setChannel(event.target.value as ProspectOutreachChannel)} className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm">{Object.entries(CHANNEL_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+                  <label className="mt-3 block text-xs font-medium text-black/65">Reason<input value={followUpReason} onChange={event => setFollowUpReason(event.target.value)} disabled={outreachLocked} className="mt-1 min-h-11 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-black/[0.035]" placeholder="Timing, decision maker, next opening..." /></label>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <label className="text-xs font-medium text-black/65">Exact time<input type="datetime-local" value={followUpAt} onChange={event => setFollowUpAt(event.target.value)} disabled={outreachLocked} className="mt-1 min-h-11 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-black/[0.035]" /></label>
+                    <label className="text-xs font-medium text-black/65">Channel<select value={channel} onChange={event => setChannel(event.target.value as ProspectOutreachChannel)} disabled={outreachLocked} className="mt-1 min-h-11 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-black/[0.035] disabled:text-black/45">{Object.entries(CHANNEL_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
                   </div>
-                  <button type="button" disabled={busy !== null || !followUpAt} onClick={() => void scheduleExactFollowUp()} className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-md border border-[#16877f]/25 bg-[#e9f5f2] px-3 py-2 text-xs font-semibold text-[#16776f] hover:bg-[#dff1ed] disabled:opacity-40"><CalendarClock size={13} /> Schedule exact follow-up</button>
-                  <div className="mt-2 grid grid-cols-3 gap-2">
-                    <button type="button" disabled={busy !== null} onClick={() => void scheduleFollowUp({ hours: 1 })} className="rounded-md border border-black/10 bg-white px-2 py-2 text-xs font-semibold text-black/60 hover:bg-black/[0.03]">In 1 hour</button>
-                    <button type="button" disabled={busy !== null} onClick={() => void scheduleFollowUp({ days: 1 })} className="rounded-md border border-black/10 bg-white px-2 py-2 text-xs font-semibold text-black/60 hover:bg-black/[0.03]">Tomorrow</button>
-                    <button type="button" disabled={busy !== null} onClick={() => void scheduleFollowUp({ days: 3 })} className="rounded-md border border-black/10 bg-white px-2 py-2 text-xs font-semibold text-black/60 hover:bg-black/[0.03]">In 3 days</button>
+                  <button type="button" disabled={busy !== null || outreachLocked || !followUpAt} onClick={() => void scheduleExactFollowUp()} className="mt-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-[#16877f]/25 bg-[#e9f5f2] px-3 py-2 text-xs font-semibold text-[#16776f] hover:bg-[#dff1ed] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"><CalendarClock size={13} /> Schedule exact follow-up</button>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                    <button type="button" disabled={busy !== null || outreachLocked} onClick={() => void scheduleFollowUp({ hours: 1 })} className="min-h-11 rounded-md border border-black/10 bg-white px-2 py-2 text-xs font-semibold text-black/65 hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45">In 1 hour</button>
+                    <button type="button" disabled={busy !== null || outreachLocked} onClick={() => void scheduleFollowUp({ days: 1 })} className="min-h-11 rounded-md border border-black/10 bg-white px-2 py-2 text-xs font-semibold text-black/65 hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45">Tomorrow</button>
+                    <button type="button" disabled={busy !== null || outreachLocked} onClick={() => void scheduleFollowUp({ days: 3 })} className="min-h-11 rounded-md border border-black/10 bg-white px-2 py-2 text-xs font-semibold text-black/65 hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45">In 3 days</button>
                   </div>
-                </section>
+                </section> : null}
 
                 <form onSubmit={addNote} className="border-b border-black/10 px-4 py-5 sm:px-5">
-                  <label htmlFor="scouting-field-note" className="text-sm font-semibold text-black/80">Field note</label>
-                  <textarea id="scouting-field-note" value={fieldNote} onChange={event => setFieldNote(event.target.value)} rows={3} className="mt-3 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-[#16877f]" placeholder="Research, in-person observation, owner detail..." />
-                  <button type="submit" disabled={busy !== null || !fieldNote.trim()} className="mt-2 inline-flex items-center gap-2 rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-black/65 hover:bg-black/[0.03] disabled:opacity-40"><Plus size={13} />{busy === "note" ? "Adding..." : "Add note"}</button>
+                  <label htmlFor="scouting-field-note" className="text-sm font-semibold text-black/80">{mode === "researching" ? "Research sticky note" : "Call note"}</label>
+                  <textarea id="scouting-field-note" value={fieldNote} onChange={event => setFieldNote(event.target.value)} disabled={outreachLocked} rows={3} className="mt-3 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-[#16877f] focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-black/[0.035]" placeholder="Research, in-person observation, owner detail..." />
+                  <button type="submit" disabled={busy !== null || outreachLocked || !fieldNote.trim()} className="mt-2 inline-flex min-h-11 items-center gap-2 rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-black/65 hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"><Plus size={13} />{busy === "note" ? "Adding..." : "Add note"}</button>
                 </form>
 
-                <section className="px-4 py-5 sm:px-5">
+                {mode === "researching" ? <section className="px-4 py-5 sm:px-5">
                   <div className="flex items-start justify-between gap-3">
-                    <div><p className="text-xs font-semibold uppercase text-[#16776f]">Quality gate</p><h4 className="mt-1 text-sm font-semibold text-black/80">Inspect before outreach</h4></div>
+                    <div><p className="text-xs font-semibold uppercase text-[#16776f]">Optional preparation</p><h4 className="mt-1 text-sm font-semibold text-black/80">Research checklist</h4></div>
                     <span className={`grid size-9 place-items-center rounded-md ${REQUIRED_INSPECTION_CHECKS.every(check => inspectionChecks.includes(check)) ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}><ShieldCheck size={17} /></span>
                   </div>
-                  <p className="mt-2 text-xs leading-5 text-black/65">Confirm why this business is worth a thoughtful approach. Required checks protect Journey from unqualified volume.</p>
+                  <p className="mt-2 text-xs leading-5 text-black/65">Capture the context that will make an approach more useful. Save any amount now and return before, during, or after outreach.</p>
                   <div className="mt-3 space-y-2">
                     {(Object.entries(INSPECTION_LABELS) as Array<[ProspectInspectionCheck, { label: string; detail: string }]>).map(([check, copy]) => {
-                      const required = REQUIRED_INSPECTION_CHECKS.includes(check);
+                      const coreCheck = REQUIRED_INSPECTION_CHECKS.includes(check);
                       return <label key={check} className="flex cursor-pointer items-start gap-3 rounded-md border border-black/[0.08] bg-white p-3 hover:border-[#16877f]/30">
-                        <input type="checkbox" checked={inspectionChecks.includes(check)} onChange={event => setInspectionChecks(current => event.target.checked ? [...new Set([...current, check])] : current.filter(item => item !== check))} className="mt-0.5 size-4 accent-[#16877f]" />
-                        <span className="min-w-0"><span className="block text-xs font-semibold text-black/70">{copy.label}{required ? <span className="ml-1 text-red-600">*</span> : null}</span><span className="mt-0.5 block text-xs leading-5 text-black/60">{copy.detail}</span></span>
+                        <input type="checkbox" checked={inspectionChecks.includes(check)} onChange={event => setInspectionChecks(current => event.target.checked ? [...new Set([...current, check])] : current.filter(item => item !== check))} className="mt-0.5 size-4 accent-[#16877f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2" />
+                        <span className="min-w-0"><span className="block text-xs font-semibold text-black/70">{copy.label}{coreCheck ? <span className="ml-1 font-normal text-black/65">· core brief</span> : null}</span><span className="mt-0.5 block text-xs leading-5 text-black/65">{copy.detail}</span></span>
                       </label>;
                     })}
                   </div>
-                  <button type="button" onClick={() => void saveInspection()} disabled={busy !== null} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md bg-[#102f31] px-3 py-2.5 text-xs font-semibold text-white hover:bg-[#174246] disabled:opacity-40"><ShieldCheck size={13} />{busy === "inspection" ? "Saving inspection..." : "Save inspection"}</button>
+                  <button type="button" onClick={() => void saveInspection()} disabled={busy !== null} className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-[#102f31] px-3 py-2.5 text-xs font-semibold text-white hover:bg-[#174246] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:opacity-40"><ShieldCheck size={13} />{busy === "inspection" ? "Saving research..." : REQUIRED_INSPECTION_CHECKS.every(check => inspectionChecks.includes(check)) ? "Save completed research brief" : "Save research progress"}</button>
                   <dl className="mt-4 divide-y divide-black/[0.07] border-y border-black/[0.07] text-xs">
                     <DossierRow label="Fit score" value={selected.fitScore === undefined ? "Not scored" : `${selected.fitScore} / 100 fit`} />
                     <DossierRow label="Contact identity" value={selected.email || selected.phone ? "Ready" : "Missing"} />
                     <DossierRow label="Last attempt" value={selected.lastContactedAt ? formatDateTime(selected.lastContactedAt) : "Never"} />
                   </dl>
-                  {canManage ? <button type="button" onClick={() => onDismiss(selected)} className="mt-4 text-xs font-medium text-red-700 hover:underline">Mark as not a fit</button> : null}
-                </section>
+                  {canManage && selected.status === "scouting" ? <button type="button" onClick={() => onDismiss(selected)} className="mt-4 inline-flex min-h-11 items-center rounded-md px-2 text-xs font-medium text-red-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Not qualified — remove from active workflow</button> : null}
+                </section> : null}
               </aside>
             </div>
           </div>
         ) : (
-          <div className="grid min-h-[420px] place-items-center p-8 text-center"><div><Binoculars size={28} className="mx-auto text-black/40" /><p className="mt-3 text-sm text-black/65">Scout the first business to begin.</p></div></div>
+          <div className="grid min-h-[420px] place-items-center p-8 text-center"><div>{mode === "researching" ? <Search size={28} className="mx-auto text-black/40" /> : <Target size={28} className="mx-auto text-black/40" />}<p className="mt-3 text-sm text-black/65">{mode === "researching" ? "No active prospects match this research view." : "No active prospects match this outreach view."}</p><Link href="/portal/agency/scouting" className="mt-3 inline-flex min-h-11 items-center rounded-md px-2 text-xs font-semibold text-[#166a64] underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Scout a business</Link></div></div>
         )}
       </div>
     </section>
   );
 }
 
+function researchQuery(prospect: ScoutingProspectView): string {
+  return [prospect.company || prospect.name || prospect.website, prospect.address]
+    .filter(Boolean)
+    .join(" ")
+    .trim() || "businesses near me";
+}
+
+function researchMapEmbedUrl(key: string, prospect: ScoutingProspectView): string {
+  if (!key) return "";
+  const placeId = prospect.googlePlaceId?.trim();
+  const params = new URLSearchParams({
+    key,
+    q: placeId ? `place_id:${placeId}` : researchQuery(prospect),
+    language: "en",
+    region: "GB",
+  });
+  return `https://www.google.com/maps/embed/v1/${placeId ? "place" : "search"}?${params.toString()}`;
+}
+
+function googleResearchHref(prospect: ScoutingProspectView): string {
+  const params = new URLSearchParams({ q: researchQuery(prospect) });
+  return `https://www.google.com/search?${params.toString()}`;
+}
+
+function ProspectResearchBrowser({
+  prospect,
+  embedApiKey,
+}: {
+  prospect: ScoutingProspectView;
+  embedApiKey: string;
+}) {
+  const mapSrc = researchMapEmbedUrl(embedApiKey, prospect);
+  const label = prospect.company || prospect.name || prospect.website || "selected prospect";
+  return (
+    <section className="border-b border-black/10 bg-[#f3f1ec]" aria-labelledby={`research-browser-${prospect.id}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-black/10 bg-white px-4 py-4 sm:px-6">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#16776f]">In-app research browser</p>
+          <h4 id={`research-browser-${prospect.id}`} className="mt-1 text-sm font-semibold text-black/80">Research {label}</h4>
+          <p className="mt-1 max-w-xl text-xs leading-5 text-black/65">Inspect the live Maps profile here. Web search and sites open in a separate browser tab when the publisher does not allow embedding.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <a href={googleResearchHref(prospect)} target="_blank" rel="noopener noreferrer" className={CONTACT_ROUTE_CLASS}><Search size={14} /> Google search</a>
+          {prospect.website ? <a href={prospect.website} target="_blank" rel="noopener noreferrer" className={CONTACT_ROUTE_CLASS}><Globe2 size={14} /> Website</a> : null}
+        </div>
+      </div>
+      <div className="min-h-[28rem]">
+        {mapSrc ? (
+          <iframe
+            title={`Google Maps research for ${label}`}
+            src={mapSrc}
+            loading="lazy"
+            allowFullScreen
+            referrerPolicy="strict-origin-when-cross-origin"
+            className="h-[clamp(28rem,58vh,46rem)] w-full border-0"
+          />
+        ) : (
+          <div className="flex min-h-[28rem] flex-col items-center justify-center px-6 text-center">
+            <MapPin size={28} className="text-black/25" aria-hidden="true" />
+            <p className="mt-3 text-sm font-semibold text-black/65">The restricted Google Maps embed key is not configured.</p>
+            <p className="mt-1 max-w-md text-xs leading-5 text-black/65">Research notes and qualification still work. Open the live Google results in a separate browser tab until the map key is connected.</p>
+            <a href={googleResearchHref(prospect)} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Open Google search <ExternalLink size={13} /></a>
+          </div>
+        )}
+      </div>
+      <div className="border-t border-black/10 bg-white px-4 py-2 sm:px-6"><GoogleMapsAttribution /></div>
+    </section>
+  );
+}
+
 const PIPELINE_STAGES: Array<{ id: ProspectQualificationState; label: string; detail: string }> = [
-  { id: "unreviewed", label: "New scouts", detail: "Needs first inspection" },
+  { id: "unreviewed", label: "New scouts", detail: "Freshly captured" },
   { id: "researching", label: "Researching", detail: "Building the case" },
-  { id: "ready", label: "Ready", detail: "Qualified to approach" },
+  { id: "ready", label: "Ready", detail: "Ready to approach" },
   { id: "outreach", label: "In outreach", detail: "Contact sequence active" },
   { id: "engaged", label: "Engaged", detail: "Reply or interest" },
   { id: "not-now", label: "Recontact", detail: "Parked with a reason" },
@@ -777,7 +987,7 @@ function ScoutingPipeline({ prospects, now, onOpen }: { prospects: ScoutingProsp
     </header>
     <div className="px-4 py-5 sm:px-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div><p className="text-xs font-semibold uppercase tracking-wide text-[#16776f]">Cold outreach flow</p><h3 className="mt-1 text-xl font-semibold text-black/85">From observation to qualified conversation</h3></div>
+        <div><p className="text-xs font-semibold uppercase tracking-wide text-[#16776f]">Cold outreach flow</p><h3 className="mt-1 text-xl font-semibold text-black/85">From first sighting to ongoing conversation</h3></div>
         <p className="max-w-md text-xs leading-5 text-black/65">Open any prospect to inspect the evidence, choose the contact route, schedule follow-ups, and retain every outcome.</p>
       </div>
       <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
@@ -788,18 +998,18 @@ function ScoutingPipeline({ prospects, now, onOpen }: { prospects: ScoutingProsp
           return <section key={stage.id} className="min-w-0 border border-black/10 bg-white">
             <header className="border-b border-black/10 px-3 py-3">
               <div className="flex items-center justify-between gap-2"><h4 className="text-xs font-semibold text-black/75">{stage.label}</h4><span className="rounded-full bg-black/[0.05] px-2 py-0.5 text-xs font-semibold tabular-nums text-black/65">{rows.length}</span></div>
-              <p className="mt-1 text-xs text-black/60">{stage.detail}</p>
+              <p className="mt-1 text-xs text-black/65">{stage.detail}</p>
             </header>
             <div className="min-h-36 divide-y divide-black/[0.07]">
               {rows.map(prospect => {
                 const isDue = prospect.nextContactAt !== undefined && prospect.nextContactAt <= now && !prospect.doNotContact;
-                return <button key={prospect.id} type="button" onClick={() => onOpen(prospect)} className="block w-full px-3 py-3 text-left hover:bg-[#e9f5f2]">
-                  <span className="flex items-start justify-between gap-2"><strong className="min-w-0 truncate text-xs text-black/75">{prospect.company || prospect.name || prospect.website || "Unnamed prospect"}</strong>{prospect.fitScore !== undefined ? <span className="shrink-0 text-xs font-semibold tabular-nums text-black/60">{prospect.fitScore}%</span> : null}</span>
-                  <span className="mt-1 block truncate text-xs text-black/60">{[prospect.niche, sourceLabel(prospect.source)].filter(Boolean).join(" · ") || "Unclassified"}</span>
-                  <span className="mt-2 flex items-center justify-between gap-2 text-xs"><span className={isDue ? "font-semibold text-red-700" : "text-black/60"}>{isDue ? "Follow-up due" : `${prospect.outreachAttempts.length} attempts`}</span><span className={inspectionComplete(prospect) ? "text-emerald-700" : "text-amber-700"}>{inspectionComplete(prospect) ? "Inspected" : "Inspect"}</span></span>
+                return <button key={prospect.id} type="button" onClick={() => onOpen(prospect)} className="block min-h-11 w-full px-3 py-3 text-left hover:bg-[#e9f5f2] focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-inset">
+                  <span className="flex items-start justify-between gap-2"><strong className="min-w-0 truncate text-xs text-black/75">{prospect.company || prospect.name || prospect.website || "Unnamed prospect"}</strong>{prospect.fitScore !== undefined ? <span className="shrink-0 text-xs font-semibold tabular-nums text-black/65">{prospect.fitScore}%</span> : null}</span>
+                  <span className="mt-1 block truncate text-xs text-black/65">{[prospect.niche, sourceLabel(prospect.source)].filter(Boolean).join(" · ") || "Unclassified"}</span>
+                  <span className="mt-2 flex items-center justify-between gap-2 text-xs"><span className={isDue ? "font-semibold text-red-700" : "text-black/65"}>{isDue ? "Follow-up due" : `${prospect.outreachAttempts.length} attempts`}</span><span className={inspectionComplete(prospect) ? "text-emerald-700" : "text-amber-700"}>{inspectionComplete(prospect) ? "Inspected" : "Inspect"}</span></span>
                 </button>;
               })}
-              {!rows.length ? <p className="px-3 py-8 text-center text-xs text-black/60">Nothing here</p> : null}
+              {!rows.length ? <p className="px-3 py-8 text-center text-xs text-black/65">Nothing here</p> : null}
             </div>
           </section>;
         })}
@@ -810,37 +1020,37 @@ function ScoutingPipeline({ prospects, now, onOpen }: { prospects: ScoutingProsp
 
 function PipelineMetric({ label, value, detail, tone = "neutral" }: { label: string; value: string | number; detail: string; tone?: "critical" | "calm" | "neutral" }) {
   return <div className="border-b border-black/10 px-5 py-4 sm:border-r lg:border-b-0">
-    <span className="text-xs font-semibold uppercase text-black/60">{label}</span>
+    <span className="text-xs font-semibold uppercase text-black/65">{label}</span>
     <strong className={`mt-1 block text-2xl font-semibold tabular-nums ${tone === "critical" ? "text-red-700" : tone === "calm" ? "text-emerald-700" : "text-black/80"}`}>{value}</strong>
-    <span className="mt-1 block text-xs text-black/60">{detail}</span>
+    <span className="mt-1 block text-xs text-black/65">{detail}</span>
   </div>;
 }
 
-const CONTACT_ROUTE_CLASS = "inline-flex min-h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/60 hover:border-[#16877f]/40 hover:text-[#16776f]";
+const CONTACT_ROUTE_CLASS = "inline-flex min-h-11 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/65 hover:border-[#16877f]/40 hover:text-[#16776f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2";
 
-function CommandMetric({ icon, label, value, detail, tone, onClick }: { icon: ReactNode; label: string; value: number; detail: string; tone: "critical" | "warning" | "calm" | "neutral"; onClick: () => void }) {
-  const colors = tone === "critical" ? "text-red-700" : tone === "warning" ? "text-amber-700" : tone === "calm" ? "text-emerald-700" : "text-black/55";
-  return <button type="button" onClick={onClick} className="flex min-h-24 items-center gap-3 border-b border-black/10 px-4 py-3 text-left last:border-b-0 hover:bg-black/[0.025] sm:border-r lg:border-b-0">
-    <span className={`grid size-8 shrink-0 place-items-center rounded-md bg-black/[0.04] ${colors}`}>{icon}</span><span><span className="block text-xs font-semibold uppercase text-black/60">{label}</span><strong className={`mt-0.5 block text-2xl font-semibold tabular-nums ${colors}`}>{value}</strong><span className="block text-xs text-black/60">{detail}</span></span>
+function CommandMetric({ icon, label, value, detail, tone, onClick, disabled = false }: { icon: ReactNode; label: string; value: number; detail: string; tone: "critical" | "warning" | "calm" | "neutral"; onClick: () => void; disabled?: boolean }) {
+  const colors = tone === "critical" ? "text-red-700" : tone === "warning" ? "text-amber-700" : tone === "calm" ? "text-emerald-700" : "text-black/65";
+  return <button type="button" onClick={onClick} disabled={disabled} className="flex min-h-24 items-center gap-3 border-b border-black/10 px-4 py-3 text-left last:border-b-0 hover:bg-black/[0.025] focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-inset disabled:cursor-not-allowed disabled:opacity-45 sm:border-r lg:border-b-0">
+    <span className={`grid size-8 shrink-0 place-items-center rounded-md bg-black/[0.04] ${colors}`}>{icon}</span><span><span className="block text-xs font-semibold uppercase text-black/65">{label}</span><strong className={`mt-0.5 block text-2xl font-semibold tabular-nums ${colors}`}>{value}</strong><span className="block text-xs text-black/65">{detail}</span></span>
   </button>;
 }
 
 function DossierField({ label, value }: { label: string; value?: string }) {
-  return <div><dt className="text-xs font-semibold uppercase text-black/60">{label}</dt><dd className="mt-1 whitespace-pre-wrap text-sm leading-6 text-black/65">{value || "Not recorded"}</dd></div>;
+  return <div><dt className="text-xs font-semibold uppercase text-black/65">{label}</dt><dd className="mt-1 whitespace-pre-wrap text-sm leading-6 text-black/65">{value || "Not recorded"}</dd></div>;
 }
 
 function DossierRow({ label, value }: { label: string; value: string }) {
-  return <div className="flex items-center justify-between gap-3 py-2.5"><dt className="text-black/65">{label}</dt><dd className="font-semibold text-black/70">{value}</dd></div>;
+  return <div className="flex items-start justify-between gap-3 py-2.5"><dt className="shrink-0 text-black/65">{label}</dt><dd className="min-w-0 break-words text-right font-semibold text-black/70">{value}</dd></div>;
 }
 
-function SelectField({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: Array<[string, string]> }) {
-  return <label className="text-xs font-medium text-black/55">{label}<select value={value} onChange={event => onChange(event.target.value)} className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm">{options.map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}</select></label>;
+function SelectField({ label, value, onChange, options, disabled = false }: { label: string; value: string; onChange: (value: string) => void; options: Array<[string, string]>; disabled?: boolean }) {
+  return <label className="text-xs font-medium text-black/65">{label}<select value={value} onChange={event => onChange(event.target.value)} disabled={disabled} className="mt-1 min-h-11 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-black/[0.035] disabled:text-black/45">{options.map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}</select></label>;
 }
 
 function timeline(prospect: ScoutingProspectView) {
   return [
-    ...prospect.outreachAttempts.map(item => ({ id: item.id, kind: "attempt" as const, at: item.at, title: `${CHANNEL_LABELS[item.channel]} · ${OUTCOME_LABELS[item.outcome]}`, body: item.note, followUpAt: item.followUpAt, followUpReason: item.followUpReason })),
-    ...prospect.notes.map(item => ({ id: item.id, kind: "note" as const, at: item.at, title: "Scouting note", body: item.body, followUpAt: undefined, followUpReason: undefined })),
+    ...prospect.outreachAttempts.map(item => ({ id: item.id, kind: "attempt" as const, at: item.at, title: `${CHANNEL_LABELS[item.channel]} · ${OUTCOME_LABELS[item.outcome]}`, body: item.note, followUpAt: item.followUpAt, followUpReason: item.followUpReason, actorLabel: item.actorLabel, finalisedAt: item.finalisedAt, finaliserActorLabel: item.finaliserActorLabel })),
+    ...prospect.notes.map(item => ({ id: item.id, kind: "note" as const, at: item.at, title: "Scouting note", body: item.body, followUpAt: undefined, followUpReason: undefined, actorLabel: item.actorLabel, finalisedAt: undefined, finaliserActorLabel: undefined })),
     ...prospect.followUps.map(item => ({
       id: item.id,
       kind: "follow-up" as const,
@@ -849,8 +1059,24 @@ function timeline(prospect: ScoutingProspectView) {
       body: item.resolutionNote,
       followUpAt: item.dueAt,
       followUpReason: item.reason,
+      actorLabel: item.status === "scheduled" ? item.actorLabel : item.resolverActorLabel ?? item.actorLabel,
+      finalisedAt: undefined,
+      finaliserActorLabel: undefined,
     })),
   ].sort((a, b) => b.at - a.at);
+}
+
+function lastMeaningfulContactLabel(prospect: ScoutingProspectView): string {
+  const last = prospect.outreachAttempts
+    .filter(item => ["replied", "interested", "not-now", "not-fit", "wrong-contact", "meeting-booked"].includes(item.outcome))
+    .sort((a, b) => b.at - a.at)[0];
+  if (!last) return "No reply or conversation recorded";
+  return `${formatDateTime(last.at)}${last.actorLabel ? ` · ${last.actorLabel}` : ""}`;
+}
+
+function researchUpdatedLabel(prospect: ScoutingProspectView): string {
+  if (!prospect.researchUpdatedAt) return "Not recorded";
+  return `${formatDateTime(prospect.researchUpdatedAt)}${prospect.researchActorLabel ? ` · ${prospect.researchActorLabel}` : ""}`;
 }
 
 function inspectionComplete(prospect: ScoutingProspectView): boolean {
@@ -873,7 +1099,7 @@ function qualificationTone(prospect: ScoutingProspectView): string {
   if (prospect.qualificationState === "engaged") return "bg-emerald-100 text-emerald-700";
   if (prospect.qualificationState === "outreach") return "bg-blue-100 text-blue-700";
   if (prospect.qualificationState === "ready") return "bg-amber-100 text-amber-700";
-  return "bg-black/[0.06] text-black/55";
+  return "bg-black/[0.06] text-black/65";
 }
 
 function sourceLabel(source: string): string {
@@ -953,20 +1179,20 @@ function ScoutingQuotaStrip({ quota, writable }: { quota?: ScoutingQuotaViewMode
       ) : null}
       {writable && creating ? (
         <form onSubmit={createQuota} className="flex flex-wrap items-center gap-2 text-xs">
-          <input value={target} onChange={event => setTarget(event.target.value)} inputMode="numeric" className="w-16 rounded-md border border-black/15 px-2 py-1.5 text-sm" aria-label="Target number" />
-          <select value={metric} onChange={event => setMetric(event.target.value as typeof metric)} className="rounded-md border border-black/15 px-2 py-1.5 text-sm" aria-label="What to count">
+          <input value={target} onChange={event => setTarget(event.target.value)} inputMode="numeric" className="min-h-11 w-16 rounded-md border border-black/15 px-2 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2" aria-label="Target number" />
+          <select value={metric} onChange={event => setMetric(event.target.value as typeof metric)} className="min-h-11 rounded-md border border-black/15 px-2 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2" aria-label="What to count">
             {Object.entries(QUOTA_METRIC_LABELS).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
           </select>
-          <select value={recurrence} onChange={event => setRecurrence(event.target.value as "daily" | "weekly")} className="rounded-md border border-black/15 px-2 py-1.5 text-sm" aria-label="How often it resets">
+          <select value={recurrence} onChange={event => setRecurrence(event.target.value as "daily" | "weekly")} className="min-h-11 rounded-md border border-black/15 px-2 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2" aria-label="How often it resets">
             <option value="daily">a day</option>
             <option value="weekly">a week</option>
           </select>
-          <button type="submit" disabled={saving} className="rounded-md bg-black/85 px-2.5 py-1.5 font-semibold text-white hover:bg-black disabled:opacity-50">{saving ? "Saving…" : "Set"}</button>
-          <button type="button" onClick={() => { setCreating(false); setNote(null); }} className="text-black/65 hover:text-black/80">Cancel</button>
+          <button type="submit" disabled={saving} className="min-h-11 rounded-md bg-black/85 px-3 py-1.5 font-semibold text-white hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:opacity-50">{saving ? "Saving…" : "Set"}</button>
+          <button type="button" onClick={() => { setCreating(false); setNote(null); }} className="min-h-11 rounded-md px-2 text-black/65 hover:text-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Cancel</button>
           {note ? <span role="alert" className="text-red-700">{note}</span> : null}
         </form>
       ) : writable ? (
-        <button type="button" onClick={() => setCreating(true)} className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-black/25 px-2.5 py-1.5 text-xs font-medium text-black/55 hover:border-black/45 hover:text-black/80">
+        <button type="button" onClick={() => setCreating(true)} className="inline-flex min-h-11 items-center gap-1.5 rounded-md border border-dashed border-black/25 px-3 py-1.5 text-xs font-medium text-black/65 hover:border-black/45 hover:text-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
           <Target size={13} aria-hidden /> Set a target
         </button>
       ) : null}
@@ -1009,7 +1235,7 @@ function QuotaRing({ quota }: { quota: ScoutingQuotaViewModel["quotas"][number] 
         <span className="text-black/65">
           {QUOTA_METRIC_LABELS[quota.metric]} {quota.recurrence === "daily" ? "today" : "this week"}
           {done && quota.recurrence === "weekly" ? (
-            <> · <a href="/portal/agency/you-deserve-it" className="font-medium text-brand hover:underline">Pick something from You deserve it →</a></>
+            <> · <a href="/portal/agency/you-deserve-it" className="rounded-sm font-medium text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-1">Pick something from You deserve it →</a></>
           ) : null}
         </span>
       </span>

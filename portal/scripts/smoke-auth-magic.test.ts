@@ -11,6 +11,7 @@ process.env.PORTAL_SESSION_SECRET = "smoke-secret-magic";
 
 import {
   signMagicToken,
+  signClientPortalInviteToken,
   verifyMagicToken,
   isUsed,
   markUsed,
@@ -27,8 +28,20 @@ test("signMagicToken → verifyMagicToken round-trip", () => {
     assert.equal(r.payload.email, "jane@example.com");
     assert.equal(r.payload.clientId, "cl_1");
     assert.equal(r.payload.agencyId, "ag_1");
+    assert.equal(r.payload.purpose, "sign-in");
     assert.equal(r.payload.nonce, payload.nonce);
   }
+});
+
+test("client portal invitations carry a distinct, signed admission purpose", () => {
+  const { token } = signClientPortalInviteToken({
+    email: "Jane@Example.COM",
+    clientId: "cl_1",
+    agencyId: "ag_1",
+  });
+  const result = verifyMagicToken(token);
+  assert.equal(result.ok, true);
+  if (result.ok) assert.equal(result.payload.purpose, "client-portal-invite");
 });
 
 test("verifyMagicToken: tampered signature rejected", () => {
@@ -49,6 +62,7 @@ test("verifyMagicToken: expired payload rejected", () => {
   // Hand-craft an expired payload with a valid signature.
   const crypto = require("node:crypto") as typeof import("node:crypto");
   const expired = {
+    purpose: "sign-in",
     email: "j@x.com",
     clientId: "cl_1",
     agencyId: "ag_1",
@@ -62,6 +76,22 @@ test("verifyMagicToken: expired payload rejected", () => {
   const r = verifyMagicToken(token);
   assert.equal(r.ok, false);
   if (!r.ok) assert.equal(r.error, "expired");
+});
+
+test("verifyMagicToken: legacy purpose-less tokens fail closed", () => {
+  const crypto = require("node:crypto") as typeof import("node:crypto");
+  const legacy = {
+    email: "j@x.com",
+    clientId: "cl_1",
+    agencyId: "ag_1",
+    exp: Math.floor(Date.now() / 1000) + 60,
+    nonce: "legacy-nonce",
+  };
+  const b64 = Buffer.from(JSON.stringify(legacy), "utf8").toString("base64url");
+  const sig = crypto.createHmac("sha256", process.env.PORTAL_SESSION_SECRET!).update(b64).digest("base64url");
+  const result = verifyMagicToken(`${b64}.${sig}`);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.error, "missing_claims");
 });
 
 test("single-use: mark + replay rejection", () => {

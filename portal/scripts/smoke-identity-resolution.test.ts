@@ -12,7 +12,7 @@ test("identity normalisation treats UK local and international phone formats as 
   assert.equal(normaliseIdentityPhone("0044 7700 900 123"), "+447700900123");
 });
 
-test("exact client contact evidence resolves automatically and explains why", async () => {
+test("public contact details stay a review suggestion instead of assigning a client", async () => {
   const { ensureHydrated } = await import("../src/server/storage");
   const { createAgency, createClient } = await import("../src/server/tenants");
   const { resolveContactIdentity } = await import("../src/lib/server/identityResolution");
@@ -43,12 +43,13 @@ test("exact client contact evidence resolves automatically and explains why", as
     email: "MORGAN@northstar.example",
     phone: "+44 7700 900321",
   });
-  assert.equal(result.status, "resolved");
-  assert.equal(result.clientId, client.id);
-  assert.equal(result.clientContactId, "person-northstar");
+  assert.equal(result.status, "ambiguous");
+  assert.equal(result.clientId, undefined);
+  assert.equal(result.candidates[0]?.clientId, client.id);
+  assert.equal(result.candidates[0]?.clientContactId, "person-northstar");
   assert.ok(result.candidates[0]?.reasons.some(reason => reason.kind === "email"));
   assert.ok(result.candidates[0]?.reasons.some(reason => reason.kind === "phone"));
-  assert.match(result.explanation, /linked to northstar studio/i);
+  assert.match(result.explanation, /possible match/i);
 });
 
 test("duplicate authoritative evidence is held for review instead of choosing a client", async () => {
@@ -71,7 +72,7 @@ test("duplicate authoritative evidence is held for review instead of choosing a 
   assert.match(result.explanation, /too close/i);
 });
 
-test("an exact company name safely routes a shared buyer email to the right workspace", async () => {
+test("a public company name and shared buyer email suggest but do not route a workspace", async () => {
   const { createAgency, createClient } = await import("../src/server/tenants");
   const { linkClientWorkspaces } = await import("../src/server/clientRelationships");
   const { resolveContactIdentity } = await import("../src/lib/server/identityResolution");
@@ -88,8 +89,9 @@ test("an exact company name safely routes a shared buyer email to the right work
     email: "owner@shared.example",
     company: "Harbour Wellness",
   });
-  assert.equal(result.status, "resolved");
-  assert.equal(result.clientId, second.id);
+  assert.equal(result.status, "ambiguous");
+  assert.equal(result.clientId, undefined);
+  assert.equal(result.candidates[0]?.clientId, second.id);
   assert.ok(result.candidates[0]?.reasons.some(reason => reason.kind === "company"));
 });
 
@@ -147,7 +149,7 @@ test("review records deduplicate repeat scans and manual decisions stay tenant s
   assert.equal(decideIdentityResolutionReview({ agencyId: otherAgency.id, reviewId: first.id, action: "dismiss", actorUserId: "other-owner" }), null);
 });
 
-test("known lead lineage resolves even when the source has no email", async () => {
+test("a lead id derived from a public submission cannot assign a client", async () => {
   const { createAgency, createClient } = await import("../src/server/tenants");
   const { resolveContactIdentity } = await import("../src/lib/server/identityResolution");
   const agency = createAgency({ name: "Identity lineage agency" });
@@ -159,16 +161,35 @@ test("known lead lineage resolves even when the source has no email", async () =
     sourceLabel: "Known lead",
     leadId: "lead-lineage-1",
   });
+  assert.equal(result.status, "ambiguous");
+  assert.equal(result.clientId, undefined);
+  assert.equal(result.candidates[0]?.clientId, client.id);
+  assert.equal(result.candidates[0]?.reasons[0]?.kind, "crm-id");
+});
+
+test("a previously verified explicit website-enquiry link remains authoritative", async () => {
+  const { createAgency, createClient } = await import("../src/server/tenants");
+  const { resolveContactIdentity } = await import("../src/lib/server/identityResolution");
+  const agency = createAgency({ name: "Identity explicit agency" });
+  const client = createClient(agency.id, { name: "Configured destination" });
+  const result = resolveContactIdentity({
+    agencyId: agency.id,
+    sourceType: "website-enquiry",
+    sourceId: "configured-enquiry",
+    sourceLabel: "Configured site route",
+    clientId: client.id,
+    email: "attacker-controlled@example.test",
+  });
   assert.equal(result.status, "resolved");
   assert.equal(result.clientId, client.id);
-  assert.equal(result.candidates[0]?.reasons[0]?.kind, "crm-id");
+  assert.equal(result.candidates[0]?.reasons[0]?.kind, "explicit");
 });
 
 test("Showcase Mode cannot import or rescan live external identities", () => {
   const clientsPage = readFileSync("src/app/portal/clients/page.tsx", "utf8");
   const inboxPage = readFileSync("src/app/portal/agency/inbox/page.tsx", "utf8");
   const apiRoute = readFileSync("src/app/api/portal/identity-resolution/route.ts", "utf8");
-  assert.match(clientsPage, /if \(session\.isDemo && !session\.publicShowcase\) \{\s*clearIdentityResolutionReviews/);
+  assert.match(clientsPage, /if \(canAccessAllHubViews && session\.isDemo && !session\.publicShowcase\) \{\s*clearIdentityResolutionReviews/);
   assert.match(inboxPage, /session\.isDemo \|\| session\.publicShowcase \? Promise\.resolve\(\[\]\) : listWebsiteEnquiries/);
   assert.match(apiRoute, /session\.isDemo.*Showcase Mode is read-only/);
 });

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { POST as loginWithJson } from "../route";
+import { loginWithTrustedChallengeHostname } from "../route";
 
 const localLoginOrigins = new Set([
   "http://localhost:3030",
@@ -22,6 +22,32 @@ function configuredLoginOrigins() {
       }
     })
     .filter(Boolean);
+}
+
+function configuredOriginForBrand(brand: string): string | null {
+  const value = brand === "milesymedia"
+    ? process.env.NEXT_PUBLIC_MILESYMEDIA_WEBSITE_URL
+    : brand === "zimante"
+      ? process.env.NEXT_PUBLIC_ZIMANTE_URL
+      : brand === "aqua"
+        ? process.env.NEXT_PUBLIC_AQUAOASIS_URL
+        : undefined;
+  if (!value) return null;
+  try { return new URL(value).origin; } catch { return null; }
+}
+
+function trustedChallengeHostname(req: NextRequest, brand: string): string | null {
+  const origin = req.headers.get("origin");
+  if (!origin) return null;
+  try {
+    const parsed = new URL(origin);
+    if (localLoginOrigins.has(parsed.origin) && process.env.NODE_ENV !== "production") {
+      return parsed.hostname;
+    }
+    return configuredOriginForBrand(brand) === parsed.origin ? parsed.hostname : null;
+  } catch {
+    return null;
+  }
 }
 
 function safeErrorReturn(raw: FormDataEntryValue | null, fallback: URL) {
@@ -74,6 +100,16 @@ export async function POST(req: NextRequest) {
   const fallback = new URL("/login", req.nextUrl.origin);
   fallback.searchParams.set("brand", brand);
   const errorReturn = safeErrorReturn(form.get("errorReturn"), fallback);
+  const challengeHostname = trustedChallengeHostname(req, brand);
+  if (!challengeHostname) {
+    errorReturn.searchParams.set("error", "This sign-in page could not be verified.");
+    return NextResponse.redirect(errorReturn, 303);
+  }
+  const captchaToken = typeof form.get("captchaToken") === "string"
+    ? String(form.get("captchaToken"))
+    : typeof form.get("cf-turnstile-response") === "string"
+      ? String(form.get("cf-turnstile-response"))
+      : "";
 
   const internalRequest = new NextRequest(
     new URL("/api/auth/login", req.nextUrl.origin),
@@ -86,10 +122,13 @@ export async function POST(req: NextRequest) {
           req.headers.get("x-real-ip") ??
           "browser-form",
       },
-      body: JSON.stringify({ email, password, brand }),
+      body: JSON.stringify({ email, password, brand, captchaToken }),
     },
   );
-  const loginResponse = await loginWithJson(internalRequest);
+  const loginResponse = await loginWithTrustedChallengeHostname(
+    internalRequest,
+    challengeHostname,
+  );
   const payload = (await loginResponse.json()) as {
     ok?: boolean;
     error?: string;

@@ -583,6 +583,12 @@ export interface ServerUser {
   agencyId: string;              // legacy mirror — = agencyIds[0] (or LEAD_AGENCY_ID for leads)
   companyIds?: string[];          // empty/undefined = shared Milesymedia access
   clientId?: string;             // set for client-* roles + freelancer + end-customer
+  /**
+   * Exact Supabase Auth subject bound during verified client-portal setup.
+   * Password administration must address this immutable id, never whichever
+   * global Supabase account happens to share the user's email address.
+   */
+  supabaseAuthUserId?: string;
   mustChangePassword?: boolean;
   /**
    * When the customer finished setting their own password and saw the welcome.
@@ -1885,6 +1891,47 @@ export interface CommandCalendarEventCreateOperation {
   createdAt: number;
   updatedAt: number;
   adoptedAt?: number;
+  completedAt?: number;
+}
+
+export interface OutboundCommunicationOperationResult {
+  successful: boolean;
+  via: "smtp" | "twilio" | "unconfigured";
+  externalProviderId?: string;
+  reason?: string;
+  code?: "REMOTE_OPERATION_TIMEOUT" | "REMOTE_OPERATION_ABORTED" | "REMOTE_OPERATION_FAILED";
+  outcomeUnknown?: boolean;
+  retry?: "safe" | "same-operation-key" | "reconcile-first";
+}
+
+export interface OutboundCommunicationSubjectReferences {
+  prospectId?: string;
+  leadId?: string;
+  contactId?: string;
+}
+
+/**
+ * Durable admission and result for providers without native idempotency.
+ * Recipient/content are retained only inside requestFingerprint; no message
+ * body, email address or phone number is stored in this replay ledger. Exact
+ * internal acquisition ids are retained only so subject erasure can remove the
+ * right operation without identity-based matching across shared inboxes or
+ * switchboards.
+ */
+export interface OutboundCommunicationOperation {
+  id: string;
+  agencyId: string;
+  clientId?: string;
+  channel: "smtp-email" | "twilio-call";
+  operationId: string;
+  requestFingerprint: string;
+  senderId: string;
+  subjectReferences?: OutboundCommunicationSubjectReferences;
+  status: "admitted" | "succeeded" | "failed" | "unknown";
+  result?: OutboundCommunicationOperationResult;
+  createdAt: number;
+  updatedAt: number;
+  expiresAt?: number;
   completedAt?: number;
 }
 
@@ -5003,6 +5050,8 @@ export interface PortalState {
   commandCalendarSources: Record<string, CommandCalendarSource>;
   commandCalendarExternalEvents: Record<string, CommandCalendarExternalEvent>;
   commandCalendarEventCreateOperations: Record<string, CommandCalendarEventCreateOperation>;
+  /** Durable replay ledger for non-idempotent SMTP and Twilio calls. */
+  outboundCommunicationOperations: Record<string, OutboundCommunicationOperation>;
   sops: Record<string, SopDocument>;
   /** SOP Engine guides — ordered sequences of SOPs composed in the library. */
   sopGuides: Record<string, SopGuide>;

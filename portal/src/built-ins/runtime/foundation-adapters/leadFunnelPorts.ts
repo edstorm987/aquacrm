@@ -2,18 +2,14 @@ import "server-only";
 // T1 R032 — port adapters for `@aqua/plugin-public-funnel` (R021)
 // and `@aqua/plugin-bos-auth-gate` (R022).
 //
-// Three ports, all from chapters #132 + #137:
+// Two ports, from chapters #132 + #137:
 //
-//   - LeadUserPort.upsertLeadByEmail(email)
-//       Idempotent on email. Calls foundation `createUser({role:"lead"})`
-//       on first capture; returns existing lead user on re-capture.
+//   - LeadUserPort.withNewLeadByEmail(email, operation)
+//       Create-only. Anonymous capture must never resolve or reuse an existing
+//       account of any role; returning an existing user here was an account-
+//       takeover primitive when the old SessionPort minted its session.
 //       Emits no activity here — the plugin layers its own log entry
 //       via the ActivityLogPort.
-//
-//   - SessionPort.issueSession(userId)
-//       Wraps T1's `issueSession` so the plugin handler can set a
-//       session cookie on its response without the plugin importing
-//       the foundation auth module directly.
 //
 //   - FunnelMePort.getMeContextByUserId(userId)
 //       BOS gate's `me` endpoint reads this to populate `hcSlot` +
@@ -24,49 +20,189 @@ import "server-only";
 //       a captured lead — graceful no-op so BOS still renders.
 
 import crypto from "node:crypto";
-import { issueSession as foundationIssueSession } from "@/lib/server/auth/auth";
-import { createUser, getUser } from "@/server/users";
+import { withPortalStateTransaction } from "@/server/productWorkspaceCoordinator";
+import { getState, mutate } from "@/server/storage";
+import { createUser } from "@/server/users";
 import { LEAD_AGENCY_ID } from "@/server/types";
 import type { ServerUser } from "@/server/types";
 
-interface LeadUpsertResult {
-  user: { id: string; email: string; name?: string; role?: string };
-  created: boolean;
+function hasExactFieldReference(
+  value: unknown,
+  fieldNames: ReadonlySet<string>,
+  ids: ReadonlySet<string>,
+  depth = 0,
+): boolean {
+  if (depth > 8 || value == null || typeof value !== "object") return false;
+  if (Array.isArray(value)) {
+    return value.some(item => hasExactFieldReference(item, fieldNames, ids, depth + 1));
+  }
+  return Object.entries(value as Record<string, unknown>).some(([key, child]) => {
+    if (fieldNames.has(key)) {
+      if (typeof child === "string" && ids.has(child)) return true;
+      if (Array.isArray(child) && child.some(item => typeof item === "string" && ids.has(item))) return true;
+    }
+    return hasExactFieldReference(child, fieldNames, ids, depth + 1);
+  });
 }
 
-export const leadUserPort = {
-  async upsertLeadByEmail(email: string): Promise<LeadUpsertResult> {
-    const norm = email.trim().toLowerCase();
-    const existing = getUser(norm);
-    if (existing) {
-      return { user: toProfile(existing), created: false };
-    }
-    // Random password — leads use magic-link / session re-issue, not
-    // password auth. createUser still validates length, so we generate
-    // a random secret long enough to satisfy validatePassword.
-    const password = crypto.randomBytes(24).toString("base64url");
-    const user = createUser({
-      email: norm,
-      password,
-      role: "lead",
-      agencyId: LEAD_AGENCY_ID,
-      name: norm.split("@")[0] ?? norm,
-    });
-    return { user: toProfile(user), created: true };
-  },
-};
+const LEAD_USER_REFERENCE_FIELDS = new Set(["leadUserId"]);
+const CAPTURE_REFERENCE_FIELDS = new Set(["captureId", "captureIds"]);
 
-export const sessionPort = {
-  issueSession(userId: string): string {
-    const u = getUserById(userId);
-    if (!u) throw new Error(`[sessionPort] user ${userId} not found`);
-    return foundationIssueSession({
-      userId: u.id,
-      email: u.email,
-      role: u.role,
-      agencyId: u.agencyId,
-      sessionRev: u.sessionRev ?? 0,
+export const leadUserPort = {
+  async withNewLeadByEmail<T>(
+    email: string,
+    operation: (createLead: () => ReturnType<typeof toProfile>) => Promise<T>,
+  ): Promise<{ value: T; created: true } | { created: false }> {
+    const norm = email.trim().toLowerCase();
+    // One global lane is deliberate: the transaction covers both the shared
+    // user namespace and the install-scoped capture row. Narrow email or
+    // install locks cannot jointly prevent cross-install identity races.
+    return withPortalStateTransaction("public-funnel:anonymous-lead-capture", async () => {
+      // Scan every scoped key, not only getUser(norm): end-customer identities
+      // use `<email>|c:<clientId>` storage keys and are equally protected.
+      const existing = Object.values(getState().users).some(user => user.email.trim().toLowerCase() === norm);
+      if (existing) return { created: false };
+
+      // Random password keeps password auth unavailable. Mailbox-verified
+      // continuation is a separate future flow and is the only place that may
+      // authenticate this lead.
+      let createdUser: ReturnType<typeof toProfile> | null = null;
+      const createLead = () => {
+        if (createdUser) return createdUser;
+        const password = crypto.randomBytes(24).toString("base64url");
+        createdUser = toProfile(createUser({
+          email: norm,
+          password,
+          role: "lead",
+          agencyId: LEAD_AGENCY_ID,
+          name: norm.split("@")[0] ?? norm,
+        }));
+        return createdUser;
+      };
+      const value = await operation(createLead);
+      if (!createdUser) throw new Error("public_funnel_lead_not_created");
+      return { value, created: true };
     });
+  },
+
+  async eraseIfUnreferenced(input: { agencyId: string; userId: string; email: string; captureIds: string[] }): Promise<{
+    status: "deleted" | "missing" | "preserved";
+    recordsErased: number;
+    reason?: "still-referenced" | "ambiguous-user" | "non-capture-lead";
+  }> {
+    const captureIds = new Set(input.captureIds.filter(Boolean));
+    let result: {
+      status: "deleted" | "missing" | "preserved";
+      recordsErased: number;
+      reason?: "still-referenced" | "ambiguous-user" | "non-capture-lead";
+    } = { status: "missing", recordsErased: 0 };
+
+    mutate(state => {
+      let recordsErased = 0;
+      const removedActivityIds = new Set<string>();
+
+      // A capture's exact id is authoritative even when its lead account is
+      // shared with a surviving capture. Remove only that capture's own audit
+      // rows before deciding whether the global identity may also go.
+      state.activity = state.activity.filter(entry => {
+        const exactCaptureActivity = entry.agencyId === input.agencyId
+          && entry.category === "public-funnel"
+          && hasExactFieldReference(entry.metadata, CAPTURE_REFERENCE_FIELDS, captureIds);
+        if (!exactCaptureActivity) return true;
+        removedActivityIds.add(entry.id);
+        recordsErased += 1;
+        return false;
+      });
+      for (const [eventId, event] of Object.entries(state.clientRecordLedger ?? {})) {
+        if (event.sourceType === "activity" && removedActivityIds.has(event.sourceId)) {
+          delete state.clientRecordLedger[eventId];
+          recordsErased += 1;
+        }
+      }
+
+      const userIds = new Set([input.userId]);
+      const stillReferenced = Object.values(state.pluginData).some(installData =>
+        Object.values(installData).some(value =>
+          hasExactFieldReference(value, LEAD_USER_REFERENCE_FIELDS, userIds),
+        ),
+      );
+      if (stillReferenced) {
+        result = { status: "preserved", recordsErased, reason: "still-referenced" };
+        return;
+      }
+
+      const matches = Object.entries(state.users).filter(([, user]) => user.id === input.userId);
+      if (matches.length > 1) {
+        result = { status: "preserved", recordsErased, reason: "ambiguous-user" };
+        return;
+      }
+      const match = matches[0];
+      if (match) {
+        const [key, user] = match;
+        const validCaptureLead = user.role === "lead"
+          && user.agencyId === LEAD_AGENCY_ID
+          && user.agencyIds.length === 0
+          && !user.clientId
+          && !user.supabaseAuthUserId
+          && Boolean(input.email)
+          && user.email.trim().toLowerCase() === input.email.trim().toLowerCase()
+          && key === user.email.trim().toLowerCase();
+        if (!validCaptureLead) {
+          result = { status: "preserved", recordsErased, reason: "non-capture-lead" };
+          return;
+        }
+        delete state.users[key];
+        recordsErased += 1;
+      }
+
+      // Once the exact capture identity is gone, remove its unscoped derived
+      // references. Lead capture never authenticates, but legacy registries
+      // are scrubbed defensively so a stale cookie cannot retain a pointer.
+      state.activity = state.activity.filter(entry => {
+        const matchesUser = entry.actorUserId === input.userId
+          || hasExactFieldReference(entry.metadata, LEAD_USER_REFERENCE_FIELDS, userIds);
+        if (!matchesUser) return true;
+        removedActivityIds.add(entry.id);
+        recordsErased += 1;
+        return false;
+      });
+      for (const [eventId, event] of Object.entries(state.clientRecordLedger ?? {})) {
+        if (event.sourceType === "activity" && removedActivityIds.has(event.sourceId)) {
+          delete state.clientRecordLedger[eventId];
+          recordsErased += 1;
+        }
+      }
+      for (const [eventId, event] of Object.entries(state.outbox ?? {})) {
+        if (event.name === "user.signed_up"
+          && event.source === "server/users"
+          && event.payload.userId === input.userId) {
+          delete state.outbox[eventId];
+          recordsErased += 1;
+        }
+      }
+      for (const [key, day] of Object.entries(state.personalMetricDays)) {
+        if (day.userId !== input.userId) continue;
+        delete state.personalMetricDays[key];
+        recordsErased += 1;
+      }
+      if (state.securityControl) {
+        if (Object.prototype.hasOwnProperty.call(state.securityControl.userEpochs, input.userId)) {
+          delete state.securityControl.userEpochs[input.userId];
+          recordsErased += 1;
+        }
+        if (Object.prototype.hasOwnProperty.call(state.securityControl.suspendedUsers, input.userId)) {
+          delete state.securityControl.suspendedUsers[input.userId];
+          recordsErased += 1;
+        }
+        for (const [sid, session] of Object.entries(state.securityControl.sessions)) {
+          if (session.userId !== input.userId) continue;
+          delete state.securityControl.sessions[sid];
+          recordsErased += 1;
+        }
+      }
+      result = { status: match ? "deleted" : "missing", recordsErased };
+    });
+    return result;
   },
 };
 
@@ -138,8 +274,6 @@ function getUserById(userId: string): ServerUser | null {
   // Users are keyed by email-composite in storage; we don't have a
   // direct id index. Walk the storage map — fine for low-volume lead
   // counts. R+1 wires a proper users-by-id index.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { getState } = require("@/server/storage") as typeof import("@/server/storage");
   const users = getState().users as Record<string, ServerUser>;
   for (const u of Object.values(users)) {
     if (u.id === userId) return u;

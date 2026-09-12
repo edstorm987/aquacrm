@@ -44,6 +44,10 @@ export const NAV_ELEMENT_KEYS: Readonly<Record<string, AccessElementKey>> = {
   "client-crm.segments": "growth.contacts",
   pipelines: "growth.leads",
   scouting: "growth.outreach",
+  researching: "growth.outreach",
+  prospecting: "growth.outreach",
+  meetings: "growth.leads",
+  contacts: "growth.contacts",
 
   // ── Workspace ───────────────────────────────────────────────────────────
   home: "workspace.overview",

@@ -30,7 +30,12 @@
 // contact ingest, and it is honest capture rather than silent loss. When
 // per-client public ingest lands, point `ENDPOINT` at it.
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import {
+  BotChallenge,
+  type BotChallengeHandle,
+  usePublicBotChallengeConfig,
+} from "@/components/security/BotChallenge";
 import type { BlockRenderProps } from "../blockRegistry";
 import { blockStylesToCss } from "../blockStyles";
 import FormRenderBlock from "./FormRenderBlock";
@@ -88,6 +93,9 @@ function BuiltInContactForm({ block, editorMode }: BlockRenderProps) {
   // override the wording, and set `privacyPolicyUrl` to link its own policy.
   const consentNotice = (block.props.consentNotice as string | undefined) ?? DEFAULT_CONSENT_NOTICE;
   const privacyPolicyUrl = (block.props.privacyPolicyUrl as string | undefined)?.trim() || undefined;
+  const challenge = usePublicBotChallengeConfig();
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const captchaRef = useRef<BotChallengeHandle>(null);
   // NOTE: the block's `tag` prop is not forwarded. `/api/public/contact` sets
   // its own tags (`website-enquiry`, `contact:<method>`) and takes no custom
   // ones; inventing a field it ignores would be the same fiction this change
@@ -118,6 +126,7 @@ function BuiltInContactForm({ block, editorMode }: BlockRenderProps) {
           note: message,
           // Honeypot field the ingest checks. Always empty from a real person.
           website: "",
+          ...(captchaToken ? { captchaToken } : {}),
         }),
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
@@ -131,6 +140,7 @@ function BuiltInContactForm({ block, editorMode }: BlockRenderProps) {
     } catch (e2) {
       setError(e2 instanceof Error ? e2.message : "Network error.");
     } finally {
+      captchaRef.current?.reset();
       setSubmitting(false);
     }
   }
@@ -223,11 +233,27 @@ function BuiltInContactForm({ block, editorMode }: BlockRenderProps) {
         </label>
       </div>
 
+      {!editorMode ? (
+        <BotChallenge
+          ref={captchaRef}
+          siteKey={challenge.siteKey}
+          action="public-contact"
+          onToken={setCaptchaToken}
+          required={challenge.required || challenge.error}
+        />
+      ) : null}
+
       {error && <p role="alert" style={{ fontSize: 12, color: "#fca5a5", marginTop: 12 }}>{error}</p>}
 
       <button
         type="submit"
-        disabled={editorMode || submitting}
+        disabled={
+          editorMode
+          || submitting
+          || challenge.loading
+          || ((challenge.required || challenge.error) && !challenge.siteKey)
+          || (Boolean(challenge.siteKey) && !captchaToken)
+        }
         style={{
           marginTop: 16,
           width: "100%",

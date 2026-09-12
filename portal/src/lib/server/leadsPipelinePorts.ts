@@ -28,6 +28,13 @@ import {
   getPipelineBySlug,
   listCardsByAgency,
 } from "@/server/pipelines";
+import {
+  attachPersonFacet,
+  findPersonByFacet,
+  findPersonByIdentity,
+  getPerson,
+  upsertPerson,
+} from "@/server/persons";
 import type {
   EmailEnqueueInput,
   EmailEnqueueResult,
@@ -35,7 +42,71 @@ import type {
   PipelinePort,
   PipelineCardRef,
   AddLeadCardInput,
+  PersonIdentityPort,
 } from "@aqua/plugin-leads-pipeline/server";
+
+// Canonical Person identity. The plugin supplies only identity evidence and
+// server-created facet ids; foundation owns the Person graph and its merge
+// rules.
+export const personIdentityPort: PersonIdentityPort = {
+  find(input) {
+    const person = findPersonByIdentity(input.agencyId, {
+      emails: [input.email],
+      phones: [input.phone],
+      name: input.name,
+    });
+    return person ? { personId: person.id } : null;
+  },
+
+  resolve(input) {
+    // A stored pointer or facet is stronger than another identity guess. This
+    // keeps a Lead on its established Person when an address is edited and
+    // prevents a later upsert from silently moving the facet elsewhere.
+    const retained = input.currentPersonId
+      ? getPerson(input.agencyId, input.currentPersonId)
+      : null;
+    const byFacet = !retained && (input.leadId || input.contactId)
+      ? findPersonByFacet(input.agencyId, {
+          ...(input.leadId ? { leadId: input.leadId } : {}),
+          ...(input.contactId ? { contactId: input.contactId } : {}),
+        })
+      : null;
+    const byIdentity = !retained && !byFacet
+      ? findPersonByIdentity(input.agencyId, {
+          emails: [input.email],
+          phones: [input.phone],
+          name: input.name,
+        })
+      : null;
+    const { person } = upsertPerson(input.agencyId, {
+      currentPersonId: (retained ?? byFacet ?? byIdentity)?.id,
+      emails: [input.email],
+      phones: [input.phone],
+      name: input.name,
+      company: input.company,
+      source: input.source,
+      // Only a genuinely new person is classified automatically. Reusing an
+      // existing supplier/partner identity must not overwrite a human decision.
+      classification: retained || byFacet || byIdentity
+        ? undefined
+        : input.leadId ? "sales" : "unclassified",
+      facets: {
+        ...(input.leadId ? { leadId: input.leadId } : {}),
+        ...(input.contactId ? { contactId: input.contactId } : {}),
+      },
+    });
+    return { personId: person.id };
+  },
+
+  attachFacets(input) {
+    if (!getPerson(input.agencyId, input.personId)) return false;
+    return Boolean(attachPersonFacet(input.agencyId, input.personId, {
+      ...(input.leadId ? { leadId: input.leadId } : {}),
+      ...(input.contactId ? { contactId: input.contactId } : {}),
+      ...(input.clientId ? { clientIds: [input.clientId] } : {}),
+    }));
+  },
+};
 
 // ─── EmailEnqueuePort (adapter onto @aqua/plugin-email-sender) ────────────
 

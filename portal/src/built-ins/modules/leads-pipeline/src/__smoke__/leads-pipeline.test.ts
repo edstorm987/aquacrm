@@ -120,6 +120,7 @@ function buildWorld(opts: { withEmail?: boolean; withPipeline?: boolean } = {}) 
       const limit = filter.limit ?? entries.length;
       return entries.slice(-limit).reverse();
     },
+    eraseSubjectReferences() { return 0; },
   };
 
   const eventBus: EventBusPort = {

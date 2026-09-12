@@ -75,6 +75,7 @@
       campaign: new URLSearchParams(window.location.search).get("utm_campaign") || "",
       consent: data.get("consent") === "on" || data.get("consent") === "yes",
       website: data.get("website"),
+      captchaToken: data.get("captchaToken"),
     };
   }
 
@@ -103,6 +104,8 @@
       status.classList.add("is-error");
       submit.innerHTML = previousLabel;
       submit.disabled = false;
+    } finally {
+      window.AquaBotChallenge?.reset(form);
     }
   }
 

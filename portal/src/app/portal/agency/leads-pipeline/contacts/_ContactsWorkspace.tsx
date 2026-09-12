@@ -44,6 +44,8 @@ interface CustomFieldDefinition {
 
 interface LeadRow {
   id: string;
+  personId?: string;
+  prospectId?: string;
   email: string;
   name?: string;
   phone?: string;
@@ -65,6 +67,7 @@ interface LeadRow {
 
 interface ContactRow {
   id: string;
+  personId?: string;
   email: string;
   name?: string;
   phone?: string;
@@ -178,9 +181,10 @@ export function ContactsWorkspace({ referenceNow, contacts, leads, initialCustom
     return [...tags].sort((a, b) => a.localeCompare(b));
   }, [contacts, customTags, leads]);
 
-  const leadEmails = useMemo(() => {
-    return new Set(leads.map(lead => lead.email.toLowerCase()));
+  const leadByPerson = useMemo(() => {
+    return new Map(leads.flatMap(lead => lead.personId ? [[lead.personId, lead.id] as const] : []));
   }, [leads]);
+  const leadIds = useMemo(() => new Set(leads.map(lead => lead.id)), [leads]);
 
   const filteredLeads = useMemo(() => {
     return leads
@@ -444,7 +448,7 @@ export function ContactsWorkspace({ referenceNow, contacts, leads, initialCustom
     }
   }
 
-  async function addContactToBoard(id: string) {
+  async function addContactToBoard(id: string, mode: "power-dialler" | "email") {
     setBusy(`board:${id}`);
     setNotice(null);
     setError(null);
@@ -455,10 +459,16 @@ export function ContactsWorkspace({ referenceNow, contacts, leads, initialCustom
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ id }),
       });
-      const data = await res.json() as { ok: boolean; error?: string; created?: boolean };
+      const data = await res.json() as {
+        ok: boolean;
+        error?: string;
+        created?: boolean;
+        lead?: { id?: string };
+      };
       if (!data.ok) throw new Error(data.error ?? "Could not add contact to the leads board.");
-      setNotice(data.created ? "Contact added to the leads board." : "Contact is already on the leads board.");
-      router.refresh();
+      const leadId = data.lead?.id?.trim();
+      if (!leadId) throw new Error("The board accepted the contact but did not return its Lead id.");
+      router.push(`/portal/agency/prospecting?lead=${encodeURIComponent(leadId)}&mode=${mode}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -992,27 +1002,34 @@ export function ContactsWorkspace({ referenceNow, contacts, leads, initialCustom
         </div>
 
         <ListPanel title={`Contacts (${filteredContacts.length})`}>
-          {filteredContacts.length === 0 ? <Empty label={contacts.length === 0 ? "No contacts yet." : "No contacts match these filters."} /> : filteredContacts.map(row => (
-            <PersonCard
-              key={row.id}
-              row={row}
-              badge={row.type}
-              onBoard={leadEmails.has(row.email.toLowerCase())}
-              boardBusy={busy === `board:${row.id}`}
-              onAddToBoard={row.type === "customer" ? undefined : () => addContactToBoard(row.id)}
-              onConvert={row.type === "customer" ? undefined : () => convertContact(row.id)}
-              converting={busy === `convert:${row.id}`}
-              detailsBusy={busy === `details:contact:${row.id}`}
-              onSaveDetails={patch => saveDetails("contact", row.id, patch)}
-              contactedBusy={busy === `contacted:contact:${row.id}`}
-              onMarkContacted={() => markContacted("contact", row.id)}
-              meetingBusy={busy === `meeting:contact:${row.id}`}
-              onSaveMeeting={(date, notes) => saveMeeting("contact", row.id, date, notes)}
-              onOpenCommercial={() => setCommercialParty({ kind: "contact", id: row.id, name: row.name, company: row.company, email: row.email })}
-              customFieldDefinitions={customFields}
-              referenceNow={referenceNow}
-            />
-          ))}
+          {filteredContacts.length === 0 ? <Empty label={contacts.length === 0 ? "No contacts yet." : "No contacts match these filters."} /> : filteredContacts.map(row => {
+            const promotedLeadId = row.promotedFromLeadId && leadIds.has(row.promotedFromLeadId)
+              ? row.promotedFromLeadId
+              : undefined;
+            const outreachLeadId = row.personId ? leadByPerson.get(row.personId) ?? promotedLeadId : promotedLeadId;
+            const outreachMode = row.phone ? "power-dialler" as const : "email" as const;
+            return (
+              <PersonCard
+                key={row.id}
+                row={row}
+                badge={row.type}
+                outreachLeadId={outreachLeadId}
+                boardBusy={busy === `board:${row.id}`}
+                onAddToBoard={row.type === "customer" ? undefined : () => addContactToBoard(row.id, outreachMode)}
+                onConvert={row.type === "customer" ? undefined : () => convertContact(row.id)}
+                converting={busy === `convert:${row.id}`}
+                detailsBusy={busy === `details:contact:${row.id}`}
+                onSaveDetails={patch => saveDetails("contact", row.id, patch)}
+                contactedBusy={busy === `contacted:contact:${row.id}`}
+                onMarkContacted={() => markContacted("contact", row.id)}
+                meetingBusy={busy === `meeting:contact:${row.id}`}
+                onSaveMeeting={(date, notes) => saveMeeting("contact", row.id, date, notes)}
+                onOpenCommercial={() => setCommercialParty({ kind: "contact", id: row.id, name: row.name, company: row.company, email: row.email })}
+                customFieldDefinitions={customFields}
+                referenceNow={referenceNow}
+              />
+            );
+          })}
         </ListPanel>
       </section>
     </main>
@@ -1026,7 +1043,7 @@ function PersonCard({
   converting,
   onAddToBoard,
   boardBusy,
-  onBoard,
+  outreachLeadId,
   onSaveDetails,
   detailsBusy,
   onMarkContacted,
@@ -1043,7 +1060,7 @@ function PersonCard({
   converting?: boolean;
   onAddToBoard?: () => void;
   boardBusy?: boolean;
-  onBoard?: boolean;
+  outreachLeadId?: string;
   onSaveDetails?: (patch: { name?: string; phone?: string; company?: string; tags?: string[]; notes?: string; customFields?: Record<string, CustomFieldValue> }) => void;
   detailsBusy?: boolean;
   onMarkContacted?: () => void;
@@ -1054,35 +1071,45 @@ function PersonCard({
   customFieldDefinitions: CustomFieldDefinition[];
   referenceNow: number;
 }) {
+  const isLeadRecord = "capturedAt" in row;
+  const prospectId = isLeadRecord ? row.prospectId : undefined;
+  const contactId = isLeadRecord ? undefined : row.id;
+  const needsDossier = isLeadRecord && !prospectId;
   const journeyStartedAt = "capturedAt" in row ? row.capturedAt : row.leadCapturedAt;
   const firstContactedAt = row.firstContactedAt;
   const convertedAt = row.convertedAt;
   const journeyEventCount = "capturedAt" in row ? row.journeyEvents?.length : row.leadJourneyEvents?.length;
   return (
     <article className="rounded-lg border border-black/10 bg-white p-3 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="truncate text-sm font-semibold text-black/90">{row.name || row.company || row.email}</h3>
-          <p className="mt-0.5 truncate text-xs text-black/50">{row.company ? `${row.company} · ` : ""}{row.email}</p>
-          {row.phone ? <p className="mt-0.5 truncate text-xs text-black/40">{formatPhoneForDisplay(row.phone)}</p> : null}
+          <p className="mt-0.5 truncate text-xs text-black/65">{row.company ? `${row.company} · ` : ""}{row.email}</p>
+          {row.phone ? <p className="mt-0.5 truncate text-xs text-black/65">{formatPhoneForDisplay(row.phone)}</p> : null}
         </div>
-        <div className="flex shrink-0 items-start gap-2">
+        <div className="flex max-w-full flex-wrap items-start gap-2">
           {/* Marking contacted on a placed call is the point: the next pass
               down the list has to know you already rang them. */}
-          <CallButton
-            phone={row.phone}
-            name={row.name || row.company || row.email}
-            contactId={row.id}
-            onCalled={onMarkContacted}
-          />
-          <EmailButton
-            email={row.email}
-            phone={row.phone}
-            name={row.name || row.company || row.email}
-            contactId={row.id}
-            onSent={onMarkContacted}
-          />
-          <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[11px] font-medium text-black/55">{badge}</span>
+          {needsDossier ? (
+            <Link href={`/portal/agency/prospecting?lead=${encodeURIComponent(row.id)}`} className="inline-flex min-h-11 items-center rounded-md border border-black/15 bg-white px-3 text-xs font-semibold text-black/70 hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Prepare outreach</Link>
+          ) : <>
+            <CallButton
+              phone={row.phone}
+              name={row.name || row.company || row.email}
+              contactId={contactId}
+              prospectId={prospectId}
+              onCalled={onMarkContacted}
+            />
+            <EmailButton
+              email={row.email}
+              phone={row.phone}
+              name={row.name || row.company || row.email}
+              contactId={contactId}
+              prospectId={prospectId}
+              onSent={onMarkContacted}
+            />
+          </>}
+          <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[11px] font-medium text-black/65">{badge}</span>
         </div>
       </div>
       {row.tags.length > 0 && (
@@ -1090,27 +1117,27 @@ function PersonCard({
           {row.tags.map(tag => <span key={tag} className="rounded-full bg-brand/10 px-2 py-0.5 text-[11px] text-brand">{tag}</span>)}
         </div>
       )}
-      {row.notes && <p className="mt-3 text-xs leading-5 text-black/60">{row.notes}</p>}
+      {row.notes && <p className="mt-3 text-xs leading-5 text-black/65">{row.notes}</p>}
       {customFieldDefinitions.some(field => row.customFields?.[field.id] !== undefined) ? (
         <dl className="mt-3 grid gap-2 rounded-md bg-black/[0.025] p-3 sm:grid-cols-2">
           {customFieldDefinitions.filter(field => row.customFields?.[field.id] !== undefined).map(field => (
             <div key={field.id}>
-              <dt className="text-[10px] uppercase tracking-wide text-black/35">{field.label}</dt>
+              <dt className="text-[10px] uppercase tracking-wide text-black/65">{field.label}</dt>
               <dd className="mt-1 text-xs text-black/65">{displayCustomValue(row.customFields?.[field.id])}</dd>
             </div>
           ))}
         </dl>
       ) : null}
       {row.lastContactedAt && (
-        <p className="mt-3 text-[11px] font-medium text-black/45">
+        <p className="mt-3 text-[11px] font-medium text-black/65">
           Last contacted {formatUkDate(row.lastContactedAt, { dateStyle: "medium", timeStyle: "short" })}
         </p>
       )}
       {journeyStartedAt ? (
         <dl className="mt-3 grid grid-cols-3 gap-px overflow-hidden rounded-md border border-black/10 bg-black/10 text-[10px]">
-          <div className="bg-white p-2"><dt className="text-black/38">Journey</dt><dd className="mt-1 font-semibold text-black/65">{formatElapsed((convertedAt ?? referenceNow) - journeyStartedAt)}</dd></div>
-          <div className="bg-white p-2"><dt className="text-black/38">First reply</dt><dd className="mt-1 font-semibold text-black/65">{firstContactedAt ? formatElapsed(firstContactedAt - journeyStartedAt) : "Waiting"}</dd></div>
-          <div className="bg-white p-2"><dt className="text-black/38">Trace</dt><dd className="mt-1 font-semibold text-black/65">{journeyEventCount ?? 0} events</dd></div>
+          <div className="bg-white p-2"><dt className="text-black/65">Journey</dt><dd className="mt-1 font-semibold text-black/65">{formatElapsed((convertedAt ?? referenceNow) - journeyStartedAt)}</dd></div>
+          <div className="bg-white p-2"><dt className="text-black/65">First reply</dt><dd className="mt-1 font-semibold text-black/65">{firstContactedAt ? formatElapsed(firstContactedAt - journeyStartedAt) : "Waiting"}</dd></div>
+          <div className="bg-white p-2"><dt className="text-black/65">Trace</dt><dd className="mt-1 font-semibold text-black/65">{journeyEventCount ?? 0} events</dd></div>
         </dl>
       ) : null}
       {onSaveDetails && (
@@ -1141,31 +1168,31 @@ function PersonCard({
         />
       )}
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-black/10 pt-3">
-        {/* The protected pair, same as the ones this card mounts higher up
-            (Ed's opt-out finding, 2026-08-30): the raw tel:/mailto: routes
-            here sat BESIDE suppression-enforcing controls, so the fence could
-            be walked around by clicking the other button. These go through the
-            telephony routes, which 409 an opted-out contact and log. */}
-        {row.phone && <CallButton phone={row.phone} name={row.name} contactId={row.id} />}
-        <EmailButton email={row.email} phone={row.phone} name={row.name} contactId={row.id} />
-        <button type="button" onClick={onOpenCommercial} className="rounded-md bg-black px-2 py-1 text-xs font-semibold text-white hover:bg-black/85">Invoice & agreement</button>
+        <button type="button" onClick={onOpenCommercial} className="min-h-11 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Invoice & agreement</button>
         {onMarkContacted && (
-          <button type="button" onClick={onMarkContacted} disabled={contactedBusy} className="rounded-md border border-black/10 px-2 py-1 text-xs text-black/70 hover:bg-black/[0.03] disabled:opacity-50">
+          <button type="button" onClick={onMarkContacted} disabled={contactedBusy} className="min-h-11 rounded-md border border-black/10 px-3 text-xs text-black/70 hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:opacity-50">
             {contactedBusy ? "Marking..." : "Mark contacted"}
           </button>
         )}
-        {onAddToBoard && (
+        {onAddToBoard && outreachLeadId ? (
+          <Link
+            href={`/portal/agency/prospecting?lead=${encodeURIComponent(outreachLeadId)}&mode=${row.phone ? "power-dialler" : "email"}`}
+            className="inline-flex min-h-11 items-center rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/70 hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2"
+          >
+            Prepare outreach
+          </Link>
+        ) : onAddToBoard ? (
           <button
             type="button"
             onClick={onAddToBoard}
-            disabled={boardBusy || onBoard}
-            className="rounded-md border border-black/10 bg-white px-2 py-1 text-xs font-medium text-black/70 hover:bg-black/[0.03] disabled:opacity-50"
+            disabled={boardBusy}
+            className="min-h-11 rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/70 hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:opacity-50"
           >
-            {onBoard ? "On board" : boardBusy ? "Adding..." : "Add to board"}
+            {boardBusy ? "Preparing..." : "Prepare outreach"}
           </button>
-        )}
+        ) : null}
         {onConvert && (
-          <button type="button" onClick={onConvert} disabled={converting} className="rounded-md bg-brand px-2 py-1 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50">
+          <button type="button" onClick={onConvert} disabled={converting} className="min-h-11 rounded-md bg-brand px-3 text-xs font-semibold text-white hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:opacity-50">
             {converting ? "Converting..." : "Convert to client"}
           </button>
         )}

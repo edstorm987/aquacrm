@@ -10,6 +10,7 @@ const read = (path: string) => readFileSync(join(root, path), "utf8");
 
 test("Master Inbox exposes one contact-aware composer for every enquiry view", () => {
   const inbox = read("src/app/portal/agency/inbox/_MasterInbox.tsx");
+  const unified = read("src/app/portal/agency/inbox/_UnifiedInboxWorkspace.tsx");
   const detailCard = read("src/app/portal/agency/inbox/_EnquiryDetailCard.tsx");
   const composer = read("src/app/portal/agency/inbox/_EnquiryCommunications.tsx");
   // The enquiry detail card is the inbox's per-enquiry view; it hosts the one composer.
@@ -22,6 +23,12 @@ test("Master Inbox exposes one contact-aware composer for every enquiry view", (
   assert.match(composer, />Send as</);
   assert.match(composer, /Preferred ·/);
   assert.match(composer, /senderByChannel/);
+  assert.doesNotMatch(inbox, /href=\{`(?:tel|mailto):/,
+    "enquiry rows must open the audited composer instead of bypassing it with raw contact links");
+  assert.match(inbox, /item\.email \|\| item\.phone \? "Contact"/);
+  assert.doesNotMatch(unified, /href=\{`(?:tel|mailto|sms):|wa\.me/,
+    "the unified inbox must route contact through audited communication controls");
+  assert.match(unified, /Open protected contact controls/);
 });
 
 test("send-as accounts are workspace validated and provider backed", () => {

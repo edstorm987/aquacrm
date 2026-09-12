@@ -120,7 +120,7 @@ export const ORIGIN_NEVER_CONTRIBUTES: Readonly<Record<string, readonly Collecti
     "activity", "outbox", "completedActions", "pipelines", "pipelineCards", "tasks",
     "pluginInstalls", "pluginData", "portalConnections", "clientPortalInstances",
     "performanceExperiments", "commandCalendarEntries", "commandCalendarSources",
-    "commandCalendarExternalEvents", "commandCalendarEventCreateOperations",
+    "commandCalendarExternalEvents", "commandCalendarEventCreateOperations", "outboundCommunicationOperations",
     "dashboardDayPlans", "dashboardWeekPlans", "dashboardWorkSessions",
     "radarMemory", "radarSyntheticProbes", "radarEvidence", "radarInfraHealth",
     "customKpis", "operationalAlertSourceEpisodes", "operationalAlertPreferences", "actionMutationReceipts", "userChromeLayouts",

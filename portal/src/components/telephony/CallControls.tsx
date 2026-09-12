@@ -20,7 +20,7 @@
 // survives a re-render of the list, which matters when the list re-sorts under
 // you mid-session.
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Phone, PhoneOff, LoaderCircle, TriangleAlert, Check, RefreshCw } from "lucide-react";
 
 import { formatPhoneForDisplay } from "@/lib/telephony/phoneNumbers";
@@ -29,6 +29,10 @@ import {
   type OutboundSenderOption,
   type SenderCatalogueRead,
 } from "@/lib/client/senderCatalogueRead";
+import {
+  readProspectOutreachReceipt,
+  type ProspectOutreachReceipt,
+} from "@/lib/telephony/prospectOutreachReceipt";
 
 type CallSender = OutboundSenderOption;
 type SenderReadState = "loading" | "ready" | "unavailable";
@@ -140,7 +144,7 @@ export function CallLinePicker() {
   }
 
   if (!read.available) {
-    return <span role="alert" className="inline-flex flex-wrap items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900"><TriangleAlert size={13} aria-hidden="true" /><span>Calling lines could not be read. This is unavailable, not confirmation that no business line is connected. {read.message}</span><button type="button" onClick={() => setRetryToken(value => value + 1)} className="inline-flex min-h-7 items-center gap-1 rounded border border-amber-300 bg-white px-2 font-semibold"><RefreshCw size={11} />Retry lines</button></span>;
+    return <span role="alert" className="inline-flex flex-wrap items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900"><TriangleAlert size={13} aria-hidden="true" /><span>Calling lines could not be read. This is unavailable, not confirmation that no business line is connected. {read.message}</span><button type="button" onClick={() => setRetryToken(value => value + 1)} className="inline-flex min-h-11 items-center gap-1 rounded border border-amber-300 bg-white px-3 font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-700 focus-visible:ring-offset-2"><RefreshCw size={11} />Retry lines</button></span>;
   }
 
   const senders = read.data as CallSender[];
@@ -156,19 +160,19 @@ export function CallLinePicker() {
   // What matters is therefore not "is the list empty" but "is there anything
   // here that can actually place a bridged call". Device-only means pressing
   // Call opens your phone's own dialler — which works, shows YOUR number, and
-  // records nothing. Worth saying out loud rather than letting somebody assume
+  // records the handoff without claiming it connected. Worth saying out loud rather than letting somebody assume
   // they are calling from a business line.
   const bridged = senders.filter(sender => sender.provider !== "device");
 
   return (
     <span className="inline-flex flex-wrap items-center gap-2">
-    <label className="inline-flex items-center gap-2 text-xs text-black/55">
+    <label className="inline-flex items-center gap-2 text-xs text-black/65">
       <Phone size={13} aria-hidden="true" />
       Calling from
       <select
         value={selected}
         onChange={event => setSelectedSender(event.target.value)}
-        className="min-h-9 rounded-md border border-black/15 bg-white px-2 text-xs text-black/80"
+        className="min-h-11 rounded-md border border-black/15 bg-white px-2 text-xs text-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2"
       >
         {senders.map(sender => (
           <option key={sender.id} value={sender.id}>
@@ -201,40 +205,73 @@ export function CallButton({
   name,
   contactId,
   prospectId,
+  disabled,
   onCalled,
+  onPendingChange,
 }: {
   phone?: string;
   name?: string;
   contactId?: string;
-  /** When set, the server gates on the prospect's inspection + opt-out and records the attempt itself. */
+  /** When set, the server binds the recipient, enforces opt-out, and records the attempt itself. */
   prospectId?: string;
+  /** Parent-level lock shared with other outreach controls. */
+  disabled?: boolean;
   /** Fired once a call is actually placed, so the list can mark it contacted. */
-  onCalled?: () => void;
+  onCalled?: (receipt: ProspectOutreachReceipt) => void;
+  /** True only while this control has an unresolved provider request. */
+  onPendingChange?: (pending: boolean) => void;
 }) {
   const senderId = useSelectedSender();
   const catalogueState = useSenderReadState();
   const [state, setState] = useState<CallState>({ status: "idle" });
+  // Keep one client operation id across an ambiguous response. Retrying the
+  // exact click then reads the durable server result instead of placing a
+  // second Twilio call. A definite result clears it so a deliberate later call
+  // is a new operation.
+  const logicalCallRef = useRef<{ fingerprint: string; id: string } | null>(null);
 
   const call = useCallback(async () => {
-    if (!phone || !senderId || catalogueState !== "ready" || state.status === "calling") return;
+    if (disabled || !phone || !senderId || catalogueState !== "ready" || state.status === "calling") return;
     setState({ status: "calling" });
     try {
+      const fingerprint = JSON.stringify({
+        phone,
+        senderId,
+        contactId: contactId ?? "",
+        prospectId: prospectId ?? "",
+      });
+      if (!logicalCallRef.current || logicalCallRef.current.fingerprint !== fingerprint) {
+        logicalCallRef.current = { fingerprint, id: crypto.randomUUID() };
+      }
+      const logicalCallId = logicalCallRef.current.id;
+      onPendingChange?.(true);
       const response = await fetch("/api/portal/telephony/call", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ phone, senderId, ...(contactId ? { contactId } : {}), ...(prospectId ? { prospectId } : {}) }),
+        body: JSON.stringify({ phone, senderId, logicalCallId, ...(contactId ? { contactId } : {}), ...(prospectId ? { prospectId } : {}) }),
       });
       const result = await response.json().catch(() => null) as
-        { ok?: boolean; error?: string; via?: string } | null;
+        { ok?: boolean; error?: string; via?: string; outcomeUnknown?: boolean; retry?: "safe" | "same-operation-key" | "reconcile-first"; replayed?: boolean; outreachRecorded?: boolean; outreachAttemptId?: string } | null;
 
       if (response.status === 409) {
         // Do-not-call. Refused by the server, and said in words rather than by
         // a button that quietly does nothing.
+        logicalCallRef.current = null;
         setState({ status: "blocked", message: result?.error ?? "This number is on the do-not-call list." });
         return;
       }
       if (!response.ok || !result?.ok) {
-        setState({ status: "failed", message: result?.error ?? "The call could not be placed." });
+        // A bare 5xx may have happened after the durable provider result but
+        // before the local journey/audit write. Keep the id unless the server
+        // explicitly proves a fresh operation is safe; replay can then finish
+        // local reconciliation without calling Twilio twice.
+        if (response.status < 500 || result?.retry === "safe") logicalCallRef.current = null;
+        setState({
+          status: "failed",
+          message: result?.outcomeUnknown
+            ? result.error ?? "Call status is unknown. Check your handset or provider before trying again."
+            : result?.error ?? "The call could not be placed.",
+        });
         return;
       }
       if (result.via === "device") {
@@ -242,17 +279,26 @@ export function CallButton({
         // SERVER has already recorded the attempt (device calls have no later
         // callback that ever fires); onCalled here is UI refresh, not the
         // ledger. Fired BEFORE the tel: handoff so it cannot be lost to it.
-        onCalled?.();
+        logicalCallRef.current = null;
+        onCalled?.(readProspectOutreachReceipt(result));
         window.location.href = `tel:${phone}`;
         setState({ status: "idle" });
         return;
       }
+      logicalCallRef.current = null;
       setState({ status: "ringing", message: "Your phone is ringing — pick up and it will connect." });
-      onCalled?.();
+      onCalled?.(readProspectOutreachReceipt(result));
     } catch {
-      setState({ status: "failed", message: "The call could not be placed." });
+      // A network timeout is ambiguous for voice. Never retry automatically:
+      // the operator must check the handset/provider before choosing Call again.
+      setState({
+        status: "failed",
+        message: "Call status is unknown. Check your handset or provider before trying again.",
+      });
+    } finally {
+      onPendingChange?.(false);
     }
-  }, [phone, senderId, catalogueState, contactId, prospectId, state.status, onCalled]);
+  }, [disabled, phone, senderId, catalogueState, contactId, prospectId, state.status, onCalled, onPendingChange]);
 
   if (!phone) {
     return (
@@ -267,9 +313,9 @@ export function CallButton({
       <button
         type="button"
         onClick={() => void call()}
-        disabled={catalogueState !== "ready" || !senderId || state.status === "calling" || state.status === "blocked"}
+        disabled={disabled || catalogueState !== "ready" || !senderId || state.status === "calling" || state.status === "blocked"}
         aria-label={name ? `Call ${name}` : `Call ${phone}`}
-        className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-[#0b6f6d] px-3 text-xs font-semibold text-white hover:bg-[#095b59] disabled:opacity-50"
+        className="inline-flex min-h-11 items-center gap-1.5 rounded-md bg-[#0b6f6d] px-3 text-xs font-semibold text-white hover:bg-[#095b59] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:opacity-50"
       >
         {state.status === "calling"
           ? <LoaderCircle size={13} className="animate-spin" aria-hidden="true" />

@@ -34,24 +34,13 @@ describe("Sales pipeline → client portal integration", () => {
     const src = read(LEADS_HANDLERS);
 
     // The transaction model changed, and to something STRONGER — but the two
-    // handlers did not land on the SAME stronger thing, so pin each to what it
-    // actually does rather than forcing one shape onto both.
-    //
     // Both used to snapshot with `structuredClone(getState())` and undo with
     // `restorePortalState(beforeConvert)`. That cannot survive the process dying
     // mid-convert and it races a second worker doing the same conversion.
     //
-    //   • LEAD    → a durable claim/lease coordinator: claimed before any write,
-    //               a conflicting caller told to retry after the lease, a
-    //               finished conversion REPLAYED rather than run twice, and a
-    //               failure recorded durably so the operation stays resumable.
-    //   • CONTACT → a fingerprinted idempotent lifecycle operation: the same
-    //               request shape resolves to the same `operationId`, so a retry
-    //               converges instead of creating a second client.
-    //
-    // (Two models for one class of operation is worth knowing about; neither is
-    // the old snapshot, and both are safe under a crash, which is what matters
-    // here.)
+    // Both paths now claim a durable conversion identity before client creation:
+    // a conflicting caller is refused, an identical concurrent request waits
+    // and replays, and a failed owner leaves the operation resumable.
     const leadBlock = src.match(/export async function convertLeadToClientHandler[\s\S]*?(?=export async function|$)/)?.[0] ?? "";
     assert.ok(leadBlock.length > 0, "convertLeadToClientHandler is gone");
     assert.ok(/acquireLeadConversion\(coordinator, operation\)/.test(leadBlock),
@@ -66,13 +55,23 @@ describe("Sales pipeline → client portal integration", () => {
 
     const contactBlock = src.match(/export async function convertContactToClientHandler[\s\S]*?(?=export async function|$)/)?.[0] ?? "";
     assert.ok(contactBlock.length > 0, "convertContactToClientHandler is gone");
+    assert.ok(/contactConversionClaimKey\(\{/.test(contactBlock),
+      "the contact conversion no longer has a stable per-contact claim key");
+    assert.ok(/acquireLeadConversion\(coordinator, operation\)/.test(contactBlock),
+      "the contact conversion no longer claims before creating a client");
+    assert.ok(/claim\.state === "conflict"/.test(contactBlock),
+      "changed contact conversion options are no longer rejected");
+    assert.ok(/claim\.state === "complete"/.test(contactBlock),
+      "an identical completed contact conversion is no longer replayed");
     assert.ok(/ensureClientLifecycleOperation\(\{/.test(contactBlock),
       "the contact conversion no longer runs inside an idempotent lifecycle operation");
-    assert.ok(/operationId: `contact-lifecycle:\$\{lifecycleFingerprint\}`/.test(contactBlock),
-      "the contact operation id is no longer derived from the request fingerprint — a retry could convert twice");
+    assert.ok(/operationId: `contact-lifecycle:\$\{operation\.claimKey\}`/.test(contactBlock),
+      "the contact lifecycle no longer stays attached to the durable conversion identity");
     assert.ok(contactBlock.includes("setupClientStarterPortal"), "the contact conversion stopped creating a starter portal");
     assert.ok(/error: "client_lifecycle_incomplete"/.test(contactBlock),
       "a half-finished contact conversion no longer reports itself as incomplete");
+    assert.ok(/failLeadConversion\(coordinator, operation/.test(contactBlock),
+      "a failed contact conversion no longer releases its durable claim for resume");
 
     // …and the lead failure path flushes BEFORE it records, so a resumable
     // operation never points at side effects that were never persisted.

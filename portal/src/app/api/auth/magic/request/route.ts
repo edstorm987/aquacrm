@@ -3,18 +3,35 @@
 // registered MagicLinkDelivery hook (T2 R10's email-sender) or logs it
 // to the server console (dev fallback).
 //
-// Security: response shape is constant (`ok:true, sent:true`) for any
-// not-disabled client to avoid leaking whether an email exists. Only
-// the per-client `signupsEnabled === false` flag returns 403 — we want
-// the operator to know that path is closed.
+// Security: this is sign-in only. It sends a link only for an already-existing
+// end-customer membership scoped to this exact client + agency, and returns a
+// constant accepted response for misses. A public caller who merely knows a
+// clientId cannot use this route to create or widen membership.
 
 import { NextResponse, type NextRequest } from "next/server";
 import { ensureHydrated } from "@/server/storage";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
 import { getClient } from "@/server/tenants";
+import { getUser } from "@/server/users";
 import { signMagicToken, deliverMagicLink } from "@/lib/server/auth/magicLink";
 
 interface Body { email?: unknown; clientId?: unknown; returnUrl?: unknown; }
+
+const ACCEPTED = { ok: true, sent: true } as const;
+
+function safeReturnPath(value: unknown): string {
+  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) {
+    return "/portal/customer";
+  }
+  try {
+    const base = new URL("https://aqua.invalid");
+    const candidate = new URL(value, base);
+    if (candidate.origin !== base.origin) return "/portal/customer";
+    return `${candidate.pathname}${candidate.search}${candidate.hash}`;
+  } catch {
+    return "/portal/customer";
+  }
+}
 
 export async function POST(req: NextRequest) {
   await ensureHydrated();
@@ -34,20 +51,9 @@ export async function POST(req: NextRequest) {
 
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   const clientId = typeof body.clientId === "string" ? body.clientId.trim() : "";
-  const returnUrl = typeof body.returnUrl === "string" && body.returnUrl.startsWith("/") ? body.returnUrl : "/portal/customer";
+  const returnUrl = safeReturnPath(body.returnUrl);
   if (!email || !clientId) {
     return NextResponse.json({ ok: false, error: "email and clientId are required." }, { status: 400 });
-  }
-
-  const client = getClient(clientId);
-  if (!client || !["active", "suspended"].includes(client.status)) {
-    return NextResponse.json({ ok: false, error: "Unknown client." }, { status: 404 });
-  }
-  if (client.endCustomers?.signupsEnabled === false) {
-    return NextResponse.json(
-      { ok: false, error: "Signups are disabled for this account." },
-      { status: 403 },
-    );
   }
 
   // Per-(clientId, email) rate limit so an attacker can't spam the same
@@ -57,6 +63,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "Too many requests for this email." }, { status: 429 });
   }
 
+  const client = getClient(clientId);
+  if (!client || !["active", "suspended"].includes(client.status)) {
+    return NextResponse.json(ACCEPTED);
+  }
+
+  const member = getUser(email, { clientId: client.id, role: "end-customer" });
+  if (
+    !member
+    || member.role !== "end-customer"
+    || member.clientId !== client.id
+    || member.agencyId !== client.agencyId
+  ) {
+    return NextResponse.json(ACCEPTED);
+  }
+
   const { token } = signMagicToken({ email, clientId, agencyId: client.agencyId });
   const origin = req.nextUrl.origin;
   const verifyPath = new URL("/login/magic", origin);
@@ -64,15 +85,11 @@ export async function POST(req: NextRequest) {
   verifyPath.searchParams.set("return", returnUrl);
   const magicUrl = verifyPath.toString();
 
-  const result = await deliverMagicLink({
+  await deliverMagicLink({
     email, clientId, agencyId: client.agencyId, magicUrl,
   });
 
-  return NextResponse.json({
-    ok: true,
-    sent: result.delivered,
-    via: result.via,
-    // In dev, surface the URL so the form can render a "click here" link.
-    ...(process.env.NODE_ENV !== "production" && !result.delivered ? { devMagicUrl: magicUrl } : {}),
-  });
+  // Never reveal whether the membership or delivery target exists. The
+  // authenticated customer-portal-control route retains its local dev URL.
+  return NextResponse.json(ACCEPTED);
 }

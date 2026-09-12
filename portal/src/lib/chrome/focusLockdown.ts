@@ -38,6 +38,9 @@ const MACRO_DOORS = new Set(["home", "operations-home", "tools"]);
 /** The two universal personal rows kept under every hat, in this order. */
 const KEEP_SHELL = ["my-radar", "inbox"] as const;
 
+/** The Sales hat is an acquisition loop, in the order work usually happens. */
+const SALES_FOCUS_ORDER = ["scouting", "researching", "prospecting", "meetings", "inbox", "contacts"] as const;
+
 /**
  * `focused` (already lensed + revealed) reduced to just the department's own
  * surfaces plus My Radar and the Inbox.
@@ -56,6 +59,20 @@ export function focusLockdown(original: NavPanel[], focused: NavPanel[], departm
   // from the entitled panels so this can only ever re-add something they own.
   const entitled = new Map<string, NavItem>();
   for (const panel of original) for (const item of panel.items) if (!entitled.has(item.id)) entitled.set(item.id, item);
+
+  if (departmentId === "sales") {
+    const focusedItems = new Map<string, NavItem>();
+    for (const panel of focused) for (const item of panel.items) if (!focusedItems.has(item.id)) focusedItems.set(item.id, item);
+    const items = SALES_FOCUS_ORDER
+      .map(id => focusedItems.get(id) ?? entitled.get(id))
+      .filter((item): item is NavItem => Boolean(item))
+      .map(item => item.id === "inbox" ? { ...item, label: "Inbox" } : item);
+    const out: NavPanel[] = items.length ? [{ id: "sales", label: "Sales", order: 0, items }] : [];
+    const settings = focused.find(panel => panel.id === "settings");
+    if (settings) out.push(settings);
+    return out;
+  }
+
   const shellItems = KEEP_SHELL.map(id => entitled.get(id)).filter((item): item is NavItem => Boolean(item));
 
   const out: NavPanel[] = [];

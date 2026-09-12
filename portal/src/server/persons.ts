@@ -134,7 +134,12 @@ export function findPersonByIdentity(agencyId: string, identity: PersonIdentity)
   if (emails.length) {
     const match = candidates.find(person =>
       (person.emails ?? []).some(entry => emails.includes(entry.value)));
-    if (match) return match;
+    // An address is unique identity evidence, but an explicit, clearly
+    // different name is evidence that the incoming facet is not safe to merge.
+    // Return no target so upsertPerson's ownership settlement rejects the
+    // already-owned email with IdentityInUseError instead of renaming/merging.
+    // A nameless lookup still returns the stable oldest legacy owner.
+    if (match) return namesConflict(match.name, identity.name) ? null : match;
   }
   if (phones.length) {
     const identifyingMatches = candidates.filter(person =>
@@ -215,6 +220,13 @@ export function findPersonByFacet(
 // ─── Writes ───────────────────────────────────────────────────────────────
 
 export interface UpsertPersonInput {
+  /**
+   * A previously verified agency-scoped pointer. When supplied, identity
+   * evidence enriches that exact Person instead of reselecting one by a newly
+   * entered value. Ownership settlement still rejects another person's email
+   * and marks genuinely shared phone numbers on both people.
+   */
+  currentPersonId?: string;
   emails?: (string | undefined)[];
   phones?: (string | undefined)[];
   name?: string;
@@ -248,13 +260,27 @@ export function upsertPerson(agencyId: string, input: UpsertPersonInput): Upsert
   // creates a fresh person. `synchroniseWebsiteEnquiryIdentities` runs on
   // each inbox render, which turned that into unbounded duplication — 42
   // copies of a handful of people.
-  const existing = findPersonByIdentity(agencyId, { emails: input.emails, phones: input.phones, name: input.name })
-    ?? (input.facets ? findPersonByFacet(agencyId, {
+  const currentPerson = input.currentPersonId ? getPerson(agencyId, input.currentPersonId) : null;
+  const identityPerson = findPersonByIdentity(agencyId, {
+    emails: input.emails,
+    phones: input.phones,
+    name: input.name,
+  });
+  const facetPerson = input.facets ? findPersonByFacet(agencyId, {
       leadId: input.facets.leadId,
       contactId: input.facets.contactId,
       clientId: input.facets.clientIds?.[0],
       enquiryId: input.facets.enquiryIds?.[0],
-    }) : null);
+    }) : null;
+  const suppliedEmails = normaliseAll(input.emails, normaliseIdentityEmail);
+  const facetHasConflictingEmail = Boolean(
+    !currentPerson
+    && !identityPerson
+    && facetPerson
+    && namesConflict(facetPerson.name, input.name)
+    && facetPerson.emails.some(entry => suppliedEmails.includes(entry.value)),
+  );
+  const existing = currentPerson ?? identityPerson ?? (facetHasConflictingEmail ? null : facetPerson);
   const identitySettlement = settleIncomingIdentityOwnership(
     agencyId,
     existing?.id,
@@ -733,9 +759,11 @@ export function updatePerson(agencyId: string, personId: string, patch: UpdatePe
 export function attachPersonFacet(agencyId: string, personId: string, facets: PersonFacets): Person | null {
   const existing = getPerson(agencyId, personId);
   if (!existing) return null;
+  const mergedFacets = mergeFacets(existing.facets, facets);
+  if (JSON.stringify(mergedFacets) === JSON.stringify(existing.facets)) return existing;
   const next: Person = {
     ...existing,
-    facets: mergeFacets(existing.facets, facets),
+    facets: mergedFacets,
     updatedAt: Date.now(),
   };
   mutate(state => { state.persons[personId] = next; });

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { BotChallenge, type BotChallengeHandle } from "@/components/security/BotChallenge";
 
 interface Props {
   embedded?: boolean;
@@ -20,6 +21,10 @@ interface Props {
   // R9: surfaces the magic-link button. Only meaningful when clientId
   // is set (magic-link is end-customer-scoped).
   magicLinkEnabled?: boolean;
+  // AUTH-001: public Turnstile site key. Null → the widget renders nothing and
+  // the server decides enforcement (fail-closed in production when unset).
+  captchaSiteKey?: string | null;
+  captchaRequired?: boolean;
 }
 
 type Mode = "signin" | "signup" | "magic";
@@ -27,6 +32,7 @@ type Mode = "signin" | "signup" | "magic";
 export function LoginForm({
   embedded = false, clientId, allowSignup = false,
   googleEnabled = false, magicLinkEnabled = false,
+  captchaSiteKey = null, captchaRequired = false,
 }: Props) {
   const router = useRouter();
   const params = useSearchParams();
@@ -72,6 +78,10 @@ export function LoginForm({
   // the one chance they will ever get to save them.
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
   const [pendingRedirect, setPendingRedirect] = useState<string | null>(null);
+  // AUTH-001: the managed-challenge token. Single-use, so it is reset after
+  // every submit and re-issued for the next attempt (including the MFA re-post).
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const captchaRef = useRef<BotChallengeHandle>(null);
 
   function navigate(url: string) {
     if (embedded && typeof window !== "undefined" && window.parent !== window) {
@@ -121,13 +131,21 @@ export function LoginForm({
         res = await fetch("/api/auth/login", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ email, password, clientId, brand: brandParam, ...(code.trim() ? { code: code.trim() } : {}) }),
+          body: JSON.stringify({
+            email, password, clientId, brand: brandParam,
+            ...(code.trim() ? { code: code.trim() } : {}),
+            ...(captchaToken ? { captchaToken } : {}),
+          }),
         });
       }
       const data = (await res.json()) as {
         ok: boolean; error?: string; returnUrl?: string; redirect?: string;
         mfaRequired?: boolean; recoveryCodes?: string[];
       };
+      // Any password-login request may have consumed the single-use token,
+      // including a response whose body says the credentials or MFA code were
+      // wrong. Reset before branching so every retry starts with fresh proof.
+      if (mode === "signin") captchaRef.current?.reset();
       if (!res.ok || !data.ok) {
         if (data.mfaRequired) {
           // Ask for the code and keep the password in state so the retry is one
@@ -154,6 +172,7 @@ export function LoginForm({
       }
       navigate(destination);
     } catch {
+      if (mode === "signin") captchaRef.current?.reset();
       setError("Network error. Try again.");
       setBusy(false);
     }
@@ -283,6 +302,19 @@ export function LoginForm({
           Forgot password?
         </a>
       )}
+      {/* AUTH-001: managed bot-challenge, shown for the password sign-in only
+          (not the magic-link / signup side doors, which are governed elsewhere).
+          Renders nothing when no site key is configured. */}
+      {mode === "signin" && (
+        <BotChallenge
+          ref={captchaRef}
+          siteKey={captchaSiteKey}
+          action="login"
+          onToken={setCaptchaToken}
+          className="mm-auth-captcha"
+          required={captchaRequired}
+        />
+      )}
       {error && <p role="alert" className="mm-form-error">{error}</p>}
       {magicSent && (
         <p role="status" className="mm-form-success">
@@ -294,7 +326,11 @@ export function LoginForm({
       )}
       <button
         type="submit"
-        disabled={busy}
+        disabled={
+          busy
+          || (mode === "signin" && Boolean(captchaSiteKey) && !captchaToken)
+          || (mode === "signin" && captchaRequired && !captchaSiteKey)
+        }
         className="mm-btn-primary"
       >
         {isMagic ? (busy ? "Sending…" : "Email me a magic link") : submitLabel}

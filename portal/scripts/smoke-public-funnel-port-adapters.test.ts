@@ -51,28 +51,28 @@ describe("Public-funnel port adapters — `public: true` route flag (R032)", () 
 });
 
 describe("Public-funnel port adapters — leadFunnelPorts.ts (R032)", () => {
-  it("file exists + exports leadUserPort / sessionPort / funnelMePort", () => {
+  it("file exists + exports create-only leadUserPort / funnelMePort", () => {
     assert.equal(existsSync(LEAD_PORTS), true);
     const src = readFileSync(LEAD_PORTS, "utf8");
     assert.ok(src.includes("export const leadUserPort"));
-    assert.ok(src.includes("export const sessionPort"));
+    assert.doesNotMatch(src, /export const sessionPort/);
     assert.ok(src.includes("export const funnelMePort"));
   });
 
-  it("LeadUserPort.upsertLeadByEmail is idempotent on email", () => {
+  it("LeadUserPort.withNewLeadByEmail refuses every existing identity atomically", () => {
     const src = readFileSync(LEAD_PORTS, "utf8");
-    assert.ok(src.includes("upsertLeadByEmail"));
-    assert.ok(src.match(/getUser\s*\(\s*norm\s*\)/), "checks existing before create");
-    assert.ok(src.match(/created:\s*false/), "returns created:false on re-capture");
+    assert.ok(src.includes("withNewLeadByEmail"));
+    assert.match(src, /Object\.values\(getState\(\)\.users\)/, "checks every scoped user key");
+    assert.ok(src.match(/created:\s*false/), "refuses reuse rather than returning a user");
     assert.ok(src.match(/created:\s*true/), "returns created:true on first capture");
+    assert.ok(src.includes("withPortalStateTransaction"), "identity check + create are atomic");
     assert.ok(src.includes("LEAD_AGENCY_ID"));
     assert.ok(src.includes('role: "lead"'));
   });
 
-  it("SessionPort wraps foundation issueSession", () => {
+  it("anonymous funnel adapter exposes no session-minting port", () => {
     const src = readFileSync(LEAD_PORTS, "utf8");
-    assert.ok(src.includes("foundationIssueSession"));
-    assert.ok(src.includes("sessionRev: u.sessionRev"));
+    assert.doesNotMatch(src, /foundationIssueSession|issueSession\s*\(/);
   });
 
   it("FunnelMePort returns null for non-lead users", () => {

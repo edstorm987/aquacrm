@@ -6,7 +6,7 @@ import "server-only";
 //
 // Mirrors `leadsPipelineFoundation.ts` shape:
 //   • shared ports (activity + events) from `_foundationPorts.ts`
-//   • plugin-specific ports (leadUserPort + sessionPort) from
+//   • plugin-specific lead registration from
 //     `./leadFunnelPorts.ts` (T1 R032 chapter #150)
 //   • idempotent `registered` flag — boot side-effect import calls
 //     `ensurePublicFunnelFoundationRegistered()` once
@@ -21,7 +21,7 @@ import {
   eventBusPort,
   tenantPort,
 } from "./_foundationPorts";
-import { leadUserPort, sessionPort } from "./leadFunnelPorts";
+import { leadUserPort } from "./leadFunnelPorts";
 
 let registered = false;
 
@@ -38,7 +38,6 @@ export function ensurePublicFunnelFoundationRegistered(): void {
     activity: activityPort,
     events: eventBusPort,
     leadUsers: leadUserPort,
-    sessions: sessionPort,
     tenant: tenantPort,
   } as unknown as Parameters<typeof registerFunnelFoundation>[0]);
   registered = true;

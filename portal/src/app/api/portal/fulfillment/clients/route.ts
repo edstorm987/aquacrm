@@ -42,6 +42,25 @@ interface Body {
   };
 }
 
+const RESERVED_ACQUISITION_METADATA_KEYS = new Set([
+  "personId",
+  "leadId",
+  "contactId",
+  "promotedFromLeadId",
+  "prospectId",
+  "prospectIds",
+  "acquisitionProspectId",
+]);
+
+function suppliedReservedAcquisitionMetadata(metadata: Record<string, unknown>): string[] {
+  const customFields = metadata.customFields && typeof metadata.customFields === "object"
+    && !Array.isArray(metadata.customFields)
+    ? metadata.customFields as Record<string, unknown>
+    : {};
+  return [...new Set([...Object.keys(metadata), ...Object.keys(customFields)])]
+    .filter(key => RESERVED_ACQUISITION_METADATA_KEYS.has(key));
+}
+
 export async function GET() {
   try {
     await ensureHydrated();
@@ -87,6 +106,14 @@ export async function POST(req: NextRequest) {
 
   try {
     const suppliedMetadata = body.metadata ?? {};
+    const reservedMetadata = suppliedReservedAcquisitionMetadata(suppliedMetadata);
+    if (reservedMetadata.length > 0) {
+      return NextResponse.json({
+        ok: false,
+        error: "reserved client lineage metadata",
+        fields: reservedMetadata,
+      }, { status: 400 });
+    }
     const createPortal = body.createPortal === true;
     const requestedStage = typeof body.stage === "string" ? body.stage.trim() : "";
     const fulfillmentInstall = getInstall({ agencyId }, "fulfillment");

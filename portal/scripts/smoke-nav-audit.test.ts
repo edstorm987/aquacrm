@@ -136,6 +136,9 @@ describe("standalone portal nav audit", () => {
       ["marketing", "/portal/agency/marketing"],
       ["inbox", "/portal/agency/inbox"],
       ["scouting", "/portal/agency/scouting"],
+      ["researching", "/portal/agency/researching"],
+      ["prospecting", "/portal/agency/prospecting"],
+      ["contacts", "/portal/clients?view=contacts"],
       ["finance", "/portal/agency/agency-finance"],
       ["sop-library", "/portal/agency/sop-library"],
       ["tools", "/portal/agency/tools"],
@@ -146,7 +149,7 @@ describe("standalone portal nav audit", () => {
       assert.ok(block.includes(`href: "${href}"`), `${href} main nav href missing`);
     }
     assert.ok(!block.includes('label: "Clients & contacts"'), "clients and contacts should live inside Journey");
-    assert.ok(!block.includes('id: "contacts"'), "contacts should live inside the clients hub");
+    assert.ok(block.includes('id: "contacts"'), "Sales focus needs a direct row to the existing Contacts view");
     assert.ok(src.includes('label: "Command Centre"'), "the dashboard should be named Command Centre");
     assert.ok(src.includes('id: "people",      label: "Staff"'), "the primary People workspace should be labelled Staff");
     assert.ok(!block.includes('id: "command-center"'), "Day Command should live in the Command Centre station strip");
@@ -173,8 +176,8 @@ describe("standalone portal nav audit", () => {
     assert.equal(opsPanel!.hidden, true, "the Operations functions panel is search-only (hidden), not a rendered nav group");
     assert.deepEqual(
       mainPanel!.items.map(item => item.id),
-      ["home", "inbox", "scouting", "operations-home", "my-radar", "tools"],
-      "Command Centre, Inbox & actions, Scouting, Operations, My Radar and Tools are the flat rendered main rows",
+      ["home", "inbox", "pipelines", "operations-home", "my-radar", "tools"],
+      "Command Centre, Inbox & actions, Journey, Operations, My Radar and Tools are the flat rendered main rows",
     );
     assert.equal(
       mainPanel!.items.find(item => item.id === "operations-home")?.href,
@@ -183,9 +186,12 @@ describe("standalone portal nav audit", () => {
     );
     assert.deepEqual(
       opsPanel!.items.map(item => item.id),
-      ["pipelines", "fulfilment", "aqua-tags", "marketing", "finance", "people", "freelancers", "sop-library", "governance", "you-deserve-it"],
+      ["fulfilment", "aqua-tags", "marketing", "finance", "people", "freelancers", "sop-library", "governance", "you-deserve-it"],
       "the hidden Operations panel carries the business functions in delegation order (search-only)",
     );
+    const salesPanel = panels.find(panel => panel.id === "sales");
+    assert.equal(salesPanel?.hidden, true, "the focused Sales rows stay hidden until the Sales focus is active");
+    assert.deepEqual(salesPanel?.items.map(item => item.id), ["scouting", "researching", "prospecting", "meetings", "contacts"]);
   });
 
   it("allows only the canonical agency ids through the AquaOasis-Web override", () => {
@@ -193,12 +199,16 @@ describe("standalone portal nav audit", () => {
     // The override's allow-list now spans two grouped surfaces plus Tools.
     const command = src.match(/const commandCentreIds = \[([\s\S]*?)\];/)?.[1] ?? "";
     const operations = src.match(/const operationsIds = \[([\s\S]*?)\];/)?.[1] ?? "";
+    const salesFocus = src.match(/const salesFocusIds = \[([\s\S]*?)\];/)?.[1] ?? "";
     const canonical = `${command}${operations}`;
-    for (const id of ["home", "inbox", "scouting", "operations-home", "my-radar", "tools"]) {
+    for (const id of ["home", "inbox", "pipelines", "operations-home", "my-radar", "tools"]) {
       assert.ok(command.includes(`"${id}"`), `${id} missing from the Command Centre allow-list`);
     }
-    for (const id of ["fulfilment", "you-deserve-it", "pipelines", "marketing", "finance", "people", "freelancers", "sop-library", "governance", "aqua-tags"]) {
+    for (const id of ["fulfilment", "you-deserve-it", "marketing", "finance", "people", "freelancers", "sop-library", "governance", "aqua-tags"]) {
       assert.ok(operations.includes(`"${id}"`), `${id} missing from the Operations allow-list`);
+    }
+    for (const id of ["scouting", "researching", "prospecting", "meetings", "contacts"]) {
+      assert.ok(salesFocus.includes(`"${id}"`), `${id} missing from the hidden Sales-focus allow-list`);
     }
     assert.ok(!canonical.includes('"actions"'), "Actions merged into the inbox row; not a standalone canonical id");
     assert.ok(!canonical.includes('"command-center"'), "Day Command should not be a standalone sidebar item");

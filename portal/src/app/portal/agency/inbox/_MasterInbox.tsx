@@ -694,10 +694,8 @@ function WebsiteEnquirySection({
               >
                 {WEBSITE_ENQUIRY_CLASSIFICATIONS.map(value => <option key={value} value={value}>{WEBSITE_ENQUIRY_CLASSIFICATION_LABELS[value]}</option>)}
               </select>
-              <button type="button" onClick={() => onToggle(item.id)} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-medium text-black/65">{openId === item.id ? <X size={13} /> : item.email ? <Send size={13} /> : null}{openId === item.id ? "Close" : item.email ? "Reply" : "Inspect"}</button>
+              <button type="button" onClick={() => onToggle(item.id)} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-medium text-black/65">{openId === item.id ? <X size={13} /> : item.email || item.phone ? <Send size={13} /> : null}{openId === item.id ? "Close" : item.email || item.phone ? "Contact" : "Inspect"}</button>
               {item.classification === "sales" && !item.leadId && (item.email || item.phone) ? <button type="button" onClick={() => void onLinkLead(item)} disabled={!canMutate || leadBusyId === item.id} className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-black px-3 text-xs font-semibold text-white disabled:opacity-50"><UserPlus size={14} />{leadBusyId === item.id ? "Linking..." : "Create lead"}</button> : null}
-              {item.email ? <a href={`mailto:${item.email}`} aria-label={`Email ${item.name}`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/45"><Mail size={15} /></a> : null}
-              {item.phone ? <a href={`tel:${item.phone}`} aria-label={`Call ${item.name}`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/45"><Phone size={15} /></a> : null}
               {canErase ? <EnquiryDeleteButton item={item} busy={statusBusyId === item.id} onErase={onErase} /> : null}
             </div>
           </div>

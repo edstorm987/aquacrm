@@ -160,8 +160,9 @@ describe("settings fields that nothing reads", () => {
     // 35 after the final 2026-09-02 pass removed HR's leave auto-restore and PTO
     // budget, Affiliates' payout cadence and auto-approve window, and Client
     // CRM's freeform custom-attribute schema — all self-described as stored but
-    // not enforced.
-    assert.ok(total >= 35, `expected the modules' declared settings fields, counted ${total}`);
+    // not enforced. 34 after the unsafe public-funnel session toggle was
+    // removed with the anonymous session-minting path itself.
+    assert.ok(total >= 34, `expected the modules' declared settings fields, counted ${total}`);
     for (const [key, readers] of Object.entries(HOST_READERS)) {
       assert.ok(readers.length > 0 && hostReads(key), `${key} has stale host-reader evidence`);
     }
@@ -208,11 +209,11 @@ describe("settings fields that nothing reads", () => {
     );
   });
 
-  it("the two that read like safety controls are still named", () => {
+  it("the remaining safety-shaped control is still named", () => {
     // Not just "the list is right" — these two are why the label matters, and a
     // future edit that quietly drops them should have to argue with this.
-    assert.ok(isSettingUnwired("public-funnel", "issueSessionCookie"),
-      "a default-true toggle that reads as 'do not issue a session' must be labelled while it does nothing");
+    assert.equal(isSettingUnwired("public-funnel", "issueSessionCookie"), false,
+      "the retired anonymous-session toggle must not survive as a fake setting");
     assert.ok(isSettingUnwired("agency-hr", "canStaffEdit"),
       "an edit-permission toggle must be labelled while nothing reads it — the access kernel is what "
       + "actually enforces editing, so this control changes nothing and must not imply otherwise");

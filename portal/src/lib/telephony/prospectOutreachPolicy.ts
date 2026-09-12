@@ -9,6 +9,7 @@ export interface ProspectContactTarget {
 export interface ProspectContactRecord {
   id: string;
   status: "scouting" | "qualified" | "dismissed";
+  qualifiedLeadId?: string;
   name?: string;
   company?: string;
   phone?: string;
@@ -28,7 +29,13 @@ function matchesRecipient(prospect: ProspectContactRecord, target: ProspectConta
 /**
  * Resolve the dossier from the recipient the provider will actually contact.
  * The optional browser id may narrow the choice, but can never change who the
- * phone/email belongs to or bypass the dossier's safety state.
+ * phone/email belongs to or bypass the dossier's suppression state. Research
+ * and inspection remain useful evidence, but they are not authorisation: an
+ * operator may contact a newly scouted or previously researched prospect.
+ * An explicit id may also identify a qualified dossier; the server bridge then
+ * proves that its linked Journey Lead is still active before provider use.
+ * Recipient-only resolution deliberately remains scouting-only so historic
+ * qualified dossiers cannot shadow an ordinary Contact call or email.
  */
 export function resolveContactableScoutingProspect(
   prospects: readonly ProspectContactRecord[],
@@ -37,11 +44,14 @@ export function resolveContactableScoutingProspect(
   let prospect: ProspectContactRecord | undefined;
   if (target.prospectId) {
     prospect = prospects.find(candidate => candidate.id === target.prospectId);
-    if (!prospect) throw new Error("The scouting prospect no longer exists.");
+    if (!prospect) throw new Error("The selected prospect no longer exists.");
     if (!matchesRecipient(prospect, target)) {
-      throw new Error("The recipient does not match this scouting prospect.");
+      throw new Error("The recipient does not match this prospect.");
     }
   } else {
+    // Never auto-select a qualified dossier by recipient. Its Lead lifecycle is
+    // only checked for an explicit Prospect action, and old converted dossiers
+    // must not block generic/contact telephony for the same address or number.
     const matches = prospects
       .filter(candidate => candidate.status === "scouting" && matchesRecipient(candidate, target));
     if (!matches.length) return undefined;
@@ -51,11 +61,9 @@ export function resolveContactableScoutingProspect(
     [prospect] = matches;
   }
 
-  if (prospect.status !== "scouting") throw new Error("Only active scouting prospects can be contacted.");
-  if (prospect.doNotContact) throw new Error(`${prospect.name || prospect.company || "This prospect"} has opted out of contact.`);
-  const required = ["business-verified", "contact-route-verified", "opportunity-confirmed"];
-  if (!prospect.inspectedAt || !required.every(check => prospect.inspectionChecks.includes(check))) {
-    throw new Error("Complete the required scouting inspection before reaching out.");
+  if (prospect.status !== "scouting" && prospect.status !== "qualified") {
+    throw new Error("Only active scouting or qualified prospects can be contacted.");
   }
+  if (prospect.doNotContact) throw new Error(`${prospect.name || prospect.company || "This prospect"} has opted out of contact.`);
   return prospect;
 }

@@ -54,6 +54,35 @@ export interface ProvisionIdentityInput {
   operationId?: string;
 }
 
+export interface ClientPortalIdentityBinding {
+  aquaUserId: string;
+  agencyId: string;
+  clientId: string;
+}
+
+function normaliseClientPortalBinding(binding: ClientPortalIdentityBinding) {
+  const normalised = {
+    aquaUserId: binding.aquaUserId.trim(),
+    agencyId: binding.agencyId.trim(),
+    clientId: binding.clientId.trim(),
+  };
+  if (!normalised.aquaUserId || !normalised.agencyId || !normalised.clientId) {
+    throw new Error("A complete client portal identity binding is required.");
+  }
+  return normalised;
+}
+
+function clientPortalAppMetadata(binding: ClientPortalIdentityBinding) {
+  const exact = normaliseClientPortalBinding(binding);
+  return {
+    aqua_subject_kind: "client-portal",
+    aqua_local_user_id: exact.aquaUserId,
+    aqua_agency_id: exact.agencyId,
+    aqua_client_id: exact.clientId,
+    aqua_profile_role: "client",
+  };
+}
+
 async function upsertSupabaseProfile(
   admin: ReturnType<typeof createSupabaseAdminClient>,
   userId: string,
@@ -112,6 +141,91 @@ export async function provisionSupabaseIdentity(input: ProvisionIdentityInput) {
   }
 
   return data.user;
+}
+
+/**
+ * Create a new Supabase subject for one exact, verified client-portal member.
+ *
+ * Deliberately does not search by email or adopt an existing result. A global
+ * email match may be an agency owner (or another tenant's user), so the only
+ * safe outcomes are a newly-created subject returned by this call or a hard
+ * refusal from Supabase's unique-email constraint.
+ */
+export async function provisionBoundClientPortalIdentity(input: {
+  email: string;
+  password: string;
+  name?: string;
+  binding: ClientPortalIdentityBinding;
+}) {
+  const admin = createSupabaseAdminClient();
+  const email = input.email.trim().toLowerCase();
+  const binding = normaliseClientPortalBinding(input.binding);
+  const { data, error } = await admin.auth.admin.createUser({
+    email,
+    password: input.password,
+    email_confirm: true,
+    user_metadata: { full_name: input.name?.trim() || email.split("@")[0] },
+    app_metadata: clientPortalAppMetadata(binding),
+  });
+  if (error || !data.user) {
+    throw new Error(error?.message ?? "Could not create the client portal sign-in.");
+  }
+
+  try {
+    await upsertSupabaseProfile(admin, data.user.id, {
+      email,
+      password: input.password,
+      name: input.name,
+      role: "client",
+      agencyId: binding.agencyId,
+    }, email);
+  } catch (cause) {
+    await admin.auth.admin.deleteUser(data.user.id);
+    throw cause;
+  }
+  return data.user;
+}
+
+/** Update only the exact, previously bound Supabase subject. */
+export async function updateBoundClientPortalPassword(input: {
+  authUserId: string;
+  email: string;
+  password: string;
+  binding: ClientPortalIdentityBinding;
+}) {
+  const admin = createSupabaseAdminClient();
+  const authUserId = input.authUserId.trim();
+  const email = input.email.trim().toLowerCase();
+  const expectedMetadata = clientPortalAppMetadata(input.binding);
+  if (!authUserId) throw new Error("The client portal sign-in is not bound.");
+
+  const { data: found, error: findError } = await admin.auth.admin.getUserById(authUserId);
+  const remote = found.user;
+  if (findError || !remote || remote.id !== authUserId) {
+    throw new Error(findError?.message ?? "The bound client portal sign-in could not be found.");
+  }
+  const metadata = remote.app_metadata ?? {};
+  const exactBinding = Object.entries(expectedMetadata).every(
+    ([key, value]) => metadata[key] === value,
+  );
+  if (remote.email?.trim().toLowerCase() !== email || !exactBinding) {
+    throw new Error("The Supabase sign-in does not match this client portal membership.");
+  }
+
+  const { data, error } = await admin.auth.admin.updateUserById(authUserId, { password: input.password });
+  if (error || !data.user || data.user.id !== authUserId) {
+    throw new Error(error?.message ?? "Could not update the bound client portal password.");
+  }
+  return data.user;
+}
+
+/** Roll back a just-created subject if its local write-once binding fails. */
+export async function deleteSupabaseIdentityById(authUserId: string): Promise<void> {
+  const id = authUserId.trim();
+  if (!id) return;
+  const admin = createSupabaseAdminClient();
+  const { error } = await admin.auth.admin.deleteUser(id);
+  if (error) throw new Error(`Could not roll back the Supabase sign-in: ${error.message}`);
 }
 
 /**

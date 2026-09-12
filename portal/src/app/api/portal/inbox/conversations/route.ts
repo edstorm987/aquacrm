@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { containerFor } from "@aqua/plugin-leads-pipeline/server";
 
 import { AuthError, authErrorResponse } from "@/lib/server/auth/auth";
+import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
 import { routeTenantScope } from "@/lib/server/portal/apiTenantScope";
 import { getInboxConversation, listInboxSnapshot, updateInboxConversation, updateInboxIdentityLinks } from "@/lib/server/inbox/inboxStore";
 import { upsertClientSocialMessageLedgerEvent } from "@/lib/server/clients/clientRecordLedger";
@@ -13,6 +15,38 @@ import {
   resolveActorClientWorkspaceElementAccess,
 } from "@/lib/server/access/clientWorkspaceElementAccess";
 import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
+import { makePluginStorage } from "@/lib/server/pluginStorage";
+import { getInstall } from "@/server/pluginInstalls";
+import { findPersonByFacet } from "@/server/persons";
+
+async function validateAcquisitionLinks(
+  agencyId: string,
+  links: { leadId?: string; contactId?: string },
+): Promise<void> {
+  if (!links.leadId && !links.contactId) return;
+  ensureLeadsPipelineFoundationRegistered();
+  const install = getInstall({ agencyId }, "leads-pipeline");
+  if (!install?.enabled) throw new Error("sales_pipeline_unavailable");
+  const sales = containerFor({
+    agencyId,
+    storage: makePluginStorage(install.id) as never,
+  });
+  const [lead, contact] = await Promise.all([
+    links.leadId ? sales.leads.get(links.leadId) : Promise.resolve(null),
+    links.contactId ? sales.contacts.get(links.contactId) : Promise.resolve(null),
+  ]);
+  if (links.leadId && !lead) throw new Error("inbox_lead_not_found");
+  if (links.contactId && !contact) throw new Error("inbox_contact_not_found");
+
+  // When both records already have canonical People, they must name the same
+  // person. Existence in one agency is necessary but not sufficient to make
+  // two unrelated CRM records one social identity.
+  const leadPerson = links.leadId ? findPersonByFacet(agencyId, { leadId: links.leadId }) : null;
+  const contactPerson = links.contactId ? findPersonByFacet(agencyId, { contactId: links.contactId }) : null;
+  if (leadPerson && contactPerson && leadPerson.id !== contactPerson.id) {
+    throw new Error("inbox_acquisition_identity_conflict");
+  }
+}
 
 export async function GET() {
   await ensureHydrated();
@@ -58,21 +92,36 @@ export async function PATCH(request: NextRequest) {
       clientId?: string;
     };
     if (body.identityId) {
+      const before = await listInboxSnapshot(agencyId);
+      const currentIdentity = before.conversations.find(
+        conversation => conversation.identity.id === body.identityId,
+      )?.identity;
+      if (!currentIdentity) {
+        return NextResponse.json({ ok: false, error: "inbox_identity_not_found" }, { status: 404 });
+      }
+      const targetLeadId = body.leadId === undefined ? currentIdentity.leadId : clean(body.leadId);
+      const targetContactId = body.contactId === undefined ? currentIdentity.contactId : clean(body.contactId);
+      const targetClientId = body.clientId === undefined ? currentIdentity.clientId : clean(body.clientId);
+
       // Linking an inbox identity to a client writes into that client's own
       // record ledger further down, so the body's client id is proven to be
       // this agency's before the link is made.
-      const tenant = routeTenantScope(session, { clientId: body.clientId });
-      if (clean(body.clientId) && !tenant.client) {
+      const tenant = routeTenantScope(session, { clientId: targetClientId });
+      if (targetClientId && !tenant.client) {
         return NextResponse.json({ ok: false, error: "client_not_found" }, { status: 404 });
       }
-      const before = await listInboxSnapshot(agencyId);
-      const currentIdentity = before.conversations.find(conversation => conversation.identity.id === body.identityId)?.identity;
       const clientIds = [...new Set([currentIdentity?.clientId, tenant.clientId].filter((id): id is string => Boolean(id)))];
       for (const clientId of clientIds) {
         await requireCurrentClientWorkspaceElementAccess(clientId, "client.communications", "use");
       }
+      await validateAcquisitionLinks(agencyId, {
+        leadId: targetLeadId,
+        contactId: targetContactId,
+      });
       const identity = await updateInboxIdentityLinks(agencyId, body.identityId, {
-        leadId: clean(body.leadId), contactId: clean(body.contactId), clientId: tenant.clientId ?? "",
+        leadId: targetLeadId,
+        contactId: targetContactId,
+        clientId: tenant.clientId ?? "",
       });
       const identityInput = {
         agencyId,

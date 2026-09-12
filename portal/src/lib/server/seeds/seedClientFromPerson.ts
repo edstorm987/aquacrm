@@ -12,6 +12,7 @@ import "server-only";
 
 import { upsertClientRecordLedgerEvent } from "@/lib/server/clients/clientRecordLedger";
 import { attachPersonFacet, getPerson } from "@/server/persons";
+import { updateClient } from "@/server/tenants";
 import type { ClientRecordLedgerEventInput } from "@/lib/server/clients/clientRecordLedger";
 
 export interface SeedClientFromPersonResult {
@@ -67,6 +68,7 @@ export async function seedClientFromPerson(
 
   // Record the client on the person so both directions resolve afterwards.
   attachPersonFacet(agencyId, personId, { clientIds: [clientId] });
+  updateClient(agencyId, clientId, { personId });
 
   if (person.notes) {
     try {

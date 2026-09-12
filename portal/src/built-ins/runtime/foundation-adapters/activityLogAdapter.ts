@@ -1,5 +1,5 @@
 import "server-only";
-import { logActivity, listActivity } from "@/server/activity";
+import { eraseLeadsActivitySubjectReferences, logActivity, listActivity } from "@/server/activity";
 import type { ActivityLogPort, ListActivityFilter, LogActivityInput } from "@/built-ins/runtime/_types";
 
 export const activityLogAdapter: ActivityLogPort = {
@@ -18,5 +18,8 @@ export const activityLogAdapter: ActivityLogPort = {
   },
   listActivity(filter: ListActivityFilter) {
     return listActivity(filter);
+  },
+  eraseSubjectReferences(input) {
+    return eraseLeadsActivitySubjectReferences(input);
   },
 };

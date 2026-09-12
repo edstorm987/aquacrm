@@ -19,6 +19,7 @@ let rows: Row[] = [];
 let failNextInsert = false;
 let failNextUpdate = false;
 let sequence = 0;
+let sourceRouting: { kind: "inbox" } | { kind: "client"; clientId: string } = { kind: "inbox" };
 const effects = { lead: 0, identity: 0, activity: 0, notification: 0, automation: 0 };
 
 function queryValue(row: Row, column: string): unknown {
@@ -125,7 +126,7 @@ before(() => {
   });
   stub("../src/server/websiteSources", {
     resolveAgencyByMasterSiteKey: () => AGENCY_ID,
-    resolveWebsiteSourceRouting: () => ({ kind: "inbox" }),
+    resolveWebsiteSourceRouting: () => sourceRouting,
   });
   stub("../src/lib/server/clients/clientRecordLedger", { upsertClientRecordLedgerEvent: () => ({}) });
   stub("../src/built-ins/modules/leads-pipeline/src/server/index", {
@@ -184,6 +185,7 @@ beforeEach(() => {
   failNextInsert = false;
   failNextUpdate = false;
   sequence = 0;
+  sourceRouting = { kind: "inbox" };
   Object.assign(effects, { lead: 0, identity: 0, activity: 0, notification: 0, automation: 0 });
 });
 
@@ -251,6 +253,17 @@ describe("the real public handlers reconcile one Aqua submission (process-local 
     assert.equal(replay.status, 200);
     assert.equal((await replay.json() as { deduped?: boolean }).deduped, true);
     assert.deepEqual(effects, { lead: 1, identity: 1, activity: 1, notification: 1, automation: 1 });
+  });
+
+  it("records only configured site routing as client-link authority", async () => {
+    sourceRouting = { kind: "client", clientId: "client_configured_destination" };
+    const accepted = await brandEnquiryPost(brandRequest());
+    assert.equal(accepted.status, 200);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0]?.metadata.clientId, "client_configured_destination");
+    assert.equal(rows[0]?.metadata.clientLinkSource, "configured-site-route");
+    const identity = rows[0]?.metadata.identityResolution as Record<string, unknown>;
+    assert.equal(identity.clientId, null, "public identity guessing must not be the client-link source");
   });
 
   it("attaches a later tag capture without replacing the completed enquiry", async () => {

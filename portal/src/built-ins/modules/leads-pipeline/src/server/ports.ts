@@ -53,9 +53,29 @@ export interface ListActivityFilter {
   limit?: number;
 }
 
+export interface EraseActivityReferencesInput {
+  agencyId: AgencyId;
+  prospectIds: string[];
+  leadIds: string[];
+  contactIds: string[];
+  emails: string[];
+  phones: string[];
+  sharedEmails?: string[];
+  sharedPhones?: string[];
+}
+
+export interface EraseActivityReferencesResult {
+  erased: number;
+  reviewRequired: { legacyUnscoped: number; sharedIdentity: number };
+}
+
 export interface ActivityLogPort {
   logActivity(input: LogActivityInput): Promise<ActivityEntry> | ActivityEntry;
   listActivity(filter: ListActivityFilter): Promise<ActivityEntry[]> | ActivityEntry[];
+  /** Remove this plugin's PII-bearing audit/reference rows during erasure. */
+  eraseSubjectReferences(
+    input: EraseActivityReferencesInput,
+  ): Promise<EraseActivityReferencesResult | number> | EraseActivityReferencesResult | number;
 }
 
 // ─── Event bus ─────────────────────────────────────────────────────────────
@@ -63,6 +83,8 @@ export interface ActivityLogPort {
 export type LeadsEventName =
   | "leads.prospect.created"
   | "leads.prospect.updated"
+  | "leads.prospect.dismissed"
+  | "leads.prospect.restored"
   | "leads.prospect.inspection-saved"
   | "leads.prospect.follow-up-scheduled"
   | "leads.prospect.follow-up-resolved"
@@ -187,4 +209,41 @@ export interface PipelinePort {
     leadId: string;
     cardId?: string;
   }): Promise<number> | number;
+}
+
+// ─── Canonical Person identity (foundation bridge) ────────────────────────────────
+
+/**
+ * The leads plugin owns acquisition records, while foundation owns the
+ * canonical Person graph. This deliberately narrow port is the only bridge:
+ * plugin code supplies identity evidence plus server-created facet ids and
+ * foundation returns the one agency-scoped Person it accepted.
+ */
+export interface ResolveAcquisitionPersonInput {
+  agencyId: AgencyId;
+  currentPersonId?: string;
+  email?: string;
+  phone?: string;
+  name?: string;
+  company?: string;
+  source?: string;
+  leadId?: string;
+  contactId?: string;
+}
+
+export interface AttachAcquisitionPersonFacetsInput {
+  agencyId: AgencyId;
+  personId: string;
+  leadId?: string;
+  contactId?: string;
+  clientId?: ClientId;
+}
+
+export interface PersonIdentityPort {
+  /** Read-only identity lookup used before the plugin chooses a Lead merge target. */
+  find(
+    input: Pick<ResolveAcquisitionPersonInput, "agencyId" | "email" | "phone" | "name">,
+  ): Promise<{ personId: string } | null> | { personId: string } | null;
+  resolve(input: ResolveAcquisitionPersonInput): Promise<{ personId: string }> | { personId: string };
+  attachFacets(input: AttachAcquisitionPersonFacetsInput): Promise<boolean> | boolean;
 }

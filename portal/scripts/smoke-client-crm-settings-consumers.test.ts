@@ -101,7 +101,7 @@ describe("Client CRM settings are consumed", () => {
     assert.equal(created?.email, "new@crm-settings.test", "with the toggle on (the default) the Contact is created");
   });
 
-  it("removes the five stored-only promises and leaves exactly the three safety-shaped controls unwired", () => {
+  it("removes stored-only promises and leaves only current unwired controls", () => {
     const hr = readFileSync("src/built-ins/modules/agency-hr/index.ts", "utf8");
     const affiliates = readFileSync("src/built-ins/modules/affiliates/index.ts", "utf8");
     const crm = readFileSync("src/built-ins/modules/client-crm/index.ts", "utf8");
@@ -117,7 +117,7 @@ describe("Client CRM settings are consumed", () => {
     assert.match(crm, /id: "defaultTags"[\s\S]{0,420}?Applied to a Contact created without tags of its own/);
     assert.deepEqual(
       UNWIRED_SETTINGS.map(entry => `${entry.pluginId}/${entry.fieldId}`),
-      ["agency-hr/canStaffEdit", "public-funnel/redirectAfterCapture", "public-funnel/issueSessionCookie"],
+      ["agency-hr/canStaffEdit", "public-funnel/redirectAfterCapture"],
     );
     const adapter = readFileSync("src/built-ins/modules/client-crm/src/server/foundationAdapter.ts", "utf8");
     assert.match(adapter, /settings: readClientCrmSettings\(args\.install\?\.config\)/, "the container must read the install's settings");

@@ -244,7 +244,11 @@ describe("correcting details on a card", () => {
         p.findPersonByIdentity(AGENCY, { emails: ["claimed@example.test"] })?.id,
         owners[0].id,
       );
-      assert.deepEqual(owners[0].facets.enquiryIds, ["enq_race"], "sync enriches the deliberate owner");
+      assert.deepEqual(
+        owners[0].facets.enquiryIds,
+        order[0] === "sync" ? ["enq_race"] : undefined,
+        "a conflicting-name sync enriches identity only when it acquired the email first",
+      );
     }
   });
 });

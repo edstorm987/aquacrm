@@ -997,6 +997,7 @@ export const PORTAL_STATE_COVERAGE: Readonly<Record<string, CollectionClassifica
   commandCalendarSources: { entity: "provider", plane: "config", note: "Calendar source registry." },
   commandCalendarExternalEvents: { plane: "raw", note: "Imported external calendar events." },
   commandCalendarEventCreateOperations: { plane: "operational", note: "Idempotency ledger for event creation." },
+  outboundCommunicationOperations: { plane: "operational", note: "Durable agency-scoped admissions and provider outcomes preventing SMTP email and Twilio call replay." },
 
   // Client portal & content
   clientPortalTemplates: { plane: "config", note: "Portal templates; sidecar row on Supabase (18.5% of live doc)." },

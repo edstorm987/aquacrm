@@ -654,10 +654,10 @@ not live.
 | `/api/auth/logout` | POST | Clear session cookie + Supabase `signOut` | authenticated | **LIVE (auth)** |
 | `/api/auth/me` | GET | Return current user profile | authenticated | |
 | `/api/auth/signup` | POST | Create new agency + founder user + auto-login | public | |
-| `/api/auth/end-customer/signup` | POST | Register an end-customer for a client | public (rate-limited) | |
+| `/api/auth/end-customer/signup` | POST | Fail-closed legacy endpoint; customer membership is invitation-only | public (always 403; rate-limited) | |
 | `/api/auth/verify-email` | GET | Redeem HMAC email-verification token | public (token) | |
-| `/api/auth/magic/request` | POST | Issue 15-min magic-link token, deliver/log | public | |
-| `/api/auth/magic/verify` | GET | Verify magic token, auto-create end-customer, issue session (aal1); refuses MFA-enrolled accounts | public (token) | |
+| `/api/auth/magic/request` | POST | Issue a 15-min sign-in token only for an existing exact client membership; enumeration-safe response | public | |
+| `/api/auth/magic/verify` | GET | Redeem purpose-bound single-use token; sign-in cannot create membership, authenticated-agency invite can | public (signed token) | |
 | `/api/auth/password/request-reset` | POST | Start forgotten-password flow (enumeration-safe) | public | |
 | `/api/auth/password/reset` | POST | Redeem reset token, set new password | public (token) | **LIVE (auth)** |
 | `/api/auth/oauth/google/start` | GET | Redirect to Google authorize URL | public | |

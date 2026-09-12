@@ -47,7 +47,7 @@ test("public website enquiries are captured as unclassified intake before sales 
 test("website enquiries appear in alerts and a first-class inbox feed", () => {
   assert.match(alerts, /lead\.tags\.includes\("website-enquiry"\)/);
   assert.match(alerts, /lead\.source\.startsWith\("website:"\)/);
-  assert.match(alerts, /listWebsiteEnquiries\(\)/);
+  assert.match(alerts, /getRequestWebsiteEnquiries\(agencyId\)/);
   assert.match(alerts, /website-message:\$\{enquiry\.id\}/);
   assert.match(alerts, /enquiryTitle\(enquiry/);
   assert.match(alerts, /enquiry\.channel === "support"/);

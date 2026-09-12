@@ -337,7 +337,9 @@ async function buildCandidates(
           readable(prospect.qualificationState),
           prospect.nextContactAt ? `Recontact ${formatUkDate(prospect.nextContactAt, { dateStyle: "medium" })}` : "",
         ].filter(Boolean).join(" · "),
-        href: "/portal/agency/pipelines/leads#scouting",
+        href: ["unreviewed", "researching"].includes(prospect.qualificationState)
+          ? `/portal/agency/researching?prospect=${encodeURIComponent(prospect.id)}`
+          : `/portal/agency/prospecting?prospect=${encodeURIComponent(prospect.id)}`,
         timestamp: prospect.updatedAt,
       }, [
         prospect.name,

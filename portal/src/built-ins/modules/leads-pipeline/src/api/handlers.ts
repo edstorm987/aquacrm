@@ -13,7 +13,12 @@ import {
   type StagedPrivateUploadBinding,
 } from "@/lib/server/privateObjectLifecycle";
 import { containerFor } from "../server/foundationAdapter";
-import { readLeadsPipelineSettings } from "../server/index";
+import {
+  ensureAcquisitionDossierForLead,
+  leadProspectAcquisition,
+  mutateProspectAndConverge,
+  readLeadsPipelineSettings,
+} from "../server/index";
 import { addCard, getPipelineBySlug, listCardsByAgency, moveCard } from "@/server/pipelines";
 import { createClient, getClientForAgency, listClients, updateClient } from "@/server/tenants";
 import { setupClientStarterPortal } from "@/server/clientPortalSetup";
@@ -70,11 +75,16 @@ import type {
 import { LeadIdentityConflictError } from "../server/leads";
 import { CommercialPaymentConflictError } from "../server/commercial";
 import { installmentAllocation, isLeadRelationshipCategory, normalizeGooglePlaceId } from "../lib/domain";
-import { REQUIRED_PROSPECT_INSPECTION_CHECKS } from "../server/prospects";
+import { cleanMeetingAssetUrlForStorage } from "../lib/meetingAssetUrl";
+import {
+  MeetingAttemptHistoryLimitError,
+  type MeetingMutationInput,
+} from "../server/meetingMutation";
 import { getPortalFormFields, validatePortalEntityFields } from "@/server/portalEditor";
 import { validatePortalFormValues } from "@/lib/forms/portalFormValues";
 import {
   acquireLeadConversion,
+  contactConversionClaimKey,
   leadConversionClaimKey,
   leadConversionCoordinator,
   leadConversionHolderId,
@@ -101,6 +111,7 @@ const EXCEL_MIME_TYPES = new Set([
 const CUSTOM_FIELDS_KEY = "contacts/custom-field-definitions";
 const CUSTOM_TAGS_KEY = "contacts/custom-tags";
 const CUSTOM_FIELD_TYPES = new Set<CustomFieldType>(["text", "number", "date", "url", "select", "multi-select", "checkbox"]);
+const MAX_SPREADSHEET_DATA_ROWS = 500;
 const PROSPECT_OUTREACH_CHANNELS = new Set<ProspectOutreachChannel>(["call", "email", "sms", "whatsapp", "dm", "in-person"]);
 const PROSPECT_OUTREACH_OUTCOMES = new Set<ProspectOutreachOutcome>(["attempted", "no-answer", "left-message", "sent", "replied", "interested", "not-now", "not-fit", "wrong-contact", "meeting-booked"]);
 
@@ -147,6 +158,36 @@ function cleanSalesPresentations(value: unknown): SalesPresentation[] | null {
     });
   }
   return cleaned;
+}
+
+const MEETING_WRITE_LIMITS = {
+  assetUrl: 2_000,
+  location: 500,
+  meetingNotes: 10_000,
+  sessionNotes: 20_000,
+  attemptNotes: 4_000,
+} as const;
+
+function cleanMeetingTextInput(value: unknown, label: string, maxLength: number): string | undefined {
+  if (value === undefined || value === null || (typeof value === "string" && !value.trim())) return undefined;
+  if (typeof value !== "string") throw new Error(`${label} must be text.`);
+  const cleaned = value.trim();
+  if (cleaned.length > maxLength) throw new Error(`${label} must be ${maxLength.toLocaleString("en-GB")} characters or fewer.`);
+  return cleaned;
+}
+
+function cleanMeetingAssetInput(
+  value: unknown,
+  label: "Meeting link" | "Call recording URL",
+): string | undefined {
+  if (typeof value === "string" && value.trim().length > MEETING_WRITE_LIMITS.assetUrl) {
+    throw new Error(`${label} must be ${MEETING_WRITE_LIMITS.assetUrl.toLocaleString("en-GB")} characters or fewer.`);
+  }
+  return cleanMeetingAssetUrlForStorage(value, label);
+}
+
+function validOptionalMeetingTimestamp(value: unknown): boolean {
+  return value === undefined || value === null || (typeof value === "number" && Number.isFinite(value));
 }
 
 // ─── Scouting prospects ─────────────────────────────────────────────────
@@ -209,10 +250,40 @@ export async function prospectsHandler(req: Request, ctx: PluginCtx): Promise<Re
     }
     const patch = editableProspectPatch(body);
     if (!Object.keys(patch).length) return badRequest("No editable prospect fields supplied.");
-    const prospect = await c.prospects.update(id, patch, ctx.actor);
-    return prospect ? json({ ok: true, prospect }) : notFound("prospect_not_found");
+    try {
+      const prospect = await mutateProspectAndConverge(
+        c,
+        id,
+        ctx.actor,
+        () => c.prospects.update(id, patch, ctx.actor),
+      );
+      return prospect ? json({ ok: true, prospect }) : notFound("prospect_not_found");
+    } catch (err) {
+      return unprocessable(err instanceof Error ? err.message : String(err));
+    }
   }
   return json({ ok: false, error: "method_not_allowed" }, 405);
+}
+
+/**
+ * Explicit repair/start boundary for an active Journey Lead that predates the
+ * acquisition dossier. This must remain POST-only: opening or prefetching a
+ * Researching/Outreach page is never allowed to create CRM records.
+ */
+export async function startLeadAcquisitionDossierHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
+  const body = await safeJson<{ leadId?: string }>(req);
+  const leadId = body?.leadId?.trim();
+  if (!leadId) return badRequest("leadId required.");
+  try {
+    const container = buildContainer(ctx);
+    const lead = await container.leads.get(leadId);
+    if (!lead) return notFound("lead_not_found");
+    const prospect = await ensureAcquisitionDossierForLead(container, lead, ctx.actor);
+    return json({ ok: true, prospect });
+  } catch (err) {
+    return unprocessable(err instanceof Error ? err.message : String(err));
+  }
 }
 
 export async function importProspectsHandler(req: Request, ctx: PluginCtx): Promise<Response> {
@@ -221,11 +292,50 @@ export async function importProspectsHandler(req: Request, ctx: PluginCtx): Prom
   if (uploaded instanceof Response) return uploaded;
   const parsed = parseCsv(uploaded.text);
   if (!parsed.rows.length) return badRequest("The scouting sheet contains no data rows.");
-  if (parsed.rows.length > 500) return badRequest("Import up to 500 scouting prospects at a time.");
+  if (parsed.rows.length > MAX_SPREADSHEET_DATA_ROWS) {
+    return badRequest(`Import up to ${MAX_SPREADSHEET_DATA_ROWS} scouting prospects at a time.`);
+  }
+  const allowedMappingTargets = new Set([
+    "company", "name", "email", "phone", "website", "address",
+    "googleMapsUrl", "niche", "tags", "source", "notes",
+  ]);
+  let mapping: Record<string, string> | undefined;
+  const rawMapping = uploaded.form?.get("mapping");
+  if (typeof rawMapping === "string" && rawMapping.trim()) {
+    try {
+      const candidate = JSON.parse(rawMapping) as unknown;
+      if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+        return badRequest("Column mapping is not valid.");
+      }
+      mapping = {};
+      const usedTargets = new Set<string>();
+      for (const [rawIndex, rawTarget] of Object.entries(candidate as Record<string, unknown>)) {
+        if (typeof rawTarget !== "string" || rawTarget === "skip" || !rawTarget) continue;
+        const index = Number(rawIndex);
+        if (!Number.isInteger(index) || index < 0 || index >= parsed.headers.length || !allowedMappingTargets.has(rawTarget)) {
+          return badRequest("Column mapping contains an unsupported field.");
+        }
+        if (usedTargets.has(rawTarget)) return badRequest("Each spreadsheet column must map to a different prospect field.");
+        usedTargets.add(rawTarget);
+        mapping[String(index)] = rawTarget;
+      }
+      if (!Object.values(mapping).some(target => ["company", "name", "website"].includes(target))) {
+        return badRequest("Map at least one column to Business name, Person, or Website.");
+      }
+    } catch {
+      return badRequest("Column mapping is not valid.");
+    }
+  }
   const defaultSourceValue = uploaded.form?.get("defaultSource");
   const defaultSource = typeof defaultSourceValue === "string" && defaultSourceValue.trim()
     ? defaultSourceValue.trim()
     : "google-maps";
+  const defaultNicheValue = uploaded.form?.get("defaultNiche");
+  const defaultNiche = typeof defaultNicheValue === "string" ? defaultNicheValue.trim() : "";
+  const defaultTagsValue = uploaded.form?.get("defaultTags");
+  const defaultTags = typeof defaultTagsValue === "string"
+    ? defaultTagsValue.split(/[,;|]/).map(tag => tag.trim()).filter(Boolean)
+    : [];
   const service = buildContainer(ctx).prospects;
   const existing = await service.list();
   const fingerprints = new Set(existing.flatMap(prospectFingerprints));
@@ -233,19 +343,26 @@ export async function importProspectsHandler(req: Request, ctx: PluginCtx): Prom
   const skipped: Array<{ rowNumber: number; reason: string }> = [];
 
   for (const row of parsed.rows) {
+    const mapped = mapping
+      ? Object.fromEntries(Object.entries(mapping).map(([index, target]) => [target, row.raw[Number(index)]?.trim() ?? ""]))
+      : undefined;
+    const value = (target: string, fallback?: string) => mapped ? mapped[target] || undefined : fallback;
+    const mappedTags = value("tags")?.split(/[,;|]/).map(tag => tag.trim()).filter(Boolean);
     const input: CreateProspectInput = {
-      company: row.company,
-      name: row.name,
-      email: row.email,
-      phone: row.phone,
-      website: row.website,
-      address: row.address,
-      googleMapsUrl: row.googleMapsUrl,
-      niche: row.niche,
-      tags: row.tags,
-      source: row.source || defaultSource,
-      researchNotes: row.notes,
-      qualificationState: row.notes ? "researching" : "unreviewed",
+      company: value("company", row.company),
+      name: value("name", row.name),
+      email: value("email", row.email),
+      phone: value("phone", row.phone),
+      website: value("website", row.website),
+      address: value("address", row.address),
+      googleMapsUrl: value("googleMapsUrl", row.googleMapsUrl),
+      niche: value("niche", row.niche) || defaultNiche || undefined,
+      tags: [...new Set([...(mappedTags ?? row.tags ?? []), ...defaultTags])],
+      source: value("source", row.source) || defaultSource,
+      researchNotes: value("notes", row.notes),
+      // A sheet is intake, not proof. Every imported row starts unreviewed;
+      // the operator may research it or begin protected outreach immediately.
+      qualificationState: "unreviewed",
     };
     if (!input.company && !input.name && !input.website) {
       skipped.push({ rowNumber: row.rowNumber, reason: "Missing business name, person, or website." });
@@ -269,7 +386,9 @@ export async function importProspectsHandler(req: Request, ctx: PluginCtx): Prom
     filename: uploaded.filename,
     imported: imported.length,
     skipped,
-    unrecognisedHeaders: parsed.unrecognisedHeaders,
+    unrecognisedHeaders: mapping
+      ? parsed.headers.filter((_, index) => !mapping?.[String(index)])
+      : parsed.unrecognisedHeaders,
   });
 }
 
@@ -291,104 +410,116 @@ export async function qualifyProspectHandler(req: Request, ctx: PluginCtx): Prom
   const body = await safeJson<{ id: string }>(req);
   if (!body?.id) return badRequest("id required.");
   const c = buildContainer(ctx);
-  const prospect = await c.prospects.get(body.id);
-  if (!prospect) return notFound("active_prospect_not_found");
-  const recordQualificationActivity = async (leadId: string) => ctx.services.activity.logActivity({
-    idempotencyKey: `personal-metric:prospect-qualified:${prospect.id}:${leadId}`,
-    agencyId: ctx.agencyId,
-    actorUserId: ctx.actor,
-    category: "leads",
-    action: "leads.prospect.qualified",
-    message: `Qualified ${prospect.name || prospect.company || prospect.email || prospect.id} as a lead.`,
-    metadata: { prospectId: prospect.id, leadId },
-  });
-  if (prospect.status !== "scouting") {
-    // Qualification commits the lead/prospect before the audit projection.
-    // If that final append failed, a retry must repair the idempotent evidence
-    // rather than strand the person's qualified counter permanently.
-    if (prospect.status === "qualified" && prospect.qualifiedLeadId) {
-      try {
-        const lead = await c.leads.get(prospect.qualifiedLeadId);
-        if (!lead) return notFound("qualified_lead_not_found");
-        await recordQualificationActivity(lead.id);
-        return json({ ok: true, prospect, lead, created: false, repaired: true });
-      } catch (err) {
-        return unprocessable(err instanceof Error ? err.message : String(err));
-      }
-    }
-    return notFound("active_prospect_not_found");
+  if (typeof ctx.storage.runExclusive !== "function") {
+    return unprocessable("prospect_qualification_requires_exclusive_storage");
   }
-  if (!prospect.email && !prospect.phone) {
-    return unprocessable("Add an email address or phone number before qualifying this prospect as a lead.");
-  }
-  if (prospect.doNotContact) return unprocessable("Remove the do-not-contact hold before qualifying this prospect.");
-  const missingInspection = REQUIRED_PROSPECT_INSPECTION_CHECKS.filter(check => !prospect.inspectionChecks.includes(check));
-  if (!prospect.inspectedAt || missingInspection.length) {
-    return unprocessable("Complete the business, contact-route, and opportunity inspection before qualifying this prospect.");
-  }
-  const outreachHistory = prospect.outreachAttempts.map(attempt => {
-    const followUp = attempt.followUpAt ? ` · follow-up ${isoDateTimeValue(attempt.followUpAt) ?? "date needs review"}` : "";
-    return `${isoDateTimeValue(attempt.at) ?? "date needs review"} · ${attempt.channel} · ${attempt.outcome}${followUp}${attempt.note ? ` · ${attempt.note}` : ""}`;
-  }).join("\n");
-  const fieldNotes = prospect.notes.map(note => `${isoDateTimeValue(note.at) ?? "date needs review"} · ${note.body}`).join("\n");
-  const followUpHistory = prospect.followUps.map(item => `${isoDateTimeValue(item.dueAt) ?? "date needs review"} · ${item.status} · ${item.channel ?? "any channel"} · ${item.reason}${item.resolutionNote ? ` · ${item.resolutionNote}` : ""}`).join("\n");
-  const scoutingNotes = [
-    prospect.opportunity ? `Why we could help: ${prospect.opportunity}` : "",
-    prospect.researchNotes ? `Scouting research: ${prospect.researchNotes}` : "",
-    prospect.nextStep ? `Suggested next step: ${prospect.nextStep}` : "",
-    prospect.foundAt ? `Found at: ${prospect.foundAt}` : "",
-    prospect.address ? `Address: ${prospect.address}` : "",
-    prospect.website ? `Website: ${prospect.website}` : "",
-    outreachHistory ? `Cold outreach history:\n${outreachHistory}` : "",
-    followUpHistory ? `Follow-up history:\n${followUpHistory}` : "",
-    fieldNotes ? `Scouting notes:\n${fieldNotes}` : "",
-  ].filter(Boolean).join("\n\n");
   try {
-    const result = await c.leads.upsert({
-      email: prospect.email ?? "",
-      name: prospect.name,
-      phone: prospect.phone,
-      company: prospect.company,
-      source: `scouting:${prospect.source}`,
-      relationshipCategory: "cold-outreach",
-      tags: [
-        "scouted",
-        ...prospect.tags,
-        ...(prospect.preferredChannel ? [`preferred:${prospect.preferredChannel}`] : []),
-        ...(prospect.niche ? [`niche:${prospect.niche.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`] : []),
-      ],
-      notes: scoutingNotes || undefined,
-      customFields: {
-        ...(prospect.niche ? { niche: prospect.niche } : {}),
-        "scouting-source": prospect.source,
-        ...(prospect.foundAt ? { "scouting-found-at": prospect.foundAt } : {}),
-        ...(prospect.opportunity ? { "scouting-opportunity": prospect.opportunity } : {}),
-        ...(prospect.researchNotes ? { "scouting-research": prospect.researchNotes } : {}),
-        ...(prospect.nextStep ? { "scouting-next-step": prospect.nextStep } : {}),
-        ...(prospect.website ? { website: prospect.website } : {}),
-        ...(prospect.address ? { "scouting-address": prospect.address } : {}),
-        ...(prospect.googlePlaceId ? { "scouting-google-place-id": prospect.googlePlaceId } : {}),
-        ...(prospect.googleMapsUrl ? { "scouting-google-maps": prospect.googleMapsUrl } : {}),
-        ...(prospect.instagramUrl ? { "scouting-instagram": prospect.instagramUrl } : {}),
-        ...(prospect.facebookUrl ? { "scouting-facebook": prospect.facebookUrl } : {}),
-        ...(prospect.linkedinUrl ? { "scouting-linkedin": prospect.linkedinUrl } : {}),
-        ...(prospect.fitScore !== undefined ? { "scouting-fit-score": String(prospect.fitScore) } : {}),
-        "scouting-qualification-state": prospect.qualificationState,
-        "scouting-inspection-checks": prospect.inspectionChecks.join(","),
-        ...(isoDateTimeValue(prospect.inspectedAt) ? { "scouting-inspected-at": isoDateTimeValue(prospect.inspectedAt)! } : {}),
-        ...(prospect.preferredChannel ? { "scouting-preferred-channel": prospect.preferredChannel } : {}),
-        ...(isoDateTimeValue(prospect.lastContactedAt) ? { "scouting-last-contacted-at": isoDateTimeValue(prospect.lastContactedAt)! } : {}),
-        ...(isoDateTimeValue(prospect.nextContactAt) ? { "scouting-next-contact-at": isoDateTimeValue(prospect.nextContactAt)! } : {}),
-        ...(prospect.nextContactReason ? { "scouting-next-contact-reason": prospect.nextContactReason } : {}),
-        "scouting-outreach-attempts": String(prospect.outreachAttempts.length),
-      },
-    }, ctx.actor);
-    const updated = await c.prospects.update(prospect.id, {
-      status: "qualified",
-      qualifiedLeadId: result.lead.id,
-    }, ctx.actor);
-    await recordQualificationActivity(result.lead.id);
-    return json({ ok: true, prospect: updated, lead: result.lead, created: result.created });
+    return await ctx.storage.runExclusive(`acquisition-state:${ctx.agencyId}`, async () => {
+      // Re-read only after acquiring the shared Prospect/Lead/Contact boundary.
+      // A qualification is one atomic graph mutation: a losing Prospect must
+      // never update another dossier's Lead, Person, pointer, or audit trail.
+      const prospect = await c.prospects.get(body.id);
+      if (!prospect) return notFound("active_prospect_not_found");
+      const recordQualificationActivity = async (leadId: string) => ctx.services.activity.logActivity({
+        idempotencyKey: `personal-metric:prospect-qualified:${prospect.id}:${leadId}`,
+        agencyId: ctx.agencyId,
+        actorUserId: ctx.actor,
+        category: "leads",
+        action: "leads.prospect.qualified",
+        message: `Qualified ${prospect.name || prospect.company || prospect.email || prospect.id} as a lead.`,
+        metadata: { prospectId: prospect.id, leadId },
+      });
+      if (prospect.status !== "scouting") {
+        // A retry repairs idempotent projection/audit evidence inside the same
+        // transaction; a failed repair therefore leaves the graph unchanged.
+        if (prospect.status === "qualified" && prospect.qualifiedLeadId) {
+          const lead = await c.leads.get(prospect.qualifiedLeadId);
+          if (!lead) return notFound("qualified_lead_not_found");
+          const linkedLead = await c.leads.attachProspectAcquisition(
+            lead.id,
+            leadProspectAcquisition(prospect),
+            ctx.actor,
+          );
+          if (!linkedLead) return notFound("qualified_lead_not_found");
+          await recordQualificationActivity(linkedLead.id);
+          return json({ ok: true, prospect, lead: linkedLead, created: false, repaired: true });
+        }
+        return notFound("active_prospect_not_found");
+      }
+      if (!prospect.email && !prospect.phone) {
+        return unprocessable("Add an email address or phone number before qualifying this prospect as a lead.");
+      }
+      if (prospect.doNotContact) return unprocessable("Remove the do-not-contact hold before qualifying this prospect.");
+      const outreachHistory = prospect.outreachAttempts.map(attempt => {
+        const followUp = attempt.followUpAt ? ` · follow-up ${isoDateTimeValue(attempt.followUpAt) ?? "date needs review"}` : "";
+        return `${isoDateTimeValue(attempt.at) ?? "date needs review"} · ${attempt.channel} · ${attempt.outcome}${followUp}${attempt.note ? ` · ${attempt.note}` : ""}`;
+      }).join("\n");
+      const fieldNotes = prospect.notes.map(note => `${isoDateTimeValue(note.at) ?? "date needs review"} · ${note.body}`).join("\n");
+      const followUpHistory = prospect.followUps.map(item => `${isoDateTimeValue(item.dueAt) ?? "date needs review"} · ${item.status} · ${item.channel ?? "any channel"} · ${item.reason}${item.resolutionNote ? ` · ${item.resolutionNote}` : ""}`).join("\n");
+      const scoutingNotes = [
+        prospect.opportunity ? `Why we could help: ${prospect.opportunity}` : "",
+        prospect.researchNotes ? `Scouting research: ${prospect.researchNotes}` : "",
+        prospect.nextStep ? `Suggested next step: ${prospect.nextStep}` : "",
+        prospect.foundAt ? `Found at: ${prospect.foundAt}` : "",
+        prospect.address ? `Address: ${prospect.address}` : "",
+        prospect.website ? `Website: ${prospect.website}` : "",
+        outreachHistory ? `Cold outreach history:\n${outreachHistory}` : "",
+        followUpHistory ? `Follow-up history:\n${followUpHistory}` : "",
+        fieldNotes ? `Scouting notes:\n${fieldNotes}` : "",
+      ].filter(Boolean).join("\n\n");
+      const result = await c.leads.upsert({
+        email: prospect.email ?? "",
+        name: prospect.name,
+        phone: prospect.phone,
+        company: prospect.company,
+        source: `scouting:${prospect.source}`,
+        relationshipCategory: "cold-outreach",
+        tags: [
+          "scouted",
+          ...prospect.tags,
+          ...(prospect.preferredChannel ? [`preferred:${prospect.preferredChannel}`] : []),
+          ...(prospect.niche ? [`niche:${prospect.niche.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`] : []),
+        ],
+        notes: scoutingNotes || undefined,
+        customFields: {
+          ...(prospect.niche ? { niche: prospect.niche } : {}),
+          "scouting-source": prospect.source,
+          ...(prospect.foundAt ? { "scouting-found-at": prospect.foundAt } : {}),
+          ...(prospect.opportunity ? { "scouting-opportunity": prospect.opportunity } : {}),
+          ...(prospect.researchNotes ? { "scouting-research": prospect.researchNotes } : {}),
+          ...(prospect.nextStep ? { "scouting-next-step": prospect.nextStep } : {}),
+          ...(prospect.website ? { website: prospect.website } : {}),
+          ...(prospect.address ? { "scouting-address": prospect.address } : {}),
+          ...(prospect.googlePlaceId ? { "scouting-google-place-id": prospect.googlePlaceId } : {}),
+          ...(prospect.googleMapsUrl ? { "scouting-google-maps": prospect.googleMapsUrl } : {}),
+          ...(prospect.instagramUrl ? { "scouting-instagram": prospect.instagramUrl } : {}),
+          ...(prospect.facebookUrl ? { "scouting-facebook": prospect.facebookUrl } : {}),
+          ...(prospect.linkedinUrl ? { "scouting-linkedin": prospect.linkedinUrl } : {}),
+          ...(prospect.fitScore !== undefined ? { "scouting-fit-score": String(prospect.fitScore) } : {}),
+          "scouting-qualification-state": prospect.qualificationState,
+          "scouting-inspection-checks": prospect.inspectionChecks.join(","),
+          ...(isoDateTimeValue(prospect.inspectedAt) ? { "scouting-inspected-at": isoDateTimeValue(prospect.inspectedAt)! } : {}),
+          ...(prospect.preferredChannel ? { "scouting-preferred-channel": prospect.preferredChannel } : {}),
+          ...(isoDateTimeValue(prospect.lastContactedAt) ? { "scouting-last-contacted-at": isoDateTimeValue(prospect.lastContactedAt)! } : {}),
+          ...(isoDateTimeValue(prospect.nextContactAt) ? { "scouting-next-contact-at": isoDateTimeValue(prospect.nextContactAt)! } : {}),
+          ...(prospect.nextContactReason ? { "scouting-next-contact-reason": prospect.nextContactReason } : {}),
+          "scouting-outreach-attempts": String(prospect.outreachAttempts.length),
+        },
+        capturedAt: prospect.capturedAt,
+      }, ctx.actor);
+      // Link from the latest locked Prospect row, then project that same row.
+      // Any note/outreach racing qualification is preserved in Journey.
+      const updated = await c.prospects.linkQualifiedLead(prospect.id, result.lead.id, ctx.actor);
+      if (!updated) throw new Error("active_prospect_not_found");
+      const linkedLead = await c.leads.attachProspectAcquisition(
+        result.lead.id,
+        leadProspectAcquisition(updated),
+        ctx.actor,
+      );
+      if (!linkedLead) throw new Error("qualified_lead_not_found");
+      await recordQualificationActivity(linkedLead.id);
+      return json({ ok: true, prospect: updated, lead: linkedLead, created: result.created });
+    });
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));
   }
@@ -401,7 +532,13 @@ export async function prospectOutreachHandler(req: Request, ctx: PluginCtx): Pro
   if (!PROSPECT_OUTREACH_CHANNELS.has(body.channel)) return badRequest("valid channel required.");
   if (!PROSPECT_OUTREACH_OUTCOMES.has(body.outcome)) return badRequest("valid outcome required.");
   try {
-    const prospect = await buildContainer(ctx).prospects.recordOutreach(body.id, body, ctx.actor);
+    const c = buildContainer(ctx);
+    const prospect = await mutateProspectAndConverge(
+      c,
+      body.id,
+      ctx.actor,
+      () => c.prospects.recordOutreach(body.id, body, ctx.actor),
+    );
     return prospect ? json({ ok: true, prospect }) : notFound("prospect_not_found");
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));
@@ -413,7 +550,13 @@ export async function prospectNotesHandler(req: Request, ctx: PluginCtx): Promis
   const body = await safeJson<{ id: string; body: string }>(req);
   if (!body?.id) return badRequest("id required.");
   try {
-    const prospect = await buildContainer(ctx).prospects.addNote(body.id, body.body, ctx.actor);
+    const c = buildContainer(ctx);
+    const prospect = await mutateProspectAndConverge(
+      c,
+      body.id,
+      ctx.actor,
+      () => c.prospects.addNote(body.id, body.body, ctx.actor),
+    );
     return prospect ? json({ ok: true, prospect }) : notFound("prospect_not_found");
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));
@@ -425,7 +568,13 @@ export async function prospectInspectionHandler(req: Request, ctx: PluginCtx): P
   const body = await safeJson<{ id: string; checks: ProspectInspectionCheck[] }>(req);
   if (!body?.id || !Array.isArray(body.checks)) return badRequest("id and checks required.");
   try {
-    const prospect = await buildContainer(ctx).prospects.saveInspection(body.id, body.checks, ctx.actor);
+    const c = buildContainer(ctx);
+    const prospect = await mutateProspectAndConverge(
+      c,
+      body.id,
+      ctx.actor,
+      () => c.prospects.saveInspection(body.id, body.checks, ctx.actor),
+    );
     return prospect ? json({ ok: true, prospect }) : notFound("prospect_not_found");
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));
@@ -436,16 +585,27 @@ export async function prospectFollowUpsHandler(req: Request, ctx: PluginCtx): Pr
   const body = await safeJson<({ id: string } & ScheduleProspectFollowUpInput) | ({ id: string } & ResolveProspectFollowUpInput)>(req);
   if (!body?.id) return badRequest("id required.");
   try {
+    const c = buildContainer(ctx);
     if (req.method === "POST") {
       const schedule = body as { id: string } & ScheduleProspectFollowUpInput;
       if (!PROSPECT_OUTREACH_CHANNELS.has(schedule.channel as ProspectOutreachChannel)) return badRequest("valid channel required.");
-      const prospect = await buildContainer(ctx).prospects.scheduleFollowUp(schedule.id, schedule, ctx.actor);
+      const prospect = await mutateProspectAndConverge(
+        c,
+        schedule.id,
+        ctx.actor,
+        () => c.prospects.scheduleFollowUp(schedule.id, schedule, ctx.actor),
+      );
       return prospect ? json({ ok: true, prospect }) : notFound("prospect_not_found");
     }
     if (req.method === "PATCH") {
       const resolution = body as { id: string } & ResolveProspectFollowUpInput;
       if (!resolution.followUpId || !["completed", "skipped"].includes(resolution.status)) return badRequest("valid follow-up resolution required.");
-      const prospect = await buildContainer(ctx).prospects.resolveFollowUp(resolution.id, resolution, ctx.actor);
+      const prospect = await mutateProspectAndConverge(
+        c,
+        resolution.id,
+        ctx.actor,
+        () => c.prospects.resolveFollowUp(resolution.id, resolution, ctx.actor),
+      );
       return prospect ? json({ ok: true, prospect }) : notFound("prospect_not_found");
     }
     return json({ ok: false, error: "method_not_allowed" }, 405);
@@ -460,6 +620,18 @@ export async function dismissProspectHandler(req: Request, ctx: PluginCtx): Prom
   if (!body?.id) return badRequest("id required.");
   const prospect = await buildContainer(ctx).prospects.dismiss(body.id, ctx.actor);
   return prospect ? json({ ok: true, prospect }) : notFound("prospect_not_found");
+}
+
+export async function restoreProspectHandler(req: Request, ctx: PluginCtx): Promise<Response> {
+  if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
+  const body = await safeJson<{ id: string }>(req);
+  if (!body?.id) return badRequest("id required.");
+  try {
+    const prospect = await buildContainer(ctx).prospects.restore(body.id, ctx.actor);
+    return prospect ? json({ ok: true, prospect }) : notFound("prospect_not_found");
+  } catch (err) {
+    return unprocessable(err instanceof Error ? err.message : String(err));
+  }
 }
 
 // ─── Meeting commercial pack ────────────────────────────────────────────
@@ -1014,6 +1186,7 @@ function clientJourneyMetadata(
     });
   return {
     ...existingMetadata,
+    ...(source.personId ? { personId: source.personId } : {}),
     leadId: "capturedAt" in source ? source.id : undefined,
     contactId: "createdAt" in source ? source.id : undefined,
     promotedFromLeadId: "promotedFromLeadId" in source ? source.promotedFromLeadId : undefined,
@@ -1074,25 +1247,99 @@ function clientJourneyMetadata(
   };
 }
 
+const MAX_SPREADSHEET_UPLOAD_BYTES = 5 * 1024 * 1024;
+const MAX_SPREADSHEET_REQUEST_BYTES = MAX_SPREADSHEET_UPLOAD_BYTES + 64 * 1024;
+
+async function readBoundedSpreadsheetBody(req: Request): Promise<Uint8Array | Response> {
+  const declaredLength = Number(req.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_SPREADSHEET_REQUEST_BYTES) {
+    return json({ ok: false, error: "Spreadsheet files must be between 1 byte and 5 MB." }, 413);
+  }
+  if (!req.body) return new Uint8Array();
+
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    size += chunk.value.byteLength;
+    if (size > MAX_SPREADSHEET_REQUEST_BYTES) {
+      await reader.cancel().catch(() => undefined);
+      return json({ ok: false, error: "Spreadsheet files must be between 1 byte and 5 MB." }, 413);
+    }
+    chunks.push(chunk.value);
+  }
+
+  const body = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return body;
+}
+
 async function readUploadedSheet(req: Request): Promise<{
   text: string;
   filename?: string;
   form?: FormData;
+  json?: Record<string, unknown>;
 } | Response> {
   try {
-    const form = await req.formData();
-    const file = form.get("file");
-    if (!(file instanceof File)) return badRequest("Choose a spreadsheet file.");
-    let text: string;
-    if (isExcelWorkbook(file.name, file.type)) {
-      if (!isXlsxWorkbook(file.name, file.type)) {
-        return badRequest("Old .xls workbooks are not supported yet. Save the sheet as .xlsx, CSV, or TSV and upload that file.");
+    const bodyBytes = await readBoundedSpreadsheetBody(req);
+    if (bodyBytes instanceof Response) return bodyBytes;
+    const contentType = req.headers.get("content-type") ?? "";
+
+    if (contentType.includes("multipart/form-data")) {
+      const multipartBody = new ArrayBuffer(bodyBytes.byteLength);
+      new Uint8Array(multipartBody).set(bodyBytes);
+      const form = await new Response(multipartBody, { headers: { "content-type": contentType } }).formData();
+      const file = form.get("file");
+      if (file instanceof File) {
+        if (file.size <= 0 || file.size > MAX_SPREADSHEET_UPLOAD_BYTES) {
+          return json({ ok: false, error: "Spreadsheet files must be between 1 byte and 5 MB." }, 413);
+        }
+        let text: string;
+        if (isExcelWorkbook(file.name, file.type)) {
+          if (!isXlsxWorkbook(file.name, file.type)) {
+            return badRequest("Old .xls workbooks are not supported yet. Save the sheet as .xlsx, CSV, or TSV and upload that file.");
+          }
+          text = parseXlsxToDelimitedText(await file.arrayBuffer());
+        } else {
+          text = await file.text();
+        }
+        return { text, filename: file.name, form };
       }
-      text = parseXlsxToDelimitedText(await file.arrayBuffer());
-    } else {
-      text = await file.text();
+      if (typeof file === "string") {
+        const size = new TextEncoder().encode(file).byteLength;
+        if (size <= 0 || size > MAX_SPREADSHEET_UPLOAD_BYTES) {
+          return json({ ok: false, error: "Spreadsheet files must be between 1 byte and 5 MB." }, 413);
+        }
+        return { text: file, form };
+      }
+      return badRequest("Choose a spreadsheet file.");
     }
-    return { text, filename: file.name, form };
+
+    if (!bodyBytes.byteLength) return badRequest("text or multipart file required.");
+    const decoded = new TextDecoder("utf-8", { fatal: true }).decode(bodyBytes);
+    const parsed = JSON.parse(decoded) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return badRequest("text or multipart file required.");
+    }
+    const body = parsed as Record<string, unknown>;
+    if (typeof body.text !== "string" || !body.text) {
+      return badRequest("text or multipart file required.");
+    }
+    const textSize = new TextEncoder().encode(body.text).byteLength;
+    if (textSize > MAX_SPREADSHEET_UPLOAD_BYTES) {
+      return json({ ok: false, error: "Spreadsheet files must be between 1 byte and 5 MB." }, 413);
+    }
+    return {
+      text: body.text,
+      filename: typeof body.filename === "string" ? body.filename : undefined,
+      json: body,
+    };
   } catch (err) {
     return badRequest(`Could not read spreadsheet: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -1164,6 +1411,47 @@ function prepareCustomerPortalAccess(input: {
 
 // ─── Leads ───────────────────────────────────────────────────────────────
 
+// The domain input types are deliberately wider than the public HTTP surface:
+// internal promotion/reconciliation code needs to carry lineage and history.
+// TypeScript does not remove extra JSON keys at runtime, so every generic
+// browser create/update must positively select only operator-editable fields.
+// Dedicated endpoints remain the sole writers of stages, conversions,
+// pipeline links, contact timestamps, meeting attempts and actor evidence.
+const EDITABLE_LEAD_CREATE_KEYS = [
+  "email", "companyId", "companyIds", "brandSlugs", "serviceLines", "name",
+  "phone", "company", "tags", "source", "relationshipCategory", "notes",
+  "customFields",
+] as const satisfies readonly (keyof CreateLeadInput)[];
+const EDITABLE_LEAD_PATCH_KEYS = [
+  "email", "companyId", "companyIds", "brandSlugs", "serviceLines", "name",
+  "phone", "company", "tags", "relationshipCategory", "notes", "customFields",
+  "callRecordingUrl", "sessionNotes", "inspirationLinks", "potentialProblems",
+  "potentialSolutions", "pricePoints", "budgetRange", "designFeedback",
+  "supportNotes",
+] as const satisfies readonly (keyof UpdateLeadPatch)[];
+const EDITABLE_CONTACT_CREATE_KEYS = [
+  "email", "name", "phone", "company", "tags", "type", "source", "notes",
+  "customFields",
+] as const satisfies readonly (keyof CreateContactInput)[];
+const EDITABLE_CONTACT_PATCH_KEYS = [
+  "name", "phone", "company", "tags", "type", "notes", "customFields",
+  "callRecordingUrl", "sessionNotes", "inspirationLinks", "potentialProblems",
+  "potentialSolutions", "pricePoints", "budgetRange", "designFeedback",
+  "supportNotes",
+] as const satisfies readonly (keyof UpdateContactPatch)[];
+
+function editableRecordFields<T extends object>(
+  body: T,
+  keys: readonly (keyof T)[],
+): T {
+  const source = body as Record<string, unknown>;
+  const selected: Record<string, unknown> = {};
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) selected[String(key)] = source[String(key)];
+  }
+  return selected as T;
+}
+
 export async function listLeadsHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   if (req.method !== "GET") return json({ ok: false, error: "method_not_allowed" }, 405);
   const url = new URL(req.url);
@@ -1187,25 +1475,29 @@ export async function listLeadsHandler(req: Request, ctx: PluginCtx): Promise<Re
 export async function createLeadHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
   const body = await safeJson<CreateLeadInput>(req);
-  if (!body || !body.email || !body.source) {
+  if (!body) return badRequest("body required.");
+  const input = editableRecordFields(body, EDITABLE_LEAD_CREATE_KEYS);
+  if (!input.email || !input.source) {
     return badRequest("email + source required.");
   }
   try {
     const container = buildContainer(ctx);
-    const existing = body.email
-      ? await container.leads.getByEmail(body.email)
-      : body.phone
-        ? await container.leads.getByPhone(body.phone)
+    const existing = input.email
+      ? await container.leads.getByEmail(input.email)
+      : input.phone
+        ? await container.leads.getByPhone(input.phone)
         : null;
     const customFields = validatePortalEntityFields(
       ctx.agencyId,
       "leads",
-      body.customFields,
+      input.customFields,
       existing?.customFields,
       ["niche"],
     );
-    const result = await container.leads.upsert({ ...body, customFields }, ctx.actor);
-    return json({ ok: true, lead: result.lead, created: result.created }, result.created ? 201 : 200);
+    const result = await container.leads.upsert({ ...input, customFields }, ctx.actor);
+    await ensureAcquisitionDossierForLead(container, result.lead, ctx.actor);
+    const linkedLead = await container.leads.get(result.lead.id) ?? result.lead;
+    return json({ ok: true, lead: linkedLead, created: result.created }, result.created ? 201 : 200);
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));
   }
@@ -1218,6 +1510,8 @@ export async function updateLeadHandler(req: Request, ctx: PluginCtx): Promise<R
   if (!id) return badRequest("id required.");
   const body = await safeJson<UpdateLeadPatch>(req);
   if (!body) return badRequest("body required.");
+  const patch = editableRecordFields(body, EDITABLE_LEAD_PATCH_KEYS);
+  if (!Object.keys(patch).length) return badRequest("No editable lead fields supplied.");
   try {
     const container = buildContainer(ctx);
     const existing = await container.leads.get(id);
@@ -1225,13 +1519,14 @@ export async function updateLeadHandler(req: Request, ctx: PluginCtx): Promise<R
     const customFields = validatePortalEntityFields(
       ctx.agencyId,
       "leads",
-      body.customFields,
+      patch.customFields,
       existing.customFields,
       ["niche"],
     );
-    const updated = await container.leads.update(id, { ...body, customFields }, ctx.actor);
+    const updated = await container.leads.update(id, { ...patch, customFields }, ctx.actor);
     if (!updated) return notFound("lead_not_found");
-    return json({ ok: true, lead: updated });
+    await ensureAcquisitionDossierForLead(container, updated, ctx.actor);
+    return json({ ok: true, lead: await container.leads.get(updated.id) ?? updated });
   } catch (error) {
     if (error instanceof LeadIdentityConflictError) {
       return json({
@@ -1286,6 +1581,17 @@ export async function updateLeadStatusHandler(req: Request, ctx: PluginCtx): Pro
   if (!pipeline) return unprocessable("leads_pipeline_missing");
   const column = pipeline.columns.find(col => col.id === body.columnId || col.label === body.columnId);
   if (!column) return badRequest("unknown_column");
+  const promotesToContact = column.label.toLowerCase() === "won";
+  if (promotesToContact) {
+    try {
+      // Promotion used to fail only after the card and Lead stage had already
+      // moved. Validate the invariant before the first write so a phone-only
+      // Lead remains wholly in its original column/stage.
+      c.contacts.assertLeadPromotable(lead);
+    } catch (error) {
+      return unprocessable(error instanceof Error ? error.message : String(error));
+    }
+  }
 
   let cardId = lead.pipelineCardId;
   if (!cardId) {
@@ -1312,7 +1618,7 @@ export async function updateLeadStatusHandler(req: Request, ctx: PluginCtx): Pro
       toStage: column.id,
       at: card.updatedAt,
     }, ctx.actor) ?? linked;
-    if (column.label.toLowerCase() === "won") await c.contacts.promoteLead(updated, ctx.actor);
+    if (promotesToContact) await c.contacts.promoteLead(updated, ctx.actor);
     return json({ ok: true, lead: updated, card, columnId: column.id });
   }
 
@@ -1326,7 +1632,7 @@ export async function updateLeadStatusHandler(req: Request, ctx: PluginCtx): Pro
     toStage: moved.toColumn,
     at: moved.card.updatedAt,
   }, ctx.actor) ?? linked;
-  if (column.label.toLowerCase() === "won") await c.contacts.promoteLead(updated, ctx.actor);
+  if (promotesToContact) await c.contacts.promoteLead(updated, ctx.actor);
   return json({ ok: true, lead: updated, card: moved.card, columnId: column.id });
 }
 
@@ -1379,11 +1685,12 @@ export async function updateLeadMeetingHandler(req: Request, ctx: PluginCtx): Pr
     meetingConfirmed?: boolean;
     meetingReminderAt?: number | null;
     salesPresentations?: Array<{ id?: string; title?: string; url?: string }>;
+    callRecordingUrl?: string | null;
+    sessionNotes?: string | null;
     attempt?: {
       channel?: MeetingAttemptChannel;
       outcome?: MeetingAttemptOutcome;
       notes?: string;
-      at?: number;
     };
   }>(req);
   if (!body?.id) return badRequest("id required.");
@@ -1396,72 +1703,75 @@ export async function updateLeadMeetingHandler(req: Request, ctx: PluginCtx): Pr
   const validOutcomes: MeetingAttemptOutcome[] = ["attempted", "reached", "reminder-sent", "no-show", "rescheduled", "completed"];
   if (body.meetingMode && !validModes.includes(body.meetingMode)) return badRequest("invalid meeting mode");
   if (body.meetingStatus && !validStatuses.includes(body.meetingStatus)) return badRequest("invalid meeting status");
+  if (!validOptionalMeetingTimestamp(body.nextMeetingAt)) return badRequest("invalid meeting date");
+  if (!validOptionalMeetingTimestamp(body.meetingReminderAt)) return badRequest("invalid meeting reminder date");
+  if (body.meetingConfirmed !== undefined && typeof body.meetingConfirmed !== "boolean") return badRequest("meeting confirmation must be true or false");
+  if (body.attempt !== undefined && (!body.attempt || typeof body.attempt !== "object" || Array.isArray(body.attempt))) {
+    return badRequest("meeting attempt must be an object");
+  }
   const salesPresentations = body.salesPresentations === undefined
     ? undefined
     : cleanSalesPresentations(body.salesPresentations);
   if (salesPresentations === null) {
     return badRequest("Sales presentations need a title and a valid http or https link.");
   }
+  let meetingLink: string | undefined;
+  let callRecordingUrl: string | undefined;
+  let meetingNotes: string | undefined;
+  let meetingLocation: string | undefined;
+  let sessionNotes: string | undefined;
+  let attemptNotes: string | undefined;
+  try {
+    meetingLink = cleanMeetingAssetInput(body.meetingLink, "Meeting link");
+    callRecordingUrl = cleanMeetingAssetInput(body.callRecordingUrl, "Call recording URL");
+    meetingNotes = cleanMeetingTextInput(body.meetingNotes, "Meeting notes", MEETING_WRITE_LIMITS.meetingNotes);
+    meetingLocation = cleanMeetingTextInput(body.meetingLocation, "Meeting location", MEETING_WRITE_LIMITS.location);
+    sessionNotes = cleanMeetingTextInput(body.sessionNotes, "Session notes", MEETING_WRITE_LIMITS.sessionNotes);
+    attemptNotes = cleanMeetingTextInput(body.attempt?.notes, "Interaction note", MEETING_WRITE_LIMITS.attemptNotes);
+  } catch (error) {
+    return badRequest(error instanceof Error ? error.message : "Meeting details are invalid.");
+  }
 
-  const attempts = [...(existing.meetingAttempts ?? [])];
+  let attempt: MeetingMutationInput["attempt"];
   if (body.attempt?.outcome) {
     const channel = body.attempt.channel;
     const outcome = body.attempt.outcome;
     if (!channel || !validChannels.includes(channel) || !validOutcomes.includes(outcome)) {
       return badRequest("valid attempt channel and outcome required");
     }
-    attempts.push({
-      id: `attempt_${randomUUID()}`,
-      at: typeof body.attempt.at === "number" ? body.attempt.at : Date.now(),
-      channel,
-      outcome,
-      notes: body.attempt.notes?.trim() || undefined,
-    });
+    attempt = { channel, outcome, notes: attemptNotes };
   }
-  const patch: UpdateLeadPatch = {
+  const patch: MeetingMutationInput["patch"] = {
     nextMeetingAt: typeof body.nextMeetingAt === "number" ? body.nextMeetingAt : undefined,
-    meetingLink: body.meetingLink?.trim() || undefined,
-    meetingNotes: body.meetingNotes?.trim() || undefined,
+    meetingLink,
+    meetingNotes,
     meetingMode: body.meetingMode,
-    meetingLocation: body.meetingLocation?.trim() || undefined,
+    meetingLocation,
     meetingStatus: body.meetingStatus,
-    meetingConfirmedAt: body.meetingConfirmed ? existing.meetingConfirmedAt ?? Date.now() : undefined,
     meetingReminderAt: typeof body.meetingReminderAt === "number" ? body.meetingReminderAt : undefined,
-    meetingReminderSentAt: body.attempt?.outcome === "reminder-sent"
-      ? Date.now()
-      : existing.meetingReminderSentAt,
-    meetingAttempts: attempts,
   };
+  if (Object.prototype.hasOwnProperty.call(body, "callRecordingUrl")) patch.callRecordingUrl = callRecordingUrl;
+  if (Object.prototype.hasOwnProperty.call(body, "sessionNotes")) patch.sessionNotes = sessionNotes;
   if (salesPresentations !== undefined) patch.salesPresentations = salesPresentations;
   if (body.nextMeetingAt === null) patch.nextMeetingAt = undefined;
   if (body.meetingReminderAt === null) patch.meetingReminderAt = undefined;
-  let updated = await service.update(body.id, patch, ctx.actor);
-  if (!updated) return notFound("lead_not_found");
-  if (typeof body.nextMeetingAt === "number" && body.nextMeetingAt !== existing.nextMeetingAt) {
-    updated = await service.recordMeeting(body.id, body.nextMeetingAt, ctx.actor) ?? updated;
+  try {
+    const result = await service.updateMeeting(body.id, {
+      patch,
+      meetingConfirmed: body.meetingConfirmed,
+      attempt,
+    }, ctx.actor);
+    if (!result) return notFound("lead_not_found");
+    const { lead: updated, contactRecordedAt } = result;
+    if (contactRecordedAt) {
+      const enquiryId = typeof updated.customFields?.enquiryId === "string" ? updated.customFields.enquiryId : undefined;
+      if (enquiryId) await recordWebsiteEnquiryResponse(enquiryId, contactRecordedAt, ctx.actor).catch(() => false);
+    }
+    return json({ ok: true, lead: updated });
+  } catch (error) {
+    if (error instanceof MeetingAttemptHistoryLimitError) return badRequest(error.message);
+    return unprocessable(error instanceof Error ? error.message : String(error));
   }
-  if (body.attempt?.outcome) {
-    const contactAt = typeof body.attempt.at === "number" ? body.attempt.at : Date.now();
-    updated = await service.recordContact(body.id, {
-      at: contactAt,
-      channel: body.attempt.channel,
-      outcome: body.attempt.outcome,
-      note: body.attempt.notes,
-    }, ctx.actor) ?? updated;
-    const enquiryId = typeof updated.customFields?.enquiryId === "string" ? updated.customFields.enquiryId : undefined;
-    if (enquiryId) await recordWebsiteEnquiryResponse(enquiryId, contactAt, ctx.actor).catch(() => false);
-  } else if (typeof body.nextMeetingAt === "number" && !existing.firstContactedAt) {
-    const contactAt = Date.now();
-    updated = await service.recordContact(body.id, {
-      at: contactAt,
-      channel: body.meetingMode ?? "other",
-      outcome: "meeting-scheduled",
-      note: "First contact inferred from the scheduled meeting.",
-    }, ctx.actor) ?? updated;
-    const enquiryId = typeof updated.customFields?.enquiryId === "string" ? updated.customFields.enquiryId : undefined;
-    if (enquiryId) await recordWebsiteEnquiryResponse(enquiryId, contactAt, ctx.actor).catch(() => false);
-  }
-  return json({ ok: true, lead: updated });
 }
 
 export async function markLeadContactedHandler(req: Request, ctx: PluginCtx): Promise<Response> {
@@ -1609,8 +1919,9 @@ export async function convertLeadToClientHandler(req: Request, ctx: PluginCtx): 
     };
     const lifecycleStage = (body.stage ?? "aqua-epic-intro") as never;
     const client = existingClient
-      ? updateClient(ctx.agencyId, existingClient.id, { metadata, stage: lifecycleStage }) ?? existingClient
+      ? updateClient(ctx.agencyId, existingClient.id, { metadata, stage: lifecycleStage, personId: lead.personId }) ?? existingClient
       : createClient(ctx.agencyId, {
+        personId: lead.personId,
         companyId: lead.companyId ?? lead.companyIds?.[0],
         name: lead.company || lead.name || lead.email,
         ownerEmail: lead.email,
@@ -1781,9 +2092,11 @@ export async function restoreLeadHandler(req: Request, ctx: PluginCtx): Promise<
   if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
   const body = await safeJson<{ id: string }>(req);
   if (!body?.id) return badRequest("id required.");
-  const lead = await buildContainer(ctx).leads.restore(body.id, ctx.actor);
+  const container = buildContainer(ctx);
+  const lead = await container.leads.restore(body.id, ctx.actor);
   if (!lead) return notFound("lead_not_found");
-  return json({ ok: true, lead });
+  await ensureAcquisitionDossierForLead(container, lead, ctx.actor);
+  return json({ ok: true, lead: await container.leads.get(lead.id) ?? lead });
 }
 
 // Permanent, and named so. Requires the lead to be archived FIRST: a purge is
@@ -1812,6 +2125,9 @@ export async function previewCsvHandler(req: Request, ctx: PluginCtx): Promise<R
   const uploaded = await readUploadedSheet(req);
   if (uploaded instanceof Response) return uploaded;
   const parsed = parseCsv(uploaded.text);
+  if (parsed.rows.length > MAX_SPREADSHEET_DATA_ROWS) {
+    return badRequest(`Import up to ${MAX_SPREADSHEET_DATA_ROWS} leads at a time.`);
+  }
   const customFields = getPortalFormFields(ctx.agencyId, "leads").filter(field => field.active);
   const guessedMapping = Object.fromEntries(Object.entries(parsed.headerVariants).map(([target, index]) => [String(index), target]));
   return json({
@@ -1827,59 +2143,47 @@ export async function previewCsvHandler(req: Request, ctx: PluginCtx): Promise<R
 
 export async function importCsvHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
-  const contentType = req.headers.get("content-type") ?? "";
-  let text: string | null = null;
-  let filename: string | undefined;
+  const uploaded = await readUploadedSheet(req);
+  if (uploaded instanceof Response) return uploaded;
+  const text = uploaded.text;
+  const filename = uploaded.filename;
   let defaultSource: string | undefined;
   let defaultTags: string[] | undefined;
   let defaultRelationshipCategory: LeadRelationshipCategory | undefined;
   let mapping: Record<string, string> | undefined;
 
-  if (contentType.includes("multipart/form-data")) {
-    try {
-      const form = await req.formData();
-      const file = form.get("file");
-      if (file instanceof File) {
-        if (isExcelWorkbook(file.name, file.type)) {
-          if (!isXlsxWorkbook(file.name, file.type)) {
-            return badRequest("Old .xls workbooks are not supported yet. Save the sheet as .xlsx, CSV, or TSV and upload that file.");
-          }
-          text = parseXlsxToDelimitedText(await file.arrayBuffer());
-        } else {
-          text = await file.text();
-        }
-        filename = file.name;
-      } else if (typeof file === "string") {
-        text = file;
+  if (uploaded.form) {
+    const ds = uploaded.form.get("defaultSource");
+    if (typeof ds === "string") defaultSource = ds;
+    const dt = uploaded.form.get("defaultTags");
+    if (typeof dt === "string") defaultTags = dt.split(",").map(t => t.trim()).filter(Boolean);
+    const category = uploaded.form.get("defaultRelationshipCategory");
+    if (isLeadRelationshipCategory(category)) defaultRelationshipCategory = category;
+    const rawMapping = uploaded.form.get("mapping");
+    if (typeof rawMapping === "string" && rawMapping.trim()) {
+      try {
+        mapping = JSON.parse(rawMapping) as Record<string, string>;
+      } catch {
+        return badRequest("Column mapping is not valid.");
       }
-      const ds = form.get("defaultSource");
-      if (typeof ds === "string") defaultSource = ds;
-      const dt = form.get("defaultTags");
-      if (typeof dt === "string") defaultTags = dt.split(",").map(t => t.trim()).filter(Boolean);
-      const category = form.get("defaultRelationshipCategory");
-      if (isLeadRelationshipCategory(category)) defaultRelationshipCategory = category;
-      const rawMapping = form.get("mapping");
-      if (typeof rawMapping === "string" && rawMapping.trim()) {
-        try {
-          mapping = JSON.parse(rawMapping) as Record<string, string>;
-        } catch {
-          return badRequest("Column mapping is not valid.");
-        }
-      }
-    } catch (err) {
-      return badRequest(`multipart parse failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   } else {
-    const body = await safeJson<{ text: string; filename?: string; defaultSource?: string; defaultTags?: string[]; defaultRelationshipCategory?: LeadRelationshipCategory; mapping?: Record<string, string> }>(req);
-    if (!body?.text) return badRequest("text or multipart file required.");
-    text = body.text;
-    filename = body.filename;
-    defaultSource = body.defaultSource;
-    defaultTags = body.defaultTags;
-    defaultRelationshipCategory = isLeadRelationshipCategory(body.defaultRelationshipCategory) ? body.defaultRelationshipCategory : undefined;
-    mapping = body.mapping;
+    const body = uploaded.json ?? {};
+    defaultSource = typeof body.defaultSource === "string" ? body.defaultSource : undefined;
+    defaultTags = Array.isArray(body.defaultTags)
+      ? body.defaultTags.filter((tag): tag is string => typeof tag === "string")
+      : undefined;
+    defaultRelationshipCategory = isLeadRelationshipCategory(body.defaultRelationshipCategory)
+      ? body.defaultRelationshipCategory
+      : undefined;
+    mapping = body.mapping && typeof body.mapping === "object" && !Array.isArray(body.mapping)
+      ? body.mapping as Record<string, string>
+      : undefined;
   }
-  if (!text) return badRequest("empty CSV body.");
+  const parsed = parseCsv(text);
+  if (parsed.rows.length > MAX_SPREADSHEET_DATA_ROWS) {
+    return badRequest(`Import up to ${MAX_SPREADSHEET_DATA_ROWS} leads at a time.`);
+  }
   if (mapping) {
     const targets = Object.values(mapping).filter(target => target && target !== "skip");
     if (new Set(targets).size !== targets.length) {
@@ -1890,7 +2194,8 @@ export async function importCsvHandler(req: Request, ctx: PluginCtx): Promise<Re
   // The `defaultLeadSource` setting applies when the import names no override;
   // a blank setting keeps the import's own `csv:<filename>` provenance.
   const settingsDefaultSource = readLeadsPipelineSettings(ctx.install.config).defaultLeadSource;
-  const result = await buildContainer(ctx).leads.importCsv({
+  const container = buildContainer(ctx);
+  const result = await container.leads.importCsv({
     text,
     filename,
     actor: ctx.actor,
@@ -1900,6 +2205,7 @@ export async function importCsvHandler(req: Request, ctx: PluginCtx): Promise<Re
     mapping,
     customFieldTypes: Object.fromEntries(customFields.map(field => [field.id, field.type])),
     validateCustomFields: (values, existing) => validatePortalEntityFields(ctx.agencyId, "leads", values, existing),
+    onUpserted: lead => ensureAcquisitionDossierForLead(container, lead, ctx.actor).then(() => undefined),
   });
   return json({ ok: true, ...result });
 }
@@ -1983,15 +2289,17 @@ export async function listContactsHandler(req: Request, ctx: PluginCtx): Promise
 export async function createContactHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
   const body = await safeJson<CreateContactInput>(req);
-  if (!body || !body.email || !body.type || !body.source) {
+  if (!body) return badRequest("body required.");
+  const input = editableRecordFields(body, EDITABLE_CONTACT_CREATE_KEYS);
+  if (!input.email || !input.type || !input.source) {
     return badRequest("email + type + source required.");
   }
   try {
     const container = buildContainer(ctx);
-    const existing = await container.contacts.getByEmail(body.email);
+    const existing = await container.contacts.getByEmail(input.email);
     const definitions = (await ctx.storage.get<CustomFieldDefinition[]>(CUSTOM_FIELDS_KEY)) ?? [];
-    const customFields = validateContactCustomFields(definitions, body.customFields, existing?.customFields);
-    const result = await container.contacts.upsert({ ...body, customFields }, ctx.actor);
+    const customFields = validateContactCustomFields(definitions, input.customFields, existing?.customFields);
+    const result = await container.contacts.upsert({ ...input, customFields }, ctx.actor);
     return json({ ok: true, contact: result.contact, created: result.created }, result.created ? 201 : 200);
   } catch (error) {
     return unprocessable(error instanceof Error ? error.message : String(error));
@@ -2005,13 +2313,15 @@ export async function updateContactHandler(req: Request, ctx: PluginCtx): Promis
   if (!id) return badRequest("id required.");
   const body = await safeJson<UpdateContactPatch>(req);
   if (!body) return badRequest("body required.");
+  const patch = editableRecordFields(body, EDITABLE_CONTACT_PATCH_KEYS);
+  if (!Object.keys(patch).length) return badRequest("No editable contact fields supplied.");
   try {
     const container = buildContainer(ctx);
     const existing = await container.contacts.get(id);
     if (!existing) return notFound("contact_not_found");
     const definitions = (await ctx.storage.get<CustomFieldDefinition[]>(CUSTOM_FIELDS_KEY)) ?? [];
-    const customFields = validateContactCustomFields(definitions, body.customFields, existing.customFields);
-    const updated = await container.contacts.update(id, { ...body, customFields }, ctx.actor);
+    const customFields = validateContactCustomFields(definitions, patch.customFields, existing.customFields);
+    const updated = await container.contacts.update(id, { ...patch, customFields }, ctx.actor);
     if (!updated) return notFound("contact_not_found");
     return json({ ok: true, contact: updated });
   } catch (error) {
@@ -2035,124 +2345,181 @@ export async function convertContactToClientHandler(req: Request, ctx: PluginCtx
   if (!body?.id) return badRequest("id required.");
 
   const c = buildContainer(ctx);
-  const contact = await c.contacts.get(body.id);
-  if (!contact) return notFound("contact_not_found");
-
-  const existingClient = findExistingClientForContact(ctx.agencyId, contact);
-  const conversion = resolvedProductConversion(ctx.agencyId, {
+  const initialContact = await c.contacts.get(body.id);
+  if (!initialContact) return notFound("contact_not_found");
+  const initialConversion = resolvedProductConversion(ctx.agencyId, {
     ...body,
     servicePlan: body.servicePlan ?? body.planTier,
   });
-  if (!conversion) return badRequest("product_not_found");
-  const commercialPack = await c.commercial.get("contact", contact.id);
-  const metadata = {
-    ...clientJourneyMetadata(contact, conversion, (existingClient?.metadata ?? {}) as Record<string, unknown>),
-    commercialPack: commercialPack ?? undefined,
+  if (!initialConversion) return badRequest("product_not_found");
+
+  const coordinator = leadConversionCoordinator();
+  const operation: LeadConversionClaimInput = {
+    claimKey: contactConversionClaimKey({
+      agencyId: ctx.agencyId,
+      contactId: initialContact.id,
+    }),
+    requestHash: leadConversionRequestHash({
+      stage: body.stage ?? "aqua-epic-intro",
+      servicePlan: body.servicePlan ?? body.planTier ?? null,
+      productId: body.productId ?? null,
+      productKeys: body.productKeys ? [...body.productKeys].sort() : null,
+      projectValue: body.projectValue ?? null,
+      billingCadence: body.billingCadence ?? null,
+      createPortal: body.createPortal ?? null,
+    }),
+    holderId: leadConversionHolderId(),
   };
-  const lifecycleStage = (body.stage ?? "aqua-epic-intro") as never;
-  const client = existingClient
-    ? updateClient(ctx.agencyId, existingClient.id, { metadata, stage: lifecycleStage }) ?? existingClient
-    : createClient(ctx.agencyId, {
-    name: contact.company || contact.name || contact.email,
-    ownerEmail: contact.email,
-    stage: lifecycleStage,
-    metadata,
-  });
-  const lifecycleFingerprint = leadConversionRequestHash({
-    contactId: contact.id,
-    stage: lifecycleStage,
-    servicePlan: body.servicePlan ?? body.planTier ?? null,
-    productId: body.productId ?? null,
-    productKeys: body.productKeys ? [...body.productKeys].sort() : null,
-    projectValue: body.projectValue ?? null,
-    billingCadence: body.billingCadence ?? null,
-    createPortal: body.createPortal ?? null,
-  });
-  const lifecycle = await ensureClientLifecycleOperation({
-    agencyId: ctx.agencyId,
-    actor: ctx.actor,
-    operationId: `contact-lifecycle:${lifecycleFingerprint}`,
-    clientId: client.id,
-    stage: lifecycleStage,
-    metadata,
-    requestFingerprint: { lifecycleFingerprint, clientId: client.id },
-  });
-  if (!lifecycle.ok) {
+  let claim: Awaited<ReturnType<typeof acquireLeadConversion>>;
+  try {
+    claim = await acquireLeadConversion(coordinator, operation);
+  } catch (error) {
     return json({
       ok: false,
-      error: "client_lifecycle_incomplete",
-      message: lifecycle.error,
-      clientId: client.id,
-      lifecycle: lifecycle.lifecycle,
-      retryable: true,
+      error: "contact_conversion_coordinator_unavailable",
+      message: error instanceof Error ? error.message : String(error),
     }, 503);
   }
-  const syncedCommercialPack = await syncCommercialPackToClientFinance(
-    ctx,
-    commercialPack,
-    client.id,
-    `contact:${ctx.agencyId}:${contact.id}`,
-  );
-  if (syncedCommercialPack) {
-    updateClient(ctx.agencyId, client.id, {
-      metadata: { ...(client.metadata as Record<string, unknown>), commercialPack: syncedCommercialPack },
-    });
+  if (claim.state === "conflict") {
+    return json({
+      ok: false,
+      error: "contact_conversion_request_conflict",
+      message: "This contact already has a conversion operation with different options.",
+    }, 409);
   }
+  if (claim.state === "held") {
+    return json({
+      ok: false,
+      error: "contact_conversion_in_progress",
+      retryAfterMs: Math.max(250, claim.leaseExpiresAt - Date.now()),
+    }, 409);
+  }
+  if (claim.state === "complete") return replayLeadConversionResponse(claim.result);
 
-  const convertedContact = await c.contacts.update(contact.id, {
-    type: "customer",
-    tags: Array.from(new Set([...contact.tags, "converted"])),
-    lastContactedAt: contact.lastContactedAt ?? Date.now(),
-  }, ctx.actor);
+  try {
+    // As with Lead conversion, a prior owner may have persisted part of the
+    // operation. Refresh only after this request owns the durable claim.
+    await ensureHydrated({ fresh: true });
+    const contact = await c.contacts.get(body.id);
+    if (!contact) {
+      await failLeadConversion(coordinator, operation, "contact_not_found_after_claim");
+      return notFound("contact_not_found");
+    }
+    const conversion = resolvedProductConversion(ctx.agencyId, {
+      ...body,
+      servicePlan: body.servicePlan ?? body.planTier,
+    });
+    if (!conversion) {
+      await failLeadConversion(coordinator, operation, "product_not_found_after_claim");
+      return badRequest("product_not_found");
+    }
 
-  const portalLogin = conversion.createPortal === false ? undefined : prepareCustomerPortalAccess({
-    email: contact.email,
-  });
-
-  const portalSetup = conversion.createPortal === false
-    ? { ok: true as const, skipped: true as const }
-    : await setupClientStarterPortal({
+    const existingClient = findExistingClientForContact(ctx.agencyId, contact);
+    const commercialPack = await c.commercial.get("contact", contact.id);
+    const metadata = {
+      ...clientJourneyMetadata(contact, conversion, (existingClient?.metadata ?? {}) as Record<string, unknown>),
+      commercialPack: commercialPack ?? undefined,
+    };
+    const lifecycleStage = (body.stage ?? "aqua-epic-intro") as never;
+    const client = existingClient
+      ? updateClient(ctx.agencyId, existingClient.id, { metadata, stage: lifecycleStage, personId: contact.personId }) ?? existingClient
+      : createClient(ctx.agencyId, {
+        personId: contact.personId,
+        name: contact.company || contact.name || contact.email,
+        ownerEmail: contact.email,
+        stage: lifecycleStage,
+        metadata,
+      });
+    const clientCreated = !existingClient;
+    const lifecycle = await ensureClientLifecycleOperation({
       agencyId: ctx.agencyId,
       clientId: client.id,
       actor: ctx.actor,
-      metadata: {
-        phase: "Epic Intro",
-        planTier: String(conversion.servicePlan ?? "Milesymedia product"),
-        therapistName: contact.name,
-        practiceName: contact.company,
-        onboardingStartedAt: businessCalendarDate(),
-      },
+      operationId: `contact-lifecycle:${operation.claimKey}`,
+      stage: lifecycleStage,
+      metadata,
+      requestFingerprint: { conversionRequestHash: operation.requestHash, clientId: client.id },
     });
-  if (!portalSetup.ok) {
-    return json({
-      ok: false,
-      error: "client_portal_setup_incomplete",
-      message: `Client created, but customer portal setup is incomplete: ${portalSetup.error}`,
+    if (!lifecycle.ok) {
+      await failLeadConversion(coordinator, operation, lifecycle.error ?? "client lifecycle incomplete");
+      return json({
+        ok: false,
+        error: "client_lifecycle_incomplete",
+        message: lifecycle.error,
+        clientId: client.id,
+        lifecycle: lifecycle.lifecycle,
+        retryable: true,
+      }, 503);
+    }
+    const syncedCommercialPack = await syncCommercialPackToClientFinance(
+      ctx,
+      commercialPack,
+      client.id,
+      `contact:${ctx.agencyId}:${contact.id}`,
+    );
+    if (syncedCommercialPack) {
+      updateClient(ctx.agencyId, client.id, {
+        metadata: { ...(client.metadata as Record<string, unknown>), commercialPack: syncedCommercialPack },
+      });
+    }
+
+    const convertedContact = await c.contacts.recordClientConversion(contact.id, client.id, ctx.actor);
+    const portalLogin = conversion.createPortal === false ? undefined : prepareCustomerPortalAccess({
+      email: contact.email,
+    });
+    const portalSetup = conversion.createPortal === false
+      ? { ok: true as const, skipped: true as const }
+      : await setupClientStarterPortal({
+        agencyId: ctx.agencyId,
+        clientId: client.id,
+        actor: ctx.actor,
+        metadata: {
+          phase: "Epic Intro",
+          planTier: String(conversion.servicePlan ?? "Milesymedia product"),
+          therapistName: contact.name,
+          practiceName: contact.company,
+          onboardingStartedAt: businessCalendarDate(),
+        },
+      });
+    if (!portalSetup.ok) {
+      await failLeadConversion(coordinator, operation, `client portal setup failed: ${portalSetup.error}`);
+      return json({
+        ok: false,
+        error: "client_portal_setup_incomplete",
+        message: `Client created, but customer portal setup is incomplete: ${portalSetup.error}`,
+        clientId: client.id,
+        portalSetup,
+        retryable: true,
+      }, 503);
+    }
+
+    await ctx.services.activity.logActivity({
+      idempotencyKey: `personal-metric:contact-converted:${contact.id}:${client.id}`,
+      agencyId: ctx.agencyId,
       clientId: client.id,
+      actorUserId: ctx.actor,
+      category: "leads",
+      action: "leads.contact.converted",
+      message: `Converted ${contact.name || contact.company || contact.email || contact.id} to a client.`,
+      metadata: { contactId: contact.id, clientId: client.id },
+    });
+
+    const result = {
+      ok: true,
+      client,
+      clientCreated,
+      contact: convertedContact ?? contact,
       portalSetup,
-      retryable: true,
-    }, 503);
+      portalLogin,
+    };
+    await flushPendingWrites();
+    await coordinator.complete({ ...operation, result });
+    return json(result, clientCreated ? 201 : 200);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await failLeadConversion(coordinator, operation, message);
+    return json({ ok: false, error: "contact_conversion_failed", message }, 500);
   }
-
-  await ctx.services.activity.logActivity({
-    idempotencyKey: `personal-metric:contact-converted:${contact.id}:${client.id}`,
-    agencyId: ctx.agencyId,
-    clientId: client.id,
-    actorUserId: ctx.actor,
-    category: "leads",
-    action: "leads.contact.converted",
-    message: `Converted ${contact.name || contact.company || contact.email || contact.id} to a client.`,
-    metadata: { contactId: contact.id, clientId: client.id },
-  });
-
-  return json({
-    ok: true,
-    client,
-    clientCreated: !existingClient,
-    contact: convertedContact ?? contact,
-    portalSetup,
-    portalLogin,
-  }, existingClient ? 200 : 201);
 }
 
 export async function addContactToBoardHandler(req: Request, ctx: PluginCtx): Promise<Response> {
@@ -2166,7 +2533,7 @@ export async function addContactToBoardHandler(req: Request, ctx: PluginCtx): Pr
     if (!contact) return notFound("contact_not_found");
     if (contact.type === "customer") return unprocessable("customer_already_converted");
 
-    const result = await c.leads.upsert({
+    const leadInput = {
       email: contact.email,
       name: contact.name,
       phone: contact.phone,
@@ -2178,7 +2545,32 @@ export async function addContactToBoardHandler(req: Request, ctx: PluginCtx): Pr
         : undefined,
       notes: contact.notes,
       customFields: contact.customFields,
-    }, ctx.actor);
+    } as const;
+    // A Contact's canonical Person is the relationship key. Email alone is not
+    // enough here: legacy/shared inbox data can contain the same address for
+    // different people and must never make the UI select somebody else's Lead.
+    const linkedByPerson = contact.personId
+      ? await c.leads.getByPersonId(contact.personId)
+      : null;
+    const linkedByPromotion = contact.promotedFromLeadId
+      ? await c.leads.get(contact.promotedFromLeadId)
+      : null;
+    if (
+      linkedByPerson
+      && linkedByPromotion
+      && linkedByPerson.id !== linkedByPromotion.id
+    ) {
+      return unprocessable("contact_lead_identity_conflict");
+    }
+    const alreadyLinked = linkedByPerson ?? linkedByPromotion;
+    if (alreadyLinked?.personId && contact.personId && alreadyLinked.personId !== contact.personId) {
+      return unprocessable("contact_lead_identity_conflict");
+    }
+    const result = alreadyLinked && (!contact.personId || alreadyLinked.personId === contact.personId)
+      ? { lead: alreadyLinked, created: false }
+      : contact.personId
+        ? await c.leads.upsertForPerson(leadInput, contact.personId, ctx.actor)
+        : await c.leads.upsert(leadInput, ctx.actor);
     const leadWithMeeting = contact.nextMeetingAt || contact.meetingNotes || contact.salesPresentations?.length
       ? await c.leads.update(result.lead.id, {
           nextMeetingAt: contact.nextMeetingAt,
@@ -2187,8 +2579,14 @@ export async function addContactToBoardHandler(req: Request, ctx: PluginCtx): Pr
           salesPresentations: contact.salesPresentations,
         }, ctx.actor)
       : result.lead;
+    await ensureAcquisitionDossierForLead(c, leadWithMeeting ?? result.lead, ctx.actor);
     const board = await ensureLeadBoardCard(ctx, leadWithMeeting ?? result.lead);
-    return json({ ok: true, lead: board.lead, created: result.created, columnId: board.columnId });
+    return json({
+      ok: true,
+      lead: await c.leads.get(result.lead.id) ?? board.lead,
+      created: result.created,
+      columnId: board.columnId,
+    });
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));
   }
@@ -2207,7 +2605,9 @@ export async function updateContactMeetingHandler(req: Request, ctx: PluginCtx):
     meetingConfirmed?: boolean;
     meetingReminderAt?: number | null;
     salesPresentations?: Array<{ id?: string; title?: string; url?: string }>;
-    attempt?: { channel?: MeetingAttemptChannel; outcome?: MeetingAttemptOutcome; notes?: string; at?: number };
+    callRecordingUrl?: string | null;
+    sessionNotes?: string | null;
+    attempt?: { channel?: MeetingAttemptChannel; outcome?: MeetingAttemptOutcome; notes?: string };
   }>(req);
   if (!body?.id) return badRequest("id required.");
   const service = buildContainer(ctx).contacts;
@@ -2219,43 +2619,67 @@ export async function updateContactMeetingHandler(req: Request, ctx: PluginCtx):
   const validOutcomes: MeetingAttemptOutcome[] = ["attempted", "reached", "reminder-sent", "no-show", "rescheduled", "completed"];
   if (body.meetingMode && !validModes.includes(body.meetingMode)) return badRequest("invalid meeting mode");
   if (body.meetingStatus && !validStatuses.includes(body.meetingStatus)) return badRequest("invalid meeting status");
+  if (!validOptionalMeetingTimestamp(body.nextMeetingAt)) return badRequest("invalid meeting date");
+  if (!validOptionalMeetingTimestamp(body.meetingReminderAt)) return badRequest("invalid meeting reminder date");
+  if (body.meetingConfirmed !== undefined && typeof body.meetingConfirmed !== "boolean") return badRequest("meeting confirmation must be true or false");
+  if (body.attempt !== undefined && (!body.attempt || typeof body.attempt !== "object" || Array.isArray(body.attempt))) {
+    return badRequest("meeting attempt must be an object");
+  }
   const salesPresentations = body.salesPresentations === undefined
     ? undefined
     : cleanSalesPresentations(body.salesPresentations);
   if (salesPresentations === null) {
     return badRequest("Sales presentations need a title and a valid http or https link.");
   }
-  const attempts = [...(existing.meetingAttempts ?? [])];
+  let meetingLink: string | undefined;
+  let callRecordingUrl: string | undefined;
+  let meetingNotes: string | undefined;
+  let meetingLocation: string | undefined;
+  let sessionNotes: string | undefined;
+  let attemptNotes: string | undefined;
+  try {
+    meetingLink = cleanMeetingAssetInput(body.meetingLink, "Meeting link");
+    callRecordingUrl = cleanMeetingAssetInput(body.callRecordingUrl, "Call recording URL");
+    meetingNotes = cleanMeetingTextInput(body.meetingNotes, "Meeting notes", MEETING_WRITE_LIMITS.meetingNotes);
+    meetingLocation = cleanMeetingTextInput(body.meetingLocation, "Meeting location", MEETING_WRITE_LIMITS.location);
+    sessionNotes = cleanMeetingTextInput(body.sessionNotes, "Session notes", MEETING_WRITE_LIMITS.sessionNotes);
+    attemptNotes = cleanMeetingTextInput(body.attempt?.notes, "Interaction note", MEETING_WRITE_LIMITS.attemptNotes);
+  } catch (error) {
+    return badRequest(error instanceof Error ? error.message : "Meeting details are invalid.");
+  }
+  let attempt: MeetingMutationInput["attempt"];
   if (body.attempt?.outcome) {
     const channel = body.attempt.channel;
     const outcome = body.attempt.outcome;
     if (!channel || !validChannels.includes(channel) || !validOutcomes.includes(outcome)) return badRequest("valid attempt channel and outcome required");
-    attempts.push({
-      id: `attempt_${randomUUID()}`,
-      at: typeof body.attempt.at === "number" ? body.attempt.at : Date.now(),
-      channel,
-      outcome,
-      notes: body.attempt.notes?.trim() || undefined,
-    });
+    attempt = { channel, outcome, notes: attemptNotes };
   }
-  const patch: UpdateContactPatch = {
+  const patch: MeetingMutationInput["patch"] = {
     nextMeetingAt: typeof body.nextMeetingAt === "number" ? body.nextMeetingAt : undefined,
-    meetingLink: body.meetingLink?.trim() || undefined,
-    meetingNotes: body.meetingNotes?.trim() || undefined,
+    meetingLink,
+    meetingNotes,
     meetingMode: body.meetingMode,
-    meetingLocation: body.meetingLocation?.trim() || undefined,
+    meetingLocation,
     meetingStatus: body.meetingStatus,
-    meetingConfirmedAt: body.meetingConfirmed ? existing.meetingConfirmedAt ?? Date.now() : undefined,
     meetingReminderAt: typeof body.meetingReminderAt === "number" ? body.meetingReminderAt : undefined,
-    meetingReminderSentAt: body.attempt?.outcome === "reminder-sent" ? Date.now() : existing.meetingReminderSentAt,
-    meetingAttempts: attempts,
   };
+  if (Object.prototype.hasOwnProperty.call(body, "callRecordingUrl")) patch.callRecordingUrl = callRecordingUrl;
+  if (Object.prototype.hasOwnProperty.call(body, "sessionNotes")) patch.sessionNotes = sessionNotes;
   if (salesPresentations !== undefined) patch.salesPresentations = salesPresentations;
   if (body.nextMeetingAt === null) patch.nextMeetingAt = undefined;
   if (body.meetingReminderAt === null) patch.meetingReminderAt = undefined;
-  const updated = await service.update(body.id, patch, ctx.actor);
-  if (!updated) return notFound("contact_not_found");
-  return json({ ok: true, contact: updated });
+  try {
+    const updated = await service.updateMeeting(body.id, {
+      patch,
+      meetingConfirmed: body.meetingConfirmed,
+      attempt,
+    }, ctx.actor);
+    if (!updated) return notFound("contact_not_found");
+    return json({ ok: true, contact: updated });
+  } catch (error) {
+    if (error instanceof MeetingAttemptHistoryLimitError) return badRequest(error.message);
+    return unprocessable(error instanceof Error ? error.message : String(error));
+  }
 }
 
 export async function markContactContactedHandler(req: Request, ctx: PluginCtx): Promise<Response> {

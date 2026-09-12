@@ -2,6 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Check, LoaderCircle, Lock, Plug } from "lucide-react";
+import {
+  BotChallenge,
+  type BotChallengeHandle,
+  usePublicBotChallengeConfig,
+} from "@/components/security/BotChallenge";
 
 /**
  * The whole connect journey, as one component.
@@ -57,6 +62,9 @@ export function ConnectFlow({
   const [step, setStep] = useState<Step>(signedIn ? "code" : "welcome");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const challenge = usePublicBotChallengeConfig();
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const captchaRef = useRef<BotChallengeHandle>(null);
 
   const [loginEmail, setLoginEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -136,7 +144,11 @@ export function ConnectFlow({
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: loginEmail, password }),
+        body: JSON.stringify({
+          email: loginEmail,
+          password,
+          ...(captchaToken ? { captchaToken } : {}),
+        }),
       });
       const data = await response.json() as { ok?: boolean; error?: string };
       if (!response.ok || !data.ok) throw new Error(data.error ?? "Sign-in failed.");
@@ -146,6 +158,7 @@ export function ConnectFlow({
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign-in failed.");
     } finally {
+      captchaRef.current?.reset();
       setBusy(false);
     }
   }
@@ -302,10 +315,22 @@ export function ConnectFlow({
             className="w-full rounded-lg border border-white/12 bg-white/[0.06] px-3.5 py-3 text-sm text-white outline-none transition focus:border-white/35 focus:bg-white/[0.09]"
           />
         </div>
+        <BotChallenge
+          ref={captchaRef}
+          siteKey={challenge.siteKey}
+          action="login"
+          onToken={setCaptchaToken}
+          required={challenge.required || challenge.error}
+        />
         {error ? <p role="alert" className="text-xs leading-5 text-red-300">{error}</p> : null}
         <button
           type="submit"
-          disabled={busy}
+          disabled={
+            busy
+            || challenge.loading
+            || ((challenge.required || challenge.error) && !challenge.siteKey)
+            || (Boolean(challenge.siteKey) && !captchaToken)
+          }
           className="mt-1.5 inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-white px-4 text-sm font-semibold text-[#0e1013] transition hover:bg-white/90 disabled:opacity-40"
         >
           {busy ? <><LoaderCircle size={15} className="animate-spin" aria-hidden />Signing in…</> : "Sign in and continue"}

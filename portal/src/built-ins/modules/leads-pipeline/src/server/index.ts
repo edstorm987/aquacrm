@@ -10,6 +10,11 @@ export {
   commercialFinancialHash,
 } from "./commercial";
 export { ProspectService } from "./prospects";
+export {
+  ensureAcquisitionDossierForLead,
+  leadProspectAcquisition,
+  mutateProspectAndConverge,
+} from "./prospectAcquisition";
 export { ContactService } from "./contacts";
 export { CampaignService, PLUGIN_ID } from "./campaigns";
 export type {
@@ -40,6 +45,7 @@ export type {
   SubscribedEventName,
   ListActivityFilter,
   LogActivityInput,
+  EraseActivityReferencesInput,
   PluginInstallStorePort,
   TenantPort,
   EmailEnqueuePort,
@@ -48,6 +54,9 @@ export type {
   PipelinePort,
   PipelineCardRef,
   AddLeadCardInput,
+  PersonIdentityPort,
+  ResolveAcquisitionPersonInput,
+  AttachAcquisitionPersonFacetsInput,
 } from "./ports";
 
 export {
@@ -68,6 +77,7 @@ import type {
   EmailEnqueuePort,
   EventBusPort,
   PipelinePort,
+  PersonIdentityPort,
   PluginInstallStorePort,
   TenantPort,
 } from "./ports";
@@ -106,6 +116,7 @@ export interface LeadsPipelineDeps {
   pluginInstalls: PluginInstallStorePort;
   emailEnqueue?: EmailEnqueuePort;
   pipeline?: PipelinePort;
+  personIdentity?: PersonIdentityPort;
   settings?: LeadsPipelineSettings;
 }
 
@@ -122,10 +133,10 @@ export function buildLeadsPipelineContainer(deps: LeadsPipelineDeps): LeadsPipel
     deps.agencyId, deps.storage, deps.activity, deps.events,
   );
   const leads = new LeadService(
-    deps.agencyId, deps.storage, deps.activity, deps.events, deps.pipeline, deps.settings,
+    deps.agencyId, deps.storage, deps.activity, deps.events, deps.pipeline, deps.settings, deps.personIdentity,
   );
   const contacts = new ContactService(
-    deps.agencyId, deps.storage, deps.activity, deps.events,
+    deps.agencyId, deps.storage, deps.activity, deps.events, deps.personIdentity,
   );
   const campaigns = new CampaignService(
     deps.agencyId, deps.storage, deps.activity, deps.events, leads, deps.emailEnqueue,

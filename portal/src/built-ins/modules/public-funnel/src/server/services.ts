@@ -26,13 +26,28 @@ import type {
   ActivityLogPort,
   EventBusPort,
   LeadUserPort,
-  SessionPort,
   StoragePort,
 } from "./ports";
 
 const CAPTURE_INDEX = "captures/index";
 const captureKey = (id: string): string => `captures/by-id/${id}`;
 const captureEmailKey = (email: string): string => `captures/by-email/${canonEmail(email)}`;
+
+export interface FunnelErasureResult {
+  erased: number;
+  reviewRequired: {
+    legacyUnscoped: number;
+    sharedIdentity: number;
+  };
+}
+
+export interface FunnelErasureSubject {
+  clientId: string;
+  personId?: string;
+  personShared: boolean;
+  emails: readonly string[];
+  sharedEmails: readonly string[];
+}
 
 export class FunnelInputError extends Error {
   constructor(message: string) { super(message); this.name = "FunnelInputError"; }
@@ -47,13 +62,28 @@ function operationCaptureId(source: LeadSource, completionId?: string): string {
   return `lc_${source}_${clean}`;
 }
 
+function assertHcSlot(slot: HCSlot): void {
+  if (!slot || typeof slot !== "object" || Array.isArray(slot)) {
+    throw new FunnelInputError("invalid_hc_slot");
+  }
+  if (!Number.isInteger(slot.slot) || Number(slot.slot) < 1 || Number(slot.slot) > 5) {
+    throw new FunnelInputError("invalid_hc_slot");
+  }
+  let encoded: string;
+  try {
+    encoded = JSON.stringify(slot);
+  } catch {
+    throw new FunnelInputError("invalid_hc_slot");
+  }
+  if (encoded.length > 64 * 1024) throw new FunnelInputError("invalid_hc_slot");
+}
+
 export interface FunnelDeps {
   agencyId: AgencyId;
   storage: StoragePort;
   activity: ActivityLogPort;
   events: EventBusPort;
   leadUsers: LeadUserPort;
-  sessions?: SessionPort;
 }
 
 export class FunnelService {
@@ -62,7 +92,6 @@ export class FunnelService {
   private readonly activity: ActivityLogPort;
   private readonly events: EventBusPort;
   private readonly leadUsers: LeadUserPort;
-  private readonly sessions?: SessionPort;
 
   constructor(deps: FunnelDeps) {
     this.agencyId = deps.agencyId;
@@ -70,13 +99,13 @@ export class FunnelService {
     this.activity = deps.activity;
     this.events = deps.events;
     this.leadUsers = deps.leadUsers;
-    if (deps.sessions) this.sessions = deps.sessions;
   }
 
   // ── Captures ─────────────────────────────────────────────────
 
   async captureHcCompletion(input: CaptureHcInput): Promise<CaptureResult> {
     if (!isPlausibleEmail(input.email)) throw new FunnelInputError("invalid_email");
+    assertHcSlot(input.slot);
     return this.doCapture("hc", canonEmail(input.email), {
       sourceMeta: { ...(input.sourceMeta ?? {}), hcSlot: input.slot },
       hcSlot: input.slot,
@@ -104,25 +133,47 @@ export class FunnelService {
     args: { sourceMeta: Record<string, unknown>; hcSlot?: HCSlot; completionId?: string },
   ): Promise<CaptureResult> {
     const captureId = operationCaptureId(source, args.completionId);
+    // Cheap deterministic replay/conflict refusal before identity lookup. The
+    // same check is repeated inside the durable foundation transaction below.
+    const previous = await this.storage.get<LeadCapture>(captureKey(captureId));
+    if (previous) {
+      throw new FunnelInputError(
+        previous.email === email && previous.source === source
+          ? "completion_id_replayed"
+          : "completion_id_conflict",
+      );
+    }
+    const registration = await this.leadUsers.withNewLeadByEmail(
+      email,
+      createLead => this.doCaptureExclusive(source, email, captureId, args, createLead),
+    );
+    if (!registration.created) {
+      // This includes existing leads. Only a separately verified mailbox flow
+      // may authenticate or append to an existing identity.
+      throw new FunnelInputError("identity_unavailable");
+    }
+    return registration.value;
+  }
+
+  private async doCaptureExclusive(
+    source: LeadSource,
+    email: string,
+    captureId: string,
+    args: { sourceMeta: Record<string, unknown>; hcSlot?: HCSlot },
+    createLead: () => { id: string },
+  ): Promise<CaptureResult> {
     const previous = await this.storage.get<LeadCapture>(captureKey(captureId));
     if (previous) {
       if (previous.email !== email || previous.source !== source) {
         throw new FunnelInputError("completion_id_conflict");
       }
-      const previousSession = this.sessions
-        ? await Promise.resolve(this.sessions.issueSession(previous.leadUserId))
-        : undefined;
-      return {
-        capture: previous,
-        leadUserId: previous.leadUserId,
-        created: false,
-        ...(previousSession !== undefined ? { session: previousSession } : {}),
-      };
+      // A caller-chosen operation id is not authentication. Never return a
+      // prior lead id or revive authority for a replayed anonymous request.
+      throw new FunnelInputError("completion_id_replayed");
     }
 
     const t = now();
-    const upsert = await Promise.resolve(this.leadUsers.upsertLeadByEmail(email));
-    const leadUserId = upsert.user.id;
+    const leadUserId = createLead().id;
 
     const capture: LeadCapture = {
       id: captureId,
@@ -147,19 +198,10 @@ export class FunnelService {
       if (!raced || raced.email !== email || raced.source !== source) {
         throw new FunnelInputError("completion_id_conflict");
       }
-      const racedSession = this.sessions
-        ? await Promise.resolve(this.sessions.issueSession(raced.leadUserId))
-        : undefined;
-      return {
-        capture: raced,
-        leadUserId: raced.leadUserId,
-        created: false,
-        ...(racedSession !== undefined ? { session: racedSession } : {}),
-      };
+      throw new FunnelInputError("completion_id_replayed");
     }
 
-    if (upsert.created) {
-      this.activity.logActivity({
+    this.activity.logActivity({
         // `actorEmail` is deliberately NOT set: it is a PII FIELD on every
         // activity entry, not just the message, and these entries carry no
         // `clientId` for the erasure sweep to match. `actorUserId` identifies
@@ -171,11 +213,10 @@ export class FunnelService {
         // could never scrub them. The metadata carries the capture id.
         message: `Lead captured (${source}).`,
         metadata: { captureId: capture.id, source, leadUserId },
-      });
-      this.events.emit({ agencyId: this.agencyId },
-        "public-funnel.lead.captured",
-        { id: capture.id, leadUserId, email, source });
-    }
+    });
+    this.events.emit({ agencyId: this.agencyId },
+      "public-funnel.lead.captured",
+      { id: capture.id, leadUserId, email, source });
 
     if (source === "hc") {
       const bucket = bucketHcSlot(args.hcSlot);
@@ -198,41 +239,87 @@ export class FunnelService {
         { id: capture.id, leadUserId, email, toolId: args.sourceMeta.toolId });
     }
 
-    let session: string | undefined;
-    if (this.sessions) {
-      session = await Promise.resolve(this.sessions.issueSession(leadUserId));
-    }
-
     const result: CaptureResult = {
-      capture, leadUserId, created: upsert.created,
-      ...(session !== undefined ? { session } : {}),
+      capture, leadUserId, created: true,
     };
     return result;
   }
 
-  // Right-to-be-forgotten: delete every capture made by one of `addresses`,
-  // plus the `captures/by-email/<email>` pointer whose KEY NAME holds the
-  // address (no value-scan can reach that). Called by `onEraseClient`.
-  //
-  // DELETE, not anonymise: a funnel capture is marketing PII — the policy's
-  // clearest delete category. A capture carries NO `clientId` (it is made long
-  // before the person is a client), so the address is the only link.
-  //
-  // Idempotent: a second run finds nothing and returns 0.
-  async eraseForAddresses(addresses: readonly string[]): Promise<number> {
+  // Right-to-be-forgotten. Historical captures are pre-client and therefore
+  // unscoped; matching their email is not ownership. Preserve those rows for
+  // review and delete only a future/backfilled exact client or exclusive
+  // reciprocal-Person stamp.
+  async eraseForClient(subject: FunnelErasureSubject): Promise<FunnelErasureResult> {
+    const wanted = new Set(subject.emails.map(canonEmail).filter(Boolean));
+    const shared = new Set(subject.sharedEmails.map(canonEmail).filter(Boolean));
+    const captures = await this.list();
+    const reviewRequired = { legacyUnscoped: 0, sharedIdentity: 0 };
+    const erasedAddresses = new Set<string>();
+    const erasedCapturesByUser = new Map<string, { emails: Set<string>; captureIds: string[] }>();
+    const legacyUserReviews = new Set<string>();
+    const sharedUserReviews = new Set<string>();
     let erased = 0;
-    for (const address of new Set(addresses.map(a => canonEmail(a)).filter(Boolean))) {
-      const captures = await this.listByEmail(address);
-      for (const capture of captures) {
-        await this.storage.del(captureKey(capture.id));
-        // Legacy installs kept unlocked global/email indexes. Reads no longer
-        // trust them, but erasure still cleans them when present.
-        const index = (await this.storage.get<string[]>(CAPTURE_INDEX)) ?? [];
-        await this.storage.set(CAPTURE_INDEX, index.filter(value => value !== capture.id));
-        erased++;
+    for (const capture of captures) {
+      const conflictingPerson = Boolean(subject.personId && capture.personId && capture.personId !== subject.personId);
+      const exactClient = capture.clientId === subject.clientId && !conflictingPerson;
+      const exactExclusivePerson = Boolean(subject.personId && !subject.personShared
+        && capture.personId === subject.personId
+        && (!capture.clientId || capture.clientId === subject.clientId));
+      if (!exactClient && !exactExclusivePerson) {
+        const matchingAddress = wanted.has(canonEmail(capture.email));
+        const sharedPerson = Boolean(subject.personShared && subject.personId
+          && capture.personId === subject.personId);
+        if (!matchingAddress && !sharedPerson && capture.clientId !== subject.clientId) continue;
+        const sharedIdentity = Boolean(sharedPerson
+          || conflictingPerson
+          || shared.has(canonEmail(capture.email))
+          || (capture.clientId && capture.clientId !== subject.clientId)
+          || (capture.personId && capture.personId !== subject.personId));
+        if (sharedIdentity) {
+          reviewRequired.sharedIdentity++;
+          if (capture.leadUserId) {
+            legacyUserReviews.delete(capture.leadUserId);
+            sharedUserReviews.add(capture.leadUserId);
+          }
+        } else {
+          reviewRequired.legacyUnscoped++;
+          if (capture.leadUserId && !sharedUserReviews.has(capture.leadUserId)) {
+            legacyUserReviews.add(capture.leadUserId);
+          }
+        }
+        continue;
       }
-      await this.storage.del(captureEmailKey(address));
+      await this.storage.del(captureKey(capture.id));
+      erasedAddresses.add(canonEmail(capture.email));
+      if (capture.leadUserId) {
+        const group = erasedCapturesByUser.get(capture.leadUserId) ?? { emails: new Set<string>(), captureIds: [] };
+        group.emails.add(canonEmail(capture.email));
+        group.captureIds.push(capture.id);
+        erasedCapturesByUser.set(capture.leadUserId, group);
+      }
+      const index = (await this.storage.get<string[]>(CAPTURE_INDEX)) ?? [];
+      await this.storage.set(CAPTURE_INDEX, index.filter(value => value !== capture.id));
+      erased++;
     }
+    for (const address of erasedAddresses) {
+      if (!(await this.listByEmail(address)).length) await this.storage.del(captureEmailKey(address));
+    }
+    for (const [userId, group] of erasedCapturesByUser) {
+      const cleanup = await this.leadUsers.eraseIfUnreferenced({
+        agencyId: this.agencyId,
+        userId,
+        // Multiple addresses claiming the same user are corrupt ownership
+        // evidence. An empty value makes the adapter preserve for review.
+        email: group.emails.size === 1 ? [...group.emails][0]! : "",
+        captureIds: group.captureIds,
+      });
+      if (cleanup.status === "preserved") {
+        legacyUserReviews.delete(userId);
+        sharedUserReviews.add(userId);
+      }
+    }
+    reviewRequired.legacyUnscoped += legacyUserReviews.size;
+    reviewRequired.sharedIdentity += sharedUserReviews.size;
     if (erased) {
       await this.activity.logActivity({
         agencyId: this.agencyId,
@@ -242,7 +329,7 @@ export class FunnelService {
         metadata: { erased },
       });
     }
-    return erased;
+    return { erased, reviewRequired };
   }
 
   // ── Reads ───────────────────────────────────────────────────

@@ -53,7 +53,7 @@ try {
     } else if (input.action === "marketing-lead-contact") {
       result = await service.recordContact(input.id, input.note, input.actor || "worker");
     } else if (input.action === "marketing-lead-erase") {
-      result = await service.eraseForAddresses(input.addresses);
+      result = await service.eraseForClient(input.subject);
     } else if (input.action === "marketing-lead-get-email") {
       result = await service.getByEmail(input.email);
     } else if (input.action === "marketing-lead-list-campaign") {
@@ -360,6 +360,7 @@ describe("real-process marketing durability", () => {
       payload: {
         email: "before.rekey@example.com",
         name: "Re-key me",
+        clientId: "client_rekey_exact",
         campaignId: "campaign_old",
         assignedStaffId: "staff_old",
       },
@@ -401,10 +402,20 @@ describe("real-process marketing durability", () => {
     const erased = await runChild(dataFile, {
       ...common,
       action: "marketing-lead-erase",
-      addresses: [" AFTER.REKEY@example.com "],
+      subject: {
+        clientId: "client_rekey_exact",
+        personShared: false,
+        emails: [" AFTER.REKEY@example.com "],
+        phones: [],
+        sharedEmails: [],
+        sharedPhones: [],
+      },
     });
     assert.equal(erased.ok, true, erased.error);
-    assert.equal(erased.result, 1);
+    assert.deepEqual(erased.result, {
+      erased: 1,
+      reviewRequired: { legacyUnscoped: 0, sharedIdentity: 0 },
+    });
 
     const [listedAfterErase, emailAfterErase, campaignAfterErase, staffAfterErase, emailPointerAfterErase] = await Promise.all([
       runChild(dataFile, { ...common, action: "marketing-lead-list" }),

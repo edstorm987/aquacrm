@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 
 import { requireRole } from "@/lib/server/auth/auth";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 import { getClientForAgency } from "@/server/tenants";
 import {
   derivePersonState,
@@ -33,10 +35,14 @@ export default async function ContactCardPage({
 }) {
   await ensureHydrated();
   const session = await requireRole([...AGENCY_ROLES]);
+  await requireCurrentWorkspaceElementAccess("growth", "growth.contacts", "view");
   const { personId } = await params;
 
   const person = getPerson(session.agencyId, personId);
   if (!person) notFound();
+  for (const clientId of person.facets.clientIds ?? []) {
+    await requireCurrentClientWorkspaceElementAccess(clientId, "client.communications", "view");
+  }
 
   const state = derivePersonState(person);
   const organisation = person.organisationId

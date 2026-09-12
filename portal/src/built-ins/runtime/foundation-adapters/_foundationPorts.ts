@@ -11,7 +11,7 @@ import "server-only";
 // match structurally.
 
 import { getAgency, getClient, getClientForAgency, listClients } from "@/server/tenants";
-import { logActivity, listActivity } from "@/server/activity";
+import { eraseLeadsActivitySubjectReferences, logActivity, listActivity } from "@/server/activity";
 import { emit } from "@/server/eventBus";
 import { getInstall } from "@/server/pluginInstalls";
 import { getUserById } from "@/server/users";
@@ -42,6 +42,9 @@ export const activityPort = {
   },
   listActivity(filter: Parameters<typeof listActivity>[0]): unknown {
     return listActivity(filter);
+  },
+  eraseSubjectReferences(input: Parameters<typeof eraseLeadsActivitySubjectReferences>[0]) {
+    return eraseLeadsActivitySubjectReferences(input);
   },
 };
 

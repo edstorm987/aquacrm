@@ -41,6 +41,7 @@ const DEFAULT_PANELS: { id: PanelId; label: string; order: number }[] = [
   { id: "customer", label: "Account", order: 25 },
   { id: "content", label: "Content", order: 30 },
   { id: "marketing", label: "Marketing", order: 40 },
+  { id: "sales", label: "Sales", order: 45 },
   { id: "ops", label: "Operations", order: 50 },
   { id: "tools", label: "Tools", order: 60 },
   { id: "settings", label: "Settings", order: 90 },
@@ -108,16 +109,21 @@ function defaultMainItems(input: BuildSidebarInput): NavItem[] {
       // are the only rendered rows on "main". Routes are UNCHANGED. See
       // docs/development/plans/information-architecture-v2.md.
       items.push({ id: "operations-home", label: "Operations",     href: "/portal/agency/operations",      panelId: "main", order: -8 });
-      // Scouting is the front of Sales: a visible daily workspace, not a stage
-      // hidden inside Journey or an Operations directory card.
+      // The owner sees one consolidated Journey. Wearing the Sales hat reveals
+      // these focused workspaces as separate sidebar rows; keeping them
+      // in a hidden panel here preserves the no-hat owner IA.
       if (input.role === "agency-owner" || input.role === "agency-manager") {
-        items.push({ id: "scouting", label: "Scouting", href: "/portal/agency/scouting", panelId: "main", order: -7.75 });
+        items.push({ id: "scouting", label: "Scouting", href: "/portal/agency/scouting", panelId: "sales", order: -7.9 });
+        items.push({ id: "researching", label: "Researching", href: "/portal/agency/researching", panelId: "sales", order: -7.8 });
+        items.push({ id: "prospecting", label: "Outreach Command", href: "/portal/agency/prospecting", panelId: "sales", order: -7.7 });
+        items.push({ id: "meetings", label: "Meetings", href: "/portal/agency/meetings", panelId: "sales", order: -7.6 });
+        items.push({ id: "contacts", label: "Contacts", href: "/portal/clients?view=contacts", panelId: "sales", order: -7.5 });
       }
       // My Radar — the signed-in person's actions, goals, wellbeing and work
       // pace. Department capacity and baselines live in Business Radar, even
       // when the signed-in person owns and operates the whole company.
       items.push({ id: "my-radar",    label: "My Radar",           href: "/portal/agency/my-radar",        panelId: "main", order: -7.5 });
-      items.push({ id: "pipelines",   label: "Journey",            href: "/portal/clients?view=journey",   panelId: "ops",  order: -7 });
+      items.push({ id: "pipelines",   label: "Journey",            href: "/portal/clients?view=journey",   panelId: "main", order: -7 });
       items.push({ id: "fulfilment",  label: "Fulfilment",         href: "/portal/agency/fulfilment",      panelId: "ops",  order: -6 });
       // Aqua Tags — the tag control tower is a Fulfilment view (?view=tags); this is its only sidebar entry.
       items.push({ id: "aqua-tags",   label: "Aqua tags",          href: "/portal/agency/fulfilment?view=tags", panelId: "ops", order: -5.5 });
@@ -280,17 +286,19 @@ export function buildSidebar(input: BuildSidebarInput): NavPanel[] {
     // and Tools all render as flat rows on "main" (no nested group headers).
     // Ed: Operations AND Tools should each be a plain sidebar item, not a nested
     // word. The functions/utilities live as cards on their hubs.
-    const commandCentreIds = ["home", "inbox", "scouting", "operations-home", "my-radar", "tools"];
+    const commandCentreIds = ["home", "inbox", "pipelines", "operations-home", "my-radar", "tools"];
     // Operations functions — the business functions, in delegation order. These
     // render as cards on the Operations hub (not as sidebar rows); they live in
     // a hidden, search-only panel so quick-search still reaches them.
     const operationsIds = [
-      "pipelines", "fulfilment", "aqua-tags", "marketing",
+      "fulfilment", "aqua-tags", "marketing",
       "finance", "people", "freelancers", "sop-library", "governance",
       "you-deserve-it",
     ];
+    const salesFocusIds = ["scouting", "researching", "prospecting", "meetings", "contacts"];
     const commandCentreSet = new Set(commandCentreIds);
     const operationsSet = new Set(operationsIds);
+    const salesFocusSet = new Set(salesFocusIds);
     // Collect any "Logs" items from any panel and re-route to settings.
     const logsItems: NavItem[] = [];
     for (const panel of sorted) {
@@ -306,6 +314,9 @@ export function buildSidebar(input: BuildSidebarInput): NavPanel[] {
     const operationsItems = allNav
       .filter(item => operationsSet.has(item.id))
       .sort((a, b) => operationsIds.indexOf(a.id) - operationsIds.indexOf(b.id));
+    const salesFocusItems = allNav
+      .filter(item => salesFocusSet.has(item.id))
+      .sort((a, b) => salesFocusIds.indexOf(a.id) - salesFocusIds.indexOf(b.id));
     if (main && commandItems.length) {
       out.push({
         ...main,
@@ -323,6 +334,17 @@ export function buildSidebar(input: BuildSidebarInput): NavPanel[] {
         // skip this panel, but Topbar quick-search keeps its items.
         hidden: true,
         items: operationsItems,
+      });
+    }
+    if (salesFocusItems.length) {
+      out.push({
+        id: "sales",
+        label: "Sales",
+        order: 45,
+        // Owner/no-hat keeps one Journey entry. The department lens reveals
+        // this already-entitled, already-filtered panel while working as Sales.
+        hidden: true,
+        items: salesFocusItems,
       });
     }
     if (settings || logsItems.length > 0) {

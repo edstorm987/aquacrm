@@ -172,6 +172,22 @@ export interface ListActivityFilter {
 export interface ActivityLogPort {
   logActivity(input: LogActivityInput): import("@/server/types").ActivityEntry | Promise<import("@/server/types").ActivityEntry>;
   listActivity(filter: ListActivityFilter): import("@/server/types").ActivityEntry[] | Promise<import("@/server/types").ActivityEntry[]>;
+  eraseSubjectReferences?(input: {
+    agencyId: string;
+    prospectIds: string[];
+    leadIds: string[];
+    contactIds: string[];
+    emails: string[];
+    phones: string[];
+    sharedEmails?: string[];
+    sharedPhones?: string[];
+  }): {
+    erased: number;
+    reviewRequired: { legacyUnscoped: number; sharedIdentity: number };
+  } | number | Promise<{
+    erased: number;
+    reviewRequired: { legacyUnscoped: number; sharedIdentity: number };
+  } | number>;
 }
 
 export type EventName =
@@ -356,6 +372,7 @@ export type PanelId =
   | "store"
   | "content"
   | "marketing"
+  | "sales"
   | "settings"
   | "ops"
   | "tools"
@@ -541,16 +558,59 @@ export type PluginScopePolicy = "client" | "agency" | "either";
 // Who is being erased, resolved ONCE by `eraseClientCompletely` and handed to
 // every `onEraseClient` hook. The client record is deleted immediately after
 // the hooks run, so this is a hook's only chance to know the person behind the
-// id — and plugins that hold pre-client data (a funnel capture, a marketing
-// lead, an email to a lead who converted later) can only match on it.
+// id. Plugins may delete only records carrying the exact ownership roots below;
+// pre-client/address-only matches are evidence to preserve for operator review.
+
+export type ErasureReviewReason = "legacy-unscoped" | "shared-identity";
+
+export interface ErasureReviewRequired {
+  /** Stable, non-PII subsystem name. */
+  system: string;
+  reason: ErasureReviewReason;
+  /** Number of preserved records requiring an ownership decision. */
+  records: number;
+}
+
+export interface ErasureIdentityEvidence {
+  /** Normalised identity values used only to find records for review. */
+  emails: string[];
+  phones: string[];
+  /** Evidence known to be shared by another Client/Person relationship. */
+  sharedEmails: string[];
+  sharedPhones: string[];
+}
 
 export interface ErasureSubject {
-  /** Every address the client workspace knows for this person, lowercased. */
+  /**
+   * Legacy compatibility fields. They are deliberately empty in the canonical
+   * resolver: an address or phone number is evidence, never delete authority.
+   */
   emails: string[];
+  phones: string[];
+  /** Exact tenant/root identity established by the server before hooks run. */
+  exactOwnership: {
+    agencyId: string;
+    clientId: string;
+    personId?: string;
+    leadId?: string;
+    contactId?: string;
+    /** True when the Person has another client or standalone relationship. */
+    personShared: boolean;
+  };
+  /** Candidate identity values for preserve-and-review scans only. */
+  identityEvidence: ErasureIdentityEvidence;
+  /** Hooks append de-identified counts for records they intentionally preserve. */
+  reviewRequired: ErasureReviewRequired[];
   /** The client's display name at erasure time (for a plugin matching by name). */
   name?: string;
-  /** The client record's metadata — `leadId`/`contactId`/`linkedContacts`/… for
-   *  plugins that link by record id rather than by address. */
+  /**
+   * Server-verified reciprocal Client -> Person facet roots. Free-form Client
+   * metadata must never be promoted into these fields.
+   */
+  personId?: string;
+  leadId?: string;
+  contactId?: string;
+  /** Free-form Client metadata, supplied only as consistency evidence. */
   metadata: Record<string, unknown>;
 }
 

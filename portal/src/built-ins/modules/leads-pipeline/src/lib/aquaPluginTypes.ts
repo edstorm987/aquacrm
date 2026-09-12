@@ -175,7 +175,31 @@ export type PluginScopePolicy = "agency" | "client" | "either";
  *  deleted moments later. Mirrors `built-ins/runtime/_types.ts`. */
 export interface ErasureSubject {
   emails: string[];
+  phones: string[];
+  exactOwnership: {
+    agencyId: string;
+    clientId: string;
+    personId?: string;
+    leadId?: string;
+    contactId?: string;
+    personShared: boolean;
+  };
+  identityEvidence: {
+    emails: string[];
+    phones: string[];
+    sharedEmails: string[];
+    sharedPhones: string[];
+  };
+  reviewRequired: Array<{
+    system: string;
+    reason: "legacy-unscoped" | "shared-identity";
+    records: number;
+  }>;
   name?: string;
+  /** Server-verified reciprocal Client -> Person facet roots. */
+  personId?: string;
+  leadId?: string;
+  contactId?: string;
   metadata: Record<string, unknown>;
 }
 

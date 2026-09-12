@@ -402,7 +402,7 @@ describe("progress derives from the personal activity ledger", () => {
       "the projection schema must not retain raw CRM identifiers");
     assert.match(handlers, /action:\s*"leads\.prospect\.qualified"[\s\S]*metadata:\s*\{\s*prospectId:/,
       "qualification must emit the dedicated actor-stamped fact at the real handler");
-    assert.match(handlers, /prospect\.status === "qualified" && prospect\.qualifiedLeadId[\s\S]*recordQualificationActivity\(lead\.id\)[\s\S]*repaired:\s*true/,
+    assert.match(handlers, /prospect\.status === "qualified" && prospect\.qualifiedLeadId[\s\S]*attachProspectAcquisition[\s\S]*recordQualificationActivity\(linkedLead\.id\)[\s\S]*repaired:\s*true/,
       "a retry after the lead commit must repair missing qualification evidence idempotently");
     assert.match(handlers, /action:\s*"leads\.contact\.converted"[\s\S]*metadata:\s*\{\s*contactId:/,
       "conversion must emit the dedicated actor-stamped fact at the real handler");

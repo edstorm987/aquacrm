@@ -12,6 +12,7 @@ import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { listAgencies } from "@/server/tenants";
 import { processPrivateObjectLifecycleSweep } from "@/lib/server/privateObjectLifecycle";
 import { processAquaTagSubmissionDeliveries, type AquaTagDeliverySweepResult } from "@/lib/server/enquirySubmissionDelivery";
+import { pruneExpiredOutboundCommunicationOperations } from "@/lib/server/telephony/outboundCommunicationReplay";
 
 export const runtime = "nodejs";
 
@@ -25,6 +26,10 @@ export async function GET(request: NextRequest) {
     processInboxWebhookQueue(100),
     pruneProcessedInboxWebhookEvents(Number(process.env.INBOX_WEBHOOK_RETENTION_DAYS || 30)),
   ]);
+  // SMTP/Twilio replay admissions contain no recipient/body PII, but their
+  // internal acquisition ids are still erasure lineage. Expire the bounded
+  // duplicate-suppression window even for agencies with no new outreach.
+  const outboundReplayPruned = await pruneExpiredOutboundCommunicationOperations();
   // Aqua Tag submissions whose downstream delivery was claimed by a process
   // that died, or that are due a bounded retry, are finished here under a new
   // lease. Absent database, absent migration and nothing-due are all reported
@@ -56,5 +61,14 @@ export async function GET(request: NextRequest) {
   await flushPendingWrites();
   const privateUploads = await processPrivateObjectLifecycleSweep();
   await flushPendingWrites();
-  return NextResponse.json({ ok: true, ...queue, pruned, aquaTagDeliveries, radarInfra, radarSweeps, privateUploads });
+  return NextResponse.json({
+    ok: true,
+    ...queue,
+    pruned,
+    outboundReplayPruned,
+    aquaTagDeliveries,
+    radarInfra,
+    radarSweeps,
+    privateUploads,
+  });
 }

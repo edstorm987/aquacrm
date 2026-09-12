@@ -93,8 +93,17 @@ describe("a customer's first minutes", () => {
     const source = route();
     assert.match(source, /\\.test\$\/i\.test/);
     const guardAt = source.indexOf(".test$/i.test");
-    const provisionAt = source.indexOf("provisionSupabaseIdentity(");
+    const provisionAt = source.indexOf("provisionBoundClientPortalIdentity(");
     assert.ok(guardAt > 0 && guardAt < provisionAt, "the guard runs after provisioning, or not at all");
+  });
+
+  it("addresses password changes by a write-once Supabase subject binding, never global email", () => {
+    const source = route();
+    assert.doesNotMatch(source, /findSupabaseUserByEmail|updateSupabasePassword\(/,
+      "customer setup can capture whichever global Supabase user shares the email");
+    assert.match(source, /user\.supabaseAuthUserId/);
+    assert.match(source, /updateBoundClientPortalPassword\(/);
+    assert.match(source, /bindSupabaseAuthIdentity\(user\.id, provisioned\.id\)/);
   });
 
   it("welcomes them before asking for anything", () => {

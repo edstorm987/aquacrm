@@ -34,7 +34,7 @@ import { type DepartmentId } from "@/lib/access/departmentProfiles";
  * its Command Centre station instead (`focusLandingStation`).
  */
 export const DEPARTMENT_WORKSPACE_HREF: Readonly<Partial<Record<DepartmentId, string>>> = {
-  sales: "/portal/agency/pipelines/leads",
+  sales: "/portal/agency/scouting",
   delivery: "/portal/agency/fulfilment",
   finance: "/portal/agency/agency-finance",
   marketing: "/portal/agency/marketing",

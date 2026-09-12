@@ -231,9 +231,8 @@ function UnifiedThreadPanel({ thread, communicationReadiness, canMutate, onBack 
 }
 
 function ClientProfile({ item, onBack }: { item: UnifiedClientProfile; onBack: () => void }) {
-  const digits = item.ownerPhone?.replace(/\D/g, "") ?? "";
   return <div className="flex min-h-[680px] min-w-0 flex-1 flex-col">
-    <ThreadHeader icon={<Users size={11} />} name={item.name} channel="client profile" source={item.source} email={item.ownerEmail} phone={item.ownerPhone} onBack={onBack} />
+    <ThreadHeader icon={<Users size={11} />} name={item.name} channel="client profile" source={item.source} onBack={onBack} />
     <div className="flex-1 bg-black/[0.02] p-5">
       <section className="border-y border-black/10 bg-white py-5">
         <p className="text-xs font-semibold uppercase text-brand">Relationship profile</p>
@@ -247,13 +246,11 @@ function ClientProfile({ item, onBack }: { item: UnifiedClientProfile; onBack: (
           <ProfileDetail label="Relationship since" value={longDate(item.createdAt)} />
         </dl>
       </section>
-      <div className="mt-5 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-        {item.ownerEmail ? <a href={`mailto:${item.ownerEmail}`} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white"><Mail size={14} />Email</a> : null}
-        {item.ownerPhone ? <a href={`tel:${item.ownerPhone}`} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/65"><Phone size={14} />Call</a> : null}
-        {item.ownerPhone ? <a href={`sms:${item.ownerPhone}`} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/65"><MessageCircle size={14} />Text</a> : null}
-        {digits ? <a href={`https://wa.me/${digits}`} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/65"><Radio size={14} />WhatsApp</a> : null}
+      <div className="mt-5 flex flex-wrap gap-2">
+        <Link href="/portal/agency/leads-pipeline/contacts" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white"><MessageCircle size={14} />Open protected contact controls</Link>
+        <Link href={`/portal/clients/${item.id}`} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/70">Open client record</Link>
       </div>
-      <p className="mt-4 text-xs leading-5 text-black/42">No channel conversation is attached yet. Contact actions remain anchored to this client record.</p>
+      <p className="mt-4 text-xs leading-5 text-black/65">No channel conversation is attached yet. Use the contact workspace so suppression checks and the communication audit remain in the path.</p>
     </div>
     <aside className="border-t border-black/10 bg-white p-3 text-right"><Link href={`/portal/clients/${item.id}`} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 px-3 text-xs font-semibold text-brand">Open full client profile <ExternalLink size={12} /></Link></aside>
   </div>;
@@ -262,7 +259,7 @@ function ClientProfile({ item, onBack }: { item: UnifiedClientProfile; onBack: (
 function WebsiteThread({ item, readiness, canMutate, onBack }: { item: WebsiteEnquiry; readiness: OutboundCommunicationReadiness; canMutate: boolean; onBack: () => void }) {
   const Icon = item.channel === "chatbot" ? Bot : item.channel === "support" ? LifeBuoy : FileText;
   return <div className="flex min-h-[680px] min-w-0 flex-1 flex-col">
-    <ThreadHeader icon={<Icon size={11} />} name={item.name} channel={item.channel} source={item.siteName} email={item.email} phone={item.phone} onBack={onBack} />
+    <ThreadHeader icon={<Icon size={11} />} name={item.name} channel={item.channel} source={item.siteName} onBack={onBack} />
     {/* bg-black/[0.02], never a hex ground: the dark pass is a class sweep
         and cannot invert a colour literal, which left a light patch here. */}
     <div className="flex-1 overflow-y-auto bg-black/[0.02] px-4 py-5">
@@ -529,7 +526,7 @@ function ClientThread({ item, canMutate, onBack }: { item: ClientConversation; c
     ...item.replies.map(reply => ({ id: reply.id, from: reply.from, message: reply.message, at: reply.createdAt, attachments: reply.attachments })),
   ];
   return <div className="flex min-h-[680px] min-w-0 flex-1 flex-col">
-    <ThreadHeader icon={<Users size={11} />} name={item.clientName} channel="client portal" source={item.siteName} email={item.ownerEmail} phone={item.ownerPhone} onBack={onBack} />
+    <ThreadHeader icon={<Users size={11} />} name={item.clientName} channel="client portal" source={item.siteName} onBack={onBack} />
     <div ref={scrollRef} className="flex-1 overflow-y-auto bg-black/[0.02] px-4 py-5">
       {stream.map((entry, index) => {
         const prev = stream[index - 1];
@@ -561,9 +558,9 @@ function ClientThread({ item, canMutate, onBack }: { item: ClientConversation; c
   </div>;
 }
 
-function ThreadHeader({ icon, name, channel, source, email, phone, onBack }: { icon: React.ReactNode; name: string; channel: string; source: string; email?: string; phone?: string; onBack: () => void }) {
+function ThreadHeader({ icon, name, channel, source, onBack }: { icon: React.ReactNode; name: string; channel: string; source: string; onBack: () => void }) {
   return <header className="flex flex-wrap items-center justify-between gap-3 border-b border-black/10 px-4 py-3"><div className="flex min-w-0 items-center gap-3"><button type="button" onClick={onBack} aria-label="Back to conversations" className="grid size-9 shrink-0 place-items-center rounded-md text-black/55 lg:hidden"><ChevronLeft size={17} /></button>{/* The avatar repeats the list row's grammar — initials plus a small channel
-      badge — so both panes describe the same person the same way. */}<span className="relative grid size-10 shrink-0 place-items-center rounded-full bg-black/[0.07] text-sm font-semibold text-black/70">{initials(name)}<span className="absolute -bottom-0.5 -right-0.5 grid size-4 place-items-center rounded-full bg-white text-black/55 ring-1 ring-black/10">{icon}</span></span><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate text-sm font-semibold text-black/80">{name}</h3><span className="rounded-full bg-black/[0.05] px-2 py-0.5 text-xs font-semibold uppercase text-black/40">{channel}</span></div><p className="mt-1 truncate text-xs text-black/40">{source}</p></div></div><div className="flex items-center gap-1">{email ? <a href={`mailto:${email}`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/45" title={`Email ${name}`}><Mail size={15} /></a> : null}{phone ? <a href={`tel:${phone}`} className="grid size-9 place-items-center rounded-md border border-black/10 text-black/45" title={`Call ${name}`}><Phone size={15} /></a> : null}</div></header>;
+      badge — so both panes describe the same person the same way. */}<span className="relative grid size-10 shrink-0 place-items-center rounded-full bg-black/[0.07] text-sm font-semibold text-black/70">{initials(name)}<span className="absolute -bottom-0.5 -right-0.5 grid size-4 place-items-center rounded-full bg-white text-black/55 ring-1 ring-black/10">{icon}</span></span><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate text-sm font-semibold text-black/80">{name}</h3><span className="rounded-full bg-black/[0.05] px-2 py-0.5 text-xs font-semibold uppercase text-black/65">{channel}</span></div><p className="mt-1 truncate text-xs text-black/65">{source}</p></div></div></header>;
 }
 
 function ThreadRow({ thread, active, onClick }: { thread: UnifiedThread; active: boolean; onClick: () => void }) {

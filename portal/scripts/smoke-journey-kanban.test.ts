@@ -29,13 +29,14 @@ test("Clients, contacts and the live Journey workspace share brand and service s
   assert.match(server, /resolvePortalProductAssignment\(clientMetadata, productCatalogue\)\.products/);
 });
 
-test("Journey entry paths do not read or serialize Scouting dossiers and quotas", () => {
+test("Journey entry paths load active Scouting dossiers without loading personal quotas", () => {
   const embeddedJourney = readFileSync("src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspaceServer.tsx", "utf8");
   const directJourney = readFileSync("src/app/portal/agency/pipelines/[slug]/page.tsx", "utf8");
 
   for (const source of [embeddedJourney, directJourney]) {
-    assert.doesNotMatch(source, /prospects\.list\(\)/);
+    assert.match(source, /prospects\.list\(\)/);
     assert.doesNotMatch(source, /scoutingQuotaProgress/);
-    assert.match(source, /prospects=\{\[\]\}/);
+    assert.match(source, /prospects=\{prospectList/);
+    assert.match(source, /prospect\.status === "scouting"/);
   }
 });

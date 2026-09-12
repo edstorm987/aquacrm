@@ -80,6 +80,16 @@ export function leadConversionClaimKey(input: {
     .digest("hex");
 }
 
+export function contactConversionClaimKey(input: {
+  agencyId: string;
+  contactId: string;
+}): string {
+  return crypto
+    .createHash("sha256")
+    .update(["contact-conversion", input.agencyId, `contact:${input.contactId}`].join("\u0000"))
+    .digest("hex");
+}
+
 export function leadConversionRequestHash(value: unknown): string {
   return crypto.createHash("sha256").update(stableJson(value)).digest("hex");
 }

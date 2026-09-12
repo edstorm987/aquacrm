@@ -86,6 +86,7 @@ describe("the sales lens", () => {
   it("keeps the caller's own tools", () => {
     assert.ok(ids.includes("leads-pipeline.contacts"), "a caller needs the list");
     assert.ok(ids.includes("leads-pipeline.board"), "…and their own pipeline");
+    assert.ok(ids.includes("inbox"), "an already-entitled Inbox remains in the complete Sales loop");
   });
 
   it("drops campaigns, finance and people", () => {
@@ -102,8 +103,16 @@ describe("the sales lens", () => {
 });
 
 describe("which departments are worth offering", () => {
-  it("offers one the person has rows for", () => {
-    assert.equal(departmentHasVisibleNav(FULL, "sales"), true);
+  it("offers Sales only when the complete operating loop is entitled", () => {
+    const completeSales: NavPanel[] = [
+      { id: "main", label: "", order: 0, items: [
+        { id: "inbox", label: "Inbox", href: "/portal/agency/inbox" },
+      ] },
+      panel("sales", ["scouting", "researching", "prospecting", "meetings", "contacts"]),
+    ];
+    assert.equal(departmentHasVisibleNav(completeSales, "sales"), true);
+    assert.equal(departmentHasVisibleNav(FULL, "sales"), false,
+      "a partial caller sidebar must not advertise a Sales focus that will open incomplete");
   });
 
   it("does not offer one that would empty the sidebar", () => {

@@ -21,7 +21,7 @@ import { cleanPortalProductWorkspaces, type PortalProductWorkspace } from "@/lib
 import { cleanClientRecordEntries, type ClientRecordEntryKind } from "@/lib/clients/clientRelationshipRecord";
 import { readOk, readOrUnavailable } from "@/lib/readAvailability";
 import { listInboxSnapshot } from "@/lib/server/inbox/inboxStore";
-import { listWebsiteEnquiries } from "@/lib/server/websiteEnquiries";
+import { listWebsiteEnquiries, websiteEnquiryBelongsToClientRecord } from "@/lib/server/websiteEnquiries";
 import {
   cleanClientPaymentPlans,
   customerVisiblePaymentPlans,
@@ -413,10 +413,6 @@ export async function loadCustomerPortalData(
       .filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
       .map(value => value.trim().toLowerCase()),
   );
-  const customerPhones = new Set([meta.phone, meta.contactPhone]
-    .filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
-    .map(value => value.replace(/\D/g, ""))
-    .filter(Boolean));
   const actorLabel = (value?: string, customerFallback = "Customer") =>
     value && customerEmails.has(value.trim().toLowerCase()) ? "Customer" : value ? providerName : customerFallback;
   const safeFiles: CustomerFile[] = (Array.isArray(meta.files) ? meta.files : [])
@@ -527,8 +523,7 @@ export async function loadCustomerPortalData(
         status: message.status,
       })));
   const matchedEnquiries = websiteEnquiries.filter(enquiry =>
-    Boolean(enquiry.email && customerEmails.has(enquiry.email.trim().toLowerCase()))
-    || Boolean(enquiry.phone && customerPhones.has(enquiry.phone.replace(/\D/g, ""))));
+    websiteEnquiryBelongsToClientRecord(enquiry, client.id));
   const enquiryRecordMessages: CustomerRecordMessage[] = matchedEnquiries.flatMap(enquiry => [
     ...(enquiry.message ? [{
       id: enquiry.id,

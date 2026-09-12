@@ -42,34 +42,33 @@ const linksTo = (page: string, href: string) => page.includes(`href: "${href}"`)
 
 // The Tools page itself — never needs a card pointing at itself.
 const SELF_HREF = "/portal/agency/tools";
-// Security is role/contextual: founders use App Dev Mode Security while an
-// ordinary tenant owner keeps the agency Security route. A static owner-only
-// Operations card would be a dead/misleading door for one of them.
-const CONTEXTUAL_DESTINATIONS = ["/portal/agency/security"];
 
 describe("every workspace kept a door when the directory moved", () => {
-  it("Operations lists every reachable sidebar destination the agency owner sees", () => {
+  it("Operations lists every destination classified as an Operations function", () => {
     const page = read(OPS_PAGE);
     // The real assembly, respecting the AquaOasis agency override.
     const panels = buildSidebar({ role: "agency-owner", scope: "agency", installedPlugins: [] });
-    const hrefs = panels.flatMap(panel => panel.items.map(item => item.href));
-    assert.ok(hrefs.length >= 12, `sidebar should assemble the agency destinations, got ${hrefs.length}`);
+    const operations = panels.find(panel => panel.id === "ops");
+    assert.ok(operations, "the agency sidebar should classify its Operations functions");
+    const hrefs = operations!.items.map(item => item.href);
+    assert.ok(hrefs.length >= 8, `Operations should classify the agency functions, got ${hrefs.length}`);
 
-    // Operations never links to itself, and the two personal utilities stay in
-    // Tools by design — Ed asked for "calender notes chat in tools".
+    // Only the hidden `ops` panel belongs in this directory. Main-panel rows
+    // already render directly, while the hidden `sales` panel is revealed by
+    // the Sales department lens and its workbenches also live inside Journey.
+    // Requiring either group here would manufacture duplicate directory cards.
+    // The two personal utilities still stay in Tools by design — Ed asked for
+    // "calender notes chat in tools".
     const KEPT_IN_TOOLS = ["/portal/agency/calendar", "/portal/agency/notepad"];
-    const OPS_SELF = "/portal/agency/operations";
     const toolsPage = read(TOOLS_PAGE);
     const missing = hrefs.filter(href =>
       href !== SELF_HREF
-      && href !== OPS_SELF
       && !KEPT_IN_TOOLS.includes(href)
-      && !CONTEXTUAL_DESTINATIONS.includes(href)
       && !linksTo(page, href));
     assert.deepEqual(
       missing,
       [],
-      `Operations is missing reachable sidebar destinations: ${missing.join(", ")}. ` +
+      `Operations is missing classified function destinations: ${missing.join(", ")}. ` +
         `The Tools directory moved here — add a card for each so nothing is orphaned.`,
     );
     for (const href of KEPT_IN_TOOLS) {

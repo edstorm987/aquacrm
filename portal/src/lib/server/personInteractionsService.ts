@@ -29,8 +29,6 @@ export async function personInteractions(
   const person = getPerson(agencyId, personId);
   if (!person) return { interactions: [], enquiriesAvailable: true };
 
-  const knownEmails = new Set((person.emails ?? []).map(entry => entry.value));
-  const knownPhones = new Set((person.phones ?? []).map(entry => entry.value));
   const knownEnquiries = new Set(person.facets.enquiryIds ?? []);
 
   const enquiryRead = await readOrUnavailable(() => getRequestWebsiteEnquiries(agencyId), []);
@@ -38,12 +36,11 @@ export async function personInteractions(
   const interactions: PersonInteraction[] = [];
 
   for (const enquiry of enquiries) {
-    // Match on the recorded facet first, then on identity — an enquiry that
-    // arrived before the person existed still belongs to them.
+    // Only reciprocal stored lineage can place an enquiry on a Person's
+    // interaction timeline. Public email/phone values are suggestions for a
+    // review, not authority to disclose the message on another record.
     const mine = knownEnquiries.has(enquiry.id)
-      || enquiry.personId === personId
-      || (enquiry.email ? knownEmails.has(enquiry.email.trim().toLowerCase()) : false)
-      || (enquiry.phone ? [...knownPhones].some(value => value.endsWith(enquiry.phone!.replace(/\D/g, "").slice(-9))) : false);
+      || enquiry.personId === personId;
     if (!mine) continue;
 
     const fields: InteractionField[] = [

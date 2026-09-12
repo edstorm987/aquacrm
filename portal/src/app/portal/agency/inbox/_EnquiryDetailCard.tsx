@@ -93,6 +93,9 @@ export function EnquiryDetailCard({
   const elapsedSinceEnquiry = Math.max(0, referenceNow - item.submittedAt);
   const firstResponseMs = item.firstRespondedAt ? Math.max(0, item.firstRespondedAt - item.submittedAt) : undefined;
   const busy = statusBusyId === item.id;
+  const salesJourneyHref = item.leadId
+    ? `/portal/agency/pipelines/leads?lead=${encodeURIComponent(item.leadId)}#lead-record`
+    : "/portal/clients?view=journey";
 
   return (
     <div
@@ -120,10 +123,10 @@ export function EnquiryDetailCard({
                 <Pill tone={item.status === "resolved" ? "green" : item.status === "reviewed" ? "blue" : "amber"}>{item.status}</Pill>
                 <Pill tone={classificationTone(item.classification)}>{WEBSITE_ENQUIRY_CLASSIFICATION_LABELS[item.classification]}</Pill>
               </div>
-              <p className="mt-1.5 text-xs text-black/45">{sourceLocation(item)} · received {formatElapsed(elapsedSinceEnquiry)} ago · {formatDate(item.submittedAt)}</p>
+              <p className="mt-1.5 text-xs text-black/65">{sourceLocation(item)} · received {formatElapsed(elapsedSinceEnquiry)} ago · {formatDate(item.submittedAt)}</p>
             </div>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close enquiry" className="grid size-9 shrink-0 place-items-center rounded-md border border-black/10 text-black/45 hover:bg-black/[0.035]"><X size={16} /></button>
+          <button type="button" onClick={onClose} aria-label="Close enquiry" className="grid size-11 shrink-0 place-items-center rounded-md border border-black/10 text-black/65 hover:bg-black/[0.035] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2"><X size={16} /></button>
         </header>
 
         {/* Body — scrolls. min-h-0 lets this flex child shrink below its content
@@ -149,7 +152,7 @@ export function EnquiryDetailCard({
           <section className="rounded-md border border-black/10 bg-black/[0.015] p-3 sm:p-4">
             <header className="flex flex-wrap items-baseline justify-between gap-2">
               <SectionLabel>Aqua&rsquo;s contact record</SectionLabel>
-              <span className="text-[11px] text-black/40">What we keep — filled by hand where the form didn&rsquo;t ask</span>
+              <span className="text-[11px] text-black/65">What we keep — filled by hand where the form didn&rsquo;t ask</span>
             </header>
 
             {/* Consent isn't optional detail: it decides what you may do next. */}
@@ -190,8 +193,8 @@ export function EnquiryDetailCard({
               <Field label="Submission ID" value={item.id} />
               {item.sourceUrl ? (
                 <div className="min-w-0">
-                  <dt className="font-medium text-black/40">Source page</dt>
-                  <dd className="mt-1"><a href={item.sourceUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-brand">Open page <ExternalLink size={12} /></a></dd>
+                  <dt className="font-medium text-black/65">Source page</dt>
+                  <dd className="mt-1"><a href={item.sourceUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-1 rounded-sm font-medium text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Open page <ExternalLink size={12} /></a></dd>
                 </div>
               ) : null}
             </dl>
@@ -214,11 +217,11 @@ export function EnquiryDetailCard({
           <div className="grid gap-3 sm:grid-cols-2">
             <div className={`rounded-md border px-3 py-3 text-xs ${classificationRouteStyle(item.classification)}`}>
               <p className="font-semibold">Relationship route · {WEBSITE_ENQUIRY_CLASSIFICATION_LABELS[item.classification]}</p>
-              <p className="mt-1 leading-5 opacity-80">{item.routeNote ?? classificationRouteDescription(item.classification)}</p>
+              <p className="mt-1 leading-5">{item.routeNote ?? classificationRouteDescription(item.classification)}</p>
             </div>
             <div className={`rounded-md border px-3 py-3 text-xs ${triageStyle(item.priority)}`}>
               <p className="font-semibold">Automatic triage · {item.topic}</p>
-              <p className="mt-1 leading-5 opacity-80">{item.suggestedAction}</p>
+              <p className="mt-1 leading-5">{item.suggestedAction}</p>
             </div>
           </div>
 
@@ -230,14 +233,14 @@ export function EnquiryDetailCard({
 
         {/* Footer actions — never scroll away. */}
         <footer className="flex shrink-0 flex-wrap items-center gap-2 border-t border-black/10 p-4 sm:p-5">
-          {item.status === "open" ? <button type="button" disabled={busy || !canMutate} onClick={() => void onStatus(item, "reviewed")} className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 disabled:opacity-50">Mark reviewed</button> : null}
+          {item.status === "open" ? <button type="button" disabled={busy || !canMutate} onClick={() => void onStatus(item, "reviewed")} className="min-h-11 rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:opacity-50">Mark reviewed</button> : null}
           {item.status !== "resolved"
-            ? <button type="button" disabled={busy || !canMutate} onClick={() => void onStatus(item, "resolved")} className="rounded-md bg-black px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">Resolve</button>
-            : <button type="button" disabled={busy || !canMutate} onClick={() => void onStatus(item, "open")} className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 disabled:opacity-50">Reopen</button>}
+            ? <button type="button" disabled={busy || !canMutate} onClick={() => void onStatus(item, "resolved")} className="min-h-11 rounded-md bg-black px-3 text-xs font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:opacity-50">Resolve</button>
+            : <button type="button" disabled={busy || !canMutate} onClick={() => void onStatus(item, "open")} className="min-h-11 rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:opacity-50">Reopen</button>}
           {item.classification === "sales"
-            ? <Link href="/portal/clients?view=journey" className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/65">Open Journey <ExternalLink size={13} /></Link>
-            : <Link href="/portal/clients?view=contacts" className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/65">Open contacts <ExternalLink size={13} /></Link>}
-          <button type="button" onClick={onClose} className="ml-auto rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 hover:bg-black/[0.035]">Close</button>
+            ? <Link href={salesJourneyHref} className="inline-flex min-h-11 items-center gap-1.5 rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Open Journey <ExternalLink size={13} /></Link>
+            : <Link href="/portal/clients?view=contacts" className="inline-flex min-h-11 items-center gap-1.5 rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Open contacts <ExternalLink size={13} /></Link>}
+          <button type="button" onClick={onClose} className="ml-auto min-h-11 rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/65 hover:bg-black/[0.035] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Close</button>
         </footer>
       </div>
     </div>
@@ -257,7 +260,7 @@ function FormSubmission({ capture, template }: { capture?: WebsiteEnquiryFormCap
     return (
       <section>
         <SectionLabel>What they submitted</SectionLabel>
-        <p className="mt-2 rounded-md border border-dashed border-black/12 px-3 py-2.5 text-xs leading-5 text-black/45">
+        <p className="mt-2 rounded-md border border-dashed border-black/12 px-3 py-2.5 text-xs leading-5 text-black/65">
           The full submission was not captured for this enquiry. Add the Aqua Tag to the site and
           later submissions will arrive with every field, the form they came from and what it was for.
         </p>
@@ -283,21 +286,21 @@ function FormSubmission({ capture, template }: { capture?: WebsiteEnquiryFormCap
     <section className="rounded-md border border-black/10 bg-black/[0.015] p-3 sm:p-4" data-testid="form-submission">
       <header className="flex flex-wrap items-baseline justify-between gap-2">
         <SectionLabel>What they submitted</SectionLabel>
-        <span className="text-[11px] text-black/45">{(template ? template.label : "") || capture.formLabel}{purpose ? ` · ${purpose}` : ""}</span>
+        <span className="text-[11px] text-black/65">{(template ? template.label : "") || capture.formLabel}{purpose ? ` · ${purpose}` : ""}</span>
       </header>
       {template ? (
-        <p className="mt-1 text-[11px] text-black/40">Shown in the real form&rsquo;s shape — blank fields were left empty.</p>
+        <p className="mt-1 text-[11px] text-black/65">Shown in the real form&rsquo;s shape — blank fields were left empty.</p>
       ) : null}
       {primary.length ? (
         <dl className="mt-2 grid gap-x-6 gap-y-2 sm:grid-cols-2">
           {primary.map((row, index) => <FieldRow key={`${row.key}-${index}`} row={row} />)}
         </dl>
       ) : (
-        <p className="mt-2 text-xs text-black/45">The form was submitted with no readable fields.</p>
+        <p className="mt-2 text-xs text-black/65">The form was submitted with no readable fields.</p>
       )}
       {extras.length ? (
         <div className="mt-3 border-t border-black/[0.07] pt-2.5">
-          <p className="text-[11px] font-medium text-black/40">{template ? "Also submitted — not in the imported form" : "Also captured — beyond Aqua’s standard fields"}</p>
+          <p className="text-[11px] font-medium text-black/65">{template ? "Also submitted — not in the imported form" : "Also captured — beyond Aqua’s standard fields"}</p>
           <dl className="mt-1.5 grid gap-x-6 gap-y-2 sm:grid-cols-2">
             {extras.map((row, index) => <FieldRow key={`${row.key}-${index}`} row={row} />)}
           </dl>
@@ -314,7 +317,7 @@ function FormSubmission({ capture, template }: { capture?: WebsiteEnquiryFormCap
 function FieldRow({ row }: { row: MergedFormRow }) {
   return (
     <div className="min-w-0">
-      <dt className="text-[11px] font-medium text-black/40">{row.label}</dt>
+      <dt className="text-[11px] font-medium text-black/65">{row.label}</dt>
       <dd className={`mt-0.5 break-words text-xs ${row.submitted && row.value ? "text-black/75" : "text-black/30"}`}>
         {row.submitted && row.value ? row.value : "—"}
       </dd>
@@ -412,35 +415,35 @@ function ManualContactDetails({ enquiryId, canEdit }: { enquiryId: string; canEd
     <div className="mt-3 border-t border-black/[0.07] pt-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <SectionLabel>Added by hand</SectionLabel>
-        <span className="text-[11px] text-black/40">{readState === "unavailable" ? "Not read" : "Fill in what the form didn’t ask"}</span>
+        <span className="text-[11px] text-black/65">{readState === "unavailable" ? "Not read" : "Fill in what the form didn’t ask"}</span>
       </div>
       {readState === "unavailable" ? (
         <p role="status" className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] leading-5 text-amber-900">
           The details already recorded against this enquiry could not be read, so this form is empty because of a failure, not because nothing is stored.
           Saving now would replace what is there.
           {" "}
-          <button type="button" onClick={() => setAttempt(current => current + 1)} className="font-semibold underline underline-offset-2">Retry the read</button>
+          <button type="button" onClick={() => setAttempt(current => current + 1)} className="inline-flex min-h-11 items-center rounded-sm px-1 font-semibold underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Retry the read</button>
         </p>
       ) : null}
       <div className="mt-2 grid gap-2 sm:grid-cols-2">
-        <input value={company} disabled={locked} onChange={event => { setCompany(event.target.value); dirty(); }} placeholder="Company" aria-label="Company" className="min-h-9 rounded-md border border-black/12 bg-white px-2.5 text-xs outline-none focus:border-black/30 disabled:bg-black/[0.03] disabled:text-black/35" />
-        <input value={jobTitle} disabled={locked} onChange={event => { setJobTitle(event.target.value); dirty(); }} placeholder="Job title" aria-label="Job title" className="min-h-9 rounded-md border border-black/12 bg-white px-2.5 text-xs outline-none focus:border-black/30 disabled:bg-black/[0.03] disabled:text-black/35" />
+        <input value={company} disabled={locked} onChange={event => { setCompany(event.target.value); dirty(); }} placeholder="Company" aria-label="Company" className="min-h-11 rounded-md border border-black/12 bg-white px-2.5 text-xs outline-none focus:border-black/30 focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:bg-black/[0.03] disabled:text-black/65" />
+        <input value={jobTitle} disabled={locked} onChange={event => { setJobTitle(event.target.value); dirty(); }} placeholder="Job title" aria-label="Job title" className="min-h-11 rounded-md border border-black/12 bg-white px-2.5 text-xs outline-none focus:border-black/30 focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:bg-black/[0.03] disabled:text-black/65" />
       </div>
-      <textarea value={notes} disabled={locked} onChange={event => { setNotes(event.target.value); dirty(); }} rows={2} placeholder="Notes — what you've learned about this enquirer" aria-label="Notes" className="mt-2 w-full rounded-md border border-black/12 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-black/30 disabled:bg-black/[0.03] disabled:text-black/35" />
+      <textarea value={notes} disabled={locked} onChange={event => { setNotes(event.target.value); dirty(); }} rows={2} placeholder="Notes — what you've learned about this enquirer" aria-label="Notes" className="mt-2 min-h-11 w-full rounded-md border border-black/12 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-black/30 focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:bg-black/[0.03] disabled:text-black/65" />
       {customFields.length ? (
         <div className="mt-2 grid gap-1.5">
           {customFields.map((field, index) => (
             <div key={index} className="grid grid-cols-[minmax(0,10rem)_minmax(0,1fr)_auto] gap-1.5">
-              <input value={field.key} disabled={locked} onChange={event => setCustom(index, "key", event.target.value)} placeholder="Field" aria-label="Custom field name" className="min-h-8 rounded-md border border-black/12 bg-white px-2 text-xs outline-none focus:border-black/30 disabled:bg-black/[0.03] disabled:text-black/35" />
-              <input value={field.value} disabled={locked} onChange={event => setCustom(index, "value", event.target.value)} placeholder="Value" aria-label="Custom field value" className="min-h-8 rounded-md border border-black/12 bg-white px-2 text-xs outline-none focus:border-black/30 disabled:bg-black/[0.03] disabled:text-black/35" />
-              <button type="button" disabled={locked} onClick={() => { setCustomFields(current => current.filter((_, position) => position !== index)); dirty(); }} aria-label="Remove field" className="grid size-8 place-items-center rounded-md border border-black/10 text-black/35 hover:border-red-300 hover:text-red-600 disabled:opacity-40"><X size={13} aria-hidden /></button>
+              <input value={field.key} disabled={locked} onChange={event => setCustom(index, "key", event.target.value)} placeholder="Field" aria-label="Custom field name" className="min-h-11 rounded-md border border-black/12 bg-white px-2 text-xs outline-none focus:border-black/30 focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:bg-black/[0.03] disabled:text-black/65" />
+              <input value={field.value} disabled={locked} onChange={event => setCustom(index, "value", event.target.value)} placeholder="Value" aria-label="Custom field value" className="min-h-11 rounded-md border border-black/12 bg-white px-2 text-xs outline-none focus:border-black/30 focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:bg-black/[0.03] disabled:text-black/65" />
+              <button type="button" disabled={locked} onClick={() => { setCustomFields(current => current.filter((_, position) => position !== index)); dirty(); }} aria-label="Remove field" className="grid size-11 place-items-center rounded-md border border-black/10 text-black/65 hover:border-red-300 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:opacity-40"><X size={13} aria-hidden /></button>
             </div>
           ))}
         </div>
       ) : null}
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <button type="button" disabled={locked} onClick={() => { setCustomFields(current => [...current, { key: "", value: "" }]); dirty(); }} className="inline-flex min-h-8 items-center gap-1 rounded-md border border-black/12 px-2 text-[11px] font-medium text-black/60 hover:text-black disabled:opacity-40">+ Add field</button>
-        <button type="button" onClick={() => void save()} disabled={busy || locked} title={locked ? "The stored details have not been read yet" : undefined} className="inline-flex min-h-8 items-center gap-1.5 rounded-md bg-black px-3 text-[11px] font-semibold text-white disabled:opacity-50">{busy ? "Saving…" : "Save details"}</button>
+        <button type="button" disabled={locked} onClick={() => { setCustomFields(current => [...current, { key: "", value: "" }]); dirty(); }} className="inline-flex min-h-11 items-center gap-1 rounded-md border border-black/12 px-2 text-[11px] font-medium text-black/65 hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:opacity-40">+ Add field</button>
+        <button type="button" onClick={() => void save()} disabled={busy || locked} title={locked ? "The stored details have not been read yet" : undefined} className="inline-flex min-h-11 items-center gap-1.5 rounded-md bg-black px-3 text-[11px] font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:opacity-50">{busy ? "Saving…" : "Save details"}</button>
         {saved ? <span className="text-[11px] text-emerald-600">Saved</span> : null}
         {error ? <span role="alert" className="text-[11px] text-red-600">{error}</span> : null}
       </div>
@@ -458,7 +461,7 @@ function ConsentRow({ item }: { item: WebsiteEnquiry }) {
     ? "border-emerald-200 bg-emerald-50 text-emerald-900"
     : state === "declined"
       ? "border-red-200 bg-red-50 text-red-800"
-      : "border-black/10 bg-black/[0.02] text-black/55";
+      : "border-black/10 bg-black/[0.02] text-black/65";
   const headline = state === "given" ? "Consent given" : state === "declined" ? "Consent not given" : "Consent not recorded";
   const detail = state === "given"
     ? [
@@ -472,7 +475,7 @@ function ConsentRow({ item }: { item: WebsiteEnquiry }) {
   return (
     <div className={`mt-3 rounded-md border px-3 py-2.5 text-xs ${tone}`}>
       <p className="font-semibold">{headline}</p>
-      <p className="mt-0.5 leading-5 opacity-80">{detail}</p>
+      <p className="mt-0.5 leading-5">{detail}</p>
     </div>
   );
 }
@@ -480,7 +483,7 @@ function ConsentRow({ item }: { item: WebsiteEnquiry }) {
 // Small presentational + style helpers, local to the card. The route/triage
 // style maps moved here with the block they dress; the rest are trivial.
 function SectionLabel({ children }: { children: ReactNode }) {
-  return <h3 className="text-xs font-semibold uppercase tracking-wide text-black/50">{children}</h3>;
+  return <h3 className="text-xs font-semibold uppercase tracking-wide text-black/65">{children}</h3>;
 }
 // A genuinely empty value shows a muted em dash — the card never invents a value
 // to fill a blank (matches the FormSubmission blank-field treatment).
@@ -488,7 +491,7 @@ function Field({ label, value, capitalize = false }: { label: string; value: str
   const empty = !value.trim();
   return (
     <div className="min-w-0">
-      <dt className="font-medium text-black/40">{label}</dt>
+      <dt className="font-medium text-black/65">{label}</dt>
       <dd className={`mt-1 break-words ${empty ? "text-black/30" : `text-black/70${capitalize ? " capitalize" : ""}`}`}>{empty ? "—" : value}</dd>
     </div>
   );
@@ -497,7 +500,7 @@ function Banner({ children }: { children: ReactNode }) {
   return <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{children}</p>;
 }
 function Pill({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "amber" | "green" | "red" | "blue" }) {
-  const style = tone === "amber" ? "bg-amber-50 text-amber-700" : tone === "green" ? "bg-emerald-50 text-emerald-700" : tone === "red" ? "bg-red-50 text-red-700" : tone === "blue" ? "bg-blue-50 text-blue-700" : "bg-black/[0.05] text-black/50";
+  const style = tone === "amber" ? "bg-amber-50 text-amber-700" : tone === "green" ? "bg-emerald-50 text-emerald-700" : tone === "red" ? "bg-red-50 text-red-700" : tone === "blue" ? "bg-blue-50 text-blue-700" : "bg-black/[0.05] text-black/65";
   return <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${style}`}>{children}</span>;
 }
 function classificationTone(classification: WebsiteEnquiryClassification): "neutral" | "amber" | "green" | "red" | "blue" {

@@ -28,6 +28,8 @@ import {
 
 import { formatUkDateTime, localDateTimeInputValue, stableUkDateString, timestampFromValue } from "@/lib/shared/formatDateTime";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
+import { safeMeetingAssetUrl } from "@/built-ins/modules/leads-pipeline/src/lib/meetingAssetUrl";
+import { chronologicalMeetingAttempts } from "./_meetingAttemptHistory";
 
 export type JourneyMeetingKind = "lead" | "contact";
 export type JourneyMeetingMode = "google-meet" | "phone" | "in-person" | "other";
@@ -38,6 +40,8 @@ export type JourneyMeetingAttemptOutcome = "attempted" | "reached" | "reminder-s
 export interface JourneyMeetingAttempt {
   id: string;
   at: number;
+  /** Agency-scoped display label projected by the server. */
+  actorLabel?: string;
   channel: JourneyMeetingAttemptChannel;
   outcome: JourneyMeetingAttemptOutcome;
   notes?: string;
@@ -169,8 +173,20 @@ export function JourneyMeetingsWorkspace({
       setError("Choose a valid meeting date and time.");
       return;
     }
-    if (nextDraft.mode === "google-meet" && nextDraft.link && !/^https:\/\/(?:meet\.google\.com|.+)/i.test(nextDraft.link)) {
+    const rawMeetingLink = nextDraft.link.trim();
+    const meetingLink = safeMeetingAssetUrl(rawMeetingLink);
+    if (rawMeetingLink && !meetingLink) {
+      setError("Use a valid HTTP or HTTPS meeting link without embedded credentials.");
+      return;
+    }
+    if (nextDraft.mode === "google-meet" && meetingLink && !meetingLink.startsWith("https:")) {
       setError("Use a valid https meeting link.");
+      return;
+    }
+    const rawRecordingUrl = nextDraft.recordingUrl.trim();
+    const callRecordingUrl = safeMeetingAssetUrl(rawRecordingUrl);
+    if (rawRecordingUrl && !callRecordingUrl) {
+      setError("Use a valid HTTP or HTTPS recording link without embedded credentials.");
       return;
     }
     const presentations = nextDraft.presentations
@@ -181,17 +197,6 @@ export function JourneyMeetingsWorkspace({
     setNotice("");
     try {
       const entity = person.kind === "lead" ? "leads" : "contacts";
-      const detailResponse = await fetch(`/api/portal/leads-pipeline/${entity}?id=${encodeURIComponent(person.id)}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          callRecordingUrl: nextDraft.recordingUrl.trim() || undefined,
-          sessionNotes: nextDraft.sessionNotes.trim() || undefined,
-        }),
-      });
-      const detailPayload = await detailResponse.json() as { ok?: boolean; error?: string };
-      if (!detailResponse.ok || !detailPayload.ok) throw new Error(detailPayload.error ?? "Could not save the meeting record.");
-
       const outcome = quickOutcome ?? nextDraft.attemptOutcome;
       const response = await fetch(`/api/portal/leads-pipeline/${entity}/meeting`, {
         method: "POST",
@@ -199,7 +204,7 @@ export function JourneyMeetingsWorkspace({
         body: JSON.stringify({
           id: person.id,
           nextMeetingAt: stamp,
-          meetingLink: nextDraft.link.trim(),
+          meetingLink,
           meetingNotes: nextDraft.notes.trim(),
           meetingMode: nextDraft.mode,
           meetingLocation: nextDraft.location.trim(),
@@ -207,6 +212,8 @@ export function JourneyMeetingsWorkspace({
           meetingConfirmed: nextDraft.confirmed,
           meetingReminderAt: nextDraft.reminderAt ? new Date(nextDraft.reminderAt).getTime() : null,
           salesPresentations: presentations,
+          callRecordingUrl: callRecordingUrl ?? null,
+          sessionNotes: nextDraft.sessionNotes.trim() || null,
           attempt: outcome ? {
             channel: nextDraft.attemptChannel,
             outcome,
@@ -223,8 +230,6 @@ export function JourneyMeetingsWorkspace({
         kind: person.kind,
         brandName: person.brandName,
         serviceNames: person.serviceNames,
-        callRecordingUrl: nextDraft.recordingUrl.trim() || undefined,
-        sessionNotes: nextDraft.sessionNotes.trim() || undefined,
       };
       setRecords(current => current.map(row => meetingKey(row) === meetingKey(person) ? merged : row));
       setSelectedKey(meetingKey(merged));
@@ -244,9 +249,9 @@ export function JourneyMeetingsWorkspace({
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wide text-brand">Journey · Meetings</p>
           <h2 className="mt-1 text-2xl font-semibold text-black/88">Meeting command</h2>
-          <p className="mt-1 max-w-3xl text-sm leading-6 text-black/50">Book, confirm, run and close every sales or relationship meeting with the joining details, evidence and next outcome retained against the person.</p>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-black/65">Book, confirm, run and close every sales or relationship meeting with the joining details, evidence and next outcome retained against the person.</p>
         </div>
-        <button type="button" onClick={openNew} disabled={!records.length} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white hover:bg-black/85 disabled:opacity-40"><Plus size={16} /> Book meeting</button>
+        <button type="button" onClick={openNew} disabled={!records.length} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white hover:bg-black/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:opacity-40"><Plus size={16} /> Book meeting</button>
       </header>
 
       <div className="grid grid-cols-2 border-b border-black/10 sm:grid-cols-3 xl:grid-cols-6">
@@ -262,15 +267,15 @@ export function JourneyMeetingsWorkspace({
         <div className="flex max-w-full gap-1 overflow-x-auto rounded-md border border-black/10 bg-black/[0.02] p-1">
           {FILTERS.map(item => {
             const count = countForFilter(meetings, item.id, referenceNow);
-            return <button key={item.id} type="button" onClick={() => setFilter(item.id)} className={`inline-flex min-h-8 shrink-0 items-center gap-2 rounded px-3 text-xs font-semibold ${filter === item.id ? "bg-black text-white" : "text-black/55 hover:bg-white"}`}>{item.label}<span className={filter === item.id ? "text-white/55" : "text-black/30"}>{count}</span></button>;
+            return <button key={item.id} type="button" onClick={() => setFilter(item.id)} className={`inline-flex min-h-11 shrink-0 items-center gap-2 rounded px-3 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 ${filter === item.id ? "bg-black text-white" : "text-black/65 hover:bg-white"}`}>{item.label}<span className={filter === item.id ? "text-white/75" : "text-black/65"}>{count}</span></button>;
           })}
         </div>
         <label className="relative min-w-[220px] flex-1">
           <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-black/32" />
-          <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Find person, company, note or meeting" className="min-h-10 w-full rounded-md border border-black/12 bg-white pl-9 pr-3 text-sm outline-none focus:border-black/35" />
+          <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Find person, company, note or meeting" className="min-h-11 w-full rounded-md border border-black/12 bg-white pl-9 pr-3 text-sm outline-none focus:border-black/35 focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2" />
         </label>
-        <select value={brand} onChange={event => setBrand(event.target.value)} aria-label="Filter meetings by brand" className="min-h-10 rounded-md border border-black/12 bg-white px-3 text-xs font-medium text-black/60"><option value="">Every brand</option>{brandOptions.map(value => <option key={value}>{value}</option>)}</select>
-        <select value={service} onChange={event => setService(event.target.value)} aria-label="Filter meetings by service" className="min-h-10 rounded-md border border-black/12 bg-white px-3 text-xs font-medium text-black/60"><option value="">Every service</option>{serviceOptions.map(value => <option key={value}>{value}</option>)}</select>
+        <select value={brand} onChange={event => setBrand(event.target.value)} aria-label="Filter meetings by brand" className="min-h-11 rounded-md border border-black/12 bg-white px-3 text-xs font-medium text-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2"><option value="">Every brand</option>{brandOptions.map(value => <option key={value}>{value}</option>)}</select>
+        <select value={service} onChange={event => setService(event.target.value)} aria-label="Filter meetings by service" className="min-h-11 rounded-md border border-black/12 bg-white px-3 text-xs font-medium text-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2"><option value="">Every service</option>{serviceOptions.map(value => <option key={value}>{value}</option>)}</select>
       </div>
 
       {error ? <p role="alert" className="mt-4 border-l-2 border-red-500 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p> : null}
@@ -282,18 +287,18 @@ export function JourneyMeetingsWorkspace({
             const active = selected && meetingKey(person) === meetingKey(selected);
             const attention = meetingNeedsAttention(person, referenceNow);
             return (
-              <button key={meetingKey(person)} type="button" onClick={() => setSelectedKey(meetingKey(person))} className={`grid w-full min-w-0 grid-cols-[68px_minmax(0,1fr)_auto] items-center gap-3 border-b border-black/[0.07] px-3 py-3 text-left last:border-b-0 ${active ? "bg-black/[0.055]" : "hover:bg-black/[0.025]"}`}>
+              <button key={meetingKey(person)} type="button" onClick={() => setSelectedKey(meetingKey(person))} className={`grid min-h-11 w-full min-w-0 grid-cols-[68px_minmax(0,1fr)_auto] items-center gap-3 border-b border-black/[0.07] px-3 py-3 text-left last:border-b-0 focus-visible:relative focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-inset ${active ? "bg-black/[0.055]" : "hover:bg-black/[0.025]"}`}>
                 <MeetingDateBlock stamp={person.nextMeetingAt!} />
-                <span className="min-w-0"><span className="flex items-center gap-2"><strong className="truncate text-sm text-black/80">{person.name || person.company || person.email}</strong>{attention ? <span className="size-2 shrink-0 rounded-full bg-red-500" title="Needs attention" /> : null}</span><span className="mt-1 block truncate text-xs text-black/60">{person.company ? `${person.company} · ` : ""}{modeLabel(person.meetingMode)}</span><span className="mt-1 flex items-center gap-1.5"><MeetingStatusBadge status={meetingState(person)} />{person.brandName ? <span className="truncate text-[10px] text-black/35">{person.brandName}</span> : null}</span></span>
+                <span className="min-w-0"><span className="flex items-center gap-2"><strong className="truncate text-sm text-black/80">{person.name || person.company || person.email}</strong>{attention ? <span className="size-2 shrink-0 rounded-full bg-red-500" role="img" aria-label="Needs attention" /> : null}</span><span className="mt-1 block truncate text-xs text-black/65">{person.company ? `${person.company} · ` : ""}{modeLabel(person.meetingMode)}</span><span className="mt-1 flex items-center gap-1.5"><MeetingStatusBadge status={meetingState(person)} />{person.brandName ? <span className="truncate text-[10px] text-black/65">{person.brandName}</span> : null}</span></span>
                 <ChevronRight size={15} className={active ? "text-black/55" : "text-black/20"} />
               </button>
             );
           })}
-          {!visible.length ? <div className="px-5 py-14 text-center"><CalendarDays size={24} className="mx-auto text-black/20" /><p className="mt-3 text-sm font-semibold text-black/60">No meetings in this view</p><p className="mt-1 text-xs text-black/40">Change the filters or book the next conversation.</p></div> : null}
+          {!visible.length ? <div className="px-5 py-14 text-center"><CalendarDays size={24} className="mx-auto text-black/20" /><p className="mt-3 text-sm font-semibold text-black/65">No meetings in this view</p><p className="mt-1 text-xs text-black/65">Change the filters or book the next conversation.</p></div> : null}
         </div>
 
         <div className="min-w-0 px-0 pt-5 xl:px-6 xl:pt-0">
-          {selected ? <MeetingDetail person={selected} referenceNow={referenceNow} busy={Boolean(busy)} onEdit={() => openEdit(selected)} onOutcome={outcome => void saveMeeting({ ...personToDraft(selected), attemptOutcome: outcome }, outcome)} /> : <div className="grid min-h-[340px] place-items-center border-y border-black/10 text-center"><div><UserRoundCheck size={28} className="mx-auto text-black/20" /><p className="mt-3 text-sm font-semibold text-black/62">Choose a meeting</p><p className="mt-1 text-xs text-black/40">Its preparation, links and history will appear here.</p></div></div>}
+          {selected ? <MeetingDetail person={selected} referenceNow={referenceNow} busy={Boolean(busy)} onEdit={() => openEdit(selected)} onOutcome={outcome => void saveMeeting({ ...personToDraft(selected), attemptOutcome: outcome }, outcome)} /> : <div className="grid min-h-[340px] place-items-center border-y border-black/10 text-center"><div><UserRoundCheck size={28} className="mx-auto text-black/20" /><p className="mt-3 text-sm font-semibold text-black/65">Choose a meeting</p><p className="mt-1 text-xs text-black/65">Its preparation, links and history will appear here.</p></div></div>}
         </div>
       </div>
 
@@ -305,22 +310,52 @@ export function JourneyMeetingsWorkspace({
 function MeetingDetail({ person, referenceNow, busy, onEdit, onOutcome }: { person: JourneyMeetingPerson; referenceNow: number; busy: boolean; onEdit: () => void; onOutcome: (outcome: JourneyMeetingAttemptOutcome) => void }) {
   const status = meetingState(person);
   const isPast = Boolean(person.nextMeetingAt && person.nextMeetingAt < referenceNow);
+  const meetingHref = safeMeetingAssetUrl(person.meetingLink);
+  const recordingHref = safeMeetingAssetUrl(person.callRecordingUrl);
+  const presentationLinks = (person.salesPresentations ?? []).flatMap(asset => {
+    const href = safeMeetingAssetUrl(asset.url);
+    return href ? [{ ...asset, href }] : [];
+  });
+  const hiddenPresentationCount = (person.salesPresentations?.length ?? 0) - presentationLinks.length;
+  const interactionHistory = chronologicalMeetingAttempts(person.meetingAttempts);
+  const leadEmailHref = `/portal/agency/prospecting?lead=${encodeURIComponent(person.id)}&mode=email`;
+  const leadCallHref = `/portal/agency/prospecting?lead=${encodeURIComponent(person.id)}&mode=power-dialler`;
+  const contactControlsHref = "/portal/agency/leads-pipeline/contacts";
   return <section className="border-y border-black/10" aria-labelledby="meeting-detail-title">
     <header className="flex flex-wrap items-start justify-between gap-4 border-b border-black/10 py-4">
-      <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><MeetingStatusBadge status={status} /><span className="text-[10px] font-semibold uppercase tracking-wide text-black/35">{person.kind}</span></div><h3 id="meeting-detail-title" className="mt-2 truncate text-xl font-semibold text-black/84">{person.name || person.company || person.email}</h3><p className="mt-1 text-sm text-black/48">{formatUkDateTime(person.nextMeetingAt!)} · {modeLabel(person.meetingMode)}</p></div>
-      <button type="button" onClick={onEdit} className="min-h-9 rounded-md border border-black/12 bg-white px-3 text-xs font-semibold text-black/65 hover:bg-black/[0.03]">Manage meeting</button>
+      <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><MeetingStatusBadge status={status} /><span className="text-[10px] font-semibold uppercase tracking-wide text-black/65">{person.kind}</span></div><h3 id="meeting-detail-title" className="mt-2 break-words text-xl font-semibold text-black/84">{person.name || person.company || person.email}</h3><p className="mt-1 text-sm text-black/65">{formatUkDateTime(person.nextMeetingAt!)} · {modeLabel(person.meetingMode)}</p></div>
+      <button type="button" onClick={onEdit} className="min-h-11 rounded-md border border-black/12 bg-white px-3 text-xs font-semibold text-black/65 hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Manage meeting</button>
     </header>
     <div className="grid gap-px bg-black/[0.08] sm:grid-cols-2">
-      <DetailCell icon={<Video size={15} />} label="Joining details" value={person.meetingLink || person.meetingLocation || "Not added"} href={person.meetingLink} />
+      <DetailCell icon={<Video size={15} />} label="Joining details" value={meetingHref || person.meetingLocation || (person.meetingLink ? "Unsafe link hidden" : "Not added")} href={meetingHref} />
       <DetailCell icon={<BellRing size={15} />} label="Reminder" value={person.meetingReminderAt ? `${formatUkDateTime(person.meetingReminderAt)}${person.meetingReminderSentAt ? " · sent" : ""}` : "Not scheduled"} />
       <DetailCell icon={<MapPin size={15} />} label="Brand / service" value={[person.brandName, ...person.serviceNames].filter(Boolean).join(" · ") || "Not assigned"} />
-      <DetailCell icon={<Mic2 size={15} />} label="Recording" value={person.callRecordingUrl ? "Recording retained" : "No recording link"} href={person.callRecordingUrl} />
+      <DetailCell icon={<Mic2 size={15} />} label="Recording" value={recordingHref ? "Recording retained" : person.callRecordingUrl ? "Unsafe link hidden" : "No recording link"} href={recordingHref} />
     </div>
     <div className="grid gap-5 py-5 lg:grid-cols-2">
-      <section><p className="text-[10px] font-semibold uppercase tracking-wide text-black/38">Preparation and notes</p><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-black/58">{person.meetingNotes || "No preparation notes yet."}</p>{person.sessionNotes ? <><p className="mt-5 text-[10px] font-semibold uppercase tracking-wide text-black/38">Session record</p><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-black/58">{person.sessionNotes}</p></> : null}</section>
-      <section><p className="text-[10px] font-semibold uppercase tracking-wide text-black/38">Meeting assets</p><div className="mt-2 divide-y divide-black/[0.07] border-y border-black/10">{person.salesPresentations?.map(asset => <a key={asset.id} href={asset.url} target="_blank" rel="noreferrer" className="flex min-h-10 items-center gap-2 text-sm text-black/62 hover:text-black"><Presentation size={14} className="text-brand" /><span className="min-w-0 flex-1 truncate">{asset.title}</span><ExternalLink size={13} /></a>)}{!person.salesPresentations?.length ? <p className="py-3 text-xs text-black/40">No presentation links attached.</p> : null}</div><p className="mt-5 text-[10px] font-semibold uppercase tracking-wide text-black/38">Contact</p><div className="mt-2 flex flex-wrap gap-2"><a href={`mailto:${person.email}`} className={detailAction}><Mail size={14} />Email</a>{person.phone ? <a href={`tel:${person.phone}`} className={detailAction}><Phone size={14} />Call</a> : null}{person.meetingLink ? <a href={person.meetingLink} target="_blank" rel="noreferrer" className={detailPrimary}><Video size={14} />Join</a> : null}</div></section>
+      <section><p className="text-[10px] font-semibold uppercase tracking-wide text-black/65">Preparation and notes</p><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-black/65">{person.meetingNotes || "No preparation notes yet."}</p>{person.sessionNotes ? <><p className="mt-5 text-[10px] font-semibold uppercase tracking-wide text-black/65">Session record</p><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-black/65">{person.sessionNotes}</p></> : null}</section>
+      <section><p className="text-[10px] font-semibold uppercase tracking-wide text-black/65">Meeting assets</p><div className="mt-2 divide-y divide-black/[0.07] border-y border-black/10">{presentationLinks.map(asset => <a key={asset.id} href={asset.href} target="_blank" rel="noopener noreferrer" className="flex min-h-11 items-center gap-2 text-sm text-black/65 hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-inset"><Presentation size={14} className="text-brand" /><span className="min-w-0 flex-1 truncate">{asset.title}</span><ExternalLink size={13} /></a>)}{!presentationLinks.length ? <p className="py-3 text-xs text-black/65">No usable presentation links attached.</p> : null}</div>{hiddenPresentationCount > 0 ? <p className="mt-2 text-xs text-amber-800">{hiddenPresentationCount} unsafe presentation {hiddenPresentationCount === 1 ? "link was" : "links were"} hidden.</p> : null}<p className="mt-5 text-[10px] font-semibold uppercase tracking-wide text-black/65">Contact</p><div className="mt-2 flex flex-wrap gap-2">{person.kind === "lead" ? <><a href={leadEmailHref} className={detailAction}><Mail size={14} />Open email desk</a>{person.phone ? <a href={leadCallHref} className={detailAction}><Phone size={14} />Open call desk</a> : null}</> : <a href={contactControlsHref} className={detailAction}><UserRoundCheck size={14} />Contact controls</a>}{meetingHref ? <a href={meetingHref} target="_blank" rel="noopener noreferrer" className={detailPrimary}><Video size={14} />Join</a> : null}</div></section>
     </div>
-    <footer className="flex flex-wrap items-center gap-2 border-t border-black/10 py-4"><span className="mr-auto text-xs text-black/42">{isPast && !["completed", "no-show", "cancelled"].includes(status) ? "This meeting is in the past and still needs an outcome." : "Record the outcome so Journey stays truthful."}</span><button type="button" disabled={busy} onClick={onEdit} className={detailAction}><RefreshCw size={14} />Reschedule</button><button type="button" disabled={busy} onClick={() => onOutcome("no-show")} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-red-200 px-3 text-xs font-semibold text-red-700 hover:bg-red-50"><X size={14} />No-show</button><button type="button" disabled={busy} onClick={() => onOutcome("completed")} className="inline-flex min-h-9 items-center gap-2 rounded-md bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-800"><Check size={14} />Complete</button></footer>
+    <section className="border-t border-black/10 py-5" aria-labelledby="meeting-interaction-history-title">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h4 id="meeting-interaction-history-title" className="text-[10px] font-semibold uppercase tracking-wide text-black/65">Interaction history</h4>
+        {interactionHistory.length ? <span className="text-[10px] text-black/65">Oldest first · {interactionHistory.length} interaction{interactionHistory.length === 1 ? "" : "s"}</span> : null}
+      </div>
+      {interactionHistory.length ? (
+        <ol className="mt-3 divide-y divide-black/[0.07] border-y border-black/10">
+          {interactionHistory.map(attempt => (
+            <li key={attempt.id} className="grid gap-1 py-3 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] sm:gap-x-5">
+              <div>
+                <p className="text-xs font-semibold text-black/75">{statusLabel(attempt.outcome)} via {statusLabel(attempt.channel)}</p>
+                <p className="mt-1 text-[11px] text-black/65">{formatUkDateTime(attempt.at)} · by {attempt.actorLabel ?? "Staff not recorded (legacy)"}</p>
+              </div>
+              <p className="whitespace-pre-wrap text-xs leading-5 text-black/65">{attempt.notes || "No interaction note recorded."}</p>
+            </li>
+          ))}
+        </ol>
+      ) : <p className="mt-3 text-xs text-black/65">No meeting interactions have been recorded yet.</p>}
+    </section>
+    <footer className="flex flex-wrap items-center gap-2 border-t border-black/10 py-4"><span className="mr-auto text-xs text-black/65">{isPast && !["completed", "no-show", "cancelled"].includes(status) ? "This meeting is in the past and still needs an outcome." : "Record the outcome so Journey stays truthful."}</span><button type="button" disabled={busy} onClick={onEdit} className={detailAction}><RefreshCw size={14} />Reschedule</button><button type="button" disabled={busy} onClick={() => onOutcome("no-show")} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-red-200 px-3 text-xs font-semibold text-red-700 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2"><X size={14} />No-show</button><button type="button" disabled={busy} onClick={() => onOutcome("completed")} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2"><Check size={14} />Complete</button></footer>
   </section>;
 }
 
@@ -331,7 +366,7 @@ function MeetingEditor({ draft, people, busy, onChange, onClose, onSave }: { dra
   const person = people.find(row => meetingKey(row) === draft.personKey);
   return <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/45 p-3 sm:p-6" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
     <section role="dialog" ref={dialogRef} aria-modal="true" aria-labelledby="journey-meeting-editor-title" className="flex max-h-[94dvh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-black/12 bg-[#f8f8f5] shadow-[0_32px_100px_rgba(0,0,0,0.3)]">
-      <header className="flex items-start justify-between gap-4 border-b border-black/10 bg-white px-5 py-4 sm:px-7"><div><p className="text-[10px] font-semibold uppercase tracking-wide text-brand">Journey meeting record</p><h2 id="journey-meeting-editor-title" className="mt-1 text-xl font-semibold text-black/84">{draft.isNew ? "Book a meeting" : "Manage meeting"}</h2><p className="mt-1 text-xs text-black/44">Schedule, preparation, attendance and evidence in one record.</p></div><button type="button" onClick={onClose} aria-label="Close meeting editor" className="grid size-9 place-items-center rounded-md border border-black/10 bg-white text-black/55"><X size={16} /></button></header>
+      <header className="flex items-start justify-between gap-4 border-b border-black/10 bg-white px-5 py-4 sm:px-7"><div><p className="text-[10px] font-semibold uppercase tracking-wide text-brand">Journey meeting record</p><h2 id="journey-meeting-editor-title" className="mt-1 text-xl font-semibold text-black/84">{draft.isNew ? "Book a meeting" : "Manage meeting"}</h2><p className="mt-1 text-xs text-black/65">Schedule, preparation, attendance and evidence in one record.</p></div><button type="button" onClick={onClose} aria-label="Close meeting editor" className="grid size-11 place-items-center rounded-md border border-black/10 bg-white text-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2"><X size={16} /></button></header>
       <div className="overflow-y-auto px-5 py-5 sm:px-7">
         <div className="grid gap-5 lg:grid-cols-2">
           <section className="space-y-4">
@@ -341,19 +376,19 @@ function MeetingEditor({ draft, people, busy, onChange, onClose, onSave }: { dra
             <InputField label="Meeting or booking link" value={draft.link} onChange={value => onChange({ ...draft, link: value })} placeholder="https://meet.google.com/..." />
             <InputField label={draft.mode === "in-person" ? "Location" : "Location or joining detail"} value={draft.location} onChange={value => onChange({ ...draft, location: value })} placeholder={draft.mode === "in-person" ? "Address" : "Optional"} />
             <div className="grid gap-3 sm:grid-cols-2"><SelectField label="Status" value={draft.status} onChange={value => onChange({ ...draft, status: value as JourneyMeetingStatus })}>{(["scheduled", "confirmed", "completed", "no-show", "rescheduled", "cancelled"] as JourneyMeetingStatus[]).map(value => <option key={value} value={value}>{statusLabel(value)}</option>)}</SelectField><InputField label="Reminder due" type="datetime-local" value={draft.reminderAt} onChange={value => onChange({ ...draft, reminderAt: value })} /></div>
-            <label className="flex min-h-10 items-center gap-2 border-y border-black/10 py-2 text-sm font-medium text-black/62"><input type="checkbox" checked={draft.confirmed} onChange={event => onChange({ ...draft, confirmed: event.target.checked, status: event.target.checked ? "confirmed" : draft.status })} /> Time, format and location confirmed</label>
+            <label className="flex min-h-11 items-center gap-2 border-y border-black/10 py-2 text-sm font-medium text-black/65"><input type="checkbox" checked={draft.confirmed} onChange={event => onChange({ ...draft, confirmed: event.target.checked, status: event.target.checked ? "confirmed" : draft.status })} className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2" /> Time, format and location confirmed</label>
           </section>
           <section className="space-y-4">
             <SectionTitle icon={<Link2 size={15} />} title="Preparation and record" />
             <TextareaField label="Preparation notes" value={draft.notes} onChange={value => onChange({ ...draft, notes: value })} placeholder="Agenda, questions, desired decision and preparation." />
             <InputField label="Recording link" value={draft.recordingUrl} onChange={value => onChange({ ...draft, recordingUrl: value })} placeholder="Private recording URL" />
             <TextareaField label="Session notes and outcome" value={draft.sessionNotes} onChange={value => onChange({ ...draft, sessionNotes: value })} placeholder="What was decided, objections, commitments and next step." />
-            <div className="border-y border-black/10 py-4"><div className="flex items-center justify-between gap-3"><SectionTitle icon={<Presentation size={15} />} title="Presentation links" /><button type="button" onClick={() => onChange({ ...draft, presentations: [...draft.presentations, { id: `presentation_${Date.now()}`, title: "", url: "" }] })} className="inline-flex min-h-8 items-center gap-1 rounded-md border border-black/10 px-2 text-[11px] font-semibold text-black/58"><Plus size={13} />Add</button></div><div className="mt-3 space-y-2">{draft.presentations.map((item, index) => <div key={item.id} className="grid gap-2 sm:grid-cols-[0.8fr_1.2fr_auto]"><input aria-label={`Presentation ${index + 1} title`} value={item.title} onChange={event => onChange({ ...draft, presentations: draft.presentations.map(row => row.id === item.id ? { ...row, title: event.target.value } : row) })} placeholder="Proposal title" className={inputClass} /><input aria-label={`Presentation ${index + 1} URL`} value={item.url} onChange={event => onChange({ ...draft, presentations: draft.presentations.map(row => row.id === item.id ? { ...row, url: event.target.value } : row) })} placeholder="https://..." className={inputClass} /><button type="button" onClick={() => onChange({ ...draft, presentations: draft.presentations.filter(row => row.id !== item.id) })} aria-label={`Remove presentation ${index + 1}`} className="grid size-10 place-items-center rounded-md border border-black/10 text-black/42 hover:bg-red-50 hover:text-red-700"><Trash2 size={14} /></button></div>)}{!draft.presentations.length ? <p className="text-xs text-black/38">Add decks, proposals or references you want ready in the room.</p> : null}</div></div>
+            <div className="border-y border-black/10 py-4"><div className="flex items-center justify-between gap-3"><SectionTitle icon={<Presentation size={15} />} title="Presentation links" /><button type="button" onClick={() => onChange({ ...draft, presentations: [...draft.presentations, { id: `presentation_${Date.now()}`, title: "", url: "" }] })} className="inline-flex min-h-11 items-center gap-1 rounded-md border border-black/10 px-3 text-[11px] font-semibold text-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2"><Plus size={13} />Add</button></div><div className="mt-3 space-y-2">{draft.presentations.map((item, index) => <div key={item.id} className="grid gap-2 sm:grid-cols-[0.8fr_1.2fr_auto]"><input aria-label={`Presentation ${index + 1} title`} value={item.title} onChange={event => onChange({ ...draft, presentations: draft.presentations.map(row => row.id === item.id ? { ...row, title: event.target.value } : row) })} placeholder="Proposal title" className={inputClass} /><input aria-label={`Presentation ${index + 1} URL`} value={item.url} onChange={event => onChange({ ...draft, presentations: draft.presentations.map(row => row.id === item.id ? { ...row, url: event.target.value } : row) })} placeholder="https://..." className={inputClass} /><button type="button" onClick={() => onChange({ ...draft, presentations: draft.presentations.filter(row => row.id !== item.id) })} aria-label={`Remove presentation ${index + 1}`} className="grid size-11 place-items-center rounded-md border border-black/10 text-black/65 hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2"><Trash2 size={14} /></button></div>)}{!draft.presentations.length ? <p className="text-xs text-black/65">Add decks, proposals or references you want ready in the room.</p> : null}</div></div>
           </section>
         </div>
         <section className="mt-6 border-t border-black/10 pt-5"><SectionTitle icon={<Clock3 size={15} />} title="Interaction log" /><div className="mt-3 grid gap-3 md:grid-cols-[0.7fr_0.8fr_1.5fr]"><SelectField label="Channel" value={draft.attemptChannel} onChange={value => onChange({ ...draft, attemptChannel: value as JourneyMeetingAttemptChannel })}>{(["call", "email", "sms", "whatsapp", "in-person"] as JourneyMeetingAttemptChannel[]).map(value => <option key={value} value={value}>{statusLabel(value)}</option>)}</SelectField><SelectField label="Outcome" value={draft.attemptOutcome} onChange={value => onChange({ ...draft, attemptOutcome: value as JourneyMeetingAttemptOutcome | "" })}><option value="">No new interaction</option>{(["attempted", "reached", "reminder-sent", "no-show", "rescheduled", "completed"] as JourneyMeetingAttemptOutcome[]).map(value => <option key={value} value={value}>{statusLabel(value)}</option>)}</SelectField><InputField label="Interaction note" value={draft.attemptNotes} onChange={value => onChange({ ...draft, attemptNotes: value })} placeholder="What happened and what is next?" /></div></section>
       </div>
-      <footer className="flex items-center justify-end gap-2 border-t border-black/10 bg-white px-5 py-4 sm:px-7"><button type="button" onClick={onClose} className="min-h-10 rounded-md border border-black/12 px-4 text-sm font-semibold text-black/58">Cancel</button><button type="button" onClick={onSave} disabled={busy} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white disabled:opacity-45">{busy ? <RefreshCw size={15} className="animate-spin" /> : <Check size={15} />}{busy ? "Saving" : "Save meeting"}</button></footer>
+      <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-black/10 bg-white px-5 py-4 sm:px-7"><button type="button" onClick={onClose} className="min-h-11 rounded-md border border-black/12 px-4 text-sm font-semibold text-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Cancel</button><button type="button" onClick={onSave} disabled={busy} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:opacity-45">{busy ? <RefreshCw size={15} className="animate-spin" /> : <Check size={15} />}{busy ? "Saving" : "Save meeting"}</button></footer>
     </section>
   </div>;
 }
@@ -365,23 +400,24 @@ function MeetingMetric({ label, value, icon, tone }: { label: string; value: str
 
 function MeetingDateBlock({ stamp }: { stamp: number }) {
   const date = new Date(stamp);
-  return <span className="border-r border-black/10 pr-3 text-center"><span className="block text-[10px] font-semibold uppercase text-brand">{stableUkDateString(date.toLocaleDateString("en-GB", { month: "short", timeZone: "Europe/London" }))}</span><strong className="mt-0.5 block text-xl leading-none text-black/76">{date.toLocaleDateString("en-GB", { day: "2-digit", timeZone: "Europe/London" })}</strong><span className="mt-1 block text-[10px] text-black/40">{date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" })}</span></span>;
+  return <span className="border-r border-black/10 pr-3 text-center"><span className="block text-[10px] font-semibold uppercase text-brand">{stableUkDateString(date.toLocaleDateString("en-GB", { month: "short", timeZone: "Europe/London" }))}</span><strong className="mt-0.5 block text-xl leading-none text-black/76">{date.toLocaleDateString("en-GB", { day: "2-digit", timeZone: "Europe/London" })}</strong><span className="mt-1 block text-[10px] text-black/65">{date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" })}</span></span>;
 }
 
 function MeetingStatusBadge({ status }: { status: JourneyMeetingStatus }) {
-  const style = status === "completed" ? "bg-emerald-50 text-emerald-700" : status === "no-show" || status === "cancelled" ? "bg-red-50 text-red-700" : status === "confirmed" ? "bg-blue-50 text-blue-700" : status === "rescheduled" ? "bg-amber-50 text-amber-700" : "bg-black/[0.05] text-black/55";
+  const style = status === "completed" ? "bg-emerald-50 text-emerald-700" : status === "no-show" || status === "cancelled" ? "bg-red-50 text-red-700" : status === "confirmed" ? "bg-blue-50 text-blue-700" : status === "rescheduled" ? "bg-amber-50 text-amber-700" : "bg-black/[0.05] text-black/65";
   return <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${style}`}>{statusLabel(status)}</span>;
 }
 
 function DetailCell({ icon, label, value, href }: { icon: React.ReactNode; label: string; value: string; href?: string }) {
-  const content = <><span className="text-brand">{icon}</span><span className="min-w-0"><span className="block text-[10px] font-semibold uppercase tracking-wide text-black/35">{label}</span><span className="mt-1 block truncate text-xs font-medium text-black/62">{value}</span></span>{href ? <ExternalLink size={12} className="ml-auto shrink-0 text-black/25" /> : null}</>;
-  return href ? <a href={href} target="_blank" rel="noreferrer" className="flex min-w-0 items-center gap-3 bg-white px-4 py-3 hover:bg-black/[0.02]">{content}</a> : <div className="flex min-w-0 items-center gap-3 bg-white px-4 py-3">{content}</div>;
+  const safeHref = safeMeetingAssetUrl(href);
+  const content = <><span className="text-brand">{icon}</span><span className="min-w-0"><span className="block text-[10px] font-semibold uppercase tracking-wide text-black/65">{label}</span><span className="mt-1 block break-words text-xs font-medium text-black/65">{value}</span></span>{safeHref ? <ExternalLink size={12} className="ml-auto shrink-0 text-black/45" aria-hidden="true" /> : null}</>;
+  return safeHref ? <a href={safeHref} target="_blank" rel="noopener noreferrer" className="flex min-h-11 min-w-0 items-center gap-3 bg-white px-4 py-3 hover:bg-black/[0.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-inset">{content}</a> : <div className="flex min-w-0 items-center gap-3 bg-white px-4 py-3">{content}</div>;
 }
 
-function SectionTitle({ icon, title }: { icon: React.ReactNode; title: string }) { return <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-black/52"><span className="text-brand">{icon}</span>{title}</h3>; }
-function InputField({ label, value, onChange, type = "text", placeholder }: { label: string; value: string; onChange: (value: string) => void; type?: string; placeholder?: string }) { return <label className="block text-xs font-medium text-black/55">{label}<input type={type} value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} className={`${inputClass} mt-1 w-full`} /></label>; }
-function SelectField({ label, value, onChange, children }: { label: string; value: string; onChange: (value: string) => void; children: React.ReactNode }) { return <label className="block text-xs font-medium text-black/55">{label}<select value={value} onChange={event => onChange(event.target.value)} className={`${inputClass} mt-1 w-full`}>{children}</select></label>; }
-function TextareaField({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string }) { return <label className="block text-xs font-medium text-black/55">{label}<textarea rows={4} value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} className={`${inputClass} mt-1 w-full py-2`} /></label>; }
+function SectionTitle({ icon, title }: { icon: React.ReactNode; title: string }) { return <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-black/65"><span className="text-brand">{icon}</span>{title}</h3>; }
+function InputField({ label, value, onChange, type = "text", placeholder }: { label: string; value: string; onChange: (value: string) => void; type?: string; placeholder?: string }) { return <label className="block text-xs font-medium text-black/65">{label}<input type={type} value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} className={`${inputClass} mt-1 w-full`} /></label>; }
+function SelectField({ label, value, onChange, children }: { label: string; value: string; onChange: (value: string) => void; children: React.ReactNode }) { return <label className="block text-xs font-medium text-black/65">{label}<select value={value} onChange={event => onChange(event.target.value)} className={`${inputClass} mt-1 w-full`}>{children}</select></label>; }
+function TextareaField({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string }) { return <label className="block text-xs font-medium text-black/65">{label}<textarea rows={4} value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} className={`${inputClass} mt-1 w-full py-2`} /></label>; }
 
 function personToDraft(person: JourneyMeetingPerson): MeetingDraft {
   return {
@@ -445,6 +481,6 @@ function startOfToday(stamp: number) { const date = new Date(stamp); date.setHou
 function defaultMeetingDate() { const date = new Date(Date.now() + 86_400_000); date.setHours(10, 0, 0, 0); return toDateTimeLocal(date.getTime()); }
 function toDateTimeLocal(stamp: number) { return localDateTimeInputValue(stamp); }
 
-const inputClass = "min-h-10 rounded-md border border-black/12 bg-white px-3 text-sm text-black/72 outline-none focus:border-black/35";
-const detailAction = "inline-flex min-h-9 items-center gap-2 rounded-md border border-black/12 bg-white px-3 text-xs font-semibold text-black/62 hover:bg-black/[0.03] disabled:opacity-40";
-const detailPrimary = "inline-flex min-h-9 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85";
+const inputClass = "min-h-11 rounded-md border border-black/12 bg-white px-3 text-sm text-black/72 outline-none focus:border-black/35 focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2";
+const detailAction = "inline-flex min-h-11 items-center gap-2 rounded-md border border-black/12 bg-white px-3 text-xs font-semibold text-black/65 hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:opacity-40";
+const detailPrimary = "inline-flex min-h-11 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2";

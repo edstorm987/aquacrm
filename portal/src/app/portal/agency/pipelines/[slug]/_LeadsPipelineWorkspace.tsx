@@ -5,14 +5,15 @@ import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { Archive, ArrowLeft, BarChart3, Binoculars, Building2, ChevronDown, Clock3, ExternalLink, Globe2, GripVertical, History, Mail, MessageCircle, MoreHorizontal, Phone, Plus, Presentation, Search, TimerReset, Trash2, UserRoundCheck, X } from "lucide-react";
+import { Archive, ArrowLeft, ArrowRight, BarChart3, Binoculars, Building2, ChevronDown, Clock3, ExternalLink, Globe2, GripVertical, History, Mail, MessageCircle, MoreHorizontal, Phone, Plus, Presentation, Search, TimerReset, Trash2, Upload, UserRoundCheck, X } from "lucide-react";
 import { WorkflowSteps } from "@/app/portal/agency/leads-pipeline/_WorkflowSteps";
-import { UpcomingMeetings } from "@/app/portal/agency/leads-pipeline/_UpcomingMeetings";
+import { UpcomingMeetings, selectOperationalUpcomingMeetings, type UpcomingMeeting } from "@/app/portal/agency/leads-pipeline/_UpcomingMeetings";
 import { formatUkDateTime, localDateTimeInputValue, timestampFromValue } from "@/lib/shared/formatDateTime";
 import { averageElapsed, formatElapsed, leadTimingSnapshot, type LeadTimingSnapshot } from "@/lib/enquiries/leadTiming";
 import { BoardSwitcher } from "./_PipelineBoard";
 import { ScoutingCommand, type ScoutingProspectView } from "./_ScoutingCommand";
-import type { GoogleBusinessPlace } from "./_GoogleBusinessScout";
+import { DismissedProspectsArchive } from "./_DismissedProspectsArchive";
+import { ProspectImportDialog } from "./_ProspectImportDialog";
 import {
   WEBSITE_ENQUIRY_CLASSIFICATIONS,
   WEBSITE_ENQUIRY_CLASSIFICATION_LABELS,
@@ -37,7 +38,9 @@ import type {
   SalesPresentation,
 } from "./_leadTypes";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
-import { GoogleMapsAttribution } from "@/components/attribution/GoogleMapsAttribution";
+import { SalesAcquisitionTabs } from "@/components/sales/SalesAcquisitionTabs";
+import { safeMeetingAssetUrl } from "@/built-ins/modules/leads-pipeline/src/lib/meetingAssetUrl";
+import { paginateScoutingIntake } from "@/lib/sales/scoutingIntake";
 
 // Discovery is a Scouting-only surface. Keep the Maps/Places UI out of the
 // normal Journey client chunk instead of making every sales visit download it.
@@ -66,6 +69,31 @@ interface PipelineColumnView {
 
 type ProspectView = ScoutingProspectView;
 
+export type SalesWorkspaceMode = "journey" | "scouting" | "researching" | "prospecting";
+
+const SALES_WORKSPACE_COPY: Record<SalesWorkspaceMode, { eyebrow: string; title: string; detail: string }> = {
+  journey: {
+    eyebrow: "Growth pipeline",
+    title: "Sales journey",
+    detail: "Move every qualified opportunity through contact, meeting, proposal, payment, conversion, and fulfilment.",
+  },
+  scouting: {
+    eyebrow: "Sales · discovery",
+    title: "Scouting",
+    detail: "Find a business on Google Maps or capture one you met through networking, referrals, signage, or real life.",
+  },
+  researching: {
+    eyebrow: "Sales · context",
+    title: "Researching",
+    detail: "Build or revisit the company brief whenever it helps — before a call, during a conversation, after an email, or while deciding the next angle.",
+  },
+  prospecting: {
+    eyebrow: "Sales · engagement",
+    title: "Outreach Command",
+    detail: "Call or email any active prospect, record manual and social outreach, retain every outcome, and move a real opportunity into Journey when you decide it belongs there.",
+  },
+};
+
 export interface ScoutingQuotaSnapshot {
   quotas: Array<{
     entryId: string;
@@ -80,12 +108,12 @@ export interface ScoutingQuotaSnapshot {
 }
 
 interface LeadsPipelineWorkspaceProps {
-  /** A dedicated Scouting shell reuses this journey engine without creating a second prospect model. */
-  workspaceMode?: "journey" | "scouting";
+  /** Focused Sales shells reuse this journey engine without creating another prospect model. */
+  workspaceMode?: SalesWorkspaceMode;
+  /** Embedded Journey owns the persistent acquisition strip above all of its desks. */
+  showAcquisitionTabs?: boolean;
   /** Browser-visible by design; restrict this key to Maps Embed API + exact site referrers. */
   googleMapsEmbedApiKey?: string;
-  /** The server-only Places key never crosses this boundary; only readiness does. */
-  googlePlacesConfigured?: boolean;
   /** Self-set outreach quotas with derived progress — see scoutingQuota.ts. */
   scoutingQuota?: ScoutingQuotaSnapshot;
   /** Bulk import and dismissal are administrative Scouting actions. */
@@ -94,10 +122,22 @@ interface LeadsPipelineWorkspaceProps {
   scoutingCanQualify?: boolean;
   /** Quotas live in the personal Calendar store and follow its write grant. */
   scoutingQuotaWritable?: boolean;
+  /** Route-selected dossier, used by search, alerts, and Scouting hand-offs. */
+  initialFocusedProspectId?: string;
+  /** Deep link from Contacts or another intake surface into mapped prospect import. */
+  initialProspectImportOpen?: boolean;
+  /** Deep link directly into a safe one-recipient outreach mode. */
+  initialOutreachView?: "power-dialler" | "email" | "pipeline";
+  /** Explicit repair target for a legacy Lead without an acquisition dossier. */
+  initialDossierLeadId?: string;
   focusedLeadId?: string;
+  /** Server-derived Lead + Contact meeting feed for the master Journey prompt. */
+  journeyMeetings?: UpcomingMeeting[];
   referenceNow: number;
   columns: PipelineColumnView[];
   prospects: ProspectView[];
+  /** Retained not-qualified dossiers; deliberately excluded from every active metric and queue. */
+  dismissedProspects?: ProspectView[];
   leads: LeadView[];
   /**
    * Archived leads, loaded separately and deliberately kept OUT of `leads`.
@@ -220,13 +260,13 @@ function CloseLeadDealModal({ target, onClose, onClosed }: { target: { clientId:
     }
   }
 
-  const inputClass = "min-h-10 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black";
+  const inputClass = "min-h-11 w-full rounded-md border border-black/15 bg-white px-3 text-sm text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2";
   return (
-    <div className="fixed inset-0 z-[95] grid place-items-center bg-black/40 p-4">
-      <div role="dialog" ref={dialogRef} aria-modal="true" aria-label="Close the deal" className="w-full max-w-lg rounded-lg bg-white p-5 shadow-2xl">
+    <div className="fixed inset-0 z-[95] grid place-items-center overflow-y-auto bg-black/40 p-4">
+      <div role="dialog" ref={dialogRef} aria-modal="true" aria-label="Close the deal" className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-5 shadow-2xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-black/90">Close the deal — {target.clientName}</h2>
-          <button type="button" onClick={onClose} aria-label="Close" className="grid size-8 place-items-center rounded-md border border-black/10 text-black/50">✕</button>
+          <button type="button" onClick={onClose} aria-label="Close" className="grid size-11 place-items-center rounded-md border border-black/10 text-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">✕</button>
         </div>
         {result ? (
           <div className="space-y-2">
@@ -234,30 +274,30 @@ function CloseLeadDealModal({ target, onClose, onClosed }: { target: { clientId:
             {/* The server's own account of what happened to the agreement —
                 draft, published, emailed, or email-failed. Never a blanket
                 "Contract sent" for work no delivery path performed. */}
-            <p className={`text-xs ${result.contractStatus === "sent" ? "text-black/60" : "text-amber-800"}`}>{result.agreementOutcome ?? "Agreement recorded."}</p>
-            {result.invoiceNumber ? <p className="text-xs text-black/60">Invoice {result.invoiceNumber} issued.</p> : null}
-            {result.payLink ? <a href={result.payLink} target="_blank" rel="noreferrer" className="inline-block rounded-md bg-black px-3 py-1.5 text-xs font-semibold text-white">Open the Stripe pay-link →</a> : null}
-            {result.paymentInstruction ? <p className="text-xs text-black/50">{result.paymentInstruction}</p> : null}
-            <div className="pt-2"><button type="button" onClick={onClose} className="rounded-md bg-black px-3 py-1.5 text-xs font-semibold text-white">Done</button></div>
+            <p className={`text-xs ${result.contractStatus === "sent" ? "text-black/65" : "text-amber-800"}`}>{result.agreementOutcome ?? "Agreement recorded."}</p>
+            {result.invoiceNumber ? <p className="text-xs text-black/65">Invoice {result.invoiceNumber} issued.</p> : null}
+            {result.payLink ? <a href={result.payLink} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center rounded-md bg-black px-3 text-xs font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Open the Stripe pay-link →</a> : null}
+            {result.paymentInstruction ? <p className="text-xs text-black/65">{result.paymentInstruction}</p> : null}
+            <div className="pt-2"><button type="button" onClick={onClose} className="min-h-11 rounded-md bg-black px-3 text-xs font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Done</button></div>
           </div>
         ) : (
           <form onSubmit={event => { event.preventDefault(); void run(); }} className="space-y-3">
-            <label className="grid gap-1 text-xs font-medium text-black/60">What did you agree?<input className={inputClass} placeholder="Website build + care plan" value={form.title} disabled={busy} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} autoFocus /></label>
+            <label className="grid gap-1 text-xs font-medium text-black/65">What did you agree?<input className={inputClass} placeholder="Website build + care plan" value={form.title} disabled={busy} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} autoFocus /></label>
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="grid gap-1 text-xs font-medium text-black/60">Amount (£)<input type="number" step="0.01" min="0.01" className={inputClass} placeholder="0.00" value={form.amount} disabled={busy} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} /></label>
-              <label className="grid gap-1 text-xs font-medium text-black/60">Take payment by<select className={inputClass} value={form.channel} disabled={busy} onChange={e => setForm(f => ({ ...f, channel: e.target.value }))}>{CLOSE_LEAD_CHANNELS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}</select></label>
+              <label className="grid gap-1 text-xs font-medium text-black/65">Amount (£)<input type="number" step="0.01" min="0.01" className={inputClass} placeholder="0.00" value={form.amount} disabled={busy} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} /></label>
+              <label className="grid gap-1 text-xs font-medium text-black/65">Take payment by<select className={inputClass} value={form.channel} disabled={busy} onChange={e => setForm(f => ({ ...f, channel: e.target.value }))}>{CLOSE_LEAD_CHANNELS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}</select></label>
             </div>
-            <label className="grid gap-1 text-xs font-medium text-black/60">Contract summary <span className="font-normal text-black/35">(optional)</span><input className={inputClass} placeholder="Scope, terms" value={form.contractSummary} disabled={busy} onChange={e => setForm(f => ({ ...f, contractSummary: e.target.value }))} /></label>
-            <label className="grid gap-1 text-xs font-medium text-black/60">Agreed terms
-              <textarea rows={5} className="w-full rounded-md border border-black/15 bg-white px-3 py-2 text-sm text-black" placeholder="What you are delivering, for how long, and what the client owes." value={form.contractBody} disabled={busy} onChange={e => setForm(f => ({ ...f, contractBody: e.target.value }))} />
-              <span className="font-normal text-black/45">
+            <label className="grid gap-1 text-xs font-medium text-black/65">Contract summary <span className="font-normal text-black/65">(optional)</span><input className={inputClass} placeholder="Scope, terms" value={form.contractSummary} disabled={busy} onChange={e => setForm(f => ({ ...f, contractSummary: e.target.value }))} /></label>
+            <label className="grid gap-1 text-xs font-medium text-black/65">Agreed terms
+              <textarea rows={5} className="w-full rounded-md border border-black/15 bg-white px-3 py-2 text-sm text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2" placeholder="What you are delivering, for how long, and what the client owes." value={form.contractBody} disabled={busy} onChange={e => setForm(f => ({ ...f, contractBody: e.target.value }))} />
+              <span className="font-normal text-black/65">
                 {form.contractBody.trim()
                   ? "The client can review and accept exactly these terms in their portal."
                   : "Without terms the agreement is saved as a draft — the client cannot review or accept it. The invoice is still issued."}
               </span>
             </label>
             {error ? <p role="alert" className="text-xs text-red-700">{error}</p> : null}
-            <div className="flex justify-end gap-2"><button type="button" onClick={onClose} className="rounded-md border border-black/15 px-3 py-2 text-xs font-medium">Cancel</button><button type="submit" disabled={busy} className="rounded-md bg-black px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy ? "Closing…" : "Close the deal"}</button></div>
+            <div className="flex flex-wrap justify-end gap-2"><button type="button" onClick={onClose} className="min-h-11 rounded-md border border-black/15 px-3 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Cancel</button><button type="submit" disabled={busy} className="min-h-11 rounded-md bg-black px-4 text-xs font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:opacity-50">{busy ? "Closing…" : "Close the deal"}</button></div>
           </form>
         )}
       </div>
@@ -265,8 +305,9 @@ function CloseLeadDealModal({ target, onClose, onClosed }: { target: { clientId:
   );
 }
 
-export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEmbedApiKey = "", googlePlacesConfigured = false, scoutingCanManage = false, scoutingCanQualify = false, scoutingQuotaWritable = false, focusedLeadId, referenceNow, columns, prospects, leads, archivedLeads, importHref, campaignsHref, boards, brands, products, customFields, scoutingQuota }: LeadsPipelineWorkspaceProps) {
+export function LeadsPipelineWorkspace({ workspaceMode = "journey", showAcquisitionTabs = true, googleMapsEmbedApiKey = "", scoutingCanManage = false, scoutingCanQualify = false, scoutingQuotaWritable = false, initialFocusedProspectId, initialProspectImportOpen = false, initialOutreachView, initialDossierLeadId, focusedLeadId, journeyMeetings, referenceNow, columns, prospects, dismissedProspects = [], leads, archivedLeads, importHref, campaignsHref, boards, brands, products, customFields, scoutingQuota }: LeadsPipelineWorkspaceProps) {
   const router = useRouter();
+  const workspaceCopy = SALES_WORKSPACE_COPY[workspaceMode];
   const [clock, setClock] = useState(referenceNow);
   const [form, setForm] = useState(EMPTY_FORM);
   const [busy, setBusy] = useState<string | null>(null);
@@ -281,10 +322,11 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
   const [nicheFilter, setNicheFilter] = useState("");
   const [brandFilter, setBrandFilter] = useState("");
   const [serviceFilter, setServiceFilter] = useState("");
-  const [workFilter, setWorkFilter] = useState<WorkFilter>(workspaceMode === "scouting" ? "scouting" : "all");
+  const [workFilter, setWorkFilter] = useState<WorkFilter>(workspaceMode === "journey" ? "all" : "scouting");
   const [conversionLead, setConversionLead] = useState<LeadView | null>(null);
   const [showLeadForm, setShowLeadForm] = useState(false);
   const [showProspectForm, setShowProspectForm] = useState(false);
+  const [showProspectImport, setShowProspectImport] = useState(initialProspectImportOpen && scoutingCanManage);
   // Modal keyboard contract: focus enters the lead form, Tab stays inside it, Escape backs out, focus returns to the button that opened it.
   const leadFormRef = useRef<HTMLFormElement>(null);
   useFocusTrap(leadFormRef, showLeadForm, { onEscape: () => setShowLeadForm(false) });
@@ -293,8 +335,7 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
   useFocusTrap(prospectFormRef, showProspectForm, { onEscape: closeProspectForm });
   const [prospectForm, setProspectForm] = useState(EMPTY_PROSPECT);
   const [editingProspect, setEditingProspect] = useState<ProspectView | null>(null);
-  const [googlePlacePreview, setGooglePlacePreview] = useState<GoogleBusinessPlace | null>(null);
-  const [focusedProspectId, setFocusedProspectId] = useState<string>();
+  const [focusedProspectId, setFocusedProspectId] = useState<string | undefined>(initialFocusedProspectId);
   const [columnOverrides, setColumnOverrides] = useState<Record<string, string>>({});
   const [draggedLeadId, setDraggedLeadId] = useState("");
   const [dropColumnId, setDropColumnId] = useState("");
@@ -404,7 +445,6 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
   }, [clock, columnOverrides, columns, filteredLeads]);
 
   const contacted = filteredLeads.filter(l => l.lastContactedAt || (l.sentCount ?? 0) > 0).length;
-  const meetings = filteredLeads.filter(l => l.nextMeetingAt || l.tags.some(t => /meeting|booked|call/i.test(t))).length;
   const won = filteredLeads.filter(l => l.tags.includes("converted") || l.columnId === "won").length;
   const timingRows = scopedLeads.map(lead => ({ lead, timing: leadTimingSnapshot(lead, clock) }));
   const awaitingResponse = timingRows.filter(row => row.timing.awaitingResponse && !["won", "lost"].includes(row.lead.currentStageId ?? row.lead.columnId));
@@ -428,7 +468,7 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
     }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
-  const upcomingMeetings = useMemo(() => {
+  const leadMeetingCandidates = useMemo(() => {
     return scopedLeads
       .filter(lead => timestampFromValue(lead.nextMeetingAt) !== undefined)
       .map(lead => ({
@@ -445,10 +485,20 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
         location: lead.meetingLocation,
         status: lead.meetingStatus,
         confirmed: Boolean(lead.meetingConfirmedAt),
-        reminderDue: Boolean(lead.meetingReminderAt && !lead.meetingReminderSentAt && lead.meetingReminderAt <= Date.now()),
+        reminderDue: Boolean(lead.meetingReminderAt && !lead.meetingReminderSentAt && lead.meetingReminderAt <= clock),
         salesPresentations: lead.salesPresentations,
       }));
-  }, [scopedLeads]);
+  }, [clock, scopedLeads]);
+  const operationalUpcomingMeetings = useMemo(
+    () => selectOperationalUpcomingMeetings(journeyMeetings ?? leadMeetingCandidates, {
+      limit: Number.POSITIVE_INFINITY,
+      referenceNow: clock,
+    }),
+    [clock, journeyMeetings, leadMeetingCandidates],
+  );
+  // The Journey prompt is operational guidance. Completed, cancelled,
+  // no-show, or historical meetings must not hide the need to do outreach.
+  const meetings = operationalUpcomingMeetings.length;
 
   async function addLead(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -496,18 +546,15 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
   function closeProspectForm() {
     setShowProspectForm(false);
     setEditingProspect(null);
-    setGooglePlacePreview(null);
   }
 
   function openProspectForm(
     prospect?: ProspectView,
     seed?: Partial<typeof EMPTY_PROSPECT>,
-    googlePreview?: GoogleBusinessPlace,
   ) {
     setError(null);
     setSuccess(null);
     setEditingProspect(prospect ?? null);
-    setGooglePlacePreview(googlePreview ?? null);
     setProspectForm(prospect ? {
       name: prospect.name ?? "",
       company: prospect.company ?? "",
@@ -537,16 +584,6 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
     setShowProspectForm(true);
   }
 
-  function openGoogleProspect(place: GoogleBusinessPlace) {
-    openProspectForm(undefined, {
-      googlePlaceId: place.placeId,
-      source: "google-maps",
-      foundAt: "Google Maps",
-      qualificationState: "researching",
-      tags: "google-maps",
-    }, place);
-  }
-
   async function saveProspect(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setBusy(editingProspect ? `prospect:${editingProspect.id}` : "prospect:add");
@@ -557,6 +594,9 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
         throw new Error("Add a business name, person, or website before saving this prospect.");
       }
       const { nextContactAt, nextContactReason, ...dossierForm } = prospectForm;
+      const editableDossierForm = editingProspect?.status === "qualified"
+        ? Object.fromEntries(Object.entries(dossierForm).filter(([key]) => !["name", "company", "email", "phone"].includes(key)))
+        : dossierForm;
       const operatorGoogleQuery = prospectForm.company || prospectForm.address || prospectForm.name;
       const googleMapsUrl = prospectForm.googleMapsUrl.trim()
         || googleMapsSearchUrl(prospectForm.googlePlaceId, operatorGoogleQuery);
@@ -565,7 +605,7 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
         method: editingProspect ? "PATCH" : "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          ...dossierForm,
+          ...editableDossierForm,
           googleMapsUrl: googleMapsUrl || undefined,
           tags: splitTags(prospectForm.tags),
           fitScore: prospectForm.fitScore.trim() ? Number(prospectForm.fitScore) : undefined,
@@ -582,7 +622,9 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
       closeProspectForm();
       setEditingProspect(null);
       setProspectForm(EMPTY_PROSPECT);
-      setSuccess(editingProspect ? "Scouting record updated." : "Prospect added to Scouting.");
+      setSuccess(editingProspect
+        ? "Prospect dossier updated."
+        : "Prospect captured. Research it or begin outreach when you are ready.");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -601,8 +643,13 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ id: prospect.id }),
       });
-      const data = await res.json() as { ok: boolean; error?: string };
+      const data = await res.json() as { ok: boolean; error?: string; lead?: { id?: string } };
       if (!data.ok) throw new Error(data.error ?? "Could not qualify this prospect.");
+      const latestOutreach = [...prospect.outreachAttempts].sort((left, right) => right.at - left.at)[0];
+      if (latestOutreach?.outcome === "meeting-booked" && data.lead?.id) {
+        router.push(`/portal/agency/pipelines/leads?lead=${encodeURIComponent(data.lead.id)}#lead-record`);
+        return;
+      }
       setSuccess(`${prospect.company || prospect.name || "Prospect"} moved into New leads.`);
       router.refresh();
     } catch (err) {
@@ -625,7 +672,28 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
       });
       const data = await res.json() as { ok: boolean; error?: string };
       if (!data.ok) throw new Error(data.error ?? "Could not dismiss this prospect.");
-      setSuccess("Prospect removed from active Scouting.");
+      setSuccess("Prospect marked as not qualified and removed from the active workflow.");
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function restoreProspect(prospect: ProspectView) {
+    setBusy(`restore-prospect:${prospect.id}`);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await fetch("/api/portal/leads-pipeline/prospects/restore", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: prospect.id }),
+      });
+      const data = await res.json() as { ok: boolean; error?: string };
+      if (!data.ok) throw new Error(data.error ?? "Could not restore this prospect.");
+      setSuccess(`${prospect.company || prospect.name || "Prospect"} restored to the active workflow.`);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -853,9 +921,53 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
 
   const focusedLead = focusedLeadId ? leads.find(lead => lead.id === focusedLeadId) : undefined;
 
-  if (focusedLeadId) {
+  async function startLegacyLeadDossier() {
+    if (!initialDossierLeadId || workspaceMode === "journey") return;
+    setBusy(`start-dossier:${initialDossierLeadId}`);
+    setError(null);
+    try {
+      const response = await fetch("/api/portal/leads-pipeline/prospects/start-dossier", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ leadId: initialDossierLeadId }),
+      });
+      const payload = await response.json().catch(() => null) as { ok?: boolean; error?: string; prospect?: { id?: string } } | null;
+      if (!response.ok || !payload?.ok || !payload.prospect?.id) {
+        throw new Error(payload?.error ?? "The acquisition dossier could not be prepared.");
+      }
+      const route = workspaceMode === "researching" ? "researching" : "prospecting";
+      const params = new URLSearchParams({ prospect: payload.prospect.id });
+      if (workspaceMode === "prospecting" && initialOutreachView) params.set("mode", initialOutreachView);
+      router.replace(`/portal/agency/${route}?${params.toString()}`);
+      router.refresh();
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : String(nextError));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (workspaceMode !== "journey" && initialDossierLeadId && !initialFocusedProspectId) {
     return (
-      <>
+      <section className="mx-auto w-full max-w-2xl rounded-lg border border-amber-200 bg-amber-50 p-6">
+        <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Legacy Journey lead</p>
+        <h1 className="mt-2 text-xl font-semibold text-amber-950">Start its acquisition dossier before continuing.</h1>
+        <p className="mt-2 text-sm leading-6 text-amber-800">This older lead predates the shared Researching and Outreach record. Preparing it is an explicit, audited action; opening or prefetching this page never writes data.</p>
+        {error ? <p role="alert" className="mt-3 text-sm text-red-700">{error}</p> : null}
+        <div className="mt-5 flex flex-wrap gap-2">
+          <button type="button" onClick={() => void startLegacyLeadDossier()} disabled={busy === `start-dossier:${initialDossierLeadId}`} className="inline-flex min-h-11 items-center rounded-md bg-black px-4 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:opacity-50">
+            {busy === `start-dossier:${initialDossierLeadId}` ? "Preparing..." : "Prepare dossier"}
+          </button>
+          <Link href={`/portal/agency/pipelines/leads?lead=${encodeURIComponent(initialDossierLeadId)}`} className="inline-flex min-h-11 items-center rounded-md border border-black/10 bg-white px-4 text-sm font-semibold text-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Back to lead</Link>
+        </div>
+      </section>
+    );
+  }
+
+  if (workspaceMode === "journey" && focusedLeadId) {
+    return (
+      <div className="flex flex-col gap-5">
+        {showAcquisitionTabs ? <SalesAcquisitionTabs active="journey" /> : null}
         <LeadInternalWorkspace
           lead={focusedLead}
           columns={columns}
@@ -881,60 +993,72 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
             onSubmit={conversion => void convertLead(conversionLead.id, conversion)}
           />
         )}
-      </>
+      </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-5" data-testid={workspaceMode === "scouting" ? "scouting-workspace" : "leads-workspace"}>
+    <div className="flex flex-col gap-5" data-testid={workspaceMode === "journey" ? "leads-workspace" : `${workspaceMode}-workspace`}>
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-brand">{workspaceMode === "scouting" ? "Sales · discovery" : "Growth pipeline"}</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-black/90">{workspaceMode === "scouting" ? "Scouting" : "Sales journey"}</h1>
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-black/60">
-            {workspaceMode === "scouting"
-              ? "Find businesses, research the fit, choose a contact route, and qualify only the opportunities ready to enter Journey."
-              : "Move every qualified opportunity through contact, meeting, proposal, payment, conversion, and fulfilment."}
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand">{workspaceCopy.eyebrow}</p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-black/90">{workspaceCopy.title}</h1>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-black/65">{workspaceCopy.detail}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {workspaceMode === "scouting" ? (
             <>
-              <button type="button" onClick={() => openProspectForm()} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85">
+              {scoutingCanManage ? <button type="button" onClick={() => setShowProspectImport(true)} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/65 hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
+                <Upload size={14} aria-hidden="true" /> Import and map list
+              </button> : null}
+              <button type="button" onClick={() => openProspectForm()} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
                 <Plus size={14} aria-hidden="true" /> Scout manually
               </button>
-              <Link href="/portal/clients?view=journey" className="inline-flex min-h-10 items-center rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/65 hover:bg-black/[0.03]">
-                Open Journey
+              <Link href="/portal/agency/researching" className="inline-flex min-h-11 items-center rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/65 hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
+                Open Researching
               </Link>
+              <Link href="/portal/agency/prospecting" className="inline-flex min-h-11 items-center rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/65 hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
+                Start outreach
+              </Link>
+            </>
+          ) : workspaceMode === "researching" ? (
+            <>
+              <Link href="/portal/agency/scouting" className="inline-flex min-h-11 items-center rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/65 hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Scout another</Link>
+              <Link href="/portal/agency/prospecting" className="inline-flex min-h-11 items-center rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Open Outreach Command</Link>
+            </>
+          ) : workspaceMode === "prospecting" ? (
+            <>
+              <Link href="/portal/agency/researching" className="inline-flex min-h-11 items-center rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/65 hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Back to Researching</Link>
+              <Link href="/portal/clients?view=journey" className="inline-flex min-h-11 items-center rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Open Journey</Link>
             </>
           ) : <>
           <BoardSwitcher boards={boards} activeSlug="leads" />
           <details className="group relative">
-            <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-md bg-black px-3 py-2 text-xs font-semibold text-white hover:bg-black/85">
+            <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
               <Plus size={14} aria-hidden="true" />
               Add
             </summary>
-            <div className="absolute right-0 top-full z-30 mt-2 w-48 overflow-hidden rounded-md border border-black/10 bg-white p-1.5 shadow-xl">
+            <div className="absolute left-0 top-full z-30 mt-2 w-48 overflow-hidden rounded-md border border-black/10 bg-white p-1.5 shadow-xl sm:left-auto sm:right-0">
               <Link
                 href="/portal/agency/scouting"
-                className="block w-full rounded px-3 py-2 text-left text-sm text-black/70 hover:bg-black/[0.04]"
+                className="flex min-h-11 w-full items-center rounded px-3 text-left text-sm text-black/70 hover:bg-black/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-inset"
               >
                 Scout a prospect
               </Link>
               <button
                 type="button"
                 onClick={() => setShowLeadForm(true)}
-                className="block w-full rounded px-3 py-2 text-left text-sm text-black/70 hover:bg-black/[0.04]"
+                className="min-h-11 w-full rounded px-3 text-left text-sm text-black/70 hover:bg-black/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-inset"
               >
                 Add qualified lead
               </button>
-              <Link href={`${importHref}?import=1#upload`} className="block rounded px-3 py-2 text-sm text-black/70 hover:bg-black/[0.04]">
+              <Link href={`${importHref}?import=1#upload`} className="flex min-h-11 items-center rounded px-3 text-sm text-black/70 hover:bg-black/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-inset">
                 Import CSV
               </Link>
             </div>
           </details>
           <details className="group relative">
-            <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/70 hover:bg-black/[0.03]">
+            <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/70 hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
               <MoreHorizontal size={15} aria-hidden="true" />
               Tools
             </summary>
@@ -944,13 +1068,15 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
                 items were off-screen. Above sm the row does not wrap and
                 right-0 is the correct edge. Measured, not guessed. */}
             <div className="absolute left-0 top-full z-30 mt-2 w-48 overflow-hidden rounded-md border border-black/10 bg-white p-1.5 shadow-xl sm:left-auto sm:right-0">
-              <Link href={importHref} className="block rounded px-3 py-2 text-sm text-black/70 hover:bg-black/[0.04]">Contacts</Link>
-              <Link href={campaignsHref} className="block rounded px-3 py-2 text-sm text-black/70 hover:bg-black/[0.04]">Campaigns</Link>
+              <Link href={importHref} className="flex min-h-11 items-center rounded px-3 text-sm text-black/70 hover:bg-black/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-inset">Contacts</Link>
+              <Link href={campaignsHref} className="flex min-h-11 items-center rounded px-3 text-sm text-black/70 hover:bg-black/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-inset">Campaigns</Link>
             </div>
           </details>
           </>}
         </div>
       </header>
+
+      {showAcquisitionTabs ? <SalesAcquisitionTabs active={workspaceMode === "prospecting" ? "outreach" : workspaceMode} /> : null}
 
       {workspaceMode === "journey" ? <>
       <JourneyOverviewDashboard
@@ -961,7 +1087,7 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
         won={won}
         stageRows={stageRows}
         sourceRows={sourceRows}
-        upcomingMeetings={upcomingMeetings.length}
+        upcomingMeetings={operationalUpcomingMeetings.length}
         awaitingResponse={awaitingResponse.length}
         followUpDue={followUpDue.length}
         stalled={stalled.length}
@@ -984,11 +1110,11 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
       />
 
       <details className="mm-surface-card group rounded-lg border border-black/10 px-4">
-        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-4 py-3">
-          <span className="inline-flex items-center gap-2 text-sm font-medium text-black/70">
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-4 rounded-md py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
+          <span className="inline-flex min-w-0 flex-wrap items-center gap-2 text-sm font-medium text-black/70">
             <BarChart3 size={16} className="text-black/40" aria-hidden="true" />
             Workflow and meetings
-            <span className="text-xs font-normal text-black/40">
+            <span className="text-xs font-normal text-black/65">
               {filteredProspects.length} scouting · {filteredLeads.length} leads · {meetings} meeting{meetings === 1 ? "" : "s"}
             </span>
           </span>
@@ -1002,9 +1128,9 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
             <Stat label="Meetings booked" value={String(meetings)} />
             <Stat label="Won" value={String(won)} />
           </section>
-          <UpcomingMeetings meetings={upcomingMeetings} onShowAll={() => setWorkFilter("meeting")} />
+          <UpcomingMeetings meetings={operationalUpcomingMeetings} onShowAll={() => setWorkFilter("meeting")} referenceNow={clock} />
           <div className="flex justify-end">
-            <Link href="/portal/agency/meetings" className="inline-flex min-h-9 items-center rounded-md border border-black/12 bg-white px-3 text-xs font-medium text-black/70 hover:bg-black/[0.03]">
+            <Link href="/portal/agency/meetings" className="inline-flex min-h-11 items-center rounded-md border border-black/12 bg-white px-3 text-xs font-medium text-black/70 hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
               Open the Meetings view
             </Link>
           </div>
@@ -1016,36 +1142,39 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
           the Sales journey connected to its upstream work without rendering a
           second copy of the Scouting workspace inside the board. Legacy
           #scouting links are redirected by the effect above. */}
-      <div className="flex gap-6 border-b border-black/10" role="group" aria-label="Pipeline mode">
+      <div className="flex max-w-full gap-6 overflow-x-auto border-b border-black/10" role="group" aria-label="Pipeline mode">
         <button
           type="button"
           aria-current={workFilter !== "scouting" ? "true" : undefined}
           onClick={() => setWorkFilter("all")}
-          className={`relative min-h-11 py-3 text-sm font-medium ${workFilter !== "scouting" ? "text-black" : "text-black/45 hover:text-black/70"}`}
+          className={`relative min-h-11 shrink-0 rounded-sm py-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 ${workFilter !== "scouting" ? "text-black" : "text-black/65 hover:text-black/80"}`}
         >
           Journey board
           {workFilter !== "scouting" ? <span className="absolute inset-x-0 bottom-0 h-0.5 bg-black" /> : null}
         </button>
         <Link
           href="/portal/agency/scouting"
-          className="relative inline-flex min-h-11 items-center py-3 text-sm font-medium text-black/45 hover:text-black/70"
+          className="relative inline-flex min-h-11 shrink-0 items-center rounded-sm py-3 text-sm font-medium text-black/65 hover:text-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2"
         >
           Scouting
-          {prospects.length ? <span className="ml-1.5 rounded-full bg-black/[0.08] px-1.5 text-[11px] font-semibold text-black/60">{prospects.length}</span> : null}
+          {prospects.length ? <span className="ml-1.5 rounded-full bg-black/[0.08] px-1.5 text-[11px] font-semibold text-black/65">{prospects.length}</span> : null}
         </Link>
       </div>
-      </> : (
+      </> : workspaceMode === "scouting" ? (
         <GoogleBusinessScout
           embedApiKey={googleMapsEmbedApiKey}
-          placesConfigured={googlePlacesConfigured}
-          onScoutManually={() => openProspectForm()}
-          onStartScouting={openGoogleProspect}
+          onCapture={source => openProspectForm(undefined, {
+            source,
+            foundAt: source === "google-maps" ? "Google Maps" : "Networking or referral",
+            qualificationState: "unreviewed",
+            tags: source,
+          })}
         />
-      )}
+      ) : null}
 
       {/* Stage filters filter LEADS; scouting shows prospects, so in scouting
           mode the whole strip card is only a way to leave by accident. */}
-      {workFilter !== "scouting" ? <section id="journey-board" className="mm-surface-card rounded-lg border border-black/10 p-3">
+      {workspaceMode === "journey" && workFilter !== "scouting" ? <section id="journey-board" className="mm-surface-card rounded-lg border border-black/10 p-3">
         <div className="flex flex-wrap items-center gap-2">
           <QuickFilter active={workFilter === "all"} onClick={() => setWorkFilter("all")}>All</QuickFilter>
           <QuickFilter active={workFilter === "waiting"} onClick={() => setWorkFilter("waiting")}>Waiting {waitingLeadCount || ""}</QuickFilter>
@@ -1060,51 +1189,51 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
             value={relationshipCategoryFilter}
             onChange={event => setRelationshipCategoryFilter(event.target.value as "" | LeadRelationshipCategory)}
             aria-label="Filter by lead relationship category"
-            className="min-h-8 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/65"
+            className="min-h-11 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2"
           >
             <option value="">Every relationship · {leads.length + prospects.length}</option>
             {LEAD_RELATIONSHIP_CATEGORIES.map(category => (
               <option key={category} value={category}>{LEAD_RELATIONSHIP_CATEGORY_LABELS[category]} · {relationshipCategoryCounts.get(category) ?? 0}</option>
             ))}
           </select>
-          <details className="group ml-auto">
-            <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/65 hover:bg-black/[0.03]">
+          <details className="group ml-auto max-w-full">
+            <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/65 hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
               <Search size={13} aria-hidden="true" />
               Search and filter{brandFilter || serviceFilter ? " · scoped" : ""}
             </summary>
             <div className="mt-3 grid gap-3 rounded-lg border border-black/10 bg-white p-4 shadow-lg md:grid-cols-2 md:items-end xl:grid-cols-[minmax(220px,1fr)_150px_150px_150px_170px_180px_auto]">
               <Field label="Search pipeline" value={query} onChange={setQuery} placeholder="Name, company, niche, notes..." />
-              <label className="text-xs font-medium text-black/60">
+              <label className="text-xs font-medium text-black/65">
                 Tag
-                <select value={tagFilter} onChange={e => setTagFilter(e.target.value)} className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm">
+                <select value={tagFilter} onChange={e => setTagFilter(e.target.value)} className="mt-1 min-h-11 w-full rounded-md border border-black/10 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
                   <option value="">Any tag</option>
                   {availableTags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
                 </select>
               </label>
-              <label className="text-xs font-medium text-black/60">
+              <label className="text-xs font-medium text-black/65">
                 Source
-                <select value={sourceFilter} onChange={e => setSourceFilter(e.target.value)} className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm">
+                <select value={sourceFilter} onChange={e => setSourceFilter(e.target.value)} className="mt-1 min-h-11 w-full rounded-md border border-black/10 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
                   <option value="">Any source</option>
                   {availableSources.map(source => <option key={source} value={source}>{source}</option>)}
                 </select>
               </label>
-              <label className="text-xs font-medium text-black/60">
+              <label className="text-xs font-medium text-black/65">
                 Niche
-                <select value={nicheFilter} onChange={e => setNicheFilter(e.target.value)} className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm">
+                <select value={nicheFilter} onChange={e => setNicheFilter(e.target.value)} className="mt-1 min-h-11 w-full rounded-md border border-black/10 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
                   <option value="">Any niche</option>
                   {availableNiches.map(niche => <option key={niche} value={niche}>{niche}</option>)}
                 </select>
               </label>
-              <label className="text-xs font-medium text-black/60">
+              <label className="text-xs font-medium text-black/65">
                 Brand
-                <select value={brandFilter} onChange={event => setBrandFilter(event.target.value)} className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm">
+                <select value={brandFilter} onChange={event => setBrandFilter(event.target.value)} className="mt-1 min-h-11 w-full rounded-md border border-black/10 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
                   <option value="">Every brand</option>
                   {availableBrands.map(brand => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
                 </select>
               </label>
-              <label className="text-xs font-medium text-black/60">
+              <label className="text-xs font-medium text-black/65">
                 Service
-                <select value={serviceFilter} onChange={event => setServiceFilter(event.target.value)} className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm">
+                <select value={serviceFilter} onChange={event => setServiceFilter(event.target.value)} className="mt-1 min-h-11 w-full rounded-md border border-black/10 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
                   <option value="">Every service</option>
                   {availableServices.map(service => <option key={service.id} value={service.id}>{service.name}</option>)}
                 </select>
@@ -1121,7 +1250,7 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
                   setServiceFilter("");
                   setWorkFilter("all");
                 }}
-                className="rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-medium text-black/70 hover:bg-black/[0.03]"
+                className="min-h-11 rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/70 hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2"
               >
                 Clear
               </button>
@@ -1136,16 +1265,16 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
             <span>{error ?? success}</span>
             {!error && convertedClient && (
               <div className="flex flex-wrap items-center gap-2">
-                <Link href={`/portal/clients/${convertedClient.id}`} className="rounded-md bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-50">
+                <Link href={`/portal/clients/${convertedClient.id}`} className="inline-flex min-h-11 items-center rounded-md bg-white px-3 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
                   Open client
                 </Link>
-                <Link href={`/client-preview/${convertedClient.id}?section=home`} className="rounded-md bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-50">
+                <Link href={`/client-preview/${convertedClient.id}?section=home`} className="inline-flex min-h-11 items-center rounded-md bg-white px-3 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
                   Preview portal
                 </Link>
-                <button type="button" onClick={() => setCloseFor({ clientId: convertedClient.id, clientName: convertedClient.name, suggestedAmount: convertedClient.value ?? "" })} className="rounded-md bg-emerald-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-900">
+                <button type="button" onClick={() => setCloseFor({ clientId: convertedClient.id, clientName: convertedClient.name, suggestedAmount: convertedClient.value ?? "" })} className="min-h-11 rounded-md bg-emerald-800 px-3 text-xs font-semibold text-white hover:bg-emerald-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
                   Close the deal
                 </button>
-                <Link href={`/portal/clients/${convertedClient.id}?tab=systems&systemView=properties`} className="rounded-md bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-50">
+                <Link href={`/portal/clients/${convertedClient.id}?tab=systems&systemView=properties`} className="inline-flex min-h-11 items-center rounded-md bg-white px-3 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
                   Open Development
                 </Link>
                 {/* Ed, 2026-08-30: *"fulfilment all inside journey so i can
@@ -1153,7 +1282,7 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
                     fulfilment page has accepted ?client= all along — this
                     banner just never offered it. The journey now ends where
                     the delivery work begins. */}
-                <Link href={`/portal/agency/fulfilment?client=${convertedClient.id}`} className="rounded-md bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-50">
+                <Link href={`/portal/agency/fulfilment?client=${convertedClient.id}`} className="inline-flex min-h-11 items-center rounded-md bg-white px-3 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
                   Continue in fulfilment →
                 </Link>
               </div>
@@ -1171,21 +1300,44 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
           onRestore={id => void restoreLead(id)}
           onPurge={(id, label) => void purgeLead(id, label)}
         />
+      ) : workspaceMode === "scouting" ? (
+        <>
+          <ScoutingIntakeQueue
+            prospects={filteredProspects}
+            onEdit={prospect => openProspectForm(prospect)}
+          />
+          <DismissedProspectsArchive
+            prospects={dismissedProspects}
+            busy={busy}
+            onReview={prospect => openProspectForm(prospect)}
+            onRestore={prospect => void restoreProspect(prospect)}
+          />
+        </>
       ) : workFilter === "scouting" ? (
         <div id="scouting" className="scroll-mt-24">
           <ScoutingCommand
+            mode={workspaceMode === "researching" ? "researching" : "prospecting"}
+            googleMapsEmbedApiKey={googleMapsEmbedApiKey}
             quota={scoutingQuota}
             quotaWritable={scoutingQuotaWritable}
             canManage={scoutingCanManage}
             canQualify={scoutingCanQualify}
             prospects={filteredProspects}
             focusedProspectId={focusedProspectId}
+            initialOutreachView={initialOutreachView}
             referenceNow={clock}
-            onNew={() => openProspectForm()}
             onEdit={prospect => openProspectForm(prospect)}
             onQualify={prospect => void qualifyProspect(prospect)}
             onDismiss={prospect => void dismissProspect(prospect)}
           />
+          <div className="mt-5">
+            <DismissedProspectsArchive
+              prospects={dismissedProspects}
+              busy={busy}
+              onReview={prospect => openProspectForm(prospect)}
+              onRestore={prospect => void restoreProspect(prospect)}
+            />
+          </div>
         </div>
       ) : (
         // A horizontally scrollable region needs either focusable content or a
@@ -1199,7 +1351,7 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
           role="region"
           aria-label="Pipeline board, scrolls horizontally"
           tabIndex={0}
-          className="w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain"
+          className="w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2"
         >
           <div className="grid grid-cols-1 gap-3 pb-2 lg:w-max lg:grid-flow-col lg:auto-cols-[280px]">
           {columns.map(col => {
@@ -1232,7 +1384,7 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
                   <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: col.color ?? "#0EA5A4" }} aria-hidden />
                   {col.label}
                 </h2>
-                <span className="rounded-full bg-black/5 px-2 py-0.5 text-xs text-black/55">{cardCount}</span>
+                <span className="rounded-full bg-black/5 px-2 py-0.5 text-xs text-black/65">{cardCount}</span>
               </div>
               <ul className="flex flex-1 flex-col gap-3">
                 {scoutCards.map(prospect => (
@@ -1262,13 +1414,13 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
                       <GripVertical size={16} className="mt-0.5 shrink-0 cursor-grab text-black/25" aria-label={`Drag ${lead.name || lead.email || lead.phone || "lead"}`} />
                       <div className="min-w-0">
                         <h3 className="truncate text-sm font-semibold text-black/90">{lead.name || lead.company || lead.email || lead.phone || "Lead"}</h3>
-                        <p className="mt-0.5 truncate text-xs text-black/50">{lead.company ? `${lead.company} · ` : ""}{lead.email || lead.phone || "Contact details pending"}</p>
+                        <p className="mt-0.5 truncate text-xs text-black/65">{lead.company ? `${lead.company} · ` : ""}{lead.email || lead.phone || "Contact details pending"}</p>
                       </div>
                       <select
                         value={columnOverrides[lead.id] ?? lead.columnId}
                         onChange={e => moveLead(lead.id, e.target.value)}
                         disabled={busy === `move:${lead.id}`}
-                        className="rounded-md border border-black/10 bg-white px-2 py-1 text-xs"
+                        className="min-h-11 max-w-full rounded-md border border-black/10 bg-white px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2"
                         aria-label={`Move ${lead.email || lead.phone || lead.name || "lead"}`}
                       >
                         {columns.filter(option => option.id !== "scouting").map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
@@ -1284,30 +1436,30 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
                     {lead.tags.length > 0 && (
                       <div className="mt-3 flex flex-wrap gap-1">
                         {lead.tags.slice(0, 2).map(tag => (
-                          <span key={tag} className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[11px] text-black/55">{tag}</span>
+                          <span key={tag} className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[11px] text-black/65">{tag}</span>
                         ))}
                         {lead.tags.length > 2 ? (
-                          <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[11px] text-black/45">+{lead.tags.length - 2}</span>
+                          <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[11px] text-black/65">+{lead.tags.length - 2}</span>
                         ) : null}
                       </div>
                     )}
                     {lead.brandName || lead.serviceNames.length ? (
                       <div className="mt-2 flex flex-wrap gap-1">
                         {lead.brandName ? <span className="rounded-full bg-brand/[0.08] px-2 py-0.5 text-[11px] font-medium text-brand">{lead.brandName}</span> : null}
-                        {lead.serviceNames.slice(0, 2).map(service => <span key={service} className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[11px] text-black/55">{service}</span>)}
-                        {lead.serviceNames.length > 2 ? <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[11px] text-black/45">+{lead.serviceNames.length - 2} services</span> : null}
+                        {lead.serviceNames.slice(0, 2).map(service => <span key={service} className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[11px] text-black/65">{service}</span>)}
+                        {lead.serviceNames.length > 2 ? <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[11px] text-black/65">+{lead.serviceNames.length - 2} services</span> : null}
                       </div>
                     ) : null}
 
                     {lead.lastContactedAt && (
-                      <p className="mt-3 text-[11px] font-medium text-black/45">
+                      <p className="mt-3 text-[11px] font-medium text-black/65">
                         Last contacted {formatUkDateTime(lead.lastContactedAt)}
                       </p>
                     )}
                     <LeadWaitStrip lead={lead} clock={clock} />
                     <Link
                       href={`/portal/agency/pipelines/leads?lead=${encodeURIComponent(lead.id)}`}
-                      className="mt-3 flex min-h-10 w-full items-center justify-between rounded-md border border-black/10 bg-black/[0.02] px-3 text-xs font-semibold text-black/65 hover:border-brand/30 hover:bg-brand/[0.05] hover:text-brand"
+                      className="mt-3 flex min-h-11 w-full items-center justify-between rounded-md border border-black/10 bg-black/[0.02] px-3 text-xs font-semibold text-black/65 hover:border-brand/30 hover:bg-brand/[0.05] hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2"
                     >
                       Open workspace
                       <ExternalLink size={13} aria-hidden="true" />
@@ -1319,26 +1471,25 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
                     )}
 
                     <details className="group mt-2">
-                      <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/60 hover:bg-black/[0.03]">
+                      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between rounded-md border border-black/10 bg-white px-3 text-xs font-medium text-black/65 hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
                         Actions
                         <ChevronDown size={14} className="text-black/35 transition-transform group-open:rotate-180" aria-hidden="true" />
                       </summary>
                       <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-black/10 pt-3">
-                      {lead.phone && <a href={`tel:${lead.phone}`} className="rounded-md border border-black/10 px-2 py-1 text-xs text-black/70 hover:bg-black/[0.03]">Call</a>}
-                      {lead.email ? <a href={`mailto:${lead.email}`} className="rounded-md border border-black/10 px-2 py-1 text-xs text-black/70 hover:bg-black/[0.03]">Email</a> : null}
-                      {lead.email ? <a href={`mailto:${lead.email}?subject=${encodeURIComponent("Quick chat?")}`} className="rounded-md border border-black/10 px-2 py-1 text-xs text-black/70 hover:bg-black/[0.03]">Email invite</a> : null}
+                      {lead.phone ? <Link href={`/portal/agency/prospecting?lead=${encodeURIComponent(lead.id)}&mode=power-dialler`} className="inline-flex min-h-11 items-center rounded-md border border-black/10 px-3 text-xs text-black/70 hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Open call desk</Link> : null}
+                      {lead.email ? <Link href={`/portal/agency/prospecting?lead=${encodeURIComponent(lead.id)}&mode=email`} className="inline-flex min-h-11 items-center rounded-md border border-black/10 px-3 text-xs text-black/70 hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Open email desk</Link> : null}
                       <button
                         type="button"
                         onClick={() => markContacted(lead.id)}
                         disabled={busy === `contacted:${lead.id}`}
-                        className="rounded-md border border-black/10 px-2 py-1 text-xs text-black/70 hover:bg-black/[0.03] disabled:opacity-50"
+                        className="min-h-11 rounded-md border border-black/10 px-3 text-xs text-black/70 hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:opacity-50"
                       >
                         {busy === `contacted:${lead.id}` ? "Marking..." : "Mark contacted"}
                       </button>
                       {lead.tags.includes("converted") && lead.clientId ? (
                         <Link
                           href={`/portal/clients/${lead.clientId}`}
-                          className="rounded-md bg-brand px-2 py-1 text-xs font-semibold text-white hover:opacity-90"
+                          className="inline-flex min-h-11 items-center rounded-md bg-brand px-3 text-xs font-semibold text-white hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2"
                         >
                           Open client
                         </Link>
@@ -1347,7 +1498,7 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
                           type="button"
                           onClick={() => setConversionLead(lead)}
                           disabled={busy === `convert:${lead.id}`}
-                          className="rounded-md bg-brand px-2 py-1 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                          className="min-h-11 rounded-md bg-brand px-3 text-xs font-semibold text-white hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:opacity-50"
                         >
                           {busy === `convert:${lead.id}` ? "Converting..." : "Convert to client"}
                         </button>
@@ -1357,7 +1508,7 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
                           type="button"
                           onClick={() => setConversionLead(lead)}
                           disabled={busy === `convert:${lead.id}`}
-                          className="rounded-md border border-black/10 px-2 py-1 text-xs text-black/60 hover:bg-black/[0.03] disabled:opacity-50"
+                          className="min-h-11 rounded-md border border-black/10 px-3 text-xs text-black/65 hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:opacity-50"
                         >
                           {busy === `convert:${lead.id}` ? "Updating..." : "Update client"}
                         </button>
@@ -1368,7 +1519,7 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
                           onChange={event => void rerouteWebsiteLead(lead, event.target.value as WebsiteEnquiryClassification)}
                           disabled={busy === `route:${lead.id}`}
                           aria-label={`Route ${lead.name || lead.email || lead.phone || "enquiry"} relationship`}
-                          className="rounded-md border border-black/10 bg-white px-2 py-1 text-xs text-black/70 disabled:opacity-50"
+                          className="min-h-11 max-w-full rounded-md border border-black/10 bg-white px-2 text-xs text-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:opacity-50"
                         >
                           {WEBSITE_ENQUIRY_CLASSIFICATIONS.filter(value => value !== "unclassified").map(value => <option key={value} value={value}>{WEBSITE_ENQUIRY_CLASSIFICATION_LABELS[value]}</option>)}
                         </select>
@@ -1377,7 +1528,7 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
                         type="button"
                           onClick={() => archiveLead(lead.id, lead.name || lead.company || lead.email || lead.phone || "lead")}
                         disabled={busy === `archive:${lead.id}`}
-                        className="rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
+                        className="min-h-11 rounded-md border border-red-200 bg-red-50 px-3 text-xs font-medium text-red-700 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:opacity-50"
                       >
                         {busy === `archive:${lead.id}` ? "Archiving..." : "Archive"}
                       </button>
@@ -1386,7 +1537,7 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
                   </li>
                 ))}
                 {cardCount === 0 && (
-                  <li className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-black/10 p-4 text-center text-xs text-black/40">
+                  <li className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-black/10 p-4 text-center text-xs text-black/65">
                     {col.id === "scouting" ? "No prospects being scouted yet." : "No leads here yet."}
                   </li>
                 )}
@@ -1407,15 +1558,25 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
           onSubmit={conversion => void convertLead(conversionLead.id, conversion)}
         />
       )}
+      {showProspectImport ? (
+        <ProspectImportDialog
+          onClose={() => setShowProspectImport(false)}
+          onImported={message => {
+            setShowProspectImport(false);
+            setSuccess(message);
+            router.refresh();
+          }}
+        />
+      ) : null}
       {showProspectForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]" role="presentation">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/45 p-4 backdrop-blur-[2px] sm:items-center" role="presentation">
           <form
             onSubmit={saveProspect}
             role="dialog"
             ref={prospectFormRef} aria-modal="true"
             aria-labelledby="scout-prospect-title"
             aria-describedby={error ? "scout-prospect-description scout-prospect-error" : "scout-prospect-description"}
-            className="max-h-[calc(100vh-32px)] w-full max-w-3xl overflow-y-auto rounded-md bg-[#fbfaf8] shadow-2xl"
+            className="my-auto max-h-[calc(100dvh-32px)] w-full max-w-3xl overflow-y-auto rounded-md bg-[#fbfaf8] shadow-2xl"
           >
             <header className="flex items-start justify-between gap-4 border-b border-black/10 px-5 py-5 sm:px-6">
               <div>
@@ -1424,55 +1585,22 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
                   {editingProspect ? "Update scouting record" : "Scout a prospect"}
                 </h2>
                 <p id="scout-prospect-description" className="mt-1 max-w-xl text-sm leading-6 text-black/65">
-                  Save what caught your eye, research whether AquaOasis-Web can genuinely help, and only qualify them when they are worth contacting.
+                  {workspaceMode === "scouting"
+                    ? "Capture what you already know. Research is available when useful, but you may start outreach immediately from the same record."
+                    : "Keep the evidence, contact facts, opportunity, and next responsible step in one shared prospect dossier."}
                 </p>
               </div>
-              <button type="button" onClick={closeProspectForm} className="grid size-9 shrink-0 place-items-center rounded-md border border-black/10 text-black/50 hover:bg-black/[0.03]" aria-label="Close">
+              <button type="button" onClick={closeProspectForm} className="grid size-11 shrink-0 place-items-center rounded-md border border-black/10 text-black/65 hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2" aria-label="Close">
                 <X size={16} aria-hidden="true" />
               </button>
             </header>
             <div className="grid gap-4 px-5 py-5 sm:grid-cols-2 sm:px-6">
-              {googlePlacePreview ? (
-                <section className="rounded-md border border-[#16877f]/25 bg-[#e9f5f2] p-4 sm:col-span-2" aria-labelledby="google-profile-reference">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div id="google-profile-reference"><GoogleMapsAttribution className="-ml-2.5 -mt-2.5" /></div>
-                      <h3 className="mt-1 break-words text-sm font-semibold text-black/80">{googlePlacePreview.displayName}</h3>
-                      {googlePlacePreview.formattedAddress ? <p className="mt-1 break-words text-xs leading-5 text-black/55">{googlePlacePreview.formattedAddress}</p> : null}
-                      {googlePlacePreview.phone ? <p className="mt-1 text-xs text-black/55">{googlePlacePreview.phone}</p> : null}
-                      {googlePlacePreview.attributions?.length ? (
-                        <p className="mt-2 flex flex-wrap gap-x-1 text-xs font-normal tracking-normal text-[#5e5e5e]">
-                          <span>Data:</span>
-                          {googlePlacePreview.attributions.map((attribution, index) => (
-                            <span key={`${attribution.provider}:${index}`}>
-                              {index ? " · " : ""}
-                              {attribution.providerUri ? (
-                                <a href={attribution.providerUri} target="_blank" rel="noreferrer" className="underline underline-offset-2">
-                                  {attribution.provider}
-                                </a>
-                              ) : attribution.provider}
-                            </span>
-                          ))}
-                        </p>
-                      ) : null}
-                    </div>
-                    {googlePlacePreview.googleMapsUri ? (
-                      <a href={googlePlacePreview.googleMapsUri} target="_blank" rel="noreferrer" className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-md border border-[#16877f]/25 bg-white px-3 text-xs font-semibold text-[#166a64]">
-                        Keep profile open <ExternalLink size={12} aria-hidden="true" />
-                      </a>
-                    ) : null}
-                  </div>
-                  <p className="mt-3 border-t border-[#16877f]/15 pt-3 text-xs leading-5 text-[#166a64]">
-                    Aqua linked the durable Place ID, but has not copied Google profile fields into your CRM. Verify and enter the business, contact, website, and research facts you want to keep.
-                  </p>
-                </section>
-              ) : null}
-              <Field label="Business name" value={prospectForm.company} onChange={company => setProspectForm(current => ({ ...current, company }))} placeholder="Business or organisation" />
-              <Field label="Person, if known" value={prospectForm.name} onChange={name => setProspectForm(current => ({ ...current, name }))} placeholder="Name on the card or advert" />
+              <Field label="Business name" value={prospectForm.company} onChange={company => setProspectForm(current => ({ ...current, company }))} placeholder="Business or organisation" disabled={editingProspect?.status === "qualified"} />
+              <Field label="Person, if known" value={prospectForm.name} onChange={name => setProspectForm(current => ({ ...current, name }))} placeholder="Name on the card or advert" disabled={editingProspect?.status === "qualified"} />
               <Field label="Niche" value={prospectForm.niche} onChange={niche => setProspectForm(current => ({ ...current, niche }))} placeholder="Plumber, clinic, restaurant..." />
-              <label className="text-xs font-medium text-black/60">
+              <label className="text-xs font-medium text-black/65">
                 How you found them
-                <select value={prospectForm.source} onChange={event => setProspectForm(current => ({ ...current, source: event.target.value }))} className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm">
+                <select value={prospectForm.source} onChange={event => setProspectForm(current => ({ ...current, source: event.target.value }))} className="mt-1 min-h-11 w-full rounded-md border border-black/10 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
                   <option value="local-sighting">Saw them locally</option>
                   <option value="van-or-signage">Van or signage</option>
                   <option value="business-card">Business card</option>
@@ -1488,27 +1616,18 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
               <Field label="Business address" value={prospectForm.address} onChange={address => setProspectForm(current => ({ ...current, address }))} placeholder="Street, town, postcode" />
               <Field label="Google Maps listing" value={prospectForm.googleMapsUrl} onChange={googleMapsUrl => setProspectForm(current => ({ ...current, googleMapsUrl }))} placeholder="https://maps.google.com/..." type="url" />
               <Field label="Website" value={prospectForm.website} onChange={website => setProspectForm(current => ({ ...current, website }))} placeholder="https://..." type="url" />
-              <Field label="Email, when found" value={prospectForm.email} onChange={email => setProspectForm(current => ({ ...current, email }))} placeholder="hello@business.com" type="email" />
-              <Field label="Phone" value={prospectForm.phone} onChange={phone => setProspectForm(current => ({ ...current, phone }))} placeholder="+44..." />
+              <Field label="Email, when found" value={prospectForm.email} onChange={email => setProspectForm(current => ({ ...current, email }))} placeholder="hello@business.com" type="email" disabled={editingProspect?.status === "qualified"} />
+              <Field label="Phone" value={prospectForm.phone} onChange={phone => setProspectForm(current => ({ ...current, phone }))} placeholder="+44..." disabled={editingProspect?.status === "qualified"} />
+              {editingProspect?.status === "qualified" && editingProspect.qualifiedLeadId ? <p className="rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-xs leading-5 text-violet-800 sm:col-span-2">Name, company, email and phone now belong to the Journey lead. <Link href={`/portal/agency/pipelines/leads?lead=${encodeURIComponent(editingProspect.qualifiedLeadId)}`} className="rounded-sm font-semibold underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-1">Edit that identity in Journey</Link>; research and outreach context remains editable here.</p> : null}
               <Field label="Instagram" value={prospectForm.instagramUrl} onChange={instagramUrl => setProspectForm(current => ({ ...current, instagramUrl }))} placeholder="https://instagram.com/..." type="url" />
               <Field label="Facebook" value={prospectForm.facebookUrl} onChange={facebookUrl => setProspectForm(current => ({ ...current, facebookUrl }))} placeholder="https://facebook.com/..." type="url" />
               <Field label="LinkedIn" value={prospectForm.linkedinUrl} onChange={linkedinUrl => setProspectForm(current => ({ ...current, linkedinUrl }))} placeholder="https://linkedin.com/..." type="url" />
               <Field label="Tags" value={prospectForm.tags} onChange={tags => setProspectForm(current => ({ ...current, tags }))} placeholder="local, high-fit, owner-found" />
-              <label className="text-xs font-medium text-black/60">
-                Qualification state
-                <select value={prospectForm.qualificationState} onChange={event => setProspectForm(current => ({ ...current, qualificationState: event.target.value as ProspectView["qualificationState"] }))} className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm">
-                  <option value="unreviewed">Unreviewed</option>
-                  <option value="researching">Researching</option>
-                  <option value="ready">Ready to approach</option>
-                  <option value="outreach">In outreach</option>
-                  <option value="engaged">Engaged</option>
-                  <option value="not-now">Not now</option>
-                </select>
-              </label>
+              {workspaceMode !== "scouting" ? <>
               <Field label="Fit score (0–100)" value={prospectForm.fitScore} onChange={fitScore => setProspectForm(current => ({ ...current, fitScore }))} placeholder="75" type="number" />
-              <label className="text-xs font-medium text-black/60">
+              <label className="text-xs font-medium text-black/65">
                 Preferred contact route
-                <select value={prospectForm.preferredChannel} onChange={event => setProspectForm(current => ({ ...current, preferredChannel: event.target.value as typeof prospectForm.preferredChannel }))} className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm">
+                <select value={prospectForm.preferredChannel} onChange={event => setProspectForm(current => ({ ...current, preferredChannel: event.target.value as typeof prospectForm.preferredChannel }))} className="mt-1 min-h-11 w-full rounded-md border border-black/10 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
                   <option value="">Not known</option>
                   <option value="call">Call</option>
                   <option value="email">Email</option>
@@ -1518,13 +1637,13 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
                   <option value="in-person">In person</option>
                 </select>
               </label>
-              <label className="block text-xs font-medium text-black/60 sm:col-span-2">
+              <label className="block text-xs font-medium text-black/65 sm:col-span-2">
                 Why could AquaOasis-Web help?
-                <textarea value={prospectForm.opportunity} onChange={event => setProspectForm(current => ({ ...current, opportunity: event.target.value }))} rows={2} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-sm" placeholder="What looks missing, weak, outdated, invisible, or unnecessarily difficult?" />
+                <textarea value={prospectForm.opportunity} onChange={event => setProspectForm(current => ({ ...current, opportunity: event.target.value }))} rows={2} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2" placeholder="What looks missing, weak, outdated, invisible, or unnecessarily difficult?" />
               </label>
-              <label className="block text-xs font-medium text-black/60 sm:col-span-2">
+              <label className="block text-xs font-medium text-black/65 sm:col-span-2">
                 Research notes
-                <textarea value={prospectForm.researchNotes} onChange={event => setProspectForm(current => ({ ...current, researchNotes: event.target.value }))} rows={3} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-sm" placeholder="Website, Google profile, reviews, competitors, decision maker, useful context..." />
+                <textarea value={prospectForm.researchNotes} onChange={event => setProspectForm(current => ({ ...current, researchNotes: event.target.value }))} rows={3} className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2" placeholder="Website, Google profile, reviews, competitors, decision maker, useful context..." />
               </label>
               <Field label="Next research step" value={prospectForm.nextStep} onChange={nextStep => setProspectForm(current => ({ ...current, nextStep }))} placeholder="Find owner email, check website, revisit..." />
               {!editingProspect ? <>
@@ -1534,9 +1653,10 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
                 Follow-ups are managed from the dossier so the complete schedule and resolution history stay intact.
               </div>}
               <label className="flex min-h-11 items-center gap-3 rounded-md border border-black/10 bg-white px-3 py-2 text-sm text-black/65">
-                <input type="checkbox" checked={prospectForm.doNotContact} onChange={event => setProspectForm(current => ({ ...current, doNotContact: event.target.checked }))} className="size-4 accent-red-700" />
+                <input type="checkbox" checked={prospectForm.doNotContact} onChange={event => setProspectForm(current => ({ ...current, doNotContact: event.target.checked }))} className="size-4 accent-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2" />
                 Do not contact
               </label>
+              </> : null}
             </div>
             <footer className="sticky bottom-0 border-t border-black/10 bg-[#fbfaf8] shadow-[0_-8px_20px_rgba(0,0,0,0.06)]">
               {error ? (
@@ -1545,10 +1665,10 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
                 </p>
               ) : null}
               <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-6">
-                <p className="text-xs text-black/65">A phone number or email is needed only when this moves into Journey.</p>
-                <div className="flex gap-2">
-                  <button type="button" onClick={closeProspectForm} className="rounded-md border border-black/10 bg-white px-4 py-2 text-sm font-medium text-black/65">Cancel</button>
-                  <button type="submit" disabled={busy === "prospect:add" || busy === `prospect:${editingProspect?.id}`} className="rounded-md bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-black/85 disabled:opacity-50">
+                <p className="text-xs text-black/65">{workspaceMode === "scouting" ? "The same record stays available in Researching and Outreach Command." : "A phone number or email is required before Journey conversion; research remains optional."}</p>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={closeProspectForm} className="min-h-11 rounded-md border border-black/10 bg-white px-4 text-sm font-medium text-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Cancel</button>
+                  <button type="submit" disabled={busy === "prospect:add" || busy === `prospect:${editingProspect?.id}`} className="min-h-11 rounded-md bg-black px-4 text-sm font-semibold text-white hover:bg-black/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:opacity-50">
                     {busy?.startsWith("prospect:") ? "Saving..." : editingProspect ? "Save changes" : "Add to Scouting"}
                   </button>
                 </div>
@@ -1558,22 +1678,22 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
         </div>
       )}
       {showLeadForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]" role="presentation">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/45 p-4 backdrop-blur-[2px] sm:items-center" role="presentation">
           <form
             id="new-lead"
             onSubmit={addLead}
             role="dialog"
             ref={leadFormRef} aria-modal="true"
             aria-labelledby="new-lead-title"
-            className="max-h-[calc(100vh-32px)] w-full max-w-2xl overflow-y-auto rounded-md bg-[#fbfaf8] shadow-2xl"
+            className="my-auto max-h-[calc(100dvh-32px)] w-full max-w-2xl overflow-y-auto rounded-md bg-[#fbfaf8] shadow-2xl"
           >
             <header className="flex items-start justify-between gap-4 border-b border-black/10 px-5 py-5 sm:px-6">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-brand">Sales</p>
                 <h2 id="new-lead-title" className="mt-1 text-xl font-semibold text-black/90">Add a lead</h2>
-                <p className="mt-1 text-sm text-black/50">Capture the essentials now. You can add meeting and sales detail from the board.</p>
+                <p className="mt-1 text-sm text-black/65">Capture the essentials now. You can add meeting and sales detail from the board.</p>
               </div>
-              <button type="button" onClick={() => setShowLeadForm(false)} className="grid size-9 shrink-0 place-items-center rounded-md border border-black/10 text-black/50 hover:bg-black/[0.03]" aria-label="Close">
+              <button type="button" onClick={() => setShowLeadForm(false)} className="grid size-11 shrink-0 place-items-center rounded-md border border-black/10 text-black/65 hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2" aria-label="Close">
                 <X size={16} aria-hidden="true" />
               </button>
             </header>
@@ -1584,23 +1704,23 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
               <Field label="Company" value={form.company} onChange={v => setForm(f => ({ ...f, company: v }))} placeholder="Company Ltd" />
               <Field label="Niche" value={form.niche} onChange={v => setForm(f => ({ ...f, niche: v }))} placeholder="Plumber, clinic, consultant..." />
               <Field label="Lead source" value={form.source} onChange={v => setForm(f => ({ ...f, source: v }))} placeholder="Referral, Google, event..." />
-              <label className="text-xs font-medium text-black/60">
+              <label className="text-xs font-medium text-black/65">
                 How do you know this lead?
-                <select required value={form.relationshipCategory} onChange={event => setForm(current => ({ ...current, relationshipCategory: event.target.value as "" | LeadRelationshipCategory }))} className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm">
+                <select required value={form.relationshipCategory} onChange={event => setForm(current => ({ ...current, relationshipCategory: event.target.value as "" | LeadRelationshipCategory }))} className="mt-1 min-h-11 w-full rounded-md border border-black/10 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
                   <option value="">Choose a relationship</option>
                   {LEAD_RELATIONSHIP_CATEGORIES.map(category => <option key={category} value={category}>{LEAD_RELATIONSHIP_CATEGORY_LABELS[category]}</option>)}
                 </select>
               </label>
-              <label className="text-xs font-medium text-black/60">
+              <label className="text-xs font-medium text-black/65">
                 Brand
-                <select value={form.brandId} onChange={event => setForm(current => ({ ...current, brandId: event.target.value }))} className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm">
+                <select value={form.brandId} onChange={event => setForm(current => ({ ...current, brandId: event.target.value }))} className="mt-1 min-h-11 w-full rounded-md border border-black/10 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
                   <option value="">Not assigned yet</option>
                   {brands.map(brand => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
                 </select>
               </label>
-              <label className="text-xs font-medium text-black/60">
+              <label className="text-xs font-medium text-black/65">
                 Service interest
-                <select value={form.serviceId} onChange={event => setForm(current => ({ ...current, serviceId: event.target.value }))} className="mt-1 w-full rounded-md border border-black/10 bg-white px-3 py-2 text-sm">
+                <select value={form.serviceId} onChange={event => setForm(current => ({ ...current, serviceId: event.target.value }))} className="mt-1 min-h-11 w-full rounded-md border border-black/10 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
                   <option value="">Not assigned yet</option>
                   {products.map(product => <option key={product.id} value={product.id}>{product.name}</option>)}
                 </select>
@@ -1608,13 +1728,13 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
               <div className="sm:col-span-2">
                 <Field label="Tags" value={form.tags} onChange={v => setForm(f => ({ ...f, tags: v }))} placeholder="google-profile, meetup" />
               </div>
-              <label className="block text-xs font-medium text-black/60 sm:col-span-2">
+              <label className="block text-xs font-medium text-black/65 sm:col-span-2">
                 Notes
                 <textarea
                   value={form.notes}
                   onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
                   rows={3}
-                  className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-sm text-black/80"
+                  className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-sm text-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2"
                   placeholder="What do they need, where did you find them, next step..."
                 />
               </label>
@@ -1622,9 +1742,9 @@ export function LeadsPipelineWorkspace({ workspaceMode = "journey", googleMapsEm
                 <PortalCustomFields fields={customFields} values={form.customFields} onChange={values => setForm(current => ({ ...current, customFields: values }))} legend="Lead custom fields" />
               </div>
             </div>
-            <footer className="flex justify-end gap-2 border-t border-black/10 px-5 py-4 sm:px-6">
-              <button type="button" onClick={() => setShowLeadForm(false)} className="rounded-md border border-black/10 bg-white px-4 py-2 text-sm font-medium text-black/65">Cancel</button>
-              <button type="submit" disabled={busy === "add"} className="rounded-md bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-black/85 disabled:opacity-50">
+            <footer className="flex flex-wrap justify-end gap-2 border-t border-black/10 px-5 py-4 sm:px-6">
+              <button type="button" onClick={() => setShowLeadForm(false)} className="min-h-11 rounded-md border border-black/10 bg-white px-4 text-sm font-medium text-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Cancel</button>
+              <button type="submit" disabled={busy === "add"} className="min-h-11 rounded-md bg-black px-4 text-sm font-semibold text-white hover:bg-black/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:opacity-50">
                 {busy === "add" ? "Adding..." : "Add lead"}
               </button>
             </footer>
@@ -1670,7 +1790,7 @@ function LeadInternalWorkspace({
         <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Lead workspace</p>
         <h1 className="mt-2 text-xl font-semibold text-amber-950">This lead is no longer in the active Journey.</h1>
         <p className="mt-2 text-sm text-amber-800">It may have been rerouted, archived or converted since this link was opened.</p>
-        <Link href="/portal/clients?view=journey" className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white">
+        <Link href="/portal/clients?view=journey" className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-md bg-black px-4 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
           <ArrowLeft size={15} aria-hidden="true" /> Back to Journey
         </Link>
       </section>
@@ -1689,11 +1809,12 @@ function LeadInternalWorkspace({
       ? "No sample"
       : formatElapsed(timing.latestResponseMs);
   const responseDetail = timing.awaitingResponse ? "waiting for your reply" : "latest recorded response";
+  const meetingHref = safeMeetingAssetUrl(lead.meetingLink);
 
   return (
     <div className="flex flex-col gap-5" data-testid="lead-internal-workspace">
       <header className="border-b border-black/10 pb-5">
-        <Link href="/portal/clients?view=journey" className="inline-flex items-center gap-1.5 text-xs font-semibold text-black/45 hover:text-brand">
+        <Link href="/portal/clients?view=journey" className="inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 text-xs font-semibold text-black/65 hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
           <ArrowLeft size={14} aria-hidden="true" /> Journey
         </Link>
         <div className="mt-4 flex flex-wrap items-start justify-between gap-5">
@@ -1704,18 +1825,19 @@ function LeadInternalWorkspace({
               {lead.tags.includes("converted") ? <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700">Converted</span> : null}
             </div>
             <h1 className="mt-2 break-words text-3xl font-semibold tracking-tight text-black/90">{name}</h1>
-            <p className="mt-1 text-sm text-black/50">
+            <p className="mt-1 text-sm text-black/65">
               {[lead.company && lead.company !== name ? lead.company : null, lead.brandName, lead.serviceNames.join(" + ")].filter(Boolean).join(" · ") || "Qualification, communication and conversion in one record."}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {lead.phone ? <a href={`tel:${lead.phone}`} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/65"><Phone size={15} /> Call</a> : null}
-            {lead.email ? <a href={`mailto:${lead.email}`} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/65"><Mail size={15} /> Email</a> : null}
-            <Link href={inboxHref} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/65"><MessageCircle size={15} /> Inbox</Link>
+            {lead.phone ? <Link href={`/portal/agency/prospecting?lead=${encodeURIComponent(lead.id)}&mode=power-dialler`} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2"><Phone size={15} /> Open call desk</Link> : null}
+            {lead.email ? <Link href={`/portal/agency/prospecting?lead=${encodeURIComponent(lead.id)}&mode=email`} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2"><Mail size={15} /> Open email desk</Link> : null}
+            <Link href={`/portal/agency/researching?lead=${encodeURIComponent(lead.id)}`} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2"><Search size={15} /> Research dossier</Link>
+            <Link href={inboxHref} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2"><MessageCircle size={15} /> Inbox</Link>
             {lead.tags.includes("converted") && lead.clientId ? (
-              <Link href={`/portal/clients/${lead.clientId}`} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white"><Building2 size={15} /> Open client</Link>
+              <Link href={`/portal/clients/${lead.clientId}`} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-black px-3 text-xs font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2"><Building2 size={15} /> Open client</Link>
             ) : (
-              <button type="button" onClick={onConvert} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-brand px-3 text-xs font-semibold text-white"><UserRoundCheck size={15} /> Convert</button>
+              <button type="button" onClick={onConvert} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-brand px-3 text-xs font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2"><UserRoundCheck size={15} /> Convert</button>
             )}
           </div>
         </div>
@@ -1738,11 +1860,11 @@ function LeadInternalWorkspace({
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-brand">Next move</p>
                 <h2 className="mt-1 text-lg font-semibold text-black/85">Keep this opportunity moving</h2>
-                <p className="mt-1 text-sm text-black/48">Update the stage, record contact, then keep the detail in the full sales record.</p>
+                <p className="mt-1 text-sm text-black/65">Update the stage, record contact, then keep the detail in the full sales record.</p>
               </div>
-              <label className="text-xs font-medium text-black/50">
+              <label className="text-xs font-medium text-black/65">
                 Journey stage
-                <select value={stage} onChange={event => onMove(event.target.value)} disabled={busy === `move:${lead.id}`} className="mt-1 block min-h-10 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-black/70">
+                <select value={stage} onChange={event => onMove(event.target.value)} disabled={busy === `move:${lead.id}`} className="mt-1 block min-h-11 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
                   {columns.map(column => (
                     <option key={column.id} value={column.id} disabled={column.id === "scouting" && stage !== "scouting"}>
                       {column.label}{column.id === "scouting" ? " (pre-qualified)" : ""}
@@ -1752,15 +1874,15 @@ function LeadInternalWorkspace({
               </label>
             </div>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <button type="button" onClick={onContact} disabled={busy === `contacted:${lead.id}`} className="min-h-11 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-black/65 disabled:opacity-50">
+              <button type="button" onClick={onContact} disabled={busy === `contacted:${lead.id}`} className="min-h-11 rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:opacity-50">
                 {busy === `contacted:${lead.id}` ? "Recording..." : "Mark contacted"}
               </button>
-              <Link href={inboxHref} className="flex min-h-11 items-center justify-center rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-black/65">Open conversation</Link>
+              <Link href={inboxHref} className="flex min-h-11 items-center justify-center rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Open conversation</Link>
               {lead.nextMeetingAt ? (
-                <a href={lead.meetingLink || "#lead-record"} target={lead.meetingLink ? "_blank" : undefined} rel={lead.meetingLink ? "noreferrer" : undefined} className="flex min-h-11 items-center justify-center rounded-md bg-black px-3 text-sm font-semibold text-white">
-                  {lead.meetingLink ? "Join meeting" : "Review meeting"}
+                <a href={meetingHref || "#lead-record"} target={meetingHref ? "_blank" : undefined} rel={meetingHref ? "noopener noreferrer" : undefined} className="flex min-h-11 items-center justify-center rounded-md bg-black px-3 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
+                  {meetingHref ? "Join meeting" : "Review meeting"}
                 </a>
-              ) : <a href="#lead-record" className="flex min-h-11 items-center justify-center rounded-md bg-black px-3 text-sm font-semibold text-white">Book meeting</a>}
+              ) : <a href="#lead-record" className="flex min-h-11 items-center justify-center rounded-md bg-black px-3 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Book meeting</a>}
             </div>
           </section>
 
@@ -1773,9 +1895,9 @@ function LeadInternalWorkspace({
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-brand">Complete record</p>
                 <h2 className="mt-1 text-lg font-semibold text-black/85">Qualification, meetings and evidence</h2>
-                <p className="mt-1 text-sm text-black/48">Open advanced details when you need the full sales dossier.</p>
+                <p className="mt-1 text-sm text-black/65">Open advanced details when you need the full sales dossier.</p>
               </div>
-              <span className="rounded-full bg-black/[0.04] px-2.5 py-1 text-[10px] font-semibold text-black/45">Saved to this lead</span>
+              <span className="rounded-full bg-black/[0.04] px-2.5 py-1 text-[10px] font-semibold text-black/65">Saved to this lead</span>
             </div>
             <DetailsEditor
               buttonLabel="Open full sales record"
@@ -1798,14 +1920,14 @@ function LeadInternalWorkspace({
 
         <aside className="space-y-5">
           <section className="rounded-lg border border-black/10 bg-white p-5">
-            <p className="text-xs font-semibold uppercase tracking-wide text-black/40">Contact and attribution</p>
-            <label className="mt-3 block text-xs font-medium text-black/55">
+            <p className="text-xs font-semibold uppercase tracking-wide text-black/65">Contact and attribution</p>
+            <label className="mt-3 block text-xs font-medium text-black/65">
               Relationship category
               <select
                 value={inferLeadRelationshipCategory(lead)}
                 onChange={event => onCategoryChange(event.target.value as LeadRelationshipCategory)}
                 disabled={busy === `category:${lead.id}`}
-                className="mt-1 min-h-10 w-full rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-black/70 disabled:opacity-50"
+                className="mt-1 min-h-11 w-full rounded-md border border-black/10 bg-white px-3 text-sm font-semibold text-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:opacity-50"
               >
                 {LEAD_RELATIONSHIP_CATEGORIES.map(category => <option key={category} value={category}>{LEAD_RELATIONSHIP_CATEGORY_LABELS[category]}</option>)}
               </select>
@@ -1817,19 +1939,19 @@ function LeadInternalWorkspace({
               <LeadFact label="Brand" value={lead.brandName || "Not assigned"} />
               <LeadFact label="Services" value={lead.serviceNames.join(", ") || "Not assigned"} />
             </dl>
-            {lead.tags.length ? <div className="mt-4 flex flex-wrap gap-1.5">{lead.tags.map(tag => <span key={tag} className="rounded-full bg-black/[0.05] px-2 py-1 text-[10px] text-black/55">{tag}</span>)}</div> : null}
+            {lead.tags.length ? <div className="mt-4 flex flex-wrap gap-1.5">{lead.tags.map(tag => <span key={tag} className="rounded-full bg-black/[0.05] px-2 py-1 text-[10px] text-black/65">{tag}</span>)}</div> : null}
           </section>
 
           <section className="rounded-lg border border-black/10 bg-black/[0.025] p-5">
-            <p className="text-xs font-semibold uppercase tracking-wide text-black/40">Known context</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-black/65">Known context</p>
             <LeadContext label="Potential problem" value={lead.potentialProblems} />
             <LeadContext label="Proposed direction" value={lead.potentialSolutions} />
             <LeadContext label="Budget" value={lead.budgetRange || lead.pricePoints} />
             <LeadContext label="Internal note" value={lead.notes} />
-            {!lead.potentialProblems && !lead.potentialSolutions && !lead.budgetRange && !lead.pricePoints && !lead.notes ? <p className="mt-3 text-sm text-black/40">Open the full sales record to build the qualification picture.</p> : null}
+            {!lead.potentialProblems && !lead.potentialSolutions && !lead.budgetRange && !lead.pricePoints && !lead.notes ? <p className="mt-3 text-sm text-black/65">Open the full sales record to build the qualification picture.</p> : null}
           </section>
 
-          <button type="button" onClick={onArchive} disabled={busy === `archive:${lead.id}`} className="w-full min-h-10 rounded-md border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-700 disabled:opacity-50">
+          <button type="button" onClick={onArchive} disabled={busy === `archive:${lead.id}`} className="min-h-11 w-full rounded-md border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:opacity-50">
             {busy === `archive:${lead.id}` ? "Archiving..." : "Archive lead"}
           </button>
         </aside>
@@ -1840,16 +1962,134 @@ function LeadInternalWorkspace({
 
 function LeadWorkspaceMetric({ label, value, detail, tone = "neutral" }: { label: string; value: string; detail: string; tone?: "neutral" | "warning" | "complete" }) {
   const valueClass = tone === "warning" ? "text-red-700" : tone === "complete" ? "text-emerald-700" : "text-black/85";
-  return <div className="bg-white p-4"><dt className="text-xs font-medium text-black/45">{label}</dt><dd className={`mt-2 text-2xl font-semibold tabular-nums ${valueClass}`}>{value}</dd><p className="mt-1 text-xs text-black/42">{detail}</p></div>;
+  return <div className="bg-white p-4"><dt className="text-xs font-medium text-black/65">{label}</dt><dd className={`mt-2 text-2xl font-semibold tabular-nums ${valueClass}`}>{value}</dd><p className="mt-1 text-xs text-black/65">{detail}</p></div>;
 }
 
 function LeadFact({ label, value }: { label: string; value: string }) {
-  return <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-3 py-2.5"><dt className="text-black/40">{label}</dt><dd className="min-w-0 break-words font-medium text-black/70">{value}</dd></div>;
+  return <div className="grid grid-cols-[88px_minmax(0,1fr)] gap-3 py-2.5"><dt className="text-black/65">{label}</dt><dd className="min-w-0 break-words font-medium text-black/70">{value}</dd></div>;
 }
 
 function LeadContext({ label, value }: { label: string; value?: string }) {
   if (!value) return null;
-  return <div className="mt-4 border-t border-black/[0.07] pt-3"><h3 className="text-[10px] font-semibold uppercase tracking-wide text-black/35">{label}</h3><p className="mt-1 text-sm leading-6 text-black/60">{value}</p></div>;
+  return <div className="mt-4 border-t border-black/[0.07] pt-3"><h3 className="text-[10px] font-semibold uppercase tracking-wide text-black/65">{label}</h3><p className="mt-1 text-sm leading-6 text-black/65">{value}</p></div>;
+}
+
+function ScoutingIntakeQueue({
+  prospects,
+  onEdit,
+}: {
+  prospects: ProspectView[];
+  onEdit: (prospect: ProspectView) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(0);
+  const intake = useMemo(
+    () => paginateScoutingIntake(prospects, query, page),
+    [page, prospects, query],
+  );
+
+  return (
+    <section className="overflow-hidden rounded-lg border border-black/10 bg-white" aria-labelledby="scouting-intake-heading">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-black/10 px-4 py-4 sm:px-5">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand">Captured candidates</p>
+          <h2 id="scouting-intake-heading" className="mt-1 text-lg font-semibold text-black/85">Ready for your next move</h2>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-black/65">Every scout is immediately available for research or outreach. Add context when it helps, contact them now, or come back later without losing the record.</p>
+        </div>
+        <Link href="/portal/agency/researching" className="inline-flex min-h-11 items-center gap-2 rounded-md bg-[#102f31] px-4 text-xs font-semibold text-white hover:bg-[#174246] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
+          Research {prospects.length || "queue"} <ArrowRight size={13} aria-hidden="true" />
+        </Link>
+      </div>
+      {prospects.length ? (
+        <>
+          <div className="flex flex-col gap-3 border-b border-black/[0.07] bg-black/[0.015] px-4 py-3 sm:flex-row sm:items-end sm:justify-between sm:px-5">
+            <label htmlFor="scouting-intake-search" className="min-w-0 flex-1 text-xs font-semibold text-black/70">
+              Find a captured candidate
+              <span className="relative mt-1 block max-w-xl">
+                <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-black/45" />
+                <input
+                  id="scouting-intake-search"
+                  type="search"
+                  value={query}
+                  onChange={event => {
+                    setQuery(event.target.value);
+                    setPage(0);
+                  }}
+                  placeholder="Business, person, email, phone, niche, source, or tag"
+                  className="min-h-11 w-full rounded-md border border-black/15 bg-white py-2 pl-9 pr-3 text-sm text-black/85 placeholder:text-black/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2"
+                />
+              </span>
+            </label>
+            <p className="text-xs text-black/65" aria-live="polite">
+              {intake.matchingCount
+                ? `Showing ${intake.from}–${intake.to} of ${intake.matchingCount}${query.trim() ? ` matching · ${prospects.length} captured` : ""}`
+                : `No matches · ${prospects.length} captured`}
+            </p>
+          </div>
+          {intake.items.length ? (
+            <ul className="divide-y divide-black/[0.07]">
+              {intake.items.map(prospect => (
+                <li key={prospect.id} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                  <div className="min-w-0">
+                    <strong className="block truncate text-sm font-semibold text-black/80">{prospect.company || prospect.name || prospect.website || "Unnamed prospect"}</strong>
+                    <span className="mt-0.5 block truncate text-xs text-black/65">{[prospect.niche, sourceLabel(prospect.source), prospect.address].filter(Boolean).join(" · ") || "Research not started"}</span>
+                  </div>
+                  <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex sm:items-center">
+                    <button type="button" onClick={() => onEdit(prospect)} className="min-h-11 rounded-md border border-black/10 px-3 text-xs font-medium text-black/65 hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Update intake</button>
+                    <Link href={`/portal/agency/researching?prospect=${encodeURIComponent(prospect.id)}`} className="inline-flex min-h-11 items-center justify-center rounded-md border border-[#16877f]/25 bg-[#e9f5f2] px-3 text-xs font-semibold text-[#166a64] hover:bg-[#dff1ed] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Research</Link>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="px-5 py-8 text-center">
+              <Search size={26} className="mx-auto text-black/30" aria-hidden="true" />
+              <p className="mt-3 text-sm font-medium text-black/70">No candidates match that search.</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery("");
+                  setPage(0);
+                }}
+                className="mt-3 min-h-11 rounded-md border border-black/10 bg-white px-4 text-xs font-semibold text-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2"
+              >
+                Clear search
+              </button>
+            </div>
+          )}
+          {intake.pageCount > 1 ? (
+            <nav className="flex flex-wrap items-center justify-between gap-3 border-t border-black/[0.07] px-4 py-3 sm:px-5" aria-label="Captured candidate pages">
+              <p className="text-xs font-medium text-black/65">Page {intake.page + 1} of {intake.pageCount}</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPage(intake.page - 1)}
+                  disabled={intake.page === 0}
+                  className="min-h-11 rounded-md border border-black/10 px-4 text-xs font-semibold text-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPage(intake.page + 1)}
+                  disabled={intake.page >= intake.pageCount - 1}
+                  className="min-h-11 rounded-md border border-black/10 px-4 text-xs font-semibold text-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  Next
+                </button>
+              </div>
+            </nav>
+          ) : null}
+        </>
+      ) : (
+        <div className="px-5 py-8 text-center">
+          <Binoculars size={26} className="mx-auto text-black/25" aria-hidden="true" />
+          <p className="mt-3 text-sm font-medium text-black/65">No candidates captured yet.</p>
+          <p className="mt-1 text-xs text-black/65">Use the map above or add somebody you met manually.</p>
+        </div>
+      )}
+    </section>
+  );
 }
 
 function ProspectCard({
@@ -1876,26 +2116,28 @@ function ProspectCard({
         </span>
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-sm font-semibold text-black/90">{label}</h3>
-          <p className="mt-0.5 truncate text-xs text-black/50">
+          <p className="mt-0.5 truncate text-xs text-black/65">
             {[prospect.niche, sourceLabel(prospect.source)].filter(Boolean).join(" · ")}
           </p>
         </div>
       </div>
-      {prospect.opportunity ? <p className="mt-3 line-clamp-3 text-xs leading-5 text-black/60">{prospect.opportunity}</p> : null}
-      <p className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-medium text-black/45"><Clock3 size={12} />Scouting for {formatElapsed(clock - prospect.capturedAt)}</p>
+      {prospect.opportunity ? <p className="mt-3 line-clamp-3 text-xs leading-5 text-black/65">{prospect.opportunity}</p> : null}
+      <p className="mt-2 inline-flex rounded-full bg-[#C9A76A]/12 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#765A2C]">{prospect.qualificationState.replaceAll("-", " ")}</p>
+      <p className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-medium text-black/65"><Clock3 size={12} />Scouting for {formatElapsed(clock - prospect.capturedAt)}</p>
       <div className="mt-3 flex flex-wrap gap-1.5">
-        {prospect.website ? <a href={prospect.website} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-md border border-black/10 bg-white px-2 py-1 text-[11px] text-black/65"><Globe2 size={11} /> Website</a> : null}
-        {prospect.phone ? <a href={`tel:${prospect.phone}`} className="rounded-md border border-black/10 bg-white px-2 py-1 text-[11px] text-black/65">Call</a> : null}
-        {prospect.email ? <a href={`mailto:${prospect.email}`} className="rounded-md border border-black/10 bg-white px-2 py-1 text-[11px] text-black/65">Email</a> : null}
+        {prospect.website ? <a href={prospect.website} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1 rounded-md border border-black/10 bg-white px-3 py-1 text-[11px] text-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2"><Globe2 size={11} /> Website</a> : null}
+        <Link href={`/portal/agency/researching?prospect=${encodeURIComponent(prospect.id)}`} className="inline-flex min-h-11 items-center rounded-md border border-black/10 bg-white px-3 py-1 text-[11px] text-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Research</Link>
+        {prospect.phone ? <Link href={`/portal/agency/prospecting?prospect=${encodeURIComponent(prospect.id)}&mode=power-dialler`} className="inline-flex min-h-11 items-center rounded-md border border-black/10 bg-white px-3 py-1 text-[11px] text-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Call safely</Link> : null}
+        {prospect.email ? <Link href={`/portal/agency/prospecting?prospect=${encodeURIComponent(prospect.id)}&mode=email`} className="inline-flex min-h-11 items-center rounded-md border border-black/10 bg-white px-3 py-1 text-[11px] text-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Email safely</Link> : null}
       </div>
-      {prospect.nextStep ? <p className="mt-3 border-t border-black/8 pt-3 text-[11px] text-black/50"><strong className="font-semibold text-black/65">Next:</strong> {prospect.nextStep}</p> : null}
+      {prospect.nextStep ? <p className="mt-3 border-t border-black/8 pt-3 text-[11px] text-black/65"><strong className="font-semibold text-black/70">Next:</strong> {prospect.nextStep}</p> : null}
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <button type="button" onClick={onEdit} className="rounded-md border border-black/10 bg-white px-2 py-1.5 text-xs font-medium text-black/65">Research</button>
-        <button type="button" onClick={onQualify} disabled={busy === `qualify:${prospect.id}`} className="rounded-md bg-black px-2 py-1.5 text-xs font-semibold text-white disabled:opacity-50">
+        <button type="button" onClick={onEdit} className="min-h-11 rounded-md border border-black/10 bg-white px-3 py-1.5 text-xs font-medium text-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Edit dossier</button>
+        <button type="button" onClick={onQualify} disabled={busy === `qualify:${prospect.id}`} className="min-h-11 rounded-md bg-black px-3 py-1.5 text-xs font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:opacity-50">
           {busy === `qualify:${prospect.id}` ? "Moving..." : "Qualify lead"}
         </button>
       </div>
-      <button type="button" onClick={onDismiss} disabled={busy === `dismiss:${prospect.id}`} className="mt-2 w-full text-center text-[11px] text-black/40 hover:text-red-700">
+      <button type="button" onClick={onDismiss} disabled={busy === `dismiss:${prospect.id}`} className="mt-2 min-h-11 w-full rounded-md px-2 text-center text-[11px] font-medium text-black/65 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
         {busy === `dismiss:${prospect.id}` ? "Dismissing..." : "Not a fit"}
       </button>
     </li>
@@ -1912,11 +2154,11 @@ function LeadWaitStrip({ lead, clock }: { lead: LeadView; clock: number }) {
         ? "border-blue-200 bg-blue-50 text-blue-800"
         : timing.tone === "complete"
           ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-          : "border-black/10 bg-black/[0.025] text-black/55";
+          : "border-black/10 bg-black/[0.025] text-black/65";
   return (
     <div className="mt-3 grid gap-1.5 border-y border-black/[0.07] py-2.5 text-[10px]">
-      <div className="flex items-center justify-between gap-3"><span className="inline-flex items-center gap-1.5 text-black/42"><History size={11} />Total journey</span><strong className="font-semibold tabular-nums text-black/65">{formatElapsed(timing.journeyAgeMs)}</strong></div>
-      <div className="flex items-center justify-between gap-3"><span className="inline-flex items-center gap-1.5 text-black/42"><TimerReset size={11} />Current stage</span><strong className="font-semibold tabular-nums text-black/65">{formatElapsed(timing.stageAgeMs)}</strong></div>
+      <div className="flex items-center justify-between gap-3"><span className="inline-flex items-center gap-1.5 text-black/65"><History size={11} />Total journey</span><strong className="font-semibold tabular-nums text-black/65">{formatElapsed(timing.journeyAgeMs)}</strong></div>
+      <div className="flex items-center justify-between gap-3"><span className="inline-flex items-center gap-1.5 text-black/65"><TimerReset size={11} />Current stage</span><strong className="font-semibold tabular-nums text-black/65">{formatElapsed(timing.stageAgeMs)}</strong></div>
       <div className={`flex items-center justify-between gap-3 rounded border px-2 py-1.5 ${tone}`}>
         <span className="inline-flex items-center gap-1.5"><Clock3 size={11} />{timing.awaitingResponse ? ((lead.enquiryCount ?? 0) > 1 ? "Latest enquiry unanswered" : "First response waiting") : timing.needsFollowUp ? "Follow-up waiting" : "Response recorded"}</span>
         <strong className="font-semibold tabular-nums">{timing.awaitingResponse ? formatElapsed(timing.currentWaitMs) : timing.needsFollowUp ? formatElapsed(timing.followUpWaitMs ?? 0) : timing.latestResponseMs === undefined ? "Done" : `in ${formatElapsed(timing.latestResponseMs)}`}</strong>
@@ -1966,9 +2208,41 @@ function JourneyOverviewDashboard({
 }) {
   const total = prospects + leads;
   const winRate = leads ? Math.round(won / leads * 100) : 0;
+  const acquisitionPrompt = total === 0
+    ? {
+        title: "Build the outreach queue",
+        detail: "There is nobody active to contact yet. Start in Scouting and capture the next business.",
+        href: "/portal/agency/scouting",
+        action: "Open Scouting",
+      }
+    : meetings === 0
+      ? {
+          title: "Create the next conversation",
+          detail: prospects > 0
+            ? `${prospects} prospect${prospects === 1 ? " is" : "s are"} available. Call, email, DM, or set a callback from Outreach Command.`
+            : "There are active leads but no meeting booked. Open the board and take the next contact action.",
+          href: prospects > 0 ? "/portal/agency/prospecting" : "#journey-board",
+          action: prospects > 0 ? "Open Outreach Command" : "Open active leads",
+        }
+      : {
+          title: "Prepare and progress meetings",
+          detail: `${upcomingMeetings} of ${meetings} meeting${meetings === 1 ? " is" : "s are"} dated. Review the contact history, brief, reminder, and next step before it starts.`,
+          href: "/portal/agency/meetings",
+          action: "Open Meetings",
+        };
 
   return (
     <section className="space-y-5" aria-labelledby="journey-overview-heading">
+      <div className="flex flex-col gap-4 rounded-lg border border-[#16877f]/25 bg-[#e9f5f2] px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#16776f]">Recommended next action</p>
+          <h2 className="mt-1 text-base font-semibold text-[#102f31]">{acquisitionPrompt.title}</h2>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-[#174246]/75">{acquisitionPrompt.detail}</p>
+        </div>
+        <Link href={acquisitionPrompt.href} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-md bg-[#102f31] px-4 text-xs font-semibold text-white hover:bg-[#174246] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">
+          {acquisitionPrompt.action} <ArrowRight size={13} className="ml-2" aria-hidden="true" />
+        </Link>
+      </div>
       <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <JourneyMetric label="Total journey" value={String(total)} detail={`${prospects} scouting · ${leads} qualified`} />
         <JourneyMetric label="Awaiting first reply" value={String(awaitingResponse)} detail={oldestWaitingMs ? `Oldest has waited ${formatElapsed(oldestWaitingMs)}` : "Every enquiry has a response"} tone={awaitingResponse ? "warning" : "complete"} />
@@ -1983,9 +2257,9 @@ function JourneyOverviewDashboard({
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-brand">Journey overview</p>
               <h2 id="journey-overview-heading" className="mt-1 text-base font-semibold text-black/85">Pipeline health</h2>
-              <p className="mt-1 text-xs text-black/45">A quick read before drilling into the board.</p>
+              <p className="mt-1 text-xs text-black/65">A quick read before drilling into the board.</p>
             </div>
-            <a href="#journey-board" className="inline-flex min-h-9 items-center rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85">Open board</a>
+            <a href="#journey-board" className="inline-flex min-h-11 items-center rounded-md bg-black px-3 text-xs font-semibold text-white hover:bg-black/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Open board</a>
           </div>
           <div className="divide-y divide-black/[0.07]">
             {stageRows.map(row => (
@@ -2005,29 +2279,29 @@ function JourneyOverviewDashboard({
         <aside className="rounded-lg border border-black/10 bg-black/[0.018] p-4">
           <h2 className="text-base font-semibold text-black/85">Next actions</h2>
           <div className="mt-3 grid gap-2">
-            <button type="button" onClick={onScout} className="min-h-10 rounded-md border border-black/10 bg-white px-3 text-left text-xs font-semibold text-black/65 hover:bg-black/[0.03]">Scout a prospect</button>
-            <button type="button" onClick={onLead} className="min-h-10 rounded-md bg-black px-3 text-left text-xs font-semibold text-white hover:bg-black/85">Add qualified lead</button>
-            <Link href="/portal/agency/marketing" className="min-h-10 rounded-md border border-black/10 bg-white px-3 py-2.5 text-xs font-semibold text-black/65 hover:bg-black/[0.03]">Open campaigns</Link>
+            <button type="button" onClick={onScout} className="min-h-11 rounded-md border border-black/10 bg-white px-3 text-left text-xs font-semibold text-black/65 hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Scout a prospect</button>
+            <button type="button" onClick={onLead} className="min-h-11 rounded-md bg-black px-3 text-left text-xs font-semibold text-white hover:bg-black/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Add qualified lead</button>
+            <Link href="/portal/agency/marketing" className="inline-flex min-h-11 items-center rounded-md border border-black/10 bg-white px-3 text-xs font-semibold text-black/65 hover:bg-black/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Open campaigns</Link>
           </div>
-          <h3 className="mt-5 text-xs font-semibold uppercase tracking-wide text-black/40">Top sources</h3>
+          <h3 className="mt-5 text-xs font-semibold uppercase tracking-wide text-black/65">Top sources</h3>
           <div className="mt-2 divide-y divide-black/10">
             {sourceRows.map(row => (
               <div key={row.source} className="flex items-center justify-between gap-3 py-2 text-sm">
-                <span className="min-w-0 truncate text-black/55">{sourceLabel(row.source)}</span>
+                <span className="min-w-0 truncate text-black/65">{sourceLabel(row.source)}</span>
                 <span className="font-semibold tabular-nums text-black/75">{row.count}</span>
               </div>
             ))}
-            {!sourceRows.length ? <p className="py-3 text-xs text-black/40">Sources appear when prospects or leads are added.</p> : null}
+            {!sourceRows.length ? <p className="py-3 text-xs text-black/65">Sources appear when prospects or leads are added.</p> : null}
           </div>
-          <div className="mt-5 flex items-center justify-between gap-3 border-t border-black/10 pt-4">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-black/40">Wait-time watch</h3>
-            {waitingLeads.length ? <button type="button" onClick={onShowWaiting} className="text-[11px] font-semibold text-brand">Show on board</button> : null}
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-black/10 pt-4">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-black/65">Wait-time watch</h3>
+            {waitingLeads.length ? <button type="button" onClick={onShowWaiting} className="min-h-11 rounded-md px-2 text-[11px] font-semibold text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2">Show on board</button> : null}
           </div>
           <div className="mt-2 divide-y divide-black/10">
             {waitingLeads.map(item => (
-              <button key={item.id} type="button" onClick={onShowWaiting} className="flex w-full items-start justify-between gap-3 py-2 text-left">
+              <button key={item.id} type="button" onClick={onShowWaiting} className="flex min-h-11 w-full flex-wrap items-start justify-between gap-2 rounded-sm py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-inset">
                 <span className="min-w-0 truncate text-xs font-medium text-black/65">{item.label}</span>
-                <span className={`shrink-0 text-[10px] font-semibold ${item.tone === "critical" ? "text-red-700" : item.tone === "warning" ? "text-amber-700" : "text-blue-700"}`}>{item.detail}</span>
+                <span className={`min-w-0 break-words text-right text-[10px] font-semibold ${item.tone === "critical" ? "text-red-700" : item.tone === "warning" ? "text-amber-700" : "text-blue-700"}`}>{item.detail}</span>
               </button>
             ))}
             {!waitingLeads.length ? <p className="py-3 text-xs text-emerald-700">No unanswered, overdue follow-up or stalled leads.</p> : null}
@@ -2045,7 +2319,7 @@ function JourneyMetric({ label, value, detail, tone = "neutral" }: { label: stri
   // wrapper — and the wrapper itself was a plain grid <div>, so these dt/dd had
   // no <dl> ancestor at all. axe reported `dlitem` on all ten nodes across
   // every viewport. The grid is now the <dl> (see JourneyOverview).
-  return <div className="rounded-lg border border-black/10 bg-white p-4"><dt className="text-xs font-medium text-black/45">{label}</dt><dd className={`mt-2 text-2xl font-semibold ${valueStyle}`}>{value}</dd><dd className="mt-1 text-xs text-black/42">{detail}</dd></div>;
+  return <div className="rounded-lg border border-black/10 bg-white p-4"><dt className="text-xs font-medium text-black/65">{label}</dt><dd className={`mt-2 text-2xl font-semibold ${valueStyle}`}>{value}</dd><dd className="mt-1 text-xs text-black/65">{detail}</dd></div>;
 }
 
 
@@ -2065,6 +2339,7 @@ function Field({
   placeholder,
   type = "text",
   required = false,
+  disabled = false,
 }: {
   label: string;
   value: string;
@@ -2072,17 +2347,19 @@ function Field({
   placeholder?: string;
   type?: string;
   required?: boolean;
+  disabled?: boolean;
 }) {
   return (
-    <label className="min-w-[180px] flex-1 text-xs font-medium text-black/60">
+    <label className="min-w-0 flex-1 text-xs font-medium text-black/65">
       {label}
       <input
         type={type}
         required={required}
+        disabled={disabled}
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
-        className="mt-1 w-full rounded-md border border-black/10 px-3 py-2 text-sm text-black/80"
+        className="mt-1 min-h-11 w-full rounded-md border border-black/10 px-3 text-sm text-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-black/[0.035] disabled:text-black/65"
       />
     </label>
   );
@@ -2091,7 +2368,7 @@ function Field({
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="px-4 py-3">
-      <div className="text-xs font-medium text-black/45">{label}</div>
+      <div className="text-xs font-medium text-black/65">{label}</div>
       <div className="mt-1 text-xl font-semibold text-black/90">{value}</div>
     </div>
   );
@@ -2110,7 +2387,7 @@ function QuickFilter({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-md border px-3 py-1.5 text-xs font-medium ${
+      className={`min-h-11 rounded-md border px-3 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16877f] focus-visible:ring-offset-2 ${
         active
           ? "border-black bg-black text-white"
           : "border-black/10 bg-white text-black/65 hover:bg-black/[0.03]"

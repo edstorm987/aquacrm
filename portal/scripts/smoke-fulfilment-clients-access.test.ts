@@ -140,4 +140,35 @@ describe("fulfilment client collection access", () => {
     assert.equal(conflict.status, 409);
     assert.equal((await conflict.json() as { operationId?: unknown }).operationId, operationId);
   });
+
+  it("rejects client-supplied acquisition lineage at the public creation boundary", async () => {
+    const home = await fixture();
+    await grant(home, ["element.fulfilment.services.manage"]);
+    const reservedKeys = [
+      "personId",
+      "leadId",
+      "contactId",
+      "promotedFromLeadId",
+      "prospectId",
+      "prospectIds",
+      "acquisitionProspectId",
+    ];
+
+    for (const [index, key] of reservedKeys.entries()) {
+      const metadata = index % 2 === 0
+        ? { [key]: `forged-${key}` }
+        : { customFields: { [key]: `forged-${key}` } };
+      const response = await withSession(home.token, () => route.POST(requestFor({
+        operationId: `forged-lineage-${index}`,
+        name: `Forged lineage ${index}`,
+        metadata,
+        createPortal: false,
+      })));
+      assert.equal(response.status, 400, key);
+      const payload = await response.json() as { error?: unknown; fields?: unknown };
+      assert.equal(payload.error, "reserved client lineage metadata");
+      assert.deepEqual(payload.fields, [key]);
+    }
+    assert.equal(tenants.listClients(home.agency.id).length, 0);
+  });
 });

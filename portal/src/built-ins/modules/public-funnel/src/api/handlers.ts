@@ -23,35 +23,20 @@ function build(ctx: PluginCtx) {
   return containerFor({ agencyId: ctx.agencyId, storage: ctx.storage, install: ctx.install });
 }
 
-// Helper — once the funnel issues a session, set it as a Set-Cookie
-// header on the response so the browser auto-signs-in for /business-os.
-// Cookie name conventions are foundation-owned. This legacy plugin endpoint
-// mirrors the current session name; the mounted Health Check uses the top-level
-// route, which calls the foundation cookie helper directly.
-function withSessionCookie(body: unknown, status: number, session?: string): Response {
-  const headers: Record<string, string> = {};
-  if (session) {
-    headers["set-cookie"] =
-      `lk_session_v1=${encodeURIComponent(session)}; Path=/; HttpOnly; SameSite=Lax`;
-  }
-  return json(body, status, headers);
-}
-
 export async function hcCompleteHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   if (req.method !== "POST") return methodNotAllowed();
   const body = await safeJson<CaptureHcInput>(req);
   if (!body || !body.email || !body.slot) return badRequest("invalid_body");
   try {
     const r = await build(ctx).funnel.captureHcCompletion(body);
-    return withSessionCookie({
+    return json({
       ok: true,
       redirect: "/business-os",
-      captureId: r.capture.id,
-      leadUserId: r.leadUserId,
       created: r.created,
-    }, 200, r.session);
+      authentication: "email_verification_required",
+    });
   } catch (e) {
-    if (e instanceof FunnelInputError) return badRequest(e.message);
+    if (e instanceof FunnelInputError) return badRequest("invalid_completion");
     return serviceUnavailable(e instanceof Error ? e.message : "hc_complete_failed");
   }
 }
@@ -62,15 +47,14 @@ export async function toolCompleteHandler(req: Request, ctx: PluginCtx): Promise
   if (!body || !body.email || !body.toolId) return badRequest("invalid_body");
   try {
     const r = await build(ctx).funnel.captureToolCompletion(body);
-    return withSessionCookie({
+    return json({
       ok: true,
       redirect: "/business-os",
-      captureId: r.capture.id,
-      leadUserId: r.leadUserId,
       created: r.created,
-    }, 200, r.session);
+      authentication: "email_verification_required",
+    });
   } catch (e) {
-    if (e instanceof FunnelInputError) return badRequest(e.message);
+    if (e instanceof FunnelInputError) return badRequest("invalid_completion");
     return serviceUnavailable(e instanceof Error ? e.message : "tool_complete_failed");
   }
 }

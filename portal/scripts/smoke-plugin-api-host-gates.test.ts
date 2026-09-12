@@ -360,6 +360,8 @@ describe("plugin API routes — the real dispatcher, driven with a real session 
       ["client-owner", "fulfillment", ["marketplace"], "GET"],
       // The route-wider-than-its-page class: the page hides these from staff.
       ["agency-staff", "agency-hr", ["roles"], "GET"],
+      ["agency-staff", "leads-pipeline", ["prospects"], "GET"],
+      ["agency-staff", "leads-pipeline", ["prospects", "outreach"], "POST"],
       ["agency-staff", "leads-pipeline", ["campaigns"], "GET"],
       ["agency-staff", "fulfillment", ["phases"], "GET"],
       // A shopper reaching the operator's back office on a plugin that DOES
@@ -581,7 +583,10 @@ describe("plugin API routes — surface invariants no manifest can break", () =>
     // 2026-09-11: 344 → 345. Leads Pipeline adds one private, owner/manager
     // Google Places search adapter for Scouting. It declares agency-admin roles,
     // so the undeclared and public counts remain unchanged.
-    assert.equal(total, 345, `the registry now ships ${total} API routes, not 345 — re-run the enumeration`);
+    // 2026-09-12: 345 → 347. The acquisition dossier repair and retained
+    // not-qualified archive add one private route each; both declare explicit
+    // roles, so undeclared/public stay fixed.
+    assert.equal(total, 347, `the registry now ships ${total} API routes, not 347 — re-run the enumeration`);
     assert.equal(undeclared, 146, `${undeclared} routes declare no roles, not 146 — re-run the enumeration`);
     assert.equal(publicRoutes, 17, `${publicRoutes} routes are public, not 17`);
 

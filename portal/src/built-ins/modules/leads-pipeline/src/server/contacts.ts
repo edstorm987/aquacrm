@@ -26,11 +26,28 @@ import type {
   UpdateContactPatch,
 } from "../lib/domain";
 import type { PluginStorage } from "../lib/aquaPluginTypes";
-import type { ActivityLogPort, EventBusPort } from "./ports";
+import { cleanMeetingAssetUrlForStorage, safeMeetingAssetUrl } from "../lib/meetingAssetUrl";
+import type { ActivityLogPort, EventBusPort, PersonIdentityPort } from "./ports";
+import {
+  appendServerMeetingAttempt,
+  type MeetingMutationInput,
+} from "./meetingMutation";
 
 const CONTACT_INDEX_KEY = "contacts/index";
 const contactKey = (id: string): string => `contact:${id}`;
 const emailPtrKey = (email: string): string => `contacts/email/${email}`;
+const leadKey = (id: string): string => `lead:${id}`;
+
+async function withContactIdentityLock<T>(
+  agencyId: AgencyId,
+  storage: PluginStorage,
+  work: () => Promise<T>,
+): Promise<T> {
+  if (typeof storage.runExclusive !== "function") {
+    throw new Error("leads_pipeline_mutation_requires_exclusive_storage");
+  }
+  return storage.runExclusive(`acquisition-state:${agencyId}`, work);
+}
 
 export class ContactService {
   constructor(
@@ -38,7 +55,34 @@ export class ContactService {
     private storage: PluginStorage,
     private activity: ActivityLogPort,
     private events: EventBusPort,
+    private personIdentity?: PersonIdentityPort,
   ) {}
+
+  assertLeadPromotable(lead: Lead): void {
+    if (lead.agencyId !== this.agencyId) throw new Error("lead_not_found");
+    if (!lead.email) throw new Error("Add an email address before converting this lead to a customer.");
+  }
+
+  private async withCanonicalPerson(contact: Contact, currentPersonId?: string): Promise<Contact> {
+    if (!this.personIdentity) return contact;
+    const resolved = await this.personIdentity.resolve({
+      agencyId: this.agencyId,
+      currentPersonId: currentPersonId ?? contact.personId,
+      email: contact.email,
+      phone: contact.phone,
+      name: contact.name,
+      company: contact.company,
+      source: contact.source,
+      contactId: contact.id,
+    });
+    if (!resolved.personId) throw new Error("contact_person_identity_missing");
+    if (currentPersonId && resolved.personId !== currentPersonId) {
+      throw new Error("contact_person_identity_conflict");
+    }
+    return contact.personId === resolved.personId
+      ? contact
+      : { ...contact, personId: resolved.personId };
+  }
 
   async list(filter?: ContactFilter): Promise<Contact[]> {
     const index = (await this.storage.get<string[]>(CONTACT_INDEX_KEY)) ?? [];
@@ -66,13 +110,38 @@ export class ContactService {
     return id ? this.get(id) : null;
   }
 
+
+  async getByPersonId(personId: string): Promise<Contact | null> {
+    const canonical = personId.trim();
+    if (!canonical) return null;
+    return (await this.list()).find(contact => contact.personId === canonical) ?? null;
+  }
+
   async upsert(input: CreateContactInput, actor: UserId): Promise<{ contact: Contact; created: boolean }> {
+    return withContactIdentityLock(this.agencyId, this.storage, () =>
+      this.upsertUnlocked(input, actor));
+  }
+
+  private async upsertUnlocked(
+    input: CreateContactInput,
+    actor: UserId,
+    requiredPersonId?: string,
+  ): Promise<{ contact: Contact; created: boolean }> {
     const email = canonEmail(input.email);
+    const inputMeetingLink = Object.prototype.hasOwnProperty.call(input, "meetingLink")
+      ? cleanMeetingAssetUrlForStorage(input.meetingLink, "Meeting link")
+      : undefined;
+    const inputCallRecordingUrl = Object.prototype.hasOwnProperty.call(input, "callRecordingUrl")
+      ? cleanMeetingAssetUrlForStorage(input.callRecordingUrl, "Call recording URL")
+      : undefined;
     const existingId = await this.storage.get<string>(emailPtrKey(email));
     if (existingId) {
       const existing = await this.get(existingId);
       if (existing) {
-        const merged: Contact = {
+        if (requiredPersonId && existing.personId && existing.personId !== requiredPersonId) {
+          throw new Error("contact_person_identity_conflict");
+        }
+        const merged = await this.withCanonicalPerson({
           ...existing,
           name: existing.name ?? input.name,
           phone: existing.phone ?? input.phone,
@@ -87,7 +156,7 @@ export class ContactService {
           convertedAt: input.convertedAt ?? existing.convertedAt,
           leadJourneyEvents: input.leadJourneyEvents?.length ? input.leadJourneyEvents : existing.leadJourneyEvents,
           nextMeetingAt: existing.nextMeetingAt ?? input.nextMeetingAt,
-          meetingLink: existing.meetingLink ?? input.meetingLink,
+          meetingLink: safeMeetingAssetUrl(existing.meetingLink) ?? inputMeetingLink,
           meetingNotes: existing.meetingNotes ?? input.meetingNotes,
           meetingMode: existing.meetingMode ?? input.meetingMode,
           meetingLocation: existing.meetingLocation ?? input.meetingLocation,
@@ -97,7 +166,7 @@ export class ContactService {
           meetingReminderSentAt: existing.meetingReminderSentAt ?? input.meetingReminderSentAt,
           meetingAttempts: existing.meetingAttempts ?? input.meetingAttempts,
           salesPresentations: existing.salesPresentations ?? input.salesPresentations,
-          callRecordingUrl: existing.callRecordingUrl ?? input.callRecordingUrl,
+          callRecordingUrl: safeMeetingAssetUrl(existing.callRecordingUrl) ?? inputCallRecordingUrl,
           sessionNotes: existing.sessionNotes ?? input.sessionNotes,
           inspirationLinks: existing.inspirationLinks ?? input.inspirationLinks,
           potentialProblems: existing.potentialProblems ?? input.potentialProblems,
@@ -107,14 +176,14 @@ export class ContactService {
           designFeedback: existing.designFeedback ?? input.designFeedback,
           supportNotes: existing.supportNotes ?? input.supportNotes,
           updatedAt: now(),
-        };
+        }, requiredPersonId ?? existing.personId);
         await this.storage.set(contactKey(existing.id), merged);
         return { contact: merged, created: false };
       }
     }
     const id = makeId("ctc");
     const ts = now();
-    const contact: Contact = {
+    const contact = await this.withCanonicalPerson({
       id,
       agencyId: this.agencyId,
       email,
@@ -130,7 +199,7 @@ export class ContactService {
       convertedAt: input.convertedAt,
       leadJourneyEvents: input.leadJourneyEvents,
       nextMeetingAt: input.nextMeetingAt,
-      meetingLink: input.meetingLink,
+      meetingLink: inputMeetingLink,
       meetingNotes: input.meetingNotes,
       meetingMode: input.meetingMode,
       meetingLocation: input.meetingLocation,
@@ -140,7 +209,7 @@ export class ContactService {
       meetingReminderSentAt: input.meetingReminderSentAt,
       meetingAttempts: input.meetingAttempts,
       salesPresentations: input.salesPresentations,
-      callRecordingUrl: input.callRecordingUrl,
+      callRecordingUrl: inputCallRecordingUrl,
       sessionNotes: input.sessionNotes,
       inspirationLinks: input.inspirationLinks,
       potentialProblems: input.potentialProblems,
@@ -153,7 +222,7 @@ export class ContactService {
       customFields: input.customFields,
       createdAt: ts,
       updatedAt: ts,
-    };
+    }, requiredPersonId);
     await this.storage.set(contactKey(id), contact);
     await this.storage.set(emailPtrKey(email), id);
     const index = (await this.storage.get<string[]>(CONTACT_INDEX_KEY)) ?? [];
@@ -176,8 +245,56 @@ export class ContactService {
   // re-runs only stamp `promotedFromLeadId` if the contact didn't
   // already have one.
   async promoteLead(lead: Lead, actor: UserId): Promise<Contact> {
-    if (!lead.email) throw new Error("Add an email address before converting this lead to a customer.");
-    const result = await this.upsert(
+    this.assertLeadPromotable(lead);
+    return withContactIdentityLock(this.agencyId, this.storage, () =>
+      this.promoteLeadUnlocked(lead, actor));
+  }
+
+  private async promoteLeadUnlocked(lead: Lead, actor: UserId): Promise<Contact> {
+    let personId = lead.personId;
+    if (this.personIdentity) {
+      const resolved = await this.personIdentity.resolve({
+        agencyId: this.agencyId,
+        currentPersonId: lead.personId,
+        email: lead.email,
+        phone: lead.phone,
+        name: lead.name,
+        company: lead.company,
+        source: lead.source,
+        leadId: lead.id,
+      });
+      personId = resolved.personId;
+      if (!personId) throw new Error("lead_person_identity_missing");
+      if (lead.personId !== personId) {
+        await this.storage.set(leadKey(lead.id), { ...lead, personId });
+      }
+    }
+
+    const existing = await this.getByEmail(lead.email);
+    if (existing?.personId && personId && existing.personId !== personId) {
+      throw new Error("contact_person_identity_conflict");
+    }
+    if (
+      existing
+      && existing.type === "customer"
+      && existing.promotedFromLeadId === lead.id
+      && existing.convertedAt === lead.convertedAt
+      && (!personId || existing.personId === personId)
+    ) {
+      if (personId && this.personIdentity) {
+        const attached = await this.personIdentity.attachFacets({
+          agencyId: this.agencyId,
+          personId,
+          leadId: lead.id,
+          contactId: existing.id,
+          ...(lead.convertedClientId ? { clientId: lead.convertedClientId } : {}),
+        });
+        if (!attached) throw new Error("contact_person_identity_missing");
+      }
+      return existing;
+    }
+
+    const result = await this.upsertUnlocked(
       {
         email: lead.email,
         name: lead.name,
@@ -192,7 +309,7 @@ export class ContactService {
         convertedAt: lead.convertedAt,
         leadJourneyEvents: lead.journeyEvents,
         nextMeetingAt: lead.nextMeetingAt,
-        meetingLink: lead.meetingLink,
+        meetingLink: safeMeetingAssetUrl(lead.meetingLink),
         meetingNotes: lead.meetingNotes,
         meetingMode: lead.meetingMode,
         meetingLocation: lead.meetingLocation,
@@ -202,7 +319,7 @@ export class ContactService {
         meetingReminderSentAt: lead.meetingReminderSentAt,
         meetingAttempts: lead.meetingAttempts,
         salesPresentations: lead.salesPresentations,
-        callRecordingUrl: lead.callRecordingUrl,
+        callRecordingUrl: safeMeetingAssetUrl(lead.callRecordingUrl),
         sessionNotes: lead.sessionNotes,
         inspirationLinks: lead.inspirationLinks,
         potentialProblems: lead.potentialProblems,
@@ -218,31 +335,167 @@ export class ContactService {
         },
       },
       actor,
+      personId,
     );
+    let contact = result.contact;
+    if (personId && contact.personId !== personId) {
+      contact = { ...contact, personId };
+      await this.storage.set(contactKey(contact.id), contact);
+    }
+    if (personId && this.personIdentity) {
+      const attached = await this.personIdentity.attachFacets({
+        agencyId: this.agencyId,
+        personId,
+        leadId: lead.id,
+        contactId: contact.id,
+        ...(lead.convertedClientId ? { clientId: lead.convertedClientId } : {}),
+      });
+      if (!attached) throw new Error("contact_person_identity_missing");
+    }
     await this.activity.logActivity({
+      idempotencyKey: `lead-contact-promotion:${this.agencyId}:${lead.id}:${contact.id}`,
       agencyId: this.agencyId,
       actorUserId: actor,
       category: "leads",
       action: "leads.contact.promoted",
-      message: `Promoted lead ${lead.id} to customer contact ${result.contact.id}.`,
-      metadata: { leadId: lead.id, contactId: result.contact.id },
+      message: `Promoted lead ${lead.id} to customer contact ${contact.id}.`,
+      metadata: { leadId: lead.id, contactId: contact.id, ...(personId ? { personId } : {}) },
     });
     this.events.emit({ agencyId: this.agencyId }, "leads.contact.promoted", {
       leadId: lead.id,
-      contactId: result.contact.id,
+      contactId: contact.id,
     });
-    return result.contact;
+    return contact;
+  }
+
+  async recordClientConversion(
+    contactId: string,
+    clientId: string,
+    actor: UserId,
+  ): Promise<Contact | null> {
+    return withContactIdentityLock(this.agencyId, this.storage, async () => {
+      const existing = await this.get(contactId);
+      if (!existing) return null;
+      let personId = existing.personId;
+      if (this.personIdentity) {
+        const resolved = await this.personIdentity.resolve({
+          agencyId: this.agencyId,
+          currentPersonId: personId,
+          email: existing.email,
+          phone: existing.phone,
+          name: existing.name,
+          company: existing.company,
+          source: existing.source,
+          contactId: existing.id,
+        });
+        personId = resolved.personId;
+        if (!personId) throw new Error("contact_person_identity_missing");
+      }
+      const updated: Contact = {
+        ...existing,
+        ...(personId ? { personId } : {}),
+        clientId,
+        type: "customer",
+        tags: Array.from(new Set([...existing.tags, "converted"])),
+        lastContactedAt: existing.lastContactedAt ?? now(),
+        updatedAt: now(),
+      };
+      if (personId && this.personIdentity) {
+        const attached = await this.personIdentity.attachFacets({
+          agencyId: this.agencyId,
+          personId,
+          contactId: updated.id,
+          clientId,
+        });
+        if (!attached) throw new Error("contact_person_identity_missing");
+      }
+      const changed = JSON.stringify({ ...updated, updatedAt: 0 })
+        !== JSON.stringify({ ...existing, updatedAt: 0 });
+      if (changed) {
+        await this.storage.set(contactKey(updated.id), updated);
+        await this.activity.logActivity({
+          idempotencyKey: `contact-client-conversion:${this.agencyId}:${updated.id}:${clientId}`,
+          agencyId: this.agencyId,
+          actorUserId: actor,
+          category: "leads",
+          action: "leads.contact.updated",
+          message: `Updated contact ${updated.id}.`,
+          metadata: { contactId: updated.id, fields: ["type", "clientId", "personId"] },
+        });
+        this.events.emit(
+          { agencyId: this.agencyId },
+          "leads.contact.updated",
+          { contactId: updated.id, clientId },
+        );
+      }
+      return changed ? updated : existing;
+    });
   }
 
   async update(id: string, patch: UpdateContactPatch, actor: UserId): Promise<Contact | null> {
+    return withContactIdentityLock(this.agencyId, this.storage, () =>
+      this.updateUnlocked(id, patch, actor));
+  }
+
+  /**
+   * Meeting attempts are append-only at this boundary. Build the new history
+   * from the latest Contact row while holding the durable agency lock so two
+   * operators cannot overwrite each other's interaction evidence.
+   */
+  async updateMeeting(
+    id: string,
+    input: MeetingMutationInput,
+    actor: UserId,
+  ): Promise<Contact | null> {
+    return withContactIdentityLock(this.agencyId, this.storage, async () => {
+      const existing = await this.get(id);
+      if (!existing) return null;
+      const mutationAt = now();
+      const patch: UpdateContactPatch = {
+        ...input.patch,
+        meetingConfirmedAt: input.meetingConfirmed
+          ? existing.meetingConfirmedAt ?? mutationAt
+          : undefined,
+        meetingReminderSentAt: input.attempt?.outcome === "reminder-sent"
+          ? mutationAt
+          : existing.meetingReminderSentAt,
+        lastContactedAt: input.attempt
+          ? Math.max(existing.lastContactedAt ?? 0, mutationAt)
+          : existing.lastContactedAt,
+      };
+      if (input.attempt) {
+        patch.meetingAttempts = appendServerMeetingAttempt(
+          existing.meetingAttempts,
+          input.attempt,
+          actor,
+          mutationAt,
+        );
+      }
+      return this.updateUnlocked(id, patch, actor);
+    });
+  }
+
+  private async updateUnlocked(id: string, patch: UpdateContactPatch, actor: UserId): Promise<Contact | null> {
     const existing = await this.get(id);
     if (!existing) return null;
-    const updated: Contact = {
+    const meetingLink = Object.prototype.hasOwnProperty.call(patch, "meetingLink")
+      ? cleanMeetingAssetUrlForStorage(patch.meetingLink, "Meeting link")
+      : safeMeetingAssetUrl(existing.meetingLink);
+    const callRecordingUrl = Object.prototype.hasOwnProperty.call(patch, "callRecordingUrl")
+      ? cleanMeetingAssetUrlForStorage(patch.callRecordingUrl, "Call recording URL")
+      : safeMeetingAssetUrl(existing.callRecordingUrl);
+    const updated = await this.withCanonicalPerson({
       ...existing,
       ...patch,
+      // Neither field is publicly editable. JSON extras survive TypeScript at
+      // runtime, so restore both trusted values after spreading the patch.
+      email: existing.email,
+      personId: existing.personId,
       tags: patch.tags ?? existing.tags,
+      meetingLink,
+      callRecordingUrl,
       updatedAt: now(),
-    };
+    }, existing.personId);
     await this.storage.set(contactKey(id), updated);
     await this.activity.logActivity({
       agencyId: this.agencyId,

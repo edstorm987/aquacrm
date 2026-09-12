@@ -11,7 +11,7 @@ import "server-only";
 
 import { on } from "@/server/eventBus";
 import { getClientForAgency } from "@/server/tenants";
-import { findPersonByIdentity } from "@/server/persons";
+import { getPerson } from "@/server/persons";
 import { seedClientFromPerson } from "@/lib/server/seeds/seedClientFromPerson";
 
 let registered = false;
@@ -28,17 +28,12 @@ export function ensurePersonClientSeedingRegistered(): void {
     const client = getClientForAgency(event.agencyId, clientId);
     if (!client) return;
 
-    // Resolve by the addresses the workspace actually carries. A conversion
-    // copies the lead's contact details onto the client, so this finds the
-    // same person the lead pointed at without the plugin having to tell us.
-    const metadata = (client.metadata ?? {}) as Record<string, unknown>;
-    const emails = [metadata.portalLoginEmail, metadata.clientEmail, client.ownerEmail]
-      .filter((value): value is string => typeof value === "string" && value.trim().length > 0);
-    const phones = [metadata.phone, metadata.contactPhone]
-      .filter((value): value is string => typeof value === "string" && value.trim().length > 0);
-    if (!emails.length && !phones.length) return;
-
-    const person = findPersonByIdentity(event.agencyId, { emails, phones, name: client.name });
+    // Only a server-authored typed pointer is identity evidence. Client names,
+    // addresses, phone numbers, and metadata may be shared or user-controlled;
+    // using any of them here could attach one person's private history to a
+    // different client's workspace.
+    if (!client.personId) return;
+    const person = getPerson(event.agencyId, client.personId);
     if (!person) return;
 
     try {

@@ -6,9 +6,15 @@ import { AGENCY_ROLES } from "@/server/types";
 
 import { SopLibrary } from "./_SopLibrary";
 
-export default async function SopLibraryPage() {
+export default async function SopLibraryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ query?: string | string[] }>;
+}) {
   await ensureHydrated();
   const session = await requireRole([...AGENCY_ROLES]);
+  const rawQuery = (await searchParams).query;
+  const initialQuery = typeof rawQuery === "string" ? rawQuery.slice(0, 160) : "";
   const canManageGuides = !session.publicShowcase
     && (session.role === "agency-owner" || session.role === "agency-manager");
   return (
@@ -17,6 +23,7 @@ export default async function SopLibraryPage() {
       initialCategories={listSopCategories(session.agencyId)}
       initialGuides={listSopGuides(session.agencyId)}
       canManageGuides={canManageGuides}
+      initialQuery={initialQuery}
     />
   );
 }

@@ -39,7 +39,7 @@ describe("every hat lands on its own real workspace — never the generic dashbo
 
   it("the five non-Executive departments each embed a distinct real workspace", () => {
     const expected: Record<string, string> = {
-      sales: "/portal/agency/pipelines/leads",
+      sales: "/portal/agency/scouting",
       delivery: "/portal/agency/fulfilment",
       finance: "/portal/agency/agency-finance",
       marketing: "/portal/agency/marketing",
@@ -131,23 +131,29 @@ describe("the switcher drives the landing (a hard nav, not a fragile redirect)",
   });
 });
 
-describe("the standalone Meetings surface reuses one derivation", () => {
-  it("the route renders the shared card from the shared feed", () => {
+describe("the standalone Meetings surface reuses the canonical Journey records", () => {
+  it("the route renders the full shared workbench from the shared feed", () => {
     const route = readFileSync("src/app/portal/agency/meetings/page.tsx", "utf8");
-    assert.match(route, /loadUpcomingMeetings/);
-    assert.match(route, /<UpcomingMeetings/);
+    assert.match(route, /loadJourneyMeetingPeople/);
+    assert.match(route, /<JourneyMeetingsWorkspace/);
   });
 
-  it("the feed derives meetings exactly as the leads pipeline does", () => {
+  it("the feed derives one tenant-scoped operational view from Leads and Contacts", () => {
     const feed = readFileSync("src/lib/server/agency/meetingsFeed.ts", "utf8");
     assert.match(feed, /isLeadJourneyEligible/);
-    assert.match(feed, /timestampFromValue\(lead\.nextMeetingAt\)/);
-    assert.match(feed, /\.sort\(\(a, b\) => a\.meetingAt - b\.meetingAt\)/);
+    assert.match(feed, /container\.leads\.list\(\)/);
+    assert.match(feed, /container\.contacts\.list\(\)/);
+    assert.match(feed, /deriveOperationalMeetings/);
+    assert.match(feed, /deriveJourneyMeetingPeople/);
+    assert.match(feed, /referenceNow/);
   });
 
-  it("the shared card can show more than the five-row dashboard preview", () => {
+  it("the shared card can show more than the preview without exposing raw call or email links", () => {
     const card = readFileSync("src/app/portal/agency/leads-pipeline/_UpcomingMeetings.tsx", "utf8");
     assert.match(card, /limit = 5/);
-    assert.match(card, /\.slice\(0, limit\)/);
+    assert.match(card, /selectOperationalUpcomingMeetings/);
+    assert.match(card, /Prepare meeting/);
+    assert.match(card, /Progress in Journey/);
+    assert.doesNotMatch(card, /mailto:|tel:/);
   });
 });

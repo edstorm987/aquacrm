@@ -19,6 +19,7 @@ import { upsertClientSocialMessageLedgerEvent } from "@/lib/server/clients/clien
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import { listClients } from "@/server/tenants";
 import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,7 @@ export async function GET(request: Request) {
   try {
     await ensureHydrated({ fresh: true });
     const session = await requireRole(["agency-owner", "agency-manager", "agency-staff"]);
+    await requireCurrentWorkspaceElementAccess("staff", "workspace.inbox", "view");
     if (session.isDemo) return NextResponse.json({ ok: true, reviews: [], clients: clientOptions(session.agencyId) });
     const url = new URL(request.url);
     const requestedStatus = url.searchParams.get("status");
@@ -46,6 +48,7 @@ export async function POST() {
   try {
     await ensureHydrated({ fresh: true });
     const session = await requireRole(["agency-owner", "agency-manager", "agency-staff"]);
+    await requireCurrentWorkspaceElementAccess("staff", "workspace.inbox", "use");
     if (session.isDemo) return NextResponse.json({ ok: false, error: "Showcase Mode is read-only." }, { status: 403 });
     const [enquiriesResult, socialResult] = await Promise.allSettled([
       listWebsiteEnquiries(session.agencyId, 500),
@@ -76,6 +79,7 @@ export async function PATCH(request: Request) {
   try {
     await ensureHydrated({ fresh: true });
     const session = await requireRole(["agency-owner", "agency-manager", "agency-staff"]);
+    await requireCurrentWorkspaceElementAccess("staff", "workspace.inbox", "use");
     if (session.isDemo) return NextResponse.json({ ok: false, error: "Showcase Mode is read-only." }, { status: 403 });
     const body = await request.json().catch(() => null) as {
       reviewId?: unknown;
@@ -117,7 +121,7 @@ export async function PATCH(request: Request) {
       if (review.sourceType === "website-enquiry") {
         const enquiry = (await listWebsiteEnquiries(session.agencyId, 500)).find(item => item.id === review.sourceId);
         if (enquiry) {
-          await recordWebsiteEnquiryIdentityResolution(enquiry.id, review.resolution);
+          await recordWebsiteEnquiryIdentityResolution(enquiry.id, review.resolution, "manual-review");
           synchroniseWebsiteEnquiryLedgerEvents(session.agencyId, review.selectedClientId, { ...enquiry, clientId: review.selectedClientId });
         }
       } else if (review.sourceType === "social-inbox") {

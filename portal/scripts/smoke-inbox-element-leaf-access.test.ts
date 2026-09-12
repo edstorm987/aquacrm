@@ -36,6 +36,12 @@ test("conversation reads project client visibility and every conversation write 
   assert.match(conversations, /getInboxConversation\(agencyId, body\.conversationId\)/);
   assert.match(conversations, /currentConversation\.identity\.clientId/);
   assert.match(conversations, /requireCurrentClientWorkspaceElementAccess\([\s\S]*?"client\.communications",[\s\S]*?"use"/);
+  assert.match(conversations, /validateAcquisitionLinks\(agencyId,/);
+  assert.match(conversations, /sales\.leads\.get\(links\.leadId\)/);
+  assert.match(conversations, /sales\.contacts\.get\(links\.contactId\)/);
+  assert.match(conversations, /inbox_lead_not_found/);
+  assert.match(conversations, /inbox_contact_not_found/);
+  assert.match(conversations, /inbox_acquisition_identity_conflict/);
   assert.doesNotMatch(conversations, /listInboxSnapshot\(session\.agencyId\)/);
 });
 

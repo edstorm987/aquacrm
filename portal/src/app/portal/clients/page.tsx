@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { JourneyKanbansDesk, type KanbanDirectoryRow } from "./_JourneyKanbansDesk";
 import { listPipelines, pipelineCardCounts } from "@/server/pipelines";
 import { currentWorkspaceElementAccess, workspaceElementLevel } from "@/lib/server/access/workspaceElementAccess";
@@ -24,7 +24,7 @@ import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { containerFor } from "@aqua/plugin-leads-pipeline/server";
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
-import { PeopleHub, type ContactRole, type HubContact } from "./_PeopleHub";
+import { PeopleHub, type ContactRole, type HubContact, type PeopleHubView } from "./_PeopleHub";
 import { agencyProductsForRead, listAgencyProducts } from "@/server/agencyProducts";
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
 import { listTradingCompanies } from "@/server/tradingCompanies";
@@ -57,11 +57,15 @@ import { getPortalFormFields } from "@/server/portalEditor";
 import { withPersonalChrome } from "@/lib/server/chrome/personalPanels";
 import { requireCurrentAccessActor } from "@/server/accessControl";
 import { filterOperationalAlertsForActor } from "@/lib/server/access/operationalAlertAccess";
+import { SalesAcquisitionTabs } from "@/components/sales/SalesAcquisitionTabs";
+import { clientMatchesContact, clientMatchesLead } from "@/built-ins/modules/leads-pipeline/src/lib/clientMatch";
+import {
+  clientWorkspaceElementAtLeast,
+  clientWorkspaceElementLevel,
+  resolveActorClientWorkspaceElementAccess,
+} from "@/lib/server/access/clientWorkspaceElementAccess";
 
 interface JourneyClientMetadata {
-  leadId?: string;
-  contactId?: string;
-  promotedFromLeadId?: string;
   leadSource?: string;
   lastContactedAt?: number;
   products?: unknown[];
@@ -135,13 +139,42 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
   } catch {
     redirect("/portal");
   }
-  const actor = await requireCurrentAccessActor();
   const agency = getAgency(session.agencyId);
   if (!agency) redirect("/login");
+  const requestedView = (await searchParams).view;
+  const isStaff = session.role === "agency-staff";
+  const canAccessAllHubViews = session.role === "agency-owner" || session.role === "agency-manager";
+  const forbiddenStaffViews = new Set(["all", "contacts", "leads", "journey", "identity", "staff"]);
+  // Staff must be rejected before contacts, leads, identity-review, commercial,
+  // or other agency-wide records are loaded. Unknown values safely collapse to
+  // their sole allowed view; an explicit sensitive view never does.
+  if (isStaff && requestedView && forbiddenStaffViews.has(requestedView)) notFound();
+  const initialView: PeopleHubView = isStaff
+    ? "clients"
+    : requestedView === "health"
+      ? "clients"
+      : requestedView === "all"
+        ? "contacts"
+        : requestedView === "contacts" || requestedView === "staff" || requestedView === "clients" || requestedView === "leads" || requestedView === "journey" || requestedView === "identity"
+          ? requestedView
+          : "journey";
+  const allowedViews: readonly PeopleHubView[] = isStaff
+    ? ["clients"]
+    : ["clients", "leads", "journey", "contacts", "identity", "staff"];
+  const actor = await requireCurrentAccessActor();
+  const actorLabelFor = (actorUserId?: string): string | undefined => {
+    if (!actorUserId) return undefined;
+    const meetingActor = getUserById(actorUserId);
+    if (!meetingActor || !meetingActor.agencyIds.includes(agency.id)) return "Former team member";
+    return meetingActor.name.trim() || meetingActor.email;
+  };
 
   const currentUser = getUserById(session.userId);
   const serviceBrands = listTradingCompanies(session.agencyId).filter(company => company.status !== "archived");
-  const clients = listClients(session.agencyId);
+  const clients = listClients(session.agencyId).filter(client => !isStaff || clientWorkspaceElementAtLeast(
+    clientWorkspaceElementLevel(resolveActorClientWorkspaceElementAccess(actor, client.id), "client.overview"),
+    "view",
+  ));
   const relationshipWorkspaceCounts = clients.reduce((counts, client) => {
     const relationshipId = clientRelationshipId(client);
     counts.set(relationshipId, (counts.get(relationshipId) ?? 0) + 1);
@@ -153,7 +186,7 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
   // any more (issue #21), so the whole line goes.
   const products = listAgencyProducts(session.agencyId);
   const workspaceSettings = getAgencyWorkspaceSettings(session.agencyId);
-  const leadsInstall = getInstall({ agencyId: agency.id }, "leads-pipeline");
+  const leadsInstall = canAccessAllHubViews ? getInstall({ agencyId: agency.id }, "leads-pipeline") : undefined;
   let contacts: HubContact[] = [];
   let journeyMeetingPeople: JourneyMeetingPerson[] = [];
   if (leadsInstall) {
@@ -166,9 +199,9 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
       leadsContainer.contacts.list(),
       leadsContainer.leads.list(),
     ]);
-    const contactEmails = new Set(contactRows.map(contact => contact.email.toLowerCase()));
+    const promotedLeadIds = new Set(contactRows.flatMap(contact => contact.promotedFromLeadId ? [contact.promotedFromLeadId] : []));
     const meetingContacts = contactRows.filter(contact => contact.type === "lead" || contact.type === "customer" || contact.type === "account");
-    const meetingContactEmails = new Set(meetingContacts.map(contact => contact.email.toLowerCase()));
+    const meetingPromotedLeadIds = new Set(meetingContacts.flatMap(contact => contact.promotedFromLeadId ? [contact.promotedFromLeadId] : []));
     journeyMeetingPeople = [
       ...meetingContacts.map(contact => ({
         id: contact.id,
@@ -187,14 +220,23 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
         meetingConfirmedAt: contact.meetingConfirmedAt,
         meetingReminderAt: contact.meetingReminderAt,
         meetingReminderSentAt: contact.meetingReminderSentAt,
-        meetingAttempts: contact.meetingAttempts,
+        meetingAttempts: contact.meetingAttempts?.map(attempt => ({
+          id: attempt.id,
+          at: attempt.at,
+          actorLabel: actorLabelFor(attempt.actorUserId),
+          channel: attempt.channel,
+          outcome: attempt.outcome,
+          notes: attempt.notes,
+        })),
         salesPresentations: contact.salesPresentations,
         callRecordingUrl: contact.callRecordingUrl,
         sessionNotes: contact.sessionNotes,
       })),
       ...leadRows
         .filter(isLeadJourneyEligible)
-        .filter(lead => !meetingContactEmails.has(lead.email.toLowerCase()))
+        // Shared mailboxes are not identity. Only explicit promotion lineage
+        // proves that the Contact supersedes this exact Lead meeting.
+        .filter(lead => !meetingPromotedLeadIds.has(lead.id))
         .map(lead => ({
           id: lead.id,
           kind: "lead" as const,
@@ -212,7 +254,14 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
           meetingConfirmedAt: lead.meetingConfirmedAt,
           meetingReminderAt: lead.meetingReminderAt,
           meetingReminderSentAt: lead.meetingReminderSentAt,
-          meetingAttempts: lead.meetingAttempts,
+          meetingAttempts: lead.meetingAttempts?.map(attempt => ({
+            id: attempt.id,
+            at: attempt.at,
+            actorLabel: actorLabelFor(attempt.actorUserId),
+            channel: attempt.channel,
+            outcome: attempt.outcome,
+            notes: attempt.notes,
+          })),
           salesPresentations: lead.salesPresentations,
           callRecordingUrl: lead.callRecordingUrl,
           sessionNotes: lead.sessionNotes,
@@ -221,6 +270,7 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
     contacts = [
       ...contactRows.map(contact => ({
         id: contact.id,
+        personId: contact.personId,
         email: contact.email,
         name: contact.name,
         phone: contact.phone,
@@ -248,9 +298,10 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
       })),
       ...leadRows
         .filter(isLeadJourneyEligible)
-        .filter(lead => !contactEmails.has(lead.email.toLowerCase()))
+        .filter(lead => !promotedLeadIds.has(lead.id))
         .map(lead => ({
           id: lead.id,
+          personId: lead.personId,
           email: lead.email,
           name: lead.name,
           phone: lead.phone,
@@ -266,6 +317,8 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
 	          lastEnquiryRespondedAt: lead.lastEnquiryRespondedAt,
 	          currentStageId: lead.currentStageId,
 	          pipelineCardId: lead.pipelineCardId,
+	          clientId: lead.clientId,
+	          convertedClientId: lead.convertedClientId,
 	          recordKind: "lead" as const,
           relationshipCategory: inferLeadRelationshipCategory(lead),
           brandIds: [...new Set([lead.companyId, ...(lead.companyIds ?? [])].filter((value): value is string => Boolean(value)))],
@@ -281,21 +334,9 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
   const brandById = new Map(serviceBrands.map(brand => [brand.id, brand.name]));
   const productById = new Map(products.map(product => [product.id, product.name]));
   contacts = contacts.map(contact => {
-    const email = contact.email.trim().toLowerCase();
-    const relatedClients = clients.filter(client => {
-      const metadata = client.metadata as { leadId?: string; contactId?: string; promotedFromLeadId?: string; linkedContacts?: unknown } | undefined;
-      if (contact.clientId === client.id) return true;
-      if (contact.recordKind === "lead" && (metadata?.leadId === contact.id || metadata?.promotedFromLeadId === contact.id)) return true;
-      if (contact.recordKind === "contact" && metadata?.contactId === contact.id) return true;
-      if (contact.promotedFromLeadId && (metadata?.leadId === contact.promotedFromLeadId || metadata?.promotedFromLeadId === contact.promotedFromLeadId)) return true;
-      if (client.ownerEmail?.trim().toLowerCase() === email) return true;
-      if (!Array.isArray(metadata?.linkedContacts)) return false;
-      return metadata.linkedContacts.some(value => {
-        if (!value || typeof value !== "object") return false;
-        const linked = value as { id?: unknown; email?: unknown };
-        return linked.id === contact.id || (typeof linked.email === "string" && linked.email.trim().toLowerCase() === email);
-      });
-    });
+    const relatedClients = clients.filter(client => contact.recordKind === "lead"
+      ? clientMatchesLead(client, contact)
+      : clientMatchesContact(client, contact));
     const brandIds = [...new Set([...contact.brandIds, ...relatedClients.map(client => client.companyId).filter((value): value is string => Boolean(value))])];
     const services = relatedClients.flatMap(client => resolvePortalProductAssignment(client.metadata ?? {}, products).products);
     const canonicalServiceIds = contact.serviceIds.map(value => products.find(product => product.id === value || product.name.toLowerCase() === value.toLowerCase())?.id ?? value);
@@ -309,16 +350,16 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
     };
   });
   journeyMeetingPeople = journeyMeetingPeople.map(person => {
-    const related = contacts.find(contact => contact.email.trim().toLowerCase() === person.email.trim().toLowerCase());
+    const related = contacts.find(contact => contact.recordKind === person.kind && contact.id === person.id);
     return {
       ...person,
       brandName: related?.brandNames[0],
       serviceNames: related?.serviceNames ?? [],
     };
   });
-  if (session.isDemo && !session.publicShowcase) {
+  if (canAccessAllHubViews && session.isDemo && !session.publicShowcase) {
     clearIdentityResolutionReviews(session.agencyId);
-  } else if (!session.publicShowcase) {
+  } else if (canAccessAllHubViews && !session.publicShowcase) {
     const [identityEnquiries, identitySocial] = await Promise.allSettled([
       listWebsiteEnquiries(session.agencyId, 500),
       listInboxSnapshot(session.agencyId),
@@ -330,38 +371,34 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
       await synchroniseInboxIdentityResolutions(session.agencyId, identitySocial.value).catch(() => identitySocial.value);
     }
   }
-  await flushPendingWritesForRender();
-  const identityReviews = session.isDemo ? [] : listIdentityResolutionReviews(session.agencyId, { status: "all" });
-  const requestedView = (await searchParams).view;
-  const initialView = requestedView === "health"
-    ? "clients"
-    : requestedView === "all"
-      ? "contacts"
-      : requestedView === "contacts" || requestedView === "staff" || requestedView === "clients" || requestedView === "leads" || requestedView === "journey" || requestedView === "identity"
-      ? requestedView
-      : "journey";
+  if (canAccessAllHubViews) await flushPendingWritesForRender();
+  const identityReviews = !canAccessAllHubViews || session.isDemo
+    ? []
+    : listIdentityResolutionReviews(session.agencyId, { status: "all" });
   const installs = listInstalledFor({ agencyId: agency.id });
   const eff = effectiveRole(session);
-  const canViewFinance = hasAllPermissions(eff, ["finance.view"]);
-  const contractTemplates: ClientContractTemplate[] = [
-    ...listContractTemplates(agency.id),
-    ...products
-      .filter(product => Boolean(product.contractBody?.trim()))
-      .map(product => ({
-        id: `product:${product.id}`,
-        agencyId: agency.id,
-        title: product.contractTitle?.trim() || `${product.name} agreement`,
-        summary: product.description,
-        body: product.contractBody!.trim(),
-        status: "active" as const,
-        source: "product" as const,
-        createdBy: "product-library",
-        createdAt: product.createdAt,
-        updatedAt: product.updatedAt,
-      })),
-  ];
+  const canViewFinance = canAccessAllHubViews && hasAllPermissions(eff, ["finance.view"]);
+  const contractTemplates: ClientContractTemplate[] = canAccessAllHubViews
+    ? [
+        ...listContractTemplates(agency.id),
+        ...products
+          .filter(product => Boolean(product.contractBody?.trim()))
+          .map(product => ({
+            id: `product:${product.id}`,
+            agencyId: agency.id,
+            title: product.contractTitle?.trim() || `${product.name} agreement`,
+            summary: product.description,
+            body: product.contractBody!.trim(),
+            status: "active" as const,
+            source: "product" as const,
+            createdBy: "product-library",
+            createdAt: product.createdAt,
+            updatedAt: product.updatedAt,
+          })),
+      ]
+    : [];
   const invoicesByClient = new Map<string, Invoice[]>();
-  const financeInstall = getInstall({ agencyId: agency.id }, "agency-finance");
+  const financeInstall = canAccessAllHubViews ? getInstall({ agencyId: agency.id }, "agency-finance") : undefined;
   const financeConnected = Boolean(financeInstall?.enabled);
   let financeAvailable = !financeConnected;
   if (financeInstall?.enabled && canViewFinance) {
@@ -378,7 +415,7 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
       financeAvailable = false;
     }
   }
-  const journeyClients: JourneyCommercialClient[] = clients.map(client => {
+  const journeyClients: JourneyCommercialClient[] = canAccessAllHubViews ? clients.map(client => {
     const metadata = client.metadata as JourneyClientMetadata | undefined;
     const services = resolvePortalProductAssignment(metadata ?? {}, products).products;
     const requestsObserved = Array.isArray(metadata?.clientRequests);
@@ -426,7 +463,7 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
         telemetryEvents: metadata?.telemetryEvents,
       }),
     };
-  });
+  }) : [];
   const basePanels = buildSidebar({
     role: session.role,
     scope: "agency",
@@ -446,6 +483,7 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
   const panels = await withPersonalChrome(addSidebarAttention(basePanels, alertViews.filter(alert => alert.attention)));
   const currentPath = initialView === "journey" ? "/portal/clients?view=journey" : "/portal/clients";
   const workspaceName = session.publicShowcase ? agency.name : INTERNAL_WORKSPACE_NAME;
+  const canManage = canAccessAllHubViews && !session.publicShowcase;
 
   return (
     <>
@@ -496,18 +534,23 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
                 lands exactly as it does there. */}
             <ErrorBoundary label="clients index">
               <PortalRouteCanvas>
-                <PeopleHub
-                  canManage={!session.publicShowcase}
-                  clientCustomFields={getPortalFormFields(session.agencyId, "clients")}
+                <div className="flex flex-col gap-5">
+                  {initialView === "contacts" && (session.role === "agency-owner" || session.role === "agency-manager")
+                    ? <SalesAcquisitionTabs active="contacts" />
+                    : null}
+                  <PeopleHub
+                  canManage={canManage}
+                  allowedViews={allowedViews}
+                  clientCustomFields={canManage ? getPortalFormFields(session.agencyId, "clients") : []}
                   initialView={initialView}
                   identityReviews={identityReviews}
-                  clientDefaults={workspaceSettings}
-                  brands={serviceBrands.map(company => ({
+                  clientDefaults={canManage ? workspaceSettings : { defaultClientStage: "aqua-epic-intro", createPortalByDefault: false }}
+                  brands={canManage ? serviceBrands.map(company => ({
                     id: company.id,
                     name: company.name,
                     primaryColor: company.brand.primaryColor,
-                  }))}
-                  products={products.map(product => ({
+                  })) : []}
+                  products={canManage ? products.map(product => ({
                     id: product.id, kind: product.kind, name: product.name, category: product.category,
                     description: product.description ?? "", deliverables: product.deliverables,
                     buyerHeadline: product.buyerHeadline, coverImageUrl: product.coverImageUrl,
@@ -521,9 +564,9 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
                     internalInfo: product.internalInfo, contractTitle: product.contractTitle,
                     contractBody: product.contractBody, sopIds: product.sopIds,
                     sopCategories: product.sopCategories, companyIds: product.companyIds,
-                  }))}
-                  journeyWorkspace={session.publicShowcase ? null : <JourneyCommercialWorkspace
-                    pipeline={<LeadsPipelineWorkspaceServer agencyId={agency.id} userId={session.userId} />}
+                  })) : []}
+                  journeyWorkspace={canAccessAllHubViews && !session.publicShowcase ? <JourneyCommercialWorkspace
+                    pipeline={<LeadsPipelineWorkspaceServer agencyId={agency.id} userId={session.userId} showAcquisitionTabs={false} />}
                     kanbans={<JourneyKanbansDesk rows={await assembleKanbanRows(agency.id)} level={await kanbansLevel()} />}
                     meetingPeople={journeyMeetingPeople}
                     referenceNow={Date.now()}
@@ -531,7 +574,7 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
                     contractTemplates={contractTemplates}
                     canViewFinance={canViewFinance}
                     financeEvidenceState={!financeConnected || financeAvailable ? "ready" : canViewFinance ? "unavailable" : "restricted"}
-                  />}
+                  /> : null}
                   clients={clients.map(client => {
                     const metadata = client.metadata as JourneyClientMetadata | undefined;
                     const services = resolvePortalProductAssignment(metadata ?? {}, products).products;
@@ -542,6 +585,7 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
                     ].filter((note): note is string => Boolean(note));
                     return {
                     id: client.id,
+                    personId: client.personId,
                     name: client.name,
                     ownerEmail: client.ownerEmail,
                     websiteUrl: client.websiteUrl,
@@ -549,9 +593,6 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
                     status: client.status,
                     primaryColor: client.brand.primaryColor,
                     source: metadata?.leadSource ?? "Unknown",
-                    leadId: metadata?.leadId,
-                    contactId: metadata?.contactId,
-                    promotedFromLeadId: metadata?.promotedFromLeadId,
                     niche: metadata?.niche ?? (typeof metadata?.customFields?.niche === "string" ? metadata.customFields.niche : undefined),
                     lastContactedAt: metadata?.lastContactedAt,
                     health: healthNotes.length ? "attention" as const : "healthy" as const,
@@ -564,8 +605,9 @@ export default async function ClientsList({ searchParams }: { searchParams: Prom
                     serviceIds: services.map(service => service.id),
                     serviceNames: services.map(service => service.name),
                   };})}
-                  contacts={contacts}
-                />
+                    contacts={contacts}
+                  />
+                </div>
               </PortalRouteCanvas>
             </ErrorBoundary>
           </main>

@@ -57,5 +57,6 @@ test("contacts retain the same meeting lifecycle after lead conversion", () => {
 
   assert.match(domain, /export interface Contact[\s\S]*meetingMode\?: MeetingMode[\s\S]*meetingAttempts\?: MeetingAttempt\[\]/);
   assert.match(contacts, /meetingStatus: lead\.meetingStatus/);
-  assert.match(handlers, /export async function updateContactMeetingHandler[\s\S]*validStatuses[\s\S]*meetingReminderSentAt/);
+  assert.match(handlers, /export async function updateContactMeetingHandler[\s\S]*validStatuses[\s\S]*service\.updateMeeting/);
+  assert.match(contacts, /async updateMeeting[\s\S]*meetingReminderSentAt[\s\S]*appendServerMeetingAttempt/);
 });

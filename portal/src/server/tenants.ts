@@ -157,6 +157,8 @@ export function updateAgency(id: string, patch: UpdateAgencyPatch): Agency | nul
 
 export interface CreateClientInput {
   name: string;
+  /** Server-verified canonical person; never accepted from a public form. */
+  personId?: string;
   slug?: string;
   relationshipId?: string;
   workspaceLabel?: string;
@@ -186,6 +188,7 @@ export function createClient(agencyId: string, input: CreateClientInput): Client
     saved = {
       id,
       agencyId,
+      personId: input.personId?.trim() || undefined,
       relationshipId: input.relationshipId?.trim() || id,
       workspaceLabel: input.workspaceLabel?.trim() || undefined,
       companyId: input.companyId,
@@ -241,6 +244,8 @@ export function listClients(agencyId: string, options: { includeArchived?: boole
 
 export interface UpdateClientPatch {
   name?: string;
+  /** Server-verified canonical person; never copied from free-form metadata. */
+  personId?: string | null;
   relationshipId?: string | null;
   workspaceLabel?: string | null;
   ownerEmail?: string;
@@ -287,6 +292,7 @@ export function updateClient(agencyId: string, clientId: string, patch: UpdateCl
     if (patch.status === "active" && current.status !== "active") metadata.reactivatedAt = now;
     saved = {
       ...current,
+      personId: patch.personId === null ? undefined : patch.personId?.trim() || current.personId,
       relationshipId: patch.relationshipId === null ? undefined : patch.relationshipId?.trim() || current.relationshipId,
       workspaceLabel: patch.workspaceLabel === null ? undefined : patch.workspaceLabel?.trim() || current.workspaceLabel,
       companyId: patch.companyId === null ? undefined : patch.companyId ?? current.companyId,

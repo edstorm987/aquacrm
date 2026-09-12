@@ -28,6 +28,9 @@ export interface HCSlot {
 export interface LeadCapture {
   id: string;
   source: LeadSource;
+  /** Exact erasure lineage. Historical/pre-client captures omit both fields. */
+  clientId?: string;
+  personId?: string;
   // The lead user's id. Set after the user is created by the LeadUserPort.
   leadUserId: UserId;
   email: string;
@@ -59,13 +62,8 @@ export interface CaptureToolInput {
 export interface CaptureResult {
   capture: LeadCapture;
   leadUserId: UserId;
-  // Opaque session token / cookie string. Foundation's SessionPort
-  // produces this; the plugin treats it as a black box and returns
-  // it in the JSON body for the HC client to set client-side, OR
-  // the foundation handler re-issues a Set-Cookie response header.
-  session?: string;
-  // Whether the call created a NEW lead user. False on idempotent
-  // re-completion (same email re-submits HC).
+  // Anonymous completion can only register a brand-new lead. Existing
+  // identities and replayed completion ids fail closed before this result.
   created: boolean;
 }
 

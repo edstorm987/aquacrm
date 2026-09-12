@@ -176,8 +176,18 @@ export function brandEnquiryWorkFrom(value: unknown): BrandEnquiryWork | null {
 export function completionMetadataPatch(work: BrandEnquiryWork, effects: EffectRecords, completedAt = new Date().toISOString()): Record<string, unknown> {
   const lead = effects.lead ?? {};
   const identity = effects.identity ?? {};
+  const ledger = effects.ledger ?? {};
   const leadId = typeof lead.leadId === "string" ? lead.leadId : null;
-  const clientId = typeof identity.clientId === "string" ? identity.clientId : null;
+  const clientLinkSource = ledger.clientLinkSource === "configured-site-route"
+    ? "configured-site-route"
+    : null;
+  // Public identity signals are suggestions, not client-record authority.
+  // Only the configured site-routing effect may supply a client link here;
+  // manual review uses the authenticated identity-resolution writer.
+  const clientId = clientLinkSource && typeof ledger.clientId === "string"
+    ? ledger.clientId
+    : null;
+  const identityClientId = typeof identity.clientId === "string" ? identity.clientId : null;
   const resolvedAt = typeof identity.resolvedAt === "string" ? identity.resolvedAt : completedAt;
   return {
     notification: stringField(effects.notification?.notification, effects.notification?.status === "unknown" ? "unknown" : "not-configured"),
@@ -187,12 +197,13 @@ export function completionMetadataPatch(work: BrandEnquiryWork, effects: EffectR
     leadCreated: Boolean(leadId),
     leadLinkedAt: leadId ? completedAt : null,
     clientId,
+    clientLinkSource,
     clientLinkedAt: clientId ? resolvedAt : null,
     identityResolution: {
       status: stringField(identity.resolutionStatus, "unmatched"),
       confidence: typeof identity.confidence === "number" ? identity.confidence : 0,
       explanation: stringField(identity.explanation),
-      clientId,
+      clientId: identityClientId,
       clientName: typeof identity.clientName === "string" ? identity.clientName : null,
       resolvedAt,
     },

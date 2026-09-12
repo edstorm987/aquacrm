@@ -404,7 +404,7 @@
             </p>
             <div class="contact-detail"><span>For existing clients</span><a data-aquacrm-login href="https://aqua-crm.com/login?brand=aquacrm&amp;next=/portal" target="_blank" rel="noopener noreferrer">Open your AquaCRM portal →</a></div>
           </div>
-          <form class="enquiry-form" id="enquiry-form" data-aqua-form="AquaCRM systems enquiry">
+          <form class="enquiry-form" id="enquiry-form" data-aqua-form="AquaCRM systems enquiry" data-aqua-challenge-action="brand-enquiry">
             <input class="form-trap" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" aria-label="Leave this field blank" />
             <div class="form-pair">
               <label>Name<input required name="name" autocomplete="name" /></label>
@@ -455,7 +455,7 @@
       <section class="lead-chat-panel" id="aqua-lead-chat" data-lead-chat-panel hidden aria-label="AquaCRM enquiry assistant">
         <header><div><span>Aqua concierge</span><strong>Where is the pressure?</strong></div><button type="button" data-lead-chat-close aria-label="Close enquiry assistant">×</button></header>
         <p>Choose a starting point, then leave the details we need to reply with something useful.</p>
-        <form data-chat-enquiry>
+        <form data-chat-enquiry data-aqua-challenge-action="brand-enquiry">
           <fieldset><legend>I need better control of</legend><div class="chat-choices"><label><input type="radio" name="service" value="Agency operating system" checked />Agency delivery</label><label><input type="radio" name="service" value="Delegation and executive visibility" />Delegation</label><label><input type="radio" name="service" value="Customer portal" />Client experience</label><label><input type="radio" name="service" value="Not sure yet" />Not sure yet</label></div></fieldset>
           <label>Name<input required name="name" autocomplete="name" /></label>
           <label>Work email<input required type="email" name="email" autocomplete="email" /></label>
@@ -780,6 +780,7 @@
               campaign: new URLSearchParams(window.location.search).get("utm_campaign") || "",
               consent: data.get("consent") === "yes",
               website: data.get("website"),
+              captchaToken: data.get("captchaToken"),
             }),
           });
           const result = await response.json();
@@ -791,6 +792,7 @@
           status.textContent = error instanceof Error ? error.message : "Unable to send your enquiry.";
           status.classList.add("is-error");
         } finally {
+          window.AquaBotChallenge?.reset(form);
           submit.disabled = false;
           submit.innerHTML = 'Start the conversation <span aria-hidden="true">→</span>';
         }
@@ -803,6 +805,7 @@
         link.href = `${aquaCrmLoginOrigin}/login/live?brand=aquacrm&next=/portal`;
       });
     </script>
+    <script src="/aqua-bot-challenge.js" defer></script>
     <script src="/site-experience.js" defer></script>
   </body>
 </html>

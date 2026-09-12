@@ -11,11 +11,12 @@ import {
   recordLoginFailure,
   recordLoginSuccess,
 } from "@/lib/server/rateLimit";
-import { getAgency, listAgencies } from "@/server/tenants";
-import { getUserByLogin } from "@/server/users";
+import { getAgency, getClientForAgency, listAgencies } from "@/server/tenants";
+import { getUserByLogin, getUserBySupabaseAuthId } from "@/server/users";
 import { logActivity } from "@/server/activity";
 import { resolvePostLoginPath } from "@/lib/server/auth/postLoginRedirect";
 import { getAuthBrand, matchAuthBrandAgency } from "@/lib/brands/authBrand";
+import { CUSTOMER_PORTAL_ROLES } from "@/server/types";
 import {
   MFA_LOGIN_REJECTED_MESSAGE,
   consumeRecoveryCode,
@@ -23,12 +24,16 @@ import {
   loginMfaStep,
   raisedToSecondFactor,
 } from "@/lib/server/auth/mfa";
+import { verifyBotChallenge } from "@/lib/server/security/botChallenge";
 
 interface Body {
   email?: unknown;
   username?: unknown;
   password?: unknown;
   brand?: unknown;
+  // Opaque managed-challenge token, verified server-side before any password
+  // work. It is skipped only when unconfigured outside production.
+  captchaToken?: unknown;
   // The six-digit code from an authenticator app. Optional on the wire, never
   // optional in effect: an account with a verified factor is refused a session
   // when this is missing. See `loginMfaStep`.
@@ -161,6 +166,7 @@ async function handleFormLogin(req: NextRequest): Promise<NextResponse> {
       // Dropping it here would leave anybody with an authenticator unable to
       // sign in from a published site at all.
       code: field("code"),
+      captchaToken: field("cf-turnstile-response") ?? field("captchaToken"),
     }),
   });
 
@@ -206,7 +212,22 @@ export async function POST(req: NextRequest) {
   return handleJsonLogin(req);
 }
 
-async function handleJsonLogin(req: NextRequest) {
+/**
+ * Server-internal entrypoint for the separately validated cross-origin browser
+ * form wrapper. The trusted hostname is a function argument, never a public
+ * request header or body field that a caller could spoof.
+ */
+export async function loginWithTrustedChallengeHostname(
+  req: NextRequest,
+  trustedChallengeHostname: string,
+) {
+  return handleJsonLogin(req, trustedChallengeHostname);
+}
+
+async function handleJsonLogin(
+  req: NextRequest,
+  trustedChallengeHostname = req.nextUrl.hostname,
+) {
   const ip = clientIpFromHeaders(req.headers);
   const limit = rateLimit({ key: `login:${ip}`, max: 10, windowMs: 60_000 });
   if (!limit.allowed) {
@@ -235,6 +256,27 @@ async function handleJsonLogin(req: NextRequest) {
     return NextResponse.json(
       { ok: false, error: "Username/email and password are required." },
       { status: 400 },
+    );
+  }
+
+  // Verify before lock-state or credential work. Invalid, replayed, expired,
+  // wrong-action, and wrong-host tokens fail closed when configured;
+  // production also fails closed when keys are absent.
+  const challenge = await verifyBotChallenge({
+    action: "login",
+    token: body.captchaToken,
+    remoteIp: ip,
+    hostname: trustedChallengeHostname,
+  });
+  if (!challenge.ok) {
+    return NextResponse.json(
+      { ok: false, error: challenge.message },
+      {
+        status: challenge.reason === "rate-limited" ? 429 : 403,
+        headers: challenge.retryAfterSec
+          ? { "retry-after": String(challenge.retryAfterSec) }
+          : undefined,
+      },
     );
   }
 
@@ -270,7 +312,39 @@ async function handleJsonLogin(req: NextRequest) {
     .eq("id", authData.user.id)
     .maybeSingle<{ role: "owner" | "staff" | "client" }>();
 
-  const portalUser = getUserByLogin(email);
+  const remoteMetadata = authData.user.app_metadata ?? {};
+  const boundPortalUser = getUserBySupabaseAuthId(authData.user.id);
+  const isClientPortalSubject =
+    profile?.role === "client"
+    || remoteMetadata.aqua_subject_kind === "client-portal"
+    || remoteMetadata.aqua_profile_role === "client"
+    || boundPortalUser !== null;
+
+  // A client password proves control of one exact Supabase Auth subject. Use
+  // that immutable id as the local principal — never discard it and select a
+  // same-email agency owner (or another tenant's customer) instead. All
+  // client-side markers must independently agree with the local binding.
+  let portalUser = isClientPortalSubject ? boundPortalUser : getUserByLogin(email);
+  if (isClientPortalSubject) {
+    const exactClient = portalUser?.clientId
+      ? getClientForAgency(portalUser.agencyId, portalUser.clientId)
+      : null;
+    const exactBinding = !!portalUser
+      && profile?.role === "client"
+      && CUSTOMER_PORTAL_ROLES.includes(portalUser.role)
+      && portalUser.supabaseAuthUserId === authData.user.id
+      && portalUser.email === email
+      && authData.user.email?.trim().toLowerCase() === portalUser.email
+      && remoteMetadata.aqua_subject_kind === "client-portal"
+      && remoteMetadata.aqua_profile_role === "client"
+      && remoteMetadata.aqua_local_user_id === portalUser.id
+      && remoteMetadata.aqua_agency_id === portalUser.agencyId
+      && remoteMetadata.aqua_client_id === portalUser.clientId
+      && exactClient !== null
+      && exactClient.id === portalUser.clientId
+      && ["active", "suspended"].includes(exactClient.status);
+    if (!exactBinding) portalUser = null;
+  }
   if (!portalUser) {
     await supabase.auth.signOut();
     return applyCookies(

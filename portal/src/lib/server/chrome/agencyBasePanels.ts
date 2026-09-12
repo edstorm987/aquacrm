@@ -106,9 +106,10 @@ export async function assembleAgencyBasePanels(session: SessionPayload): Promise
       ...panel,
       items: panel.items.filter(item => {
         if (item.id === "inbox") return allows("workspace.inbox") || allows("workspace.actions");
-        // Scouting is an interactive command surface rather than a read-only
-        // report. Keep its navigation aligned with the page/API `use` floor.
-        if (item.id === "scouting") {
+        // The pre-Journey Sales desks are interactive command surfaces,
+        // not read-only reports. Keep navigation aligned with the route/API
+        // `growth.outreach.use` floor.
+        if (["scouting", "researching", "prospecting"].includes(item.id)) {
           return workspaceElementAtLeast(
             workspaceElementLevel(growthAccess, "growth.outreach"),
             "use",

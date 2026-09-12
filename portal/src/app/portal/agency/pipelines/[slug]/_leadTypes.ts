@@ -19,6 +19,8 @@ import type { WebsiteEnquiryClassification } from "@/lib/enquiries/enquiryClassi
 
 export interface LeadView {
   id: string;
+  /** Server-derived backlink to the canonical acquisition dossier. */
+  prospectId?: string;
   clientId?: string;
   email: string;
   name?: string;
@@ -97,8 +99,26 @@ export interface ClientConversionPackage {
 
 export interface LeadJourneyEventView {
   id: string;
-  type: "lead-captured" | "enquiry-received" | "contact-recorded" | "stage-changed" | "meeting-scheduled" | "converted" | "archived" | "restored";
+  type:
+    | "lead-captured"
+    | "enquiry-received"
+    | "contact-recorded"
+    | "stage-changed"
+    | "meeting-scheduled"
+    | "converted"
+    | "archived"
+    | "restored"
+    // Server-projected acquisition evidence. These are view-only rows built
+    // from the structured Prospect backlink; browsers cannot forge them.
+    | "prospect-qualified"
+    | "research-updated"
+    | "prospect-note-added"
+    | "follow-up-scheduled"
+    | "follow-up-resolved";
   at: number;
+  actorLabel?: string;
+  outcomeRecordedAt?: number;
+  outcomeActorLabel?: string;
   source?: string;
   enquiryId?: string;
   fromStage?: string;
@@ -121,6 +141,8 @@ export type AttemptOutcome = "attempted" | "reached" | "reminder-sent" | "no-sho
 export interface MeetingAttempt {
   id: string;
   at: number;
+  /** Server-projected, agency-scoped display label; raw user ids stay server-side. */
+  actorLabel?: string;
   channel: AttemptChannel;
   outcome: AttemptOutcome;
   notes?: string;

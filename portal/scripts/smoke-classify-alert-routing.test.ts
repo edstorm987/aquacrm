@@ -1,32 +1,43 @@
 import { describe, it, before } from "node:test";
 import assert from "node:assert/strict";
+import type { WebsiteEnquiry } from "../src/lib/server/websiteEnquiries";
 
 // Asserts the RESOLVED href of a real generated alert, not that the source
 // file contains a particular string.
 //
-// The earlier version of this test inspected the source for a card link and
-// passed — while the link was never actually reached, because the field it
-// keyed off (`enquiry.personId`) is only populated by
-// `synchroniseWebsiteEnquiryIdentities`, which does not run on the alert path.
-// Every alert silently fell back to the inbox. Assert behaviour, not text.
+// A canonical Person already admitted by a write path resolves to the protected
+// card. A legacy enquiry without one resolves to its exact inbox detail. Alert
+// generation itself must not create either record. Assert behaviour, not text.
 
-const AGENCY = "agency-alert-routing";
+let agencyId = "";
 let mod: {
   listOperationalAlerts: typeof import("../src/lib/server/inbox/operationalAlerts").listOperationalAlerts;
   resolveAttentionAction: typeof import("../src/lib/inbox/attentionResolution").resolveAttentionAction;
   getState: typeof import("../src/server/storage").getState;
-  mutate: typeof import("../src/server/storage").mutate;
+  upsertPerson: typeof import("../src/server/persons").upsertPerson;
 };
 
 before(async () => {
   process.env.PORTAL_BACKEND = "memory";
   const storage = await import("../src/server/storage");
   await storage.ensureHydrated();
+  await storage.reset();
+  const tenants = await import("../src/server/tenants");
+  const installs = await import("../src/server/pluginInstalls");
+  const persons = await import("../src/server/persons");
+  agencyId = tenants.createAgency({ name: "Alert routing", slug: "alert-routing" }).id;
+  installs.upsertInstall({
+    pluginId: "leads-pipeline",
+    scope: { agencyId },
+    enabled: true,
+    config: {},
+    features: {},
+  });
   mod = {
     listOperationalAlerts: (await import("../src/lib/server/inbox/operationalAlerts")).listOperationalAlerts,
     resolveAttentionAction: (await import("../src/lib/inbox/attentionResolution")).resolveAttentionAction,
     getState: storage.getState,
-    mutate: storage.mutate,
+    upsertPerson: persons.upsertPerson,
   };
 });
 
@@ -50,19 +61,53 @@ describe("resolution guidance follows the destination", () => {
 });
 
 describe("the classify alert resolves to a contact card", () => {
-  it("builds a card href for an enquirer, creating the person if needed", async () => {
-    // The alert path must not depend on `personId` having been populated
-    // elsewhere. Drive the real generator and inspect what it emitted.
-    const alerts = await mod.listOperationalAlerts(AGENCY).catch(() => []);
-    const classify = alerts.filter(alert => alert.id.startsWith("enquiry-classification:"));
+  it("uses an existing Person without writing, and gives legacy rows an exact fallback", async () => {
+    const admitted = enquiry("admitted", "admitted@example.test");
+    const legacy = enquiry("legacy", "legacy@example.test");
+    const { person } = mod.upsertPerson(agencyId, {
+      emails: [admitted.email],
+      name: admitted.name,
+      source: "website:test",
+      facets: { enquiryIds: [admitted.id] },
+    });
+    const peopleBefore = structuredClone(mod.getState().persons);
+    const generated = await mod.listOperationalAlerts(agencyId, Date.now(), {
+      websiteEnquiries: { available: true, data: [admitted, legacy] },
+    });
 
-    for (const alert of classify) {
-      assert.ok(
-        alert.href.startsWith("/portal/agency/contacts/"),
-        `classify alert must open a contact card, got: ${alert.href}`,
-      );
-      const resolution = mod.resolveAttentionAction(alert);
-      assert.equal(resolution.opensInboxThread, false, "must not open a messaging thread");
-    }
+    const admittedAlert = generated.find(alert => alert.id === `enquiry-classification:${admitted.id}`);
+    const legacyAlert = generated.find(alert => alert.id === `enquiry-classification:${legacy.id}`);
+    assert.ok(admittedAlert);
+    assert.match(admittedAlert.href, new RegExp(`^/portal/agency/contacts/${person.id}`));
+    assert.equal(mod.resolveAttentionAction(admittedAlert).opensInboxThread, false);
+    assert.ok(legacyAlert);
+    assert.match(legacyAlert.href, /^\/portal\/agency\/inbox\?view=forms&form=legacy/);
+    assert.equal(mod.resolveAttentionAction(legacyAlert).opensInboxThread, true);
+    assert.deepEqual(mod.getState().persons, peopleBefore, "an operational-alert read changed canonical people");
   });
 });
+
+function enquiry(id: string, email: string): WebsiteEnquiry {
+  return {
+    id,
+    brand: "aquacrm",
+    brandName: "AquaCRM",
+    source: "website:test",
+    channel: "form",
+    status: "open",
+    classification: "unclassified",
+    priority: "normal",
+    topic: "General enquiry",
+    suggestedAction: "Review and classify.",
+    propertyId: "property_test",
+    siteName: "Test site",
+    pagePath: "/contact",
+    name: `${id} person`,
+    email,
+    services: [],
+    submittedAt: Date.now() - 60_000,
+    replies: [],
+    calls: [],
+    notification: "not-configured",
+  };
+}

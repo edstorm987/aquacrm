@@ -147,10 +147,14 @@ describe("a shared phone number does not merge different people", () => {
     assert.equal(store.listPersons(AGENCY).length, 1);
   });
 
-  it("email still merges regardless of name, because an address is personal", () => {
-    store.upsertPerson(AGENCY, { emails: ["ruth@cedardental.co.uk"], name: "Ruth Adeyemi" });
-    store.upsertPerson(AGENCY, { emails: ["ruth@cedardental.co.uk"], name: "R. Adeyemi" });
+  it("does not merge a clearly conflicting name merely because the email matches", () => {
+    const owner = store.upsertPerson(AGENCY, { emails: ["ruth@cedardental.co.uk"], name: "Ruth Adeyemi" }).person;
+    assert.throws(
+      () => store.upsertPerson(AGENCY, { emails: ["ruth@cedardental.co.uk"], name: "Marcus Byrne" }),
+      /already uses that email address/,
+    );
     assert.equal(store.listPersons(AGENCY).length, 1);
+    assert.equal(store.listPersons(AGENCY)[0].id, owner.id);
   });
 });
 

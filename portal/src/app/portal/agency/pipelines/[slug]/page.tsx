@@ -9,7 +9,7 @@
 
 import Link from "next/link";
 import { CustomBoardWorkspace } from "./_CustomBoardWorkspace";
-import { currentWorkspaceElementAccess, workspaceElementLevel } from "@/lib/server/access/workspaceElementAccess";
+import { currentWorkspaceElementAccess, requireCurrentWorkspaceElementAccess, workspaceElementLevel } from "@/lib/server/access/workspaceElementAccess";
 import { notFound, redirect } from "next/navigation";
 import { ensureHydrated } from "@/server/storage";
 import { requireRole } from "@/lib/server/auth/auth";
@@ -36,6 +36,12 @@ import { listTradingCompanies } from "@/server/tradingCompanies";
 import { isLeadJourneyEligible } from "@/lib/enquiries/enquiryClassification";
 import { getPortalFormFields } from "@/server/portalEditor";
 import { clientProductWorkspaces } from "@/server/productWorkspaces";
+import { getUserById } from "@/server/users";
+import { acquisitionJourneyEvents } from "./_leadJourneyProjection";
+import type { LeadJourneyEventView } from "./_leadTypes";
+import { toScoutingProspectView } from "./_scoutingProspectView";
+import { loadUpcomingMeetings } from "@/lib/server/agency/meetingsFeed";
+import { clientMatchesLead } from "@/built-ins/modules/leads-pipeline/src/lib/clientMatch";
 
 interface RouteProps {
   params: Promise<{ slug: string }>;
@@ -81,6 +87,9 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
     }));
 
   if (pipeline.kind === "leads") {
+    // Gate before plugin installation or any Lead/Prospect read. Hiding the
+    // sidebar is a lens; this page boundary is the permission.
+    await requireCurrentWorkspaceElementAccess("growth", "growth.leads", "view");
     let install = getInstall({ agencyId: agency.id }, "leads-pipeline");
     if (!install) {
       const result = await installPlugin("leads-pipeline", {
@@ -94,22 +103,31 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
     }
     if (install?.enabled) {
       const storage = makePluginStorage(install.id);
-      const { leads } = leadsContainerFor({ agencyId: agency.id, storage: storage as never });
-      const [leadList, archivedList] = await Promise.all([
+      const { leads, prospects } = leadsContainerFor({ agencyId: agency.id, storage: storage as never });
+      const referenceNow = Date.now();
+      const [leadList, archivedList, prospectList, journeyMeetings] = await Promise.all([
         leads.list(),
         // Archived leads are fetched separately and stay out of every count and
         // column on this screen — they belong to one view (issue #62).
         leads.list({ archived: "only" }),
+        prospects.list(),
+        loadUpcomingMeetings(agency.id, referenceNow),
       ]);
       const journeyLeadList = leadList.filter(isLeadJourneyEligible);
       const clients = listClients(agency.id);
       const cards = listCards(pipeline.id);
       const columnByLeadId = new Map<string, string>();
       const cardUpdatedAtByLeadId = new Map<string, number>();
+      const actorLabelFor = (actorUserId?: string): string | undefined => {
+        if (!actorUserId) return undefined;
+        const actor = getUserById(actorUserId);
+        if (!actor || !actor.agencyIds.includes(agency.id)) return "Former team member";
+        return actor.name.trim() || actor.email;
+      };
       for (const card of cards) {
         if (card.kind !== "lead") continue;
-        const snapshot = card.lead as unknown as { leadId?: string; email?: string };
-        const key = snapshot.leadId ?? journeyLeadList.find(lead => lead.email === snapshot.email)?.id;
+        const snapshot = card.lead as unknown as { leadId?: string };
+        const key = snapshot.leadId;
         if (key) {
           columnByLeadId.set(key, card.columnId);
           cardUpdatedAtByLeadId.set(key, card.updatedAt);
@@ -119,9 +137,15 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
       return (
         <LeadsPipelineWorkspace
           focusedLeadId={query.lead}
-          referenceNow={Date.now()}
+          journeyMeetings={journeyMeetings}
+          referenceNow={referenceNow}
           columns={pipeline.columns.map(col => ({ id: col.id, label: col.label, color: col.color }))}
-          prospects={[]}
+          prospects={prospectList
+            .filter(prospect => prospect.status === "scouting")
+            .map(prospect => toScoutingProspectView(prospect, actorLabelFor))}
+          dismissedProspects={prospectList
+            .filter(prospect => prospect.status === "dismissed")
+            .map(prospect => toScoutingProspectView(prospect, actorLabelFor))}
           archivedLeads={archivedList.map(lead => ({
             id: lead.id,
             email: lead.email,
@@ -133,18 +157,22 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
             archivedAt: lead.archivedAt,
           }))}
           leads={journeyLeadList.map(lead => {
-            const client = clients.find(candidate => {
-              const convertedClient = candidate.id === lead.convertedClientId;
-              const sameLead = candidate.metadata?.leadId === lead.id;
-              const sameEmail = candidate.ownerEmail?.trim().toLowerCase() === lead.email.trim().toLowerCase();
-              return convertedClient || sameLead || sameEmail;
-            });
+            const client = clients.find(candidate => clientMatchesLead(candidate, lead));
             const clientMetadata = client?.metadata ?? {};
             const services = resolvePortalProductAssignment(clientMetadata, productCatalogue).products;
             const canonicalServiceIds = (lead.serviceLines ?? []).map(value => agencyProducts.find(product => product.id === value || product.name.toLowerCase() === value.toLowerCase())?.id ?? value);
             const serviceIds = [...new Set([...services.map(service => service.id), ...canonicalServiceIds])];
+            const journeyEvents: LeadJourneyEventView[] = [
+              ...(lead.journeyEvents ?? []).map(({ actorUserId, outcomeActorUserId, ...event }) => ({
+                ...event,
+                actorLabel: actorLabelFor(actorUserId),
+                outcomeActorLabel: actorLabelFor(outcomeActorUserId),
+              })),
+              ...(lead.prospectAcquisitions ?? []).flatMap(acquisition => acquisitionJourneyEvents(acquisition, actorLabelFor)),
+            ];
             return {
               id: lead.id,
+              prospectId: lead.prospectAcquisitions?.[0]?.prospectId,
               clientId: client?.id,
               email: lead.email,
               name: lead.name,
@@ -165,7 +193,7 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
                 ? lead.stageEnteredAt
                 : cardUpdatedAtByLeadId.get(lead.id) ?? lead.stageEnteredAt,
               convertedAt: lead.convertedAt,
-              journeyEvents: lead.journeyEvents,
+              journeyEvents,
               nextMeetingAt: lead.nextMeetingAt,
               meetingLink: lead.meetingLink,
               meetingNotes: lead.meetingNotes,
@@ -175,7 +203,14 @@ export default async function PipelineView({ params, searchParams }: RouteProps)
               meetingConfirmedAt: lead.meetingConfirmedAt,
               meetingReminderAt: lead.meetingReminderAt,
               meetingReminderSentAt: lead.meetingReminderSentAt,
-              meetingAttempts: lead.meetingAttempts,
+              meetingAttempts: lead.meetingAttempts?.map(attempt => ({
+                id: attempt.id,
+                at: attempt.at,
+                actorLabel: actorLabelFor(attempt.actorUserId),
+                channel: attempt.channel,
+                outcome: attempt.outcome,
+                notes: attempt.notes,
+              })),
               salesPresentations: lead.salesPresentations,
               callRecordingUrl: lead.callRecordingUrl,
               sessionNotes: lead.sessionNotes,

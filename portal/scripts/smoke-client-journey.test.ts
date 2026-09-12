@@ -131,6 +131,7 @@ function makeActivity(): LeadsActivityLogPort & FinanceActivityLogPort & { entri
     listActivity(filter) {
       return entries.filter(e => e.agencyId === filter.agencyId && (!filter.clientId || e.clientId === filter.clientId));
     },
+    eraseSubjectReferences() { return 0; },
   };
 }
 

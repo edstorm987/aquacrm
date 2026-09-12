@@ -23,7 +23,12 @@ export default async function ContactsPage(props: PluginPageProps) {
     <ContactsWorkspace
       referenceNow={Date.now()}
       contacts={contactList}
-      leads={leadList}
+      leads={leadList.map(lead => ({
+        ...lead,
+        // Keep the structured dossier server-side; the browser needs only the
+        // trusted backlink used by suppression-aware outreach routes.
+        prospectId: lead.prospectAcquisitions?.[0]?.prospectId,
+      }))}
       initialCustomFields={customFields ?? []}
       initialLeadFields={getPortalFormFields(props.agencyId, "leads")}
       initialCustomTags={customTags ?? []}

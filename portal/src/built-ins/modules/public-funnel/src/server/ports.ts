@@ -56,17 +56,30 @@ export interface EventBusPort {
 // `createUser` path so the plugin doesn't depend on the foundation's
 // internal user store directly.
 export interface LeadUserPort {
-  // Idempotent on email — returns existing lead user if one already
-  // matches (case-insensitive), creates a new lead user otherwise.
-  // Returns `{ user, created }` so the caller can distinguish first
-  // capture vs. re-engagement.
-  upsertLeadByEmail(email: string): Promise<{ user: UserProfile; created: boolean }> | { user: UserProfile; created: boolean };
-}
+  // Anonymous capture is registration, never authentication. The adapter must
+  // create a brand-new lead only when the canonical address belongs to no
+  // existing identity of any role. `created:false` is a fail-closed refusal.
+  // The foundation owns the transaction because identity and plugin capture
+  // must commit together. `createLead` is lazy: the callback first checks the
+  // completion id, then creates the identity immediately before persistence.
+  withNewLeadByEmail<T>(
+    email: string,
+    operation: (createLead: () => UserProfile) => Promise<T>,
+  ): Promise<{ value: T; created: true } | { created: false }>;
 
-// Foundation session port — issues a session for the just-captured
-// lead so the funnel handler can set a Set-Cookie response header and
-// the user lands on /business-os already signed in. The plugin treats
-// the returned token as opaque.
-export interface SessionPort {
-  issueSession(userId: UserId): Promise<string> | string;
+  /**
+   * Erasure-only cleanup. Exact capture ids may always lose their own audit
+   * trail, but the generated lead account is deleted only when no plugin
+   * capture anywhere still owns it.
+   */
+  eraseIfUnreferenced(input: {
+    agencyId: AgencyId;
+    userId: UserId;
+    email: string;
+    captureIds: string[];
+  }): Promise<{
+    status: "deleted" | "missing" | "preserved";
+    recordsErased: number;
+    reason?: "still-referenced" | "ambiguous-user" | "non-capture-lead";
+  }>;
 }

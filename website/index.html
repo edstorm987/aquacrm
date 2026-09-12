@@ -391,7 +391,7 @@
             </p>
             <div class="contact-detail"><span>For existing clients</span><a data-aquacrm-login href="https://aqua-crm.com/login?brand=aquacrm&amp;next=/portal" target="_blank" rel="noopener noreferrer">Open your AquaCRM portal →</a></div>
           </div>
-          <form class="enquiry-form" id="enquiry-form" data-enquiry-form data-aqua-form="AquaCRM systems enquiry">
+          <form class="enquiry-form" id="enquiry-form" data-enquiry-form data-aqua-form="AquaCRM systems enquiry" data-aqua-challenge-action="brand-enquiry">
             <input class="form-trap" name="website" tabindex="-1" autocomplete="off" />
             <div class="form-pair">
               <label>Name<input required name="name" autocomplete="name" /></label>
@@ -445,7 +445,7 @@
           <small>Tell us what is on your plate.</small>
         </div>
       </div>
-      <form class="chat-form" data-enquiry-form data-aqua-form="AquaCRM chat enquiry">
+      <form class="chat-form" data-enquiry-form data-aqua-form="AquaCRM chat enquiry" data-aqua-challenge-action="brand-enquiry">
         <input class="form-trap" name="website" tabindex="-1" autocomplete="off" />
         <input type="hidden" name="contactMethod" value="email" />
         <input type="hidden" name="services" value="Not sure yet" />
@@ -561,6 +561,10 @@
       tag.dataset.property = "aquacrm";
       tag.defer = true;
       document.head.appendChild(tag);
+      const challengeScript = document.createElement("script");
+      challengeScript.src = `${aquaOrigin}/aqua-bot-challenge.js`;
+      challengeScript.defer = true;
+      document.head.appendChild(challengeScript);
       const menuButton = document.querySelector(".menu-button");
       const mainNavigation = document.querySelector("#main-navigation");
       const closeMobileNavigation = () => {
@@ -770,6 +774,7 @@
                 campaign: new URLSearchParams(window.location.search).get("utm_campaign") || "",
                 consent: data.get("consent") === "yes",
                 website: data.get("website"),
+                captchaToken: data.get("captchaToken"),
               }),
             });
             const result = await response.json();
@@ -781,6 +786,7 @@
             status.textContent = error instanceof Error ? error.message : "Unable to send your enquiry.";
             status.classList.add("is-error");
           } finally {
+            window.AquaBotChallenge?.reset(form);
             submit.disabled = false;
             submit.innerHTML = originalSubmit;
           }

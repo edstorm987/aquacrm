@@ -3,6 +3,9 @@ import "server-only";
 import { getState, mutate } from "./storage";
 import { getClientForAgency } from "./tenants";
 import { logActivity } from "./activity";
+import { withPortalStateTransaction } from "./productWorkspaceCoordinator";
+import { normaliseIdentityPhone } from "@/lib/server/identityResolution";
+import type { ErasureReviewRequired, ErasureSubject } from "@/built-ins/runtime/_types";
 import type { PortalState } from "./types";
 
 /**
@@ -135,6 +138,10 @@ interface QueryBuilder<Row> extends PromiseLike<QueryResult<Row>> {
 }
 export interface LiveScrubClient {
   from<Row = { id: string }>(table: string): QueryBuilder<Row>;
+  rpc<Row = Record<string, unknown>>(
+    fn: string,
+    args: Record<string, string | number | boolean | null>,
+  ): PromiseLike<QueryResult<Row>>;
 }
 
 /** The no-PII record of the live scrub, kept in the audit entry as proof. */
@@ -147,6 +154,11 @@ export interface LiveErasureStub {
   enquiriesAnonymised: number;
   /** Subset whose enquirer was `resolved` AS the client → PII stripped, not just unlinked. */
   enquiriesPiiStripped: number;
+  /** Enquiries preserved because the client route was not exact identity authority. */
+  enquiriesReviewRequired: {
+    legacyUnscoped: number;
+    sharedIdentity: number;
+  };
   errors?: string[];
 }
 
@@ -158,6 +170,8 @@ export interface ClientErasureResult {
   /** Per-area tally, for the confirmation summary and the audit note. Keys are
    * prefixed by disposition: `deleted:*`, `retained:*`, `anonymised:*`, `hook:*`. */
   collections: Record<string, number>;
+  /** Preserved ambiguous records, reported without identity values. */
+  reviewRequired: ErasureReviewRequired[];
   /** The live-table scrub summary (present when a Supabase client was passed). */
   live?: LiveErasureStub;
 }
@@ -239,25 +253,171 @@ function countSliceMatches(slice: Record<string, unknown>, clientId: string): nu
  * Who is being erased — resolved ONCE, before anything is deleted, and handed
  * to every `onEraseClient` hook.
  *
- * A plugin usually cannot find the person by `clientId`: a funnel capture, a
- * marketing lead or a campaign email all predate the client existing, so the
- * only thing tying the record to them is the ADDRESS it was sent to or captured
- * from. The client record holds those addresses — and it is deleted moments
- * later, so this is the last moment they can be read.
+ * Address/phone values are collected as REVIEW EVIDENCE only. They are not
+ * deletion authority: inboxes, switchboards and legacy imports can legitimately
+ * be shared by several people or client workspaces. Hooks may erase only an
+ * exact agency/client stamp or the reciprocal, exclusive Person lineage below.
  */
-function resolveErasureSubject(agencyId: string, clientId: string): import("@/built-ins/runtime/_types").ErasureSubject {
+function resolveErasureSubject(agencyId: string, clientId: string): ErasureSubject {
   const client = getClientForAgency(agencyId, clientId);
   const metadata = (client?.metadata ?? {}) as Record<string, unknown>;
   const linked = Array.isArray(metadata.linkedContacts) ? metadata.linkedContacts : [];
-  const emails = [
+  const state = getState();
+  const candidatePerson = client?.personId ? getState().persons[client.personId] : undefined;
+  const evidencePerson = candidatePerson?.agencyId === agencyId ? candidatePerson : undefined;
+  // Only a reciprocal, agency-scoped Client <-> Person edge may become an
+  // exact erasure root. A caller-editable metadata id is never promoted here.
+  const person = candidatePerson?.agencyId === agencyId
+    && candidatePerson.facets.clientIds?.includes(clientId)
+    ? candidatePerson
+    : undefined;
+  const evidenceEmails = [
     client?.ownerEmail,
     metadata.portalLoginEmail,
     metadata.clientEmail,
+    ...(evidencePerson?.emails ?? []).flatMap(entry => [entry.value, entry.raw]),
     ...linked.map(entry => (entry as { email?: unknown } | null)?.email),
   ]
     .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
     .map(value => value.trim().toLowerCase());
-  return { emails: Array.from(new Set(emails)), name: client?.name, metadata };
+  const evidencePhones = [
+    metadata.phone,
+    metadata.contactPhone,
+    metadata.clientPhone,
+    ...(evidencePerson?.phones ?? []).flatMap(entry => [entry.value, entry.raw]),
+    ...linked.map(entry => (entry as { phone?: unknown } | null)?.phone),
+  ]
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    .map(value => normaliseIdentityPhone(value))
+    .filter(Boolean);
+
+  const emails = Array.from(new Set(evidenceEmails));
+  const phones = Array.from(new Set(evidencePhones));
+  const wantedEmails = new Set(emails);
+  const wantedPhones = new Set(phones);
+  const sharedEmails = new Set<string>();
+  const sharedPhones = new Set<string>();
+
+  const addSharedClientEvidence = (candidate: typeof client) => {
+    const candidateMetadata = (candidate?.metadata ?? {}) as Record<string, unknown>;
+    const candidateLinked = Array.isArray(candidateMetadata.linkedContacts) ? candidateMetadata.linkedContacts : [];
+    for (const value of [
+      candidate?.ownerEmail,
+      candidateMetadata.portalLoginEmail,
+      candidateMetadata.clientEmail,
+      ...candidateLinked.map(entry => (entry as { email?: unknown } | null)?.email),
+    ]) {
+      if (typeof value !== "string") continue;
+      const canonical = value.trim().toLowerCase();
+      if (wantedEmails.has(canonical)) sharedEmails.add(canonical);
+    }
+    for (const value of [
+      candidateMetadata.phone,
+      candidateMetadata.contactPhone,
+      candidateMetadata.clientPhone,
+      ...candidateLinked.map(entry => (entry as { phone?: unknown } | null)?.phone),
+    ]) {
+      if (typeof value !== "string") continue;
+      const canonical = normaliseIdentityPhone(value);
+      if (canonical && wantedPhones.has(canonical)) sharedPhones.add(canonical);
+    }
+  };
+
+  // A second Client pointing at this Person is enough to make the identity
+  // shared, even when old data is missing the reciprocal Person facet. Treat
+  // that inconsistency as a preserve signal; never turn it into delete power.
+  const personReferencedByOtherClient = Boolean(evidencePerson && Object.values(state.clients).some(candidate =>
+    candidate.agencyId === agencyId
+    && candidate.id !== clientId
+    && candidate.personId === evidencePerson.id));
+  for (const candidate of Object.values(state.clients)) {
+    if (candidate.agencyId === agencyId && candidate.id !== clientId) addSharedClientEvidence(candidate);
+  }
+  for (const candidate of Object.values(state.persons)) {
+    if (candidate.agencyId !== agencyId) continue;
+    const sharesTargetRelationship = candidate.id === evidencePerson?.id
+      && ((candidate.facets.clientIds ?? []).some(id => id !== clientId)
+        || personReferencedByOtherClient
+        || STANDALONE_PERSON_CLASSIFICATIONS.has(candidate.classification));
+    for (const entry of candidate.emails) {
+      const canonical = entry.value.trim().toLowerCase();
+      if (wantedEmails.has(canonical) && (candidate.id !== evidencePerson?.id || sharesTargetRelationship)) {
+        sharedEmails.add(canonical);
+      }
+    }
+    for (const entry of candidate.phones) {
+      const canonical = normaliseIdentityPhone(entry.value);
+      if (canonical && wantedPhones.has(canonical)
+        && (entry.shared === true || candidate.id !== evidencePerson?.id || sharesTargetRelationship)) {
+        sharedPhones.add(canonical);
+      }
+    }
+  }
+
+  const personShared = Boolean(person && (
+    (person.facets.clientIds ?? []).some(id => id !== clientId)
+    || personReferencedByOtherClient
+    || STANDALONE_PERSON_CLASSIFICATIONS.has(person.classification)
+  ));
+  const exclusivePerson = person && !personShared ? person : undefined;
+  const reviewRequired: ErasureReviewRequired[] = [];
+  const reverseOnlyPeople = Object.values(state.persons).filter(candidate =>
+    candidate.agencyId === agencyId
+    && candidate.id !== person?.id
+    && (candidate.facets.clientIds ?? []).includes(clientId));
+  const legacyPersonReviewIds = new Set<string>();
+  const sharedPersonReviewIds = new Set<string>();
+  if (evidencePerson && !person) {
+    const shared = personReferencedByOtherClient
+      || STANDALONE_PERSON_CLASSIFICATIONS.has(evidencePerson.classification);
+    (shared ? sharedPersonReviewIds : legacyPersonReviewIds).add(evidencePerson.id);
+  }
+  if (personShared && person) sharedPersonReviewIds.add(person.id);
+  for (const candidate of reverseOnlyPeople) {
+    const shared = STANDALONE_PERSON_CLASSIFICATIONS.has(candidate.classification)
+      || Object.values(state.clients).some(other =>
+        other.agencyId === agencyId && other.id !== clientId && other.personId === candidate.id);
+    (shared ? sharedPersonReviewIds : legacyPersonReviewIds).add(candidate.id);
+  }
+  for (const id of sharedPersonReviewIds) legacyPersonReviewIds.delete(id);
+  if (legacyPersonReviewIds.size > 0) reviewRequired.push({
+    system: "person-identity",
+    reason: "legacy-unscoped",
+    records: legacyPersonReviewIds.size,
+  });
+  if (sharedPersonReviewIds.size > 0) reviewRequired.push({
+    system: "person-identity",
+    reason: "shared-identity",
+    records: sharedPersonReviewIds.size,
+  });
+  return {
+    // Kept for old third-party hook shapes, but intentionally empty so an old
+    // address-deleting hook fails closed rather than deleting a shared record.
+    emails: [],
+    phones: [],
+    exactOwnership: {
+      agencyId,
+      clientId,
+      ...(person ? { personId: person.id } : {}),
+      ...(exclusivePerson?.facets.leadId ? { leadId: exclusivePerson.facets.leadId } : {}),
+      ...(exclusivePerson?.facets.contactId ? { contactId: exclusivePerson.facets.contactId } : {}),
+      personShared,
+    },
+    identityEvidence: {
+      emails,
+      phones,
+      sharedEmails: [...sharedEmails],
+      sharedPhones: [...sharedPhones],
+    },
+    reviewRequired,
+    name: client?.name,
+    ...(exclusivePerson ? {
+      personId: exclusivePerson.id,
+      ...(exclusivePerson.facets.leadId ? { leadId: exclusivePerson.facets.leadId } : {}),
+      ...(exclusivePerson.facets.contactId ? { contactId: exclusivePerson.facets.contactId } : {}),
+    } : {}),
+    metadata,
+  };
 }
 
 /**
@@ -292,6 +452,7 @@ function anonymiseOrphanedPersons(
   state: PortalState,
   agencyId: string,
   clientId: string,
+  exactPersonId: string | undefined,
   relationshipId: string | undefined,
   collections: Record<string, number>,
 ): void {
@@ -300,13 +461,38 @@ function anonymiseOrphanedPersons(
 
   for (const person of Object.values(state.persons)) {
     if (!person || person.agencyId !== agencyId) continue;
+    const exactPerson = Boolean(exactPersonId && person.id === exactPersonId);
     const clientIds = person.facets?.clientIds ?? [];
     const heldThisClient = clientIds.includes(clientId);
-    const heldThisRelationship = relationshipId !== undefined && person.relationshipId === relationshipId;
+    const heldThisRelationship = exactPerson
+      && relationshipId !== undefined
+      && person.relationshipId === relationshipId;
     if (!heldThisClient && !heldThisRelationship) continue;
 
+    // A reverse-only legacy facet is not enough authority to anonymise the
+    // Person, but the exact disappearing client id must not remain dangling.
+    // Remove only that edge and leave every identity/history field untouched;
+    // resolveErasureSubject has already surfaced the record for review.
+    if (!exactPerson) {
+      person.facets = { ...person.facets, clientIds: clientIds.filter(id => id !== clientId) };
+      person.updatedAt = Date.now();
+      unlinked += 1;
+      continue;
+    }
+
     // 1. Always unlink — unconditional, whatever else is true of them.
-    const remaining = clientIds.filter(id => id !== clientId);
+    // Repair missing reciprocal facets defensively while deciding whether the
+    // Person is orphaned. A surviving Client's authoritative personId pointer
+    // is a preserve signal even if legacy Person.clientIds drifted.
+    const referencingClientIds = Object.values(state.clients)
+      .filter(candidate => candidate.agencyId === agencyId
+        && candidate.id !== clientId
+        && candidate.personId === person.id)
+      .map(candidate => candidate.id);
+    const remaining = Array.from(new Set([
+      ...clientIds.filter(id => id !== clientId),
+      ...referencingClientIds,
+    ]));
     person.facets = { ...person.facets, clientIds: remaining };
     if (heldThisRelationship) person.relationshipId = undefined;
     person.updatedAt = Date.now();
@@ -415,6 +601,36 @@ type Runtime = {
   makeCtx: typeof import("@/built-ins/runtime/_runtime").makeCtx;
 };
 
+class PluginErasureHookError extends Error {
+  readonly originalError: unknown;
+
+  constructor(readonly pluginId: string, cause: unknown) {
+    super(`Client erasure hook failed for ${pluginId}.`);
+    this.name = "PluginErasureHookError";
+    this.originalError = cause;
+  }
+}
+
+class PluginErasureRuntimeError extends Error {
+  constructor(readonly system = "plugin-runtime") {
+    super("Client erasure plugin runtime is unavailable.");
+    this.name = "PluginErasureRuntimeError";
+  }
+}
+
+function compactReviewRequired(items: readonly ErasureReviewRequired[]): ErasureReviewRequired[] {
+  const counts = new Map<string, ErasureReviewRequired>();
+  for (const item of items) {
+    if (!Number.isFinite(item.records) || item.records <= 0) continue;
+    const key = `${item.system}\u0000${item.reason}`;
+    const prior = counts.get(key);
+    if (prior) prior.records += Math.floor(item.records);
+    else counts.set(key, { ...item, records: Math.floor(item.records) });
+  }
+  return [...counts.values()].sort((a, b) =>
+    a.system.localeCompare(b.system) || a.reason.localeCompare(b.reason));
+}
+
 /** Load the plugin runtime, or null if unavailable (e.g. a minimal context). */
 async function loadRuntime(): Promise<Runtime | null> {
   try {
@@ -438,11 +654,18 @@ async function resolveDispositionsAndRunHooks(
   agencyId: string,
   clientId: string,
   collections: Record<string, number>,
-): Promise<Map<string, ErasureDisposition>> {
+): Promise<{
+  dispositions: Map<string, ErasureDisposition>;
+  reviewRequired: ErasureReviewRequired[];
+  subject: ErasureSubject;
+}> {
   const map = new Map<string, ErasureDisposition>();
-  const runtime = await loadRuntime();
-  if (!runtime) return map; // no runtime → generic sweep treats every slice as "delete"
   const subject = resolveErasureSubject(agencyId, clientId);
+  const runtime = await loadRuntime();
+  // Without the runtime we cannot know which agency-scoped slices need a
+  // bespoke hook (including indexes whose keys contain PII). Never silently
+  // fall through to the generic clientId sweep and claim a complete erasure.
+  if (!runtime) throw new PluginErasureRuntimeError();
 
   // Agency-scoped installs for this agency, plus this-client-scoped installs.
   const installs = Object.values(getState().pluginInstalls).filter(
@@ -451,7 +674,13 @@ async function resolveDispositionsAndRunHooks(
 
   for (const install of installs) {
     const plugin = runtime.getPlugin(install.pluginId);
-    if (plugin?.onEraseClient) {
+    if (!plugin) {
+      // A missing manifest means its retention/hook policy is unknowable.
+      // Treat registry drift as a retryable failure, never as permission to
+      // delete a client-scoped slice or partially prune an agency slice.
+      throw new PluginErasureRuntimeError(`plugin:${install.pluginId}`);
+    }
+    if (plugin.onEraseClient) {
       map.set(install.id, "hook");
       try {
         await plugin.onEraseClient(runtime.makeCtx(install), clientId, subject);
@@ -459,6 +688,7 @@ async function resolveDispositionsAndRunHooks(
       } catch (err) {
         collections[`hookError:${install.pluginId}`] = 1;
         console.error(`[clientErasure] onEraseClient failed for "${install.pluginId}"`, err);
+        throw new PluginErasureHookError(install.pluginId, err);
       }
     } else if (plugin?.dataDisposition === "retain") {
       map.set(install.id, "retain");
@@ -466,7 +696,11 @@ async function resolveDispositionsAndRunHooks(
       map.set(install.id, "delete");
     }
   }
-  return map;
+  const reviewRequired = compactReviewRequired(subject.reviewRequired);
+  for (const item of reviewRequired) {
+    collections[`review:${item.system}:${item.reason}`] = item.records;
+  }
+  return { dispositions: map, reviewRequired, subject };
 }
 
 /**
@@ -486,7 +720,12 @@ function sweepPluginData(
     if (!slice || typeof slice !== "object") continue;
     const install = state.pluginInstalls[installId];
     const pid = install ? install.pluginId : installId;
-    // Orphan slices (no install record) default to "delete".
+    if (!install && countSliceMatches(slice as Record<string, unknown>, clientId) > 0) {
+      // Without its manifest/install record we cannot know whether this slice
+      // needs a bespoke scrub or a legal-retention disposition. Preserve the
+      // complete transaction and require registry repair before retrying.
+      throw new PluginErasureRuntimeError(`orphan-plugin-data:${installId}`);
+    }
     const disposition = dispositions.get(installId) ?? "delete";
 
     if (disposition === "hook") continue; // the plugin's hook already handled it
@@ -556,9 +795,9 @@ function sweepPluginData(
  *     separate party merely tagged to the client keeps their own record.
  *
  * Best-effort + idempotent: a per-table failure is recorded in the stub and the
- * scrub continues (the memory erasure has already committed; deletes/anonymise
- * are safe to re-run). Finance/contracts/deliverables are NOT touched here —
- * confirmed to be RETAIN.
+ * scrub continues. The local transaction does not begin unless every live
+ * table reports success, and each live delete/anonymisation is safe to re-run.
+ * Finance/contracts/deliverables are NOT touched here — confirmed to be RETAIN.
  */
 async function scrubClientLiveTables(
   supabase: LiveScrubClient,
@@ -569,6 +808,7 @@ async function scrubClientLiveTables(
   const stub: LiveErasureStub = {
     inboxConversations: 0, inboxMessages: 0, inboxContactIdentities: 0,
     enquiriesAnonymised: 0, enquiriesPiiStripped: 0,
+    enquiriesReviewRequired: { legacyUnscoped: 0, sharedIdentity: 0 },
   };
   const fail = (where: string, msg: string) => {
     (stub.errors ??= []).push(`${where}: ${msg}`);
@@ -576,61 +816,98 @@ async function scrubClientLiveTables(
     console.error(`[clientErasure] live scrub ${where} failed: ${msg}`);
   };
 
-  // ── inbox: delete conversations + their messages + contact identities ──
+  // ── inbox: atomic exact client-owned identity → conversation → message chain ──
+  // `inbox_conversations` has no client_id. The service-role-only RPC locks and
+  // validates the complete FK chain, then deletes the still-owned identity
+  // roots so PostgreSQL cascades the exact conversations/messages atomically.
   try {
-    const convRes = await supabase
-      .from<{ id: string; created_at?: string; last_message_at?: string }>("inbox_conversations")
-      .select("id, created_at, last_message_at").eq("agency_id", agencyId).eq("client_id", clientId);
-    if (convRes.error) throw new Error(convRes.error.message);
-    const convs = convRes.data ?? [];
-    stub.inboxConversations = convs.length;
-    if (convs.length) {
-      const starts = convs.map(c => c.created_at).filter(Boolean).sort() as string[];
-      const ends = convs.map(c => c.last_message_at ?? c.created_at).filter(Boolean).sort() as string[];
-      stub.inboxConversationsFrom = starts[0];
-      stub.inboxConversationsTo = ends[ends.length - 1];
-
-      const convIds = convs.map(c => c.id);
-      const msgRes = await supabase.from("inbox_messages").delete().in("conversation_id", convIds).select("id");
-      if (msgRes.error) throw new Error(`inbox_messages: ${msgRes.error.message}`);
-      stub.inboxMessages = (msgRes.data ?? []).length;
-
-      const delConv = await supabase.from("inbox_conversations").delete().eq("agency_id", agencyId).eq("client_id", clientId);
-      if (delConv.error) throw new Error(`inbox_conversations delete: ${delConv.error.message}`);
-
-      collections["deleted:inbox_conversations"] = stub.inboxConversations;
-      if (stub.inboxMessages) collections["deleted:inbox_messages"] = stub.inboxMessages;
+    type InboxErasureRow = {
+      deleted_identity_count: number;
+      deleted_conversation_count: number;
+      deleted_message_count: number;
+      conversation_from: string | null;
+      conversation_to: string | null;
+    };
+    const inboxResult = await supabase.rpc<InboxErasureRow>("erase_client_inbox_data", {
+      p_agency_id: agencyId,
+      p_client_id: clientId,
+    });
+    if (inboxResult.error) throw new Error(inboxResult.error.message);
+    if (!inboxResult.data || inboxResult.data.length !== 1) {
+      throw new Error("inbox erasure returned an ambiguous result");
     }
+    const [row] = inboxResult.data;
+    const counts = [row.deleted_identity_count, row.deleted_conversation_count, row.deleted_message_count];
+    if (counts.some(value => !Number.isSafeInteger(value) || value < 0)) {
+      throw new Error("inbox erasure returned invalid counts");
+    }
+    if ((row.conversation_from !== null && typeof row.conversation_from !== "string")
+      || (row.conversation_to !== null && typeof row.conversation_to !== "string")) {
+      throw new Error("inbox erasure returned invalid date bounds");
+    }
+
+    stub.inboxContactIdentities = row.deleted_identity_count;
+    stub.inboxConversations = row.deleted_conversation_count;
+    stub.inboxMessages = row.deleted_message_count;
+    stub.inboxConversationsFrom = row.conversation_from ?? undefined;
+    stub.inboxConversationsTo = row.conversation_to ?? undefined;
+    if (stub.inboxContactIdentities) {
+      collections["deleted:inbox_contact_identities"] = stub.inboxContactIdentities;
+    }
+    if (stub.inboxConversations) collections["deleted:inbox_conversations"] = stub.inboxConversations;
+    if (stub.inboxMessages) collections["deleted:inbox_messages"] = stub.inboxMessages;
   } catch (err) {
     fail("inbox", err instanceof Error ? err.message : String(err));
   }
 
-  try {
-    const identRes = await supabase.from("inbox_contact_identities").delete()
-      .eq("agency_id", agencyId).eq("client_id", clientId).select("id");
-    if (identRes.error) throw new Error(identRes.error.message);
-    stub.inboxContactIdentities = (identRes.data ?? []).length;
-    if (stub.inboxContactIdentities) collections["deleted:inbox_contact_identities"] = stub.inboxContactIdentities;
-  } catch (err) {
-    fail("inbox_contact_identities", err instanceof Error ? err.message : String(err));
-  }
-
   // ── brand_enquiries: anonymise, split by identity resolution ──
   try {
-    const enqRes = await supabase
+    const routedRes = await supabase
       .from<{ id: string; metadata: Record<string, unknown> | null }>("brand_enquiries")
-      .select("id, metadata").eq("metadata->>clientId", clientId);
-    if (enqRes.error) throw new Error(enqRes.error.message);
-    for (const row of enqRes.data ?? []) {
+      .select("id, metadata").eq("agency_id", agencyId).eq("metadata->>clientId", clientId);
+    if (routedRes.error) throw new Error(routedRes.error.message);
+    const resolvedRes = await supabase
+      .from<{ id: string; metadata: Record<string, unknown> | null }>("brand_enquiries")
+      .select("id, metadata").eq("agency_id", agencyId)
+      .eq("metadata->identityResolution->>clientId", clientId);
+    if (resolvedRes.error) throw new Error(resolvedRes.error.message);
+    const rows = new Map([
+      ...(routedRes.data ?? []),
+      ...(resolvedRes.data ?? []),
+    ].map(row => [row.id, row]));
+    for (const row of rows.values()) {
       const metadata: Record<string, unknown> = row.metadata && typeof row.metadata === "object" ? { ...row.metadata } : {};
       const ir = metadata.identityResolution && typeof metadata.identityResolution === "object"
         ? { ...(metadata.identityResolution as Record<string, unknown>) } : undefined;
-      const resolvedAsClient = ir?.status === "resolved" && (ir?.clientId === clientId || metadata.clientId === clientId);
+      const routedAsClient = metadata.clientId === clientId;
+      const identityNamesClient = ir?.clientId === clientId;
+      // Site routing and identity resolution are independent. A top-level
+      // route to A is enough to unlink A, but only a completed nested identity
+      // resolution to A may authorise stripping the enquirer's PII. A nested
+      // resolution to B belongs to B and must survive A's erasure.
+      const resolvedAsClient = ir?.status === "resolved" && identityNamesClient;
+      if (!resolvedAsClient) {
+        const resolvedAsAnotherClient = ir?.status === "resolved"
+          && typeof ir.clientId === "string"
+          && ir.clientId.length > 0
+          && ir.clientId !== clientId;
+        if (resolvedAsAnotherClient) stub.enquiriesReviewRequired.sharedIdentity++;
+        else stub.enquiriesReviewRequired.legacyUnscoped++;
+      }
 
-      // Always drop the client link.
-      delete metadata.clientId;
-      delete metadata.clientLinkedAt;
-      if (ir) { delete ir.clientId; delete ir.clientName; metadata.identityResolution = ir; }
+      // Drop only the exact target links. In either direction the other link
+      // may legitimately belong to a different Client and must survive.
+      if (routedAsClient) {
+        delete metadata.clientId;
+        delete metadata.clientLinkedAt;
+      }
+      if (ir) {
+        if (identityNamesClient) {
+          delete ir.clientId;
+          delete ir.clientName;
+        }
+        metadata.identityResolution = ir;
+      }
 
       const update: Record<string, unknown> = { metadata };
       if (resolvedAsClient) {
@@ -640,7 +917,8 @@ async function scrubClientLiveTables(
         delete metadata.replies; delete metadata.calls; delete metadata.formCapture;
         stub.enquiriesPiiStripped++;
       }
-      const upd = await supabase.from("brand_enquiries").update(update).eq("id", row.id);
+      const upd = await supabase.from("brand_enquiries").update(update)
+        .eq("agency_id", agencyId).eq("id", row.id);
       if (upd.error) throw new Error(`update ${row.id}: ${upd.error.message}`);
       stub.enquiriesAnonymised++;
     }
@@ -666,15 +944,30 @@ export async function eraseClientCompletely(input: {
 
   const clientName = client.name;
   const collections: Record<string, number> = {};
-  let recordsErased = 0;
 
   // Live systems go first. Their operations are idempotent, while deleting the
   // local client first used to remove the only normal route to retry a partial
   // failure. A failed live attempt leaves the client and all local records in
   // place and records only de-identified per-system outcomes for the retry.
   let live: LiveErasureStub | undefined;
+  let liveReviewRequired: ErasureReviewRequired[] = [];
   if (input.supabase) {
     live = await scrubClientLiveTables(input.supabase, input.agencyId, input.clientId, collections);
+    liveReviewRequired = compactReviewRequired([
+      ...(live.enquiriesReviewRequired.legacyUnscoped ? [{
+        system: "brand-enquiries",
+        reason: "legacy-unscoped" as const,
+        records: live.enquiriesReviewRequired.legacyUnscoped,
+      }] : []),
+      ...(live.enquiriesReviewRequired.sharedIdentity ? [{
+        system: "brand-enquiries",
+        reason: "shared-identity" as const,
+        records: live.enquiriesReviewRequired.sharedIdentity,
+      }] : []),
+    ]);
+    for (const item of liveReviewRequired) {
+      collections[`review:${item.system}:${item.reason}`] = item.records;
+    }
     if (live.errors?.length) {
       const failedSystems = live.errors.map(error => error.split(":", 1)[0]);
       logActivity({
@@ -692,17 +985,147 @@ export async function eraseClientCompletely(input: {
           live: { ...live, errors: undefined },
         },
       });
-      return { completed: false, clientName, recordsErased: 0, collections, live };
+      return { completed: false, clientName, recordsErased: 0, collections, reviewRequired: liveReviewRequired, live };
     }
   }
+  const committedCollections = { ...collections };
 
-  // Resolve dispositions + run bespoke plugin hooks first (async — they use
-  // their own storage API), so a plugin can erase what the generic scan can't.
-  const dispositions = await resolveDispositionsAndRunHooks(input.agencyId, input.clientId, collections);
-  const failedHooks = Object.keys(collections)
-    .filter(key => key.startsWith("hookError:"))
-    .map(key => key.slice("hookError:".length));
-  if (failedHooks.length) {
+  // Every local/plugin mutation shares one durable transaction. Plugin storage
+  // `runExclusive` calls nest into this boundary, so a late hook failure rolls
+  // back earlier hooks and the generic sweep together.
+  try {
+    return await withPortalStateTransaction(
+      // Share the public-funnel identity lane. Otherwise a capture could pass
+      // its global user check while this erasure concurrently decides that the
+      // same generated lead is unreferenced, producing a dangling capture.
+      "public-funnel:anonymous-lead-capture",
+      async (): Promise<ClientErasureResult | null> => {
+        const lockedClient = getClientForAgency(input.agencyId, input.clientId);
+        if (!lockedClient) return null;
+        let recordsErased = 0;
+        const resolved = await resolveDispositionsAndRunHooks(
+          input.agencyId,
+          input.clientId,
+          collections,
+        );
+        const reviewRequired = compactReviewRequired([
+          ...resolved.reviewRequired,
+          ...liveReviewRequired,
+        ]);
+        for (const item of reviewRequired) {
+          collections[`review:${item.system}:${item.reason}`] = item.records;
+        }
+
+        mutate(state => {
+          // Plugin-owned storage — swept before the top-level pass so client-scoped
+          // install ids are still resolvable.
+          recordsErased += sweepPluginData(
+            state,
+            input.agencyId,
+            input.clientId,
+            collections,
+            resolved.dispositions,
+          );
+
+          // Person records — unlink always, strip identifiers only when orphaned.
+          anonymiseOrphanedPersons(
+            state,
+            input.agencyId,
+            input.clientId,
+            resolved.subject.exactOwnership.personId,
+            lockedClient.relationshipId,
+            collections,
+          );
+
+          // Identity-resolution reviews — links to a client via `selectedClientId`,
+          // which the generic clientId sweep cannot see.
+          anonymiseIdentityResolutionReviews(state, input.agencyId, input.clientId, collections);
+
+          for (const [collectionName, collection] of Object.entries(state as unknown as Record<string, unknown>)) {
+            if (!collection) continue;
+            if (PLUGIN_COLLECTIONS.has(collectionName)) continue;
+            if (DEDICATED_COLLECTIONS.has(collectionName)) continue;
+
+            if (RETAIN_COLLECTIONS.has(collectionName)) {
+              let kept = 0;
+              if (Array.isArray(collection)) {
+                kept = collection.filter(e => recordNamesClient(e, input.clientId)).length;
+              } else if (typeof collection === "object") {
+                kept = Object.values(collection as Record<string, unknown>)
+                  .filter(r => recordNamesClient(r, input.clientId)).length;
+              }
+              if (kept) collections[`retained:${collectionName}`] = kept;
+              continue;
+            }
+
+            if (Array.isArray(collection)) {
+              const before = collection.length;
+              const kept = collection.filter(entry => !recordNamesClient(entry, input.clientId));
+              if (kept.length !== before) {
+                (state as unknown as Record<string, unknown>)[collectionName] = kept;
+                const droppedCount = before - kept.length;
+                collections[`deleted:${collectionName}`] = droppedCount;
+                recordsErased += droppedCount;
+              }
+              continue;
+            }
+
+            if (typeof collection === "object") {
+              let droppedCount = 0;
+              for (const [id, record] of Object.entries(collection as Record<string, unknown>)) {
+                if (recordNamesClient(record, input.clientId)) {
+                  delete (collection as Record<string, unknown>)[id];
+                  droppedCount++;
+                }
+              }
+              if (droppedCount) {
+                collections[`deleted:${collectionName}`] = droppedCount;
+                recordsErased += droppedCount;
+              }
+            }
+          }
+
+          if (state.clients[input.clientId]) {
+            delete state.clients[input.clientId];
+            collections["deleted:clients"] = (collections["deleted:clients"] ?? 0) + 1;
+            recordsErased += 1;
+          }
+        });
+
+        logActivity({
+          agencyId: input.agencyId,
+          actorUserId: input.actorUserId,
+          actorEmail: input.actorEmail,
+          category: "tenant",
+          action: "client.erased",
+          message: `Permanently erased a client and associated data (${recordsErased} records deleted). This cannot be undone.`,
+          metadata: {
+            clientId: input.clientId,
+            recordsErased,
+            collections,
+            reviewRequired,
+            live,
+          },
+        });
+
+        return {
+          completed: true,
+          clientName: lockedClient.name,
+          recordsErased,
+          collections,
+          reviewRequired,
+          live,
+        };
+      },
+    );
+  } catch (error) {
+    if (!(error instanceof PluginErasureHookError) && !(error instanceof PluginErasureRuntimeError)) throw error;
+    const failedSystem = error instanceof PluginErasureHookError ? error.pluginId : error.system;
+    const failedHooks = [failedSystem];
+    const failureCollections = {
+      ...committedCollections,
+      [`hookError:${failedSystem}`]: 1,
+    };
     logActivity({
       agencyId: input.agencyId,
       clientId: input.clientId,
@@ -711,96 +1134,22 @@ export async function eraseClientCompletely(input: {
       category: "tenant",
       action: "client.erasure_failed",
       message: "Client erasure is incomplete and can be retried; the local client record was retained.",
-      metadata: { clientId: input.clientId, failedSystems: failedHooks.map(id => `plugin:${id}`), collections, live },
+      metadata: {
+        clientId: input.clientId,
+        failedSystems: failedHooks.map(id => `plugin:${id}`),
+        collections: failureCollections,
+        live,
+      },
     });
-    return { completed: false, clientName, recordsErased: 0, collections, live };
+    return {
+      completed: false,
+      clientName,
+      recordsErased: 0,
+      collections: failureCollections,
+      reviewRequired: liveReviewRequired,
+      live,
+    };
   }
-
-  mutate(state => {
-    // Plugin-owned storage — swept before the top-level pass so client-scoped
-    // install ids are still resolvable.
-    recordsErased += sweepPluginData(state, input.agencyId, input.clientId, collections, dispositions);
-
-    // Person records — unlink always, strip identifiers only when orphaned.
-    anonymiseOrphanedPersons(state, input.agencyId, input.clientId, client.relationshipId, collections);
-
-    // Identity-resolution reviews — links to a client via `selectedClientId`,
-    // which the generic clientId sweep cannot see.
-    anonymiseIdentityResolutionReviews(state, input.agencyId, input.clientId, collections);
-
-    for (const [collectionName, collection] of Object.entries(state as unknown as Record<string, unknown>)) {
-      if (!collection) continue;
-      // Plugin slices/records are handled above; skip them here.
-      if (PLUGIN_COLLECTIONS.has(collectionName)) continue;
-      // Persons get the anonymise-if-orphaned pass, not the generic one.
-      if (DEDICATED_COLLECTIONS.has(collectionName)) continue;
-
-      // Legal-hold collections survive erasure — the client's PII still goes
-      // via the client-record delete, leaving a de-identified record.
-      if (RETAIN_COLLECTIONS.has(collectionName)) {
-        let kept = 0;
-        if (Array.isArray(collection)) {
-          kept = collection.filter(e => recordNamesClient(e, input.clientId)).length;
-        } else if (typeof collection === "object") {
-          kept = Object.values(collection as Record<string, unknown>).filter(r => recordNamesClient(r, input.clientId)).length;
-        }
-        if (kept) collections[`retained:${collectionName}`] = kept;
-        continue;
-      }
-
-      if (Array.isArray(collection)) {
-        // Arrays (e.g. the activity log) — drop entries that name this client.
-        const before = collection.length;
-        const kept = collection.filter(entry => !recordNamesClient(entry, input.clientId));
-        if (kept.length !== before) {
-          (state as unknown as Record<string, unknown>)[collectionName] = kept;
-          const droppedCount = before - kept.length;
-          collections[`deleted:${collectionName}`] = droppedCount;
-          recordsErased += droppedCount;
-        }
-        continue;
-      }
-
-      if (typeof collection === "object") {
-        // Record<string, X> — delete entries stamped with this client.
-        let droppedCount = 0;
-        for (const [id, record] of Object.entries(collection as Record<string, unknown>)) {
-          if (recordNamesClient(record, input.clientId)) {
-            delete (collection as Record<string, unknown>)[id];
-            droppedCount++;
-          }
-        }
-        if (droppedCount) {
-          collections[`deleted:${collectionName}`] = droppedCount;
-          recordsErased += droppedCount;
-        }
-      }
-    }
-
-    // The client record itself is keyed by its own id, not a `clientId` field,
-    // so it is removed explicitly. Always deleted — even when finance is
-    // retained, only the random clientId token survives, never the person.
-    if (state.clients[input.clientId]) {
-      delete state.clients[input.clientId];
-      collections["deleted:clients"] = (collections["deleted:clients"] ?? 0) + 1;
-      recordsErased += 1;
-    }
-  });
-
-  // Recorded AFTER the wipe so the audit trail survives it. Names no personal
-  // data — only that an erasure occurred, by whom, the disposition per area,
-  // and the no-PII live-scrub stub (counts + date span, never content).
-  logActivity({
-    agencyId: input.agencyId,
-    actorUserId: input.actorUserId,
-    actorEmail: input.actorEmail,
-    category: "tenant",
-    action: "client.erased",
-    message: `Permanently erased a client and associated data (${recordsErased} records deleted). This cannot be undone.`,
-    metadata: { clientId: input.clientId, recordsErased, collections, live },
-  });
-
-  return { completed: true, clientName, recordsErased, collections, live };
 }
 
 /**

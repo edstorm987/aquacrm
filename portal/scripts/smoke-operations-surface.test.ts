@@ -33,7 +33,6 @@ function panel(panels: NavPanel[], id: string): NavPanel | undefined {
 // The business functions that make up the Operations surface, paired with the
 // route each one still resolves to (routes are UNCHANGED by this regrouping).
 const OPERATIONS: { id: string; href: string }[] = [
-  { id: "pipelines",   href: "/portal/clients?view=journey" },
   { id: "fulfilment",  href: "/portal/agency/fulfilment" },
   { id: "aqua-tags",   href: "/portal/agency/fulfilment?view=tags" },
   { id: "marketing",   href: "/portal/agency/marketing" },
@@ -64,13 +63,13 @@ describe("agency Operations surface (IA v2)", () => {
     assert.equal(operationsRow!.href, "/portal/agency/operations", "the Operations row lands on the hub");
   });
 
-  it("renders the flat surface rows on the main panel: Command Centre, Inbox, Operations, Tools", () => {
+  it("renders the flat surface rows on the main panel, including the one consolidated Journey", () => {
     const main = panel(ownerSidebar(), "main");
     assert.ok(main, "a main (Command Centre) panel should assemble");
     assert.deepEqual(
       main!.items.map(item => item.id),
-      ["home", "inbox", "scouting", "operations-home", "my-radar", "tools"],
-      "the main panel holds Command Centre, Inbox & actions, Scouting, the Operations row, My Radar and Tools as flat rows",
+      ["home", "inbox", "pipelines", "operations-home", "my-radar", "tools"],
+      "the main panel holds Command Centre, Inbox & actions, Journey, the Operations row, My Radar and Tools as flat rows",
     );
     // The business functions must NOT sit on main — they live on the hub.
     const mainIds = new Set(main!.items.map(item => item.id));
@@ -106,12 +105,13 @@ describe("agency Operations surface (IA v2)", () => {
   it("orders the Operations surface as a delegation-friendly sequence", () => {
     const ops = panel(ownerSidebar(), "ops");
     const ids = ops!.items.map(item => item.id);
-    // Journey, Fulfilment, Aqua tags, Marketing, Finance, People, Freelancers,
-    // SOP library, Governance — then owner-only "You deserve it" trailing. This
+    // Fulfilment, Aqua tags, Marketing, Finance, People, Freelancers, SOP
+    // library, Governance — then owner-only "You deserve it" trailing. Journey
+    // is the owner's consolidated main row rather than an Operations function. This
     // is the delegation order the hub cards render in.
     assert.deepEqual(
       ids,
-      ["pipelines", "fulfilment", "aqua-tags", "marketing", "finance", "people", "freelancers", "sop-library", "governance", "you-deserve-it"],
+      ["fulfilment", "aqua-tags", "marketing", "finance", "people", "freelancers", "sop-library", "governance", "you-deserve-it"],
       "Operations functions follow the delegation order",
     );
   });
@@ -128,7 +128,7 @@ describe("agency Operations surface (IA v2)", () => {
     const main = panel(panels, "main");
     assert.deepEqual(
       main!.items.map(item => item.id),
-      ["home", "inbox", "scouting", "operations-home", "my-radar", "tools"],
+      ["home", "inbox", "pipelines", "operations-home", "my-radar", "tools"],
       "the main panel renders the six flat surface rows in order",
     );
   });

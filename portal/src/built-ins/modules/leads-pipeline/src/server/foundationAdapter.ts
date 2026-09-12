@@ -5,6 +5,7 @@ import type {
   ActivityLogPort,
   EmailEnqueuePort,
   EventBusPort,
+  PersonIdentityPort,
   PipelinePort,
   PluginInstallStorePort,
   TenantPort,
@@ -22,6 +23,7 @@ export interface LeadsPipelineFoundation {
   // integration is skipped (foundation-pending).
   emailEnqueue?: EmailEnqueuePort;
   pipeline?: PipelinePort;
+  personIdentity?: PersonIdentityPort;
 }
 
 let registered: LeadsPipelineFoundation | null = null;
@@ -62,6 +64,7 @@ export function containerFor(args: {
     pluginInstalls: f.pluginInstalls,
     emailEnqueue: f.emailEnqueue,
     pipeline: f.pipeline,
+    personIdentity: f.personIdentity,
     settings: args.settings,
   });
 }
@@ -80,6 +83,7 @@ export function containerWithDeps(args: {
     pluginInstalls: args.foundation.pluginInstalls,
     emailEnqueue: args.foundation.emailEnqueue,
     pipeline: args.foundation.pipeline,
+    personIdentity: args.foundation.personIdentity,
   });
 }
 
@@ -98,5 +102,6 @@ export function _containerFromCtx(args: {
     pluginInstalls: registered.pluginInstalls,
     emailEnqueue: registered.emailEnqueue,
     pipeline: registered.pipeline,
+    personIdentity: registered.personIdentity,
   });
 }

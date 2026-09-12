@@ -31,6 +31,22 @@ const msgKey = (id: string): string => `email/by-id/${id}`;
 const idemKey = (k: string): string => `email/idem/${k}`;
 const byStatusKey = (s: EmailStatus): string => `email/by-status/${s}`;
 
+export interface EmailErasureResult {
+  erased: number;
+  reviewRequired: {
+    legacyUnscoped: number;
+    sharedIdentity: number;
+  };
+}
+
+export interface EmailErasureSubject {
+  clientId: string;
+  personId?: string;
+  personShared: boolean;
+  emails: readonly string[];
+  sharedEmails: readonly string[];
+}
+
 export class EmailService {
   constructor(
     private agencyId: AgencyId,
@@ -151,6 +167,7 @@ export class EmailService {
       id,
       agencyId: this.agencyId,
       clientId: input.clientId,
+      personId: input.personId,
       to,
       cc: arrayOrUndefined(input.cc),
       bcc: arrayOrUndefined(input.bcc),
@@ -401,32 +418,45 @@ export class EmailService {
     return next;
   }
 
-  // Right-to-be-forgotten: delete every message addressed to one of `addresses`,
-  // plus the index entries and the idempotency pointer (whose KEY NAME can embed
-  // the address a caller passed in its `externalRef` — a value-scan can never
-  // reach that). Called by the plugin's `onEraseClient` hook.
-  //
-  // DELETE, not anonymise: raw comms content is the disposition policy's clearest
-  // delete category (the same treatment the live `inbox_*` scrub applies). The
-  // count comes back for the no-PII audit stub.
-  //
-  // Matching is by recipient address because a campaign blast to a LEAD carries
-  // no `clientId` — the row is only tied to the person by who it was sent to.
-  // Messages that DO carry `clientId` are matched too, so a client-stamped email
-  // goes even if the address has since changed.
-  //
-  // Idempotent: a second run finds no matching rows and returns 0.
-  async eraseForAddresses(addresses: readonly string[], clientId?: string): Promise<number> {
-    const wanted = new Set(addresses.map(a => a.trim().toLowerCase()).filter(Boolean));
-    if (!wanted.size && !clientId) return 0;
-    const messages = await this.list();
+  // Right-to-be-forgotten. Raw communications are deleted only when their
+  // tenant row carries the exact target client, or an exclusive reciprocal
+  // Person. Recipient addresses identify review candidates, never owners.
+  async eraseForClient(subject: EmailErasureSubject): Promise<EmailErasureResult> {
+    const wanted = new Set(subject.emails.map(a => a.trim().toLowerCase()).filter(Boolean));
+    const shared = new Set(subject.sharedEmails.map(a => a.trim().toLowerCase()).filter(Boolean));
+    const messages: EmailMessage[] = [];
+    for (const key of await this.storage.list("email/by-id/")) {
+      const message = await this.storage.get<EmailMessage>(key);
+      if (message?.agencyId === this.agencyId) messages.push(message);
+    }
+    const reviewRequired = { legacyUnscoped: 0, sharedIdentity: 0 };
     let erased = 0;
     for (const message of messages) {
       const recipients = [...message.to, ...(message.cc ?? []), ...(message.bcc ?? [])];
       const addressed = recipients.some(r => wanted.has(r.trim().toLowerCase()));
-      if (!addressed && !(clientId !== undefined && message.clientId === clientId)) continue;
+      const conflictingPerson = Boolean(subject.personId && message.personId && message.personId !== subject.personId);
+      const exactClient = message.clientId === subject.clientId && !conflictingPerson;
+      const exactExclusivePerson = Boolean(subject.personId && !subject.personShared
+        && message.personId === subject.personId
+        && (!message.clientId || message.clientId === subject.clientId));
+      if (!exactClient && !exactExclusivePerson) {
+        if (!addressed && message.clientId !== subject.clientId
+          && !(subject.personId && message.personId === subject.personId)) continue;
+        const hasSharedRecipient = recipients.some(r => shared.has(r.trim().toLowerCase()));
+        const sharedIdentity = Boolean(hasSharedRecipient
+          || conflictingPerson
+          || (message.clientId && message.clientId !== subject.clientId)
+          || (message.personId && message.personId !== subject.personId)
+          || (subject.personShared && subject.personId && message.personId === subject.personId));
+        if (sharedIdentity) reviewRequired.sharedIdentity++;
+        else reviewRequired.legacyUnscoped++;
+        continue;
+      }
       await this.storage.del(msgKey(message.id));
-      if (message.idempotencyKey) await this.storage.del(idemKey(message.idempotencyKey));
+      if (message.idempotencyKey) {
+        const pointer = await this.storage.get<IdempotencyEntry>(idemKey(message.idempotencyKey));
+        if (pointer?.messageId === message.id) await this.storage.del(idemKey(message.idempotencyKey));
+      }
       await this.removeFromStatusIndex(message.id, message.status);
       const ix = (await this.storage.get<string[]>(MSG_INDEX_KEY)) ?? [];
       await this.storage.set(MSG_INDEX_KEY, ix.filter(value => value !== message.id));
@@ -442,7 +472,7 @@ export class EmailService {
         metadata: { erased },
       });
     }
-    return erased;
+    return { erased, reviewRequired };
   }
 
   private async appendToStatusIndex(id: string, status: EmailStatus): Promise<void> {

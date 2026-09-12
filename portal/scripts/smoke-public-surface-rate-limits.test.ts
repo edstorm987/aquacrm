@@ -9,8 +9,8 @@
 //
 //   * `proposals/[token]`, the only unauthenticated write with no limit of any
 //     kind, and the one that SIGNS A COMMERCIAL AGREEMENT.
-//   * `health-check/complete`, which can finish by calling `sessionCookie(...)`
-//     — an anonymous endpoint that signs somebody in.
+//   * `health-check/complete`, a high-volume anonymous lead write. It is now
+//     structurally capture-only and cannot sign anybody in.
 //
 // Both now have one. This test is what stops the next one shipping without.
 //
@@ -93,13 +93,11 @@ test("the rate limit is keyed per caller, not globally", () => {
 });
 
 test("the two routes the review found are specifically covered", () => {
-  // Named because they are the consequential ones: one signs a commercial
-  // agreement, the other signs somebody in. If either loses its limit, the
-  // generic sweep above would catch it — this says WHY it matters.
+  // One signs a commercial agreement; the other creates a lead capture.
   const accept = readFileSync(path.join(ROOT, "src/app/api/public/proposals/[token]/route.ts"), "utf8");
   const health = readFileSync(path.join(ROOT, "src/app/api/public/health-check/complete/route.ts"), "utf8");
 
   assert.match(stripComments(accept), /rateLimit\(\{[\s\S]*?proposal-accept/, "accepting a proposal must be rate limited");
-  assert.match(stripComments(health), /rateLimit\(\{[\s\S]*?health-check-complete/, "the session-minting funnel completion must be rate limited");
-  assert.match(stripComments(health), /sessionCookie\(/, "this test exists because that route mints a session — if it no longer does, revisit the reasoning");
+  assert.match(stripComments(health), /rateLimit\(\{[\s\S]*?health-check-complete/, "the public funnel completion must be rate limited");
+  assert.doesNotMatch(stripComments(health), /sessionCookie\(|issueSession\(/, "anonymous completion must remain capture-only");
 });

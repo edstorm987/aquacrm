@@ -101,6 +101,13 @@ describe("conversion carries the history into the client workspace", () => {
     assert.match(subscriber, /on\("client\.created"/);
   });
 
+  it("uses only the typed agency-scoped client Person pointer", () => {
+    const subscriber = read("src", "built-ins", "runtime", "foundation-adapters", "personClientSeeding.ts");
+    assert.match(subscriber, /if \(!client\.personId\) return/);
+    assert.match(subscriber, /getPerson\(event\.agencyId, client\.personId\)/);
+    assert.doesNotMatch(subscriber, /findPersonByIdentity|portalLoginEmail|clientEmail|ownerEmail|contactPhone/);
+  });
+
   it("never fails the conversion because seeding failed", () => {
     const subscriber = read("src", "built-ins", "runtime", "foundation-adapters", "personClientSeeding.ts");
     assert.match(subscriber, /catch \(error\)/);

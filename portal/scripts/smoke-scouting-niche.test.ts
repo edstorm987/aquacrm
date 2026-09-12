@@ -18,6 +18,7 @@ test("maps and scraper exports map into scouting fields", () => {
 test("scouting accepts incomplete observations and preserves research", async () => {
   const data = new Map<string, unknown>();
   const activity: Array<{ action: string }> = [];
+  const activityKeys = new Set<string>();
   const events: string[] = [];
   const service = new ProspectService(
     "agency_test",
@@ -26,9 +27,14 @@ test("scouting accepts incomplete observations and preserves research", async ()
       async set<T>(key: string, value: T) { data.set(key, value); },
       async del(key: string) { data.delete(key); },
       async list(prefix = "") { return [...data.keys()].filter(key => key.startsWith(prefix)); },
+      async runExclusive<T>(_key: string, operation: () => Promise<T>) { return operation(); },
     },
     {
       logActivity(input) {
+        if (input.idempotencyKey && activityKeys.has(input.idempotencyKey)) {
+          return { id: `activity_${activityKeys.size}`, ts: Date.now(), ...input };
+        }
+        if (input.idempotencyKey) activityKeys.add(input.idempotencyKey);
         activity.push({ action: input.action });
         return { id: "activity_test", ts: Date.now(), ...input };
       },
@@ -61,17 +67,14 @@ test("scouting accepts incomplete observations and preserves research", async ()
   assert.deepEqual(prospect.followUps, []);
   assert.deepEqual(prospect.outreachAttempts, []);
   assert.equal((await service.list())[0]?.niche, "Electrician");
-  await assert.rejects(() => service.recordOutreach(prospect.id, {
-    channel: "call",
-    outcome: "attempted",
-  }, "user_ed"), /required scouting inspection/);
-
   const researched = await service.update(prospect.id, {
     email: "HELLO@NORTHSTREET.EXAMPLE",
     researchNotes: "Google profile is incomplete.",
   }, "user_ed");
   assert.equal(researched?.email, "hello@northstreet.example");
   assert.equal(researched?.researchNotes, "Google profile is incomplete.");
+  assert.equal(researched?.researchUpdatedBy, "user_ed");
+  assert.ok(researched?.researchUpdatedAt);
   const inspected = await service.saveInspection(prospect.id, [
     "business-verified",
     "contact-route-verified",
@@ -80,6 +83,8 @@ test("scouting accepts incomplete observations and preserves research", async ()
   ], "user_ed");
   assert.equal(inspected?.qualificationState, "ready");
   assert.ok(inspected?.inspectedAt);
+  assert.equal(inspected?.researchUpdatedBy, "user_ed");
+  assert.ok((inspected?.researchUpdatedAt ?? 0) >= (researched?.researchUpdatedAt ?? 0));
 
   const firstFollowUpAt = Date.now() + 86_400_000;
   const secondFollowUpAt = Date.now() + 2 * 86_400_000;
@@ -103,6 +108,7 @@ test("scouting accepts incomplete observations and preserves research", async ()
     status: "completed",
   }, "user_ed");
   assert.equal(resolvedFirst?.nextContactAt, secondFollowUpAt);
+  assert.equal(resolvedFirst?.followUps.find(item => item.id === firstFollowUpId)?.resolvedBy, "user_ed");
   const secondFollowUpId = resolvedFirst?.followUps.find(item => item.status === "scheduled")?.id;
   assert.ok(secondFollowUpId);
   const resolvedSecond = await service.resolveFollowUp(prospect.id, {
@@ -112,16 +118,69 @@ test("scouting accepts incomplete observations and preserves research", async ()
   assert.equal(resolvedSecond?.nextContactAt, undefined);
 
   const followUpAt = Date.now() + 3 * 86_400_000;
+  const attemptId = "logical_call_001";
+  const attempted = await service.recordOutreach(prospect.id, {
+    attemptId,
+    channel: "call",
+    outcome: "attempted",
+  }, "user_ed");
+  assert.equal(attempted?.outreachAttempts.length, 1);
+  assert.equal(attempted?.outreachAttempts[0]?.id, attemptId);
+
   const contacted = await service.recordOutreach(prospect.id, {
+    attemptId,
     channel: "call",
     outcome: "not-now",
+    contactedAt: (attempted?.outreachAttempts[0]?.at ?? 0) + 10_000,
     note: "Owner asked for a call after the current project finishes.",
     followUpAt,
     followUpReason: "Call when current project completes",
   }, "user_ed");
   assert.equal(contacted?.qualificationState, "not-now");
   assert.equal(contacted?.nextContactAt, followUpAt);
+  assert.equal(contacted?.outreachAttempts.length, 1, "finalising a provider attempt must not append a second quota row");
+  assert.equal(contacted?.outreachAttempts[0]?.id, attemptId);
+  assert.equal(contacted?.outreachAttempts[0]?.at, attempted?.outreachAttempts[0]?.at,
+    "a disposition must retain the provider action's original occurrence time");
   assert.equal(contacted?.outreachAttempts[0]?.outcome, "not-now");
+  assert.equal(contacted?.followUps.filter(item => item.sourceOutreachAttemptId === attemptId).length, 1);
+
+  const replayed = await service.recordOutreach(prospect.id, {
+    attemptId,
+    channel: "call",
+    outcome: "not-now",
+    note: "Owner asked for a call after the current project finishes.",
+    followUpAt,
+    followUpReason: "Call when current project completes",
+  }, "user_ed");
+  assert.equal(replayed?.outreachAttempts.length, 1, "an exact outcome retry must stay idempotent");
+  assert.equal(replayed?.updatedAt, contacted?.updatedAt, "an exact outcome retry must not touch the prospect row");
+  assert.deepEqual(replayed?.outreachAttempts, contacted?.outreachAttempts);
+  assert.equal(replayed?.followUps.filter(item => item.sourceOutreachAttemptId === attemptId).length, 1,
+    "an exact outcome retry must not schedule a duplicate reminder");
+  await assert.rejects(() => service.recordOutreach(prospect.id, {
+    attemptId,
+    channel: "email",
+    outcome: "sent",
+  }, "user_ed"), /cannot change channel/);
+
+  const newerAttemptAt = (attempted?.outreachAttempts[0]?.at ?? 0) + 20_000;
+  const engaged = await service.recordOutreach(prospect.id, {
+    attemptId: "logical_email_002",
+    channel: "email",
+    outcome: "interested",
+    contactedAt: newerAttemptAt,
+  }, "user_ed");
+  assert.equal(engaged?.qualificationState, "engaged");
+  const olderFinalisedAgain = await service.recordOutreach(prospect.id, {
+    attemptId,
+    channel: "call",
+    outcome: "no-answer",
+  }, "user_ed");
+  assert.equal(olderFinalisedAgain?.qualificationState, "engaged",
+    "editing an older attempt must not regress the state produced by newer outreach");
+  assert.equal(olderFinalisedAgain?.lastContactedAt, newerAttemptAt);
+  assert.equal(olderFinalisedAgain?.outreachAttempts.length, 2);
 
   const noted = await service.addNote(prospect.id, "Recent reviews praise responsiveness.", "user_ed");
   assert.equal(noted?.notes[0]?.body, "Recent reviews praise responsiveness.");
@@ -134,6 +193,9 @@ test("scouting accepts incomplete observations and preserves research", async ()
     "leads.prospect.follow-up-resolved",
     "leads.prospect.follow-up-resolved",
     "leads.prospect.outreach-recorded",
+    "leads.prospect.outreach-recorded",
+    "leads.prospect.outreach-recorded",
+    "leads.prospect.outreach-recorded",
     "leads.prospect.note-added",
   ]);
   assert.deepEqual(events, [
@@ -145,8 +207,141 @@ test("scouting accepts incomplete observations and preserves research", async ()
     "leads.prospect.follow-up-resolved",
     "leads.prospect.follow-up-resolved",
     "leads.prospect.outreach-recorded",
+    "leads.prospect.outreach-recorded",
+    "leads.prospect.outreach-recorded",
+    "leads.prospect.outreach-recorded",
     "leads.prospect.note-added",
   ]);
+});
+
+test("a stable outreach attempt repairs partial activity logging without duplicating the ledger", async () => {
+  const data = new Map<string, unknown>();
+  const activityRows = new Map<string, { id: string; action: string }>();
+  const events: string[] = [];
+  let failFirstOutreachActivity = true;
+  const service = new ProspectService(
+    "agency_repair",
+    {
+      async get<T>(key: string) { return data.get(key) as T | undefined; },
+      async set<T>(key: string, value: T) { data.set(key, value); },
+      async del(key: string) { data.delete(key); },
+      async list(prefix = "") { return [...data.keys()].filter(key => key.startsWith(prefix)); },
+      async runExclusive<T>(_key: string, operation: () => Promise<T>) { return operation(); },
+    },
+    {
+      logActivity(input) {
+        if (input.action === "leads.prospect.outreach-recorded" && failFirstOutreachActivity) {
+          failFirstOutreachActivity = false;
+          throw new Error("activity unavailable");
+        }
+        const key = input.idempotencyKey ?? `${input.action}:${activityRows.size}`;
+        const prior = activityRows.get(key);
+        if (prior) return { id: prior.id, ts: Date.now(), ...input };
+        const row = { id: `activity_${activityRows.size + 1}`, action: input.action };
+        activityRows.set(key, row);
+        return { id: row.id, ts: Date.now(), ...input };
+      },
+      listActivity() { return []; },
+    },
+    {
+      emit(_scope, name) { events.push(name); },
+    },
+  );
+
+  const prospect = await service.create({ company: "Repair Test Ltd", source: "test" }, "user_ed");
+  await service.saveInspection(prospect.id, [
+    "business-verified",
+    "contact-route-verified",
+    "opportunity-confirmed",
+  ], "user_ed");
+  events.length = 0;
+
+  const input = {
+    attemptId: "logical_optout_001",
+    channel: "email" as const,
+    outcome: "not-fit" as const,
+    contactedAt: 1_000,
+    followUpAt: 2_000,
+    followUpReason: "Retain only for audit",
+  };
+  await assert.rejects(() => service.recordOutreach(prospect.id, input, "user_ed"), /activity unavailable/);
+
+  const partiallyCommitted = await service.get(prospect.id);
+  assert.equal(partiallyCommitted?.doNotContact, true);
+  assert.equal(partiallyCommitted?.outreachAttempts.length, 1);
+  assert.equal(partiallyCommitted?.followUps.filter(item => item.sourceOutreachAttemptId === input.attemptId).length, 1);
+
+  const repaired = await service.recordOutreach(prospect.id, { ...input, contactedAt: 99_999 }, "user_ed");
+  const replayed = await service.recordOutreach(prospect.id, { ...input, contactedAt: 200_000 }, "user_ed");
+  assert.equal(repaired?.outreachAttempts.length, 1);
+  assert.equal(repaired?.outreachAttempts[0]?.at, 1_000, "repair must retain provider occurrence time");
+  assert.equal(replayed?.updatedAt, repaired?.updatedAt);
+  assert.deepEqual(replayed?.outreachAttempts, repaired?.outreachAttempts);
+  assert.equal(
+    [...activityRows.values()].filter(item => item.action === "leads.prospect.outreach-recorded").length,
+    1,
+    "activity repair and its replay must share one idempotency identity",
+  );
+  assert.deepEqual(events, [], "a row replay must not re-emit a domain transition event");
+});
+
+test("research is optional for outreach while recipient safety remains separate", async () => {
+  const data = new Map<string, unknown>();
+  const activityKeys = new Set<string>();
+  const events: string[] = [];
+  const service = new ProspectService(
+    "agency_optional_research",
+    {
+      async get<T>(key: string) { return data.get(key) as T | undefined; },
+      async set<T>(key: string, value: T) { data.set(key, value); },
+      async del(key: string) { data.delete(key); },
+      async list(prefix = "") { return [...data.keys()].filter(key => key.startsWith(prefix)); },
+      async runExclusive<T>(_key: string, operation: () => Promise<T>) { return operation(); },
+    },
+    {
+      logActivity(input) {
+        if (input.idempotencyKey) activityKeys.add(input.idempotencyKey);
+        return { id: `activity_${activityKeys.size}`, ts: Date.now(), ...input };
+      },
+      listActivity() { return []; },
+    },
+    { emit(_scope, name) { events.push(name); } },
+  );
+
+  const prospect = await service.create({
+    company: "Direct Network Introduction",
+    phone: "+44 7700 900123",
+    source: "networking",
+  }, "user_ed");
+  assert.equal(prospect.inspectedAt, undefined);
+  assert.deepEqual(prospect.inspectionChecks, []);
+
+  const [first, replay] = await Promise.all([
+    service.recordOutreach(prospect.id, {
+      attemptId: "network_call_001",
+      channel: "call",
+      outcome: "attempted",
+    }, "user_ed"),
+    service.recordOutreach(prospect.id, {
+      attemptId: "network_call_001",
+      channel: "call",
+      outcome: "attempted",
+    }, "user_ed"),
+  ]);
+  assert.equal(first?.outreachAttempts.length, 1);
+  assert.equal(replay?.outreachAttempts.length, 1,
+    "concurrent delivery acknowledgements for one attempt must share one ledger row");
+  assert.equal(events.filter(name => name === "leads.prospect.outreach-recorded").length, 1,
+    "an exact concurrent retry must not emit a second outreach transition");
+
+  await assert.rejects(() => service.recordOutreach(prospect.id, {
+    attemptId: "network_call_invalid_follow_up",
+    channel: "call",
+    outcome: "not-now",
+    followUpAt: Number.NaN,
+  }, "user_ed"), /valid positive timestamp/);
+  assert.equal((await service.get(prospect.id))?.outreachAttempts.length, 1,
+    "an invalid follow-up must not partially append an attempt");
 });
 
 test("sales and client surfaces keep scouting and niche connected", () => {
@@ -163,18 +358,20 @@ test("sales and client surfaces keep scouting and niche connected", () => {
   assert.match(board, /Scout a prospect/);
   assert.match(board, /Any niche/);
   assert.match(board, /Google Maps listing/);
-  assert.match(scouting, /Cold scouting command/);
+  assert.match(scouting, /Outreach Command/);
   assert.match(scouting, /Record an outreach attempt/);
-  assert.match(scouting, /Follow-up control/);
+  assert.match(scouting, /Outreach plan & callbacks/);
   assert.match(scouting, /Cold outreach flow/);
-  assert.match(scouting, /Inspect before outreach/);
-  assert.match(scouting, /Import scouting list/);
+  assert.match(scouting, /Research checklist/);
+  assert.match(scouting, /You can still contact this person/);
+  assert.match(board, /Import and map list/);
+  assert.match(board, /Research is available when useful, but you may start outreach immediately/);
   assert.match(scouting, /Qualify to Journey/);
   assert.match(clients, /Filter clients by niche/);
   assert.match(conversion, /Add an email address or phone number before qualifying/);
   assert.match(conversion, /Cold outreach history/);
   assert.match(conversion, /customFields\?\.niche/);
-  assert.match(alerts, /Scouting follow-up due/);
+  assert.match(alerts, /Outreach follow-up due/);
   assert.match(alerts, /prospect\.preferredChannel/);
   assert.match(search, /Scouting dossier/);
   assert.match(search, /prospect\.outreachAttempts/);

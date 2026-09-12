@@ -146,6 +146,8 @@ export interface EmailMessage {
   id: string;
   agencyId: AgencyId;
   clientId?: ClientId;
+  /** Exact reciprocal Person lineage when the caller has it. */
+  personId?: string;
   to: string[];
   cc?: string[];
   bcc?: string[];
@@ -186,6 +188,7 @@ export interface EnqueueInput {
   triggeredByPlugin?: PluginId;
   externalRef?: string;              // caller-supplied for cross-plugin idempotency
   clientId?: ClientId;
+  personId?: string;
 }
 
 export interface MessageFilter {

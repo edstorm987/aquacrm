@@ -13,10 +13,10 @@
 // an editor's fake `verifyDomain` — at least LOOKED inert. A settings field
 // does the opposite: it accepts your input, saves without error, and shows your
 // value back to you on reload. There is no way to tell it apart from one that
-// works, and two of these are shaped like safety controls:
+// works. One remaining field is shaped like a safety control:
 //
-//   • `public-funnel / issueSessionCookie` (default **true**) reads as "do not
-//     issue a session on lead capture". Turning it off changes nothing.
+// `public-funnel / issueSessionCookie` was removed when anonymous funnel
+// capture became structurally unable to mint sessions.
 //   • `agency-hr / canStaffEdit` (default false) reads as an edit permission.
 //     The REAL permission is enforced by the access kernel, so nothing is
 //     actually open — but an operator reading this panel would reasonably
@@ -140,7 +140,6 @@ export const unwiredKey = (pluginId: string, fieldId: string): string => `${plug
 export const UNWIRED_SETTINGS: readonly UnwiredSetting[] = [
   { pluginId: "agency-hr", fieldId: "canStaffEdit" },
   { pluginId: "public-funnel", fieldId: "redirectAfterCapture" },
-  { pluginId: "public-funnel", fieldId: "issueSessionCookie" },
 ];
 
 const LOOKUP = new Set(UNWIRED_SETTINGS.map(entry => unwiredKey(entry.pluginId, entry.fieldId)));

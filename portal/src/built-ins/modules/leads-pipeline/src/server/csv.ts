@@ -18,6 +18,14 @@
 import { inflateRawSync } from "node:zlib";
 import { CSV_COLUMN_VARIANTS } from "../lib/domain";
 
+// XLSX is a ZIP container. These ceilings are deliberately much smaller than
+// office-suite limits because this importer needs only a heading row and at
+// most 500 data rows; accepting an archive that expands without bound would
+// make a tiny uploaded file an avoidable memory-exhaustion primitive.
+const MAX_XLSX_ENTRIES = 2_048;
+const MAX_XLSX_ENTRY_BYTES = 12 * 1024 * 1024;
+const MAX_XLSX_TOTAL_UNCOMPRESSED_BYTES = 24 * 1024 * 1024;
+
 export interface ParsedRow {
   rowNumber: number;               // 1-based source line, ignoring header
   email?: string;
@@ -168,23 +176,54 @@ function readZip(input: ArrayBuffer | Uint8Array | Buffer): Map<string, Buffer> 
       ? Buffer.from(input.buffer, input.byteOffset, input.byteLength)
       : Buffer.from(input);
   const eocd = findEndOfCentralDirectory(buf);
+  const diskNumber = buf.readUInt16LE(eocd + 4);
+  const centralDisk = buf.readUInt16LE(eocd + 6);
+  const entriesOnDisk = buf.readUInt16LE(eocd + 8);
   const entryCount = buf.readUInt16LE(eocd + 10);
+  const centralSize = buf.readUInt32LE(eocd + 12);
   const centralOffset = buf.readUInt32LE(eocd + 16);
+  if (diskNumber !== 0 || centralDisk !== 0 || entriesOnDisk !== entryCount) {
+    throw new Error("xlsx_multi_disk_not_supported");
+  }
+  if (entryCount > MAX_XLSX_ENTRIES) throw new Error("xlsx_too_many_entries");
+  if (centralOffset > eocd || centralSize > eocd - centralOffset) {
+    throw new Error("xlsx_bad_central_directory_bounds");
+  }
   const entries = new Map<string, Buffer>();
   let offset = centralOffset;
+  let totalUncompressedBytes = 0;
 
   for (let i = 0; i < entryCount; i++) {
+    if (offset + 46 > buf.length) throw new Error("xlsx_bad_central_directory_bounds");
     if (buf.readUInt32LE(offset) !== 0x02014b50) throw new Error("xlsx_bad_central_directory");
+    const flags = buf.readUInt16LE(offset + 8);
     const method = buf.readUInt16LE(offset + 10);
     const compressedSize = buf.readUInt32LE(offset + 20);
+    const uncompressedSize = buf.readUInt32LE(offset + 24);
     const nameLength = buf.readUInt16LE(offset + 28);
     const extraLength = buf.readUInt16LE(offset + 30);
     const commentLength = buf.readUInt16LE(offset + 32);
     const localOffset = buf.readUInt32LE(offset + 42);
+    const entryEnd = offset + 46 + nameLength + extraLength + commentLength;
+    if (entryEnd > buf.length || entryEnd > centralOffset + centralSize) {
+      throw new Error("xlsx_bad_central_directory_bounds");
+    }
     const name = buf.subarray(offset + 46, offset + 46 + nameLength).toString("utf8");
-    entries.set(name, readLocalZipEntry(buf, localOffset, compressedSize, method));
-    offset += 46 + nameLength + extraLength + commentLength;
+    if (!name || name.includes("\0") || name.startsWith("/") || name.split("/").includes("..")) {
+      throw new Error("xlsx_unsafe_entry_name");
+    }
+    if ((flags & 0x0001) !== 0) throw new Error("xlsx_encrypted_entry_not_supported");
+    if (uncompressedSize > MAX_XLSX_ENTRY_BYTES) throw new Error("xlsx_entry_too_large");
+    totalUncompressedBytes += uncompressedSize;
+    if (totalUncompressedBytes > MAX_XLSX_TOTAL_UNCOMPRESSED_BYTES) {
+      throw new Error("xlsx_expanded_content_too_large");
+    }
+    if (entries.has(name)) throw new Error("xlsx_duplicate_entry");
+    entries.set(name, readLocalZipEntry(buf, localOffset, compressedSize, uncompressedSize, method));
+    offset = entryEnd;
   }
+
+  if (offset !== centralOffset + centralSize) throw new Error("xlsx_bad_central_directory_size");
 
   return entries;
 }
@@ -197,15 +236,37 @@ function findEndOfCentralDirectory(buf: Buffer): number {
   throw new Error("xlsx_bad_zip");
 }
 
-function readLocalZipEntry(buf: Buffer, offset: number, compressedSize: number, method: number): Buffer {
+function readLocalZipEntry(
+  buf: Buffer,
+  offset: number,
+  compressedSize: number,
+  uncompressedSize: number,
+  method: number,
+): Buffer {
+  if (offset < 0 || offset + 30 > buf.length) throw new Error("xlsx_bad_local_file_bounds");
   if (buf.readUInt32LE(offset) !== 0x04034b50) throw new Error("xlsx_bad_local_file");
+  const localFlags = buf.readUInt16LE(offset + 6);
+  const localMethod = buf.readUInt16LE(offset + 8);
   const nameLength = buf.readUInt16LE(offset + 26);
   const extraLength = buf.readUInt16LE(offset + 28);
   const dataStart = offset + 30 + nameLength + extraLength;
+  if ((localFlags & 0x0001) !== 0) throw new Error("xlsx_encrypted_entry_not_supported");
+  if (localMethod !== method) throw new Error("xlsx_compression_method_mismatch");
+  if (dataStart > buf.length || compressedSize > buf.length - dataStart) {
+    throw new Error("xlsx_bad_local_file_bounds");
+  }
   const compressed = buf.subarray(dataStart, dataStart + compressedSize);
-  if (method === 0) return compressed;
-  if (method === 8) return inflateRawSync(compressed);
-  throw new Error(`xlsx_unsupported_zip_compression_${method}`);
+  let content: Buffer;
+  if (method === 0) content = compressed;
+  else if (method === 8) {
+    content = inflateRawSync(compressed, { maxOutputLength: MAX_XLSX_ENTRY_BYTES + 1 });
+  } else {
+    throw new Error(`xlsx_unsupported_zip_compression_${method}`);
+  }
+  if (content.length !== uncompressedSize || content.length > MAX_XLSX_ENTRY_BYTES) {
+    throw new Error("xlsx_uncompressed_size_mismatch");
+  }
+  return content;
 }
 
 function readZipText(zip: Map<string, Buffer>, path: string): string {

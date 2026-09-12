@@ -183,6 +183,8 @@ export default async function AgencyLayout({ children }: { children: ReactNode }
   const panelHrefs = new Set(panels.flatMap(panel => panel.items.map(item => item.href.split("?")[0])));
   const capabilitySearchHrefs = [
     ...(panelHrefs.has("/portal/agency/scouting") ? ["/portal/agency/scouting"] : []),
+    ...(panelHrefs.has("/portal/agency/researching") ? ["/portal/agency/researching"] : []),
+    ...(panelHrefs.has("/portal/agency/prospecting") ? ["/portal/agency/prospecting"] : []),
     ...(panelHrefs.has("/portal/agency/my-radar") ? ["/portal/agency/my-radar"] : []),
     ...(actionsAvailable ? ["/portal/agency/actions"] : []),
     ...(calendarAvailable ? ["/portal/agency/calendar"] : []),

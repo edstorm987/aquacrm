@@ -46,6 +46,7 @@ const ORIGIN = "http://localhost:3033";
 const ENROLLED_EMAIL = "doors.enrolled@doors-smoke.test";
 const PLAIN_EMAIL = "doors.plain@doors-smoke.test";
 const CUSTOMER_EMAIL = "doors.customer@doors-smoke.test";
+const UNCHECKED_CUSTOMER_EMAIL = "doors.unchecked@doors-smoke.test";
 const OAUTH_PLAIN_EMAIL = "doors.oauth.plain@doors-smoke.test";
 const PASSWORD = "Sup3rSecret!pw";
 
@@ -229,6 +230,16 @@ before(async () => {
   for (const email of [ENROLLED_EMAIL, PLAIN_EMAIL, OAUTH_PLAIN_EMAIL]) {
     createUser({ email, password: PASSWORD, name: "Doors", role: "agency-owner", agencyId: agency.id });
   }
+  for (const email of [ENROLLED_EMAIL, CUSTOMER_EMAIL, UNCHECKED_CUSTOMER_EMAIL]) {
+    createUser({
+      email,
+      password: PASSWORD,
+      name: "Portal customer",
+      role: "end-customer",
+      agencyId: agency.id,
+      clientId: client.id,
+    });
+  }
 });
 
 after(() => {
@@ -284,16 +295,16 @@ describe("the magic-link door", () => {
     assert.equal(location.pathname, "/login");
     assert.equal(location.searchParams.get("magic_error"), MFA_SIDE_DOOR_ENROLLED_ERROR);
     assert.ok(adminCalls > before, "the refusal must come from actually checking enrolment");
-    // And the refusal must not have auto-created the end-customer either —
-    // a side effect of a sign-in that was refused is still a side effect.
-    assert.equal(getUser(ENROLLED_EMAIL, { clientId, role: "end-customer" }), null);
+    // The exact portal membership still exists, but the side door cannot turn
+    // it into a session that bypasses the second factor.
+    assert.ok(getUser(ENROLLED_EMAIL, { clientId, role: "end-customer" }));
   });
 
   it("refuses everyone when enrolment cannot be checked at all", async () => {
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;
     try {
-      const res = await magicVerify(magicRequestFor("doors.unchecked@doors-smoke.test"));
+      const res = await magicVerify(magicRequestFor(UNCHECKED_CUSTOMER_EMAIL));
       assert.equal(res.status, 302);
       assert.equal(sessionCookieOf(res), undefined, "unchecked must not mean unprotected");
       const location = new URL(res.headers.get("location") ?? "", ORIGIN);

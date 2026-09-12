@@ -21,6 +21,22 @@ import type { IdentityResolutionResult, IdentityResolutionStatus } from "@/serve
 export type WebsiteEnquiryChannel = "form" | "chatbot" | "support";
 export type WebsiteEnquiryPriority = "urgent" | "high" | "normal";
 export type WebsiteEnquiryStatus = "open" | "reviewed" | "resolved";
+export type WebsiteEnquiryClientLinkSource =
+  | "configured-site-route"
+  | "manual-review"
+  | "typed-lineage";
+
+const CLIENT_LINK_SOURCES = new Set<WebsiteEnquiryClientLinkSource>([
+  "configured-site-route",
+  "manual-review",
+  "typed-lineage",
+]);
+
+function websiteEnquiryClientLinkSource(value: unknown): WebsiteEnquiryClientLinkSource | undefined {
+  return typeof value === "string" && CLIENT_LINK_SOURCES.has(value as WebsiteEnquiryClientLinkSource)
+    ? value as WebsiteEnquiryClientLinkSource
+    : undefined;
+}
 
 export interface WebsiteEnquiryReply {
   id: string;
@@ -120,6 +136,8 @@ export interface WebsiteEnquiry {
   leadId?: string;
   contactId?: string;
   clientId?: string;
+  /** Server-recorded provenance required before clientId is authoritative. */
+  clientLinkSource?: WebsiteEnquiryClientLinkSource;
   // Canonical Person for this enquirer, set by synchroniseWebsiteEnquiryIdentities.
   personId?: string;
   identityStatus?: IdentityResolutionStatus;
@@ -133,6 +151,22 @@ export interface WebsiteEnquiry {
   replies: WebsiteEnquiryReply[];
   calls: WebsiteEnquiryCall[];
   notification: "sent" | "failed" | "not-configured" | "pending" | "unknown";
+}
+
+/**
+ * Whether an enquiry may appear inside one client's private record.
+ *
+ * Contact details are deliberately absent from this decision: email and phone
+ * are public form input and can be shared, mistyped, or attacker supplied.
+ * `mapBrandEnquiryRow` exposes `clientId` only when the stored row also carries
+ * a recognised server-written provenance stamp, and callers constructing a
+ * WebsiteEnquiry directly must satisfy the same invariant here.
+ */
+export function websiteEnquiryBelongsToClientRecord(
+  enquiry: Pick<WebsiteEnquiry, "clientId" | "clientLinkSource">,
+  clientId: string,
+): boolean {
+  return Boolean(enquiry.clientLinkSource && enquiry.clientId === clientId);
 }
 
 export type BrandEnquiryRow = {
@@ -342,6 +376,7 @@ export async function synchroniseWebsiteEnquiryIdentities(
       reconciled.push(enquiry);
       continue;
     }
+    const authoritativeClientId = enquiry.clientLinkSource ? enquiry.clientId : undefined;
     const input: IdentityResolutionInput = {
       agencyId,
       sourceType: "website-enquiry",
@@ -352,7 +387,7 @@ export async function synchroniseWebsiteEnquiryIdentities(
       email: enquiry.email,
       phone: enquiry.phone,
       company: enquiry.name,
-      clientId: enquiry.clientId,
+      clientId: authoritativeClientId,
       leadId: enquiry.leadId,
       contactId: enquiry.contactId,
     };
@@ -367,7 +402,9 @@ export async function synchroniseWebsiteEnquiryIdentities(
     // client's record — so the company route appeared to do nothing.
     // The suggestion review above is still written, because a human can still
     // decide this really was a client; what is refused is the automatic link.
-    const attributedClientId = enquiry.routedCompanyId ? undefined : resolution.clientId;
+    const attributedClientId = enquiry.routedCompanyId
+      ? undefined
+      : authoritativeClientId ?? resolution.clientId;
 
     // Every non-spam enquiry resolves to a canonical Person immediately, even
     // before anyone classifies it — an unclassified enquiry IS a person in the
@@ -389,7 +426,7 @@ export async function synchroniseWebsiteEnquiryIdentities(
     const next: WebsiteEnquiry = {
       ...enquiry,
       personId: person.id,
-      clientId: enquiry.routedCompanyId ? undefined : (resolution.clientId ?? enquiry.clientId),
+      clientId: attributedClientId,
       identityStatus: resolution.status,
       identityConfidence: resolution.confidence,
       identityExplanation: resolution.explanation,
@@ -397,7 +434,11 @@ export async function synchroniseWebsiteEnquiryIdentities(
     if (attributedClientId) {
       synchroniseWebsiteEnquiryLedgerEvents(agencyId, attributedClientId, next);
       if (enquiry.clientId !== attributedClientId || enquiry.identityStatus !== resolution.status) {
-        await recordWebsiteEnquiryIdentityResolution(enquiry.id, resolution);
+        await recordWebsiteEnquiryIdentityResolution(
+          enquiry.id,
+          resolution,
+          enquiry.clientLinkSource ?? "typed-lineage",
+        );
       }
     }
     reconciled.push(next);
@@ -451,7 +492,15 @@ export function synchroniseWebsiteEnquiryLedgerEvents(agencyId: string, clientId
   });
 }
 
-export async function recordWebsiteEnquiryIdentityResolution(enquiryId: string, resolution: IdentityResolutionResult): Promise<boolean> {
+export async function recordWebsiteEnquiryIdentityResolution(
+  enquiryId: string,
+  resolution: IdentityResolutionResult,
+  clientLinkSource?: WebsiteEnquiryClientLinkSource,
+): Promise<boolean> {
+  // A client id without provenance recreates the public-address auto-link
+  // vulnerability this writer is meant to close. Callers that attach a client
+  // must name the already-authorised decision that supplied the link.
+  if (resolution.clientId && !clientLinkSource) return false;
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase.from("brand_enquiries").select("id, metadata").eq("id", enquiryId).maybeSingle();
   if (error || !data) return false;
@@ -459,6 +508,7 @@ export async function recordWebsiteEnquiryIdentityResolution(enquiryId: string, 
   const metadata = {
     ...current,
     clientId: resolution.clientId ?? null,
+    clientLinkSource: resolution.clientId ? clientLinkSource : null,
     clientLinkedAt: resolution.clientId ? new Date(resolution.resolvedAt).toISOString() : null,
     identityResolution: {
       status: resolution.status,
@@ -613,6 +663,12 @@ export function mapBrandEnquiryRow(row: BrandEnquiryRow): WebsiteEnquiry {
       : siteKey ? publicAquaSiteName(siteKey) ?? brandName : resolvedSite?.siteName ?? brandName;
     const triage = triageWebsiteEnquiry(channel, row.message || undefined);
     const identity = storedIdentityResolution(metadata.identityResolution);
+    const clientLinkSource = websiteEnquiryClientLinkSource(metadata.clientLinkSource);
+    const trustedClientId = clientLinkSource
+      ? (typeof metadata.clientId === "string" && metadata.clientId.trim()
+          ? metadata.clientId.trim()
+          : identity.clientId)
+      : undefined;
 
     return {
       id: row.id,
@@ -652,7 +708,8 @@ export function mapBrandEnquiryRow(row: BrandEnquiryRow): WebsiteEnquiry {
         : undefined,
       leadId: typeof metadata.leadId === "string" ? metadata.leadId : undefined,
       contactId: typeof metadata.contactId === "string" ? metadata.contactId : undefined,
-      clientId: typeof metadata.clientId === "string" ? metadata.clientId : identity.clientId,
+      clientId: trustedClientId,
+      clientLinkSource,
       identityStatus: identity.status,
       identityConfidence: identity.confidence,
       identityExplanation: identity.explanation,

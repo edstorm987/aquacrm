@@ -1,9 +1,9 @@
 // Health Check -> Public Funnel -> Business OS journey.
 //
 // Drives the real public route handlers in-process against the memory backend.
-// This proves that an email-backed completion is durably captured, retry-safe,
-// given a lead session, and restored into BOS from server context. It never
-// touches the developer's local portal data file.
+// This proves that an anonymous completion is capture-only: it can register a
+// brand-new lead, but cannot mint/reissue a session or attach to an existing
+// identity. Mailbox-verified BOS continuation is a separate future flow.
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
@@ -43,7 +43,7 @@ function completionRequest(
 }
 
 describe("Health Check public-funnel journey", () => {
-  it("persists once, resumes a retry, and restores the result into BOS", async () => {
+  it("persists a new lead once without returning identity or authentication", async () => {
     const [
       { NextRequest },
       completeRoute,
@@ -52,6 +52,7 @@ describe("Health Check public-funnel journey", () => {
       { makePluginStorage },
       { getInstall },
       { getAgencyBySlug },
+      { getUser },
     ] = await Promise.all([
       import("next/server"),
       import("../src/app/api/public/health-check/complete/route"),
@@ -60,6 +61,7 @@ describe("Health Check public-funnel journey", () => {
       import("../src/lib/server/pluginStorage"),
       import("../src/server/pluginInstalls"),
       import("../src/server/tenants"),
+      import("../src/server/users"),
     ]);
 
     const firstResponse = await completeRoute.POST(completionRequest(NextRequest));
@@ -69,37 +71,38 @@ describe("Health Check public-funnel journey", () => {
     assert.equal(first.persisted, true);
     assert.equal(first.created, true);
     assert.equal(first.redirect, "/business-os/app.html?from=hc");
-    assert.match(String(first.captureId), /^lc_hc_hc_route_result_0001$/);
-
-    const setCookie = firstResponse.headers.get("set-cookie");
-    assert.ok(setCookie, "successful completion must issue a lead session cookie");
-    assert.match(setCookie, /(?:^|,\s*)lk_session_v1=/);
-    assert.match(setCookie, /HttpOnly/i);
+    assert.equal(first.authentication, "email_verification_required");
+    assert.equal("captureId" in first, false);
+    assert.equal("leadUserId" in first, false);
+    assert.equal(firstResponse.headers.get("set-cookie"), null);
 
     ensurePublicFunnelFoundationRegistered();
     const founderAgency = getAgencyBySlug("milesymedia");
     assert.ok(founderAgency);
     const funnelInstall = getInstall({ agencyId: founderAgency.id }, "public-funnel");
     assert.ok(funnelInstall);
+    const lead = getUser(completionBody.email);
+    assert.ok(lead);
+    assert.equal(lead.role, "lead");
     const directContext = await publicFunnelContainerFor({
       agencyId: founderAgency.id,
       install: funnelInstall,
       storage: makePluginStorage(funnelInstall.id),
-    }).funnel.meContext(String(first.leadUserId));
+    }).funnel.meContext(lead.id);
     assert.ok(directContext?.hcSlot, "the authoritative funnel row must retain its Health Check slot");
 
     const secondResponse = await completeRoute.POST(completionRequest(NextRequest));
-    assert.equal(secondResponse.status, 200);
-    const second = await secondResponse.json() as Record<string, unknown>;
-    assert.equal(second.persisted, true);
-    assert.equal(second.captureId, first.captureId);
-    assert.equal(second.leadUserId, first.leadUserId);
-    assert.equal(second.created, false);
+    assert.equal(secondResponse.status, 400);
+    assert.equal(secondResponse.headers.get("set-cookie"), null);
+    assert.deepEqual(await secondResponse.json(), {
+      ok: false,
+      error: "invalid_completion",
+      message: "The Health Check handoff details are invalid.",
+      retryable: false,
+    });
 
-    const cookiePair = setCookie.split(";")[0];
     const contextResponse = await contextRoute.GET(new NextRequest(
       "http://localhost/api/public/business-os/context",
-      { headers: { cookie: cookiePair ?? "" } },
     ));
     assert.equal(contextResponse.status, 200);
     assert.equal(contextResponse.headers.get("cache-control"), "private, no-store, max-age=0");
@@ -112,14 +115,7 @@ describe("Health Check public-funnel journey", () => {
       } | null;
     };
     assert.equal(contextPayload.ok, true);
-    assert.ok(contextPayload.context);
-    assert.equal(contextPayload.context.leadUserId, first.leadUserId);
-    assert.equal(contextPayload.context.email, completionBody.email);
-    assert.ok(
-      contextPayload.context.hcSlot,
-      `BOS context must include the saved Health Check slot: ${JSON.stringify(contextPayload)}`,
-    );
-    assert.deepEqual(contextPayload.context.hcSlot.summary, completionBody.slot.summary);
+    assert.equal(contextPayload.context, null);
   });
 
   it("rejects incomplete submissions without pretending they were persisted", async () => {
@@ -135,6 +131,120 @@ describe("Health Check public-funnel journey", () => {
     const payload = await response.json() as Record<string, unknown>;
     assert.equal(payload.ok, false);
     assert.equal(payload.retryable, false);
+  });
+
+  it("cannot take over owner, manager, staff, client, or existing lead identities", async () => {
+    const [
+      { NextRequest }, completeRoute, { getAgencyBySlug }, users, tenants,
+    ] = await Promise.all([
+      import("next/server"),
+      import("../src/app/api/public/health-check/complete/route"),
+      import("../src/server/tenants"),
+      import("../src/server/users"),
+      import("../src/server/tenants"),
+    ]);
+    const agency = getAgencyBySlug("milesymedia");
+    assert.ok(agency);
+    const client = tenants.createClient(agency.id, {
+      name: "HC takeover regression client",
+      ownerEmail: "hc-client-owner@example.com",
+    });
+    const protectedUsers = [
+      users.getUser("edwardhallam07@gmail.com"),
+      users.createUser({ email: "hc-manager@example.com", password: "RegressionSecret42!", role: "agency-manager", agencyId: agency.id }),
+      users.createUser({ email: "hc-staff@example.com", password: "RegressionSecret42!", role: "agency-staff", agencyId: agency.id }),
+      users.createUser({ email: "hc-client-owner@example.com", password: "RegressionSecret42!", role: "client-owner", agencyId: agency.id, clientId: client.id }),
+      users.getUser(completionBody.email),
+    ];
+    assert.ok(protectedUsers.every(Boolean));
+
+    for (const [index, user] of protectedUsers.entries()) {
+      assert.ok(user);
+      const response = await completeRoute.POST(completionRequest(NextRequest, {
+        email: user.email,
+        completionId: `hc_takeover_${String(index).padStart(4, "0")}`,
+        slot: { slot: 1 },
+      }));
+      assert.equal(response.status, 400, `anonymous capture accepted ${user.role}`);
+      assert.equal(response.headers.get("set-cookie"), null, `${user.role} received a session cookie`);
+      assert.deepEqual(await response.json(), {
+        ok: false,
+        error: "invalid_completion",
+        message: "The Health Check handoff details are invalid.",
+        retryable: false,
+      });
+    }
+  });
+
+  it("rejects forged email, completion id, and slot before any identity is created", async () => {
+    const [{ NextRequest }, completeRoute, users] = await Promise.all([
+      import("next/server"),
+      import("../src/app/api/public/health-check/complete/route"),
+      import("../src/server/users"),
+    ]);
+    const attempts = [
+      { email: "not-an-email", completionId: "hc_forged_email_01", slot: { slot: 2 } },
+      { email: "forged-id@example.com", completionId: "short", slot: { slot: 2 } },
+      { email: "forged-slot@example.com", completionId: "hc_forged_slot_01", slot: { slot: 99 } },
+    ];
+    for (const body of attempts) {
+      const response = await completeRoute.POST(completionRequest(NextRequest, body));
+      assert.equal(response.status, 400);
+      assert.equal(response.headers.get("set-cookie"), null);
+      assert.equal((await response.json() as { error: string }).error, "invalid_completion");
+    }
+    assert.equal(users.getUser("forged-id@example.com"), null);
+    assert.equal(users.getUser("forged-slot@example.com"), null);
+  });
+
+  it("ignores attacker-supplied tenant hints and captures only in the mounted founder funnel", async () => {
+    const [
+      { NextRequest }, completeRoute, { getAgencyBySlug, createAgency },
+      { upsertInstall }, { makePluginStorage },
+      { ensurePublicFunnelFoundationRegistered, publicFunnelContainerFor },
+    ] = await Promise.all([
+      import("next/server"),
+      import("../src/app/api/public/health-check/complete/route"),
+      import("../src/server/tenants"),
+      import("../src/server/pluginInstalls"),
+      import("../src/lib/server/pluginStorage"),
+      import("../src/built-ins/runtime/foundation-adapters/publicFunnelFoundation"),
+    ]);
+    const decoy = createAgency({ name: "HC tenant confusion", slug: "hc-tenant-confusion" });
+    const decoyInstall = upsertInstall({
+      scope: { agencyId: decoy.id },
+      pluginId: "public-funnel",
+      enabled: true,
+      installedBy: "regression",
+    });
+    const email = "hc-tenant-pinned@example.com";
+    const response = await completeRoute.POST(completionRequest(NextRequest, {
+      email,
+      completionId: "hc_tenant_pinned_01",
+      slot: { slot: 4 },
+      agencyId: decoy.id,
+    }));
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("set-cookie"), null);
+
+    ensurePublicFunnelFoundationRegistered();
+    const founder = getAgencyBySlug("milesymedia");
+    assert.ok(founder);
+    const { getInstall } = await import("../src/server/pluginInstalls");
+    const founderInstall = getInstall({ agencyId: founder.id }, "public-funnel");
+    assert.ok(founderInstall);
+    const founderCaptures = await publicFunnelContainerFor({
+      agencyId: founder.id,
+      install: founderInstall,
+      storage: makePluginStorage(founderInstall.id),
+    }).funnel.listByEmail(email);
+    const decoyCaptures = await publicFunnelContainerFor({
+      agencyId: decoy.id,
+      install: decoyInstall,
+      storage: makePluginStorage(decoyInstall.id),
+    }).funnel.listByEmail(email);
+    assert.equal(founderCaptures.length, 1);
+    assert.equal(decoyCaptures.length, 0);
   });
 
   it("does not expose funnel context without the lead session", async () => {

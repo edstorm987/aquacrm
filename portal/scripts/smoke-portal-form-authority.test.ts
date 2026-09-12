@@ -261,6 +261,79 @@ describe("canonical record writers consume the configured schema", () => {
     }, `?id=${contactBody.contact.id}`), ctx as never);
     assert.equal(historicalContactEdit.status, 200);
   });
+
+  it("keeps lifecycle, identity, and actor history out of generic Lead and Contact JSON", async () => {
+    const agency = tenants.createAgency({ name: "Public record boundary", slug: "public-record-boundary" });
+    const ctx = pluginContext(agency.id);
+
+    const leadResponse = await leadHandlers.createLeadHandler(jsonRequest("POST", {
+      email: "boundary-lead@example.test",
+      source: "manual",
+      capturedAt: 1,
+      personId: "person_forged",
+      pipelineCardId: "card_forged",
+      convertedAt: 2,
+      meetingAttempts: [{ id: "forged", at: 1, actorUserId: "forged", channel: "call", outcome: "reached" }],
+    }), ctx as never);
+    assert.equal(leadResponse.status, 201);
+    const lead = (await leadResponse.json() as { lead: Record<string, unknown> }).lead;
+    assert.notEqual(lead.capturedAt, 1);
+    assert.equal(typeof lead.personId, "string");
+    assert.notEqual(lead.personId, "person_forged");
+    assert.equal(lead.pipelineCardId, undefined);
+    assert.equal(lead.convertedAt, undefined);
+    assert.equal(lead.meetingAttempts, undefined);
+
+    const leadEdit = await leadHandlers.updateLeadHandler(jsonRequest("PATCH", {
+      name: "Allowed lead name",
+      lastContactedAt: 3,
+      meetingConfirmedAt: 4,
+      meetingReminderSentAt: 5,
+      meetingAttempts: [{ id: "forged-edit", at: 2, actorUserId: "forged", channel: "email", outcome: "completed" }],
+      sentCount: 999,
+      pipelineCardId: "card_forged_edit",
+    }, `?id=${String(lead.id)}`), ctx as never);
+    assert.equal(leadEdit.status, 200);
+    const editedLead = (await leadEdit.json() as { lead: Record<string, unknown> }).lead;
+    assert.equal(editedLead.name, "Allowed lead name");
+    for (const key of ["lastContactedAt", "meetingConfirmedAt", "meetingReminderSentAt", "meetingAttempts", "pipelineCardId"]) {
+      assert.equal(editedLead[key], undefined, `generic Lead PATCH forged ${key}`);
+    }
+    assert.equal(editedLead.sentCount, 0);
+
+    const contactResponse = await leadHandlers.createContactHandler(jsonRequest("POST", {
+      email: "boundary-contact@example.test",
+      type: "lead",
+      source: "manual",
+      personId: "person_forged",
+      promotedFromLeadId: "lead_forged",
+      clientId: "client_forged",
+      convertedAt: 6,
+      leadJourneyEvents: [{ id: "forged", type: "converted", at: 6, actorUserId: "forged" }],
+      meetingAttempts: [{ id: "forged", at: 6, actorUserId: "forged", channel: "call", outcome: "reached" }],
+    }), ctx as never);
+    assert.equal(contactResponse.status, 201);
+    const contact = (await contactResponse.json() as { contact: Record<string, unknown> }).contact;
+    assert.equal(typeof contact.personId, "string");
+    assert.notEqual(contact.personId, "person_forged");
+    for (const key of ["promotedFromLeadId", "clientId", "convertedAt", "leadJourneyEvents", "meetingAttempts"]) {
+      assert.equal(contact[key], undefined, `generic Contact POST forged ${key}`);
+    }
+
+    const contactEdit = await leadHandlers.updateContactHandler(jsonRequest("PATCH", {
+      name: "Allowed contact name",
+      lastContactedAt: 7,
+      meetingConfirmedAt: 8,
+      meetingReminderSentAt: 9,
+      meetingAttempts: [{ id: "forged-edit", at: 7, actorUserId: "forged", channel: "email", outcome: "completed" }],
+    }, `?id=${String(contact.id)}`), ctx as never);
+    assert.equal(contactEdit.status, 200);
+    const editedContact = (await contactEdit.json() as { contact: Record<string, unknown> }).contact;
+    assert.equal(editedContact.name, "Allowed contact name");
+    for (const key of ["lastContactedAt", "meetingConfirmedAt", "meetingReminderSentAt", "meetingAttempts"]) {
+      assert.equal(editedContact[key], undefined, `generic Contact PATCH forged ${key}`);
+    }
+  });
 });
 
 describe("all six advertised forms have mounted consumers and guarded writers", () => {

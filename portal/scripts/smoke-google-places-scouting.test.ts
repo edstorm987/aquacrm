@@ -154,16 +154,16 @@ describe("Prospect link persistence boundary", () => {
       company: "Safe Links Ltd",
       source: "manual",
       website: "  HTTPS://Example.COM/path?ref=scout  ",
-      instagramUrl: "http://social.example/profile",
-      facebookUrl: "https://facebook.example",
-      linkedinUrl: "https://linkedin.example/company/safe-links",
+      instagramUrl: "http://www.instagram.com/safe-links",
+      facebookUrl: "https://m.facebook.com/safe-links",
+      linkedinUrl: "https://uk.linkedin.com/company/safe-links",
       googleMapsUrl: "https://maps.google.com/?cid=123",
     }, "actor" as never);
 
     assert.equal(created.website, "https://example.com/path?ref=scout");
-    assert.equal(created.instagramUrl, "http://social.example/profile");
-    assert.equal(created.facebookUrl, "https://facebook.example/");
-    assert.equal(created.linkedinUrl, "https://linkedin.example/company/safe-links");
+    assert.equal(created.instagramUrl, "http://www.instagram.com/safe-links");
+    assert.equal(created.facebookUrl, "https://m.facebook.com/safe-links");
+    assert.equal(created.linkedinUrl, "https://uk.linkedin.com/company/safe-links");
 
     const supportedMapsUrls = [
       "https://maps.google.com/?cid=123",

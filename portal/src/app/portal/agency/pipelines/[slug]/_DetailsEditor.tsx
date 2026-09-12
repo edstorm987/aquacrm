@@ -395,7 +395,7 @@ export function DetailsEditor({
               <div className="mt-3 border-t border-black/8 pt-2">
                 {meetingAttempts.slice().reverse().slice(0, 5).map(attempt => (
                   <p key={attempt.id} className="py-1 text-[11px] text-black/50">
-                    <strong className="font-medium text-black/65">{attempt.outcome.replaceAll("-", " ")}</strong> by {attempt.channel.replaceAll("-", " ")} · {formatUkDateTime(attempt.at)}
+                    <strong className="font-medium text-black/65">{attempt.outcome.replaceAll("-", " ")}</strong> via {attempt.channel.replaceAll("-", " ")} · {formatUkDateTime(attempt.at)} · by {attempt.actorLabel ?? "Staff not recorded (legacy)"}
                     {attempt.notes ? ` · ${attempt.notes}` : ""}
                   </p>
                 ))}

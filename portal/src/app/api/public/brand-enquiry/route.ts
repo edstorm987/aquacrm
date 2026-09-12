@@ -3,6 +3,7 @@ import { containerFor } from "@aqua/plugin-leads-pipeline/server";
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
 import { isTradingBrandSlug, tradingBrandDefinition, type TradingBrandSlug } from "@/lib/brands/tradingBrands";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
+import { verifyBotChallenge } from "@/lib/server/security/botChallenge";
 import { FOUNDER_AGENCY_SLUG, FOUNDER_EMAIL, seedFounder } from "@/lib/server/seeds/founderSeed";
 import { makePluginStorage } from "@/lib/server/pluginStorage";
 import { getInstall } from "@/server/pluginInstalls";
@@ -78,6 +79,7 @@ interface BrandEnquiryBody {
   consent?: unknown;
   website?: unknown;
   submissionId?: unknown;
+  captchaToken?: unknown;
 }
 
 type EnquiryChannel = "form" | "chatbot" | "support";
@@ -304,7 +306,10 @@ const brandEnquiryEffects: BrandEnquiryEffectSet = {
         href: `/portal/agency/inbox?view=all&thread=${encodeURIComponent(`website:${enquiryId}`)}`,
       });
     }
-    return { clientId: owningClientId ?? null };
+    return {
+      clientId: owningClientId ?? null,
+      clientLinkSource: owningClientId && routedClientId ? "configured-site-route" : null,
+    };
   },
 
   activity: async ({ work, enquiryId, effects }) => {
@@ -337,7 +342,10 @@ const brandEnquiryEffects: BrandEnquiryEffectSet = {
         enquiryId,
         leadCreated: Boolean(leadId),
         leadId,
-        clientId: typeof effects.identity?.clientId === "string" ? effects.identity.clientId : undefined,
+        clientId: effects.ledger?.clientLinkSource === "configured-site-route"
+          && typeof effects.ledger.clientId === "string"
+          ? effects.ledger.clientId
+          : undefined,
         identityStatus: typeof effects.identity?.resolutionStatus === "string" ? effects.identity.resolutionStatus : undefined,
       },
     });
@@ -486,6 +494,31 @@ export async function POST(req: NextRequest) {
       ipLimit.retryAfterSec,
     );
   }
+
+  // Cross-origin public forms solve the challenge on the submitting site. The
+  // already-validated Origin is therefore the exact hostname boundary, rather
+  // than the AquaCRM API hostname receiving the request.
+  const challengeHost = (() => {
+    if (!origin) return req.nextUrl.hostname;
+    try { return new URL(origin).hostname; } catch { return req.nextUrl.hostname; }
+  })();
+  const challenge = await verifyBotChallenge({
+    action: "brand-enquiry",
+    token: body.captchaToken,
+    remoteIp: ip,
+    hostname: challengeHost,
+  });
+  if (!challenge.ok) {
+    return response(
+      { ok: false, error: challenge.message },
+      challenge.reason === "rate-limited" ? 429 : 403,
+      origin,
+      challenge.retryAfterSec,
+    );
+  }
+
+  // Spend the contact quota only after human proof so tokenless bots cannot
+  // lock a real prospect out by repeatedly naming their email or phone.
   const contactLimit = rateLimit({
     key: `brand-enquiry-contact:${hasEmail ? email : phone.replace(/\D/g, "")}`,
     max: 4,

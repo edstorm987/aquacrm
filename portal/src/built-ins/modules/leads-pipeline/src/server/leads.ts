@@ -19,17 +19,25 @@ import type {
   Lead,
   LeadFilter,
   LeadJourneyEvent,
+  LeadProspectAcquisition,
+  LeadProspectAcquisitionInput,
   LeadRelationshipCategory,
   UpdateLeadPatch,
 } from "../lib/domain";
 import { inferLeadRelationshipCategory, isLeadRelationshipCategory, projectLeadCard } from "../lib/domain";
+import { cleanMeetingAssetUrlForStorage, safeMeetingAssetUrl } from "../lib/meetingAssetUrl";
 import type { PluginStorage } from "../lib/aquaPluginTypes";
 import type {
   ActivityLogPort,
   EventBusPort,
+  PersonIdentityPort,
   PipelinePort,
 } from "./ports";
 import { parseCsv } from "./csv";
+import {
+  appendServerMeetingAttempt,
+  type MeetingMutationInput,
+} from "./meetingMutation";
 
 const LEAD_INDEX_KEY = "leads/index";
 const leadKey = (id: string): string => `lead:${id}`;
@@ -59,7 +67,7 @@ async function withLeadIdentityLock<T>(
     if (typeof storage.runExclusive !== "function") {
       throw new Error("leads_pipeline_mutation_requires_exclusive_storage");
     }
-    return await storage.runExclusive(`leads-state:${agencyId}`, work);
+    return await storage.runExclusive(`acquisition-state:${agencyId}`, work);
   } finally {
     release();
     if (identityQueues.get(agencyId) === queued) identityQueues.delete(agencyId);
@@ -74,6 +82,12 @@ export class LeadIdentityConflictError extends Error {
     this.name = "LeadIdentityConflictError";
     this.field = field;
   }
+}
+
+export interface LeadMeetingMutationResult {
+  lead: Lead;
+  /** Server-authored contact time propagated to the website-enquiry ledger. */
+  contactRecordedAt?: number;
 }
 
 function canonPhone(raw: string): string {
@@ -105,6 +119,56 @@ function isEnquiryCapture(value: Pick<Lead, "source" | "tags" | "customFields"> 
 
 function journeyEvent(type: LeadJourneyEvent["type"], at: number, fields: Omit<LeadJourneyEvent, "id" | "type" | "at"> = {}): LeadJourneyEvent {
   return { id: makeId("journey"), type, at, ...fields };
+}
+
+function mergeAcquisitionRows<T extends { id: string }>(
+  previous: T[] | undefined,
+  incoming: T[],
+  timestamp: (row: T) => number,
+  merge: (previous: T, incoming: T) => T,
+): T[] {
+  const rows = new Map<string, T>();
+  for (const row of previous ?? []) rows.set(row.id, row);
+  for (const row of incoming) {
+    const existing = rows.get(row.id);
+    rows.set(row.id, existing ? merge(existing, row) : row);
+  }
+  return [...rows.values()].sort((a, b) => timestamp(a) - timestamp(b) || a.id.localeCompare(b.id));
+}
+
+function prospectBacklinkedCustomFields(
+  customFields: Record<string, CustomFieldValue> | undefined,
+  acquisitions: LeadProspectAcquisition[] | undefined,
+): Record<string, CustomFieldValue> | undefined {
+  if (!acquisitions?.length) return customFields;
+  const prospectIds = [...new Set(acquisitions.map(item => item.prospectId).filter(Boolean))];
+  if (!prospectIds.length) return customFields;
+  return {
+    ...(customFields ?? {}),
+    // The first acquisition remains the canonical backlink; the plural field
+    // prevents identity-upsert convergence from dropping later Prospect links.
+    prospectId: prospectIds[0]!,
+    prospectIds,
+  };
+}
+
+function prospectOutreachJourneyEvent(
+  acquisition: Pick<LeadProspectAcquisition, "prospectId" | "source">,
+  attempt: LeadProspectAcquisition["outreachAttempts"][number],
+): LeadJourneyEvent {
+  return {
+    id: `journey:prospect:${acquisition.prospectId}:outreach:${attempt.id}`,
+    type: "contact-recorded",
+    at: attempt.at,
+    actorUserId: attempt.actorUserId,
+    outcomeRecordedAt: attempt.finalisedAt,
+    outcomeActorUserId: attempt.finalisedByUserId,
+    source: `scouting:${acquisition.source}`,
+    channel: attempt.channel,
+    outcome: attempt.outcome,
+    note: attempt.note,
+    scheduledFor: attempt.followUpAt,
+  };
 }
 
 export function normalizeLeadJourney(lead: Lead): Lead {
@@ -163,7 +227,84 @@ export class LeadService {
     private events: EventBusPort,
     private pipeline?: PipelinePort,
     private settings?: { newColumnLabel?: string },
+    private personIdentity?: PersonIdentityPort,
   ) {}
+
+  private async withCanonicalPerson(lead: Lead, requiredPersonId?: string): Promise<Lead> {
+    if (!this.personIdentity) return lead;
+    const resolved = await this.personIdentity.resolve({
+      agencyId: this.agencyId,
+      currentPersonId: requiredPersonId ?? lead.personId,
+      email: lead.email,
+      phone: lead.phone,
+      name: lead.name,
+      company: lead.company,
+      source: lead.source,
+      leadId: lead.id,
+    });
+    if (!resolved.personId) throw new Error("lead_person_identity_missing");
+    if (requiredPersonId && resolved.personId !== requiredPersonId) {
+      throw new Error("lead_person_identity_conflict");
+    }
+    return lead.personId === resolved.personId
+      ? lead
+      : { ...lead, personId: resolved.personId };
+  }
+
+  private async attachClientPersonFacet(lead: Lead, clientId: string): Promise<void> {
+    if (!lead.personId || !this.personIdentity) return;
+    const attached = await this.personIdentity.attachFacets({
+      agencyId: this.agencyId,
+      personId: lead.personId,
+      leadId: lead.id,
+      clientId,
+    });
+    if (!attached) throw new Error("lead_person_identity_missing");
+  }
+
+  /**
+   * Select an existing Lead using the canonical Person rules. Email pointers
+   * remain the fast, strong key. A phone pointer alone is not trusted because
+   * switchboards and shared landlines may legitimately identify several named
+   * people; in that case Person identity plus the stored personId selects the
+   * correct Lead without collapsing them.
+   */
+  private async findExistingLeadForUpsert(
+    email: string,
+    phone: string,
+    input: Pick<CreateLeadInput, "name">,
+  ): Promise<Lead | null> {
+    const emailId = email ? await this.storage.get<string>(emailPtrKey(email)) : undefined;
+    if (emailId) {
+      const byEmail = await this.get(emailId);
+      if (byEmail) return byEmail;
+    }
+
+    if (this.personIdentity) {
+      const match = await this.personIdentity.find({
+        agencyId: this.agencyId,
+        email,
+        phone,
+        name: input.name,
+      });
+      if (match) {
+        const byPerson = (await this.list({ archived: "include" }))
+          .find(lead => lead.personId === match.personId);
+        if (byPerson) return byPerson;
+
+        // A legacy phone pointer may predate Lead.personId. It is usable only
+        // when the canonical matcher independently chose the Person and the
+        // pointed Lead is not known to belong to somebody else.
+        const phoneId = phone ? await this.storage.get<string>(phonePtrKey(phone)) : undefined;
+        const byPhone = phoneId ? await this.get(phoneId) : null;
+        if (byPhone && (!byPhone.personId || byPhone.personId === match.personId)) return byPhone;
+      }
+      return null;
+    }
+
+    const phoneId = phone ? await this.storage.get<string>(phonePtrKey(phone)) : undefined;
+    return phoneId ? this.get(phoneId) : null;
+  }
 
   async list(filter?: LeadFilter): Promise<Lead[]> {
     const index = (await this.storage.get<string[]>(LEAD_INDEX_KEY)) ?? [];
@@ -209,13 +350,36 @@ export class LeadService {
     return id ? this.get(id) : null;
   }
 
+  async getByPersonId(personId: string): Promise<Lead | null> {
+    const canonical = personId.trim();
+    if (!canonical) return null;
+    return (await this.list({ archived: "include" }))
+      .find(lead => lead.personId === canonical) ?? null;
+  }
+
   // Create-or-update on canonical email. Returns `{lead, created}` so
   // CSV import can tell whether a row was new or merged.
   async upsert(input: CreateLeadInput, actor: UserId): Promise<{ lead: Lead; created: boolean }> {
     return withLeadIdentityLock(this.agencyId, this.storage, () => this.upsertUnlocked(input, actor));
   }
 
-  private async upsertUnlocked(input: CreateLeadInput, actor: UserId): Promise<{ lead: Lead; created: boolean }> {
+  /** Server-only bridge used when another canonical facet already owns identity. */
+  async upsertForPerson(
+    input: CreateLeadInput,
+    personId: string,
+    actor: UserId,
+  ): Promise<{ lead: Lead; created: boolean }> {
+    const canonicalPersonId = personId.trim();
+    if (!canonicalPersonId) throw new Error("lead_person_identity_missing");
+    return withLeadIdentityLock(this.agencyId, this.storage, () =>
+      this.upsertUnlocked(input, actor, canonicalPersonId));
+  }
+
+  private async upsertUnlocked(
+    input: CreateLeadInput,
+    actor: UserId,
+    requiredPersonId?: string,
+  ): Promise<{ lead: Lead; created: boolean }> {
     if (input.relationshipCategory !== undefined && !isLeadRelationshipCategory(input.relationshipCategory)) {
       throw new Error("Choose a valid lead relationship category.");
     }
@@ -227,30 +391,36 @@ export class LeadService {
     if (!email && !PLAUSIBLE_PHONE.test(phone)) {
       throw new Error("A valid email address or phone number is required.");
     }
-    const existingId = (email ? await this.storage.get<string>(emailPtrKey(email)) : undefined)
-      ?? (phone ? await this.storage.get<string>(phonePtrKey(phone)) : undefined);
-    if (existingId) {
-      let existing = await this.get(existingId);
-      if (existing) {
-        // The same person came back. Their lead is archived, and the pointers
-        // still point at it — so revive it rather than writing an update into a
-        // record nobody can see. The alternative (leave it archived, quietly
-        // absorb the enquiry) is how a real enquiry disappears.
-        if (existing.archivedAt) {
-          existing = await this.reviveUnlocked(existing, actor, now());
-          await this.activity.logActivity({
-            agencyId: this.agencyId,
-            actorUserId: actor,
-            category: "leads",
-            action: "leads.lead.restored",
-            message: `Restored archived lead ${leadLabel(existing)} — they came back through ${input.source}.`,
-            metadata: { leadId: existing.id, source: input.source },
-          });
-          this.events.emit({ agencyId: this.agencyId }, "leads.lead.restored", { leadId: existing.id });
-        }
-        const incomingEnquiryId = enquiryIdFrom(input);
-        const isNewEnquiry = Boolean(incomingEnquiryId && !(existing.enquiryIds ?? []).includes(incomingEnquiryId));
-        const patched = await this.updateUnlocked(existing.id, {
+    const personLead = requiredPersonId ? await this.getByPersonId(requiredPersonId) : null;
+    const matchedLead = personLead ?? await this.findExistingLeadForUpsert(email, phone, input);
+    if (requiredPersonId && matchedLead?.personId && matchedLead.personId !== requiredPersonId) {
+      throw new Error("lead_person_identity_conflict");
+    }
+    if (matchedLead) {
+      let existing = matchedLead;
+      if (requiredPersonId && existing.personId !== requiredPersonId) {
+        existing = await this.withCanonicalPerson(existing, requiredPersonId);
+        await this.storage.set(leadKey(existing.id), existing);
+      }
+      // The same person came back. Their lead is archived, and the pointers
+      // still point at it — so revive it rather than writing an update into a
+      // record nobody can see. The alternative (leave it archived, quietly
+      // absorb the enquiry) is how a real enquiry disappears.
+      if (existing.archivedAt) {
+        existing = await this.reviveUnlocked(existing, actor, now());
+        await this.activity.logActivity({
+          agencyId: this.agencyId,
+          actorUserId: actor,
+          category: "leads",
+          action: "leads.lead.restored",
+          message: `Restored archived lead ${leadLabel(existing)} — they came back through ${input.source}.`,
+          metadata: { leadId: existing.id, source: input.source },
+        });
+        this.events.emit({ agencyId: this.agencyId }, "leads.lead.restored", { leadId: existing.id });
+      }
+      const incomingEnquiryId = enquiryIdFrom(input);
+      const isNewEnquiry = Boolean(incomingEnquiryId && !(existing.enquiryIds ?? []).includes(incomingEnquiryId));
+      const patched = await this.updateUnlocked(existing.id, {
           // Only fill blanks — never clobber existing notes/tags from a re-import.
           email: existing.email || email,
           name: existing.name ?? input.name,
@@ -271,9 +441,9 @@ export class LeadService {
           customFields: isNewEnquiry
             ? { ...(existing.customFields ?? {}), ...(input.customFields ?? {}) }
             : { ...(input.customFields ?? {}), ...(existing.customFields ?? {}) },
-          meetingLink: existing.meetingLink,
+          meetingLink: safeMeetingAssetUrl(existing.meetingLink),
           salesPresentations: existing.salesPresentations,
-          callRecordingUrl: existing.callRecordingUrl,
+          callRecordingUrl: safeMeetingAssetUrl(existing.callRecordingUrl),
           sessionNotes: existing.sessionNotes,
           inspirationLinks: existing.inspirationLinks,
           potentialProblems: existing.potentialProblems,
@@ -282,24 +452,23 @@ export class LeadService {
           budgetRange: existing.budgetRange,
           designFeedback: existing.designFeedback,
           supportNotes: existing.supportNotes,
-        }, actor);
-        const merged = patched ?? existing;
-        const tracked = isNewEnquiry
-          ? await this.recordEnquiryCaptureUnlocked(merged.id, {
-              at: input.capturedAt ?? now(),
-              source: input.source,
-              enquiryId: incomingEnquiryId,
-            }, actor)
-          : merged;
-        return { lead: tracked ?? merged, created: false };
-      }
+      }, actor);
+      const merged = patched ?? existing;
+      const tracked = isNewEnquiry
+        ? await this.recordEnquiryCaptureUnlocked(merged.id, {
+            at: input.capturedAt ?? now(),
+            source: input.source,
+            enquiryId: incomingEnquiryId,
+          }, actor)
+        : merged;
+      return { lead: tracked ?? merged, created: false };
     }
     const id = makeId("lead");
     const ts = now();
     const capturedAt = input.capturedAt ?? ts;
     const enquiryId = enquiryIdFrom(input);
     const enquiryCapture = isEnquiryCapture(input);
-    const lead: Lead = {
+    const lead = await this.withCanonicalPerson({
       id,
       agencyId: this.agencyId,
       email,
@@ -330,10 +499,15 @@ export class LeadService {
       notes: input.notes,
       customFields: input.customFields,
       sentCount: 0,
-    };
+    }, requiredPersonId);
     await this.storage.set(leadKey(id), lead);
     if (email) await this.storage.set(emailPtrKey(email), id);
-    if (phone) await this.storage.set(phonePtrKey(phone), id);
+    // A shared phone can point at more than one Lead. Keep the first stable
+    // pointer for legacy getByPhone callers; Person identity selects subsequent
+    // named owners by personId on every write-path upsert.
+    if (phone && !(await this.storage.get<string>(phonePtrKey(phone)))) {
+      await this.storage.set(phonePtrKey(phone), id);
+    }
     const index = (await this.storage.get<string[]>(LEAD_INDEX_KEY)) ?? [];
     if (!index.includes(id)) {
       await this.storage.set(LEAD_INDEX_KEY, [...index, id]);
@@ -396,15 +570,51 @@ export class LeadService {
       ? await this.storage.get<string>(phonePtrKey(canonicalPhone))
       : undefined;
     if (phoneOwnerId && phoneOwnerId !== id && await this.get(phoneOwnerId)) {
-      throw new LeadIdentityConflictError("phone");
+      const canonicalMatch = existing.personId && this.personIdentity
+        ? await this.personIdentity.find({
+            agencyId: this.agencyId,
+            email,
+            phone: canonicalPhone,
+            name: patch.name === undefined ? existing.name : patch.name,
+          })
+        : null;
+      // A phone pointer names only the first Lead behind a number. Permit an
+      // already-established second Person to keep that shared number, but do
+      // not let an arbitrary update steal/merge it.
+      const sameEstablishedPerson = Boolean(
+        existing.personId && canonicalMatch?.personId === existing.personId,
+      );
+      if (!sameEstablishedPerson) {
+        throw new LeadIdentityConflictError("phone");
+      }
     }
-    const updated: Lead = {
+    const meetingLink = Object.prototype.hasOwnProperty.call(patch, "meetingLink")
+      ? cleanMeetingAssetUrlForStorage(patch.meetingLink, "Meeting link")
+      : safeMeetingAssetUrl(existing.meetingLink);
+    const callRecordingUrl = Object.prototype.hasOwnProperty.call(patch, "callRecordingUrl")
+      ? cleanMeetingAssetUrlForStorage(patch.callRecordingUrl, "Call recording URL")
+      : safeMeetingAssetUrl(existing.callRecordingUrl);
+    const updated = await this.withCanonicalPerson({
       ...existing,
       ...patch,
+      // `UpdateLeadPatch` omits this field, but HTTP JSON is not structurally
+      // erased at runtime. Never let a browser-provided extra key forge the
+      // canonical Person pointer.
+      personId: existing.personId,
       email,
       phone,
       tags: patch.tags ?? existing.tags,
-    };
+      meetingLink,
+      callRecordingUrl,
+      // Prospect identity is a server-owned relationship. A generic Lead edit
+      // may replace custom fields, but it cannot silently sever that link.
+      customFields: prospectBacklinkedCustomFields(
+        Object.prototype.hasOwnProperty.call(patch, "customFields")
+          ? patch.customFields
+          : existing.customFields,
+        existing.prospectAcquisitions,
+      ),
+    });
     await this.storage.set(leadKey(id), updated);
     if (existing.email && existing.email !== updated.email) {
       const oldEmailOwner = await this.storage.get<string>(emailPtrKey(existing.email));
@@ -417,7 +627,10 @@ export class LeadService {
       const oldPhoneOwner = await this.storage.get<string>(phonePtrKey(existingPhone));
       if (oldPhoneOwner === id) await this.storage.del(phonePtrKey(existingPhone));
     }
-    if (updatedPhone) await this.storage.set(phonePtrKey(updatedPhone), id);
+    if (updatedPhone) {
+      const pointer = await this.storage.get<string>(phonePtrKey(updatedPhone));
+      if (!pointer || pointer === id) await this.storage.set(phonePtrKey(updatedPhone), id);
+    }
     await this.activity.logActivity({
       agencyId: this.agencyId,
       actorUserId: actor,
@@ -427,6 +640,243 @@ export class LeadService {
       metadata: { leadId: id, fields: Object.keys(patch) },
     });
     this.events.emit({ agencyId: this.agencyId }, "leads.lead.updated", { leadId: id });
+    return updated;
+  }
+
+  /**
+   * Apply a complete meeting edit and its optional interaction ledger row
+   * under one durable Lead lock. In particular, the append starts from the
+   * latest stored history after lock acquisition; a browser can never replace
+   * that history with a stale read-modify-write snapshot.
+   */
+  async updateMeeting(
+    id: string,
+    input: MeetingMutationInput,
+    actor: UserId,
+  ): Promise<LeadMeetingMutationResult | null> {
+    return withLeadIdentityLock(this.agencyId, this.storage, () =>
+      this.updateMeetingUnlocked(id, input, actor));
+  }
+
+  private async updateMeetingUnlocked(
+    id: string,
+    input: MeetingMutationInput,
+    actor: UserId,
+  ): Promise<LeadMeetingMutationResult | null> {
+    const existing = await this.get(id);
+    if (!existing) return null;
+    const mutationAt = now();
+    const patch: UpdateLeadPatch = {
+      ...input.patch,
+      meetingConfirmedAt: input.meetingConfirmed
+        ? existing.meetingConfirmedAt ?? mutationAt
+        : undefined,
+      meetingReminderSentAt: input.attempt?.outcome === "reminder-sent"
+        ? mutationAt
+        : existing.meetingReminderSentAt,
+    };
+    if (input.attempt) {
+      patch.meetingAttempts = appendServerMeetingAttempt(
+        existing.meetingAttempts,
+        input.attempt,
+        actor,
+        mutationAt,
+      );
+    }
+
+    const meetingChanged = typeof input.patch.nextMeetingAt === "number"
+      && input.patch.nextMeetingAt !== existing.nextMeetingAt;
+    const inferFirstContact = typeof input.patch.nextMeetingAt === "number"
+      && !existing.firstContactedAt
+      && !input.attempt;
+    let updated = await this.updateUnlocked(id, patch, actor);
+    if (!updated) return null;
+    if (meetingChanged) {
+      updated = await this.recordMeetingUnlocked(id, input.patch.nextMeetingAt!, actor) ?? updated;
+    }
+
+    let contactRecordedAt: number | undefined;
+    if (input.attempt) {
+      updated = await this.recordContactUnlocked(id, {
+        at: mutationAt,
+        channel: input.attempt.channel,
+        outcome: input.attempt.outcome,
+        note: input.attempt.notes,
+      }, actor) ?? updated;
+      contactRecordedAt = mutationAt;
+    } else if (inferFirstContact) {
+      updated = await this.recordContactUnlocked(id, {
+        at: mutationAt,
+        channel: input.patch.meetingMode ?? "other",
+        outcome: "meeting-scheduled",
+        note: "First contact inferred from the scheduled meeting.",
+      }, actor) ?? updated;
+      contactRecordedAt = mutationAt;
+    }
+    return { lead: updated, contactRecordedAt };
+  }
+
+  /**
+   * Attach the Prospect dossier that produced this Lead.
+   *
+   * This is intentionally separate from `CreateLeadInput`: the public Lead API
+   * must never be able to forge a Prospect backlink or staff-attributed audit
+   * history. The agency-scoped service resolves the Lead before writing, and a
+   * stable Prospect id makes retries merge rather than append.
+   */
+  async attachProspectAcquisition(
+    id: string,
+    input: LeadProspectAcquisitionInput,
+    actor: UserId,
+  ): Promise<Lead | null> {
+    return withLeadIdentityLock(this.agencyId, this.storage, () =>
+      this.attachProspectAcquisitionUnlocked(id, input, actor));
+  }
+
+  private async attachProspectAcquisitionUnlocked(
+    id: string,
+    input: LeadProspectAcquisitionInput,
+    actor: UserId,
+  ): Promise<Lead | null> {
+    const existing = await this.get(id);
+    if (!existing) return null;
+    const prospectId = input.prospectId.trim();
+    const source = input.source.trim();
+    if (!prospectId || prospectId.length > 160) throw new Error("Prospect backlink id is invalid.");
+    if (!source) throw new Error("Prospect acquisition source is required.");
+    if (!Number.isFinite(input.capturedAt) || input.capturedAt <= 0) {
+      throw new Error("Prospect acquisition capture time is invalid.");
+    }
+
+    const previousAcquisitions = Array.isArray(existing.prospectAcquisitions)
+      ? existing.prospectAcquisitions
+      : [];
+    const previous = previousAcquisitions.find(item => item.prospectId === prospectId);
+    const incomingAttempts = (Array.isArray(input.outreachAttempts) ? input.outreachAttempts : []).map(item => ({ ...item }));
+    const incomingFollowUps = (Array.isArray(input.followUps) ? input.followUps : []).map(item => ({ ...item }));
+    const incomingNotes = (Array.isArray(input.notes) ? input.notes : []).map(item => ({ ...item }));
+    if (incomingAttempts.some(item => !item.id || !Number.isFinite(item.at) || item.at <= 0)
+      || incomingFollowUps.some(item => !item.id || !Number.isFinite(item.createdAt) || item.createdAt <= 0)
+      || incomingNotes.some(item => !item.id || !Number.isFinite(item.at) || item.at <= 0)) {
+      throw new Error("Prospect acquisition history is invalid.");
+    }
+
+    const incomingUpdatedAt = Number.isFinite(input.prospectUpdatedAt) && input.prospectUpdatedAt > 0
+      ? input.prospectUpdatedAt
+      : input.capturedAt;
+    // Two canonical Prospect writes can finish in order while their projection
+    // writes arrive in the opposite order. History merges by stable row id;
+    // scalar dossier fields must likewise reject an older snapshot.
+    const scalarSnapshot = previous && previous.prospectUpdatedAt > incomingUpdatedAt
+      ? previous
+      : input;
+
+    const acquisition: LeadProspectAcquisition = {
+      prospectId,
+      source: scalarSnapshot.source,
+      capturedAt: scalarSnapshot.capturedAt,
+      prospectUpdatedAt: Math.max(previous?.prospectUpdatedAt ?? 0, incomingUpdatedAt),
+      qualifiedAt: previous?.qualifiedAt ?? now(),
+      qualifiedByUserId: previous?.qualifiedByUserId ?? actor,
+      profile: {
+        ...scalarSnapshot.profile,
+        tags: [...(scalarSnapshot.profile.tags ?? [])],
+      },
+      research: {
+        ...scalarSnapshot.research,
+        inspectionChecks: [...(scalarSnapshot.research.inspectionChecks ?? [])],
+      },
+      // A repair may contain a more complete version of an existing attempt,
+      // but can never make a formerly-recorded actor row disappear.
+      outreachAttempts: mergeAcquisitionRows(
+        previous?.outreachAttempts,
+        incomingAttempts,
+        item => item.at,
+        (prior, incoming) => ({
+          ...prior,
+          ...incoming,
+          actorUserId: incoming.actorUserId ?? prior.actorUserId,
+          finalisedAt: incoming.finalisedAt ?? prior.finalisedAt,
+          finalisedByUserId: incoming.finalisedByUserId ?? prior.finalisedByUserId,
+        }),
+      ),
+      followUps: mergeAcquisitionRows(
+        previous?.followUps,
+        incomingFollowUps,
+        item => item.createdAt,
+        (prior, incoming) => ({
+          ...prior,
+          ...incoming,
+          createdBy: incoming.createdBy ?? prior.createdBy,
+          resolvedBy: incoming.resolvedBy ?? prior.resolvedBy,
+        }),
+      ),
+      notes: mergeAcquisitionRows(
+        previous?.notes,
+        incomingNotes,
+        item => item.at,
+        (prior, incoming) => ({
+          ...prior,
+          ...incoming,
+          actorUserId: incoming.actorUserId ?? prior.actorUserId,
+        }),
+      ),
+    };
+    const acquisitions = previous
+      ? previousAcquisitions.map(item => item.prospectId === prospectId ? acquisition : item)
+      : [...previousAcquisitions, acquisition];
+
+    const journeyEvents = [...(existing.journeyEvents ?? [])];
+    const eventIndexes = new Map(journeyEvents.map((event, index) => [event.id, index]));
+    for (const attempt of acquisition.outreachAttempts) {
+      const event = prospectOutreachJourneyEvent(acquisition, attempt);
+      const eventIndex = eventIndexes.get(event.id);
+      if (eventIndex === undefined) {
+        eventIndexes.set(event.id, journeyEvents.length);
+        journeyEvents.push(event);
+      } else {
+        journeyEvents[eventIndex] = event;
+      }
+    }
+    const contactTimes = journeyEvents
+      .filter(event => event.type === "contact-recorded" && Number.isFinite(event.at))
+      .map(event => event.at);
+    const firstContactedAt = contactTimes.length ? Math.min(...contactTimes) : existing.firstContactedAt;
+    const lastContactedAt = contactTimes.length ? Math.max(...contactTimes) : existing.lastContactedAt;
+    const updated = normalizeLeadJourney({
+      ...existing,
+      prospectAcquisitions: acquisitions,
+      customFields: prospectBacklinkedCustomFields(existing.customFields, acquisitions),
+      firstContactedAt,
+      lastContactedAt,
+      journeyEvents,
+    });
+    const changed = JSON.stringify(existing) !== JSON.stringify(updated);
+    if (changed) await this.storage.set(leadKey(id), updated);
+
+    // Always attempt the idempotent audit append. If the row write succeeded
+    // but the activity backend failed, the exact qualification retry repairs
+    // the evidence without adding another dossier or Journey event.
+    await this.activity.logActivity({
+      idempotencyKey: `lead-prospect-acquisition:${id}:${prospectId}`,
+      agencyId: this.agencyId,
+      actorUserId: acquisition.qualifiedByUserId ?? actor,
+      category: "leads",
+      action: "leads.lead.prospect-acquisition-attached",
+      message: `Attached Prospect acquisition history to lead ${leadLabel(updated)}.`,
+      metadata: {
+        leadId: id,
+        prospectId,
+        outreachAttemptIds: acquisition.outreachAttempts.map(item => item.id),
+      },
+    });
+    if (changed) {
+      this.events.emit(
+        { agencyId: this.agencyId },
+        "leads.lead.prospect-acquisition-attached",
+        { leadId: id, prospectId },
+      );
+    }
     return updated;
   }
 
@@ -595,8 +1045,13 @@ export class LeadService {
   private async recordConversionUnlocked(id: string, clientId: string, actor: UserId, at: number): Promise<Lead | null> {
     const existing = await this.get(id);
     if (!existing) return null;
-    if (existing.convertedAt && existing.convertedClientId === clientId) return existing;
-    const updated: Lead = {
+    if (existing.convertedAt && existing.convertedClientId === clientId) {
+      const repaired = await this.withCanonicalPerson(existing);
+      await this.attachClientPersonFacet(repaired, clientId);
+      if (repaired !== existing) await this.storage.set(leadKey(id), repaired);
+      return repaired;
+    }
+    const updated = await this.withCanonicalPerson({
       ...existing,
       convertedAt: at,
       convertedClientId: clientId,
@@ -611,7 +1066,8 @@ export class LeadService {
         })]),
         journeyEvent("converted", at, { actorUserId: actor, clientId }),
       ],
-    };
+    });
+    await this.attachClientPersonFacet(updated, clientId);
     await this.storage.set(leadKey(id), updated);
     return updated;
   }
@@ -820,6 +1276,10 @@ export class LeadService {
       personId: undefined,
       notes: undefined,
       customFields: undefined,
+      prospectAcquisitions: undefined,
+      journeyEvents: existing.journeyEvents?.map(event => event.id.startsWith("journey:prospect:")
+        ? { ...event, note: undefined }
+        : event),
     };
     await this.storage.set(leadKey(id), anonymised);
     if (!alreadyAnonymised) {
@@ -851,6 +1311,8 @@ export class LeadService {
     mapping?: Record<string, string>;
     customFieldTypes?: Record<string, "text" | "textarea" | "number" | "date" | "url" | "email" | "select" | "multi-select" | "checkbox">;
     validateCustomFields?: (values: Record<string, CustomFieldValue>, existing?: Record<string, CustomFieldValue>) => Record<string, CustomFieldValue>;
+    /** Write-path hook used to converge server-owned companion records. */
+    onUpserted?: (lead: Lead, created: boolean) => Promise<void>;
   }): Promise<CsvImportResult> {
     const parsed = parseCsv(args.text);
     const mappedColumns = Object.entries(args.mapping ?? {})
@@ -920,6 +1382,7 @@ export class LeadService {
           },
           args.actor,
         );
+        await args.onUpserted?.(result.lead, result.created);
         if (result.created) imported += 1;
         else updated += 1;
       } catch (err) {

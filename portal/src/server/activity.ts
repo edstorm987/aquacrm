@@ -7,6 +7,7 @@ import "server-only";
 
 import crypto from "crypto";
 import { appendActivityToClientRecordLedger } from "@/lib/server/clients/clientRecordLedger";
+import { normaliseIdentityPhone } from "@/lib/server/identityResolution";
 import { businessCalendarDate } from "@/lib/shared/formatDateTime";
 import { getState, mutate } from "./storage";
 import type { ActivityCategory, ActivityEntry, PersonalMetricKey, PortalState } from "./types";
@@ -173,6 +174,228 @@ export function listActivity(filter: ListActivityFilter): ActivityEntry[] {
     })
     .slice(-limit)
     .reverse();
+}
+
+export interface EraseLeadsActivitySubjectReferencesInput {
+  agencyId: string;
+  prospectIds: string[];
+  leadIds: string[];
+  contactIds: string[];
+  emails: string[];
+  phones: string[];
+  sharedEmails?: string[];
+  sharedPhones?: string[];
+}
+
+export interface EraseLeadsActivitySubjectReferencesResult {
+  erased: number;
+  reviewRequired: {
+    legacyUnscoped: number;
+    sharedIdentity: number;
+  };
+}
+
+const LEADS_ACTIVITY_ENTITY_KEYS = new Set([
+  "prospectId",
+  "prospectIds",
+  "leadId",
+  "leadIds",
+  "contactId",
+  "contactIds",
+  "partyId",
+  "promotedFromLeadId",
+]);
+const ACQUISITION_COMMUNICATION_ACTIVITY_ACTIONS = new Set([
+  "call.device-handoff",
+  "call.initiated",
+  "outreach.email.prepared",
+  "outreach.email.sent",
+]);
+const EMPTY_ACTIVITY_ERASURE_VALUES = new Set<string>();
+
+function leadsActivityEntityReferences(value: unknown, depth = 0): string[] {
+  if (depth > 8 || !value || typeof value !== "object") return [];
+  if (Array.isArray(value)) return value.flatMap(item => leadsActivityEntityReferences(item, depth + 1));
+  return Object.entries(value as Record<string, unknown>).flatMap(([key, child]) => {
+    const direct = LEADS_ACTIVITY_ENTITY_KEYS.has(key)
+      ? Array.isArray(child)
+        ? child.filter((item): item is string => typeof item === "string")
+        : typeof child === "string" ? [child] : []
+      : [];
+    return [...direct, ...leadsActivityEntityReferences(child, depth + 1)];
+  });
+}
+
+function activityValueReferencesErasedSubject(
+  value: unknown,
+  ids: ReadonlySet<string>,
+  emails: ReadonlySet<string>,
+  phones: ReadonlySet<string>,
+  depth = 0,
+): boolean {
+  if (depth > 8 || value == null) return false;
+  if (typeof value === "string") {
+    const lowered = value.trim().toLowerCase();
+    if ([...ids].some(id => value.includes(id))) return true;
+    if ([...emails].some(email => lowered.includes(email))) return true;
+    if (/^[+\d][\d\s().-]*(?:(?:ext\.?|extension|x)\s*\d+)?$/i.test(value.trim())
+      && phones.has(normaliseIdentityPhone(value))) return true;
+    const phoneLikeValues = value.match(/[+\d][\d\s().-]{6,}/g) ?? [];
+    return phoneLikeValues.some(candidate => phones.has(normaliseIdentityPhone(candidate)));
+  }
+  if (Array.isArray(value)) {
+    return value.some(item => activityValueReferencesErasedSubject(item, ids, emails, phones, depth + 1));
+  }
+  if (typeof value === "object") {
+    return Object.values(value as Record<string, unknown>)
+      .some(item => activityValueReferencesErasedSubject(item, ids, emails, phones, depth + 1));
+  }
+  return false;
+}
+
+/**
+ * Delete leads-pipeline/acquisition-communication audit rows and durable replay
+ * admissions that could re-identify an erased subject.
+ *
+ * Prospect activity messages deliberately contain operator-facing labels and
+ * outreach context, so redacting metadata alone is insufficient. Removing the
+ * whole matched row is the only reliable boundary. Acquisition inbox rows and
+ * replay admissions are matched only through exact server-stamped entity ids,
+ * never a shared recipient identity. Personal metric projections retain
+ * aggregate hashed evidence only and contain no subject identity.
+ */
+export function eraseLeadsActivitySubjectReferences(
+  input: EraseLeadsActivitySubjectReferencesInput,
+): EraseLeadsActivitySubjectReferencesResult {
+  const prospectIds = new Set(input.prospectIds.filter(Boolean));
+  const leadIds = new Set(input.leadIds.filter(Boolean));
+  const contactIds = new Set(input.contactIds.filter(Boolean));
+  const ids = new Set([...prospectIds, ...leadIds, ...contactIds]);
+  const emails = new Set(input.emails.map(value => value.trim().toLowerCase()).filter(Boolean));
+  const phones = new Set(input.phones.map(value => normaliseIdentityPhone(value)).filter(Boolean));
+  const sharedEmails = new Set((input.sharedEmails ?? []).map(value => value.trim().toLowerCase()).filter(Boolean));
+  const sharedPhones = new Set((input.sharedPhones ?? []).map(value => normaliseIdentityPhone(value)).filter(Boolean));
+  const reviewRequired = { legacyUnscoped: 0, sharedIdentity: 0 };
+  if (ids.size === 0 && emails.size === 0 && phones.size === 0) return { erased: 0, reviewRequired };
+
+  let removed = 0;
+  mutate(state => {
+    const removedActivityIds = new Set<string>();
+    state.activity = state.activity.filter(entry => {
+      if (entry.agencyId !== input.agencyId) {
+        return true;
+      }
+      const exactAcquisitionCommunication = entry.category === "inbox"
+        && ACQUISITION_COMMUNICATION_ACTIVITY_ACTIONS.has(entry.action);
+      if (entry.category !== "leads" && !exactAcquisitionCommunication) return true;
+      const entityReferences = leadsActivityEntityReferences(entry.metadata);
+      const hasExactEntityReference = entityReferences.some(reference => ids.has(reference));
+      const hasForeignEntityReference = entityReferences.some(reference => !ids.has(reference));
+      const messageNamesTargetId = activityValueReferencesErasedSubject(
+        entry.message,
+        ids,
+        EMPTY_ACTIVITY_ERASURE_VALUES,
+        EMPTY_ACTIVITY_ERASURE_VALUES,
+      );
+      // A free-text message that happens to contain an id is legacy evidence,
+      // not a server-owned relationship. Only typed metadata can authorise a
+      // deletion; text-only matches are preserved for review below.
+      const exactSubjectReference = hasExactEntityReference;
+      if (exactAcquisitionCommunication) {
+        // Telephony/email inbox rows may share an address or switchboard with
+        // another acquisition subject. Only their server-stamped entity edge is
+        // authoritative enough to delete; never fall back to recipient text.
+        const metadata = entry.metadata ?? {};
+        const exactlyMatchesSubject = (
+          typeof metadata.prospectId === "string" && prospectIds.has(metadata.prospectId)
+        ) || (
+          typeof metadata.leadId === "string" && leadIds.has(metadata.leadId)
+        ) || (
+          typeof metadata.contactId === "string" && contactIds.has(metadata.contactId)
+        );
+        if (!exactlyMatchesSubject) return true;
+        if (hasForeignEntityReference) {
+          reviewRequired.sharedIdentity += 1;
+          return true;
+        }
+        removedActivityIds.add(entry.id);
+        removed += 1;
+        return false;
+      }
+      if (exactSubjectReference && !hasForeignEntityReference) {
+        removedActivityIds.add(entry.id);
+        removed += 1;
+        return false;
+      }
+
+      // Address and telephone values are evidence for operator review, never
+      // deletion authority: a household address, switchboard or recycled
+      // mailbox can legitimately identify more than one acquisition subject.
+      const matchesEmail = activityValueReferencesErasedSubject(
+        entry.message,
+        EMPTY_ACTIVITY_ERASURE_VALUES,
+        emails,
+        EMPTY_ACTIVITY_ERASURE_VALUES,
+      ) || activityValueReferencesErasedSubject(
+        entry.metadata,
+        EMPTY_ACTIVITY_ERASURE_VALUES,
+        emails,
+        EMPTY_ACTIVITY_ERASURE_VALUES,
+      );
+      const matchesPhone = activityValueReferencesErasedSubject(
+        entry.message,
+        EMPTY_ACTIVITY_ERASURE_VALUES,
+        EMPTY_ACTIVITY_ERASURE_VALUES,
+        phones,
+      ) || activityValueReferencesErasedSubject(
+        entry.metadata,
+        EMPTY_ACTIVITY_ERASURE_VALUES,
+        EMPTY_ACTIVITY_ERASURE_VALUES,
+        phones,
+      );
+      if (!exactSubjectReference && !messageNamesTargetId && !matchesEmail && !matchesPhone) return true;
+      const matchesSharedIdentity = hasForeignEntityReference
+        || activityValueReferencesErasedSubject(
+          entry.message,
+          EMPTY_ACTIVITY_ERASURE_VALUES,
+          sharedEmails,
+          sharedPhones,
+        )
+        || activityValueReferencesErasedSubject(
+          entry.metadata,
+          EMPTY_ACTIVITY_ERASURE_VALUES,
+          sharedEmails,
+          sharedPhones,
+        );
+      if (matchesSharedIdentity) reviewRequired.sharedIdentity += 1;
+      else reviewRequired.legacyUnscoped += 1;
+      return true;
+    });
+    if (removedActivityIds.size > 0) {
+      state.clientRecordLedger ??= {};
+      for (const [eventId, event] of Object.entries(state.clientRecordLedger)) {
+        if (event.agencyId === input.agencyId
+          && event.sourceType === "activity"
+          && removedActivityIds.has(event.sourceId)) {
+          delete state.clientRecordLedger[eventId];
+          removed += 1;
+        }
+      }
+    }
+    for (const [operationId, operation] of Object.entries(state.outboundCommunicationOperations)) {
+      if (operation.agencyId !== input.agencyId) continue;
+      const references = operation.subjectReferences;
+      const matches = Boolean(
+        (references?.prospectId && prospectIds.has(references.prospectId))
+        || (references?.leadId && leadIds.has(references.leadId))
+        || (references?.contactId && contactIds.has(references.contactId)),
+      );
+      if (!matches) continue;
+      delete state.outboundCommunicationOperations[operationId];
+      removed += 1;
+    }
+  });
+  return { erased: removed, reviewRequired };
 }
 
 export function queryActivity(filter: QueryActivityFilter): ActivityQueryResult {

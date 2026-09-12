@@ -41,7 +41,7 @@
             </ol>
             <div class="contact-client-route"><span>Already working with AquaCRM?</span><a href="/login/live?brand=aquacrm&amp;next=/portal">Open your private workspace →</a></div>
           </aside>
-          <form class="enquiry-form contact-page-form" data-full-enquiry>
+          <form class="enquiry-form contact-page-form" data-full-enquiry data-aqua-challenge-action="brand-enquiry">
             <input class="form-trap" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" />
             <div class="form-pair"><label>Name<input required name="name" autocomplete="name" /></label><label>Work email<input required type="email" name="email" autocomplete="email" /></label></div>
             <div class="form-pair"><label>Phone <small>optional</small><input name="phone" autocomplete="tel" /></label><label>Best way to reply<select required name="contactMethod"><option value="">Choose one</option><option value="call">Call</option><option value="email">Email</option><option value="whatsapp">WhatsApp</option><option value="in-person">In person</option><option value="text">Text</option></select></label></div>
@@ -65,6 +65,7 @@
     <button class="cookie-reopen" type="button" data-cookie-reopen>Cookie settings</button>
     <section class="cookie-banner" data-cookie-banner hidden aria-label="Cookie choices"><div><strong>Your privacy, under your control.</strong><p>Necessary storage keeps this site working. Optional Aqua analytics helps us understand useful pages without collecting form values.</p></div><div class="cookie-actions"><button type="button" data-cookie-reject>Necessary only</button><button type="button" data-cookie-manage>Manage</button><button class="primary" type="button" data-cookie-accept>Accept all</button></div></section>
     <dialog class="cookie-dialog" data-cookie-dialog aria-labelledby="cookie-title"><form method="dialog" class="cookie-dialog-shell"><header><div><span>Privacy choices</span><h2 id="cookie-title">Choose what AquaCRM may store.</h2></div><button type="submit" aria-label="Close cookie settings">Close</button></header><label><span><strong>Necessary</strong><small>Security, consent and core site operation.</small></span><input type="checkbox" checked disabled /></label><label><span><strong>Preferences</strong><small>Remember optional choices that improve your experience.</small></span><input type="checkbox" data-cookie-preferences /></label><label><span><strong>Analytics</strong><small>Measure page use and performance without typed form values.</small></span><input type="checkbox" data-cookie-analytics /></label><label><span><strong>Marketing</strong><small>Measure opted-in campaign conversions and attribution.</small></span><input type="checkbox" data-cookie-marketing /></label><p>Read the <a href="/privacy/">privacy and cookie notice</a>.</p><footer><button type="button" data-cookie-save>Save choices</button><button class="primary" type="button" data-cookie-dialog-accept>Accept all</button></footer></form></dialog>
+    <script src="/aqua-bot-challenge.js" defer></script>
     <script src="/site-experience.js" defer></script>
     <script>
       const menuButton = document.querySelector(".menu-button");

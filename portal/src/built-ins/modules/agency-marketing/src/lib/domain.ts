@@ -249,6 +249,9 @@ export interface LeadContactNote {
 export interface Lead {
   id: string;
   agencyId: AgencyId;
+  /** Exact erasure lineage. Legacy/pre-client rows legitimately omit both. */
+  clientId?: string;
+  personId?: string;
   campaignId?: string;                 // attribution
   email: string;
   name?: string;
@@ -265,6 +268,8 @@ export interface Lead {
 
 export interface CreateLeadInput {
   email: string;
+  clientId?: string;
+  personId?: string;
   name?: string;
   phone?: string;
   campaignId?: string;

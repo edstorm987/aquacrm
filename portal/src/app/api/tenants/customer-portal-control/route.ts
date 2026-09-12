@@ -4,7 +4,7 @@ import { authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth
 import { isAgencyRole } from "@/server/types";
 import { getClientForAgency, updateClient } from "@/server/tenants";
 import { logActivity } from "@/server/activity";
-import { deliverMagicLink, signMagicToken } from "@/lib/server/auth/magicLink";
+import { deliverMagicLink, signClientPortalInviteToken } from "@/lib/server/auth/magicLink";
 import { resolvePortalProductAssignment } from "@/lib/products/productAssignments";
 import { ensureClientPortalInstance, ensureProductPortalTemplate } from "@/server/clientPortalDesigns";
 import { getAgencyProduct, listAgencyProducts } from "@/server/agencyProducts";
@@ -243,7 +243,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "customer email is required before sending access" }, { status: 400 });
   }
 
-  const { token } = signMagicToken({ email: portalLoginEmail, clientId: client.id, agencyId });
+  // This authenticated, tenant-scoped Manage route is the sole issuer of
+  // membership-creating portal invitations. Public magic-link requests only
+  // sign in an already-existing exact membership.
+  const { token } = signClientPortalInviteToken({
+    email: portalLoginEmail,
+    clientId: client.id,
+    agencyId,
+  });
   const magicUrl = new URL("/login/magic", req.nextUrl.origin);
   magicUrl.searchParams.set("token", token);
   // Setup rather than the portal itself. A first-timer has no password yet,

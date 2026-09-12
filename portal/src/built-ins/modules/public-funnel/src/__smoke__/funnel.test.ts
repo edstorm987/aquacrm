@@ -6,7 +6,7 @@ import { strict as assert } from "node:assert";
 import type { ActivityEntry, AgencyId, UserId, UserProfile } from "../lib/tenancy";
 import type { PluginCtx, PluginStorage } from "../lib/aquaPluginTypes";
 import type {
-  ActivityLogPort, EventBusPort, LeadUserPort, SessionPort,
+  ActivityLogPort, EventBusPort, LeadUserPort,
 } from "../server/ports";
 import {
   clearFunnelFoundation,
@@ -14,7 +14,7 @@ import {
   FunnelInputError,
   registerFunnelFoundation,
 } from "../server/index";
-import { hcCompleteHandler } from "../api/handlers";
+import { hcCompleteHandler, toolCompleteHandler } from "../api/handlers";
 import { now, setClock, resetClock } from "../lib/time";
 
 const AGENCY: AgencyId = "agency_milesy_master";
@@ -25,12 +25,11 @@ interface World {
   activity: ActivityLogPort;
   events: EventBusPort;
   leadUsers: LeadUserPort;
-  sessions: SessionPort;
   inspect: {
     activityLog: ActivityEntry[];
     events: { name: string; payload: unknown }[];
-    sessionsIssued: string[];
     leadCreations: string[];   // emails of newly created leads (vs reused)
+    hasLeadUser(userId: string): boolean;
   };
 }
 
@@ -38,10 +37,11 @@ function buildWorld(): World {
   const data = new Map<string, unknown>();
   const activityLog: ActivityEntry[] = [];
   const events: { name: string; payload: unknown }[] = [];
-  const sessionsIssued: string[] = [];
   const leadCreations: string[] = [];
   const leadStore = new Map<string, UserProfile>();
   let userSeq = 1;
+  let identityTail = Promise.resolve();
+  const locks = new Map<string, Promise<void>>();
   const storage: PluginStorage = {
     async get<T = unknown>(key: string): Promise<T | undefined> { return data.get(key) as T | undefined; },
     async set<T = unknown>(key: string, value: T): Promise<void> { data.set(key, value); },
@@ -54,6 +54,15 @@ function buildWorld(): World {
     async list(prefix?: string): Promise<string[]> {
       const keys = [...data.keys()];
       return prefix ? keys.filter(k => k.startsWith(prefix)) : keys;
+    },
+    async runExclusive<T>(key: string, operation: () => Promise<T>): Promise<T> {
+      const previous = locks.get(key) ?? Promise.resolve();
+      let release!: () => void;
+      const gate = new Promise<void>(resolve => { release = resolve; });
+      locks.set(key, previous.then(() => gate));
+      await previous;
+      try { return await operation(); }
+      finally { release(); }
     },
   };
   let actSeq = 1;
@@ -75,44 +84,68 @@ function buildWorld(): World {
     emit(_scope, name, payload) { events.push({ name, payload }); },
   };
   const leadUsers: LeadUserPort = {
-    upsertLeadByEmail(email) {
+    async withNewLeadByEmail(email, operation) {
+      const previous = identityTail;
+      let release!: () => void;
+      const gate = new Promise<void>(resolve => { release = resolve; });
+      identityTail = previous.then(() => gate);
+      await previous;
       const k = email.toLowerCase();
-      const existing = leadStore.get(k);
-      if (existing) return { user: existing, created: false };
-      const user: UserProfile = {
-        id: `user_lead_${String(userSeq++).padStart(4, "0")}`,
-        email: k,
-        agencyId: "lead-tenant",      // T1's LEAD_AGENCY_ID sentinel
-      };
-      leadStore.set(k, user);
-      leadCreations.push(k);
-      return { user, created: true };
+      try {
+        if (leadStore.has(k)) return { created: false };
+        let user: UserProfile | null = null;
+        const createLead = () => {
+          if (user) return user;
+          user = {
+            id: `user_lead_${String(userSeq++).padStart(4, "0")}`,
+            email: k,
+            agencyId: "lead-tenant",
+          };
+          leadStore.set(k, user);
+          leadCreations.push(k);
+          return user;
+        };
+        const value = await operation(createLead);
+        assert.ok(user, "capture operation must create the lead before returning");
+        return { value, created: true as const };
+      } finally {
+        release();
+      }
     },
-  };
-  const sessions: SessionPort = {
-    issueSession(userId) {
-      const tok = `sess_${userId}_${Date.now()}`;
-      sessionsIssued.push(tok);
-      return tok;
+    async eraseIfUnreferenced({ userId }) {
+      const match = [...leadStore.entries()].find(([, user]) => user.id === userId);
+      if (!match) return { status: "missing", recordsErased: 0 };
+      const referenced = [...data.values()].some(value =>
+        Boolean(value && typeof value === "object" && (value as { leadUserId?: string }).leadUserId === userId),
+      );
+      if (referenced) {
+        return { status: "preserved", recordsErased: 0, reason: "still-referenced" };
+      }
+      leadStore.delete(match[0]);
+      return { status: "deleted", recordsErased: 1 };
     },
   };
   return {
-    storage, activity, events: eventBus, leadUsers, sessions,
-    inspect: { activityLog, events, sessionsIssued, leadCreations },
+    storage, activity, events: eventBus, leadUsers,
+    inspect: {
+      activityLog,
+      events,
+      leadCreations,
+      hasLeadUser: userId => [...leadStore.values()].some(user => user.id === userId),
+    },
   };
 }
 
-function container(world: World, withSessions = true) {
+function container(world: World) {
   return containerWithDeps({
     agencyId: AGENCY, storage: world.storage,
     activity: world.activity, events: world.events,
     leadUsers: world.leadUsers,
-    ...(withSessions ? { sessions: world.sessions } : {}),
   });
 }
 
 describe("@aqua/plugin-public-funnel smoke", () => {
-  test("1. captureHcCompletion creates lead + capture + issues session + returns redirect-ready result", async () => {
+  test("1. captureHcCompletion creates a new lead + capture without authentication", async () => {
     setClock(() => T0);
     const w = buildWorld();
     const c = container(w);
@@ -124,7 +157,7 @@ describe("@aqua/plugin-public-funnel smoke", () => {
     assert.equal(r.capture.source, "hc");
     assert.equal(r.capture.email, "ed@example.com");
     assert.equal(r.capture.hcSlot?.slot, 3);
-    assert.ok(r.session?.startsWith("sess_"));
+    assert.equal("session" in r, false);
     assert.equal(w.inspect.leadCreations.length, 1);
     resetClock();
   });
@@ -148,18 +181,17 @@ describe("@aqua/plugin-public-funnel smoke", () => {
     resetClock();
   });
 
-  test("3. idempotent on canonical email — second HC submit reuses lead, doesn't recreate", async () => {
+  test("3. canonical email reuse fails closed instead of attaching to an existing lead", async () => {
     setClock(() => T0);
     const w = buildWorld();
     const c = container(w);
-    const a = await c.funnel.captureHcCompletion({ email: "ed@example.com", slot: { slot: 2 } });
-    const b = await c.funnel.captureHcCompletion({ email: "ED@Example.com", slot: { slot: 5 } });
-    assert.equal(a.leadUserId, b.leadUserId);
-    assert.equal(b.created, false);
+    await c.funnel.captureHcCompletion({ email: "ed@example.com", slot: { slot: 2 } });
+    await assert.rejects(
+      () => c.funnel.captureHcCompletion({ email: "ED@Example.com", slot: { slot: 5 } }),
+      (error: unknown) => error instanceof FunnelInputError && error.message === "identity_unavailable",
+    );
     assert.equal(w.inspect.leadCreations.length, 1);
-    // Two captures persisted (we keep the journey, not just the latest).
-    const all = await c.funnel.list();
-    assert.equal(all.length, 2);
+    assert.equal((await c.funnel.list()).length, 1);
     resetClock();
   });
 
@@ -168,7 +200,7 @@ describe("@aqua/plugin-public-funnel smoke", () => {
     const w = buildWorld();
     const c = container(w);
     await c.funnel.captureHcCompletion({ email: "a@x.com", slot: { slot: 3 } });
-    await c.funnel.captureHcCompletion({ email: "a@x.com", slot: { slot: 4 } });
+    await assert.rejects(() => c.funnel.captureHcCompletion({ email: "a@x.com", slot: { slot: 4 } }));
     const captured = w.inspect.events.filter(e => e.name === "public-funnel.lead.captured");
     assert.equal(captured.length, 1);
     resetClock();
@@ -220,29 +252,24 @@ describe("@aqua/plugin-public-funnel smoke", () => {
     const w = buildWorld();
     const c = container(w);
     await c.funnel.captureHcCompletion({ email: "ed@example.com", slot: { slot: 3 } });
-    await c.funnel.captureToolCompletion({ email: "ed@example.com", toolId: "rank-my-website" });
     await c.funnel.captureHcCompletion({ email: "Other@example.com", slot: { slot: 4 } });
     const ed = await c.funnel.listByEmail("ED@Example.COM");
-    assert.equal(ed.length, 2);
+    assert.equal(ed.length, 1);
     const other = await c.funnel.listByEmail("other@example.com");
     assert.equal(other.length, 1);
     resetClock();
   });
 
-  test("9. meContext returns most-recent HC slot + ALL captures newest-first", async () => {
-    let t = T0; setClock(() => t);
+  test("9. meContext returns the new lead's own Health Check capture", async () => {
+    setClock(() => T0);
     const w = buildWorld();
     const c = container(w);
     const a = await c.funnel.captureHcCompletion({ email: "ed@example.com", slot: { slot: 2 } });
-    t = T0 + 1000;
-    await c.funnel.captureToolCompletion({ email: "ed@example.com", toolId: "rmw" });
-    t = T0 + 2000;
-    await c.funnel.captureHcCompletion({ email: "ed@example.com", slot: { slot: 5 } });
     const ctx = await c.funnel.meContext(a.leadUserId);
     assert.ok(ctx);
-    assert.equal(ctx?.captures.length, 3);
-    assert.equal(ctx?.hcSlot?.slot, 5);            // most-recent HC capture wins
-    assert.equal(ctx?.captures[0]?.capturedAt, T0 + 2000);
+    assert.equal(ctx?.captures.length, 1);
+    assert.equal(ctx?.hcSlot?.slot, 2);
+    assert.equal(ctx?.captures[0]?.capturedAt, T0);
     resetClock();
   });
 
@@ -254,14 +281,19 @@ describe("@aqua/plugin-public-funnel smoke", () => {
     resetClock();
   });
 
-  test("11. without SessionPort, capture still succeeds — session field undefined", async () => {
+  test("11. invalid or oversized Health Check slots fail before identity creation", async () => {
     setClock(() => T0);
     const w = buildWorld();
-    const c = container(w, false);
-    const r = await c.funnel.captureHcCompletion({ email: "ed@example.com", slot: { slot: 3 } });
-    assert.equal(r.session, undefined);
-    assert.equal(r.created, true);
-    assert.equal(w.inspect.sessionsIssued.length, 0);
+    const c = container(w);
+    await assert.rejects(
+      () => c.funnel.captureHcCompletion({ email: "ed@example.com", slot: { slot: 99 } }),
+      (error: unknown) => error instanceof FunnelInputError && error.message === "invalid_hc_slot",
+    );
+    await assert.rejects(
+      () => c.funnel.captureHcCompletion({ email: "ed@example.com", slot: { slot: 3, blob: "x".repeat(70_000) } }),
+      (error: unknown) => error instanceof FunnelInputError && error.message === "invalid_hc_slot",
+    );
+    assert.equal(w.inspect.leadCreations.length, 0);
     resetClock();
   });
 
@@ -270,7 +302,7 @@ describe("@aqua/plugin-public-funnel smoke", () => {
     const w = buildWorld();
     const c = container(w);
     await c.funnel.captureHcCompletion({ email: "ed@example.com", slot: { slot: 3 } });
-    await c.funnel.captureToolCompletion({ email: "ed@example.com", toolId: "rmw" });
+    await c.funnel.captureToolCompletion({ email: "tool@example.com", toolId: "rmw" });
     const cats = new Set(w.inspect.activityLog.map(e => e.category));
     assert.deepEqual([...cats], ["public-funnel"]);
     const actions = w.inspect.activityLog.map(e => e.action);
@@ -289,7 +321,7 @@ describe("@aqua/plugin-public-funnel smoke", () => {
     resetClock();
   });
 
-  test("14. retrying one completion id reuses its capture and completion event", async () => {
+  test("14. retrying one completion id is refused without returning the prior identity", async () => {
     setClock(() => T0);
     const w = buildWorld();
     const c = container(w);
@@ -298,39 +330,38 @@ describe("@aqua/plugin-public-funnel smoke", () => {
       completionId: "hc_result_0001",
       slot: { slot: 3, summary: { headline: "Stored once" } },
     };
-    const first = await c.funnel.captureHcCompletion(input);
-    const retry = await c.funnel.captureHcCompletion(input);
-    assert.equal(retry.capture.id, first.capture.id);
-    assert.equal(retry.created, false);
+    await c.funnel.captureHcCompletion(input);
+    await assert.rejects(
+      () => c.funnel.captureHcCompletion(input),
+      (error: unknown) => error instanceof FunnelInputError && error.message === "completion_id_replayed",
+    );
     assert.equal((await c.funnel.list()).length, 1);
     assert.equal(w.inspect.events.filter(e => e.name === "public-funnel.hc.completed").length, 1);
     resetClock();
   });
 
-  test("15. a session failure resumes without duplicating the durable completion", async () => {
+  test("15. an existing identity is rejected before a capture is persisted", async () => {
     setClock(() => T0);
     const w = buildWorld();
-    let attempts = 0;
-    w.sessions.issueSession = (userId) => {
-      attempts++;
-      if (attempts === 1) throw new Error("session-down");
-      return `sess_${userId}_retry`;
-    };
+    const original = w.leadUsers.withNewLeadByEmail;
+    w.leadUsers.withNewLeadByEmail = async () => ({ created: false });
     const c = container(w);
     const input = {
-      email: "resume@example.com",
+      email: "existing@example.com",
       completionId: "hc_result_resume",
       slot: { slot: 2 },
     };
-    await assert.rejects(() => c.funnel.captureHcCompletion(input), /session-down/);
-    const retry = await c.funnel.captureHcCompletion(input);
-    assert.equal(retry.session, `sess_${retry.leadUserId}_retry`);
-    assert.equal((await c.funnel.list()).length, 1);
-    assert.equal(w.inspect.events.filter(e => e.name === "public-funnel.hc.completed").length, 1);
+    await assert.rejects(
+      () => c.funnel.captureHcCompletion(input),
+      (error: unknown) => error instanceof FunnelInputError && error.message === "identity_unavailable",
+    );
+    assert.equal((await c.funnel.list()).length, 0);
+    assert.equal(w.inspect.events.length, 0);
+    w.leadUsers.withNewLeadByEmail = original;
     resetClock();
   });
 
-  test("16. concurrent retries of one completion id retain one authoritative row", async () => {
+  test("16. concurrent retries produce one capture and one replay refusal", async () => {
     setClock(() => T0);
     const w = buildWorld();
     const c = container(w);
@@ -339,11 +370,12 @@ describe("@aqua/plugin-public-funnel smoke", () => {
       completionId: "hc_result_race_01",
       slot: { slot: 4 },
     };
-    const [a, b] = await Promise.all([
+    const settled = await Promise.allSettled([
       c.funnel.captureHcCompletion(input),
       c.funnel.captureHcCompletion(input),
     ]);
-    assert.equal(a.capture.id, b.capture.id);
+    assert.equal(settled.filter(result => result.status === "fulfilled").length, 1);
+    assert.equal(settled.filter(result => result.status === "rejected").length, 1);
     assert.equal((await c.funnel.list()).length, 1);
     assert.equal(w.inspect.events.filter(e => e.name === "public-funnel.hc.completed").length, 1);
     resetClock();
@@ -365,19 +397,13 @@ describe("@aqua/plugin-public-funnel smoke", () => {
     resetClock();
   });
 
-  test("18. the legacy HTTP handler classifies session failure as retryable and resumes", async () => {
+  test("18. the legacy public handler never sets a cookie and refuses replay", async () => {
     setClock(() => T0);
     const w = buildWorld();
-    let sessionAvailable = false;
-    w.sessions.issueSession = (userId) => {
-      if (!sessionAvailable) throw new Error("session-down");
-      return `sess_${userId}_retry`;
-    };
     registerFunnelFoundation({
       activity: w.activity,
       events: w.events,
       leadUsers: w.leadUsers,
-      sessions: w.sessions,
     });
     const ctx = {
       agencyId: AGENCY,
@@ -404,26 +430,82 @@ describe("@aqua/plugin-public-funnel smoke", () => {
       }),
     });
     try {
-      const failed = await hcCompleteHandler(request(), ctx);
-      assert.equal(failed.status, 503);
-      assert.deepEqual(await failed.json(), {
-        ok: false,
-        error: "capture_unavailable",
-        message: "session-down",
-        retryable: true,
-      });
+      const first = await hcCompleteHandler(request(), ctx);
+      assert.equal(first.status, 200);
+      assert.equal(first.headers.get("set-cookie"), null);
+      const payload = await first.json() as Record<string, unknown>;
+      assert.equal(payload.authentication, "email_verification_required");
+      assert.equal("captureId" in payload, false);
+      assert.equal("leadUserId" in payload, false);
 
-      sessionAvailable = true;
-      const retried = await hcCompleteHandler(request(), ctx);
-      assert.equal(retried.status, 200);
-      const payload = await retried.json() as Record<string, unknown>;
-      assert.equal(payload.captureId, "lc_hc_hc_handler_retry_01");
+      const replay = await hcCompleteHandler(request(), ctx);
+      assert.equal(replay.status, 400);
+      assert.equal((await replay.json() as { error: string }).error, "invalid_completion");
+      assert.equal(replay.headers.get("set-cookie"), null);
       assert.equal((await container(w).funnel.list()).length, 1);
-      assert.match(retried.headers.get("set-cookie") ?? "", /^lk_session_v1=/);
+
+      const tool = await toolCompleteHandler(new Request(
+        "https://portal.test/api/portal/public-funnel/tool-complete",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            email: "handler-retry@example.com",
+            completionId: "tool_existing_identity_01",
+            toolId: "rank-my-website",
+          }),
+        },
+      ), ctx);
+      assert.equal(tool.status, 400);
+      assert.equal((await tool.json() as { error: string }).error, "invalid_completion");
+      assert.equal(tool.headers.get("set-cookie"), null);
+      assert.equal((await container(w).funnel.list()).length, 1);
     } finally {
       clearFunnelFoundation();
       resetClock();
     }
+  });
+
+  test("19. exact erasure cleans indexes and retries while a shared lead identity is preserved", async () => {
+    setClock(() => T0);
+    const w = buildWorld();
+    const c = container(w);
+    const captured = await c.funnel.captureHcCompletion({
+      email: "shared-erasure@example.com",
+      completionId: "hc_shared_erasure_01",
+      slot: { slot: 3 },
+    });
+    const exactKey = `captures/by-id/${captured.capture.id}`;
+    await w.storage.set(exactKey, { ...captured.capture, clientId: "client-a" });
+    await w.storage.set("captures/by-id/lc_hc_shared_erasure_b", {
+      ...captured.capture,
+      id: "lc_hc_shared_erasure_b",
+      clientId: "client-b",
+    });
+    await w.storage.set("captures/index", [captured.capture.id, "lc_hc_shared_erasure_b"]);
+    await w.storage.set("captures/by-email/shared-erasure@example.com", [captured.capture.id, "lc_hc_shared_erasure_b"]);
+
+    const subject = {
+      clientId: "client-a",
+      personShared: true,
+      emails: ["shared-erasure@example.com"],
+      sharedEmails: ["shared-erasure@example.com"],
+    };
+    const first = await c.funnel.eraseForClient(subject);
+    const retry = await c.funnel.eraseForClient(subject);
+
+    assert.equal(first.erased, 1);
+    assert.equal(retry.erased, 0);
+    assert.equal(await w.storage.get(exactKey), undefined);
+    assert.ok(await w.storage.get("captures/by-id/lc_hc_shared_erasure_b"));
+    assert.deepEqual(await w.storage.get("captures/index"), ["lc_hc_shared_erasure_b"]);
+    assert.ok(await w.storage.get("captures/by-email/shared-erasure@example.com"),
+      "shared address pointer was deleted while a capture remains");
+    assert.equal(first.reviewRequired.sharedIdentity, 2,
+      "the preserved capture and its shared generated user must both be review work");
+    assert.equal(w.inspect.hasLeadUser(captured.leadUserId), true,
+      "shared generated user was deleted while another capture still references it");
+    resetClock();
   });
 });
 

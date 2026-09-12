@@ -3,7 +3,7 @@
 // imports this directly; the in-memory nonce store + HMAC signing only
 // take effect when actually called.)
 //
-// Token shape:    base64url(JSON({email, clientId, agencyId, exp, nonce})) "." HMAC
+// Token shape:    base64url(JSON({purpose, email, clientId, agencyId, exp, nonce})) "." HMAC
 // TTL:            15 minutes
 // Single-use:     nonce stored in an in-memory Set with TTL expiry. Replay
 //                 = "already used" reject. (v1 limitation: single-process —
@@ -20,6 +20,7 @@ import { sendTransactionalEmail } from "@/lib/server/email/transactionalEmail";
 const TOKEN_TTL_SECONDS = 60 * 15;
 
 export interface MagicLinkPayload {
+  purpose: MagicLinkPurpose;
   email: string;
   clientId: string;
   agencyId: string;
@@ -27,15 +28,20 @@ export interface MagicLinkPayload {
   nonce: string;
 }
 
+export type MagicLinkPurpose = "sign-in" | "client-portal-invite";
+
+type MagicLinkSubject = Pick<MagicLinkPayload, "email" | "clientId" | "agencyId">;
+
 function getSecret(): string {
   return resolveSigningSecret();
 }
 
-export function signMagicToken(input: Omit<MagicLinkPayload, "exp" | "nonce">): {
+function signPurposeToken(input: MagicLinkSubject, purpose: MagicLinkPurpose): {
   token: string;
   payload: MagicLinkPayload;
 } {
   const payload: MagicLinkPayload = {
+    purpose,
     email: input.email.trim().toLowerCase(),
     clientId: input.clientId,
     agencyId: input.agencyId,
@@ -48,9 +54,33 @@ export function signMagicToken(input: Omit<MagicLinkPayload, "exp" | "nonce">): 
   return { token: `${b64}.${sig}`, payload };
 }
 
+/**
+ * Sign-in tokens authenticate an already-existing, exactly scoped end-customer.
+ * They are deliberately unable to create membership.
+ */
+export function signMagicToken(input: MagicLinkSubject): {
+  token: string;
+  payload: MagicLinkPayload;
+} {
+  return signPurposeToken(input, "sign-in");
+}
+
+/**
+ * The only token allowed to create a client-portal membership. Keep this
+ * separate from `signMagicToken` so a public sign-in route cannot select the
+ * stronger purpose from request data.
+ */
+export function signClientPortalInviteToken(input: MagicLinkSubject): {
+  token: string;
+  payload: MagicLinkPayload;
+} {
+  return signPurposeToken(input, "client-portal-invite");
+}
+
 export function verifyMagicToken(
   token: string,
 ): { ok: true; payload: MagicLinkPayload } | { ok: false; error: string } {
+  if (token.length > 4096) return { ok: false, error: "malformed_token" };
   const dot = token.indexOf(".");
   if (dot <= 0) return { ok: false, error: "malformed_token" };
   const b64 = token.slice(0, dot);
@@ -61,14 +91,29 @@ export function verifyMagicToken(
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
     return { ok: false, error: "invalid_signature" };
   }
-  let payload: MagicLinkPayload;
+  let decoded: unknown;
   try {
-    payload = JSON.parse(Buffer.from(b64, "base64url").toString("utf8")) as MagicLinkPayload;
+    decoded = JSON.parse(Buffer.from(b64, "base64url").toString("utf8"));
   } catch {
     return { ok: false, error: "malformed_payload" };
   }
-  if (!payload.email || !payload.clientId || !payload.exp || !payload.nonce) {
+  if (!decoded || typeof decoded !== "object" || Array.isArray(decoded)) {
+    return { ok: false, error: "malformed_payload" };
+  }
+  const candidate = decoded as Record<string, unknown>;
+  if (
+    typeof candidate.email !== "string" || !candidate.email
+    || typeof candidate.clientId !== "string" || !candidate.clientId
+    || typeof candidate.agencyId !== "string" || !candidate.agencyId
+    || typeof candidate.exp !== "number" || !Number.isSafeInteger(candidate.exp)
+    || typeof candidate.nonce !== "string" || !candidate.nonce
+    || typeof candidate.purpose !== "string" || !candidate.purpose
+  ) {
     return { ok: false, error: "missing_claims" };
+  }
+  const payload = candidate as unknown as MagicLinkPayload;
+  if (payload.purpose !== "sign-in" && payload.purpose !== "client-portal-invite") {
+    return { ok: false, error: "invalid_purpose" };
   }
   if (payload.exp < Math.floor(Date.now() / 1000)) return { ok: false, error: "expired" };
   return { ok: true, payload };
@@ -94,6 +139,11 @@ import { resolveSigningSecret } from "@/lib/server/auth/sessionToken";
 export async function consumeMagicNonce(nonce: string, expSec: number): Promise<boolean> {
   const ttlMs = Math.max(0, expSec * 1000 - Date.now());
   return getNonceStore().consumeNonce(nonce, "magic-link", ttlMs);
+}
+
+export async function consumeClientPortalInviteNonce(nonce: string, expSec: number): Promise<boolean> {
+  const ttlMs = Math.max(0, expSec * 1000 - Date.now());
+  return getNonceStore().consumeNonce(nonce, "client-portal-invite", ttlMs);
 }
 
 // Back-compat shims — prefer `consumeMagicNonce` going forward. These

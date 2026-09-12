@@ -3,6 +3,12 @@ import { sendResendEmail } from "@/lib/server/email/resendEmail";
 import { OutboundBlockedError, vetOutboundHost } from "@/lib/server/net/outboundBroker";
 import { assertLiveProviderAccess } from "@/lib/server/sandbox/providerPolicy";
 import { resolveScopedIntegrationConnectionValues, resolveIntegrationValues } from "@/lib/server/integrations/integrationConnections";
+import {
+  isRemoteOperationError,
+  RemoteOperationDefinitiveError,
+  withRemoteOperationDeadline,
+  type RemoteOperationRetry,
+} from "@/lib/server/remoteOperation";
 import { getAgencyWorkspaceSettings } from "@/server/agencySettings";
 
 interface TransactionalEmailInput {
@@ -24,6 +30,9 @@ export interface TransactionalEmailResult {
   via: "resend" | "smtp" | "unconfigured";
   externalMessageId?: string;
   reason?: string;
+  code?: "REMOTE_OPERATION_TIMEOUT" | "REMOTE_OPERATION_ABORTED" | "REMOTE_OPERATION_FAILED";
+  outcomeUnknown?: boolean;
+  retry?: RemoteOperationRetry;
 }
 
 export interface TransactionalEmailReadiness {
@@ -134,24 +143,58 @@ export async function sendTransactionalEmail(
         auth: { user: smtp.username, pass: smtp.password },
       });
       const fromName = input.fromName?.trim() || smtp.fromName || workspace.legalName || "AquaOasis-Web";
-      await transport.sendMail({
-        to: input.to,
-        from: { name: fromName, address: smtp.fromEmail },
-        replyTo: smtp.replyTo || workspace.supportEmail || smtp.fromEmail,
-        subject: input.subject,
-        text: input.bodyText,
-        html: input.bodyHtml,
-        attachments: input.attachments?.map(attachment => ({
-          filename: attachment.filename,
-          content: attachment.content,
-          contentType: attachment.contentType,
-        })),
-        headers: { "x-aquacrm-reference": input.externalRef },
+      const info = await withRemoteOperationDeadline({
+        operation: "SMTP email delivery",
+        budget: "providerWrite",
+        outcome: "non-idempotent-write",
+        signal: input.signal,
+      }, async signal => {
+        const closeTransport = () => transport.close();
+        signal.addEventListener("abort", closeTransport, { once: true });
+        try {
+          return await transport.sendMail({
+            to: input.to,
+            from: { name: fromName, address: smtp.fromEmail },
+            replyTo: smtp.replyTo || workspace.supportEmail || smtp.fromEmail,
+            subject: input.subject,
+            text: input.bodyText,
+            html: input.bodyHtml,
+            attachments: input.attachments?.map(attachment => ({
+              filename: attachment.filename,
+              content: attachment.content,
+              contentType: attachment.contentType,
+            })),
+            headers: { "x-aquacrm-reference": input.externalRef },
+          });
+        } catch (error) {
+          if (isDefinitiveSmtpFailure(error)) {
+            throw new RemoteOperationDefinitiveError(
+              error instanceof Error ? error.message : "SMTP rejected the email.",
+            );
+          }
+          throw error;
+        } finally {
+          signal.removeEventListener("abort", closeTransport);
+        }
       });
-      return { delivered: true, via: "smtp" };
+      const externalMessageId = typeof info.messageId === "string" ? info.messageId.trim().slice(0, 300) : "";
+      return { delivered: true, via: "smtp", ...(externalMessageId ? { externalMessageId } : {}) };
     } catch (error) {
       if (error instanceof OutboundBlockedError) {
         return { delivered: false, via: "smtp", reason: "SMTP host refused by the egress policy (unsafe destination)." };
+      }
+      if (error instanceof RemoteOperationDefinitiveError) {
+        return { delivered: false, via: "smtp", reason: error.message };
+      }
+      if (isRemoteOperationError(error)) {
+        return {
+          delivered: false,
+          via: "smtp",
+          reason: error.message,
+          code: error.code,
+          outcomeUnknown: error.outcomeUnknown,
+          retry: error.retry,
+        };
       }
       return { delivered: false, via: "smtp", reason: error instanceof Error ? error.message : "SMTP delivery failed." };
     }
@@ -164,4 +207,12 @@ export async function sendTransactionalEmail(
       reason: "Connect Resend or SMTP and add a sender email in Company → Connections.",
     };
   }
+}
+
+function isDefinitiveSmtpFailure(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const record = error as { code?: unknown; responseCode?: unknown };
+  const responseCode = Number(record.responseCode);
+  if (Number.isInteger(responseCode) && responseCode >= 400 && responseCode < 600) return true;
+  return record.code === "EAUTH" || record.code === "EENVELOPE" || record.code === "EMESSAGE";
 }

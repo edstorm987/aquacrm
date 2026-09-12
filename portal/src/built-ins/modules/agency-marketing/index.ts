@@ -158,14 +158,35 @@ const manifest: AquaPlugin = {
     await c.templates.seedDefaults(ctx.actor);
   },
 
-  // Right-to-be-forgotten. A marketing lead is captured long before the person
-  // is a client, so the row carries no `clientId` and the generic value-scan
-  // can never find it — and `leads/by-email/<email>` holds the address in the
-  // KEY NAME. Marketing PII → DELETE, per the disposition policy. Idempotent.
-  onEraseClient: async (ctx: PluginCtx, _clientId: string, subject?: ErasureSubject) => {
+  // Right-to-be-forgotten. Delete only exact client/exclusive-Person rows.
+  // Pre-client address/phone matches are preserved and surfaced for review.
+  onEraseClient: async (ctx: PluginCtx, clientId: string, subject?: ErasureSubject) => {
     const c = _containerFromCtx({ agencyId: ctx.agencyId, storage: ctx.storage });
-    if (!c) return; // foundation not registered — nothing to erase
-    await c.leads.eraseForAddresses(subject?.emails ?? []);
+    if (!c) throw new Error("Agency-marketing erasure foundation is unavailable.");
+    const evidence = subject?.identityEvidence;
+    const result = await c.leads.eraseForClient({
+      clientId,
+      personId: subject?.exactOwnership?.personId,
+      personShared: subject?.exactOwnership?.personShared ?? true,
+      emails: evidence?.emails ?? subject?.emails ?? [],
+      phones: evidence?.phones ?? subject?.phones ?? [],
+      sharedEmails: evidence?.sharedEmails ?? [],
+      sharedPhones: evidence?.sharedPhones ?? [],
+    });
+    if (result.reviewRequired.legacyUnscoped > 0) {
+      subject?.reviewRequired?.push({
+        system: "agency-marketing",
+        reason: "legacy-unscoped",
+        records: result.reviewRequired.legacyUnscoped,
+      });
+    }
+    if (result.reviewRequired.sharedIdentity > 0) {
+      subject?.reviewRequired?.push({
+        system: "agency-marketing",
+        reason: "shared-identity",
+        records: result.reviewRequired.sharedIdentity,
+      });
+    }
   },
 
   healthcheck: async (ctx: PluginCtx): Promise<HealthStatus> => {

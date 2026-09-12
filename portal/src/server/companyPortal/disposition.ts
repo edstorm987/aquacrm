@@ -588,6 +588,12 @@ export const PROMOTION_DISPOSITION = {
     keying: "own-id",
     reason: "Provider idempotency records belong to the originating calendar connection and must never cross tenants.",
   },
+  outboundCommunicationOperations: {
+    disposition: "leave",
+    ownership: "agency-scoped",
+    keying: "own-id",
+    reason: "SMTP and Twilio replay admissions bind provider effects to the originating agency and must never cross tenants.",
+  },
 
   // ─── The company's operating model ──────────────────────────────────────
   sops: {
@@ -936,7 +942,7 @@ type _NoStaleCollections = AssertNever<StaleCollections>;
 // tenant key and live outside the live data realm entirely.
 // 98 → 99 on 2026-09-03: `personalMetricDays`, the bounded actor-owned
 // semantic projection behind personal recurring targets.
-export const PROMOTION_COLLECTION_COUNT = 100;
+export const PROMOTION_COLLECTION_COUNT = 101;
 
 /** Every classified collection name, in `PortalState` order. */
 export const PROMOTION_COLLECTIONS = Object.keys(PROMOTION_DISPOSITION) as Array<

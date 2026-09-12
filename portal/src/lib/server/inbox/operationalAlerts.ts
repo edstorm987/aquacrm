@@ -20,7 +20,12 @@ import { getState } from "@/server/storage";
 import type { ClientContract } from "@/lib/clients/clientContracts";
 import { getRequestWebsiteEnquiries, type WebsiteEnquiry } from "@/lib/server/websiteEnquiries";
 import { isLeadJourneyEligible } from "@/lib/enquiries/enquiryClassification";
-import { personDisplayName, upsertPerson } from "@/server/persons";
+import {
+  findPersonByFacet,
+  findPersonByIdentity,
+  getPerson,
+  personDisplayName,
+} from "@/server/persons";
 import { batchOrganisationSuggestions } from "@/server/organisations";
 import { withResolutionContext } from "@/lib/inbox/resolutionContext";
 import { withResolutionContexts } from "@/lib/inbox/resolutionFocus";
@@ -49,9 +54,8 @@ export const OPERATIONAL_ALERT_THRESHOLDS = {
 // Request-deduped operational alerts. The agency layout (sidebar attention) and
 // the agency page both compute this same heavy per-render list; wrapping in
 // React cache() (keyed on agencyId, using the shared request `now`) collapses
-// them to ONE computation — and one run of its idempotent read-path side
-// effects (person upserts) — per render. The raw function below is unchanged,
-// so API routes, tests and any non-render caller keep the exact same behaviour.
+// them to ONE computation per render. The raw function below is unchanged, so
+// API routes, tests and any non-render caller keep the exact same behaviour.
 export const getRequestOperationalAlerts = cache(
   (agencyId: string): Promise<OperationalAlert[]> => listOperationalAlerts(agencyId, getRequestNow()),
 );
@@ -510,11 +514,12 @@ export async function listOperationalAlerts(
   const leadsInstall = getInstall({ agencyId }, "leads-pipeline");
   if (leadsInstall?.enabled) {
     ensureLeadsPipelineFoundationRegistered();
-    const { campaigns, leads, prospects } = containerFor({ agencyId, storage: makePluginStorage(leadsInstall.id) as never });
-    const [campaignRows, leadRows, prospectRows, websiteEnquiryRead] = await Promise.all([
+    const { campaigns, leads, prospects, contacts } = containerFor({ agencyId, storage: makePluginStorage(leadsInstall.id) as never });
+    const [campaignRows, leadRows, prospectRows, contactRows, websiteEnquiryRead] = await Promise.all([
       campaigns.list(),
       leads.list(),
       prospects.list(),
+      contacts.list(),
       readOptions.websiteEnquiries
         ? Promise.resolve(readOptions.websiteEnquiries)
         : readOrUnavailable(
@@ -546,9 +551,19 @@ export async function listOperationalAlerts(
     }
     const websiteEnquiryById = new Map(websiteEnquiries.map(enquiry => [enquiry.id, enquiry]));
     const alertedEnquiryIds = new Set<string>();
+    const activeLeadIds = new Set(leadRows
+      .filter(isLeadJourneyEligible)
+      .filter(lead => !lead.archivedAt && !lead.convertedAt)
+      .map(lead => lead.id));
 
     if (notificationSettings.clientAlerts) {
-      for (const prospect of prospectRows.filter(item => item.status === "scouting" && !item.doNotContact && item.nextContactAt !== undefined && item.nextContactAt <= now)) {
+      for (const prospect of prospectRows.filter(item =>
+        (item.status === "scouting"
+          || (item.status === "qualified"
+            && Boolean(item.qualifiedLeadId && activeLeadIds.has(item.qualifiedLeadId))))
+        && !item.doNotContact
+        && item.nextContactAt !== undefined
+        && item.nextContactAt <= now)) {
         const label = prospect.company || prospect.name || prospect.website || "Scouting prospect";
         const overdueMs = now - (prospect.nextContactAt ?? now);
         const lastAttempt = prospect.outreachAttempts.at(-1);
@@ -556,23 +571,28 @@ export async function listOperationalAlerts(
           id: `prospect-follow-up:${prospect.id}`,
           severity: overdueMs >= 7 * DAY ? "critical" : overdueMs >= DAY ? "warning" : "notice",
           category: "client",
-          title: `Scouting follow-up due: ${label}`,
+          title: `Outreach follow-up due: ${label}`,
           detail: [
             prospect.nextContactReason || "A retained recontact commitment is due.",
             prospect.preferredChannel ? `Preferred route: ${prospect.preferredChannel}.` : "",
             lastAttempt ? `Last outcome: ${lastAttempt.outcome}.` : "No previous outreach attempt is recorded.",
           ].filter(Boolean).join(" "),
-          href: "/portal/agency/pipelines/leads#scouting",
+          href: `/portal/agency/prospecting?prospect=${encodeURIComponent(prospect.id)}`,
           persistentUntilResolved: true,
           occurredAt: prospect.nextContactAt ?? now,
         });
       }
     }
 
+    const journeyContacts = contactRows.filter(contact =>
+      contact.type === "lead" || contact.type === "customer" || contact.type === "account");
+    const promotedLeadIds = new Set(journeyContacts.flatMap(contact =>
+      contact.promotedFromLeadId ? [contact.promotedFromLeadId] : []));
+
     for (const lead of leadRows) {
       if (!isLeadJourneyEligible(lead)) continue;
       const label = lead.name || lead.company || lead.email;
-      if (notificationSettings.meetingReminders && lead.meetingReminderAt && !lead.meetingReminderSentAt && lead.meetingReminderAt <= now && !["completed", "cancelled"].includes(lead.meetingStatus ?? "")) {
+      if (notificationSettings.meetingReminders && !promotedLeadIds.has(lead.id) && meetingReminderIsDue(lead, now)) {
         alerts.push({
           id: `meeting:${lead.id}`,
           severity: "warning",
@@ -580,7 +600,7 @@ export async function listOperationalAlerts(
           title: `Meeting reminder due for ${label}`,
           detail: "Send the reminder using the agreed channel, then record the attempt.",
           href: `/portal/agency/pipelines/leads?lead=${encodeURIComponent(lead.id)}`,
-          occurredAt: lead.meetingReminderAt,
+          occurredAt: lead.meetingReminderAt ?? now,
         });
       }
       const isWebsiteEnquiry = lead.tags.includes("website-enquiry")
@@ -608,6 +628,24 @@ export async function listOperationalAlerts(
       }
     }
 
+    if (notificationSettings.meetingReminders) {
+      for (const contact of journeyContacts) {
+        if (!meetingReminderIsDue(contact, now)) continue;
+        const label = contact.name || contact.company || contact.email;
+        alerts.push({
+          id: `meeting:contact:${contact.id}`,
+          severity: "warning",
+          category: "meeting",
+          title: `Meeting reminder due for ${label}`,
+          detail: "Send the reminder using the agreed channel, then record the attempt.",
+          href: contact.personId
+            ? `/portal/agency/contacts/${encodeURIComponent(contact.personId)}`
+            : "/portal/agency/contacts",
+          occurredAt: contact.meetingReminderAt ?? now,
+        });
+      }
+    }
+
     if (notificationSettings.clientAlerts) {
       for (const enquiry of websiteEnquiries) {
         if (alertedEnquiryIds.has(enquiry.id)) continue;
@@ -624,12 +662,9 @@ export async function listOperationalAlerts(
             // conversation instead of somewhere they could act, and left them
             // no route back if the classification later needed changing.
             //
-            // The person is resolved HERE rather than read off `enquiry`.
-            // `listWebsiteEnquiries()` does not populate `personId` — only
-            // `synchroniseWebsiteEnquiryIdentities` does, and that runs on the
-            // inbox and clients pages, not on this path. Relying on the field
-            // meant the card link was never reached and every alert quietly
-            // fell back to the inbox.
+            // Resolve an already-admitted Person by exact enquiry facet first,
+            // then identity. Legacy rows without one deliberately fall back to
+            // this enquiry's detail; an alert read must not create the record.
             href: withResolutionContext(
               enquiryPersonHref(agencyId, enquiry)
                 ?? `/portal/agency/inbox?view=${enquiryView(enquiry)}&form=${encodeURIComponent(enquiry.id)}`,
@@ -726,34 +761,40 @@ export async function listOperationalAlerts(
   return resolved;
 }
 
+function meetingReminderIsDue(record: {
+  meetingReminderAt?: number;
+  meetingReminderSentAt?: number;
+  meetingStatus?: string;
+}, now: number): boolean {
+  return Boolean(
+    record.meetingReminderAt
+    && !record.meetingReminderSentAt
+    && record.meetingReminderAt <= now
+    && !["completed", "cancelled", "no-show"].includes(record.meetingStatus ?? ""),
+  );
+}
+
 /**
- * The contact-card href for an enquirer, resolving (and creating if needed)
- * the canonical Person.
+ * The contact-card href for an enquirer when a canonical Person already exists.
  *
- * Creating during alert generation is deliberate. The alternative — link only
- * when a Person already exists — means the very alert telling you to classify
- * somebody is the one that cannot open their card, because nothing has
- * created them yet. `upsertPerson` is idempotent (identity first, then facet),
- * so repeated alert builds converge on one record.
+ * Operational-alert collection is a GET/read model and must not create domain
+ * records. Enquiry intake/classification owns Person admission. A legacy row
+ * without a Person falls back to its exact inbox detail, where the operator can
+ * still classify it without a hidden write during navigation or prefetch.
  *
  * Returns null when there is nothing to identify the person by AND no enquiry
  * id to anchor them to, so the caller can fall back to the inbox.
  */
 function enquiryPersonHref(agencyId: string, enquiry: WebsiteEnquiry): string | null {
   if (!enquiry.email && !enquiry.phone && !enquiry.id) return null;
-  try {
-    const { person } = upsertPerson(agencyId, {
+  const person = (enquiry.personId ? getPerson(agencyId, enquiry.personId) : null)
+    ?? findPersonByFacet(agencyId, { enquiryId: enquiry.id })
+    ?? findPersonByIdentity(agencyId, {
       emails: [enquiry.email],
       phones: [enquiry.phone],
       name: enquiry.name,
-      source: `website:${enquiry.siteName}`,
-      facets: { enquiryIds: [enquiry.id] },
     });
-    return `/portal/agency/contacts/${encodeURIComponent(person.id)}`;
-  } catch {
-    // Never let attention routing fail because a person could not be built.
-    return null;
-  }
+  return person ? `/portal/agency/contacts/${encodeURIComponent(person.id)}` : null;
 }
 
 function enquiryView(enquiry: WebsiteEnquiry): "forms" | "chatbot" | "support" {

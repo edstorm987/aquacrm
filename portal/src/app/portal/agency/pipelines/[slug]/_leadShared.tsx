@@ -53,8 +53,14 @@ export function LeadTimingTrace({
         {[...events].sort((a, b) => b.at - a.at).map(event => (
           <div key={event.id} className="relative pb-4 last:pb-0">
             <span className="absolute -left-[19px] top-1 size-2 rounded-full border border-white bg-brand" />
-            <div className="flex flex-wrap items-baseline justify-between gap-2"><strong className="text-xs font-semibold text-black/68">{journeyEventLabel(event)}</strong><time className="text-[10px] text-black/35">{formatUkDateTime(event.at)} · {formatElapsed(clock - event.at)} ago</time></div>
-            <p className="mt-1 text-[11px] leading-4 text-black/45">{journeyEventDetail(event)}</p>
+            <div className="flex flex-wrap items-baseline justify-between gap-2"><strong className="text-xs font-semibold text-black/75">{journeyEventLabel(event)}</strong><time className="text-[10px] text-black/60">{formatUkDateTime(event.at)} · {formatElapsed(clock - event.at)} ago</time></div>
+            <p className="mt-1 text-[11px] leading-4 text-black/65">{journeyEventDetail(event)}</p>
+            {event.actorLabel ? <p className="mt-1 text-[11px] font-medium text-black/65">Recorded by {event.actorLabel}</p> : null}
+            {event.type === "contact-recorded" && event.source?.startsWith("scouting:") ? (
+              <p className="mt-1 text-[11px] font-medium text-black/65">
+                Outcome by {event.outcomeActorLabel ?? "Staff not recorded (legacy)"} · {event.outcomeRecordedAt ? formatUkDateTime(event.outcomeRecordedAt) : "time not recorded (legacy)"}
+              </p>
+            ) : null}
           </div>
         ))}
         {!events.length ? <p className="text-xs text-black/40">Timing begins with this lead&apos;s capture record.</p> : null}
@@ -77,6 +83,11 @@ function journeyEventLabel(event: LeadJourneyEventView): string {
   if (event.type === "contact-recorded") return "Contact recorded";
   if (event.type === "stage-changed") return `Entered ${stageLabel(event.toStage)}`;
   if (event.type === "meeting-scheduled") return "Meeting scheduled";
+  if (event.type === "prospect-qualified") return "Qualified into Journey";
+  if (event.type === "research-updated") return "Research updated";
+  if (event.type === "prospect-note-added") return "Acquisition note added";
+  if (event.type === "follow-up-scheduled") return "Follow-up scheduled";
+  if (event.type === "follow-up-resolved") return "Follow-up resolved";
   // Before the archive/restore events existed this fell through to "Converted
   // to client" for anything unrecognised, so a new event type silently claimed
   // the most consequential label on the screen.
@@ -91,6 +102,9 @@ function journeyEventDetail(event: LeadJourneyEventView): string {
   if (event.type === "contact-recorded") return [event.channel && stageLabel(event.channel), event.outcome && stageLabel(event.outcome), event.note].filter(Boolean).join(" · ") || "Contact recorded.";
   if (event.type === "enquiry-received" || event.type === "lead-captured") return [event.source && sourceLabel(event.source), event.enquiryId && `Submission ${event.enquiryId}`].filter(Boolean).join(" · ") || "Journey started.";
   if (event.type === "meeting-scheduled" && event.scheduledFor) return `Meeting booked for ${formatUkDateTime(event.scheduledFor)}.`;
+  if (event.type === "prospect-qualified") return [event.source && `Source ${sourceLabel(event.source)}`, event.note].filter(Boolean).join(" · ") || "The acquisition dossier was linked to this Journey record.";
+  if (event.type === "research-updated" || event.type === "prospect-note-added" || event.type === "follow-up-resolved") return event.note || "Acquisition evidence updated.";
+  if (event.type === "follow-up-scheduled") return [event.scheduledFor && `Due ${formatUkDateTime(event.scheduledFor)}`, event.channel && stageLabel(event.channel), event.note].filter(Boolean).join(" · ") || "Follow-up added.";
   if (event.type === "archived") return "Taken off the active board. The record and its history were kept.";
   if (event.type === "restored") return "Put back on the active board with its history intact.";
   return event.note || (event.clientId ? `Client ${event.clientId}` : "Recorded in the journey history.");

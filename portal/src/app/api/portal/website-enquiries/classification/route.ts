@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { containerFor } from "@aqua/plugin-leads-pipeline/server";
+import {
+  containerFor,
+  ensureAcquisitionDossierForLead,
+} from "@aqua/plugin-leads-pipeline/server";
 
 import { ensureLeadsPipelineFoundationRegistered } from "@/built-ins/runtime/foundation-adapters/leadsPipelineFoundation";
 import {
@@ -47,6 +50,8 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: false, error: "Submission ID and a valid classification are required." }, { status: 400 });
     }
     const classification = body.classification;
+    const growthElement = classificationGrowthElement(classification);
+    if (growthElement) await requireCurrentWorkspaceElementAccess("growth", growthElement, "use");
 
     const supabase = await createScopedSupabaseClient();
     const data = await loadActorWebsiteEnquiry<EnquiryRow>(actor, supabase, {
@@ -68,10 +73,11 @@ export async function PATCH(request: Request) {
     }
 
     ensureLeadsPipelineFoundationRegistered();
-    const { leads, contacts } = containerFor({
+    const container = containerFor({
       agencyId,
       storage: makePluginStorage(install.id) as never,
     });
+    const { leads, contacts } = container;
     const storedLeadId = typeof currentMetadata.leadId === "string"
       ? currentMetadata.leadId
       : typeof currentMetadata.archivedLeadId === "string"
@@ -145,13 +151,22 @@ export async function PATCH(request: Request) {
       // The contact record is RETAINED. It costs nothing to keep and it holds
       // history that reclassification used to destroy.
       if (existingRoutedContact) contactId = existingRoutedContact.id;
-      // Returning to sales after being routed out: the kanban card was
-      // removed as a projection, so put it back or the lead is invisible
-      // in Journey despite being eligible again.
-      ensureLeadCard(agencyId, result.lead);
-      routeNote = result.created
-        ? "Created a sales lead and added it to Journey."
-        : "Restored the sales lead to Journey with its history intact.";
+      if (!result.lead.archivedAt && !result.lead.convertedAt) {
+        // Sales admission owns this write: every active Journey Lead receives
+        // one deterministic acquisition dossier here, never from a prefetched
+        // page or operational-alert GET. Replays repair the same dossier and
+        // Lead backlink instead of creating another record.
+        await ensureAcquisitionDossierForLead(container, result.lead, session.userId);
+        // Returning to sales after being routed out: the kanban card was
+        // removed as a projection, so put it back or the lead is invisible
+        // in Journey despite being eligible again.
+        ensureLeadCard(agencyId, result.lead);
+        routeNote = result.created
+          ? "Created a sales lead and added it to Journey."
+          : "Restored the sales lead to Journey with its history intact.";
+      } else {
+        routeNote = "Linked the sales enquiry to the retained customer history.";
+      }
     } else {
       const activeLead = matchedLead ?? (existingLeadId ? await leads.get(existingLeadId) : null);
       if (activeLead) {
@@ -294,6 +309,13 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: false, error: "The enquiry could not be routed." }, { status: 500 });
     }
   }
+}
+
+function classificationGrowthElement(
+  classification: WebsiteEnquiryClassification,
+): "growth.leads" | "growth.contacts" | null {
+  if (classification === "spam") return null;
+  return classification === "sales" ? "growth.leads" : "growth.contacts";
 }
 
 /**

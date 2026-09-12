@@ -30,6 +30,7 @@ import {
 } from "@/lib/server/access/workspaceElementAccess";
 import { actorHasActiveNonProjectAccessPolicy } from "@/server/accessControl";
 import { filterOperationalAlertsForActor } from "@/lib/server/access/operationalAlertAccess";
+import { SalesAcquisitionTabs } from "@/components/sales/SalesAcquisitionTabs";
 
 type RequestRecord = {
   id: string;
@@ -168,7 +169,12 @@ export default async function AgencyInboxPage() {
     return unrestrictedLegacyInbox || inboxActivityCategories.has(entry.category);
   });
 
-  return <MasterInbox
+  const salesTabsAvailable = session.role === "agency-owner"
+    || session.role === "agency-manager";
+
+  return <div className="flex flex-col gap-5">
+    {salesTabsAvailable ? <SalesAcquisitionTabs active="inbox" /> : null}
+    <MasterInbox
     referenceNow={Date.now()}
     actionsSlot={preparedActions?.actionsAvailable ? <AgencyActionsPage prepared={preparedActions} /> : null}
     openActionCount={preparedActions?.actionsAvailable ? preparedActions.openActionCount : 0}
@@ -209,5 +215,6 @@ export default async function AgencyInboxPage() {
       clientId: entry.clientId,
       ts: entry.ts,
     }))}
-  />;
+    />
+  </div>;
 }

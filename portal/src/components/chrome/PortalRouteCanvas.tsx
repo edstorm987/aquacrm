@@ -18,6 +18,8 @@ const AREA_SEGMENTS: Array<[string, string]> = [
   ["/portals", "portals"],
   ["/you-deserve-it", "delight"],
   ["/scouting", "journey"],
+  ["/researching", "journey"],
+  ["/prospecting", "journey"],
   ["/pipelines", "journey"],
   ["/development", "fulfilment"],
   ["/performance", "fulfilment"],

@@ -1,7 +1,7 @@
 import type { AgencyId, PluginInstall } from "../lib/tenancy";
 import type { PluginStorage } from "../lib/aquaPluginTypes";
 import type {
-  ActivityLogPort, EventBusPort, LeadUserPort, SessionPort,
+  ActivityLogPort, EventBusPort, LeadUserPort,
   TenantPort, UserPort,
 } from "./ports";
 import type { FunnelContainer } from "./index";
@@ -11,7 +11,6 @@ export interface FunnelFoundation {
   activity: ActivityLogPort;
   events: EventBusPort;
   leadUsers: LeadUserPort;
-  sessions?: SessionPort;
   user?: UserPort;
   tenant?: TenantPort;
 }
@@ -37,14 +36,13 @@ export function containerFor(args: ContainerForArgs): FunnelContainer {
     agencyId: args.agencyId, storage: args.storage,
     activity: f.activity, events: f.events,
     leadUsers: f.leadUsers,
-    ...(f.sessions !== undefined ? { sessions: f.sessions } : {}),
   });
 }
 
 export function containerWithDeps(args: {
   agencyId: AgencyId; storage: PluginStorage;
   activity: ActivityLogPort; events: EventBusPort;
-  leadUsers: LeadUserPort; sessions?: SessionPort;
+  leadUsers: LeadUserPort;
 }): FunnelContainer {
   return buildFunnelContainer(args);
 }
@@ -55,6 +53,5 @@ export function _containerFromCtx(args: { agencyId: AgencyId; storage: PluginSto
     agencyId: args.agencyId, storage: args.storage,
     activity: registered.activity, events: registered.events,
     leadUsers: registered.leadUsers,
-    ...(registered.sessions !== undefined ? { sessions: registered.sessions } : {}),
   });
 }

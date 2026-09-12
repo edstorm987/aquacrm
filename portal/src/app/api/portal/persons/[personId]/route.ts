@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { authErrorResponse, requireRole } from "@/lib/server/auth/auth";
+import { requireCurrentClientWorkspaceElementAccess } from "@/lib/server/access/clientWorkspaceElementAccess";
+import { requireCurrentWorkspaceElementAccess } from "@/lib/server/access/workspaceElementAccess";
 import { isWebsiteEnquiryClassification } from "@/lib/enquiries/enquiryClassification";
 import {
   addPersonEmail,
@@ -43,6 +45,7 @@ export async function PATCH(
   try {
     await ensureHydrated({ fresh: true });
     const session = await requireRole([...WRITE_ROLES]);
+    await requireCurrentWorkspaceElementAccess("growth", "growth.contacts", "use");
     const { personId } = await context.params;
 
     // Scope check before anything else — a person from another agency must
@@ -54,6 +57,15 @@ export async function PATCH(
 
     const body = await request.json().catch(() => null) as Record<string, unknown> | null;
     const action = typeof body?.action === "string" ? body.action : "";
+
+    // Calls, meetings and notes become part of the client's communications
+    // history once this Person owns a client facet. Require the client-side
+    // element as well as Growth Contacts before reading or changing it.
+    if (action === "add-record" || action === "delete-record") {
+      for (const clientId of person.facets.clientIds ?? []) {
+        await requireCurrentClientWorkspaceElementAccess(clientId, "client.communications", "use");
+      }
+    }
 
     switch (action) {
       case "classify": {

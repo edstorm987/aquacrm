@@ -93,7 +93,17 @@ export function resolveContactIdentity(input: IdentityResolutionInput): Identity
     .sort((left, right) => right.confidence - left.confidence || left.clientName.localeCompare(right.clientName));
   const top = candidates[0];
   const runnerUp = candidates[1];
-  const hasAuthoritativeEvidence = Boolean(top?.reasons.some(reason => ["explicit", "crm-id", "email", "phone"].includes(reason.kind)));
+  // A public website submitter controls name/email/phone, and the ingestion
+  // path may derive a Lead from those same values. Those signals are useful
+  // suggestions for a human review, but they are not authority to place the
+  // submission in a client's private record. Website enquiries auto-resolve
+  // only when the caller supplies a previously verified explicit client link
+  // (configured site routing or a recorded manual/typed-lineage decision).
+  const hasAuthoritativeEvidence = Boolean(top?.reasons.some(reason =>
+    input.sourceType === "website-enquiry"
+      ? reason.kind === "explicit"
+      : ["explicit", "crm-id", "email", "phone"].includes(reason.kind),
+  ));
   const topHasExactCompany = Boolean(company && top?.reasons.some(reason => reason.kind === "company" && reason.weight >= 32));
   const runnerUpHasExactCompany = Boolean(company && runnerUp?.reasons.some(reason => reason.kind === "company" && reason.weight >= 32));
   const uniqueEnough = !runnerUp

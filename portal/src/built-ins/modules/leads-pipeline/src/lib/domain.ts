@@ -79,6 +79,7 @@ export function inferLeadRelationshipCategory(value: {
 export interface MeetingAttempt {
   id: string;
   at: number;
+  actorUserId?: string;
   channel: MeetingAttemptChannel;
   outcome: MeetingAttemptOutcome;
   notes?: string;
@@ -329,6 +330,9 @@ export interface ProspectOutreachAttempt {
   id: string;
   at: number;
   actorUserId?: string;
+  /** The staff member who most recently completed or changed this result. */
+  finalisedAt?: number;
+  finalisedByUserId?: string;
   channel: ProspectOutreachChannel;
   outcome: ProspectOutreachOutcome;
   note?: string;
@@ -347,11 +351,14 @@ export interface ProspectFollowUp {
   id: string;
   createdAt: number;
   createdBy?: string;
+  /** The outreach attempt that scheduled this reminder, for retry-safe upserts. */
+  sourceOutreachAttemptId?: string;
   dueAt: number;
   reason: string;
   channel?: ProspectOutreachChannel;
   status: ProspectFollowUpStatus;
   resolvedAt?: number;
+  resolvedBy?: UserId;
   resolutionNote?: string;
 }
 
@@ -385,10 +392,19 @@ export interface Prospect {
   lastContactedAt?: number;
   inspectionChecks: ProspectInspectionCheck[];
   inspectedAt?: number;
+  /** Last staff member and time that dossier research or inspection changed. */
+  researchUpdatedBy?: UserId;
+  researchUpdatedAt?: number;
   followUps: ProspectFollowUp[];
   outreachAttempts: ProspectOutreachAttempt[];
   notes: ProspectNote[];
   status: ProspectStatus;
+  /** Most recent removal from the active acquisition workflow. */
+  dismissedAt?: number;
+  dismissedByUserId?: UserId;
+  /** Most recent explicit return to the active acquisition workflow. */
+  restoredAt?: number;
+  restoredByUserId?: UserId;
   qualifiedLeadId?: string;
   capturedAt: number;
   updatedAt: number;
@@ -455,6 +471,13 @@ export interface UpdateProspectPatch {
 }
 
 export interface RecordProspectOutreachInput {
+  /**
+   * Stable identity for one provider action. Supplying it again finalises the
+   * existing attempt instead of consuming a second quota slot.
+  */
+  attemptId?: string;
+  /** True only when a person is recording the result of an existing provider action. */
+  finalise?: boolean;
   channel: ProspectOutreachChannel;
   outcome: ProspectOutreachOutcome;
   note?: string;
@@ -494,6 +517,10 @@ export interface LeadJourneyEvent {
   type: LeadJourneyEventType;
   at: number;
   actorUserId?: string;
+  /** When a human recorded or corrected the outcome of a provider action. */
+  outcomeRecordedAt?: number;
+  /** The human who recorded or corrected that outcome. */
+  outcomeActorUserId?: string;
   source?: string;
   enquiryId?: string;
   fromStage?: string;
@@ -504,6 +531,65 @@ export interface LeadJourneyEvent {
   scheduledFor?: number;
   clientId?: string;
 }
+
+/**
+ * The exact scouting dossier at the point a Prospect becomes a Lead.
+ *
+ * The human-readable Lead notes remain useful for operators, but they are not
+ * an audit ledger: flattening loses stable row ids and the staff actor attached
+ * to each note/outreach/follow-up. This structured snapshot keeps that evidence
+ * addressable while the existing `contact-recorded` Journey events provide the
+ * immediately-renderable timeline projection.
+ */
+export interface LeadProspectAcquisition {
+  prospectId: string;
+  source: string;
+  capturedAt: number;
+  prospectUpdatedAt: number;
+  qualifiedAt: number;
+  qualifiedByUserId?: UserId;
+  profile: {
+    name?: string;
+    company?: string;
+    email?: string;
+    phone?: string;
+    website?: string;
+    address?: string;
+    googlePlaceId?: string;
+    googleMapsUrl?: string;
+    instagramUrl?: string;
+    facebookUrl?: string;
+    linkedinUrl?: string;
+    niche?: string;
+    tags: string[];
+  };
+  research: {
+    foundAt?: string;
+    opportunity?: string;
+    researchNotes?: string;
+    nextStep?: string;
+    qualificationState: ProspectQualificationState;
+    fitScore?: number;
+    preferredChannel?: ProspectOutreachChannel;
+    doNotContact?: boolean;
+    nextContactAt?: number;
+    nextContactReason?: string;
+    lastContactedAt?: number;
+    inspectionChecks: ProspectInspectionCheck[];
+    inspectedAt?: number;
+    researchUpdatedBy?: UserId;
+    researchUpdatedAt?: number;
+  };
+  outreachAttempts: ProspectOutreachAttempt[];
+  followUps: ProspectFollowUp[];
+  notes: ProspectNote[];
+}
+
+/** Trusted server-side input; qualification time and actor come from context. */
+export type LeadProspectAcquisitionInput = Omit<
+  LeadProspectAcquisition,
+  "qualifiedAt" | "qualifiedByUserId"
+>;
 
 export interface Lead {
   id: string;
@@ -535,6 +621,8 @@ export interface Lead {
   convertedAt?: number;
   convertedClientId?: string;
   journeyEvents?: LeadJourneyEvent[];
+  /** Immutable-by-public-API acquisition dossiers, keyed by Prospect id. */
+  prospectAcquisitions?: LeadProspectAcquisition[];
   nextMeetingAt?: number;          // booked call / meetup epoch ms
   meetingLink?: string;
   meetingNotes?: string;

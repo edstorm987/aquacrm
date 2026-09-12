@@ -35,7 +35,10 @@ import {
   type GovernedWorkspaceId,
   type WorkspaceElementAccess,
 } from "@/lib/server/access/workspaceElementAccess";
-import { agencyPluginApiAccessRequirements } from "@/lib/server/portal/pluginAgencyRouteAccess";
+import {
+  agencyPluginApiAccessRequirements,
+  isAgencyPluginApiRouteClassified,
+} from "@/lib/server/portal/pluginAgencyRouteAccess";
 import { accessErrorResponse, requireCurrentAccessActor } from "@/server/accessControl";
 
 interface RouteParams {
@@ -119,12 +122,18 @@ async function dispatch(req: NextRequest, params: RouteParams["params"], method:
     return NextResponse.json({ ok: false, error: "feature_disabled" }, { status: 404 });
   }
 
+  // This cross-department module is entirely classified at the element layer.
+  // A newly registered method must declare its owner before it can run. Other
+  // plugins retain their existing policy while their own inventories migrate.
+  if (moduleId === "leads-pipeline" && !isAgencyPluginApiRouteClassified(moduleId, rest, method)) {
+    return NextResponse.json({ ok: false, error: "workspace_element_unclassified" }, { status: 403 });
+  }
+
   // AGENCY WORKSPACE ELEMENT. A role says which broad portal surface a person
   // may enter; an element grant says which part of that surface they may
-  // actually use. Scouting is agency-scoped and therefore never reaches the
-  // client-element gate below. Its prospect routes are classified separately
-  // so a contacts-only or leads-view-only manager cannot call outreach APIs by
-  // typing the endpoint directly.
+  // actually use. The leads-pipeline module spans Outreach, Leads, Contacts,
+  // Commercial and Campaigns, so every declared method has an explicit owner
+  // here rather than inheriting one broad plugin-wide permission.
   //
   // Resolve the signed actor once and each workspace once. Qualification
   // deliberately requires both growth.outreach.use and growth.leads.use, but

@@ -115,10 +115,23 @@ async function seedWorld(options: { finance?: boolean; payment?: boolean } = {})
     agencyId: agency.id,
     install: leadInstall,
     storage: scopedStorage,
-    services: {},
+    services: { activity: leadFoundation.requireFoundation().activity },
     actor: "conversion-smoke",
   } as never;
   return { agency, lead, leadInstall, financeInstall, container, ctx };
+}
+
+async function seedContactWorld() {
+  const world = await seedWorld();
+  const { contact } = await world.container.contacts.upsert({
+    email: `contact-${sequence}@example.test`,
+    name: `Contact ${sequence}`,
+    company: `Contact ${sequence} Ltd`,
+    source: "conversion-smoke",
+    type: "prospect",
+    tags: ["qualified"],
+  }, "conversion-smoke" as never);
+  return { ...world, contact };
 }
 
 function conversionRequest(leadId: string, patch: Record<string, unknown> = {}): Request {
@@ -126,6 +139,14 @@ function conversionRequest(leadId: string, patch: Record<string, unknown> = {}):
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ id: leadId, createPortal: false, ...patch }),
+  });
+}
+
+function contactConversionRequest(contactId: string, patch: Record<string, unknown> = {}): Request {
+  return new Request("http://localhost/api/portal/leads-pipeline/contacts/convert-to-client", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ id: contactId, createPortal: false, ...patch }),
   });
 }
 
@@ -244,6 +265,56 @@ describe("lead conversion operation", () => {
     assert.equal((await coordinator.claim(expiring)).state, "claimed");
     now += 1_001;
     assert.equal((await coordinator.claim({ ...expiring, holderId: "new" })).state, "claimed");
+  });
+});
+
+describe("contact conversion operation", () => {
+  test("the real handler converges simultaneous requests on one client", async () => {
+    const world = await seedContactWorld();
+    const [left, right] = await Promise.all([
+      handler.convertContactToClientHandler(contactConversionRequest(world.contact.id), world.ctx),
+      handler.convertContactToClientHandler(contactConversionRequest(world.contact.id), world.ctx),
+    ]);
+    const responses = await Promise.all([left.json(), right.json()]) as Array<Record<string, unknown>>;
+
+    assert.deepEqual([left.status, right.status].sort(), [200, 201]);
+    const clientIds = responses.map(result => (result.client as { id: string }).id);
+    assert.equal(new Set(clientIds).size, 1, "competing contact conversions returned different clients");
+    assert.equal(tenants.listClients(world.agency.id).length, 1, "competing contact conversions persisted duplicate clients");
+    assert.equal(responses.filter(result => result.clientCreated === true).length, 1);
+    assert.equal(responses.filter(result => result.replayed === true).length, 1);
+
+    const converted = await world.container.contacts.get(world.contact.id);
+    assert.equal(converted?.clientId, clientIds[0]);
+    assert.equal(converted?.type, "customer");
+  });
+
+  test("an exact retry replays the one client and changed options conflict", async () => {
+    const world = await seedContactWorld();
+    const first = await handler.convertContactToClientHandler(
+      contactConversionRequest(world.contact.id, { servicePlan: "Launch" }),
+      world.ctx,
+    );
+    assert.equal(first.status, 201, await first.clone().text());
+    const firstBody = await first.json() as { client: { id: string } };
+
+    const retry = await handler.convertContactToClientHandler(
+      contactConversionRequest(world.contact.id, { servicePlan: "Launch" }),
+      world.ctx,
+    );
+    const retryBody = await retry.json() as { client: { id: string }; replayed?: boolean; clientCreated?: boolean };
+    assert.equal(retry.status, 200);
+    assert.equal(retryBody.client.id, firstBody.client.id);
+    assert.equal(retryBody.replayed, true);
+    assert.equal(retryBody.clientCreated, false);
+
+    const conflict = await handler.convertContactToClientHandler(
+      contactConversionRequest(world.contact.id, { servicePlan: "Different scope" }),
+      world.ctx,
+    );
+    assert.equal(conflict.status, 409);
+    assert.equal((await conflict.json() as { error: string }).error, "contact_conversion_request_conflict");
+    assert.equal(tenants.listClients(world.agency.id).length, 1);
   });
 });
 

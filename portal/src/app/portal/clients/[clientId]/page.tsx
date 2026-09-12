@@ -54,6 +54,7 @@ import { isGitHubPublishingConfiguredForAgency } from "@/lib/server/integrations
 import { isVercelProjectDeploymentConfiguredForAgency } from "@/lib/server/integrations/vercelProjectDeployer";
 import { cleanClientContacts, type ClientEntityType } from "@/lib/clients/clientContacts";
 import { ClientContactsPanel } from "./_ClientContactsPanel";
+import { safeMeetingAssetUrl } from "@/built-ins/modules/leads-pipeline/src/lib/meetingAssetUrl";
 import { WebsiteBuilderLauncher } from "./_WebsiteBuilderLauncher";
 import { ClientSpineOverview } from "./_ClientSpineOverview";
 import { ClientDeliveryOverview } from "./_ClientDeliveryOverview";
@@ -81,8 +82,7 @@ import { cleanClientMarketingService } from "@/lib/clients/clientMarketingServic
 import { formatUkDate, formatUkDateTime, timestampFromValue } from "@/lib/shared/formatDateTime";
 import { cleanClientRecordEntries } from "@/lib/clients/clientRelationshipRecord";
 import { listInboxSnapshot } from "@/lib/server/inbox/inboxStore";
-import { listWebsiteEnquiries, synchroniseWebsiteEnquiryIdentities } from "@/lib/server/websiteEnquiries";
-import { normaliseIdentityEmail, normaliseIdentityPhone } from "@/lib/server/identityResolution";
+import { listWebsiteEnquiries, synchroniseWebsiteEnquiryIdentities, websiteEnquiryBelongsToClientRecord } from "@/lib/server/websiteEnquiries";
 import { listAgencyTasks } from "@/server/tasks";
 import { listSops } from "@/engines/sop/server/sops";
 import { canUsePeopleStation, listPeopleEmployees } from "@/server/people";
@@ -656,15 +656,9 @@ export default async function ClientHome({
   const customerEmails = new Set([meta.portalLoginEmail, meta.clientEmail, client.ownerEmail]
     .filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
     .map(value => value.trim().toLowerCase()));
-  const customerPhones = new Set([meta.phone, meta.contactPhone]
-    .filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
-    .map(value => normaliseIdentityPhone(value).replace(/\D/g, ""))
-    .filter(Boolean));
   const safeClientRequests = cleanClientRequests(meta.clientRequests);
   const matchedEnquiries = websiteEnquiries.filter(enquiry =>
-    enquiry.clientId === client.id
-    || Boolean(enquiry.email && customerEmails.has(normaliseIdentityEmail(enquiry.email)))
-    || Boolean(enquiry.phone && customerPhones.has(normaliseIdentityPhone(enquiry.phone).replace(/\D/g, ""))));
+    websiteEnquiryBelongsToClientRecord(enquiry, client.id));
   const requestMessages: ClientRecordMessage[] = safeClientRequests.flatMap(request => {
     const initialDirection = customerEmails.has(request.submittedBy.trim().toLowerCase()) ? "inbound" as const : "outbound" as const;
     return [
@@ -1414,10 +1408,10 @@ export default async function ClientHome({
                 <ContextItem label="Additional brief notes" value={meta.portalBrief?.additionalNotes} wide />
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
-                {meta.meetingLink && <ExternalPill href={meta.meetingLink} label="Meeting link" />}
-                {meta.buyingJourney?.meetingLink && !meta.meetingLink && <ExternalPill href={meta.buyingJourney.meetingLink} label="Meeting link" />}
-                {meta.callRecordingUrl && <ExternalPill href={meta.callRecordingUrl} label="Call recording" />}
-                {meta.buyingJourney?.callRecordingUrl && !meta.callRecordingUrl && <ExternalPill href={meta.buyingJourney.callRecordingUrl} label="Call recording" />}
+                {meta.meetingLink && <SafeMeetingExternalPill href={meta.meetingLink} label="Meeting link" />}
+                {meta.buyingJourney?.meetingLink && !meta.meetingLink && <SafeMeetingExternalPill href={meta.buyingJourney.meetingLink} label="Meeting link" />}
+                {meta.callRecordingUrl && <SafeMeetingExternalPill href={meta.callRecordingUrl} label="Call recording" />}
+                {meta.buyingJourney?.callRecordingUrl && !meta.callRecordingUrl && <SafeMeetingExternalPill href={meta.buyingJourney.callRecordingUrl} label="Call recording" />}
                 {(meta.salesPresentations ?? meta.buyingJourney?.salesPresentations ?? []).map(presentation => (
                   <ExternalPill key={presentation.id} href={presentation.url} label={presentation.title} />
                 ))}
@@ -1483,6 +1477,11 @@ function ExternalPill({ href, label }: { href: string; label: string }) {
       {label} ↗
     </a>
   );
+}
+
+function SafeMeetingExternalPill({ href, label }: { href: string; label: string }) {
+  const safeHref = safeMeetingAssetUrl(href);
+  return safeHref ? <ExternalPill href={safeHref} label={label} /> : null;
 }
 
 function phaseDescription(description: string): string {

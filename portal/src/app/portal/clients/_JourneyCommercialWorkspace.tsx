@@ -24,6 +24,7 @@ import { ContractsPanel } from "./[clientId]/_ContractsPanel";
 import { FinanceTabClient } from "./[clientId]/_FinanceTabClient";
 import type { PaymentPlanEvidenceFile } from "./[clientId]/_PaymentPlansPanel";
 import { JourneyMeetingsWorkspace, type JourneyMeetingPerson } from "./_JourneyMeetingsWorkspace";
+import { SalesAcquisitionTabs } from "@/components/sales/SalesAcquisitionTabs";
 
 export interface JourneyCommercialClient {
   id: string;
@@ -105,7 +106,8 @@ export function JourneyCommercialWorkspace({
 
   return (
     <section className="min-w-0" data-testid="journey-commercial-workspace">
-      <nav aria-label="Journey workspaces" className="grid gap-px overflow-hidden rounded-lg border border-black/10 bg-black/10 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+      <SalesAcquisitionTabs active="journey" />
+      <nav aria-label="Journey workspaces" className="mt-5 grid gap-px overflow-hidden rounded-lg border border-black/10 bg-black/10 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         {DESKS.map(item => {
           const Icon = item.icon;
           const active = item.id === desk;
