@@ -69,9 +69,10 @@ type EventName = AquaEventName | string;
 type Handler = (event: AquaEvent) => void | Promise<void>;
 
 const PUBLIC_FUNNEL_AUTOMATION_FIELDS: Readonly<Record<string, readonly string[]>> = {
-  "public-funnel.lead.captured": ["id", "source"],
-  "public-funnel.hc.completed": ["id", "bucket"],
-  "public-funnel.tool.completed": ["id", "toolId"],
+  "public-funnel.capture.pending": ["captureId", "source", "bucket", "toolId"],
+  "public-funnel.capture.promoted": [
+    "captureId", "source", "leadId", "personId", "prospectId", "pipelineCardId", "authorityKind",
+  ],
 };
 
 function payloadForAutomation(name: EventName, payload: unknown): Record<string, unknown> {
@@ -81,10 +82,10 @@ function payloadForAutomation(name: EventName, payload: unknown): Record<string,
   const allowed = PUBLIC_FUNNEL_AUTOMATION_FIELDS[name];
   if (!allowed) return record;
 
-  // Funnel subscribers need the address in-memory to create the CRM lead, but
-  // generic automation runs are durable and have independent retention. Give
-  // those runs only opaque routing/summary fields: never an address, pending
-  // identity, or the complete Health Check answer object.
+  // Public-funnel events are durable automation inputs, so their contract is
+  // restricted to opaque routing, score and post-proof lineage fields. The
+  // submitted address, pending identity and complete Health Check answers stay
+  // exclusively in the capture row and never enter a generic automation run.
   return Object.fromEntries(allowed.flatMap(key =>
     Object.prototype.hasOwnProperty.call(record, key) ? [[key, record[key]]] : []));
 }

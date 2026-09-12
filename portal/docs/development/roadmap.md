@@ -419,9 +419,9 @@ Finish #29/#69 public-route authorization, then browser-prove two stores through
 ### Make Public Funnel capture transactional and retry-safe
 **Id:** transactional-public-funnel-capture · **Status:** building · **Size:** M · **Added:** 2026-08-24 · **Source:** ultra-review
 **Files:** src/built-ins/modules/public-funnel/src/server/services.ts, src/built-ins/modules/public-funnel/src/api/handlers.ts, src/built-ins/modules/public-funnel/src/server/ports.ts, src/lib/server/pluginStorage.ts, src/built-ins/modules/public-funnel/src/__smoke__/funnel.test.ts
-**Why:** Authoritative by-id reads, stable completion ids, process-atomic insertion, resumable session issuance and 4xx/503 classification are shipped and covered. The remaining risk is cross-process atomic uniqueness and activity/event delivery across a crash.
+**Why:** Authoritative by-id reads, stable completion ids and a global process transaction now collapse same-process replay and canonical-email races across configured installations. Anonymous completion is pending-only: it creates no User, session or CRM identity and emits only non-PII pending summaries. A server-only promotion command requires exact mailbox proof or an authenticated actor and records exact capture-to-CRM lineage; no public proof endpoint invokes it yet.
 
-Add a database-native conditional insert and durable outbox/idempotent consumer boundary. Fault every activity/event step and race separate processes before marking the funnel fully reliable.
+Add database-native cross-process canonical uniqueness, durable address/installation/IP budgets and a durable outbox/idempotent consumer boundary. Build and verify the mailbox-proof promotion endpoint before exposing conversion, then fault every capture/erasure/promotion effect and race separate processes before marking the funnel fully reliable.
 
 ### Make Leads Pipeline identity changes conflict-safe
 **Id:** conflict-safe-lead-identity · **Status:** building · **Size:** M · **Added:** 2026-08-24 · **Source:** ultra-review
@@ -1393,9 +1393,9 @@ Do not claim immediate remote teardown unless provider-specific unload support i
 ### Connect Health Check, Public Funnel and Business OS
 **Id:** connect-health-check-public-funnel-bos · **Status:** shipped · **Size:** L · **Added:** 2026-08-24 · **Shipped:** 2026-08-25 · **Source:** ultra-review
 **Files:** public/health-check/index.html, public/business-os/bos.js, public/business-os/auth-sync.js, src/app/api/public/health-check/complete/route.ts, src/app/api/public/business-os/context/route.ts, src/built-ins/runtime/foundation-adapters/publicFunnelFoundation.ts, src/built-ins/runtime/foundation-adapters/leadFunnelPorts.ts, scripts/smoke-health-check-funnel-journey.test.ts
-**Why:** Email-backed Health Check completion now persists one exact result through Public Funnel, flushes before success, issues lead identity and restores the same server context into BOS. A clean-browser resume derives the same completion id; skipping contact is deliberately and visibly browser-only.
+**Why:** The 2026-08-25 identity/cookie behaviour is superseded by the 2026-09-12 ABUSE-002 boundary. Anonymous Health Check completion now persists only one pending Public Funnel capture, emits non-PII summaries and creates no User, session or CRM derivatives. A server-only idempotent promotion command exists for exact mailbox proof or explicit authenticated promotion, but there is no public proof endpoint yet.
 
-Shipped with a **21/21** route/plugin journey gate and live port-3032 copy verification. The public BOS remains intentionally usable without authentication; BOS Auth Gate was not mounted because the selected product boundary is optional email-backed sync, not a mandatory gate.
+The historical route remains shipped, but anonymous completion no longer authenticates or restores CRM context into BOS. The public BOS remains intentionally usable without authentication. Promotion must stay dormant until a verified or authenticated caller is mounted and independently accepted.
 
 ### Published sites can submit Login / Signup native forms
 **Id:** published-site-auth · **Status:** shipped · **Size:** S · **Added:** 2026-08-20 · **Shipped:** 2026-08-23 · **Source:** worker:money

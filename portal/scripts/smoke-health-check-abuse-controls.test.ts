@@ -101,9 +101,6 @@ before(async () => {
       headers: { "content-type": "application/json" },
     });
   }) as typeof fetch;
-
-  await reset();
-  _resetFounderSeedForTests();
 });
 
 beforeEach(() => {
@@ -122,10 +119,20 @@ after(() => {
   restore("FOUNDER_PASSWORD", savedEnv.founderPassword);
 });
 
+async function resetUnconfiguredFixture(): Promise<void> {
+  await reset();
+  _resetFounderSeedForTests();
+}
+
+async function provisionConfiguredFixture(): Promise<void> {
+  await resetUnconfiguredFixture();
+  await seedFounder();
+}
+
 describe("mounted Health Check managed-challenge admission", () => {
   it("fails closed on fresh state without bootstrapping privileged identities", async () => {
-    await reset();
-    _resetFounderSeedForTests();
+    await resetUnconfiguredFixture();
+    const byteIdenticalBefore = JSON.stringify(getState());
 
     const response = await POST(request(
       body("hc-unconfigured@example.com", "hc_unconfigured_01", "valid-unconfigured"),
@@ -141,12 +148,13 @@ describe("mounted Health Check managed-challenge admission", () => {
     assert.equal(state.activity.length, 0, "public completion created an auth/system actor trail");
     assert.equal(Object.keys(state.accessGrants).length, 0);
     assert.equal(Object.keys(state.securityControl?.sessions ?? {}).length, 0);
+    assert.equal(JSON.stringify(state), byteIdenticalBefore,
+      "unconfigured anonymous completion changed fresh portal state");
 
-    // Explicit fixture provisioning belongs to test setup, never to the route.
-    await seedFounder();
   });
 
   it("requires proof without spending a victim budget or preclaiming signup identity", async () => {
+    await provisionConfiguredFixture();
     const victim = "hc-abuse-victim@example.com";
     for (let attempt = 0; attempt < 7; attempt += 1) {
       const denied = await POST(request(
@@ -186,6 +194,7 @@ describe("mounted Health Check managed-challenge admission", () => {
   });
 
   it("atomically refuses one canonical address across two agency installs", async () => {
+    await provisionConfiguredFixture();
     ensurePublicFunnelFoundationRegistered();
     const agencyA = createAgency({ name: "Capture namespace A", slug: "capture-namespace-a" });
     const agencyB = createAgency({ name: "Capture namespace B", slug: "capture-namespace-b" });
@@ -243,6 +252,7 @@ describe("mounted Health Check managed-challenge admission", () => {
   });
 
   it("rejects tokens minted for another action or hostname before capture", async () => {
+    await provisionConfiguredFixture();
     const wrongActionEmail = "hc-wrong-action@example.com";
     const wrongAction = await POST(request(
       body(wrongActionEmail, "hc_wrong_action_001", "wrong-action-001"),
@@ -261,6 +271,7 @@ describe("mounted Health Check managed-challenge admission", () => {
   });
 
   it("burns a successful proof once, even when replayed with new capture data", async () => {
+    await provisionConfiguredFixture();
     const firstEmail = "hc-replay-first@example.com";
     const token = "valid-replay-once";
     const first = await POST(request(body(firstEmail, "hc_replay_first_01", token), "42.0.2.1"));
@@ -274,6 +285,7 @@ describe("mounted Health Check managed-challenge admission", () => {
   });
 
   it("ignores query/body tenant hints and writes only to the fixed founder install", async () => {
+    await provisionConfiguredFixture();
     const decoy = createAgency({ name: "ABUSE-002 decoy", slug: "abuse-002-decoy" });
     const decoyInstall = upsertInstall({
       scope: { agencyId: decoy.id },
@@ -311,6 +323,7 @@ describe("mounted Health Check managed-challenge admission", () => {
   });
 
   it("does not strand a capture when availability fails and a fresh proof retries", async () => {
+    await provisionConfiguredFixture();
     const founder = getAgencyBySlug("milesymedia");
     assert.ok(founder);
     const install = getInstall({ agencyId: founder.id }, "public-funnel");
@@ -351,6 +364,7 @@ describe("mounted Health Check managed-challenge admission", () => {
   });
 
   it("erases an exact pending capture without auth residue or collateral rows", async () => {
+    await provisionConfiguredFixture();
     const email = "hc-exact-pending-erasure@example.com";
     const founder = getAgencyBySlug("milesymedia");
     assert.ok(founder);
@@ -365,9 +379,9 @@ describe("mounted Health Check managed-challenge admission", () => {
           kind: "trigger",
           position: { x: 0, y: 0 },
           config: {
-            label: "Health Check completed",
+            label: "Pending Health Check captured",
             triggerType: "custom.event",
-            eventName: "public-funnel.hc.completed",
+            eventName: "public-funnel.capture.pending",
           },
         },
         {
@@ -387,9 +401,22 @@ describe("mounted Health Check managed-challenge admission", () => {
       { marker: "preserve-unrelated-run" },
     );
     const unrelatedBefore = JSON.stringify(unrelatedRun);
+    const leadsInstall = getInstall({ agencyId: founder.id }, "leads-pipeline");
+    assert.ok(leadsInstall);
+    const derivativeCountsBefore = {
+      leadKeys: Object.keys(getState().pluginData[leadsInstall.id] ?? {})
+        .filter(key => key.startsWith("lead:") || key.startsWith("leads/email/") || key.startsWith("prospect:")).length,
+      persons: Object.keys(getState().persons).length,
+      cards: Object.keys(getState().pipelineCards).length,
+      personOutbox: Object.values(getState().outbox).filter(event => event.name === "person.created").length,
+    };
+    const privateAnswer = "hc-private-answer-erasure-marker";
 
     const response = await POST(request(
-      body(email, "hc_exact_pending_erasure_01", "valid-exact-erasure"),
+      {
+        ...body(email, "hc_exact_pending_erasure_01", "valid-exact-erasure"),
+        slot: { slot: 3, summary: { percentage: 61 }, answers: { privateAnswer } },
+      },
       "42.0.5.1",
     ));
     assert.equal(response.status, 200);
@@ -407,13 +434,13 @@ describe("mounted Health Check managed-challenge admission", () => {
     let matchingRun = listAutomationRuns(founder.id).find(run =>
       run.workflowId === workflow.id
       && run.id !== unrelatedRun.id
-      && run.eventData.id === capture.id);
+      && run.eventData.captureId === capture.id);
     for (let attempt = 0; !matchingRun && attempt < 25; attempt += 1) {
       await new Promise<void>(resolve => setImmediate(resolve));
       matchingRun = listAutomationRuns(founder.id).find(run =>
         run.workflowId === workflow.id
         && run.id !== unrelatedRun.id
-        && run.eventData.id === capture.id);
+        && run.eventData.captureId === capture.id);
     }
     assert.ok(matchingRun, "active matching automation did not receive the capture event");
     assert.equal(matchingRun.eventData.email, undefined);
@@ -421,6 +448,21 @@ describe("mounted Health Check managed-challenge admission", () => {
     assert.equal(matchingRun.eventData.slot, undefined);
     assert.equal(JSON.stringify(matchingRun).includes(email), false);
     assert.equal(JSON.stringify(matchingRun).includes(capture.pendingLeadId!), false);
+    assert.equal(JSON.stringify(matchingRun).includes(privateAnswer), false);
+    const currentState = getState();
+    const derivativeCountsAfter = {
+      leadKeys: Object.keys(currentState.pluginData[leadsInstall.id] ?? {})
+        .filter(key => key.startsWith("lead:") || key.startsWith("leads/email/") || key.startsWith("prospect:")).length,
+      persons: Object.keys(currentState.persons).length,
+      cards: Object.keys(currentState.pipelineCards).length,
+      personOutbox: Object.values(currentState.outbox).filter(event => event.name === "person.created").length,
+    };
+    assert.deepEqual(derivativeCountsAfter, derivativeCountsBefore,
+      "anonymous completion created CRM identity or pipeline derivatives");
+    assert.equal(JSON.stringify(currentState).split(email).length - 1, 1,
+      "submitted email must exist only in the exact pending capture row");
+    assert.equal(JSON.stringify(currentState).split(capture.pendingLeadId!).length - 1, 1,
+      "pending identity escaped its exact capture row");
 
     const clientId = "client_hc_exact_pending_erasure";
     await store.set(`captures/by-id/${capture.id}`, { ...capture, clientId });
@@ -444,6 +486,118 @@ describe("mounted Health Check managed-challenge admission", () => {
     assert.equal(durableRuns.includes(email), false, "capture email survived in an automation run");
     assert.equal(durableRuns.includes(capture.pendingLeadId!), false,
       "pending identity survived in an automation run");
+    const erasedState = JSON.stringify(getState());
+    assert.equal(erasedState.includes(email), false, "capture email survived exact erasure");
+    assert.equal(erasedState.includes(capture.pendingLeadId!), false, "pending identity survived exact erasure");
+    assert.equal(erasedState.includes(privateAnswer), false, "full Health Check answers survived exact erasure");
+  });
+
+  it("promotes one exact pending capture only after proof and replays its lineage", async () => {
+    await provisionConfiguredFixture();
+    const email = "hc-mailbox-promoted@example.com";
+    const response = await POST(request(
+      body(email, "hc_mailbox_promotion_01", "valid-mailbox-promotion"),
+      "42.0.6.1",
+    ));
+    assert.equal(response.status, 200);
+
+    const founder = getAgencyBySlug("milesymedia");
+    assert.ok(founder);
+    const funnelInstall = getInstall({ agencyId: founder.id }, "public-funnel");
+    const leadsInstall = getInstall({ agencyId: founder.id }, "leads-pipeline");
+    assert.ok(funnelInstall);
+    assert.ok(leadsInstall);
+    const funnel = publicFunnelContainerFor({
+      agencyId: founder.id,
+      install: funnelInstall,
+      storage: makePluginStorage(funnelInstall.id),
+    }).funnel;
+    const pending = (await funnel.listByEmail(email))[0];
+    assert.ok(pending?.pendingLeadId);
+
+    const derivativeSnapshot = () => ({
+      leadKeys: Object.keys(getState().pluginData[leadsInstall.id] ?? {})
+        .filter(key => key.startsWith("lead:") || key.startsWith("leads/email/") || key.startsWith("prospect:")).length,
+      persons: Object.keys(getState().persons).length,
+      cards: Object.keys(getState().pipelineCards).length,
+    });
+    const beforeProof = derivativeSnapshot();
+    await assert.rejects(
+      () => funnel.promotePendingCapture({
+        captureId: pending.id,
+        authority: {
+          kind: "mailbox-proof",
+          verifiedEmail: "attacker@example.com",
+          verificationId: "mailbox-proof-001",
+        },
+      }),
+      (error: unknown) => error instanceof FunnelInputError && error.message === "mailbox_proof_mismatch",
+    );
+    assert.deepEqual(derivativeSnapshot(), beforeProof, "failed proof created CRM derivatives");
+
+    const command = {
+      captureId: pending.id,
+      authority: {
+        kind: "mailbox-proof" as const,
+        verifiedEmail: ` ${email.toUpperCase()} `,
+        verificationId: "mailbox-proof-001",
+      },
+    };
+    const promoted = await funnel.promotePendingCapture(command);
+    assert.equal(promoted.promoted, true);
+    assert.equal(promoted.capture.pendingLeadId, undefined);
+    assert.equal(promoted.capture.clientId, undefined, "promotion widened an unscoped capture to a client");
+    assert.equal(promoted.capture.personId, promoted.promotion.personId);
+    const leadStore = makePluginStorage(leadsInstall.id);
+    const lead = await leadStore.get<{
+      id: string;
+      agencyId: string;
+      email: string;
+      personId?: string;
+      pipelineCardId?: string;
+      customFields?: Record<string, unknown>;
+    }>(`lead:${promoted.promotion.leadId}`);
+    assert.ok(lead);
+    assert.equal(lead.agencyId, founder.id);
+    assert.equal(lead.email, email);
+    assert.equal(lead.personId, promoted.promotion.personId);
+    assert.equal(lead.pipelineCardId, promoted.promotion.pipelineCardId);
+    assert.equal(lead.customFields?.publicFunnelCaptureId, pending.id);
+    const promotedPerson = getState().persons[promoted.promotion.personId];
+    assert.equal(promotedPerson?.agencyId, founder.id);
+    assert.deepEqual(promotedPerson?.facets.clientIds ?? [], [],
+      "promotion attached the Person to an unrelated client scope");
+    const promotedCard = getState().pipelineCards[promoted.promotion.pipelineCardId ?? ""];
+    assert.ok(promotedCard);
+    assert.equal(getState().pipelines[promotedCard.pipelineId]?.agencyId, founder.id);
+    assert.ok(await leadStore.get(`prospect:${promoted.promotion.prospectId}`));
+    assert.equal(getUser(email), null, "CRM promotion minted an authenticatable User");
+
+    const afterPromotion = derivativeSnapshot();
+    const replay = await funnel.promotePendingCapture(command);
+    assert.equal(replay.promoted, false);
+    assert.deepEqual(replay.promotion, promoted.promotion);
+    assert.deepEqual(derivativeSnapshot(), afterPromotion, "promotion replay duplicated CRM lineage");
+
+    const decoy = createAgency({ name: "Promotion scope decoy", slug: "promotion-scope-decoy" });
+    const decoyInstall = upsertInstall({
+      scope: { agencyId: decoy.id },
+      pluginId: "public-funnel",
+      enabled: true,
+      config: {},
+      features: {},
+      installedBy: "abuse-002-test",
+    });
+    const decoyFunnel = publicFunnelContainerFor({
+      agencyId: decoy.id,
+      install: decoyInstall,
+      storage: makePluginStorage(decoyInstall.id),
+    }).funnel;
+    await assert.rejects(
+      () => decoyFunnel.promotePendingCapture(command),
+      (error: unknown) => error instanceof FunnelInputError && error.message === "capture_not_found",
+    );
+    assert.deepEqual(derivativeSnapshot(), afterPromotion, "cross-install promotion widened lineage");
   });
 });
 

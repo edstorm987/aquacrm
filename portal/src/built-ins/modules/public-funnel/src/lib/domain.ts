@@ -39,6 +39,8 @@ export interface LeadCapture {
   leadUserId?: UserId;
   /** Opaque, non-authenticatable identity local to this capture. */
   pendingLeadId?: string;
+  /** Exact CRM lineage, present only after an authorised promotion command. */
+  promotion?: PendingCapturePromotion;
   email: string;
   capturedAt: number;
   // Source-specific payload. For `hc` this carries the HCSlot; for
@@ -46,6 +48,48 @@ export interface LeadCapture {
   // an UTM-ish snapshot.
   sourceMeta: Record<string, unknown>;
   hcSlot?: HCSlot;
+}
+
+export interface PendingCapturePromotion {
+  operationId: string;
+  authorityKind: "mailbox-proof" | "authenticated";
+  promotedAt: number;
+  leadId: string;
+  personId: string;
+  prospectId?: string;
+  pipelineCardId?: string;
+}
+
+export type PendingCapturePromotionAuthority =
+  | {
+      kind: "mailbox-proof";
+      /** Canonical mailbox address established by a separate verifier. */
+      verifiedEmail: string;
+      /** Stable, non-secret verification nonce/id — never the proof token. */
+      verificationId: string;
+    }
+  | {
+      kind: "authenticated";
+      /** The already-authorised operator responsible for the promotion. */
+      actorUserId: UserId;
+      /** Stable command id supplied by the authenticated boundary. */
+      operationId: string;
+    };
+
+export interface PromotePendingCaptureInput {
+  captureId: string;
+  authority: PendingCapturePromotionAuthority;
+  profile?: {
+    name?: string;
+    phone?: string;
+    company?: string;
+  };
+}
+
+export interface PromotePendingCaptureResult {
+  capture: LeadCapture;
+  promotion: PendingCapturePromotion;
+  promoted: boolean;
 }
 
 export interface CaptureHcInput {

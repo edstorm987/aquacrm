@@ -9,8 +9,15 @@ export {
   isPlausibleEmail,
 } from "../lib/domain";
 export type {
+  PendingCapturePromotion,
+  PendingCapturePromotionAuthority,
+  PromotePendingCaptureInput,
+  PromotePendingCaptureResult,
+} from "../lib/domain";
+export type {
   ActivityLogPort, EventBusPort, FunnelEventName,
-  LeadUserPort, LogActivityInput,
+  LeadUserPort, LogActivityInput, PendingCapturePromotionPort,
+  PendingCapturePromotionLineage,
   StoragePort, TenantPort, UserPort,
 } from "./ports";
 export {
@@ -27,7 +34,7 @@ export type { FunnelFoundation, ContainerForArgs } from "./foundationAdapter";
 import type { AgencyId } from "../lib/tenancy";
 import type { PluginStorage } from "../lib/aquaPluginTypes";
 import type {
-  ActivityLogPort, EventBusPort, LeadUserPort, StoragePort,
+  ActivityLogPort, EventBusPort, LeadUserPort, PendingCapturePromotionPort, StoragePort,
 } from "./ports";
 import { FunnelService } from "./services";
 
@@ -37,6 +44,7 @@ export interface FunnelDepsInput {
   activity: ActivityLogPort;
   events: EventBusPort;
   leadUsers: LeadUserPort;
+  promotions: PendingCapturePromotionPort;
 }
 
 export interface FunnelContainer {
@@ -49,6 +57,7 @@ export function buildFunnelContainer(deps: FunnelDepsInput): FunnelContainer {
     agencyId: deps.agencyId, storage,
     activity: deps.activity, events: deps.events,
     leadUsers: deps.leadUsers,
+    promotions: deps.promotions,
   });
   return { funnel };
 }

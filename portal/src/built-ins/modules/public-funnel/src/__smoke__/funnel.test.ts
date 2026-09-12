@@ -6,7 +6,7 @@ import { strict as assert } from "node:assert";
 import type { ActivityEntry, AgencyId } from "../lib/tenancy";
 import type { PluginStorage } from "../lib/aquaPluginTypes";
 import type {
-  ActivityLogPort, EventBusPort, LeadUserPort,
+  ActivityLogPort, EventBusPort, LeadUserPort, PendingCapturePromotionPort,
 } from "../server/ports";
 import {
   clearFunnelFoundation,
@@ -25,10 +25,12 @@ interface World {
   activity: ActivityLogPort;
   events: EventBusPort;
   leadUsers: LeadUserPort;
+  promotions: PendingCapturePromotionPort;
   inspect: {
     activityLog: ActivityEntry[];
     events: { name: string; payload: unknown }[];
     pendingLeadCreations: string[];
+    promotionCalls: Array<{ captureId: string; email: string; agencyId: string }>;
   };
 }
 
@@ -37,6 +39,7 @@ function buildWorld(): World {
   const activityLog: ActivityEntry[] = [];
   const events: { name: string; payload: unknown }[] = [];
   const pendingLeadCreations: string[] = [];
+  const promotionCalls: Array<{ captureId: string; email: string; agencyId: string }> = [];
   let pendingSeq = 1;
   let identityTail = Promise.resolve();
   const locks = new Map<string, Promise<void>>();
@@ -120,12 +123,24 @@ function buildWorld(): World {
       return { status: "missing", recordsErased: 0 };
     },
   };
+  const promotions: PendingCapturePromotionPort = {
+    async promote(input) {
+      promotionCalls.push({ captureId: input.captureId, email: input.email, agencyId: input.agencyId });
+      return {
+        leadId: `lead_for_${input.captureId}`,
+        personId: `person_for_${input.captureId}`,
+        prospectId: `prospect_for_${input.captureId}`,
+        pipelineCardId: `card_for_${input.captureId}`,
+      };
+    },
+  };
   return {
-    storage, activity, events: eventBus, leadUsers,
+    storage, activity, events: eventBus, leadUsers, promotions,
     inspect: {
       activityLog,
       events,
       pendingLeadCreations,
+      promotionCalls,
     },
   };
 }
@@ -135,6 +150,7 @@ function container(world: World) {
     agencyId: AGENCY, storage: world.storage,
     activity: world.activity, events: world.events,
     leadUsers: world.leadUsers,
+    promotions: world.promotions,
   });
 }
 
@@ -191,32 +207,39 @@ describe("@aqua/plugin-public-funnel smoke", () => {
     resetClock();
   });
 
-  test("4. emits public-funnel.lead.captured ONLY on first capture for a given email", async () => {
+  test("4. emits only a non-PII pending summary on first capture", async () => {
     setClock(() => T0);
     const w = buildWorld();
     const c = container(w);
-    await c.funnel.captureHcCompletion({ email: "a@x.com", slot: { slot: 3 } });
+    const result = await c.funnel.captureHcCompletion({ email: "a@x.com", slot: { slot: 3 } });
     await assert.rejects(() => c.funnel.captureHcCompletion({ email: "a@x.com", slot: { slot: 4 } }));
-    const captured = w.inspect.events.filter(e => e.name === "public-funnel.lead.captured");
+    const captured = w.inspect.events.filter(e => e.name === "public-funnel.capture.pending");
     assert.equal(captured.length, 1);
+    assert.deepEqual(captured[0]?.payload, {
+      captureId: result.capture.id,
+      source: "hc",
+      bucket: "growing",
+    });
+    assert.equal(JSON.stringify(captured).includes("a@x.com"), false);
+    assert.equal(JSON.stringify(captured).includes("pending_lead_"), false);
     resetClock();
   });
 
-  test("5. emits public-funnel.hc.completed every time AND carries the score bucket", async () => {
+  test("5. pending summaries carry only the Health Check score bucket", async () => {
     setClock(() => T0);
     const w = buildWorld();
     const c = container(w);
     await c.funnel.captureHcCompletion({ email: "a@x.com", slot: { slot: 1 } });
     await c.funnel.captureHcCompletion({ email: "b@x.com", slot: { slot: 3 } });
     await c.funnel.captureHcCompletion({ email: "c@x.com", slot: { slot: 5 } });
-    const evs = w.inspect.events.filter(e => e.name === "public-funnel.hc.completed");
+    const evs = w.inspect.events.filter(e => e.name === "public-funnel.capture.pending");
     assert.equal(evs.length, 3);
     const buckets = evs.map(e => (e.payload as { bucket: string }).bucket);
     assert.deepEqual(buckets, ["early", "growing", "scaling"]);
     resetClock();
   });
 
-  test("6. captureToolCompletion stores tool source + emits public-funnel.tool.completed", async () => {
+  test("6. captureToolCompletion stores tool source + emits a safe pending summary", async () => {
     setClock(() => T0);
     const w = buildWorld();
     const c = container(w);
@@ -228,7 +251,11 @@ describe("@aqua/plugin-public-funnel smoke", () => {
     });
     assert.equal(r.capture.source, "tool");
     assert.equal((r.capture.sourceMeta as { toolId: string }).toolId, "rank-my-website");
-    assert.ok(w.inspect.events.some(e => e.name === "public-funnel.tool.completed"));
+    assert.deepEqual(w.inspect.events.find(e => e.name === "public-funnel.capture.pending")?.payload, {
+      captureId: r.capture.id,
+      source: "tool",
+      toolId: "rank-my-website",
+    });
     resetClock();
   });
 
@@ -307,7 +334,7 @@ describe("@aqua/plugin-public-funnel smoke", () => {
     const cats = new Set(w.inspect.activityLog.map(e => e.category));
     assert.deepEqual([...cats], ["public-funnel"]);
     const actions = w.inspect.activityLog.map(e => e.action);
-    assert.ok(actions.includes("public-funnel.lead.captured"));
+    assert.ok(actions.includes("public-funnel.capture.pending"));
     assert.ok(actions.includes("public-funnel.hc.completed"));
     resetClock();
   });
@@ -337,7 +364,7 @@ describe("@aqua/plugin-public-funnel smoke", () => {
       (error: unknown) => error instanceof FunnelInputError && error.message === "completion_id_replayed",
     );
     assert.equal((await c.funnel.list()).length, 1);
-    assert.equal(w.inspect.events.filter(e => e.name === "public-funnel.hc.completed").length, 1);
+    assert.equal(w.inspect.events.filter(e => e.name === "public-funnel.capture.pending").length, 1);
     resetClock();
   });
 
@@ -378,7 +405,7 @@ describe("@aqua/plugin-public-funnel smoke", () => {
     assert.equal(settled.filter(result => result.status === "fulfilled").length, 1);
     assert.equal(settled.filter(result => result.status === "rejected").length, 1);
     assert.equal((await c.funnel.list()).length, 1);
-    assert.equal(w.inspect.events.filter(e => e.name === "public-funnel.hc.completed").length, 1);
+    assert.equal(w.inspect.events.filter(e => e.name === "public-funnel.capture.pending").length, 1);
     resetClock();
   });
 
@@ -468,6 +495,83 @@ describe("@aqua/plugin-public-funnel smoke", () => {
     assert.equal(refusal.reason.message, "identity_unavailable");
     assert.equal((await c.funnel.listByEmail("canonical-race@example.com")).length, 1);
     assert.equal(w.inspect.pendingLeadCreations.length, 1);
+    resetClock();
+  });
+
+  test("21. promotion requires exact authority and replays one linked conversion", async () => {
+    setClock(() => T0);
+    const w = buildWorld();
+    const c = container(w);
+    const captured = await c.funnel.captureHcCompletion({
+      email: "proof-owner@example.com",
+      completionId: "promotion_capture_01",
+      slot: { slot: 4 },
+    });
+
+    await assert.rejects(
+      () => c.funnel.promotePendingCapture({
+        captureId: captured.capture.id,
+        authority: {
+          kind: "mailbox-proof",
+          verifiedEmail: "attacker@example.com",
+          verificationId: "verify-proof-001",
+        },
+      }),
+      (error: unknown) => error instanceof FunnelInputError && error.message === "mailbox_proof_mismatch",
+    );
+    assert.equal(w.inspect.promotionCalls.length, 0);
+
+    const command = {
+      captureId: captured.capture.id,
+      authority: {
+        kind: "mailbox-proof" as const,
+        verifiedEmail: " PROOF-OWNER@EXAMPLE.COM ",
+        verificationId: "verify-proof-001",
+      },
+    };
+    const promoted = await c.funnel.promotePendingCapture(command);
+    const replay = await c.funnel.promotePendingCapture(command);
+    assert.equal(promoted.promoted, true);
+    assert.equal(replay.promoted, false);
+    assert.deepEqual(replay.promotion, promoted.promotion);
+    assert.equal(w.inspect.promotionCalls.length, 1);
+    assert.equal(promoted.capture.pendingLeadId, undefined);
+    assert.equal(promoted.capture.personId, promoted.promotion.personId);
+    assert.equal(promoted.promotion.leadId, `lead_for_${captured.capture.id}`);
+
+    await assert.rejects(
+      () => c.funnel.promotePendingCapture({
+        ...command,
+        authority: { ...command.authority, verificationId: "verify-proof-002" },
+      }),
+      (error: unknown) => error instanceof FunnelInputError && error.message === "capture_already_promoted",
+    );
+    const event = w.inspect.events.find(e => e.name === "public-funnel.capture.promoted");
+    assert.ok(event);
+    assert.equal(JSON.stringify(event).includes("proof-owner@example.com"), false);
+    assert.equal(JSON.stringify(event).includes("pending_lead_"), false);
+    resetClock();
+  });
+
+  test("22. an authenticated operator can explicitly promote a pending capture", async () => {
+    setClock(() => T0);
+    const w = buildWorld();
+    const c = container(w);
+    const captured = await c.funnel.captureToolCompletion({
+      email: "operator-promoted@example.com",
+      completionId: "operator_promotion_01",
+      toolId: "rank-my-website",
+    });
+    const promoted = await c.funnel.promotePendingCapture({
+      captureId: captured.capture.id,
+      authority: {
+        kind: "authenticated",
+        actorUserId: "agency_owner_001",
+        operationId: "operator-command-001",
+      },
+    });
+    assert.equal(promoted.promoted, true);
+    assert.equal(promoted.promotion.authorityKind, "authenticated");
     resetClock();
   });
 });

@@ -34,7 +34,9 @@ const manifest: AquaPlugin = {
     "completed slot through `/api/public/health-check/complete`; after managed challenge verification this plugin " +
     "creates only a non-authenticatable pending capture in install storage. It creates no User, session, membership " +
     "or provider identity. Existing identities, canonical-address repeats and repeated completion ids fail closed " +
-    "without returning capture authority. A future mailbox-verified, single-use flow owns promotion and sign-in. " +
+    "without returning capture authority. Anonymous events contain only the capture id, source and score bucket. " +
+    "The server-only promotion command requires exact mailbox proof or an authenticated actor, then stores the exact " +
+    "Lead/Person/Prospect/card lineage; no public promotion endpoint exists yet. " +
     "Anonymous capture has one canonical mounted admission; the former query-scoped plugin completion routes are retired.",
 
   core: true,

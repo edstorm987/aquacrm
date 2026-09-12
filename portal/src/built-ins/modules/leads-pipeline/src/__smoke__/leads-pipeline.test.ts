@@ -11,7 +11,7 @@
 //   - Campaign create + send happy path (uses stub EmailEnqueuePort,
 //     asserts one enqueue per resolved lead + sentCount stamped)
 //   - Campaign send fails when no EmailEnqueuePort wired
-//   - public-funnel.lead.captured subscriber → Lead row created
+//   - explicit verified/authenticated funnel promotion → Lead row created
 //   - Lead → Contact promotion via pipelines.card.moved → toColumn "Won"
 //   - Lead promotion is idempotent
 //   - LeadCard projection shape
@@ -42,7 +42,7 @@ import type {
 import { buildLeadsPipelineContainer } from "../server/index";
 import {
   EVENT_SUBSCRIPTIONS,
-  handleFunnelLeadCaptured,
+  promoteFunnelCaptureToLead,
   handlePipelineCardMoved,
 } from "../server/subscribers";
 import { parseCsv, parseXlsxToDelimitedText } from "../server/csv";
@@ -2009,22 +2009,23 @@ describe("leads-pipeline / CampaignService", () => {
 // ─── 6. Subscribers ──────────────────────────────────────────────────────
 
 describe("leads-pipeline / subscribers", () => {
-  test("EVENT_SUBSCRIPTIONS includes both wires", () => {
+  test("EVENT_SUBSCRIPTIONS excludes anonymous funnel capture", () => {
     assert.deepEqual(
       [...EVENT_SUBSCRIPTIONS],
-      ["public-funnel.lead.captured", "pipelines.card.moved"],
+      ["pipelines.card.moved"],
     );
   });
 
-  test("public-funnel.lead.captured creates Lead row", async () => {
+  test("explicit funnel promotion creates exact Lead lineage", async () => {
     const w = buildWorld({ withPipeline: true });
     const c = buildLeadsPipelineContainer({
       agencyId: AGENCY_ID, storage: w.storage, activity: w.activity,
       events: w.eventBus, tenant: w.tenant, pluginInstalls: w.pluginInstalls,
       pipeline: w.pipeline,
     });
-    await handleFunnelLeadCaptured(c.leads, {
+    const lineage = await promoteFunnelCaptureToLead(c.leads, {
       agencyId: AGENCY_ID,
+      captureId: "lc_hc_verified_001",
       email: "captured@x.com",
       name: "Captured Name",
       source: "public-funnel",
@@ -2033,6 +2034,8 @@ describe("leads-pipeline / subscribers", () => {
     assert.equal(list.length, 1);
     assert.equal(list[0]?.email, "captured@x.com");
     assert.equal(list[0]?.tags.includes("public-funnel"), true);
+    assert.equal(list[0]?.customFields?.publicFunnelCaptureId, "lc_hc_verified_001");
+    assert.equal(lineage.leadId, list[0]?.id);
     // Pipeline card was placed
     assert.ok(list[0]?.pipelineCardId);
   });

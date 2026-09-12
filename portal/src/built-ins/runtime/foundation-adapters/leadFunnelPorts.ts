@@ -220,6 +220,23 @@ export const leadUserPort = {
   },
 };
 
+export const pendingCapturePromotionPort = {
+  async promote(input: {
+    agencyId: string;
+    captureId: string;
+    email: string;
+    source: string;
+    actorUserId: string;
+    profile?: { name?: string; phone?: string; company?: string };
+  }) {
+    // Lazy import keeps foundation registration acyclic. This bridge is never
+    // reached by anonymous capture; FunnelService calls it only from the
+    // authority-bearing promotePendingCapture command.
+    const { promoteVerifiedFunnelCapture } = await import("./leadsPipelineFoundation");
+    return promoteVerifiedFunnelCapture(input);
+  },
+};
+
 // `FunnelMePort` adapter. Reads HC slot + capture timestamp from the
 // public-funnel plugin's container (chapter #161 Gap #4 closure).
 // Walks every agency's public-funnel install until it finds a capture

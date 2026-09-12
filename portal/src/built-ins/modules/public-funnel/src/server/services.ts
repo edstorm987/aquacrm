@@ -20,12 +20,16 @@ import type {
   LeadCapture,
   LeadSource,
   MeContext,
+  PendingCapturePromotion,
+  PromotePendingCaptureInput,
+  PromotePendingCaptureResult,
 } from "../lib/domain";
 import { bucketHcSlot, canonEmail, isPlausibleEmail } from "../lib/domain";
 import type {
   ActivityLogPort,
   EventBusPort,
   LeadUserPort,
+  PendingCapturePromotionPort,
   StoragePort,
 } from "./ports";
 
@@ -84,6 +88,7 @@ export interface FunnelDeps {
   activity: ActivityLogPort;
   events: EventBusPort;
   leadUsers: LeadUserPort;
+  promotions: PendingCapturePromotionPort;
 }
 
 export class FunnelService {
@@ -92,6 +97,7 @@ export class FunnelService {
   private readonly activity: ActivityLogPort;
   private readonly events: EventBusPort;
   private readonly leadUsers: LeadUserPort;
+  private readonly promotions: PendingCapturePromotionPort;
 
   constructor(deps: FunnelDeps) {
     this.agencyId = deps.agencyId;
@@ -99,6 +105,7 @@ export class FunnelService {
     this.activity = deps.activity;
     this.events = deps.events;
     this.leadUsers = deps.leadUsers;
+    this.promotions = deps.promotions;
   }
 
   // ── Captures ─────────────────────────────────────────────────
@@ -212,38 +219,131 @@ export class FunnelService {
     this.activity.logActivity({
         // No actor identity: a pending lead is capture data, never a User.
         agencyId: this.agencyId,
-        category: "public-funnel", action: "public-funnel.lead.captured",
+        category: "public-funnel", action: "public-funnel.capture.pending",
         // No address in the message: this install is agency-scoped, so its
         // entries carry no `clientId` and the erasure sweep (clientId-only)
         // could never scrub them. The metadata carries the capture id.
         message: `Lead captured (${source}).`,
-        metadata: { captureId: capture.id, source, pendingLeadId },
+        metadata: { captureId: capture.id, source },
     });
-    this.events.emit({ agencyId: this.agencyId },
-      "public-funnel.lead.captured",
-      { id: capture.id, pendingLeadId, email, source });
+    const bucket = source === "hc" ? bucketHcSlot(args.hcSlot) : undefined;
+    this.events.emit(
+      { agencyId: this.agencyId },
+      "public-funnel.capture.pending",
+      {
+        captureId: capture.id,
+        source,
+        ...(bucket ? { bucket } : {}),
+        ...(source === "tool" && typeof args.sourceMeta.toolId === "string"
+          ? { toolId: args.sourceMeta.toolId }
+          : {}),
+      },
+    );
 
     if (source === "hc") {
-      const bucket = bucketHcSlot(args.hcSlot);
       this.activity.logActivity({
         agencyId: this.agencyId,
         category: "public-funnel", action: "public-funnel.hc.completed",
         message: `Health Check completed${bucket ? ` (${bucket})` : ""}.`,
-        metadata: { captureId: capture.id, pendingLeadId, bucket, slot: args.hcSlot?.slot },
+        metadata: { captureId: capture.id, bucket, slot: args.hcSlot?.slot },
       });
-      this.events.emit({ agencyId: this.agencyId },
-        "public-funnel.hc.completed",
-        { id: capture.id, pendingLeadId, email, bucket, slot: args.hcSlot });
-    } else if (source === "tool") {
-      this.events.emit({ agencyId: this.agencyId },
-        "public-funnel.tool.completed",
-        { id: capture.id, pendingLeadId, email, toolId: args.sourceMeta.toolId });
     }
 
     const result: CaptureResult = {
       capture, pendingLeadId, created: true,
     };
     return result;
+  }
+
+  /**
+   * Convert one exact pending row into CRM lineage after a trusted caller has
+   * established mailbox ownership or authenticated operator authority. There
+   * is deliberately no anonymous route to this command.
+   */
+  async promotePendingCapture(input: PromotePendingCaptureInput): Promise<PromotePendingCaptureResult> {
+    const captureId = input.captureId.trim();
+    if (!captureId || !this.storage.runExclusive) {
+      throw new FunnelInputError("promotion_unavailable");
+    }
+    const operationId = input.authority.kind === "mailbox-proof"
+      ? input.authority.verificationId.trim()
+      : input.authority.operationId.trim();
+    if (!/^[a-zA-Z0-9:_-]{8,160}$/.test(operationId)) {
+      throw new FunnelInputError("invalid_promotion_operation");
+    }
+
+    return this.storage.runExclusive(`capture-promotion:${captureId}`, async () => {
+      const capture = await this.storage.get<LeadCapture>(captureKey(captureId));
+      if (!capture) throw new FunnelInputError("capture_not_found");
+      const authorityOperationId = `${input.authority.kind}:${operationId}`;
+      if (capture.promotion) {
+        if (capture.promotion.operationId !== authorityOperationId) {
+          throw new FunnelInputError("capture_already_promoted");
+        }
+        return { capture, promotion: capture.promotion, promoted: false };
+      }
+      if (!capture.pendingLeadId) throw new FunnelInputError("capture_not_pending");
+      if (input.authority.kind === "mailbox-proof"
+        && canonEmail(input.authority.verifiedEmail) !== capture.email) {
+        throw new FunnelInputError("mailbox_proof_mismatch");
+      }
+      const actorUserId = input.authority.kind === "authenticated"
+        ? input.authority.actorUserId.trim()
+        : "system";
+      if (!actorUserId) throw new FunnelInputError("promotion_actor_required");
+
+      const lineage = await this.promotions.promote({
+        agencyId: this.agencyId,
+        captureId: capture.id,
+        email: capture.email,
+        source: capture.source,
+        actorUserId,
+        profile: input.profile,
+      });
+      const promotion: PendingCapturePromotion = {
+        operationId: authorityOperationId,
+        authorityKind: input.authority.kind,
+        promotedAt: now(),
+        leadId: lineage.leadId,
+        personId: lineage.personId,
+        prospectId: lineage.prospectId,
+        pipelineCardId: lineage.pipelineCardId,
+      };
+      const { pendingLeadId: _retiredPendingId, ...captureWithoutPending } = capture;
+      const promotedCapture: LeadCapture = {
+        ...captureWithoutPending,
+        personId: lineage.personId,
+        promotion,
+      };
+      await this.storage.set(captureKey(capture.id), promotedCapture);
+      await this.activity.logActivity({
+        agencyId: this.agencyId,
+        actorUserId: input.authority.kind === "authenticated" ? actorUserId : undefined,
+        category: "public-funnel",
+        action: "public-funnel.capture.promoted",
+        message: "Pending capture promoted into the CRM.",
+        metadata: {
+          captureId: capture.id,
+          leadId: lineage.leadId,
+          personId: lineage.personId,
+          prospectId: lineage.prospectId,
+        },
+      });
+      this.events.emit(
+        { agencyId: this.agencyId },
+        "public-funnel.capture.promoted",
+        {
+          captureId: capture.id,
+          source: capture.source,
+          leadId: lineage.leadId,
+          personId: lineage.personId,
+          ...(lineage.prospectId ? { prospectId: lineage.prospectId } : {}),
+          ...(lineage.pipelineCardId ? { pipelineCardId: lineage.pipelineCardId } : {}),
+          authorityKind: input.authority.kind,
+        },
+      );
+      return { capture: promotedCapture, promotion, promoted: true };
+    });
   }
 
   // Right-to-be-forgotten. Historical captures are pre-client and therefore

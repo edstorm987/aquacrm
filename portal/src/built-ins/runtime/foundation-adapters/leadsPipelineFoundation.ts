@@ -8,14 +8,14 @@ import "server-only";
 //   • emailEnqueuePort — adapter onto @aqua/plugin-email-sender
 //   • pipelinePort     — adapter onto T1 R034 pipelines.ts
 //
-// Then subscribes the plugin's `EVENT_SUBSCRIPTIONS` array to the
-// foundation event bus via `subscribeForPlugin`, scoped per agency
-// install.
+// Then subscribes the plugin's pipeline event. Anonymous public-funnel rows do
+// not enter this adapter through the event bus; the public-funnel promotion
+// port calls the explicit bridge below only after trusted authority.
 
 import {
   registerLeadsPipelineFoundation,
   EVENT_SUBSCRIPTIONS,
-  handleFunnelLeadCaptured,
+  promoteFunnelCaptureToLead,
   handlePipelineCardMoved,
   containerFor as leadsContainerFor,
 } from "@aqua/plugin-leads-pipeline/server";
@@ -69,15 +69,6 @@ ensureLeadsPipelineFoundationRegistered();
 // tenant-filtered subscriber that builds the per-(agency) container
 // then invokes the handler with the appropriate service slice.
 
-interface FunnelCapturedPayload {
-  email: string;
-  name?: string;
-  phone?: string;
-  company?: string;
-  source: string;
-  agencyId: string;
-}
-
 interface CardMovedPayload {
   cardId: string;
   cardKind: "lead" | "client" | "deal" | "custom";
@@ -88,7 +79,7 @@ interface CardMovedPayload {
 }
 
 // Sanity assert: the plugin's declarative array stays in sync.
-const expectedEvents = ["public-funnel.lead.captured", "pipelines.card.moved"] as const;
+const expectedEvents = ["pipelines.card.moved"] as const;
 for (const ev of expectedEvents) {
   if (!(EVENT_SUBSCRIPTIONS as readonly string[]).includes(ev)) {
     console.warn(`[leads-pipeline] EVENT_SUBSCRIPTIONS missing expected entry "${ev}"`);
@@ -102,19 +93,34 @@ function containerForAgency(agencyId: string) {
   return leadsContainerFor({ agencyId, storage: storage as never });
 }
 
-subscribeForPlugin(PLUGIN_ID, "public-funnel.lead.captured", async (event) => {
-  const payload = event.payload as FunnelCapturedPayload;
-  const container = containerForAgency(event.agencyId);
-  if (!container) return;
-  await handleFunnelLeadCaptured(container.leads, {
-    email: payload.email,
-    name: payload.name,
-    phone: payload.phone,
-    company: payload.company,
-    source: payload.source,
-    agencyId: event.agencyId as never,
+export async function promoteVerifiedFunnelCapture(input: {
+  agencyId: string;
+  captureId: string;
+  email: string;
+  source: string;
+  actorUserId: string;
+  profile?: { name?: string; phone?: string; company?: string };
+}): Promise<{
+  leadId: string;
+  personId: string;
+  prospectId?: string;
+  pipelineCardId?: string;
+}> {
+  const container = containerForAgency(input.agencyId);
+  if (!container) throw new Error("leads_pipeline_promotion_unavailable");
+  const lineage = await promoteFunnelCaptureToLead(container.leads, {
+    agencyId: input.agencyId as never,
+    captureId: input.captureId,
+    email: input.email,
+    source: input.source,
+    actorUserId: input.actorUserId as never,
+    name: input.profile?.name,
+    phone: input.profile?.phone,
+    company: input.profile?.company,
   }, container.prospects);
-});
+  if (!lineage.personId) throw new Error("funnel_promotion_person_lineage_missing");
+  return { ...lineage, personId: lineage.personId };
+}
 
 subscribeForPlugin(PLUGIN_ID, "pipelines.card.moved", async (event) => {
   const payload = event.payload as CardMovedPayload;

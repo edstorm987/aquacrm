@@ -13,6 +13,7 @@ export interface StoragePort {
   setIfAbsent?<T = unknown>(key: string, value: T): Promise<boolean>;
   del(key: string): Promise<void>;
   list(prefix?: string): Promise<string[]>;
+  runExclusive?<T>(key: string, operation: () => Promise<T>): Promise<T>;
 }
 
 export interface UserPort {
@@ -39,9 +40,8 @@ export interface ActivityLogPort {
 }
 
 export type FunnelEventName =
-  | "public-funnel.lead.captured"
-  | "public-funnel.hc.completed"
-  | "public-funnel.tool.completed";
+  | "public-funnel.capture.pending"
+  | "public-funnel.capture.promoted";
 
 export interface EventBusPort {
   emit<T = unknown>(
@@ -82,4 +82,27 @@ export interface LeadUserPort {
     recordsErased: number;
     reason?: "still-referenced" | "ambiguous-user" | "non-capture-lead";
   }>;
+}
+
+export interface PendingCapturePromotionLineage {
+  leadId: string;
+  personId: string;
+  prospectId?: string;
+  pipelineCardId?: string;
+}
+
+/**
+ * Trusted server-side bridge into the CRM. Anonymous capture never calls this
+ * port; FunnelService exposes it only through its explicit authority-bearing
+ * promotion command.
+ */
+export interface PendingCapturePromotionPort {
+  promote(input: {
+    agencyId: AgencyId;
+    captureId: string;
+    email: string;
+    source: string;
+    actorUserId: UserId;
+    profile?: { name?: string; phone?: string; company?: string };
+  }): Promise<PendingCapturePromotionLineage>;
 }
