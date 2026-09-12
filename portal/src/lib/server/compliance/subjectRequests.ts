@@ -261,6 +261,33 @@ export function recordSubjectAccessReviewCompletion(
  * delivered. Review-bearing exports additionally require evidence that review
  * was completed against this same digest.
  */
+export interface SubjectAccessDeliveryResult {
+  request: SubjectRequest;
+  replay: boolean;
+  resultId: string;
+}
+
+const SUBJECT_ACCESS_DELIVERY_OUTCOME = "Prepared export delivered with separate delivery evidence.";
+
+function subjectAccessDeliveryResultId(input: {
+  agencyId: string;
+  requestId: string;
+  personId: string;
+  digest: string;
+  deliveryMethod: NonNullable<SubjectRequest["deliveryMethod"]>;
+  evidenceId: string;
+}): string {
+  return crypto.createHash("sha256").update([
+    "aqua-subject-access-delivery-v1",
+    input.agencyId,
+    input.requestId,
+    input.personId,
+    input.digest,
+    input.deliveryMethod,
+    input.evidenceId,
+  ].join("\0"), "utf8").digest("hex");
+}
+
 export function fulfilPreparedSubjectAccessDelivery(
   agencyId: string,
   id: string,
@@ -269,13 +296,32 @@ export function fulfilPreparedSubjectAccessDelivery(
   digest: string,
   deliveryMethod: NonNullable<SubjectRequest["deliveryMethod"]>,
   evidenceId: string,
-): SubjectRequest {
+): SubjectAccessDeliveryResult {
   if (!/^[a-f0-9]{64}$/.test(digest)
     || !SUBJECT_ACCESS_DELIVERY_METHODS.has(deliveryMethod)
     || !validEvidenceId(evidenceId)) throw new SubjectAccessRequestGateError();
-  let updated: SubjectRequest | null = null;
+  const resultId = subjectAccessDeliveryResultId({ agencyId, requestId: id, personId, digest, deliveryMethod, evidenceId });
+  let updated: SubjectAccessDeliveryResult | null = null;
   mutate(state => {
     const request = state.subjectRequests[id];
+    const exactCompletedReplay = Boolean(
+      request
+      && request.agencyId === agencyId
+      && SUBJECT_ACCESS_KINDS.has(request.kind)
+      && request.personId === personId
+      && request.fulfilledAt
+      && request.deliveredAt
+      && request.preparedExportDigest === digest
+      && request.deliveryMethod === deliveryMethod
+      && request.deliveryEvidenceId === evidenceId
+      && request.deliveryResultId === resultId
+      && request.outcome === SUBJECT_ACCESS_DELIVERY_OUTCOME
+      && request.preparedExportJson === undefined,
+    );
+    if (exactCompletedReplay) {
+      updated = { request, replay: true, resultId };
+      return;
+    }
     if (!isOpenVerifiedSubjectAccessRequest(request, agencyId, personId)
       || request.preparedExportDigest !== digest
       || !request.preparedExportJson
@@ -288,11 +334,12 @@ export function fulfilPreparedSubjectAccessDelivery(
     request.deliveredBy = actorUserId;
     request.deliveryMethod = deliveryMethod;
     request.deliveryEvidenceId = evidenceId;
+    request.deliveryResultId = resultId;
     request.fulfilledAt = now;
     request.fulfilledBy = actorUserId;
-    request.outcome = "Prepared export delivered with separate delivery evidence.";
+    request.outcome = SUBJECT_ACCESS_DELIVERY_OUTCOME;
     delete request.preparedExportJson;
-    updated = request;
+    updated = { request, replay: false, resultId };
   });
   if (!updated) throw new SubjectAccessRequestGateError();
   return updated;

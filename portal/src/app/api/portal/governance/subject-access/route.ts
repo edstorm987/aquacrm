@@ -1,8 +1,9 @@
 import crypto from "node:crypto";
 
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
 import { authErrorResponse, getActiveAgencyId, requireRole } from "@/lib/server/auth/auth";
+import { requireCsrf } from "@/lib/server/auth/csrf";
 import { parseJsonObject, readBoundedRequestBody } from "@/lib/server/boundedRequestBody";
 import {
   collectSubjectAccessExport,
@@ -55,6 +56,13 @@ function failure(
 ): NextResponse {
   const body = reasons ? { ok: false, error, reasons } : { ok: false, error };
   return noStore(NextResponse.json(body, { status, headers: PRIVATE_NO_STORE }));
+}
+
+function mutationCsrfFailure(request: NextRequest): Response | null {
+  const csrf = requireCsrf(request);
+  return csrf.ok
+    ? null
+    : noStore(NextResponse.json({ ok: false, error: csrf.error }, { status: 403, headers: PRIVATE_NO_STORE }));
 }
 
 function exactKeys(body: Record<string, unknown>, keys: readonly string[]): boolean {
@@ -118,7 +126,9 @@ function authOrFailure(error: unknown): Response {
 }
 
 /** Prepare and stage a replayable safe subset. Preparation never fulfils. */
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  const csrfFailure = mutationCsrfFailure(request);
+  if (csrfFailure) return csrfFailure;
   const bounded = await readBoundedRequestBody(request, MAX_REQUEST_BYTES);
   if (!bounded.ok) return failure(bounded.status, "invalid_request");
   const body = parsePrepareBody(bounded.rawBody);
@@ -189,7 +199,9 @@ export async function POST(request: Request) {
 }
 
 /** Record human review against an exact staged digest, without delivery. */
-export async function PUT(request: Request) {
+export async function PUT(request: NextRequest) {
+  const csrfFailure = mutationCsrfFailure(request);
+  if (csrfFailure) return csrfFailure;
   const bounded = await readBoundedRequestBody(request, MAX_REQUEST_BYTES);
   if (!bounded.ok) return failure(bounded.status, "invalid_request");
   const body = parseReviewBody(bounded.rawBody);
@@ -216,19 +228,21 @@ export async function PUT(request: Request) {
 }
 
 /** Fulfil only after separate evidence of delivery for the exact staged file. */
-export async function PATCH(request: Request) {
+export async function PATCH(request: NextRequest) {
+  const csrfFailure = mutationCsrfFailure(request);
+  if (csrfFailure) return csrfFailure;
   const bounded = await readBoundedRequestBody(request, MAX_REQUEST_BYTES);
   if (!bounded.ok) return failure(bounded.status, "invalid_request");
   const body = parseDeliveryBody(bounded.rawBody);
   if (!body) return failure(400, "invalid_request");
   try {
     const { session, agencyId } = await actor();
-    await withPortalStateTransaction(`subject-access:deliver:${agencyId}:${body.requestId}`, () => {
-      fulfilPreparedSubjectAccessDelivery(
+    const delivery = await withPortalStateTransaction(`subject-access:deliver:${agencyId}:${body.requestId}`, () => {
+      const result = fulfilPreparedSubjectAccessDelivery(
         agencyId, body.requestId, body.personId, session.userId, body.preparedExportDigest, body.deliveryMethod, body.deliveryEvidenceId,
       );
       logActivity({
-        idempotencyKey: `subject-access-delivery:${body.requestId}:${body.preparedExportDigest}`,
+        idempotencyKey: `subject-access-delivery:${result.resultId}`,
         agencyId,
         actorUserId: session.userId,
         actorEmail: session.email,
@@ -239,10 +253,17 @@ export async function PATCH(request: Request) {
           requestId: body.requestId,
           preparedExportDigest: body.preparedExportDigest,
           deliveryMethod: body.deliveryMethod,
+          deliveryResultId: result.resultId,
         },
       });
+      return result;
     });
-    return noStore(NextResponse.json({ ok: true, status: "fulfilled" }, { headers: PRIVATE_NO_STORE }));
+    return noStore(NextResponse.json({
+      ok: true,
+      status: "fulfilled",
+      replay: delivery.replay,
+      resultId: delivery.resultId,
+    }, { headers: PRIVATE_NO_STORE }));
   } catch (error) {
     return authOrFailure(error);
   }

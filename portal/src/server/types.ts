@@ -4896,6 +4896,10 @@ export interface SubjectRequest {
   deliveredBy?: string;
   deliveryMethod?: "verified-portal" | "secure-email" | "in-person" | "other";
   deliveryEvidenceId?: string;
+  /** Stable identity of the exact digest/method/evidence fulfilment result.
+   * Retained after staged bytes are deleted so a lost success response can be
+   * replayed idempotently without reopening or rewriting the evidence. */
+  deliveryResultId?: string;
   fulfilledAt?: number;
   fulfilledBy?: string;
   /** What was actually done — free text for the file, no personal data. */

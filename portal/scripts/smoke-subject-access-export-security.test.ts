@@ -51,11 +51,13 @@ require.cache[storageId]!.exports = {
 
 const route = require("../src/app/api/portal/governance/subject-access/route") as typeof import("../src/app/api/portal/governance/subject-access/route");
 const auth = require("../src/lib/server/auth/auth") as typeof import("../src/lib/server/auth/auth");
+const csrf = require("../src/lib/server/auth/csrf") as typeof import("../src/lib/server/auth/csrf");
 const exportsApi = require("../src/lib/server/compliance/subjectAccessExport") as typeof import("../src/lib/server/compliance/subjectAccessExport");
 const requests = require("../src/lib/server/compliance/subjectRequests") as typeof import("../src/lib/server/compliance/subjectRequests");
 const tenants = require("../src/server/tenants") as typeof import("../src/server/tenants");
 const users = require("../src/server/users") as typeof import("../src/server/users");
 const activity = require("../src/server/activity") as typeof import("../src/server/activity");
+const { NextRequest } = require("next/server") as typeof import("next/server");
 import type { Client, Person, PortalState, SubjectRequest } from "../src/server/types";
 
 const SUBJECT_EMAIL = "subject@example.test";
@@ -194,26 +196,35 @@ function storeRows(collection: keyof PortalState, rows: Record<string, Record<st
   });
 }
 
+function signedMutationHeaders(): Record<string, string> {
+  const signed = csrf.signCsrfToken().token;
+  return {
+    "content-type": "application/json",
+    "x-csrf-token": signed,
+    cookie: `${csrf.CSRF_COOKIE_NAME}=${signed}`,
+  };
+}
+
 function post(token: string, body: unknown, raw = false): Promise<Response> {
-  return withSession(token, () => route.POST(new Request("http://localhost/api/portal/governance/subject-access", {
+  return withSession(token, () => route.POST(new NextRequest("http://localhost/api/portal/governance/subject-access", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: signedMutationHeaders(),
     body: raw ? String(body) : JSON.stringify(body),
   })));
 }
 
 function put(token: string, body: unknown): Promise<Response> {
-  return withSession(token, () => route.PUT(new Request("http://localhost/api/portal/governance/subject-access", {
+  return withSession(token, () => route.PUT(new NextRequest("http://localhost/api/portal/governance/subject-access", {
     method: "PUT",
-    headers: { "content-type": "application/json" },
+    headers: signedMutationHeaders(),
     body: JSON.stringify(body),
   })));
 }
 
 function patch(token: string, body: unknown): Promise<Response> {
-  return withSession(token, () => route.PATCH(new Request("http://localhost/api/portal/governance/subject-access", {
+  return withSession(token, () => route.PATCH(new NextRequest("http://localhost/api/portal/governance/subject-access", {
     method: "PATCH",
-    headers: { "content-type": "application/json" },
+    headers: signedMutationHeaders(),
     body: JSON.stringify(body),
   })));
 }
@@ -367,6 +378,48 @@ test("stale root owners and conflicting nested scopes veto otherwise exclusive c
     assert.equal(ids.includes(id), false, `${id} must be quarantined despite the subject's exclusive email`);
   }
   assert.ok(result.ambiguousMatches.tasks >= 4);
+});
+
+test("canonical phone equivalence and typed owners at arbitrary valid depth work without executing getters", async () => {
+  const world = await seedWorld();
+  let getterCalls = 0;
+  realStorage.mutate(state => {
+    state.persons[world.personId].phones = [{ value: "07700 900123", raw: "07700 900123" }];
+    state.persons[world.otherPersonId].phones = [{ value: THIRD_PARTY_PHONE, raw: THIRD_PARTY_PHONE }];
+    const poisonedEnvelope: Record<string, unknown> = {
+      safe: { nested: { ownerClaim: { subjectPersonId: world.personId } } },
+    };
+    Object.defineProperty(poisonedEnvelope, "computedOwner", {
+      enumerable: true,
+      get() {
+        getterCalls += 1;
+        throw new Error("stored accessors must never execute during an export");
+      },
+    });
+    state.tasks.canonical_phone = {
+      id: "canonical_phone",
+      agencyId: world.agencyId,
+      contact: { phone: "+447700900123" },
+    } as never;
+    state.tasks.deep_owner_claim = {
+      id: "deep_owner_claim",
+      agencyId: world.agencyId,
+      metadata: { arbitrary: { valid: { owner: { personId: world.personId } } } },
+    } as never;
+    state.tasks.poisoned_owner_claim = {
+      id: "poisoned_owner_claim",
+      agencyId: world.agencyId,
+      metadata: poisonedEnvelope,
+    } as never;
+  });
+
+  const result = exportsApi.collectSubjectAccessExport(world.agencyId, world.personId)!;
+  const ids = (result.found.tasks ?? []).map(row => (row as { id: string }).id);
+  assert.ok(ids.includes("canonical_phone"), "UK local and E.164 forms use the canonical phone matcher");
+  assert.ok(ids.includes("deep_owner_claim"), "typed ownership is not restricted to root scope/owner keys");
+  assert.equal(ids.includes("poisoned_owner_claim"), false, "an accessor makes the otherwise matching row review-only");
+  assert.equal(getterCalls, 0, "neither ownership extraction nor review scanning may invoke stored getters");
+  assert.ok(result.ambiguousMatches.tasks >= 1);
 });
 
 test("third-party fields are redacted while free text and depth-limit rows are quarantined", async () => {
@@ -616,6 +669,216 @@ test("typed projections preserve Person history and finance fields while unknown
   ]) assert.equal(json.includes(secret), false, `${secret} must not leak from an unknown or co-mingled field`);
 });
 
+test("allowlisted task, ledger and finance reference strings redact third-party PII and banking identifiers field by field", async () => {
+  const world = await seedWorld();
+  const clientId = `client_reference_redaction_${sequence}`;
+  putClient(clientFixture({
+    id: clientId,
+    agencyId: world.agencyId,
+    personId: world.personId,
+    relationshipId: `relationship_reference_redaction_${sequence}`,
+    name: "Subject Person",
+  }));
+  realStorage.mutate(state => {
+    state.tasks.reference_leak = {
+      id: "reference_leak",
+      agencyId: world.agencyId,
+      personId: world.personId,
+      sourceId: `source:${THIRD_PARTY_EMAIL}`,
+      sourceHref: `https://example.test/profile?email=${encodeURIComponent(THIRD_PARTY_EMAIL)}`,
+    } as never;
+    state.clientRecordLedger.reference_leak = {
+      id: "ledger_reference_leak",
+      agencyId: world.agencyId,
+      clientId,
+      sourceType: "invoice",
+      sourceId: "invoice:safe-reference",
+      group: "commercial",
+      title: "Invoice summary",
+      body: "GBP 100.00 due",
+      href: `https://billing.test/open?email=${encodeURIComponent(THIRD_PARTY_EMAIL)}`,
+      parentSourceId: "account-number:12345678",
+      occurredAt: 1_725_555_000_123,
+      visibility: "system",
+      createdAt: 1_725_555_000_123,
+      updatedAt: 1_725_555_000_123,
+    };
+    const installId = `install_reference_redaction_${sequence}`;
+    state.pluginInstalls[installId] = {
+      id: installId,
+      pluginId: "agency-finance",
+      agencyId: world.agencyId,
+      clientId,
+      enabled: true,
+      config: {},
+      features: { invoices: true },
+      installedAt: 1_725_555_000_123,
+    };
+    state.pluginData[installId] = {
+      "invoices/by-id/safe-reference": {
+        id: "invoice_reference_leak",
+        agencyId: world.agencyId,
+        clientId,
+        number: "INV-42",
+        externalRef: `stripe:${THIRD_PARTY_EMAIL}`,
+        paidVia: "bank account 87654321",
+        issuedAt: 1_725_555_000_123,
+        dueAt: 1_725_555_100_123,
+        subtotalCents: 10_000,
+        taxCents: 2_000,
+        totalCents: 12_000,
+        currency: "gbp",
+        status: "paid",
+        createdAt: 1_725_555_000_123,
+        updatedAt: 1_725_555_000_123,
+      },
+    };
+  });
+
+  const result = exportsApi.collectSubjectAccessExport(world.agencyId, world.personId)!;
+  const task = (result.found.tasks ?? []).find(row => (row as { id?: string }).id === "reference_leak") as Record<string, unknown>;
+  assert.equal(task.sourceId, "[redacted:restricted-identifier]");
+  assert.equal(task.sourceHref, "[redacted:restricted-identifier]");
+  const ledger = (result.found.clientRecordLedger ?? []).find(row => (row as { id?: string }).id === "ledger_reference_leak") as Record<string, unknown>;
+  assert.equal(ledger.href, "[redacted:restricted-identifier]");
+  assert.equal(ledger.parentSourceId, "[redacted:restricted-identifier]");
+  const invoice = (result.found.pluginData ?? [])[0] as { value: Record<string, unknown> };
+  assert.equal(invoice.value.externalRef, "[redacted:restricted-identifier]");
+  assert.equal(invoice.value.paidVia, "[redacted:restricted-identifier]");
+  assert.equal(result.redactedFields.tasks, 2);
+  assert.equal(result.redactedFields.clientRecordLedger, 2);
+  assert.equal(result.redactedFields.pluginData, 2);
+  const json = exportsApi.subjectAccessExportJson(result);
+  const exported = JSON.parse(json) as { completeness: { redactedFields: Record<string, number> } };
+  assert.deepEqual(exported.completeness.redactedFields, result.redactedFields, "the delivered completeness statement carries exact redaction counters");
+  assert.equal(json.includes(THIRD_PARTY_EMAIL), false);
+  assert.equal(json.includes("12345678"), false);
+  assert.equal(json.includes("87654321"), false);
+});
+
+test("every SubjectRequest lifecycle field is exported or explicitly counted, so silent omissions cannot claim completion", async () => {
+  const world = await seedWorld();
+  const request = makeRequest(world, { verify: true });
+  const malformed = makeRequest(world, { verify: true });
+  realStorage.mutate(state => {
+    Object.assign(state.subjectRequests[request.id], {
+      extendedAt: 101,
+      extensionReason: "Complex request explanation",
+      identityVerifiedBy: "usr_identity_reviewer",
+      preparedExportAt: 102,
+      preparedExportBy: "usr_exporter",
+      preparedExportDigest: "a".repeat(64),
+      preparedExportGeneratedAt: 103,
+      preparedExportRecordCount: 4,
+      preparedExportReviewCount: 2,
+      preparedExportByteLength: 1234,
+      preparedExportJson: JSON.stringify({ subject: SUBJECT_EMAIL }),
+      preparedExportReviewResolvedAt: 104,
+      preparedExportReviewResolvedBy: "usr_reviewer",
+      preparedExportReviewResolvedDigest: "b".repeat(64),
+      preparedExportReviewEvidenceId: "review-evidence-1",
+      deliveredAt: 105,
+      deliveredBy: "usr_deliverer",
+      deliveryMethod: "secure-email",
+      deliveryEvidenceId: "delivery-evidence-1",
+      deliveryResultId: "c".repeat(64),
+      fulfilledAt: 105,
+      fulfilledBy: "usr_deliverer",
+      outcome: "Delivered after review",
+      refusedAt: 106,
+      refusalReason: "Fixture exercises all lifecycle fields",
+    } satisfies Partial<SubjectRequest>);
+    Object.assign(state.subjectRequests[malformed.id], {
+      deliveredAt: THIRD_PARTY_EMAIL,
+      deliveryResultId: "bank account 87654321",
+    } as unknown as Partial<SubjectRequest>);
+  });
+
+  const result = exportsApi.collectSubjectAccessExport(world.agencyId, world.personId)!;
+  const projected = (result.found.subjectRequests ?? []).find(row => (row as { id?: string }).id === request.id) as Record<string, unknown>;
+  for (const field of [
+    "identityVerifiedBy", "preparedExportAt", "preparedExportBy", "preparedExportDigest", "preparedExportGeneratedAt",
+    "preparedExportRecordCount", "preparedExportReviewCount", "preparedExportByteLength", "preparedExportReviewResolvedAt",
+    "preparedExportReviewResolvedBy", "preparedExportReviewResolvedDigest", "preparedExportReviewEvidenceId", "deliveredAt",
+    "deliveredBy", "deliveryMethod", "deliveryEvidenceId", "deliveryResultId", "fulfilledAt", "fulfilledBy", "refusedAt", "createdBy",
+  ]) assert.notEqual(projected[field], undefined, `${field} must not disappear from a recognised request`);
+  for (const field of ["extensionReason", "preparedExportJson", "outcome", "refusalReason"]) {
+    assert.equal(projected[field], undefined, `${field} is deliberately withheld rather than silently copied`);
+  }
+  const malformedProjected = (result.found.subjectRequests ?? []).find(row => (row as { id?: string }).id === malformed.id) as Record<string, unknown>;
+  assert.equal(malformedProjected.deliveredAt, undefined, "a recognised lifecycle field with a hostile runtime type is counted, not copied");
+  assert.equal(malformedProjected.deliveryResultId, undefined, "a malformed durable result identity is counted, not copied");
+  assert.equal(result.omittedFields.subjectRequests, 6, "withheld and malformed recognised fields are counted exactly once");
+  const json = JSON.parse(exportsApi.subjectAccessExportJson(result)) as {
+    completeness: { status: string; omittedFields: Record<string, number> };
+  };
+  assert.equal(json.completeness.status, "human-review-required");
+  assert.equal(json.completeness.omittedFields.subjectRequests, 6);
+  assert.equal(JSON.stringify(json).includes(THIRD_PARTY_EMAIL), false);
+  assert.equal(JSON.stringify(json).includes("87654321"), false);
+});
+
+test("foreign-tenant volume does not consume the tenant-local record budget", async () => {
+  const world = await seedWorld();
+  realStorage.mutate(state => {
+    for (let index = 0; index < 16_000; index += 1) {
+      const id = `foreign_candidate_${index}`;
+      state.tasks[id] = { id, agencyId: world.otherAgencyId, personId: world.personId } as never;
+    }
+    state.tasks.local_after_foreign_volume = {
+      id: "local_after_foreign_volume", agencyId: world.agencyId, personId: world.personId,
+    } as never;
+  });
+  const result = exportsApi.collectSubjectAccessExport(world.agencyId, world.personId)!;
+  assert.ok((result.found.tasks ?? []).some(row => (row as { id?: string }).id === "local_after_foreign_volume"));
+  assert.ok(result.work.recordsVisited < 100, `foreign rows must not count as tenant candidates: ${result.work.recordsVisited}`);
+  assert.deepEqual(result.incompleteReasons, []);
+});
+
+test("typed owner accumulation is Set-linear at 2k, 4k, 8k and 16k claims and nested traversal is metered", async () => {
+  const world = await seedWorld();
+  const observations: Array<{ size: number; values: number }> = [];
+  for (const size of [2_000, 4_000, 8_000, 16_000]) {
+    realStorage.mutate(state => {
+      state.tasks.owner_scale = {
+        id: "owner_scale",
+        agencyId: world.agencyId,
+        scope: {
+          claims: [
+            ...Array.from({ length: size }, (_, index) => ({ personId: `per_conflict_${index}` })),
+            { personId: world.personId },
+          ],
+        },
+      } as never;
+    });
+    const result = exportsApi.collectSubjectAccessExport(world.agencyId, world.personId)!;
+    observations.push({ size, values: result.work.valuesVisited });
+    assert.ok(result.work.valuesVisited > size, "typed-claim traversal must be present in the work meter");
+    assert.ok(result.work.valuesVisited < size * 4 + 2_000, "the bounded walker must visit O(n) values");
+    assert.deepEqual(result.incompleteReasons, []);
+  }
+  for (let index = 1; index < observations.length; index += 1) {
+    assert.ok(
+      observations[index].values < observations[index - 1].values * 2.4,
+      `doubling claims must remain linear: ${JSON.stringify(observations)}`,
+    );
+  }
+
+  realStorage.mutate(state => {
+    state.tasks.owner_scale = {
+      id: "owner_scale",
+      agencyId: world.agencyId,
+      scope: { claims: Array.from({ length: 500 }, (_, index) => ({ personId: `per_${index}` })) },
+    } as never;
+  });
+  const capped = exportsApi.collectSubjectAccessExport(world.agencyId, world.personId, { maxValues: 128 })!;
+  assert.ok(capped.incompleteReasons.includes("value-limit"), "every nested ownership path shares the hard value budget");
+  assert.throws(
+    () => exportsApi.subjectAccessExportJson(capped),
+    (error: unknown) => error instanceof exportsApi.SubjectAccessExportIncompleteError,
+  );
+});
+
 test("free-text inspection is linearly bounded at 10k and 100k characters", async () => {
   const world = await seedWorld();
   const makeText = (length: number) => "x".repeat(length - world.personId.length) + world.personId;
@@ -659,16 +922,16 @@ test("route uses one generic request gate and no-store for every body, auth and 
   }
 
   const beforeBodyRefusals = activity.listActivity({ agencyId: world.agencyId, limit: 100 }).length;
-  const malformed = await route.POST(new Request("http://localhost/api/portal/governance/subject-access", {
+  const malformed = await route.POST(new NextRequest("http://localhost/api/portal/governance/subject-access", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: signedMutationHeaders(),
     body: "{",
   }));
   assert.equal(malformed.status, 400);
   assertNoStore(malformed);
-  const oversized = await route.POST(new Request("http://localhost/api/portal/governance/subject-access", {
+  const oversized = await route.POST(new NextRequest("http://localhost/api/portal/governance/subject-access", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: signedMutationHeaders(),
     body: `{"requestId":"${"x".repeat(4_200)}","personId":"${world.personId}"}`,
   }));
   assert.equal(oversized.status, 413);
@@ -686,9 +949,9 @@ test("route uses one generic request gate and no-store for every body, auth and 
   });
   assert.equal(malformedReview.status, 400);
   assertNoStore(malformedReview);
-  const oversizedDelivery = await route.PATCH(new Request("http://localhost/api/portal/governance/subject-access", {
+  const oversizedDelivery = await route.PATCH(new NextRequest("http://localhost/api/portal/governance/subject-access", {
     method: "PATCH",
-    headers: { "content-type": "application/json" },
+    headers: signedMutationHeaders(),
     body: JSON.stringify({
       requestId: unverified.id,
       personId: world.personId,
@@ -701,13 +964,64 @@ test("route uses one generic request gate and no-store for every body, auth and 
   assertNoStore(oversizedDelivery);
 
   const anonymousReady = makeRequest(world, { verify: true });
-  const anonymous = await withRequestScope({}, () => route.POST(new Request("http://localhost/api/portal/governance/subject-access", {
+  const anonymous = await withRequestScope({}, () => route.POST(new NextRequest("http://localhost/api/portal/governance/subject-access", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: signedMutationHeaders(),
     body: JSON.stringify({ requestId: anonymousReady.id, personId: world.personId }),
   })));
   assert.equal(anonymous.status, 401);
   assertNoStore(anonymous);
+});
+
+test("POST, PUT and PATCH require a valid signed double-submit CSRF token before mutation", async () => {
+  const world = await seedWorld();
+  const ready = makeRequest(world, { verify: true });
+  const digest = "a".repeat(64);
+  const cases = [
+    {
+      method: "POST",
+      body: { requestId: ready.id, personId: world.personId },
+      call: (request: InstanceType<typeof NextRequest>) => route.POST(request),
+    },
+    {
+      method: "PUT",
+      body: { requestId: ready.id, personId: world.personId, preparedExportDigest: digest, reviewEvidenceId: "review-csrf" },
+      call: (request: InstanceType<typeof NextRequest>) => route.PUT(request),
+    },
+    {
+      method: "PATCH",
+      body: { requestId: ready.id, personId: world.personId, preparedExportDigest: digest, deliveryMethod: "other", deliveryEvidenceId: "delivery-csrf" },
+      call: (request: InstanceType<typeof NextRequest>) => route.PATCH(request),
+    },
+  ] as const;
+  for (const candidate of cases) {
+    const response = await withSession(world.token, () => candidate.call(new NextRequest(
+      "http://localhost/api/portal/governance/subject-access",
+      { method: candidate.method, headers: { "content-type": "application/json" }, body: JSON.stringify(candidate.body) },
+    )));
+    assert.equal(response.status, 403, `${candidate.method} must reject a missing CSRF proof`);
+    assert.deepEqual(await response.json(), { ok: false, error: "csrf_missing" });
+    assertNoStore(response);
+  }
+
+  const cookieToken = csrf.signCsrfToken().token;
+  const headerToken = csrf.signCsrfToken().token;
+  const mismatch = await withSession(world.token, () => route.POST(new NextRequest(
+    "http://localhost/api/portal/governance/subject-access",
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-csrf-token": headerToken,
+        cookie: `${csrf.CSRF_COOKIE_NAME}=${cookieToken}`,
+      },
+      body: JSON.stringify({ requestId: ready.id, personId: world.personId }),
+    },
+  )));
+  assert.equal(mismatch.status, 403);
+  assert.deepEqual(await mismatch.json(), { ok: false, error: "csrf_mismatch" });
+  assert.equal(requests.findSubjectRequest(world.agencyId, ready.id)?.preparedExportDigest, undefined);
+  assert.equal(activity.listActivity({ agencyId: world.agencyId, limit: 100 }).length, 0);
 });
 
 test("preparation is replayable but only evidenced review and delivery fulfil; failures roll back", async () => {
@@ -767,8 +1081,39 @@ test("preparation is replayable but only evidenced review and delivery fulfil; f
   });
   assert.equal(delivered.status, 200);
   assertNoStore(delivered);
-  assert.ok(requests.findSubjectRequest(world.agencyId, ready.id)?.fulfilledAt);
-  assert.equal(requests.findSubjectRequest(world.agencyId, ready.id)?.preparedExportJson, undefined, "staged PII is cleared after delivery");
+  const deliveredBody = await delivered.json() as { replay: boolean; resultId: string };
+  assert.equal(deliveredBody.replay, false);
+  assert.match(deliveredBody.resultId, /^[a-f0-9]{64}$/);
+  const fulfilled = requests.findSubjectRequest(world.agencyId, ready.id);
+  assert.ok(fulfilled?.fulfilledAt);
+  assert.equal(fulfilled?.preparedExportJson, undefined, "staged PII is cleared after delivery");
+  assert.equal(fulfilled?.deliveryResultId, deliveredBody.resultId);
+
+  const deliveryReplay = await patch(world.token, {
+    requestId: ready.id,
+    personId: world.personId,
+    preparedExportDigest: digest,
+    deliveryMethod: "verified-portal",
+    deliveryEvidenceId: "delivery-case-1",
+  });
+  assert.equal(deliveryReplay.status, 200, "a lost success response can replay after staged bytes are deleted");
+  assert.deepEqual(await deliveryReplay.json(), {
+    ok: true, status: "fulfilled", replay: true, resultId: deliveredBody.resultId,
+  });
+  assert.equal(requests.findSubjectRequest(world.agencyId, ready.id)?.fulfilledAt, fulfilled?.fulfilledAt);
+  assert.equal(
+    activity.listActivity({ agencyId: world.agencyId, limit: 100 }).filter(entry => entry.action === "subject_access.delivered").length,
+    1,
+    "delivery replay cannot duplicate audit evidence",
+  );
+  for (const mismatch of [
+    { preparedExportDigest: "f".repeat(64), deliveryMethod: "verified-portal", deliveryEvidenceId: "delivery-case-1" },
+    { preparedExportDigest: digest, deliveryMethod: "secure-email", deliveryEvidenceId: "delivery-case-1" },
+    { preparedExportDigest: digest, deliveryMethod: "verified-portal", deliveryEvidenceId: "delivery-case-2" },
+  ]) {
+    const refusedReplay = await patch(world.token, { requestId: ready.id, personId: world.personId, ...mismatch });
+    assert.equal(refusedReplay.status, 409, "a changed digest, method or evidence is not an idempotent replay");
+  }
 
   const rollback = makeRequest(world, { verify: true });
   const beforeActivity = activity.listActivity({ agencyId: world.agencyId, limit: 100 }).length;

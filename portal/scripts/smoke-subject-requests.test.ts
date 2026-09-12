@@ -135,9 +135,30 @@ test("subject-access preparation, review and delivery require the exact open ver
   const fulfilled = requests.fulfilPreparedSubjectAccessDelivery(
     agencyId, request.id, personId, "owner", digest, "verified-portal", "delivery-1",
   );
-  assert.ok(fulfilled.fulfilledAt);
-  assert.equal(fulfilled.fulfilledBy, "owner");
-  assert.equal(fulfilled.deliveryEvidenceId, "delivery-1");
+  assert.ok(fulfilled.request.fulfilledAt);
+  assert.equal(fulfilled.request.fulfilledBy, "owner");
+  assert.equal(fulfilled.request.deliveryEvidenceId, "delivery-1");
+  assert.equal(fulfilled.replay, false);
+  const replay = requests.fulfilPreparedSubjectAccessDelivery(
+    agencyId, request.id, personId, "someone-else", digest, "verified-portal", "delivery-1",
+  );
+  assert.equal(replay.replay, true, "the exact committed result survives staged-byte deletion");
+  assert.equal(replay.resultId, fulfilled.resultId);
+  assert.equal(replay.request.fulfilledBy, "owner", "replay cannot rewrite original evidence");
+  for (const mismatch of [
+    { personId: "per_someone_else", digest, method: "verified-portal" as const, evidence: "delivery-1" },
+    { personId, digest: "f".repeat(64), method: "verified-portal" as const, evidence: "delivery-1" },
+    { personId, digest, method: "secure-email" as const, evidence: "delivery-1" },
+    { personId, digest, method: "verified-portal" as const, evidence: "delivery-2" },
+  ]) {
+    assert.throws(
+      () => requests.fulfilPreparedSubjectAccessDelivery(
+        agencyId, request.id, mismatch.personId, "owner", mismatch.digest, mismatch.method, mismatch.evidence,
+      ),
+      (error: unknown) => (error as { code?: string }).code === "request_not_ready",
+      "only the exact durable result identity may replay",
+    );
+  }
   assert.throws(
     () => requests.requireSubjectAccessRequestForExport(agencyId, request.id, personId),
     (error: unknown) => (error as { code?: string }).code === "request_not_ready",

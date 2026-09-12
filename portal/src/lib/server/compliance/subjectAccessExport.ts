@@ -5,8 +5,9 @@ import "server-only";
 // collection is still walked: unknown subject-linked shapes are counted for
 // review instead of disappearing from the completeness statement.
 
+import { phoneMatchKey } from "@/lib/telephony/phoneNumbers";
 import { getState } from "@/server/storage";
-import type { Person, PortalState } from "@/server/types";
+import type { Person, PortalState, SubjectRequest } from "@/server/types";
 
 export const SUBJECT_ACCESS_REQUIRED_SIDECARS = ["devTeamWorkspaceFiles"] as const;
 
@@ -88,6 +89,26 @@ function asRecord(value: unknown): JsonRecord | null {
     : null;
 }
 
+/** Enumerate stored JSON data without invoking accessors on a poisoned value. */
+function* ownDataEntries(value: object): IterableIterator<[string, unknown]> {
+  for (const key of Object.keys(value)) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (descriptor?.enumerable && "value" in descriptor) yield [key, descriptor.value];
+  }
+}
+
+function ownDataValue(record: JsonRecord, key: string): unknown {
+  const descriptor = Object.getOwnPropertyDescriptor(record, key);
+  return descriptor && descriptor.enumerable && "value" in descriptor ? descriptor.value : undefined;
+}
+
+function hasEnumerableAccessor(value: object): boolean {
+  return Object.keys(value).some(key => {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    return Boolean(descriptor?.enumerable && !("value" in descriptor));
+  });
+}
+
 function addCount(target: CountMap, collection: string, amount = 1): void {
   target[collection] = (target[collection] ?? 0) + amount;
 }
@@ -116,7 +137,7 @@ function digitsOnly(value: string): string {
 function copyScalarFields(source: JsonRecord, fields: readonly string[]): JsonRecord {
   const out: JsonRecord = {};
   for (const field of fields) {
-    const value = source[field];
+    const value = ownDataValue(source, field);
     if (value === null || ["string", "number", "boolean"].includes(typeof value)) {
       if (value !== undefined) out[field] = value;
     }
@@ -157,10 +178,11 @@ function partitionIdentifiers(
       }
     }
     for (const entry of candidate.phones ?? []) {
-      const equivalentRaw = entry.raw && digitsOnly(entry.raw) === digitsOnly(entry.value) ? entry.raw : undefined;
+      const valueKey = phoneMatchKey(entry.value);
+      const equivalentRaw = entry.raw && phoneMatchKey(entry.raw) === valueKey ? entry.raw : undefined;
       for (const raw of [entry.value, equivalentRaw]) {
         if (!raw) continue;
-        const key = digitsOnly(raw);
+        const key = phoneMatchKey(raw);
         if (!key) continue;
         let owners = phoneOwners.get(key);
         if (!owners) phoneOwners.set(key, owners = new Set());
@@ -174,6 +196,8 @@ function partitionIdentifiers(
   const allSubjectPhones = new Set<string>();
   const displayedEmails: string[] = [];
   const displayedPhones: string[] = [];
+  const displayedEmailValues = new Set<string>();
+  const displayedPhoneValues = new Set<string>();
   const exclusiveEmails = new Set<string>();
   const exclusivePhones = new Set<string>();
   const ambiguousEmails = new Set<string>();
@@ -188,23 +212,30 @@ function partitionIdentifiers(
       const owners = emailOwners.get(key);
       if (owners?.size === 1 && owners.has(person.id)) {
         exclusiveEmails.add(key);
-        if (!displayedEmails.includes(raw)) displayedEmails.push(raw);
+        if (!displayedEmailValues.has(raw)) {
+          displayedEmailValues.add(raw);
+          displayedEmails.push(raw);
+        }
       } else {
         ambiguousEmails.add(key);
       }
     }
   }
   for (const entry of person.phones ?? []) {
-    const equivalentRaw = entry.raw && digitsOnly(entry.raw) === digitsOnly(entry.value) ? entry.raw : undefined;
+    const valueKey = phoneMatchKey(entry.value);
+    const equivalentRaw = entry.raw && phoneMatchKey(entry.raw) === valueKey ? entry.raw : undefined;
     for (const raw of [entry.value, equivalentRaw]) {
       if (!raw) continue;
-      const key = digitsOnly(raw);
+      const key = phoneMatchKey(raw);
       if (!key) continue;
       allSubjectPhones.add(key);
       const owners = phoneOwners.get(key);
       if (owners?.size === 1 && owners.has(person.id) && !sharedPhones.has(key)) {
         exclusivePhones.add(key);
-        if (!displayedPhones.includes(raw)) displayedPhones.push(raw);
+        if (!displayedPhoneValues.has(raw)) {
+          displayedPhoneValues.add(raw);
+          displayedPhones.push(raw);
+        }
       } else {
         ambiguousPhones.add(key);
       }
@@ -267,52 +298,105 @@ function deriveLineage(state: PortalState, agencyId: string, person: Person): Su
   return { clientIds, conflictingClientIds, relationshipIds, facetIds };
 }
 
+interface ExportContext {
+  agencyId: string;
+  person: Person;
+  identifiers: IdentifierPartition;
+  lineage: SubjectLineage;
+  otherPersonNames: string[];
+  subjectIdNeedles: string[];
+  subjectEmailNeedles: string[];
+  subjectPhoneDigitNeedles: string[];
+  maxValues: number;
+  result: SubjectAccessResult;
+}
+
 interface TypedClaims {
-  personIds: string[];
-  clientIds: string[];
-  relationshipIds: string[];
+  personIds: Set<string>;
+  clientIds: Set<string>;
+  relationshipIds: Set<string>;
   depthUnknown: boolean;
 }
 
-function extractTypedClaims(record: JsonRecord): TypedClaims {
-  const claims: TypedClaims = { personIds: [], clientIds: [], relationshipIds: [], depthUnknown: false };
-  const add = (list: string[], value: unknown) => {
-    if (typeof value === "string" && value && !list.includes(value)) list.push(value);
+function meterTraversalValue(value: unknown, context: ExportContext): boolean {
+  context.result.work.valuesVisited += 1;
+  if (context.result.work.valuesVisited > context.maxValues) {
+    addIncomplete(context.result, "value-limit");
+    return false;
+  }
+  if (typeof value !== "string") return true;
+  if (value.length > MAX_SUBJECT_ACCESS_STRING_CHARACTERS) {
+    addIncomplete(context.result, "string-limit");
+    return false;
+  }
+  context.result.work.charactersInspected += value.length;
+  if (context.result.work.charactersInspected > MAX_SUBJECT_ACCESS_CHARACTERS) {
+    addIncomplete(context.result, "character-limit");
+    return false;
+  }
+  return true;
+}
+
+function extractTypedClaims(record: JsonRecord, context: ExportContext): TypedClaims {
+  const claims: TypedClaims = {
+    personIds: new Set(), clientIds: new Set(), relationshipIds: new Set(), depthUnknown: false,
   };
-
-  for (const key of ["personId", "ownerPersonId", "subjectPersonId"]) add(claims.personIds, record[key]);
-  for (const key of ["clientId", "ownerClientId", "subjectClientId"]) add(claims.clientIds, record[key]);
-  add(claims.relationshipIds, record.relationshipId);
-
-  const stack: Array<{ value: unknown; depth: number }> = [
-    { value: record.scope, depth: 0 },
-    { value: record.owner, depth: 0 },
+  const stack: Array<{ value: unknown; depth: number; claimContext: boolean }> = [
+    { value: record, depth: 0, claimContext: false },
   ];
   const seen = new WeakSet<object>();
   while (stack.length) {
-    const { value, depth } = stack.pop()!;
-    if (value === undefined || value === null) continue;
+    const { value, depth, claimContext } = stack.pop()!;
+    if (!meterTraversalValue(value, context)) {
+      claims.depthUnknown = true;
+      break;
+    }
+    if (value === undefined || value === null || typeof value !== "object") continue;
     if (depth > MAX_SCOPE_DEPTH) {
       claims.depthUnknown = true;
       continue;
     }
-    if (typeof value !== "object") continue;
     if (seen.has(value as object)) continue;
     seen.add(value as object);
-    if (Array.isArray(value)) {
-      for (const entry of value) stack.push({ value: entry, depth: depth + 1 });
-      continue;
+    if (hasEnumerableAccessor(value as object)) claims.depthUnknown = true;
+    const data = new Map(ownDataEntries(value as object));
+    if (!Array.isArray(value)) {
+      for (const key of ["ownerPersonId", "subjectPersonId"]) {
+        const claim = data.get(key);
+        if (typeof claim === "string" && claim) claims.personIds.add(claim);
+      }
+      for (const key of ["ownerClientId", "subjectClientId"]) {
+        const claim = data.get(key);
+        if (typeof claim === "string" && claim) claims.clientIds.add(claim);
+      }
+      if (depth === 0 || claimContext) {
+        const personId = data.get("personId");
+        if (typeof personId === "string" && personId) claims.personIds.add(personId);
+        const clientId = data.get("clientId");
+        if (typeof clientId === "string" && clientId) claims.clientIds.add(clientId);
+        const relationshipId = data.get("relationshipId");
+        if (typeof relationshipId === "string" && relationshipId) claims.relationshipIds.add(relationshipId);
+      }
+      const kind = data.get("kind") ?? data.get("type");
+      const id = data.get("id");
+      if (claimContext && typeof id === "string" && id) {
+        if (kind === "person") claims.personIds.add(id);
+        if (kind === "client") claims.clientIds.add(id);
+        if (kind === "relationship") claims.relationshipIds.add(id);
+      }
     }
-    const row = value as JsonRecord;
-    for (const key of ["personId", "ownerPersonId", "subjectPersonId"]) add(claims.personIds, row[key]);
-    for (const key of ["clientId", "ownerClientId", "subjectClientId"]) add(claims.clientIds, row[key]);
-    add(claims.relationshipIds, row.relationshipId);
-    const kind = row.kind ?? row.type;
-    if (kind === "person") add(claims.personIds, row.id);
-    if (kind === "client") add(claims.clientIds, row.id);
-    if (kind === "relationship") add(claims.relationshipIds, row.id);
-    for (const child of Object.values(row)) {
-      if (child !== null && typeof child === "object") stack.push({ value: child, depth: depth + 1 });
+    for (const [key, child] of data) {
+      if (context.result.work.valuesVisited + stack.length >= context.maxValues) {
+        addIncomplete(context.result, "value-limit");
+        claims.depthUnknown = true;
+        break;
+      }
+      stack.push({
+        value: child,
+        depth: depth + 1,
+        claimContext: claimContext || /(?:^|[-_])(scope|owner|subject|claim)(?:$|[-_])/i.test(key)
+          || /^(?:scope|owner|subject|claim)/i.test(key),
+      });
     }
   }
   return claims;
@@ -323,58 +407,37 @@ interface ScanResult {
   depthExceeded: boolean;
 }
 
-interface ExportContext {
-  agencyId: string;
-  person: Person;
-  identifiers: IdentifierPartition;
-  lineage: SubjectLineage;
-  otherPersonNames: string[];
-  result: SubjectAccessResult;
-}
-
 function scanForSubject(value: unknown, context: ExportContext): ScanResult {
   let mentioned = false;
   let depthExceeded = false;
   const stack: Array<{ value: unknown; depth: number }> = [{ value, depth: 0 }];
   const seen = new WeakSet<object>();
-  const idNeedles = [
-    context.person.id,
-    ...context.lineage.relationshipIds,
-    ...context.lineage.facetIds,
-  ].slice(0, 1_000);
   while (stack.length) {
     const current = stack.pop()!;
-    context.result.work.valuesVisited += 1;
-    if (context.result.work.valuesVisited > MAX_SUBJECT_ACCESS_VALUES) {
-      addIncomplete(context.result, "value-limit");
-      break;
-    }
+    if (!meterTraversalValue(current.value, context)) break;
     if (current.depth > MAX_REVIEW_SCAN_DEPTH) {
       depthExceeded = true;
       continue;
     }
     if (typeof current.value === "string") {
       const raw = current.value;
-      context.result.work.charactersInspected += raw.length;
-      if (raw.length > MAX_SUBJECT_ACCESS_STRING_CHARACTERS) {
-        addIncomplete(context.result, "string-limit");
-        continue;
-      }
-      if (context.result.work.charactersInspected > MAX_SUBJECT_ACCESS_CHARACTERS) {
-        addIncomplete(context.result, "character-limit");
-        continue;
-      }
-      if (idNeedles.some(needle => raw.includes(needle))) mentioned = true;
+      if (context.subjectIdNeedles.some(needle => raw.includes(needle))) mentioned = true;
       const lower = raw.toLowerCase();
-      if ([...context.identifiers.allSubjectEmails].some(email => lower.includes(email))) mentioned = true;
+      if (context.subjectEmailNeedles.some(email => lower.includes(email))) mentioned = true;
       const digits = digitsOnly(raw);
-      if (digits.length >= 7 && [...context.identifiers.allSubjectPhones].some(phone => phone.length >= 7 && digits.includes(phone))) mentioned = true;
+      if (digits.length >= 7 && context.subjectPhoneDigitNeedles.some(phone => digits.includes(phone))) mentioned = true;
       continue;
     }
     if (current.value === null || typeof current.value !== "object") continue;
     if (seen.has(current.value as object)) continue;
     seen.add(current.value as object);
-    for (const child of Array.isArray(current.value) ? current.value : Object.values(current.value as JsonRecord)) {
+    if (hasEnumerableAccessor(current.value as object)) depthExceeded = true;
+    for (const [, child] of ownDataEntries(current.value as object)) {
+      if (context.result.work.valuesVisited + stack.length >= context.maxValues) {
+        addIncomplete(context.result, "value-limit");
+        depthExceeded = true;
+        break;
+      }
       stack.push({ value: child, depth: current.depth + 1 });
     }
   }
@@ -382,6 +445,7 @@ function scanForSubject(value: unknown, context: ExportContext): ScanResult {
 }
 
 type Ownership = "authoritative" | "ambiguous" | "unclassified" | "none";
+interface OwnershipClassification { ownership: Ownership; inspectionIncomplete: boolean }
 
 function contactOwnership(record: JsonRecord, context: ExportContext): "exclusive" | "ambiguous" | "none" {
   const emails: string[] = [];
@@ -389,22 +453,26 @@ function contactOwnership(record: JsonRecord, context: ExportContext): "exclusiv
   const addString = (target: string[], value: unknown) => {
     if (typeof value === "string") target.push(value);
     if (Array.isArray(value)) {
-      for (const item of value) {
+      for (const [, item] of ownDataEntries(value)) {
         if (typeof item === "string") target.push(item);
-        else if (asRecord(item) && typeof asRecord(item)!.value === "string") target.push(asRecord(item)!.value as string);
+        else {
+          const itemRecord = asRecord(item);
+          const itemValue = itemRecord ? ownDataValue(itemRecord, "value") : undefined;
+          if (typeof itemValue === "string") target.push(itemValue);
+        }
       }
     }
   };
-  addString(emails, record.email);
-  addString(phones, record.phone);
-  const contact = asRecord(record.contact);
+  addString(emails, ownDataValue(record, "email"));
+  addString(phones, ownDataValue(record, "phone"));
+  const contact = asRecord(ownDataValue(record, "contact"));
   if (contact) {
-    addString(emails, contact.email);
-    addString(emails, contact.emailAddress);
-    addString(emails, contact.emails);
-    addString(phones, contact.phone);
-    addString(phones, contact.phoneNumber);
-    addString(phones, contact.phones);
+    addString(emails, ownDataValue(contact, "email"));
+    addString(emails, ownDataValue(contact, "emailAddress"));
+    addString(emails, ownDataValue(contact, "emails"));
+    addString(phones, ownDataValue(contact, "phone"));
+    addString(phones, ownDataValue(contact, "phoneNumber"));
+    addString(phones, ownDataValue(contact, "phones"));
   }
   let exclusive = false;
   let ambiguous = false;
@@ -414,36 +482,51 @@ function contactOwnership(record: JsonRecord, context: ExportContext): "exclusiv
     if (context.identifiers.ambiguousEmails.has(key)) ambiguous = true;
   }
   for (const phone of phones) {
-    const key = digitsOnly(phone);
+    const key = phoneMatchKey(phone);
+    if (!key) continue;
     if (context.identifiers.exclusivePhones.has(key)) exclusive = true;
     if (context.identifiers.ambiguousPhones.has(key)) ambiguous = true;
   }
   return ambiguous ? "ambiguous" : exclusive ? "exclusive" : "none";
 }
 
-function classifyOwnership(record: JsonRecord, context: ExportContext): Ownership {
-  const claims = extractTypedClaims(record);
-  const personConflict = claims.personIds.some(id => id !== context.person.id);
-  const clientConflict = claims.clientIds.some(id => !context.lineage.clientIds.has(id));
-  const relationshipConflict = claims.relationshipIds.some(id => !context.lineage.relationshipIds.has(id));
+function setSome(values: ReadonlySet<string>, predicate: (value: string) => boolean): boolean {
+  for (const value of values) if (predicate(value)) return true;
+  return false;
+}
+
+function classifyOwnership(record: JsonRecord, context: ExportContext): OwnershipClassification {
+  const claims = extractTypedClaims(record, context);
+  const personConflict = setSome(claims.personIds, id => id !== context.person.id);
+  const clientConflict = setSome(claims.clientIds, id => !context.lineage.clientIds.has(id));
+  const relationshipConflict = setSome(claims.relationshipIds, id => !context.lineage.relationshipIds.has(id));
   const typedConflict = personConflict || clientConflict || relationshipConflict;
   const contact = contactOwnership(record, context);
-  const id = typeof record.id === "string" ? record.id : undefined;
-  const typedMatch = claims.personIds.includes(context.person.id)
-    || claims.clientIds.some(clientId => context.lineage.clientIds.has(clientId))
-    || claims.relationshipIds.some(relationshipId => context.lineage.relationshipIds.has(relationshipId));
+  const recordId = ownDataValue(record, "id");
+  const id = typeof recordId === "string" ? recordId : undefined;
+  const typedMatch = claims.personIds.has(context.person.id)
+    || setSome(claims.clientIds, clientId => context.lineage.clientIds.has(clientId))
+    || setSome(claims.relationshipIds, relationshipId => context.lineage.relationshipIds.has(relationshipId));
   const recordIdMatch = id === context.person.id
     || (id !== undefined && context.lineage.clientIds.has(id))
     || (id !== undefined && context.lineage.facetIds.has(id));
 
   // A stronger, explicit ownership claim always vetoes a weak contact match,
   // including stale/missing ids. An uninspectable nested scope also vetoes it.
-  if ((typedConflict || claims.depthUnknown) && (typedMatch || recordIdMatch || contact !== "none")) return "ambiguous";
-  if (typedConflict && claims.clientIds.some(idValue => context.lineage.conflictingClientIds.has(idValue))) return "ambiguous";
-  if (typedMatch || recordIdMatch) return "authoritative";
-  if (contact === "ambiguous") return "ambiguous";
-  if (contact === "exclusive") return "authoritative";
-  return scanForSubject(record, context).mentioned ? "unclassified" : "none";
+  if ((typedConflict || claims.depthUnknown) && (typedMatch || recordIdMatch || contact !== "none")) {
+    return { ownership: "ambiguous", inspectionIncomplete: claims.depthUnknown };
+  }
+  if (typedConflict && setSome(claims.clientIds, idValue => context.lineage.conflictingClientIds.has(idValue))) {
+    return { ownership: "ambiguous", inspectionIncomplete: claims.depthUnknown };
+  }
+  if (typedMatch || recordIdMatch) return { ownership: "authoritative", inspectionIncomplete: claims.depthUnknown };
+  if (contact === "ambiguous") return { ownership: "ambiguous", inspectionIncomplete: claims.depthUnknown };
+  if (contact === "exclusive") return { ownership: "authoritative", inspectionIncomplete: claims.depthUnknown };
+  const scan = scanForSubject(record, context);
+  return {
+    ownership: scan.mentioned ? "unclassified" : "none",
+    inspectionIncomplete: claims.depthUnknown || scan.depthExceeded,
+  };
 }
 
 function noteOmitted(
@@ -464,7 +547,7 @@ function noteUnknownFields(
   allowed: ReadonlySet<string>,
   context: ExportContext,
 ): void {
-  for (const [key, value] of Object.entries(record)) {
+  for (const [key, value] of ownDataEntries(record)) {
     if (allowed.has(key)) continue;
     noteOmitted(collection, value, context, { coMingled: typeof value === "string" || typeof value === "object" });
   }
@@ -499,12 +582,13 @@ function projectPerson(record: JsonRecord, context: ExportContext): JsonRecord {
   out.phones = (Array.isArray(record.phones) ? record.phones : []).flatMap(entry => {
     const item = asRecord(entry);
     if (!item || typeof item.value !== "string") return [];
-    if (!context.identifiers.exclusivePhones.has(digitsOnly(item.value))) {
+    const valueKey = phoneMatchKey(item.value);
+    if (!valueKey || !context.identifiers.exclusivePhones.has(valueKey)) {
       noteOmitted(collection, item, context, { coMingled: true });
       return [];
     }
     const projected = copyScalarFields(item, ["value", "isPrimary", "shared"]);
-    if (typeof item.raw === "string" && digitsOnly(item.raw) === digitsOnly(item.value)) projected.raw = item.raw;
+    if (typeof item.raw === "string" && phoneMatchKey(item.raw) === valueKey) projected.raw = item.raw;
     else if (item.raw !== undefined) noteOmitted(collection, item.raw, context, { coMingled: true });
     if (item.label !== undefined) noteOmitted(collection, item.label, context, { coMingled: true });
     return [projected];
@@ -555,8 +639,9 @@ function projectClient(record: JsonRecord, context: ExportContext): JsonRecord {
   noteUnknownFields(collection, record, allowed, context);
   const out = copyScalarFields(record, [
     "id", "agencyId", "relationshipId", "personId", "companyId", "slug", "stage",
-    "websiteUrl", "status", "createdAt", "updatedAt",
+    "status", "createdAt", "updatedAt",
   ]);
+  projectSafeStringFields(record, out, ["websiteUrl"], collection, context);
   for (const field of ["name", "workspaceLabel"] as const) {
     if (typeof record[field] !== "string") continue;
     if (record[field] === context.person.name || record[field] === context.person.company) out[field] = record[field];
@@ -598,7 +683,8 @@ function projectContact(contact: JsonRecord, collection: string, context: Export
     if (key === "email" || key === "emailAddress") {
       out[key] = context.identifiers.exclusiveEmails.has(normaliseEmail(value)) ? value : "[redacted:third-party-email]";
     } else if (key === "phone" || key === "phoneNumber") {
-      out[key] = context.identifiers.exclusivePhones.has(digitsOnly(value)) ? value : "[redacted:third-party-phone]";
+      const keyValue = phoneMatchKey(value);
+      out[key] = keyValue && context.identifiers.exclusivePhones.has(keyValue) ? value : "[redacted:third-party-phone]";
     } else if (key === "name") {
       out[key] = value === context.person.name ? value : "[redacted:third-party-name]";
     } else {
@@ -624,9 +710,10 @@ function projectTask(record: JsonRecord, context: ExportContext): JsonRecord {
   noteUnknownFields(collection, record, allowed, context);
   const out = copyScalarFields(record, [
     "id", "agencyId", "personId", "ownerPersonId", "subjectPersonId", "clientId", "ownerClientId", "subjectClientId",
-    "relationshipId", "status", "priority", "startAt", "dueAt", "reminderAt", "seriesId", "origin", "sourceId",
-    "sourceHref", "acceptedAt", "revision", "clientBoardColumn", "clientBoardOrder", "createdAt", "updatedAt", "completedAt",
+    "relationshipId", "status", "priority", "startAt", "dueAt", "reminderAt", "origin",
+    "acceptedAt", "revision", "clientBoardColumn", "clientBoardOrder", "createdAt", "updatedAt", "completedAt",
   ]);
+  projectSafeStringFields(record, out, ["seriesId", "sourceId", "sourceHref"], collection, context);
   if (typeof record.title === "string") {
     if (record.title === context.person.name) out.title = record.title;
     else noteOmitted(collection, record.title, context, { coMingled: true });
@@ -639,28 +726,93 @@ function projectTask(record: JsonRecord, context: ExportContext): JsonRecord {
   return out;
 }
 
+const SUBJECT_REQUEST_NUMBER_FIELDS = [
+  "receivedAt", "dueAt", "extendedAt", "identityVerifiedAt", "preparedExportAt", "preparedExportGeneratedAt",
+  "preparedExportRecordCount", "preparedExportReviewCount", "preparedExportByteLength", "preparedExportReviewResolvedAt",
+  "deliveredAt", "fulfilledAt", "refusedAt",
+] as const satisfies readonly (keyof SubjectRequest)[];
+const SUBJECT_REQUEST_ID_FIELDS = [
+  "id", "agencyId", "personId",
+] as const satisfies readonly (keyof SubjectRequest)[];
+const SUBJECT_REQUEST_DIGEST_FIELDS = [
+  "preparedExportDigest", "preparedExportReviewResolvedDigest", "deliveryResultId",
+] as const satisfies readonly (keyof SubjectRequest)[];
+const SUBJECT_REQUEST_ENUM_FIELDS = ["kind", "deliveryMethod"] as const satisfies readonly (keyof SubjectRequest)[];
+const SUBJECT_REQUEST_SAFE_STRING_FIELDS = [
+  "identityVerifiedBy", "preparedExportBy", "preparedExportReviewResolvedBy", "preparedExportReviewEvidenceId",
+  "deliveredBy", "deliveryEvidenceId", "fulfilledBy", "createdBy",
+] as const satisfies readonly (keyof SubjectRequest)[];
+const SUBJECT_REQUEST_OMITTED_FIELDS = [
+  "extensionReason", "preparedExportJson", "outcome", "refusalReason",
+] as const satisfies readonly (keyof SubjectRequest)[];
+type HandledSubjectRequestField = typeof SUBJECT_REQUEST_NUMBER_FIELDS[number]
+  | typeof SUBJECT_REQUEST_ID_FIELDS[number]
+  | typeof SUBJECT_REQUEST_DIGEST_FIELDS[number]
+  | typeof SUBJECT_REQUEST_ENUM_FIELDS[number]
+  | typeof SUBJECT_REQUEST_SAFE_STRING_FIELDS[number]
+  | typeof SUBJECT_REQUEST_OMITTED_FIELDS[number]
+  | "subjectLabel";
+const SUBJECT_REQUEST_FIELDS_COMPLETE: Exclude<keyof SubjectRequest, HandledSubjectRequestField> extends never ? true : never = true;
+
+const SUBJECT_REQUEST_KINDS = new Set<SubjectRequest["kind"]>([
+  "access", "erasure", "rectification", "portability", "objection", "restriction",
+]);
+const SUBJECT_REQUEST_DELIVERY_METHODS = new Set<NonNullable<SubjectRequest["deliveryMethod"]>>([
+  "verified-portal", "secure-email", "in-person", "other",
+]);
+
+function projectSubjectRequestTypedFields(record: JsonRecord, out: JsonRecord, context: ExportContext): void {
+  const collection = "subjectRequests";
+  for (const field of SUBJECT_REQUEST_NUMBER_FIELDS) {
+    const value = ownDataValue(record, field);
+    if (value === undefined) continue;
+    if (typeof value === "number" && Number.isFinite(value) && Number.isInteger(value) && value >= 0) out[field] = value;
+    else noteOmitted(collection, value, context, { coMingled: typeof value === "string" || typeof value === "object" });
+  }
+  projectSafeStringFields(record, out, SUBJECT_REQUEST_ID_FIELDS, collection, context);
+  for (const field of SUBJECT_REQUEST_DIGEST_FIELDS) {
+    const value = ownDataValue(record, field);
+    if (value === undefined) continue;
+    if (typeof value === "string" && /^[a-f0-9]{64}$/.test(value)) out[field] = value;
+    else noteOmitted(collection, value, context, { coMingled: typeof value === "string" || typeof value === "object" });
+  }
+  const kind = ownDataValue(record, "kind");
+  if (kind !== undefined) {
+    if (typeof kind === "string" && SUBJECT_REQUEST_KINDS.has(kind as SubjectRequest["kind"])) out.kind = kind;
+    else noteOmitted(collection, kind, context, { coMingled: typeof kind === "string" || typeof kind === "object" });
+  }
+  const deliveryMethod = ownDataValue(record, "deliveryMethod");
+  if (deliveryMethod !== undefined) {
+    if (typeof deliveryMethod === "string" && SUBJECT_REQUEST_DELIVERY_METHODS.has(deliveryMethod as NonNullable<SubjectRequest["deliveryMethod"]>)) {
+      out.deliveryMethod = deliveryMethod;
+    } else noteOmitted(collection, deliveryMethod, context, { coMingled: typeof deliveryMethod === "string" || typeof deliveryMethod === "object" });
+  }
+}
+
 function projectSubjectRequest(record: JsonRecord, context: ExportContext): JsonRecord {
   const collection = "subjectRequests";
-  const allowed = new Set([
-    "id", "agencyId", "kind", "subjectLabel", "personId", "receivedAt", "dueAt", "extendedAt", "extensionReason",
-    "identityVerifiedAt", "identityVerifiedBy", "fulfilledAt", "fulfilledBy", "outcome", "refusedAt", "refusalReason",
-    "createdBy", "preparedExportAt", "preparedExportBy", "preparedExportDigest", "preparedExportGeneratedAt",
-    "preparedExportRecordCount", "preparedExportReviewCount", "preparedExportByteLength", "preparedExportJson", "preparedExportReviewResolvedAt",
-    "preparedExportReviewResolvedBy", "preparedExportReviewResolvedDigest", "preparedExportReviewEvidenceId", "deliveredAt",
-    "deliveredBy", "deliveryMethod", "deliveryEvidenceId",
+  const allowed = new Set<string>([
+    ...SUBJECT_REQUEST_NUMBER_FIELDS,
+    ...SUBJECT_REQUEST_ID_FIELDS,
+    ...SUBJECT_REQUEST_DIGEST_FIELDS,
+    ...SUBJECT_REQUEST_ENUM_FIELDS,
+    ...SUBJECT_REQUEST_SAFE_STRING_FIELDS,
+    ...SUBJECT_REQUEST_OMITTED_FIELDS,
+    "subjectLabel",
   ]);
+  if (!SUBJECT_REQUEST_FIELDS_COMPLETE) throw new Error("unreachable_subject_request_projection");
   noteUnknownFields(collection, record, allowed, context);
-  const out = copyScalarFields(record, [
-    "id", "agencyId", "kind", "personId", "receivedAt", "dueAt", "extendedAt", "identityVerifiedAt", "fulfilledAt",
-    "refusedAt",
-  ]);
+  const out: JsonRecord = {};
+  projectSubjectRequestTypedFields(record, out, context);
+  projectSafeStringFields(record, out, SUBJECT_REQUEST_SAFE_STRING_FIELDS, collection, context);
   if (typeof record.subjectLabel === "string") {
     const label = record.subjectLabel;
-    if (label === context.person.name || context.identifiers.exclusiveEmails.has(normaliseEmail(label)) || context.identifiers.exclusivePhones.has(digitsOnly(label))) {
+    const labelPhone = phoneMatchKey(label);
+    if (label === context.person.name || context.identifiers.exclusiveEmails.has(normaliseEmail(label)) || (labelPhone && context.identifiers.exclusivePhones.has(labelPhone))) {
       out.subjectLabel = label;
     } else noteOmitted(collection, label, context, { coMingled: true });
   }
-  for (const field of ["extensionReason", "outcome", "refusalReason"] as const) {
+  for (const field of SUBJECT_REQUEST_OMITTED_FIELDS) {
     if (record[field] !== undefined) noteOmitted(collection, record[field], context, { coMingled: true });
   }
   return out;
@@ -678,9 +830,10 @@ function projectActivity(record: JsonRecord, context: ExportContext): JsonRecord
 }
 
 const LEDGER_SCALAR_FIELDS = [
-  "id", "agencyId", "clientId", "sourceType", "sourceId", "group", "occurredAt", "eyebrow", "visibility", "href",
-  "attention", "parentSourceId", "createdAt", "updatedAt",
+  "id", "agencyId", "clientId", "sourceType", "occurredAt", "visibility",
+  "attention", "createdAt", "updatedAt",
 ] as const;
+const LEDGER_SAFE_STRING_FIELDS = ["sourceId", "group", "eyebrow", "href", "parentSourceId"] as const;
 
 function containsDigitRun(value: string, minimum: number): boolean {
   let digits = 0;
@@ -726,22 +879,56 @@ function looksLikeRestrictedIdentifierToken(raw: string): boolean {
 
 function textHasRestrictedPii(value: string, context: ExportContext, title: boolean): boolean {
   if (value.length > MAX_SUBJECT_ACCESS_STRING_CHARACTERS) return true;
-  const lower = value.toLowerCase();
   const labels = [
     "national insurance", "nationalinsurance", "nino", "ni number", "ni:", "bank account", "account number", "sort code",
     "iban", "swift", "routing number", " postcode", " address", " road", " street", " avenue", " lane", " drive",
   ];
-  if (labels.some(label => lower.includes(label))) return true;
-  if (value.includes("@") || containsDigitRun(value, title ? 10 : 8) || looksLikeRestrictedIdentifierToken(value)) return true;
-  if (context.otherPersonNames.some(name => name && lower.includes(name.toLowerCase()))) return true;
-  const digits = digitsOnly(value);
-  for (const phone of context.identifiers.ambiguousPhones) {
-    if (phone.length >= 7 && digits.includes(phone)) return true;
+  const candidates = [value];
+  try {
+    const decoded = decodeURIComponent(value);
+    if (decoded !== value && decoded.length <= MAX_SUBJECT_ACCESS_STRING_CHARACTERS) candidates.push(decoded);
+  } catch {
+    // Invalid percent encoding is inspected verbatim and never widened.
   }
-  for (const email of context.identifiers.ambiguousEmails) {
-    if (lower.includes(email)) return true;
+  for (const candidate of candidates) {
+    const lower = candidate.toLowerCase();
+    if (labels.some(label => lower.includes(label))) return true;
+    if (candidate.includes("@") || containsDigitRun(candidate, title ? 10 : 8) || looksLikeRestrictedIdentifierToken(candidate)) return true;
+    if (context.otherPersonNames.some(name => name && lower.includes(name.toLowerCase()))) return true;
+    const digits = digitsOnly(candidate);
+    for (const phone of context.identifiers.ambiguousPhones) {
+      const phoneDigits = digitsOnly(phone);
+      if (phoneDigits.length >= 7 && digits.includes(phoneDigits)) return true;
+    }
+    for (const email of context.identifiers.ambiguousEmails) {
+      if (lower.includes(email)) return true;
+    }
   }
   return false;
+}
+
+function projectSafeStringFields(
+  record: JsonRecord,
+  out: JsonRecord,
+  fields: readonly string[],
+  collection: string,
+  context: ExportContext,
+): void {
+  for (const field of fields) {
+    const value = ownDataValue(record, field);
+    if (value === undefined) continue;
+    if (typeof value !== "string") {
+      noteOmitted(collection, value, context, { coMingled: true });
+      continue;
+    }
+    if (!textHasRestrictedPii(value, context, false)) {
+      out[field] = value;
+      continue;
+    }
+    out[field] = "[redacted:restricted-identifier]";
+    addCount(context.result.redactedFields, collection);
+    addCount(context.result.coMingledPiiMatches, collection);
+  }
 }
 
 function projectLedger(record: JsonRecord, context: ExportContext): JsonRecord | null {
@@ -750,7 +937,7 @@ function projectLedger(record: JsonRecord, context: ExportContext): JsonRecord |
     addCount(context.result.unsupportedCollectionMatches, collection);
     return null;
   }
-  const allowed = new Set([...LEDGER_SCALAR_FIELDS, "title", "body"]);
+  const allowed = new Set([...LEDGER_SCALAR_FIELDS, ...LEDGER_SAFE_STRING_FIELDS, "title", "body"]);
   noteUnknownFields(collection, record, allowed, context);
   const title = typeof record.title === "string" ? record.title : "";
   const body = typeof record.body === "string" ? record.body : undefined;
@@ -759,6 +946,7 @@ function projectLedger(record: JsonRecord, context: ExportContext): JsonRecord |
     return null;
   }
   const out = copyScalarFields(record, LEDGER_SCALAR_FIELDS);
+  projectSafeStringFields(record, out, LEDGER_SAFE_STRING_FIELDS, collection, context);
   out.title = title;
   if (body !== undefined) out.body = body;
   return out;
@@ -781,14 +969,16 @@ function projectPluginInstall(record: JsonRecord, context: ExportContext): JsonR
 }
 
 const INVOICE_FIELDS = [
-  "id", "agencyId", "companyId", "clientId", "number", "issuedAt", "dueAt", "subtotalCents", "taxCents", "totalCents",
-  "currency", "status", "externalRef", "paidAt", "paidVia", "createdAt", "updatedAt",
+  "id", "agencyId", "companyId", "clientId", "issuedAt", "dueAt", "subtotalCents", "taxCents", "totalCents",
+  "currency", "status", "paidAt", "createdAt", "updatedAt",
 ] as const;
+const INVOICE_SAFE_STRING_FIELDS = ["number", "externalRef", "paidVia"] as const;
 
 function projectFinanceInvoice(record: JsonRecord, context: ExportContext): JsonRecord {
-  const allowed = new Set([...INVOICE_FIELDS, "lineItems", "notes", "issuerSnapshot"]);
+  const allowed = new Set([...INVOICE_FIELDS, ...INVOICE_SAFE_STRING_FIELDS, "lineItems", "notes", "issuerSnapshot"]);
   noteUnknownFields("pluginData", record, allowed, context);
   const out = copyScalarFields(record, INVOICE_FIELDS);
+  projectSafeStringFields(record, out, INVOICE_SAFE_STRING_FIELDS, "pluginData", context);
   for (const field of ["lineItems", "notes", "issuerSnapshot"] as const) {
     if (record[field] !== undefined) noteOmitted("pluginData", record[field], context, { coMingled: true });
   }
@@ -842,15 +1032,11 @@ function addProjectedRecord(collection: string, projected: unknown, context: Exp
 }
 
 function agencyOf(record: JsonRecord): string | undefined {
-  return typeof record.agencyId === "string" ? record.agencyId : undefined;
+  const agencyId = ownDataValue(record, "agencyId");
+  return typeof agencyId === "string" ? agencyId : undefined;
 }
 
 function inspectRecord(collection: string, value: unknown, context: ExportContext): void {
-  context.result.work.recordsVisited += 1;
-  if (context.result.work.recordsVisited > MAX_SUBJECT_ACCESS_RECORDS) {
-    addIncomplete(context.result, "record-limit");
-    return;
-  }
   const record = asRecord(value);
   if (!record) {
     const scan = scanForSubject(value, context);
@@ -862,7 +1048,16 @@ function inspectRecord(collection: string, value: unknown, context: ExportContex
   // Scope before inspection: another tenant's contents must neither enter the
   // export nor influence its review counts/work budget.
   if (ownerAgency !== undefined && ownerAgency !== context.agencyId) return;
-  const ownership = classifyOwnership(record, context);
+  if (ownerAgency === context.agencyId) {
+    if (context.result.work.recordsVisited >= MAX_SUBJECT_ACCESS_RECORDS) {
+      addIncomplete(context.result, "record-limit");
+      return;
+    }
+    context.result.work.recordsVisited += 1;
+  }
+  const classification = classifyOwnership(record, context);
+  const ownership = classification.ownership;
+  if (classification.inspectionIncomplete) addCount(context.result.depthLimitMatches, collection);
   if (ownership === "none") return;
   if (ownerAgency === undefined) {
     addCount(context.result.unscopedMatches, collection);
@@ -884,14 +1079,10 @@ function inspectRecord(collection: string, value: unknown, context: ExportContex
 function inspectPluginData(state: PortalState, context: ExportContext): void {
   const collection = "pluginData";
   const installs = state.pluginInstalls ?? {};
-  pluginSlices: for (const [installId, values] of Object.entries(state.pluginData ?? {})) {
+  for (const [installId, values] of ownDataEntries(state.pluginData ?? {})) {
     const install = installs[installId];
-    for (const [key, rawValue] of Object.entries(values ?? {})) {
-      context.result.work.recordsVisited += 1;
-      if (context.result.work.recordsVisited > MAX_SUBJECT_ACCESS_RECORDS) {
-        addIncomplete(context.result, "record-limit");
-        break pluginSlices;
-      }
+    if (!values || typeof values !== "object") continue;
+    for (const [key, rawValue] of ownDataEntries(values as object)) {
       if (install && install.agencyId !== context.agencyId) continue;
       if (!install) {
         const scan = scanForSubject(rawValue, context);
@@ -899,17 +1090,24 @@ function inspectPluginData(state: PortalState, context: ExportContext): void {
         if (scan.depthExceeded) addCount(context.result.depthLimitMatches, collection);
         continue;
       }
+      if (context.result.work.recordsVisited >= MAX_SUBJECT_ACCESS_RECORDS) {
+        addIncomplete(context.result, "record-limit");
+        continue;
+      }
+      context.result.work.recordsVisited += 1;
       const record = asRecord(rawValue);
       const installOwnsSubject = typeof install.clientId === "string" && context.lineage.clientIds.has(install.clientId);
-      let ownership: Ownership = record ? classifyOwnership(record, context) : "none";
+      const classification = record ? classifyOwnership(record, context) : null;
+      let ownership: Ownership = classification?.ownership ?? "none";
+      if (classification?.inspectionIncomplete) addCount(context.result.depthLimitMatches, collection);
       if (record && typeof record.agencyId === "string" && record.agencyId !== install.agencyId) ownership = "ambiguous";
       if (installOwnsSubject) {
         if (record) {
-          const claims = extractTypedClaims(record);
+          const claims = extractTypedClaims(record, context);
           if ((typeof record.agencyId === "string" && record.agencyId !== install.agencyId)
-            || claims.personIds.some(id => id !== context.person.id)
-            || claims.clientIds.some(id => !context.lineage.clientIds.has(id))
-            || claims.relationshipIds.some(id => !context.lineage.relationshipIds.has(id))
+            || setSome(claims.personIds, id => id !== context.person.id)
+            || setSome(claims.clientIds, id => !context.lineage.clientIds.has(id))
+            || setSome(claims.relationshipIds, id => !context.lineage.relationshipIds.has(id))
             || claims.depthUnknown) ownership = "ambiguous";
           else ownership = "authoritative";
         } else {
@@ -931,10 +1129,12 @@ function inspectPluginData(state: PortalState, context: ExportContext): void {
         continue;
       }
       const projected = projectFinanceInvoice(record, context);
+      const projectedReference: JsonRecord = {};
+      projectSafeStringFields({ key }, projectedReference, ["key"], collection, context);
       addProjectedRecord(collection, {
         installId,
         pluginId: install.pluginId,
-        key,
+        key: projectedReference.key,
         value: projected,
       }, context);
     }
@@ -961,7 +1161,7 @@ export function subjectAccessExportReviewCount(result: SubjectAccessResult): num
 export function collectSubjectAccessExport(
   agencyId: string,
   personId: string,
-  options: { generatedAt?: number } = {},
+  options: { generatedAt?: number; maxValues?: number } = {},
 ): SubjectAccessResult | null {
   const state = getState();
   const person = state.persons?.[personId];
@@ -1011,21 +1211,21 @@ export function collectSubjectAccessExport(
     otherPersonNames: Object.values(state.persons ?? {})
       .filter(candidate => candidate.agencyId === agencyId && candidate.id !== person.id && candidate.name)
       .map(candidate => candidate.name!),
+    subjectIdNeedles: [person.id, ...lineage.relationshipIds, ...lineage.facetIds].slice(0, 1_000),
+    subjectEmailNeedles: [...identifiers.allSubjectEmails],
+    subjectPhoneDigitNeedles: [...identifiers.allSubjectPhones].map(digitsOnly).filter(phone => phone.length >= 7),
+    maxValues: Math.max(1, Math.min(MAX_SUBJECT_ACCESS_VALUES, Math.floor(options.maxValues ?? MAX_SUBJECT_ACCESS_VALUES))),
     result,
   };
 
-  collectionWalk: for (const [collection, rawCollection] of Object.entries(state as unknown as JsonRecord)) {
+  for (const [collection, rawCollection] of ownDataEntries(state as unknown as JsonRecord)) {
     if (collection === "pluginData") {
       inspectPluginData(state, context);
       continue;
     }
     if (rawCollection === null || typeof rawCollection !== "object") continue;
-    const rows = Array.isArray(rawCollection) ? rawCollection : Object.values(rawCollection as JsonRecord);
-    for (const row of rows) {
-      if (result.work.recordsVisited >= MAX_SUBJECT_ACCESS_RECORDS) {
-        addIncomplete(result, "record-limit");
-        break collectionWalk;
-      }
+    const rows = ownDataEntries(rawCollection as object);
+    for (const [, row] of rows) {
       inspectRecord(collection, row, context);
     }
   }
@@ -1051,6 +1251,7 @@ export function subjectAccessExportJson(result: SubjectAccessResult): string {
       unclassifiedSubjectMentions: result.unclassifiedMatches,
       ambiguousOwnership: result.ambiguousMatches,
       coMingledThirdPartyPii: result.coMingledPiiMatches,
+      redactedFields: result.redactedFields,
       recordsBeyondInspectionDepth: result.depthLimitMatches,
       unsupportedCollections: result.unsupportedCollectionMatches,
       omittedFields: result.omittedFields,
