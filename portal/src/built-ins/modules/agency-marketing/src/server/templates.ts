@@ -14,6 +14,7 @@ import type {
   UpdateTemplatePatch,
 } from "../lib/domain";
 import type { ActivityLogPort, EventBusPort, StoragePort } from "./ports";
+import { allowlistedTemplateUpdate } from "../lib/mutationAllowlist";
 
 const TPL_INDEX_KEY = "templates/index";
 const tplKey = (id: string): string => `templates/by-id/${id}`;
@@ -119,14 +120,21 @@ export class TemplateService {
     return row;
   }
 
-  async update(id: string, patch: UpdateTemplatePatch, actor: UserId): Promise<EmailTemplate | null> {
+  async update(id: string, untrustedPatch: UpdateTemplatePatch, actor: UserId): Promise<EmailTemplate | null> {
+    const patch = allowlistedTemplateUpdate(untrustedPatch);
     const existing = await this.get(id);
     if (!existing) return null;
     const next: EmailTemplate = {
-      ...existing,
-      ...patch,
+      id: existing.id,
+      agencyId: existing.agencyId,
       name: patch.name?.trim() ?? existing.name,
       subject: patch.subject?.trim() ?? existing.subject,
+      bodyHtml: patch.bodyHtml ?? existing.bodyHtml,
+      bodyText: patch.bodyText ?? existing.bodyText,
+      category: patch.category ?? existing.category,
+      status: patch.status ?? existing.status,
+      isDefault: existing.isDefault,
+      createdAt: existing.createdAt,
       updatedAt: now(),
     };
     await this.storage.set(tplKey(id), next);

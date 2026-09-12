@@ -6,7 +6,6 @@ import { containerFor } from "../server/foundationAdapter";
 import { redactProviderConfig } from "../server/provider";
 import type {
   CreateIdentityInput,
-  EnqueueInput,
   MessageFilter,
   UpdateIdentityPatch,
   UpdateProviderInput,
@@ -79,8 +78,14 @@ export async function createIdentityHandler(req: Request, ctx: PluginCtx): Promi
   if (guard) return guard;
   const body = await safeJson<CreateIdentityInput>(req);
   if (!body || !body.name || !body.email) return badRequest("name + email required.");
+  // PLUGIN-LINEAGE-001: a sender identity's client lineage is stamped
+  // server-side, never taken from an authenticated caller's body. Naming a
+  // `clientId` here would let an admin bind a from-address to another client's
+  // scope. Strip it; the identity is created at agency scope, and any
+  // client binding must come from a server-side path, not this request.
+  const { clientId: _clientId, ...safe } = body;
   try {
-    const identity = await buildContainer(ctx).identities.create(body, ctx.actor);
+    const identity = await buildContainer(ctx).identities.create(safe, ctx.actor);
     return json({ ok: true, identity }, 201);
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));
@@ -203,19 +208,4 @@ export async function postmarkWebhookHandler(req: Request, ctx: PluginCtx): Prom
   return result.ok
     ? json(result, 200)
     : json({ ok: false, error: "webhook_refused" }, 400);
-}
-
-// ─── Internal enqueue (plugin-to-plugin via foundation routing) ──────────
-
-export async function internalEnqueueHandler(req: Request, ctx: PluginCtx): Promise<Response> {
-  const guard = methodGuard(req, "POST");
-  if (guard) return guard;
-  const body = await safeJson<EnqueueInput>(req);
-  if (!body?.to) return badRequest("to required.");
-  try {
-    const message = await buildContainer(ctx).emails.enqueue(body, ctx.actor);
-    return json({ ok: true, message }, 201);
-  } catch (err) {
-    return unprocessable(err instanceof Error ? err.message : String(err));
-  }
 }

@@ -25,6 +25,10 @@ import type {
   UpdateCampaignPatch,
 } from "../lib/domain";
 import type { ActivityLogPort, EventBusPort, StoragePort } from "./ports";
+import {
+  allowlistedCampaignUpdate,
+  MarketingMutationValidationError,
+} from "../lib/mutationAllowlist";
 
 const CMP_INDEX_KEY = "campaigns/index";
 const cmpKey = (id: string): string => `campaigns/by-id/${id}`;
@@ -125,45 +129,57 @@ export class CampaignService {
     return row;
   }
 
-  async update(id: string, patch: UpdateCampaignPatch, actor: UserId): Promise<Campaign | null> {
+  async update(id: string, untrustedPatch: UpdateCampaignPatch, actor: UserId): Promise<Campaign | null> {
+    const patch = allowlistedCampaignUpdate(untrustedPatch);
     const existing = await this.get(id);
     if (!existing) return null;
 
-    if (patch.status && patch.status !== existing.status) {
-      if (!ALLOWED_TRANSITIONS[existing.status].includes(patch.status)) {
-        throw new Error(`Cannot transition campaign ${existing.name} from ${existing.status} → ${patch.status}.`);
-      }
-    }
-    if (patch.startAt && patch.endAt && patch.endAt < patch.startAt) {
-      throw new Error("endAt must be on or after startAt.");
-    }
-
-    // Channel re-index when changed.
-    if (patch.channel && patch.channel !== existing.channel) {
-      const oldIx = (await this.storage.get<string[]>(byChannelKey(existing.channel))) ?? [];
-      await this.storage.set(byChannelKey(existing.channel), oldIx.filter(x => x !== id));
-      const newIx = (await this.storage.get<string[]>(byChannelKey(patch.channel))) ?? [];
-      if (!newIx.includes(id)) {
-        await this.storage.set(byChannelKey(patch.channel), [...newIx, id]);
-      }
-    }
-
     const next: Campaign = {
-      ...existing,
-      ...patch,
-      ownerStaffId: patch.ownerStaffId === null ? undefined : patch.ownerStaffId ?? existing.ownerStaffId,
+      id: existing.id,
+      agencyId: existing.agencyId,
       name: patch.name?.trim() ?? existing.name,
+      channel: patch.channel ?? existing.channel,
+      status: patch.status ?? existing.status,
+      startAt: patch.startAt ?? existing.startAt,
+      endAt: patch.endAt ?? existing.endAt,
+      budgetCents: patch.budgetCents ?? existing.budgetCents,
+      currency: patch.currency ?? existing.currency,
+      goalKpi: patch.goalKpi ?? existing.goalKpi,
+      goalTarget: patch.goalTarget ?? existing.goalTarget,
+      resultActual: patch.resultActual ?? existing.resultActual,
+      ownerStaffId: patch.ownerStaffId === null ? undefined : patch.ownerStaffId ?? existing.ownerStaffId,
+      notes: patch.notes ?? existing.notes,
+      createdAt: existing.createdAt,
       updatedAt: now(),
     };
+    if (next.startAt !== undefined && next.endAt !== undefined && next.endAt < next.startAt) {
+      throw new MarketingMutationValidationError("endAt must be on or after startAt.", "endAt");
+    }
+    if (next.status !== existing.status && !ALLOWED_TRANSITIONS[existing.status].includes(next.status)) {
+      throw new MarketingMutationValidationError(
+        `Cannot transition campaign ${existing.name} from ${existing.status} → ${next.status}.`,
+        "status",
+      );
+    }
+
+    // Channel re-index only after the complete prospective record is valid.
+    if (next.channel !== existing.channel) {
+      const oldIx = (await this.storage.get<string[]>(byChannelKey(existing.channel))) ?? [];
+      await this.storage.set(byChannelKey(existing.channel), oldIx.filter(x => x !== id));
+      const newIx = (await this.storage.get<string[]>(byChannelKey(next.channel))) ?? [];
+      if (!newIx.includes(id)) {
+        await this.storage.set(byChannelKey(next.channel), [...newIx, id]);
+      }
+    }
     await this.storage.set(cmpKey(id), next);
 
-    if (patch.status && patch.status !== existing.status) {
+    if (next.status !== existing.status) {
       const action = `campaign.${
-        patch.status === "scheduled" ? "scheduled" :
-        patch.status === "running" ? "started" :
-        patch.status === "paused" ? "paused" :
-        patch.status === "completed" ? "completed" :
-        patch.status === "archived" ? "archived" :
+        next.status === "scheduled" ? "scheduled" :
+        next.status === "running" ? "started" :
+        next.status === "paused" ? "paused" :
+        next.status === "completed" ? "completed" :
+        next.status === "archived" ? "archived" :
         "updated"
       }` as const;
       await this.activity.logActivity({
@@ -171,10 +187,10 @@ export class CampaignService {
         actorUserId: actor,
         category: "marketing",
         action,
-        message: `Campaign "${next.name}" → ${patch.status}.`,
-        metadata: { campaignId: id, fromStatus: existing.status, toStatus: patch.status },
+        message: `Campaign "${next.name}" → ${next.status}.`,
+        metadata: { campaignId: id, fromStatus: existing.status, toStatus: next.status },
       });
-      this.events.emit({ agencyId: this.agencyId }, action, { campaignId: id, status: patch.status });
+      this.events.emit({ agencyId: this.agencyId }, action, { campaignId: id, status: next.status });
     }
     return next;
   }

@@ -5,7 +5,6 @@ import {
   createIdentityHandler,
   getMessageHandler,
   getProviderHandler,
-  internalEnqueueHandler,
   listIdentitiesHandler,
   listMessagesHandler,
   postmarkWebhookHandler,
@@ -40,7 +39,4 @@ export const ROUTES: PluginApiRoute[] = [
 
   // Public webhook (provider-signed; foundation must honour `public:true`)
   { path: "public/webhook/postmark", methods: ["POST"], handler: postmarkWebhookHandler, public: true, publicAuthority: "provider-webhook" },
-
-  // Internal (foundation event-router target — plugin-to-plugin)
-  { path: "internal/enqueue", methods: ["POST"], handler: internalEnqueueHandler, visibleToRoles: [...AGENCY_ADMINS] },
 ];

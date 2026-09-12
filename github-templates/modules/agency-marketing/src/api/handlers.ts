@@ -10,10 +10,12 @@ import type {
   Currency,
   LeadFilter,
   TemplateFilter,
-  UpdateCampaignPatch,
-  UpdateLeadPatch,
-  UpdateTemplatePatch,
 } from "../lib/domain";
+import {
+  allowlistedCampaignUpdate,
+  allowlistedLeadUpdate,
+  allowlistedTemplateUpdate,
+} from "../lib/mutationAllowlist";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -69,10 +71,11 @@ export async function createCampaignHandler(req: Request, ctx: PluginCtx): Promi
 export async function updateCampaignHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   const guard = methodGuard(req, "PATCH");
   if (guard) return guard;
-  const body = await safeJson<{ id: string; patch: UpdateCampaignPatch }>(req);
-  if (!body?.id) return badRequest("id required.");
+  const body = await safeJson<{ id?: unknown; patch?: unknown }>(req);
+  if (typeof body?.id !== "string" || !body.id.trim()) return badRequest("id required.");
   try {
-    const cmp = await buildContainer(ctx).campaigns.update(body.id, body.patch ?? {}, ctx.actor);
+    const patch = allowlistedCampaignUpdate(body.patch);
+    const cmp = await buildContainer(ctx).campaigns.update(body.id, patch, ctx.actor);
     return cmp ? json({ ok: true, campaign: cmp }) : notFound("campaign not found");
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));
@@ -122,10 +125,11 @@ export async function createLeadHandler(req: Request, ctx: PluginCtx): Promise<R
 export async function updateLeadHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   const guard = methodGuard(req, "PATCH");
   if (guard) return guard;
-  const body = await safeJson<{ id: string; patch: UpdateLeadPatch }>(req);
-  if (!body?.id) return badRequest("id required.");
+  const body = await safeJson<{ id?: unknown; patch?: unknown }>(req);
+  if (typeof body?.id !== "string" || !body.id.trim()) return badRequest("id required.");
   try {
-    const lead = await buildContainer(ctx).leads.update(body.id, body.patch ?? {}, ctx.actor);
+    const patch = allowlistedLeadUpdate(body.patch);
+    const lead = await buildContainer(ctx).leads.update(body.id, patch, ctx.actor);
     return lead ? json({ ok: true, lead }) : notFound("lead not found");
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));
@@ -171,10 +175,11 @@ export async function createTemplateHandler(req: Request, ctx: PluginCtx): Promi
 export async function updateTemplateHandler(req: Request, ctx: PluginCtx): Promise<Response> {
   const guard = methodGuard(req, "PATCH");
   if (guard) return guard;
-  const body = await safeJson<{ id: string; patch: UpdateTemplatePatch }>(req);
-  if (!body?.id) return badRequest("id required.");
+  const body = await safeJson<{ id?: unknown; patch?: unknown }>(req);
+  if (typeof body?.id !== "string" || !body.id.trim()) return badRequest("id required.");
   try {
-    const tpl = await buildContainer(ctx).templates.update(body.id, body.patch ?? {}, ctx.actor);
+    const patch = allowlistedTemplateUpdate(body.patch);
+    const tpl = await buildContainer(ctx).templates.update(body.id, patch, ctx.actor);
     return tpl ? json({ ok: true, template: tpl }) : notFound("template not found");
   } catch (err) {
     return unprocessable(err instanceof Error ? err.message : String(err));

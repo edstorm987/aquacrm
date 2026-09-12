@@ -380,6 +380,22 @@ describe("plugin API routes — the real dispatcher, driven with a real session 
     assert.deepEqual(open, [], `still open:\n  ${open.join("\n  ")}`);
   });
 
+  it("does not mount the lineage-bearing email enqueue route for any authenticated role", async () => {
+    const reachable: string[] = [];
+    for (const role of ALL_ROLES) {
+      const status = await callApi("email-sender", ["internal", "enqueue"], "POST", role);
+      const mustResolveThroughAgencySurface = (AGENCY_ROLES as readonly string[]).includes(role);
+      if ((mustResolveThroughAgencySurface && status !== 404) || (!mustResolveThroughAgencySurface && status !== 403 && status !== 404)) {
+        reachable.push(`${role} reached the removed route with HTTP ${status}`);
+      }
+    }
+    assert.deepEqual(
+      reachable,
+      [],
+      `email-sender/internal/enqueue must remain absent from the real dispatcher:\n  ${reachable.join("\n  ")}`,
+    );
+  });
+
   it("a lead reaches no plugin API route at all, and the gate says so before the install does", async () => {
     // `lead` is in no surface's ceiling — `_pageScope.ts` says leads have no
     // portal surface, and the API agrees. It is ALSO refused a step earlier:
@@ -588,7 +604,13 @@ describe("plugin API routes — surface invariants no manifest can break", () =>
     // private routes, taking only the total to 345. No endpoint was removed to
     // make this assertion green; the list is enumerated above and the security
     // ceiling loop below still evaluates every real route.
-    assert.equal(total, 345, `the registry now ships ${total} API routes, not 345 — re-run the enumeration`);
+    // 2026-09-12, later: 345 → 344. Email Sender's `internal/enqueue` was not
+    // internal at all: it was mounted through the authenticated HTTP catch-all
+    // for owners/managers and accepted caller-selected client/person/plugin
+    // lineage. Real subscribers already call the typed container in-process,
+    // so the HTTP route was removed. It declared roles; undeclared/public stay
+    // fixed.
+    assert.equal(total, 344, `the registry now ships ${total} API routes, not 344 — re-run the enumeration`);
     assert.equal(undeclared, 144, `${undeclared} routes declare no roles, not 144 — re-run the enumeration`);
     assert.equal(publicRoutes, 15, `${publicRoutes} routes are public, not 15`);
 
