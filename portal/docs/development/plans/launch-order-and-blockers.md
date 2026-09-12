@@ -2173,14 +2173,19 @@ nested structure, but this is not represented as “everything held” or as pro
 of delivery: client-owned databases, providers and other systems outside the
 hydrated PortalState snapshot require separate collection.
 
-**It searches every collection in state, not a maintained list.** The obvious
+**It enumerates every enumerable top-level state entry, not a maintained list.** The obvious
 design classifies each of the ~90 collections as personal/not-personal and
 searches the first group. That fails silently and in the worst direction:
 anything mis-classified — or any collection added next year and never
 classified — is simply absent, while the covering letter says "this is
 everything we hold about you". **A wrong subject-access response is worse than
 none: it is a false statement made under a legal obligation.** So there is no
-list; every collection is walked and the question is asked of each record.
+list. Descriptor-backed object collections are inspected and reported as
+searched. A non-data descriptor, scalar collection, scalar row in a recognised
+typed collection, malformed or missing required recognised Person/Client member, nested object, array or enum, or exhausted
+traversal/matcher/output cap records explicit incompleteness and blocks export
+preparation. Other resident scalar containers are not presumed to be record
+collections.
 
 The review scan walks nested values, but **ownership matching is schema-bound**.
 Only exact typed Person, reciprocal client/facet/relationship lineage, typed
@@ -2191,14 +2196,29 @@ or phone inside arbitrary prose, or a reference to the subject as actor or
 assignee, is review-only.
 
 An attributable row is still not automatically safe. Known releasable
-collections use explicit typed projections; there is no general recursive
-key/regex mutation. Safe Person facets/classification history, finance-ledger
-fields and real `pluginData[installId][key]` reached through its install/client
-lineage are preserved. Unknown fields (including unknown names, NI and bank
-identifiers), co-mingled/free-text values and content beyond the inspection
-depth are withheld as value-free review metadata. Known third-party contact
-fields may be replaced with fixed redaction markers; ids and timestamps are
-never phone-redacted.
+collections use explicit typed projections; there is no generic recursive
+release rule. Validated Person facets/classification history and typed finance-ledger metadata
+and `pluginData[installId][key]` for the explicitly supported finance invoice
+shape reached through install/client lineage are preserved. Plugin-install
+features are released only when the key is in the current first-party manifest
+allowlist and the stored value is boolean; every other feature key is withheld
+and counted for review. A bounded final scan also drops recognised restricted
+PII in emitted keys and redacts it in emitted structured strings. Ledger
+title/body/eyebrow prose is always withheld and counted for review: no finite
+name/address detector can prove that an unregistered person or named premise
+belongs to the subject. Ledger references are separately admitted only when
+they match the invoice/payment-plan source-specific machine shape; links must
+match the canonical first-party client-finance path and heterogeneous parent
+references are withheld. Tested bounded patterns include
+email, phone, formatted sort code/NINO/postcode, contextual bank-account data,
+numbered streets and named-premise addresses such as `Rose Cottage, Church
+Lane, Oxford`. This is a conservative pattern set, not proof that every possible
+name or address can be recognised. Other-person names use full-token boundaries,
+so short names such as Ann or Lee do not poison schema keys or ordinary words.
+Unknown fields, co-mingled/free-text values
+and content beyond inspection depth are withheld as review metadata. Known
+third-party contact fields may be fixed-marker redacted; numeric timestamps are
+not string-scanned and invoice references such as `INV-20260912` are retained.
 
 **Tenant safety.** Only records whose own `agencyId` matches are included: a
 subject-access response that leaked another tenant's records would be a breach
@@ -2210,23 +2230,39 @@ The body is bounded before hydration/auth work; tenant and actor come from the
 session. The request must already exist in the exact agency, be
 access/portability kind, bind the exact Person, be identity-verified, and remain
 open. POST constructs a bounded export, then atomically stages the exact bytes,
-digest and preparation activity. It returns the automatic safe subset but does
-**not** fulfil; a lost response replays those same durable bytes. Non-zero review
-counts require PUT review evidence against that exact digest. PATCH separately
-records delivery evidence and only then fulfils, atomically with delivery
-activity. The generic request helper cannot bypass this sequence. Work, string,
-record and serialised-size limits fail explicitly before transition; every
-success/error, including auth and malformed/oversized input, carries `no-store`.
+digest, manifest totals, server-secret HMAC integrity tag and preparation
+activity. It returns the automatic safe subset but does **not** fulfil; a lost
+response replays only bytes that still match that authenticated binding.
+Non-zero review counts require PUT review evidence against that exact artifact.
+The review receipt is a server-secret HMAC over the exact
+agency/request/person/bytes/digest/manifest totals and evidence: an exact replay
+returns the same result id, while publicly recomputed hashes, changed state and
+cross-request reuse are refused. Before PATCH can fulfil, it recomputes the
+staged digest, actual record count, detailed review maps and top-level totals,
+then verifies the artifact tag and authenticated review receipt. It separately
+HMAC-binds delivery method/evidence to that exact artifact and fulfils atomically with
+delivery activity. The generic request helper cannot bypass this sequence.
+Work, string, record and serialised-size limits fail explicitly before
+transition; every success/error, including auth and malformed/oversized input,
+carries `no-store`.
 
 Permanent adversarial coverage lives in
 `scripts/smoke-subject-access-export-security.test.ts`: free-text ids, phones
 and emails; actor/assignee mentions; stale and nested contradictory ownership;
 shared identifiers; exact client facets and relationship siblings; unknown
 name/NI/bank fields; third-party name/address/postcode/email/phone/prose; Person
-history; finance ledger fields; real pluginData lineage; lazy-sidecar
-classification; traversal depth; 10k/100k linear work; other tenants/requests;
-every request gate; malformed/oversized bodies; output caps; exact replay;
-no-store; and preparation/delivery storage-failure rollback.
+history plus malformed/missing required Person/Client members, objects, arrays
+and enums; typed finance ledger metadata with all ledger prose and heterogeneous
+references quarantined; real pluginData
+lineage; allowlisted versus arbitrary plugin features; numbered and named-premise
+addresses; lazy-sidecar classification; scalar typed rows; traversal depth;
+10k/100k linear work; 2k/4k/8k/16k typed claims; short-name false positives;
+other tenants/requests; every request gate; malformed/oversized bodies; output
+caps; token-boundary short-name probes; consistently rehashed stored-byte/manifest
+tampering with injected PII and contradictory detailed totals; arbitrary and
+publicly recomputed review-result hashes; authenticated request-bound artifact,
+review and delivery evidence/replay; no-store; and
+preparation/delivery storage-failure rollback.
 
 **The posture remains `partial`, not `met`.** The request register, identity
 sequence and statutory clock exist, and this route is now bound to them. Intake
