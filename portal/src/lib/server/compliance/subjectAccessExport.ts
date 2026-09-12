@@ -488,7 +488,11 @@ function buildIndexedStringMatcher(
     addPattern(raw);
     if (options.nameTokens) {
       for (const token of raw.match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu) ?? []) {
-        if (token.length >= 2) addPattern(token);
+        // Two-character names such as "Al" are common substrings of ordinary
+        // collection names and words (portal, annual, balance). Keep the full
+        // name pattern, but only add standalone name tokens with enough signal
+        // to avoid poisoning unrelated ownership/restricted-PII decisions.
+        if (token.length >= 3) addPattern(token);
       }
     }
   }
@@ -917,10 +921,18 @@ function projectPerson(record: JsonRecord, context: ExportContext): JsonRecord {
     clientIds: Array.isArray(facets.clientIds) ? facets.clientIds.filter(value => typeof value === "string") : [],
     enquiryIds: Array.isArray(facets.enquiryIds) ? facets.enquiryIds.filter(value => typeof value === "string") : [],
   };
-  out.classificationHistory = (Array.isArray(record.classificationHistory) ? record.classificationHistory : []).flatMap(entry => {
+  const classificationHistoryValue = ownDataValue(record, "classificationHistory");
+  if (classificationHistoryValue !== undefined && !Array.isArray(classificationHistoryValue)) {
+    markStoredValueIssue(context, collection, "invalid-stored-value");
+  }
+  out.classificationHistory = (Array.isArray(classificationHistoryValue) ? classificationHistoryValue : []).flatMap(entry => {
     const item = asRecord(entry);
-    if (!item) return [];
-    if (item.note !== undefined) noteOmitted(collection, item.note, context, { coMingled: true });
+    if (!item) {
+      markStoredValueIssue(context, collection, "invalid-stored-value");
+      return [];
+    }
+    const note = ownDataValue(item, "note");
+    if (note !== undefined) noteOmitted(collection, note, context, { coMingled: true });
     return [copyScalarFields(item, ["from", "to", "at", "by", "sourceType", "sourceId"], collection, context)];
   });
   out.organisationLinks = (Array.isArray(record.organisationLinks) ? record.organisationLinks : []).flatMap(entry => {
@@ -1079,7 +1091,7 @@ const SUBJECT_REQUEST_ID_FIELDS = [
   "id", "agencyId", "personId",
 ] as const satisfies readonly (keyof SubjectRequest)[];
 const SUBJECT_REQUEST_DIGEST_FIELDS = [
-  "preparedExportDigest", "preparedExportReviewResolvedDigest", "deliveryResultId",
+  "preparedExportDigest", "preparedExportReviewResolvedDigest", "preparedExportReviewResultId", "deliveryResultId",
 ] as const satisfies readonly (keyof SubjectRequest)[];
 const SUBJECT_REQUEST_ENUM_FIELDS = ["kind", "deliveryMethod"] as const satisfies readonly (keyof SubjectRequest)[];
 const SUBJECT_REQUEST_SAFE_STRING_FIELDS = [
@@ -1186,6 +1198,7 @@ const UK_POSTCODE = /\b(?:GIR\s?0AA|(?:[A-PR-UWYZ][0-9][0-9A-HJKSTUW]?|[A-PR-UWY
 const IBAN_TOKEN = /\b[A-Z]{2}\d{2}(?:[\s-]?[A-Z0-9]){11,30}\b/i;
 const UK_PHONE = /(?:^|[^A-Z0-9_])(?:\+44\s?(?:\(0\)\s?)?|0)(?:\d[\s().-]?){9,10}(?:$|[^A-Z0-9_])/i;
 const UK_STREET_ADDRESS = /\b(?:flat|apartment|unit|suite|room)?\s*(?:\d{1,5}[A-Z]?(?:\s*[-/]\s*\d{1,5}[A-Z]?)?)\s+(?:[\p{L}][\p{L}'’.-]*\s+){0,6}(?:road|street|avenue|lane|drive|close|court|way|place|terrace|crescent|gardens?|grove|mews|square|parade|rise|row|walk|hill|view|vale)\b/iu;
+const UK_NAMED_PREMISE_ADDRESS = /\b(?:[\p{L}][\p{L}'’.-]*\s+){1,4}(?:cottage|house|lodge|farm|barn|hall|manor|grange|croft|bungalow|vicarage)\s*,?\s+(?:[\p{L}][\p{L}'’.-]*\s+){1,5}(?:road|street|avenue|lane|drive|close|court|way|place|terrace|crescent|gardens?|grove|mews|square|parade|rise|row|walk|hill|view|vale)\s*,\s*(?:[\p{L}][\p{L}'’.-]*\s*){1,4}\b/iu;
 const BANK_ACCOUNT_CONTEXT = /\b(?:bank[\s_-]*account|account[\s_-]*(?:number|no)|acct)\s*[:#=-]?\s*\d{8}\b/i;
 const BARE_EIGHT_DIGIT = /^\s*(\d{8})\s*$/;
 
@@ -1240,6 +1253,7 @@ function textHasRestrictedPii(
       || IBAN_TOKEN.test(candidate)
       || UK_PHONE.test(candidate)
       || UK_STREET_ADDRESS.test(candidate)
+      || UK_NAMED_PREMISE_ADDRESS.test(candidate)
       || (!title && containsBankAccountIdentifier(candidate))) return true;
     if (indexedMatcherHas(context.otherPersonNameMatcher, lower, context)) return true;
     const digits = digitsOnly(candidate);
@@ -1294,13 +1308,55 @@ function projectLedger(record: JsonRecord, context: ExportContext): JsonRecord |
   return out;
 }
 
+/**
+ * Feature ids are executable manifest schema, not arbitrary user metadata.
+ * Keep a fail-closed projection of the first-party ids currently shipped. An
+ * unknown plugin or a future feature is review-only until this allowlist and
+ * its hostile export coverage are updated together.
+ */
+const FIRST_PARTY_PLUGIN_FEATURE_KEYS = new Map<string, ReadonlySet<string>>([
+  ["affiliates", new Set(["self-enroll", "manual-payouts", "leaderboard"])],
+  ["agency-finance", new Set(["invoice-html-export", "expense-approvals", "revenue-report"])],
+  ["agency-hr", new Set(["leave-workflow", "department-tree", "manager-graph"])],
+  ["agency-marketing", new Set(["campaign-tracking", "lead-funnel", "email-templates", "reports"])],
+  ["bos-auth-gate", new Set(["middleware-gate", "me-endpoint"])],
+  ["client-crm", new Set(["contacts", "segments", "activity-timeline", "cross-plugin-ingest", "bulk-import", "journey-pipelines"])],
+  ["ecommerce", new Set(["physicalProducts", "digitalProducts", "variants", "inventory", "shipping", "discountCodes", "reviews", "subscriptions", "stripeCheckout", "downloadDelivery", "licenseKeys", "multiCurrency"])],
+  ["email-sender", new Set(["drivers", "idempotency", "cross-plugin-subscribers", "webhook-ingest"])],
+  ["fulfillment", new Set(["marketplace", "phaseEditor", "clientChecklist"])],
+  ["leads-pipeline", new Set(["csv-import", "campaigns", "funnel-subscriber"])],
+  ["memberships", new Set(["free-tier", "annual-billing", "trial", "discount-benefits"])],
+  ["public-funnel", new Set(["hc-capture", "tool-capture"])],
+  ["website-editor", new Set(["simpleEditor", "advancedEditor", "codeView", "templates", "versionHistory", "customCSS", "headInjection", "customDomain"])],
+]);
+
 function projectPluginInstall(record: JsonRecord, context: ExportContext): JsonRecord {
   const collection = "pluginInstalls";
   const allowed = new Set(["id", "pluginId", "agencyId", "clientId", "enabled", "config", "features", "setupAnswers", "installedAt", "installedBy", "health", "healthCheckedAt"]);
   noteUnknownFields(collection, record, allowed, context);
   const out = copyScalarFields(record, ["id", "pluginId", "agencyId", "clientId", "enabled", "installedAt", "healthCheckedAt"], collection, context);
-  const features = asRecord(record.features);
-  if (features) out.features = copyScalarFields(features, Object.keys(features), collection, context);
+  const rawFeatures = ownDataValue(record, "features");
+  const features = asRecord(rawFeatures);
+  if (rawFeatures !== undefined && !features) {
+    markStoredValueIssue(context, collection, "invalid-stored-value");
+  } else if (features) {
+    const pluginId = ownDataValue(record, "pluginId");
+    const allowedFeatureKeys = typeof pluginId === "string" ? FIRST_PARTY_PLUGIN_FEATURE_KEYS.get(pluginId) : undefined;
+    const projectedFeatures: JsonRecord = {};
+    for (const [key, value] of ownDataEntries(features)) {
+      if (!allowedFeatureKeys?.has(key)) {
+        noteOmitted(collection, { key, value }, context, { coMingled: true });
+        if (textHasRestrictedPii(key, context, false, false)) addCount(context.result.redactedFields, collection);
+        continue;
+      }
+      if (typeof value !== "boolean") {
+        markStoredValueIssue(context, collection, "invalid-stored-value");
+        continue;
+      }
+      projectedFeatures[key] = value;
+    }
+    out.features = projectedFeatures;
+  }
   const health = asRecord(record.health);
   if (health && typeof health.ok === "boolean") out.health = { ok: health.ok };
   for (const field of ["config", "setupAnswers", "installedBy"] as const) {
@@ -1430,6 +1486,12 @@ function inspectRecord(collection: string, value: unknown, context: ExportContex
     const scan = scanForSubject(value, context);
     if (scan.mentioned) addCount(context.result.unclassifiedMatches, collection);
     if (scan.depthExceeded) addCount(context.result.depthLimitMatches, collection);
+    // Rows in a collection with a typed release projector must be objects.
+    // Scalar values in other resident state containers are not presumed to be
+    // records, but a scalar task/Person/etc row is corrupt authoritative state.
+    if (["persons", "clients", "tasks", "subjectRequests", "activity", "clientRecordLedger", "pluginInstalls"].includes(collection)) {
+      markStoredValueIssue(context, collection, "invalid-stored-value");
+    }
     return;
   }
   const ownerField = storedDataField(rawRecord, "agencyId", context, collection);
@@ -1824,7 +1886,7 @@ export function subjectAccessExportJson(result: SubjectAccessResult): string {
       unsupportedCollections: result.unsupportedCollectionMatches,
       omittedFields: result.omittedFields,
       loadedSidecars: SUBJECT_ACCESS_REQUIRED_SIDECARS,
-      statement: "Every enumerable resident collection backed by stored data descriptors was inspected. Non-data descriptors and bounded-traversal failures make preparation incomplete. Counted review items are excluded from the automatic safe subset.",
+      statement: "Every enumerable resident top-level entry was enumerated. Descriptor-backed object collections were inspected; non-data descriptors, malformed recognised shapes and bounded-traversal failures make preparation incomplete. Counted review items are excluded from the automatic safe subset.",
     },
     retention: "This point-in-time export does not delete source data or change its configured retention.",
     delivery: "Preparation is not delivery. The request remains open until separate, evidenced delivery is recorded.",

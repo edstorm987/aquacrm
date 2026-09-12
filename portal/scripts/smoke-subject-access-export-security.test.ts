@@ -321,7 +321,7 @@ test("only typed exclusive ownership authorises rows; client facets and relation
   assert.equal(json.includes(SHARED_EMAIL), false);
   assert.equal(json.includes(SUBJECT_PHONE), false);
   assert.deepEqual(result.searchedCollections.sort(), Object.keys(realStorage.getState()).sort(), "every collection is walked");
-  assert.match(json, /stored data descriptors was inspected/, "the completeness wording describes only collections that were safely inspected");
+  assert.match(json, /Descriptor-backed object collections were inspected/, "the completeness wording describes only collections that were safely inspected");
 });
 
 test("stale root owners and conflicting nested scopes veto otherwise exclusive contact authority", async () => {
@@ -673,7 +673,7 @@ test("typed projections preserve Person history and finance fields while unknown
       agencyId: world.agencyId,
       enabled: true,
       config: {},
-      features: { invoices: true },
+      features: { "invoice-html-export": true },
       installedAt: occurredAt,
     };
     state.pluginData[installId] = {
@@ -811,7 +811,7 @@ test("allowlisted task, ledger and finance reference strings redact third-party 
       clientId,
       enabled: true,
       config: {},
-      features: { invoices: true },
+      features: { "invoice-html-export": true },
       installedAt: 1_725_555_000_123,
     };
     state.pluginData[installId] = {
@@ -898,6 +898,20 @@ test("dynamic keys and realistic UK addresses are withheld without corrupting ca
       createdAt: 1_725_555_000_123,
       updatedAt: 1_725_555_000_123,
     };
+    state.clientRecordLedger.named_premise_address = {
+      id: "named_premise_address",
+      agencyId: world.agencyId,
+      clientId,
+      sourceType: "payment-plan",
+      sourceId: "payment-plan:named-premise-review",
+      group: "commercial",
+      title: "Correspondence",
+      body: "Send papers to Rose Cottage, Church Lane, Oxford",
+      occurredAt: 1_725_555_000_123,
+      visibility: "system",
+      createdAt: 1_725_555_000_123,
+      updatedAt: 1_725_555_000_123,
+    };
     state.clientRecordLedger.close_without_address = {
       id: "close_without_address",
       agencyId: world.agencyId,
@@ -919,7 +933,14 @@ test("dynamic keys and realistic UK addresses are withheld without corrupting ca
       clientId,
       enabled: true,
       config: {},
-      features: { invoices: true, [THIRD_PARTY_EMAIL]: true },
+      features: {
+        "invoice-html-export": true,
+        [THIRD_PARTY_EMAIL]: true,
+        "Evelyn Stone": true,
+        "Rose Cottage": true,
+        firstName: "Evelyn",
+        address: "Rose Cottage",
+      } as never,
       installedAt: 1_725_555_000_123,
     };
     state.pluginData[installId] = {
@@ -945,6 +966,8 @@ test("dynamic keys and realistic UK addresses are withheld without corrupting ca
   const ledger = result.found.clientRecordLedger ?? [];
   assert.equal(ledger.some(row => (row as { id?: string }).id === "address_without_postcode"), false,
     "house number plus UK street suffix/locality is review-only even without a postcode");
+  assert.equal(ledger.some(row => (row as { id?: string }).id === "named_premise_address"), false,
+    "a named UK premise and unnumbered street/locality is review-only");
   assert.equal(
     (ledger.find(row => (row as { id?: string }).id === "close_without_address") as { body?: string }).body,
     "Close the quarter in 12 ways after review",
@@ -953,17 +976,25 @@ test("dynamic keys and realistic UK addresses are withheld without corrupting ca
   const install = (result.found.pluginInstalls ?? []).find(row => (row as { id?: string }).id === installId) as {
     features: Record<string, boolean>;
   };
-  assert.equal(install.features.invoices, true);
+  assert.deepEqual(install.features, { "invoice-html-export": true },
+    "only current first-party manifest feature ids with boolean values are releasable");
   assert.equal(Object.hasOwn(install.features, THIRD_PARTY_EMAIL), false, "PII cannot survive as an emitted JSON key");
+  for (const key of ["Evelyn Stone", "Rose Cottage", "firstName", "address"]) {
+    assert.equal(Object.hasOwn(install.features, key), false, `unknown feature ${key} is review-only`);
+  }
   const invoice = (result.found.pluginData ?? []).find(row => (row as { key?: string }).key === "invoices/by-id/calendar-reference") as {
     value: { number: string };
   };
   assert.equal(invoice.value.number, "INV-20260912", "a valid compact date inside an invoice reference is not a bank-account false positive");
   assert.ok((result.redactedFields.pluginInstalls ?? 0) >= 1);
-  assert.ok((result.omittedFields.pluginInstalls ?? 0) >= 1);
+  assert.ok((result.omittedFields.pluginInstalls ?? 0) >= 5);
+  assert.ok(exportsApi.subjectAccessExportReviewCount(result) > 0, "unknown plugin feature fields cannot auto-release at review=0");
   const json = exportsApi.subjectAccessExportJson(result);
   assert.equal(json.includes(THIRD_PARTY_EMAIL), false);
   assert.equal(json.includes("12 Baker Close, London"), false);
+  assert.equal(json.includes("Rose Cottage, Church Lane, Oxford"), false);
+  assert.equal(json.includes("Evelyn Stone"), false);
+  assert.equal(json.includes('"firstName"'), false);
 });
 
 test("malformed authoritative scalars and root collection shapes make preparation explicitly incomplete", async () => {
@@ -999,6 +1030,32 @@ test("malformed authoritative scalars and root collection shapes make preparatio
   assert.ok((corruptCollection.omittedFields.tasks ?? 0) >= 1);
   assert.throws(
     () => exportsApi.subjectAccessExportJson(corruptCollection),
+    (error: unknown) => error instanceof exportsApi.SubjectAccessExportIncompleteError,
+  );
+});
+
+test("scalar rows and malformed Person classification history cannot disappear as automatic-complete", async () => {
+  const scalarWorld = await seedWorld();
+  realStorage.mutate(state => {
+    state.tasks.bad_scalar_row = 42 as never;
+  });
+  const scalarRow = exportsApi.collectSubjectAccessExport(scalarWorld.agencyId, scalarWorld.personId)!;
+  assert.ok(scalarRow.incompleteReasons.includes("invalid-stored-value"));
+  assert.ok((scalarRow.omittedFields.tasks ?? 0) >= 1, "the malformed row has an explicit omission");
+  assert.throws(
+    () => exportsApi.subjectAccessExportJson(scalarRow),
+    (error: unknown) => error instanceof exportsApi.SubjectAccessExportIncompleteError,
+  );
+
+  const historyWorld = await seedWorld();
+  realStorage.mutate(state => {
+    state.persons[historyWorld.personId].classificationHistory = "corrupt-history" as never;
+  });
+  const malformedHistory = exportsApi.collectSubjectAccessExport(historyWorld.agencyId, historyWorld.personId)!;
+  assert.ok(malformedHistory.incompleteReasons.includes("invalid-stored-value"));
+  assert.ok((malformedHistory.omittedFields.persons ?? 0) >= 1, "the malformed typed nested array has an explicit omission");
+  assert.throws(
+    () => exportsApi.subjectAccessExportJson(malformedHistory),
     (error: unknown) => error instanceof exportsApi.SubjectAccessExportIncompleteError,
   );
 });
@@ -1075,6 +1132,50 @@ test("other-person PII matching uses bounded indexed work as people and emitted 
   }
 });
 
+test("a two-character other-person name cannot poison unrelated collection names or annual invoice text", async () => {
+  const world = await seedWorld();
+  const clientId = `client_short_name_${sequence}`;
+  putPerson(personFixture({
+    id: `per_al_${sequence}`,
+    agencyId: world.agencyId,
+    name: "Al Smith",
+    emails: [],
+    phones: [],
+  }));
+  putClient(clientFixture({
+    id: clientId,
+    agencyId: world.agencyId,
+    personId: world.personId,
+    relationshipId: `relationship_short_name_${sequence}`,
+    name: "Subject Person",
+  }));
+  realStorage.mutate(state => {
+    state.clientRecordLedger.short_name_false_positive = {
+      id: "short_name_false_positive",
+      agencyId: world.agencyId,
+      clientId,
+      sourceType: "invoice",
+      sourceId: "invoice:INV-20260912",
+      group: "commercial",
+      title: "Invoice summary",
+      body: "Annual invoice INV-20260912",
+      occurredAt: 1_725_555_000_123,
+      visibility: "system",
+      createdAt: 1_725_555_000_123,
+      updatedAt: 1_725_555_000_123,
+    };
+  });
+
+  const result = exportsApi.collectSubjectAccessExport(world.agencyId, world.personId)!;
+  assert.deepEqual(result.incompleteReasons, []);
+  assert.ok(result.searchedCollections.includes("clientRecordLedger"));
+  const ledger = (result.found.clientRecordLedger ?? []).find(row => (
+    row as { id?: string }
+  ).id === "short_name_false_positive") as { body?: string };
+  assert.equal(ledger.body, "Annual invoice INV-20260912");
+  assert.doesNotThrow(() => exportsApi.subjectAccessExportJson(result));
+});
+
 test("every SubjectRequest lifecycle field is exported or explicitly counted, so silent omissions cannot claim completion", async () => {
   const world = await seedWorld();
   const request = makeRequest(world, { verify: true });
@@ -1096,6 +1197,7 @@ test("every SubjectRequest lifecycle field is exported or explicitly counted, so
       preparedExportReviewResolvedBy: "usr_reviewer",
       preparedExportReviewResolvedDigest: "b".repeat(64),
       preparedExportReviewEvidenceId: "review-evidence-1",
+      preparedExportReviewResultId: "d".repeat(64),
       deliveredAt: 105,
       deliveredBy: "usr_deliverer",
       deliveryMethod: "secure-email",
@@ -1118,7 +1220,7 @@ test("every SubjectRequest lifecycle field is exported or explicitly counted, so
   for (const field of [
     "identityVerifiedBy", "preparedExportAt", "preparedExportBy", "preparedExportDigest", "preparedExportGeneratedAt",
     "preparedExportRecordCount", "preparedExportReviewCount", "preparedExportByteLength", "preparedExportReviewResolvedAt",
-    "preparedExportReviewResolvedBy", "preparedExportReviewResolvedDigest", "preparedExportReviewEvidenceId", "deliveredAt",
+    "preparedExportReviewResolvedBy", "preparedExportReviewResolvedDigest", "preparedExportReviewEvidenceId", "preparedExportReviewResultId", "deliveredAt",
     "deliveredBy", "deliveryMethod", "deliveryEvidenceId", "deliveryResultId", "fulfilledAt", "fulfilledBy", "refusedAt", "createdBy",
   ]) assert.notEqual(projected[field], undefined, `${field} must not disappear from a recognised request`);
   for (const field of ["extensionReason", "preparedExportJson", "outcome", "refusalReason"]) {
@@ -1432,6 +1534,31 @@ test("preparation is replayable but only evidenced review and delivery fulfil; f
   });
   assert.equal(reviewed.status, 200);
   assertNoStore(reviewed);
+  const reviewedBody = await reviewed.json() as { replay: boolean; resultId: string };
+  assert.equal(reviewedBody.replay, false);
+  assert.match(reviewedBody.resultId, /^[a-f0-9]{64}$/);
+  const reviewReplay = await put(world.token, {
+    requestId: ready.id,
+    personId: world.personId,
+    preparedExportDigest: digest,
+    reviewEvidenceId: "review-case-1",
+  });
+  assert.equal(reviewReplay.status, 200);
+  assert.deepEqual(await reviewReplay.json(), {
+    ok: true, status: "review-recorded", replay: true, resultId: reviewedBody.resultId,
+  });
+  const changedReviewReplay = await put(world.token, {
+    requestId: ready.id,
+    personId: world.personId,
+    preparedExportDigest: digest,
+    reviewEvidenceId: "review-case-changed",
+  });
+  assert.equal(changedReviewReplay.status, 409, "changed review evidence is not an idempotent replay");
+  assert.equal(
+    activity.listActivity({ agencyId: world.agencyId, limit: 100 }).filter(entry => entry.action === "subject_access.review-recorded").length,
+    1,
+    "an exact review replay cannot duplicate audit evidence",
+  );
   assert.equal(requests.findSubjectRequest(world.agencyId, ready.id)?.fulfilledAt, undefined);
 
   const delivered = await patch(world.token, {
@@ -1450,6 +1577,17 @@ test("preparation is replayable but only evidenced review and delivery fulfil; f
   assert.ok(fulfilled?.fulfilledAt);
   assert.equal(fulfilled?.preparedExportJson, undefined, "staged PII is cleared after delivery");
   assert.equal(fulfilled?.deliveryResultId, deliveredBody.resultId);
+
+  const reviewAfterDelivery = await put(world.token, {
+    requestId: ready.id,
+    personId: world.personId,
+    preparedExportDigest: digest,
+    reviewEvidenceId: "review-case-1",
+  });
+  assert.equal(reviewAfterDelivery.status, 200, "the durable exact review result remains replayable after staged-byte deletion");
+  assert.deepEqual(await reviewAfterDelivery.json(), {
+    ok: true, status: "review-recorded", replay: true, resultId: reviewedBody.resultId,
+  });
 
   const deliveryReplay = await patch(world.token, {
     requestId: ready.id,
@@ -1485,15 +1623,36 @@ test("preparation is replayable but only evidenced review and delivery fulfil; f
   assert.equal(collisionPreparedB.status, 200);
   const collisionDigestA = collisionPreparedA.headers.get("x-subject-access-digest")!;
   const collisionDigestB = collisionPreparedB.headers.get("x-subject-access-digest")!;
-  for (const [requestId, collisionDigest] of [
-    [collisionA.id, collisionDigestA],
-    [collisionB.id, collisionDigestB],
-  ] as const) {
-    const review = await put(world.token, {
-      requestId,
+  const reviewCollisionResponses = await Promise.all([
+    put(world.token, {
+      requestId: collisionA.id,
       personId: world.personId,
-      preparedExportDigest: collisionDigest,
-      reviewEvidenceId: `review-${requestId}`,
+      preparedExportDigest: collisionDigestA,
+      reviewEvidenceId: "review-shared-race",
+    }),
+    put(world.token, {
+      requestId: collisionB.id,
+      personId: world.personId,
+      preparedExportDigest: collisionDigestB,
+      reviewEvidenceId: "review-shared-race",
+    }),
+  ]);
+  assert.deepEqual(reviewCollisionResponses.map(response => response.status).sort(), [200, 409],
+    "one review evidence identity can commit to only one raced request");
+  const reviewCollisionRows = [
+    { request: collisionA, digest: collisionDigestA },
+    { request: collisionB, digest: collisionDigestB },
+  ];
+  const rejectedReviewCollision = reviewCollisionRows.find(({ request }) => (
+    !requests.findSubjectRequest(world.agencyId, request.id)?.preparedExportReviewResolvedAt
+  ));
+  assert.ok(rejectedReviewCollision, "one review collision remains unresolved");
+  if (rejectedReviewCollision) {
+    const review = await put(world.token, {
+      requestId: rejectedReviewCollision.request.id,
+      personId: world.personId,
+      preparedExportDigest: rejectedReviewCollision.digest,
+      reviewEvidenceId: `review-${rejectedReviewCollision.request.id}`,
     });
     assert.equal(review.status, 200);
   }

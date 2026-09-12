@@ -59,7 +59,7 @@ const STORED_REQUEST_REQUIRED_STRING_FIELDS = new Set(["id", "agencyId", "kind",
 const STORED_REQUEST_OPTIONAL_STRING_FIELDS = new Set([
   "personId", "extensionReason", "identityVerifiedBy", "preparedExportBy", "preparedExportDigest",
   "preparedExportJson", "preparedExportReviewResolvedBy", "preparedExportReviewResolvedDigest",
-  "preparedExportReviewEvidenceId", "deliveredBy", "deliveryMethod", "deliveryEvidenceId",
+  "preparedExportReviewEvidenceId", "preparedExportReviewResultId", "deliveredBy", "deliveryMethod", "deliveryEvidenceId",
   "deliveryResultId", "fulfilledBy", "outcome", "refusalReason",
 ]);
 const STORED_REQUEST_REQUIRED_NUMBER_FIELDS = new Set(["receivedAt", "dueAt"]);
@@ -367,10 +367,55 @@ export function recordPreparedSubjectAccessExport(
       "preparedExportReviewResolvedBy",
       "preparedExportReviewResolvedDigest",
       "preparedExportReviewEvidenceId",
+      "preparedExportReviewResultId",
     ], accessStateError);
   });
   if (!updated) throw new SubjectAccessRequestGateError();
   return updated;
+}
+
+export interface SubjectAccessReviewResult {
+  request: SubjectRequest;
+  replay: boolean;
+  resultId: string;
+}
+
+function subjectAccessReviewResultId(input: {
+  agencyId: string;
+  requestId: string;
+  personId: string;
+  digest: string;
+  evidenceId: string;
+}): string {
+  return crypto.createHash("sha256").update([
+    "aqua-subject-access-review-v1",
+    input.agencyId,
+    input.requestId,
+    input.personId,
+    input.digest,
+    input.evidenceId,
+  ].join("\0"), "utf8").digest("hex");
+}
+
+/**
+ * A review receipt is evidence for one exact prepared disclosure, not a label
+ * that can be attached to several requests. Descriptor-safe enumeration keeps
+ * poisoned rows fail-closed without executing stored accessors.
+ */
+function assertReviewEvidenceBinding(
+  subjectRequests: SubjectRequestStore,
+  binding: { agencyId: string; requestId: string; personId: string; resultId: string; evidenceId: string },
+): void {
+  for (const stored of allStoredSubjectRequests(subjectRequests, accessStateError)) {
+    const row = stored.view;
+    if (row.preparedExportReviewEvidenceId !== binding.evidenceId) continue;
+    if (row.agencyId !== binding.agencyId
+      || row.id !== binding.requestId
+      || row.personId !== binding.personId
+      || row.preparedExportReviewResultId !== binding.resultId) {
+      throw new SubjectAccessRequestGateError();
+    }
+  }
 }
 
 /** Record human review against the exact prepared file, without delivery. */
@@ -381,28 +426,53 @@ export function recordSubjectAccessReviewCompletion(
   actorUserId: string,
   digest: string,
   evidenceId: string,
-): SubjectRequest {
+): SubjectAccessReviewResult {
   if (!/^[a-f0-9]{64}$/.test(digest) || !validEvidenceId(evidenceId)) throw new SubjectAccessRequestGateError();
-  let updated: SubjectRequest | null = null;
+  const resultId = subjectAccessReviewResultId({ agencyId, requestId: id, personId, digest, evidenceId });
+  let updated: SubjectAccessReviewResult | null = null;
   mutate(state => {
-    const stored = storedSubjectRequest(subjectRequestStore(state, accessStateError), id, accessStateError);
+    const store = subjectRequestStore(state, accessStateError);
+    assertReviewEvidenceBinding(store, { agencyId, requestId: id, personId, resultId, evidenceId });
+    const stored = storedSubjectRequest(store, id, accessStateError);
     const request = stored?.view;
+    const exactReplay = Boolean(
+      request
+      && request.agencyId === agencyId
+      && SUBJECT_ACCESS_KINDS.has(request.kind)
+      && request.personId === personId
+      && request.identityVerifiedAt
+      && request.preparedExportDigest === digest
+      && request.preparedExportReviewCount
+      && request.preparedExportReviewCount > 0
+      && request.preparedExportReviewResolvedAt
+      && request.preparedExportReviewResolvedDigest === digest
+      && request.preparedExportReviewEvidenceId === evidenceId
+      && request.preparedExportReviewResultId === resultId,
+    );
+    if (exactReplay) {
+      updated = { request: request!, replay: true, resultId };
+      return;
+    }
     if (!isOpenVerifiedSubjectAccessRequest(request, agencyId, personId)
       || request.preparedExportDigest !== digest
       || !request.preparedExportJson
       || !(request.preparedExportReviewCount && request.preparedExportReviewCount > 0)) {
       throw new SubjectAccessRequestGateError();
     }
-    if (!request.preparedExportReviewResolvedAt) {
-      updated = applyStoredSubjectRequestPatch(stored!, {
-        preparedExportReviewResolvedAt: Date.now(),
-        preparedExportReviewResolvedBy: actorUserId,
-        preparedExportReviewResolvedDigest: digest,
-        preparedExportReviewEvidenceId: evidenceId,
-      }, [], accessStateError);
-      return;
+    if (request.preparedExportReviewResolvedAt
+      || request.preparedExportReviewResolvedDigest
+      || request.preparedExportReviewEvidenceId
+      || request.preparedExportReviewResultId) {
+      throw new SubjectAccessRequestGateError();
     }
-    updated = request;
+    const committed = applyStoredSubjectRequestPatch(stored!, {
+      preparedExportReviewResolvedAt: Date.now(),
+      preparedExportReviewResolvedBy: actorUserId,
+      preparedExportReviewResolvedDigest: digest,
+      preparedExportReviewEvidenceId: evidenceId,
+      preparedExportReviewResultId: resultId,
+    }, [], accessStateError);
+    updated = { request: committed, replay: false, resultId };
   });
   if (!updated) throw new SubjectAccessRequestGateError();
   return updated;
@@ -505,7 +575,9 @@ export function fulfilPreparedSubjectAccessDelivery(
       || request.preparedExportDigest !== digest
       || !request.preparedExportJson
       || (Boolean(request.preparedExportReviewCount)
-        && request.preparedExportReviewResolvedDigest !== digest)) {
+        && (request.preparedExportReviewResolvedDigest !== digest
+          || !request.preparedExportReviewEvidenceId
+          || !request.preparedExportReviewResultId))) {
       throw new SubjectAccessRequestGateError();
     }
     const now = Date.now();

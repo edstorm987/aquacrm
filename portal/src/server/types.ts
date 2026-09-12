@@ -4891,6 +4891,10 @@ export interface SubjectRequest {
   preparedExportReviewResolvedBy?: string;
   preparedExportReviewResolvedDigest?: string;
   preparedExportReviewEvidenceId?: string;
+  /** Stable identity of the exact agency/request/person/digest/evidence review
+   * result. Retained so an exact replay is idempotent while changed or reused
+   * evidence is refused. */
+  preparedExportReviewResultId?: string;
   /** Separate evidence that the exact prepared export was handed over. */
   deliveredAt?: number;
   deliveredBy?: string;

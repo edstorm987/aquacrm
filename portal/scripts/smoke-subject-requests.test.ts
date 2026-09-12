@@ -131,7 +131,21 @@ test("subject-access preparation, review and delivery require the exact open ver
     "review-bearing files cannot be marked delivered before review evidence",
   );
   const reviewed = requests.recordSubjectAccessReviewCompletion(agencyId, request.id, personId, "owner", digest, "review-1");
-  assert.equal(reviewed.fulfilledAt, undefined, "review is not delivery");
+  assert.equal(reviewed.request.fulfilledAt, undefined, "review is not delivery");
+  assert.equal(reviewed.replay, false);
+  assert.match(reviewed.resultId, /^[a-f0-9]{64}$/);
+  assert.equal(reviewed.request.preparedExportReviewResultId, reviewed.resultId);
+  const reviewReplay = requests.recordSubjectAccessReviewCompletion(
+    agencyId, request.id, personId, "someone-else", digest, "review-1",
+  );
+  assert.equal(reviewReplay.replay, true, "the exact review result is idempotent");
+  assert.equal(reviewReplay.resultId, reviewed.resultId, "review replay identity is stable");
+  assert.equal(reviewReplay.request.preparedExportReviewResolvedBy, "owner", "review replay cannot rewrite evidence");
+  assert.throws(
+    () => requests.recordSubjectAccessReviewCompletion(agencyId, request.id, personId, "owner", digest, "review-changed"),
+    (error: unknown) => (error as { code?: string }).code === "request_not_ready",
+    "a changed receipt is not an idempotent review replay",
+  );
   const fulfilled = requests.fulfilPreparedSubjectAccessDelivery(
     agencyId, request.id, personId, "owner", digest, "verified-portal", "delivery-1",
   );
@@ -196,6 +210,39 @@ test("subject-access preparation, review and delivery require the exact open ver
     assert.equal(unchangedCollision?.fulfilledAt, undefined);
     assert.equal(unchangedCollision?.deliveryEvidenceId, undefined);
     assert.equal(unchangedCollision?.preparedExportJson, "{}", "a rejected collision preserves the replayable staged file");
+  }
+
+  for (const collision of [
+    { agencyId, personId, label: "same tenant, different review request" },
+    { agencyId: "agency_subject_review_other", personId: "per_subject_review_other", label: "different tenant review request" },
+  ]) {
+    const collidingRequest = requests.recordSubjectRequest({
+      agencyId: collision.agencyId,
+      kind: "access",
+      subjectLabel: "review-collision@example.test",
+      personId: collision.personId,
+      createdBy: "owner",
+    });
+    requests.verifySubjectRequestIdentity(collision.agencyId, collidingRequest.id, "owner");
+    requests.recordPreparedSubjectAccessExport(
+      collision.agencyId,
+      collidingRequest.id,
+      collision.personId,
+      "owner",
+      { digest, generatedAt: 123, recordCount: 0, reviewCount: 1, byteLength: 2, json: "{}" },
+    );
+    assert.throws(
+      () => requests.recordSubjectAccessReviewCompletion(
+        collision.agencyId, collidingRequest.id, collision.personId, "owner", digest, "review-1",
+      ),
+      (error: unknown) => (error as { code?: string }).code === "request_not_ready",
+      `${collision.label} cannot reuse evidence already bound to another review`,
+    );
+    const unchanged = requests.findSubjectRequest(collision.agencyId, collidingRequest.id);
+    assert.equal(unchanged?.preparedExportReviewResolvedAt, undefined);
+    assert.equal(unchanged?.preparedExportReviewEvidenceId, undefined);
+    assert.equal(unchanged?.preparedExportReviewResultId, undefined);
+    assert.equal(unchanged?.preparedExportJson, "{}");
   }
   assert.throws(
     () => requests.requireSubjectAccessRequestForExport(agencyId, request.id, personId),

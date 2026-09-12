@@ -208,20 +208,33 @@ export async function PUT(request: NextRequest) {
   if (!body) return failure(400, "invalid_request");
   try {
     const { session, agencyId } = await actor();
-    await withPortalStateTransaction(`subject-access:review:${agencyId}:${body.requestId}`, () => {
-      recordSubjectAccessReviewCompletion(agencyId, body.requestId, body.personId, session.userId, body.preparedExportDigest, body.reviewEvidenceId);
+    const evidenceLockId = crypto.createHash("sha256").update(body.reviewEvidenceId, "utf8").digest("hex");
+    const review = await withPortalStateTransaction(`subject-access:review-evidence:${evidenceLockId}`, () => {
+      const result = recordSubjectAccessReviewCompletion(
+        agencyId, body.requestId, body.personId, session.userId, body.preparedExportDigest, body.reviewEvidenceId,
+      );
       logActivity({
-        idempotencyKey: `subject-access-review:${body.requestId}:${body.preparedExportDigest}`,
+        idempotencyKey: `subject-access-review:${result.resultId}`,
         agencyId,
         actorUserId: session.userId,
         actorEmail: session.email,
         category: "tenant",
         action: "subject_access.review-recorded",
         message: "Human review was recorded against a prepared subject access export; no delivery was claimed.",
-        metadata: { requestId: body.requestId, preparedExportDigest: body.preparedExportDigest },
+        metadata: {
+          requestId: body.requestId,
+          preparedExportDigest: body.preparedExportDigest,
+          reviewResultId: result.resultId,
+        },
       });
+      return result;
     });
-    return noStore(NextResponse.json({ ok: true, status: "review-recorded" }, { headers: PRIVATE_NO_STORE }));
+    return noStore(NextResponse.json({
+      ok: true,
+      status: "review-recorded",
+      replay: review.replay,
+      resultId: review.resultId,
+    }, { headers: PRIVATE_NO_STORE }));
   } catch (error) {
     return authOrFailure(error);
   }
