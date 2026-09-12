@@ -4527,12 +4527,6 @@ export interface StaffProvisioningOperation {
   createdAt: number;
   updatedAt: number;
   completedAt?: number;
-  invitationNonce?: string;
-  invitationExpiresAt?: number;
-  invitationSessionRev?: number;
-  invitationDeliveryRef?: string;
-  invitationAttempts?: number;
-  invitationDeliveredAt?: number;
 }
 
 export type AgencySignupStage =

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { loginWithTrustedChallengeHostname } from "../route";
+import { loginWithTrustedChallengeHostname } from "../trustedChallengeLogin";
 
 const localLoginOrigins = new Set([
   "http://localhost:3030",
