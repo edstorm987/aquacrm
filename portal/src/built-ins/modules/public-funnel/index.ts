@@ -28,22 +28,24 @@ const manifest: AquaPlugin = {
   version: "0.1.0",
   status: "alpha",
   category: "growth",
-  tagline: "Health Check + tool completions → safe lead capture for BOS.",
+  tagline: "Health Check + tool completions → safe pending capture.",
   description:
     "The public funnel link. Static `public/health-check/` POSTs the " +
     "completed slot through `/api/public/health-check/complete`; after managed challenge verification this plugin " +
     "creates only a non-authenticatable pending capture in install storage. It creates no User, session, membership " +
     "or provider identity. Existing identities, canonical-address repeats and repeated completion ids fail closed " +
     "without returning capture authority. Anonymous events contain only the capture id, source and score bucket. " +
-    "The server-only promotion command requires exact mailbox proof or an authenticated actor, then stores the exact " +
+    "The server-only promotion command accepts only a foundation-validated capability, then stores the exact " +
     "Lead/Person/Prospect/card lineage; no public promotion endpoint exists yet. " +
+    "This host currently validates signed, fresh agency sessions with an authorised live member and fails mailbox-proof " +
+    "credentials closed until a durable proof-receipt store is mounted. " +
     "Anonymous capture has one canonical mounted admission; the former query-scoped plugin completion routes are retired.",
 
   core: true,
   scopePolicy: "agency",
 
   // No nav items — public funnel is invisible UI; activity-inbox and
-  // BOS surface the captures via events + the me-context endpoint.
+  // verified/legacy identities may surface through the me-context endpoint.
   navItems: [],
 
   pages: [],
@@ -76,7 +78,7 @@ const manifest: AquaPlugin = {
   // Right-to-be-forgotten. Address-only captures are preserved and surfaced
   // for review; only exact client/exclusive-Person stamps may delete.
   onEraseClient: async (ctx: PluginCtx, clientId: string, subject?: ErasureSubject) => {
-    const c = _containerFromCtx({ agencyId: ctx.agencyId, storage: ctx.storage });
+    const c = _containerFromCtx({ agencyId: ctx.agencyId, installId: ctx.install.id, storage: ctx.storage });
     if (!c) throw new Error("Public-funnel erasure foundation is unavailable.");
     const evidence = subject?.identityEvidence;
     const result = await c.funnel.eraseForClient({
@@ -103,7 +105,7 @@ const manifest: AquaPlugin = {
   },
 
   healthcheck: async (ctx: PluginCtx): Promise<HealthStatus> => {
-    const c = _containerFromCtx({ agencyId: ctx.agencyId, storage: ctx.storage });
+    const c = _containerFromCtx({ agencyId: ctx.agencyId, installId: ctx.install.id, storage: ctx.storage });
     if (!c) return { ok: false, message: "public-funnel foundation not registered" };
     const all = await c.funnel.list();
     const hc = all.filter(x => x.source === "hc").length;

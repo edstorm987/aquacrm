@@ -1432,7 +1432,9 @@ describe("erasing a client reaches the plugins that captured them before they we
       // Use the real local-only adapter: pending captures create no User, while
       // exact erasure must still clean pre-migration capture-created Users.
       leadUsers: leadFunnelPorts.leadUserPort,
-    } as never);
+      promotionAuthority: leadFunnelPorts.pendingCapturePromotionAuthorityPort,
+      promotions: leadFunnelPorts.pendingCapturePromotionPort,
+    });
     marketing.registerAgencyMarketingFoundation({
       tenant: ports.tenantPort, user: ports.userPort,
       activity: ports.activityPort, events: ports.eventBusPort,
@@ -1444,7 +1446,11 @@ describe("erasing a client reaches the plugins that captured them before they we
     const EMAIL = `funnelled-${process.hrtime.bigint()}@example.com`;
     const agency = tenants.createAgency({ name: "Funnelled Co", slug: `fnl-${process.hrtime.bigint()}` });
     const install = pluginInstalls.upsertInstall({ scope: { agencyId: agency.id }, pluginId: "public-funnel", installedBy: "ed" } as never);
-    const c = funnel.containerFor({ agencyId: agency.id as never, storage: pluginStorage.makePluginStorage(install.id) as never } as never);
+    const c = funnel.containerFor({
+      agencyId: agency.id as never,
+      install: install as never,
+      storage: pluginStorage.makePluginStorage(install.id) as never,
+    });
 
     // Captured from a public form — no client exists yet, so no clientId anywhere.
     await c.funnel.captureHcCompletion({ email: EMAIL, slot: { slot: 3, answers: {} } } as never);
@@ -1472,7 +1478,7 @@ describe("erasing a client reaches the plugins that captured them before they we
       scope: { agencyId: agency.id }, pluginId: "public-funnel", installedBy: "ed",
     } as never);
     const store = pluginStorage.makePluginStorage(install.id);
-    const c = funnel.containerFor({ agencyId: agency.id as never, storage: store as never } as never);
+    const c = funnel.containerFor({ agencyId: agency.id as never, install: install as never, storage: store as never });
 
     const captureA = await c.funnel.captureHcCompletion({
       email: EMAIL_A, completionId: `exact_a_${suffix}`, slot: { slot: 1 },
@@ -1617,8 +1623,8 @@ describe("erasing a client reaches the plugins that captured them before they we
     } as never);
     const storeA = pluginStorage.makePluginStorage(installA.id);
     const storeB = pluginStorage.makePluginStorage(installB.id);
-    const funnelA = funnel.containerFor({ agencyId: agencyA.id as never, storage: storeA as never } as never);
-    const funnelB = funnel.containerFor({ agencyId: agencyB.id as never, storage: storeB as never } as never);
+    const funnelA = funnel.containerFor({ agencyId: agencyA.id as never, install: installA as never, storage: storeA as never });
+    const funnelB = funnel.containerFor({ agencyId: agencyB.id as never, install: installB as never, storage: storeB as never });
     const captureA = await funnelA.funnel.captureHcCompletion({
       email: `collision-a-${suffix}@example.com`, completionId, slot: { slot: 1 },
     } as never);
@@ -1657,7 +1663,7 @@ describe("erasing a client reaches the plugins that captured them before they we
       scope: { agencyId: agency.id }, pluginId: "public-funnel", installedBy: "ed",
     } as never);
     const store = pluginStorage.makePluginStorage(install.id);
-    const c = funnel.containerFor({ agencyId: agency.id as never, storage: store as never } as never);
+    const c = funnel.containerFor({ agencyId: agency.id as never, install: install as never, storage: store as never });
     const captureA = await c.funnel.captureHcCompletion({
       email: `shared-user-a-${suffix}@example.com`, completionId: `shared_user_a_${suffix}`, slot: { slot: 1 },
     } as never);
@@ -2042,7 +2048,7 @@ describe("CAPSTONE: erasing a client who has everything", () => {
       } as never,
     });
     const mailC = mail.containerFor({ agencyId: A as never, storage: store(mailI.id) } as never);
-    const funnelC = funnelPlugin.containerFor({ agencyId: A as never, storage: store(funnelI.id) } as never);
+    const funnelC = funnelPlugin.containerFor({ agencyId: A as never, install: funnelI as never, storage: store(funnelI.id) });
     const mktC = marketing.containerFor({ agencyId: A as never, storage: store(mktI.id) } as never);
     const ident = await mailC.identities.create({ name: "Agency", email: "hello@agency.test", isDefault: true } as never, "ed" as never);
     await mailC.identities.verifyDomain(ident.id, "ed" as never);
@@ -2158,7 +2164,7 @@ describe("CAPSTONE: erasing a client who has everything", () => {
     const funnelI = install("public-funnel");
     const marketingI = install("agency-marketing");
     const mailC = mail.containerFor({ agencyId: A as never, storage: store(mailI.id) } as never);
-    const funnelC = funnelPlugin.containerFor({ agencyId: A as never, storage: store(funnelI.id) } as never);
+    const funnelC = funnelPlugin.containerFor({ agencyId: A as never, install: funnelI as never, storage: store(funnelI.id) });
     const marketingC = marketing.containerFor({ agencyId: A as never, storage: store(marketingI.id) } as never);
 
     const identity = await mailC.identities.create({

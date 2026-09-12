@@ -10,14 +10,14 @@ export {
 } from "../lib/domain";
 export type {
   PendingCapturePromotion,
-  PendingCapturePromotionAuthority,
+  PendingCapturePromotionCredential,
   PromotePendingCaptureInput,
   PromotePendingCaptureResult,
 } from "../lib/domain";
 export type {
   ActivityLogPort, EventBusPort, FunnelEventName,
-  LeadUserPort, LogActivityInput, PendingCapturePromotionPort,
-  PendingCapturePromotionLineage,
+  LeadUserPort, LogActivityInput, PendingCapturePromotionAuthorityGrant,
+  PendingCapturePromotionAuthorityPort, PendingCapturePromotionPort, PendingCapturePromotionLineage,
   StoragePort, TenantPort, UserPort,
 } from "./ports";
 export {
@@ -34,16 +34,19 @@ export type { FunnelFoundation, ContainerForArgs } from "./foundationAdapter";
 import type { AgencyId } from "../lib/tenancy";
 import type { PluginStorage } from "../lib/aquaPluginTypes";
 import type {
-  ActivityLogPort, EventBusPort, LeadUserPort, PendingCapturePromotionPort, StoragePort,
+  ActivityLogPort, EventBusPort, LeadUserPort, PendingCapturePromotionAuthorityPort,
+  PendingCapturePromotionPort, StoragePort,
 } from "./ports";
 import { FunnelService } from "./services";
 
 export interface FunnelDepsInput {
   agencyId: AgencyId;
+  installId: string;
   storage: PluginStorage | StoragePort;
   activity: ActivityLogPort;
   events: EventBusPort;
   leadUsers: LeadUserPort;
+  promotionAuthority: PendingCapturePromotionAuthorityPort;
   promotions: PendingCapturePromotionPort;
 }
 
@@ -54,9 +57,10 @@ export interface FunnelContainer {
 export function buildFunnelContainer(deps: FunnelDepsInput): FunnelContainer {
   const storage = deps.storage as StoragePort;
   const funnel = new FunnelService({
-    agencyId: deps.agencyId, storage,
+    agencyId: deps.agencyId, installId: deps.installId, storage,
     activity: deps.activity, events: deps.events,
     leadUsers: deps.leadUsers,
+    promotionAuthority: deps.promotionAuthority,
     promotions: deps.promotions,
   });
   return { funnel };

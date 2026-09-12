@@ -29,6 +29,7 @@ import type {
   ActivityLogPort,
   EventBusPort,
   LeadUserPort,
+  PendingCapturePromotionAuthorityPort,
   PendingCapturePromotionPort,
   StoragePort,
 } from "./ports";
@@ -84,27 +85,33 @@ function assertHcSlot(slot: HCSlot): void {
 
 export interface FunnelDeps {
   agencyId: AgencyId;
+  installId: string;
   storage: StoragePort;
   activity: ActivityLogPort;
   events: EventBusPort;
   leadUsers: LeadUserPort;
+  promotionAuthority: PendingCapturePromotionAuthorityPort;
   promotions: PendingCapturePromotionPort;
 }
 
 export class FunnelService {
   private readonly agencyId: AgencyId;
+  private readonly installId: string;
   private readonly storage: StoragePort;
   private readonly activity: ActivityLogPort;
   private readonly events: EventBusPort;
   private readonly leadUsers: LeadUserPort;
+  private readonly promotionAuthority: PendingCapturePromotionAuthorityPort;
   private readonly promotions: PendingCapturePromotionPort;
 
   constructor(deps: FunnelDeps) {
     this.agencyId = deps.agencyId;
+    this.installId = deps.installId;
     this.storage = deps.storage;
     this.activity = deps.activity;
     this.events = deps.events;
     this.leadUsers = deps.leadUsers;
+    this.promotionAuthority = deps.promotionAuthority;
     this.promotions = deps.promotions;
   }
 
@@ -265,9 +272,24 @@ export class FunnelService {
     if (!captureId || !this.storage.runExclusive) {
       throw new FunnelInputError("promotion_unavailable");
     }
-    const operationId = input.authority.kind === "mailbox-proof"
-      ? input.authority.verificationId.trim()
-      : input.authority.operationId.trim();
+    if (!input.credential
+      || (input.credential.kind !== "mailbox-proof"
+        && input.credential.kind !== "authenticated")) {
+      throw new FunnelInputError("promotion_authority_refused");
+    }
+    const candidate = await this.storage.get<LeadCapture>(captureKey(captureId));
+    if (!candidate) throw new FunnelInputError("capture_not_found");
+    const authority = await this.promotionAuthority.verify({
+      agencyId: this.agencyId,
+      installId: this.installId,
+      captureId: candidate.id,
+      captureEmail: candidate.email,
+      credential: input.credential,
+    });
+    if (!authority || authority.kind !== input.credential.kind) {
+      throw new FunnelInputError("promotion_authority_refused");
+    }
+    const operationId = authority.operationId.trim();
     if (!/^[a-zA-Z0-9:_-]{8,160}$/.test(operationId)) {
       throw new FunnelInputError("invalid_promotion_operation");
     }
@@ -275,7 +297,8 @@ export class FunnelService {
     return this.storage.runExclusive(`capture-promotion:${captureId}`, async () => {
       const capture = await this.storage.get<LeadCapture>(captureKey(captureId));
       if (!capture) throw new FunnelInputError("capture_not_found");
-      const authorityOperationId = `${input.authority.kind}:${operationId}`;
+      if (capture.email !== candidate.email) throw new FunnelInputError("capture_authority_changed");
+      const authorityOperationId = `${authority.kind}:${operationId}`;
       if (capture.promotion) {
         if (capture.promotion.operationId !== authorityOperationId) {
           throw new FunnelInputError("capture_already_promoted");
@@ -283,13 +306,11 @@ export class FunnelService {
         return { capture, promotion: capture.promotion, promoted: false };
       }
       if (!capture.pendingLeadId) throw new FunnelInputError("capture_not_pending");
-      if (input.authority.kind === "mailbox-proof"
-        && canonEmail(input.authority.verifiedEmail) !== capture.email) {
+      if (authority.kind === "mailbox-proof"
+        && canonEmail(authority.verifiedEmail ?? "") !== capture.email) {
         throw new FunnelInputError("mailbox_proof_mismatch");
       }
-      const actorUserId = input.authority.kind === "authenticated"
-        ? input.authority.actorUserId.trim()
-        : "system";
+      const actorUserId = authority.actorUserId.trim();
       if (!actorUserId) throw new FunnelInputError("promotion_actor_required");
 
       const lineage = await this.promotions.promote({
@@ -302,7 +323,7 @@ export class FunnelService {
       });
       const promotion: PendingCapturePromotion = {
         operationId: authorityOperationId,
-        authorityKind: input.authority.kind,
+        authorityKind: authority.kind,
         promotedAt: now(),
         leadId: lineage.leadId,
         personId: lineage.personId,
@@ -318,7 +339,7 @@ export class FunnelService {
       await this.storage.set(captureKey(capture.id), promotedCapture);
       await this.activity.logActivity({
         agencyId: this.agencyId,
-        actorUserId: input.authority.kind === "authenticated" ? actorUserId : undefined,
+        actorUserId: authority.kind === "authenticated" ? actorUserId : undefined,
         category: "public-funnel",
         action: "public-funnel.capture.promoted",
         message: "Pending capture promoted into the CRM.",
@@ -339,10 +360,43 @@ export class FunnelService {
           personId: lineage.personId,
           ...(lineage.prospectId ? { prospectId: lineage.prospectId } : {}),
           ...(lineage.pipelineCardId ? { pipelineCardId: lineage.pipelineCardId } : {}),
-          authorityKind: input.authority.kind,
+          authorityKind: authority.kind,
         },
       );
       return { capture: promotedCapture, promotion, promoted: true };
+    });
+  }
+
+  /**
+   * Delete one exact pending capture and every durable derivative linked by
+   * its id. Promoted rows fail closed into the linked CRM erasure workflow;
+   * deleting only their capture would discard the ownership linkage while
+   * leaving the Person/Lead behind.
+   * The caller must establish erasure authority before invoking this server-
+   * only command; there is deliberately no address-selected public route.
+   */
+  async eraseExactCapture(captureIdInput: string): Promise<{ erased: boolean; recordsErased: number }> {
+    const captureId = captureIdInput.trim();
+    if (!captureId || !this.storage.runExclusive) {
+      throw new FunnelInputError("capture_erasure_unavailable");
+    }
+    return this.storage.runExclusive(`capture-erasure:${captureId}`, async () => {
+      const capture = await this.storage.get<LeadCapture>(captureKey(captureId));
+      if (!capture) return { erased: false, recordsErased: 0 };
+      if (capture.promotion || capture.personId || !capture.pendingLeadId) {
+        throw new FunnelInputError("capture_erasure_requires_promoted_lineage");
+      }
+      await this.storage.del(captureKey(capture.id));
+      const index = (await this.storage.get<string[]>(CAPTURE_INDEX)) ?? [];
+      await this.storage.set(CAPTURE_INDEX, index.filter(value => value !== capture.id));
+      if (!(await this.listByEmail(capture.email)).length) {
+        await this.storage.del(captureEmailKey(capture.email));
+      }
+      const artifacts = await this.leadUsers.eraseCaptureArtifacts({
+        agencyId: this.agencyId,
+        captureIds: [capture.id],
+      });
+      return { erased: true, recordsErased: 1 + artifacts.recordsErased };
     });
   }
 

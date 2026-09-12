@@ -6,7 +6,12 @@ import { strict as assert } from "node:assert";
 import type { ActivityEntry, AgencyId } from "../lib/tenancy";
 import type { PluginStorage } from "../lib/aquaPluginTypes";
 import type {
-  ActivityLogPort, EventBusPort, LeadUserPort, PendingCapturePromotionPort,
+  ActivityLogPort,
+  EventBusPort,
+  LeadUserPort,
+  PendingCapturePromotionAuthorityGrant,
+  PendingCapturePromotionAuthorityPort,
+  PendingCapturePromotionPort,
 } from "../server/ports";
 import {
   clearFunnelFoundation,
@@ -18,18 +23,29 @@ import { ROUTES } from "../api/routes";
 import { now, setClock, resetClock } from "../lib/time";
 
 const AGENCY: AgencyId = "agency_milesy_master";
+const INSTALL = "install_public_funnel_master";
 const T0 = Date.UTC(2026, 4, 7, 12, 0, 0);
+
+interface AuthorityRecord {
+  agencyId: string;
+  installId: string;
+  captureId: string;
+  captureEmail: string;
+  grant: PendingCapturePromotionAuthorityGrant;
+}
 
 interface World {
   storage: PluginStorage;
   activity: ActivityLogPort;
   events: EventBusPort;
   leadUsers: LeadUserPort;
+  promotionAuthority: PendingCapturePromotionAuthorityPort;
   promotions: PendingCapturePromotionPort;
   inspect: {
     activityLog: ActivityEntry[];
     events: { name: string; payload: unknown }[];
     pendingLeadCreations: string[];
+    authorityRecords: Map<string, AuthorityRecord>;
     promotionCalls: Array<{ captureId: string; email: string; agencyId: string }>;
   };
 }
@@ -39,6 +55,7 @@ function buildWorld(): World {
   const activityLog: ActivityEntry[] = [];
   const events: { name: string; payload: unknown }[] = [];
   const pendingLeadCreations: string[] = [];
+  const authorityRecords = new Map<string, AuthorityRecord>();
   const promotionCalls: Array<{ captureId: string; email: string; agencyId: string }> = [];
   let pendingSeq = 1;
   let identityTail = Promise.resolve();
@@ -134,12 +151,30 @@ function buildWorld(): World {
       };
     },
   };
+  const promotionAuthority: PendingCapturePromotionAuthorityPort = {
+    async verify(input) {
+      const key = input.credential.kind === "mailbox-proof"
+        ? `mailbox:${input.credential.receiptId}`
+        : `authenticated:${input.credential.sessionToken}`;
+      const record = authorityRecords.get(key);
+      if (!record
+        || record.agencyId !== input.agencyId
+        || record.installId !== input.installId
+        || record.captureId !== input.captureId
+        || record.captureEmail !== input.captureEmail
+        || record.grant.kind !== input.credential.kind) {
+        return null;
+      }
+      return record.grant;
+    },
+  };
   return {
-    storage, activity, events: eventBus, leadUsers, promotions,
+    storage, activity, events: eventBus, leadUsers, promotionAuthority, promotions,
     inspect: {
       activityLog,
       events,
       pendingLeadCreations,
+      authorityRecords,
       promotionCalls,
     },
   };
@@ -147,9 +182,10 @@ function buildWorld(): World {
 
 function container(world: World) {
   return containerWithDeps({
-    agencyId: AGENCY, storage: world.storage,
+    agencyId: AGENCY, installId: INSTALL, storage: world.storage,
     activity: world.activity, events: world.events,
     leadUsers: world.leadUsers,
+    promotionAuthority: world.promotionAuthority,
     promotions: world.promotions,
   });
 }
@@ -498,7 +534,7 @@ describe("@aqua/plugin-public-funnel smoke", () => {
     resetClock();
   });
 
-  test("21. promotion requires exact authority and replays one linked conversion", async () => {
+  test("21. promotion consumes only a verifier-bound capability and races to one conversion", async () => {
     setClock(() => T0);
     const w = buildWorld();
     const c = container(w);
@@ -511,38 +547,63 @@ describe("@aqua/plugin-public-funnel smoke", () => {
     await assert.rejects(
       () => c.funnel.promotePendingCapture({
         captureId: captured.capture.id,
-        authority: {
-          kind: "mailbox-proof",
-          verifiedEmail: "attacker@example.com",
-          verificationId: "verify-proof-001",
-        },
+        credential: { kind: "mailbox-proof", receiptId: "forged-proof-001" },
       }),
-      (error: unknown) => error instanceof FunnelInputError && error.message === "mailbox_proof_mismatch",
+      (error: unknown) => error instanceof FunnelInputError && error.message === "promotion_authority_refused",
     );
     assert.equal(w.inspect.promotionCalls.length, 0);
 
+    w.inspect.authorityRecords.set("mailbox:verified-proof-001", {
+      agencyId: AGENCY,
+      installId: INSTALL,
+      captureId: captured.capture.id,
+      captureEmail: captured.capture.email,
+      grant: {
+        kind: "mailbox-proof",
+        operationId: "verified-proof-001",
+        actorUserId: "mailbox-proof-service",
+        verifiedEmail: " PROOF-OWNER@EXAMPLE.COM ",
+      },
+    });
     const command = {
       captureId: captured.capture.id,
-      authority: {
-        kind: "mailbox-proof" as const,
-        verifiedEmail: " PROOF-OWNER@EXAMPLE.COM ",
-        verificationId: "verify-proof-001",
-      },
+      credential: { kind: "mailbox-proof" as const, receiptId: "verified-proof-001" },
     };
-    const promoted = await c.funnel.promotePendingCapture(command);
-    const replay = await c.funnel.promotePendingCapture(command);
-    assert.equal(promoted.promoted, true);
-    assert.equal(replay.promoted, false);
+    const raced = await Promise.all([
+      c.funnel.promotePendingCapture(command),
+      c.funnel.promotePendingCapture(command),
+    ]);
+    const promoted = raced.find(result => result.promoted);
+    const replay = raced.find(result => !result.promoted);
+    assert.ok(promoted);
+    assert.ok(replay);
     assert.deepEqual(replay.promotion, promoted.promotion);
     assert.equal(w.inspect.promotionCalls.length, 1);
     assert.equal(promoted.capture.pendingLeadId, undefined);
     assert.equal(promoted.capture.personId, promoted.promotion.personId);
     assert.equal(promoted.promotion.leadId, `lead_for_${captured.capture.id}`);
+    await assert.rejects(
+      () => c.funnel.eraseExactCapture(captured.capture.id),
+      (error: unknown) => error instanceof FunnelInputError
+        && error.message === "capture_erasure_requires_promoted_lineage",
+    );
 
+    w.inspect.authorityRecords.set("mailbox:verified-proof-002", {
+      agencyId: AGENCY,
+      installId: INSTALL,
+      captureId: captured.capture.id,
+      captureEmail: captured.capture.email,
+      grant: {
+        kind: "mailbox-proof",
+        operationId: "verified-proof-002",
+        actorUserId: "mailbox-proof-service",
+        verifiedEmail: captured.capture.email,
+      },
+    });
     await assert.rejects(
       () => c.funnel.promotePendingCapture({
-        ...command,
-        authority: { ...command.authority, verificationId: "verify-proof-002" },
+        captureId: captured.capture.id,
+        credential: { kind: "mailbox-proof", receiptId: "verified-proof-002" },
       }),
       (error: unknown) => error instanceof FunnelInputError && error.message === "capture_already_promoted",
     );
@@ -553,7 +614,7 @@ describe("@aqua/plugin-public-funnel smoke", () => {
     resetClock();
   });
 
-  test("22. an authenticated operator can explicitly promote a pending capture", async () => {
+  test("22. authenticated promotion rejects forged and cross-scope credentials", async () => {
     setClock(() => T0);
     const w = buildWorld();
     const c = container(w);
@@ -562,16 +623,106 @@ describe("@aqua/plugin-public-funnel smoke", () => {
       completionId: "operator_promotion_01",
       toolId: "rank-my-website",
     });
+    await assert.rejects(
+      () => c.funnel.promotePendingCapture({
+        captureId: captured.capture.id,
+        credential: {
+          kind: "authenticated",
+          sessionToken: "not-a-real-session",
+          operationId: "operator-command-forged",
+        },
+      }),
+      (error: unknown) => error instanceof FunnelInputError && error.message === "promotion_authority_refused",
+    );
+    w.inspect.authorityRecords.set("authenticated:signed-session-001", {
+      agencyId: "agency_wrong_tenant",
+      installId: INSTALL,
+      captureId: captured.capture.id,
+      captureEmail: captured.capture.email,
+      grant: {
+        kind: "authenticated",
+        operationId: "operator-command-001",
+        actorUserId: "agency_owner_001",
+      },
+    });
+    await assert.rejects(
+      () => c.funnel.promotePendingCapture({
+        captureId: captured.capture.id,
+        credential: {
+          kind: "authenticated",
+          sessionToken: "signed-session-001",
+          operationId: "operator-command-001",
+        },
+      }),
+      (error: unknown) => error instanceof FunnelInputError && error.message === "promotion_authority_refused",
+    );
+    w.inspect.authorityRecords.set("authenticated:signed-session-001", {
+      agencyId: AGENCY,
+      installId: "install_wrong_scope",
+      captureId: captured.capture.id,
+      captureEmail: captured.capture.email,
+      grant: {
+        kind: "authenticated",
+        operationId: "operator-command-001",
+        actorUserId: "agency_owner_001",
+      },
+    });
+    await assert.rejects(
+      () => c.funnel.promotePendingCapture({
+        captureId: captured.capture.id,
+        credential: {
+          kind: "authenticated",
+          sessionToken: "signed-session-001",
+          operationId: "operator-command-001",
+        },
+      }),
+      (error: unknown) => error instanceof FunnelInputError && error.message === "promotion_authority_refused",
+    );
+    w.inspect.authorityRecords.set("authenticated:signed-session-001", {
+      agencyId: AGENCY,
+      installId: INSTALL,
+      captureId: captured.capture.id,
+      captureEmail: captured.capture.email,
+      grant: {
+        kind: "authenticated",
+        operationId: "operator-command-001",
+        actorUserId: "agency_owner_001",
+      },
+    });
     const promoted = await c.funnel.promotePendingCapture({
       captureId: captured.capture.id,
-      authority: {
+      credential: {
         kind: "authenticated",
-        actorUserId: "agency_owner_001",
+        sessionToken: "signed-session-001",
         operationId: "operator-command-001",
       },
     });
     assert.equal(promoted.promoted, true);
     assert.equal(promoted.promotion.authorityKind, "authenticated");
+    assert.equal(w.inspect.promotionCalls.length, 1);
+    resetClock();
+  });
+
+  test("23. exact pending-capture erasure is idempotent and removes its lineage", async () => {
+    setClock(() => T0);
+    const w = buildWorld();
+    const c = container(w);
+    const captured = await c.funnel.captureHcCompletion({
+      email: "exact-erasure@example.com",
+      completionId: "exact_erasure_capture_01",
+      slot: { slot: 3 },
+    });
+    assert.ok(w.inspect.activityLog.some(entry =>
+      (entry.metadata as { captureId?: string } | undefined)?.captureId === captured.capture.id));
+
+    const first = await c.funnel.eraseExactCapture(captured.capture.id);
+    const replay = await c.funnel.eraseExactCapture(captured.capture.id);
+    assert.equal(first.erased, true);
+    assert.ok(first.recordsErased >= 3, "capture plus its two activity records must be erased");
+    assert.deepEqual(replay, { erased: false, recordsErased: 0 });
+    assert.equal((await c.funnel.listByEmail(captured.capture.email)).length, 0);
+    assert.equal(w.inspect.activityLog.some(entry =>
+      (entry.metadata as { captureId?: string } | undefined)?.captureId === captured.capture.id), false);
     resetClock();
   });
 });

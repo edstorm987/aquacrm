@@ -2,7 +2,7 @@
   "name": "@aqua/plugin-public-funnel",
   "version": "0.1.0",
   "private": true,
-  "description": "Aqua portal public funnel \u2014 accepts managed-challenge-protected Health Check completions into pending-only storage with non-PII events. Anonymous requests create no User, CRM Lead, Person, Prospect, card or session. A server-only idempotent promotion command requires exact mailbox proof or an authenticated actor and records exact CRM lineage; no public promotion endpoint exists yet.",
+  "description": "Aqua portal public funnel \u2014 accepts managed-challenge-protected Health Check completions into pending-only storage with non-PII events. Anonymous requests create no User, CRM Lead, Person, Prospect, card or session. A server-only idempotent promotion command requires a foundation-validated capability and records exact CRM lineage; the current host validates fresh signed agency sessions and fails mailbox proof closed until durable receipts exist.",
   "main": "index.ts",
   "exports": {
     ".": "./index.ts",

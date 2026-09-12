@@ -6,6 +6,7 @@ import type {
   UserId,
   UserProfile,
 } from "../lib/tenancy";
+import type { PendingCapturePromotionCredential } from "../lib/domain";
 
 export interface StoragePort {
   get<T = unknown>(key: string): Promise<T | undefined>;
@@ -57,7 +58,8 @@ export interface LeadUserPort {
   // The adapter refuses any address already owned by a real identity, then
   // allocates an opaque pending id inside the same transaction as plugin
   // persistence. The id has no password, session, membership or provider
-  // identity. Only a future mailbox-proof promotion may create/attach a User.
+  // identity. CRM promotion never creates or attaches a User; that would
+  // require a separate verified account-enrolment boundary.
   withPendingLeadByEmail<T>(
     email: string,
     operation: (createPendingLead: () => { id: string }) => Promise<T>,
@@ -89,6 +91,30 @@ export interface PendingCapturePromotionLineage {
   personId: string;
   prospectId?: string;
   pipelineCardId?: string;
+}
+
+export interface PendingCapturePromotionAuthorityGrant {
+  kind: "mailbox-proof" | "authenticated";
+  /** Stable, non-secret receipt/command id used for idempotent replay. */
+  operationId: string;
+  /** Authoritative actor chosen by the verifier, never by the caller. */
+  actorUserId: UserId;
+  /** Required for mailbox proof so the service can bind it to the capture. */
+  verifiedEmail?: string;
+}
+
+/**
+ * Trust boundary for promotion. The plugin passes only an opaque credential;
+ * the host verifies a durable proof receipt or a signed, fresh agency session.
+ */
+export interface PendingCapturePromotionAuthorityPort {
+  verify(input: {
+    agencyId: AgencyId;
+    installId: string;
+    captureId: string;
+    captureEmail: string;
+    credential: PendingCapturePromotionCredential;
+  }): Promise<PendingCapturePromotionAuthorityGrant | null>;
 }
 
 /**

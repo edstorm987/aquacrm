@@ -33,8 +33,9 @@ export interface LeadCapture {
   personId?: string;
   /**
    * Anonymous captures are deliberately outside the authenticatable User
-   * namespace. A mailbox-proof promotion flow may later attach a real user;
-   * legacy rows can already contain this field.
+   * namespace. Only a separate verified account-enrolment boundary may later
+   * attach a real user; CRM promotion does not. Legacy rows can already
+   * contain this field.
    */
   leadUserId?: UserId;
   /** Opaque, non-authenticatable identity local to this capture. */
@@ -60,25 +61,27 @@ export interface PendingCapturePromotion {
   pipelineCardId?: string;
 }
 
-export type PendingCapturePromotionAuthority =
+/**
+ * Untrusted request material. It is deliberately not an authority claim: the
+ * foundation must resolve it through PendingCapturePromotionAuthorityPort.
+ */
+export type PendingCapturePromotionCredential =
   | {
       kind: "mailbox-proof";
-      /** Canonical mailbox address established by a separate verifier. */
-      verifiedEmail: string;
-      /** Stable, non-secret verification nonce/id — never the proof token. */
-      verificationId: string;
+      /** Opaque receipt id minted and stored by a separate mailbox verifier. */
+      receiptId: string;
     }
   | {
       kind: "authenticated";
-      /** The already-authorised operator responsible for the promotion. */
-      actorUserId: UserId;
+      /** Signed session token; raw user ids never confer authority. */
+      sessionToken: string;
       /** Stable command id supplied by the authenticated boundary. */
       operationId: string;
     };
 
 export interface PromotePendingCaptureInput {
   captureId: string;
-  authority: PendingCapturePromotionAuthority;
+  credential: PendingCapturePromotionCredential;
   profile?: {
     name?: string;
     phone?: string;
@@ -95,7 +98,7 @@ export interface PromotePendingCaptureResult {
 export interface CaptureHcInput {
   email: string;
   slot: HCSlot;
-  /** Stable per-results operation id. Retrying it reuses the original capture. */
+  /** Stable per-results operation id. A retry is refused without revealing the original capture. */
   completionId?: string;
   sourceMeta?: Record<string, unknown>;
 }
@@ -126,7 +129,7 @@ export interface MeContext {
   captures: LeadCapture[];
 }
 
-// Score-bucket helper. Exposed so the HC-completed event payload is
+// Score-bucket helper. Exposed so the non-PII pending summary payload is
 // stable across HC schema bumps.
 export type HcScoreBucket = "early" | "growing" | "scaling";
 

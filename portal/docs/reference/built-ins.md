@@ -2719,7 +2719,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface SettingsField (7 members)`
 - `interface PluginFeature (5 members)`
 - `interface HealthStatus (3 members)`
-- `interface ErasureSubject (3 members)` — Who is being erased. Mirrors `built-ins/runtime/_types.ts`.
+- `interface ErasureSubject (7 members)` — Who is being erased. Mirrors `built-ins/runtime/_types.ts`.
 - `interface AquaPlugin (25 members)`
 
 **Depends on (2):** [`src/built-ins/modules/agency-marketing/src/lib/tenancy.ts`](#file-src-built-ins-modules-agency-marketing-src-lib-tenancy-ts-c28ff933dc) · [`src/built-ins/modules/agency-marketing/src/server/ports.ts`](#file-src-built-ins-modules-agency-marketing-src-server-ports-ts-60112d22e3)
@@ -2765,8 +2765,8 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface MarketingCustomerProfile (36 members)`
 - `interface CreateMarketingCustomerProfileInput (32 members)`
 - `interface LeadContactNote (3 members)`
-- `interface Lead (14 members)`
-- `interface CreateLeadInput (7 members)`
+- `interface Lead (16 members)`
+- `interface CreateLeadInput (9 members)`
 - `interface UpdateLeadPatch (7 members)`
 - `interface EmailTemplate (11 members)`
 - `interface CreateTemplateInput (5 members)`
@@ -3079,7 +3079,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** and `unqualified → contacted` (give it another shot).
 
-**Exports (2):**
+**Exports (4):**
 
 - `class MarketingLeadIdentityConflictError`
     - `constructor()`
@@ -3091,10 +3091,12 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
     - `async listForCampaign(campaignId: string): Promise<Lead[]>`
     - `async listForStaff(staffId: string): Promise<Lead[]>`
     - `async create(input: CreateLeadInput, actor: UserId, sourceDefault: LeadSource = "manual"): Promise<Lead>`
-    - `async eraseForAddresses(addresses: readonly string[]): Promise<number>`
+    - `async eraseForClient(subject: MarketingLeadErasureSubject): Promise<MarketingLeadErasureResult>`
     - `async update(id: string, patch: UpdateLeadPatch, actor: UserId): Promise<Lead | null>`
     - `async assignTo(id: string, staffId: string, actor: UserId): Promise<Lead | null>`
     - `async recordContact(id: string, note: string, actor: UserId): Promise<Lead | null>`
+- `interface MarketingLeadErasureResult (2 members)`
+- `interface MarketingLeadErasureSubject (7 members)`
 
 **Depends on (5):** [`src/built-ins/modules/agency-marketing/src/lib/domain.ts`](#file-src-built-ins-modules-agency-marketing-src-lib-domain-ts-4e2d2548b6) · [`src/built-ins/modules/agency-marketing/src/lib/ids.ts`](#file-src-built-ins-modules-agency-marketing-src-lib-ids-ts-1aaa59dc45) · [`src/built-ins/modules/agency-marketing/src/lib/tenancy.ts`](#file-src-built-ins-modules-agency-marketing-src-lib-tenancy-ts-c28ff933dc) · [`src/built-ins/modules/agency-marketing/src/lib/time.ts`](#file-src-built-ins-modules-agency-marketing-src-lib-time-ts-a708c02903) · [`src/built-ins/modules/agency-marketing/src/server/ports.ts`](#file-src-built-ins-modules-agency-marketing-src-server-ports-ts-60112d22e3)
 
@@ -4769,10 +4771,10 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async shopifyFetch<T>(config: ShopifyConfig, args: { query: string; variables?: Record<string, unknown> }, options: ShopifyRequestOptions = {}): Promise<{ status: number; body: T }>`
 - `async createShopifyCart(config: ShopifyConfig, options: ShopifyRequestOptions = {}): Promise<{ id: string; checkoutUrl: string }>` — to Shopify Checkout instead of Stripe Checkout.
 - `async addLineToShopifyCart(config: ShopifyConfig, cartId: string, variantId: string, quantity: number, options: ShopifyRequestOptions = {}): Promise<{ id: string; checkoutUrl: string }>`
-- `interface ShopifyConfig (2 members)`
+- `interface ShopifyConfig (3 members)`
 - `interface ShopifyRequestOptions (3 members)`
 
-**Depends on (2):** [`src/lib/server/remoteOperation.ts`](lib.md#file-src-lib-server-remoteoperation-ts-60689f2f16) · [`src/lib/server/sandbox/providerPolicy.ts`](lib.md#file-src-lib-server-sandbox-providerpolicy-ts-d36e7025f0)
+**Depends on (3):** [`src/lib/server/net/outboundBroker.ts`](lib.md#file-src-lib-server-net-outboundbroker-ts-1b5e0fb1d0) · [`src/lib/server/remoteOperation.ts`](lib.md#file-src-lib-server-remoteoperation-ts-60689f2f16) · [`src/lib/server/sandbox/providerPolicy.ts`](lib.md#file-src-lib-server-sandbox-providerpolicy-ts-d36e7025f0)
 
 **Used by (1):** [`scripts/smoke-provider-deadlines.test.ts`](scripts.md#file-scripts-smoke-provider-deadlines-test-ts-b3c5fd9785)
 
@@ -5490,7 +5492,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface SettingsField (7 members)`
 - `interface PluginFeature (5 members)`
 - `interface HealthStatus (3 members)`
-- `interface ErasureSubject (3 members)` — Who is being erased — resolved by the sweep from the client record, which is deleted moments later. Mirrors `built-ins/runtime/_types.ts`.
+- `interface ErasureSubject (7 members)` — Who is being erased — resolved by the sweep from the client record, which is deleted moments later. Mirrors `built-ins/runtime/_types.ts`.
 - `interface AquaPlugin (25 members)`
 
 **Depends on (2):** [`src/built-ins/modules/email-sender/src/lib/tenancy.ts`](#file-src-built-ins-modules-email-sender-src-lib-tenancy-ts-40262249aa) · [`src/built-ins/modules/email-sender/src/server/ports.ts`](#file-src-built-ins-modules-email-sender-src-server-ports-ts-d83f489d16)
@@ -5522,8 +5524,8 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface UpdateIdentityPatch (4 members)`
 - `interface EmailAttachment (3 members)`
 - `interface EmailFrom (2 members)`
-- `interface EmailMessage (23 members)`
-- `interface EnqueueInput (15 members)`
+- `interface EmailMessage (24 members)`
+- `interface EnqueueInput (16 members)`
 - `interface MessageFilter (4 members)`
 - `interface WebhookEventSeen (3 members)`
 - `interface PostmarkWebhookEvent (8 members)`
@@ -5781,7 +5783,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** email/index → string[] of all message ids
 
-**Exports (1):**
+**Exports (3):**
 
 - `class EmailService`
     - `constructor(private agencyId: AgencyId, private storage: StoragePort, private activity: ActivityLogPort, private events: EventBusPort, private identities: IdentityService, private marketingTemplates?: MarketingTemplateP…`
@@ -5799,7 +5801,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
     - `async onAffiliatePayoutCompleted(payload: { payoutId: string; affiliateUserId: string; affiliateEmail?: string; amountCents: number; externalRef?: string; }): Promise<EmailMessage | null>`
     - `async onAuthBootstrapSignup(payload: { userId: string; email: string; name?: string; agencyName?: string; }): Promise<EmailMessage | null>`
     - `async onCrmAutomationEmailRequested(payload: { automationId: string; cardId: string; contactEmail: string; contactName?: string; subject: string; bodyText: string; clientId?: string; }): Promise<EmailMessage | null>`
-    - `async eraseForAddresses(addresses: readonly string[], clientId?: string): Promise<number>`
+    - `async eraseForClient(subject: EmailErasureSubject): Promise<EmailErasureResult>`
+- `interface EmailErasureResult (2 members)`
+- `interface EmailErasureSubject (5 members)`
 
 **Depends on (6):** [`src/built-ins/modules/email-sender/src/lib/domain.ts`](#file-src-built-ins-modules-email-sender-src-lib-domain-ts-86c3b3b8a6) · [`src/built-ins/modules/email-sender/src/lib/ids.ts`](#file-src-built-ins-modules-email-sender-src-lib-ids-ts-d6fc9bd640) · [`src/built-ins/modules/email-sender/src/lib/tenancy.ts`](#file-src-built-ins-modules-email-sender-src-lib-tenancy-ts-40262249aa) · [`src/built-ins/modules/email-sender/src/lib/time.ts`](#file-src-built-ins-modules-email-sender-src-lib-time-ts-fccd94feb0) · [`src/built-ins/modules/email-sender/src/server/identities.ts`](#file-src-built-ins-modules-email-sender-src-server-identities-ts-75d1b791e3) · [`src/built-ins/modules/email-sender/src/server/ports.ts`](#file-src-built-ins-modules-email-sender-src-server-ports-ts-d83f489d16)
 
@@ -6649,7 +6653,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default manifest`
 
-**Depends on (4):** [`src/built-ins/modules/leads-pipeline/src/api/routes.ts`](#file-src-built-ins-modules-leads-pipeline-src-api-routes-ts-b984951bbb) · [`src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-aquaplugintypes-ts-f59e96dcca) · [`src/built-ins/modules/leads-pipeline/src/lib/clientMatch.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-clientmatch-ts-908892ce11) · [`src/built-ins/modules/leads-pipeline/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-foundationadapter-ts-9f18a9a0ea)
+**Depends on (4):** [`src/built-ins/modules/leads-pipeline/src/api/routes.ts`](#file-src-built-ins-modules-leads-pipeline-src-api-routes-ts-b984951bbb) · [`src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-aquaplugintypes-ts-f59e96dcca) · [`src/built-ins/modules/leads-pipeline/src/lib/clientAcquisitionLineage.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-clientacquisitionlineage-ts-c558775ef2) · [`src/built-ins/modules/leads-pipeline/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-foundationadapter-ts-9f18a9a0ea)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -6671,15 +6675,32 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 ## `src/built-ins/modules/leads-pipeline/src/api/`
 
+<a id="file-src-built-ins-modules-leads-pipeline-src-api-googleplaces-ts-47524227f9"></a>
+
+### `src/built-ins/modules/leads-pipeline/src/api/googlePlaces.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (3):**
+
+- `async googlePlacesSearchHandler(req: Request, ctx: PluginCtx, dependencies: GooglePlacesSearchDependencies = {}): Promise<Response>`
+- `interface GooglePlacesSearchPlace (9 members)`
+- `interface GooglePlacesSearchDependencies (6 members)`
+
+**Depends on (6):** [`src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-aquaplugintypes-ts-f59e96dcca) · [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) · [`src/lib/server/auth/founderAgency.ts`](lib.md#file-src-lib-server-auth-founderagency-ts-ab8355b6de) · [`src/lib/server/net/outboundBroker.ts`](lib.md#file-src-lib-server-net-outboundbroker-ts-1b5e0fb1d0) · [`src/lib/server/rateLimit.ts`](lib.md#file-src-lib-server-ratelimit-ts-4b02277298) · [`src/lib/server/sandbox/providerPolicy.ts`](lib.md#file-src-lib-server-sandbox-providerpolicy-ts-d36e7025f0)
+
+**Used by (1):** [`src/built-ins/modules/leads-pipeline/src/api/routes.ts`](#file-src-built-ins-modules-leads-pipeline-src-api-routes-ts-b984951bbb)
+
 <a id="file-src-built-ins-modules-leads-pipeline-src-api-handlers-ts-1726bbbb81"></a>
 
 ### `src/built-ins/modules/leads-pipeline/src/api/handlers.ts`
 
 **What it is:** rule violation.
 
-**Exports (39):**
+**Exports (41):**
 
-- `async prospectsHandler(req: Request, ctx: PluginCtx): Promise<Response>` — ─── Scouting prospects ─────────────────────────────────────────────────
+- `async prospectsHandler(req: Request, ctx: PluginCtx): Promise<Response>`
+- `async startLeadAcquisitionDossierHandler(req: Request, ctx: PluginCtx): Promise<Response>` — Explicit repair/start boundary for an active Journey Lead that predates the acquisition dossier. This must remain POST-only: opening or prefetching a Researching/Outreach page is …
 - `async importProspectsHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 - `async qualifyProspectHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 - `async prospectOutreachHandler(req: Request, ctx: PluginCtx): Promise<Response>`
@@ -6687,13 +6708,14 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async prospectInspectionHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 - `async prospectFollowUpsHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 - `async dismissProspectHandler(req: Request, ctx: PluginCtx): Promise<Response>`
+- `async restoreProspectHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 - `async getCommercialPackHandler(req: Request, ctx: PluginCtx): Promise<Response>` — ─── Meeting commercial pack ────────────────────────────────────────────
 - `async saveCommercialPackHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 - `async sendCommercialPackHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 - `async recordCommercialPaymentHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 - `async createCommercialStripeCheckoutHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 - `async commercialStripeWebhookHandler(req: Request, ctx: PluginCtx): Promise<Response>`
-- `async listLeadsHandler(req: Request, ctx: PluginCtx): Promise<Response>` — ─── Leads ───────────────────────────────────────────────────────────────
+- `async listLeadsHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 - `async createLeadHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 - `async updateLeadHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 - `async updateLeadStatusHandler(req: Request, ctx: PluginCtx): Promise<Response>`
@@ -6719,7 +6741,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `async sendCampaignHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 - `async previewAudienceHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 
-**Depends on (28):** [`src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-aquaplugintypes-ts-f59e96dcca) · [`src/built-ins/modules/leads-pipeline/src/lib/clientMatch.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-clientmatch-ts-908892ce11) · [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) · [`src/built-ins/modules/leads-pipeline/src/lib/safeDate.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-safedate-ts-8a21c84580) · [`src/built-ins/modules/leads-pipeline/src/server/commercial.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-commercial-ts-be652f847d) · [`src/built-ins/modules/leads-pipeline/src/server/csv.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-csv-ts-ec5874fb35) · [`src/built-ins/modules/leads-pipeline/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-foundationadapter-ts-9f18a9a0ea) · [`src/built-ins/modules/leads-pipeline/src/server/index.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-index-ts-887b568dd6) · [`src/built-ins/modules/leads-pipeline/src/server/leads.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-leads-ts-aedd6f72a5) · [`src/built-ins/modules/leads-pipeline/src/server/prospects.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-prospects-ts-59cfdd04fc) · [`src/lib/forms/portalFormValues.ts`](lib.md#file-src-lib-forms-portalformvalues-ts-ec8da8cace) · [`src/lib/portal/portalProducts.ts`](lib.md#file-src-lib-portal-portalproducts-ts-7c7e423e18) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/server/clients/clientLifecycle.ts`](lib.md#file-src-lib-server-clients-clientlifecycle-ts-68f3ffa5f8) · [`src/lib/server/clients/customerPortalProvisioning.ts`](lib.md#file-src-lib-server-clients-customerportalprovisioning-ts-9842a84345) · [`src/lib/server/integrations/integrationConnections.ts`](lib.md#file-src-lib-server-integrations-integrationconnections-ts-0ca61152db) · [`src/lib/server/integrations/stripeHttp.ts`](lib.md#file-src-lib-server-integrations-stripehttp-ts-c65e50567a) · [`src/lib/server/privateObjectLifecycle.ts`](lib.md#file-src-lib-server-privateobjectlifecycle-ts-340cbd1888) · [`src/lib/server/websiteEnquiries.ts`](lib.md#file-src-lib-server-websiteenquiries-ts-e00ecfd23b) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/clientPortalSetup.ts`](server.md#file-src-server-clientportalsetup-ts-71e6828ad0) · [`src/server/leadConversionCoordinator.ts`](server.md#file-src-server-leadconversioncoordinator-ts-a63b34536b) · [`src/server/pipelines.ts`](server.md#file-src-server-pipelines-ts-b3d01c6a82) · [`src/server/portalEditor.ts`](server.md#file-src-server-portaleditor-ts-f825920491) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (29):** [`src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-aquaplugintypes-ts-f59e96dcca) · [`src/built-ins/modules/leads-pipeline/src/lib/clientMatch.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-clientmatch-ts-908892ce11) · [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) · [`src/built-ins/modules/leads-pipeline/src/lib/meetingAssetUrl.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-meetingasseturl-ts-b275db770a) · [`src/built-ins/modules/leads-pipeline/src/lib/safeDate.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-safedate-ts-8a21c84580) · [`src/built-ins/modules/leads-pipeline/src/server/commercial.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-commercial-ts-be652f847d) · [`src/built-ins/modules/leads-pipeline/src/server/csv.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-csv-ts-ec5874fb35) · [`src/built-ins/modules/leads-pipeline/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-foundationadapter-ts-9f18a9a0ea) · [`src/built-ins/modules/leads-pipeline/src/server/index.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-index-ts-887b568dd6) · [`src/built-ins/modules/leads-pipeline/src/server/leads.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-leads-ts-aedd6f72a5) · [`src/built-ins/modules/leads-pipeline/src/server/meetingMutation.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-meetingmutation-ts-5bbc6544a5) · [`src/lib/forms/portalFormValues.ts`](lib.md#file-src-lib-forms-portalformvalues-ts-ec8da8cace) · [`src/lib/portal/portalProducts.ts`](lib.md#file-src-lib-portal-portalproducts-ts-7c7e423e18) · [`src/lib/products/productAssignments.ts`](lib.md#file-src-lib-products-productassignments-ts-0b703e9b39) · [`src/lib/server/clients/clientLifecycle.ts`](lib.md#file-src-lib-server-clients-clientlifecycle-ts-68f3ffa5f8) · [`src/lib/server/clients/customerPortalProvisioning.ts`](lib.md#file-src-lib-server-clients-customerportalprovisioning-ts-9842a84345) · [`src/lib/server/integrations/integrationConnections.ts`](lib.md#file-src-lib-server-integrations-integrationconnections-ts-0ca61152db) · [`src/lib/server/integrations/stripeHttp.ts`](lib.md#file-src-lib-server-integrations-stripehttp-ts-c65e50567a) · [`src/lib/server/privateObjectLifecycle.ts`](lib.md#file-src-lib-server-privateobjectlifecycle-ts-340cbd1888) · [`src/lib/server/websiteEnquiries.ts`](lib.md#file-src-lib-server-websiteenquiries-ts-e00ecfd23b) · [`src/lib/shared/formatDateTime.ts`](lib.md#file-src-lib-shared-formatdatetime-ts-0aa35447bd) · [`src/server/agencyProducts.ts`](server.md#file-src-server-agencyproducts-ts-e9926f75eb) · [`src/server/clientPortalSetup.ts`](server.md#file-src-server-clientportalsetup-ts-71e6828ad0) · [`src/server/leadConversionCoordinator.ts`](server.md#file-src-server-leadconversioncoordinator-ts-a63b34536b) · [`src/server/pipelines.ts`](server.md#file-src-server-pipelines-ts-b3d01c6a82) · [`src/server/portalEditor.ts`](server.md#file-src-server-portaleditor-ts-f825920491) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (1):** [`src/built-ins/modules/leads-pipeline/src/api/routes.ts`](#file-src-built-ins-modules-leads-pipeline-src-api-routes-ts-b984951bbb)
 
@@ -6733,7 +6755,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `ROUTES: PluginApiRoute[]`
 
-**Depends on (2):** [`src/built-ins/modules/leads-pipeline/src/api/handlers.ts`](#file-src-built-ins-modules-leads-pipeline-src-api-handlers-ts-1726bbbb81) · [`src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-aquaplugintypes-ts-f59e96dcca)
+**Depends on (3):** [`src/built-ins/modules/leads-pipeline/src/api/googlePlaces.ts`](#file-src-built-ins-modules-leads-pipeline-src-api-googleplaces-ts-47524227f9) · [`src/built-ins/modules/leads-pipeline/src/api/handlers.ts`](#file-src-built-ins-modules-leads-pipeline-src-api-handlers-ts-1726bbbb81) · [`src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-aquaplugintypes-ts-f59e96dcca)
 
 **Used by (1):** [`src/built-ins/modules/leads-pipeline/index.ts`](#file-src-built-ins-modules-leads-pipeline-index-ts-33d21129df)
 
@@ -6766,28 +6788,50 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface SettingsField (7 members)`
 - `interface PluginFeature (5 members)`
 - `interface HealthStatus (3 members)`
-- `interface ErasureSubject (3 members)` — Who is being erased — resolved by the sweep from the client record, which is deleted moments later. Mirrors `built-ins/runtime/_types.ts`.
+- `interface ErasureSubject (10 members)` — Who is being erased — resolved by the sweep from the client record, which is deleted moments later. Mirrors `built-ins/runtime/_types.ts`.
 - `interface AquaPlugin (25 members)`
 
 **Depends on (2):** [`src/built-ins/modules/leads-pipeline/src/lib/tenancy.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-tenancy-ts-7c7be8ab2d) · [`src/built-ins/modules/leads-pipeline/src/server/ports.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-ports-ts-3da7bed047)
 
-**Used by (17):** [`scripts/smoke-client-journey.test.ts`](scripts.md#file-scripts-smoke-client-journey-test-ts-4687798ba0) · [`scripts/smoke-lead-wait-tracing.test.ts`](scripts.md#file-scripts-smoke-lead-wait-tracing-test-ts-fb6a1dd5df) · [`scripts/smoke-marketing-durable-mutations.test.ts`](scripts.md#file-scripts-smoke-marketing-durable-mutations-test-ts-e0fb96f243) · [`src/built-ins/modules/leads-pipeline/index.ts`](#file-src-built-ins-modules-leads-pipeline-index-ts-33d21129df) · [`src/built-ins/modules/leads-pipeline/src/__smoke__/leads-pipeline.test.ts`](#file-src-built-ins-modules-leads-pipeline-src-smoke-leads-pipeline-test-ts-d720e6b46f) · [`src/built-ins/modules/leads-pipeline/src/api/handlers.ts`](#file-src-built-ins-modules-leads-pipeline-src-api-handlers-ts-1726bbbb81) · [`src/built-ins/modules/leads-pipeline/src/api/routes.ts`](#file-src-built-ins-modules-leads-pipeline-src-api-routes-ts-b984951bbb) · [`src/built-ins/modules/leads-pipeline/src/pages/CampaignsPage.tsx`](#file-src-built-ins-modules-leads-pipeline-src-pages-campaignspage-tsx-706988f838) · [`src/built-ins/modules/leads-pipeline/src/pages/ContactsPage.tsx`](#file-src-built-ins-modules-leads-pipeline-src-pages-contactspage-tsx-82802ae8e8) · [`src/built-ins/modules/leads-pipeline/src/pages/LeadsBoardPage.tsx`](#file-src-built-ins-modules-leads-pipeline-src-pages-leadsboardpage-tsx-6fad98202a) · [`src/built-ins/modules/leads-pipeline/src/server/campaigns.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-campaigns-ts-64e6e5027b) · [`src/built-ins/modules/leads-pipeline/src/server/commercial.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-commercial-ts-be652f847d) · [`src/built-ins/modules/leads-pipeline/src/server/contacts.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-contacts-ts-396a68ffb8) · [`src/built-ins/modules/leads-pipeline/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-foundationadapter-ts-9f18a9a0ea) · [`src/built-ins/modules/leads-pipeline/src/server/index.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-index-ts-887b568dd6) · [`src/built-ins/modules/leads-pipeline/src/server/leads.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-leads-ts-aedd6f72a5) · [`src/built-ins/modules/leads-pipeline/src/server/prospects.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-prospects-ts-59cfdd04fc)
+**Used by (24):** [`scripts/smoke-client-journey.test.ts`](scripts.md#file-scripts-smoke-client-journey-test-ts-4687798ba0) · [`scripts/smoke-google-places-scouting.test.ts`](scripts.md#file-scripts-smoke-google-places-scouting-test-ts-e72e446213) · [`scripts/smoke-lead-wait-tracing.test.ts`](scripts.md#file-scripts-smoke-lead-wait-tracing-test-ts-fb6a1dd5df) · [`scripts/smoke-marketing-durable-mutations.test.ts`](scripts.md#file-scripts-smoke-marketing-durable-mutations-test-ts-e0fb96f243) · [`scripts/smoke-meeting-asset-url-safety.test.ts`](scripts.md#file-scripts-smoke-meeting-asset-url-safety-test-ts-fa70630e27) · [`scripts/smoke-prospect-acquisition-continuity.test.ts`](scripts.md#file-scripts-smoke-prospect-acquisition-continuity-test-ts-190db0efd2) · [`scripts/smoke-prospect-not-qualified-archive.test.ts`](scripts.md#file-scripts-smoke-prospect-not-qualified-archive-test-ts-d3add2f559) · [`scripts/smoke-sales-enquiry-admission.test.ts`](scripts.md#file-scripts-smoke-sales-enquiry-admission-test-ts-188ee74474) · [`scripts/smoke-sales-outreach-attribution.test.ts`](scripts.md#file-scripts-smoke-sales-outreach-attribution-test-ts-bf5735fc71) · [`src/built-ins/modules/leads-pipeline/index.ts`](#file-src-built-ins-modules-leads-pipeline-index-ts-33d21129df) · [`src/built-ins/modules/leads-pipeline/src/__smoke__/leads-pipeline.test.ts`](#file-src-built-ins-modules-leads-pipeline-src-smoke-leads-pipeline-test-ts-d720e6b46f) · [`src/built-ins/modules/leads-pipeline/src/api/googlePlaces.ts`](#file-src-built-ins-modules-leads-pipeline-src-api-googleplaces-ts-47524227f9) · [`src/built-ins/modules/leads-pipeline/src/api/handlers.ts`](#file-src-built-ins-modules-leads-pipeline-src-api-handlers-ts-1726bbbb81) · [`src/built-ins/modules/leads-pipeline/src/api/routes.ts`](#file-src-built-ins-modules-leads-pipeline-src-api-routes-ts-b984951bbb) · [`src/built-ins/modules/leads-pipeline/src/pages/CampaignsPage.tsx`](#file-src-built-ins-modules-leads-pipeline-src-pages-campaignspage-tsx-706988f838) · [`src/built-ins/modules/leads-pipeline/src/pages/ContactsPage.tsx`](#file-src-built-ins-modules-leads-pipeline-src-pages-contactspage-tsx-82802ae8e8) · [`src/built-ins/modules/leads-pipeline/src/pages/LeadsBoardPage.tsx`](#file-src-built-ins-modules-leads-pipeline-src-pages-leadsboardpage-tsx-6fad98202a) · [`src/built-ins/modules/leads-pipeline/src/server/campaigns.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-campaigns-ts-64e6e5027b) · [`src/built-ins/modules/leads-pipeline/src/server/commercial.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-commercial-ts-be652f847d) · [`src/built-ins/modules/leads-pipeline/src/server/contacts.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-contacts-ts-396a68ffb8) · [`src/built-ins/modules/leads-pipeline/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-foundationadapter-ts-9f18a9a0ea) · [`src/built-ins/modules/leads-pipeline/src/server/index.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-index-ts-887b568dd6) · [`src/built-ins/modules/leads-pipeline/src/server/leads.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-leads-ts-aedd6f72a5) · [`src/built-ins/modules/leads-pipeline/src/server/prospects.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-prospects-ts-59cfdd04fc)
+
+<a id="file-src-built-ins-modules-leads-pipeline-src-lib-clientacquisitionlineage-ts-c558775ef2"></a>
+
+### `src/built-ins/modules/leads-pipeline/src/lib/clientAcquisitionLineage.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (7):**
+
+- `resolveValidatedClientAcquisitionLineage(client: ClientAcquisitionLineageRef, rows: ClientAcquisitionRows): ValidatedClientAcquisitionLineage` — Resolve the exact acquisition records owned by one Client. Free-form Client metadata is never authority. Its old lineage-looking keys are checked only for consistency so a forged,…
+- `type ClientAcquisitionLineageField = "personId" | "leadId" | "contactId" | "prospectId"`
+- `type ClientAcquisitionLineageConflictReason = | "missing" | "foreign-client" | "one-way-edge" | "conflicting-person"`
+- `interface ClientAcquisitionLineageConflict (3 members)`
+- `interface ClientAcquisitionLineageRef (4 members)`
+- `interface ClientAcquisitionPersonRef (3 members)`
+- `interface ValidatedClientAcquisitionLineage (5 members)`
+
+**Depends on (1):** [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1)
+
+**Used by (2):** [`src/built-ins/modules/leads-pipeline/index.ts`](#file-src-built-ins-modules-leads-pipeline-index-ts-33d21129df) · [`src/lib/server/telephony/resolveCaller.ts`](lib.md#file-src-lib-server-telephony-resolvecaller-ts-e095b8d96b)
 
 <a id="file-src-built-ins-modules-leads-pipeline-src-lib-clientmatch-ts-908892ce11"></a>
 
 ### `src/built-ins/modules/leads-pipeline/src/lib/clientMatch.ts`
 
-_No file-level doc-comment; purpose is inferred from the path and exports._
+**What it is:** The slice of a foundation `Client` these matchers read. Declared structurally so the plugin doesn't have to import the foundation's `Client` type: the real record is assignable, a…
 
-**Exports (3):**
+**Exports (5):**
 
-- `clientMatchesLead(client: ClientIdentityRef, lead: Lead): boolean`
-- `clientMatchesContact(client: ClientIdentityRef, contact: Contact): boolean`
+- `clientMatchesLead(client: ClientIdentityRef, lead: LeadClientIdentityRef): boolean` — A client association is an authorization-sensitive identity edge. Only reciprocal typed client ids or the canonical Person id may establish it; email and free-form client metadata…
+- `clientMatchesContact(client: ClientIdentityRef, contact: ContactClientIdentityRef): boolean`
 - `interface ClientIdentityRef (2 members)` — The slice of a foundation `Client` these matchers read. Declared structurally so the plugin doesn't have to import the foundation's `Client` type: the real record is assignable, a…
+- `interface LeadClientIdentityRef (3 members)`
+- `interface ContactClientIdentityRef (2 members)`
 
-**Depends on (1):** [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1)
+**Depends on:** _No internal imports._
 
-**Used by (3):** [`scripts/smoke-client-match.test.ts`](scripts.md#file-scripts-smoke-client-match-test-ts-67198581a9) · [`src/built-ins/modules/leads-pipeline/index.ts`](#file-src-built-ins-modules-leads-pipeline-index-ts-33d21129df) · [`src/built-ins/modules/leads-pipeline/src/api/handlers.ts`](#file-src-built-ins-modules-leads-pipeline-src-api-handlers-ts-1726bbbb81)
+**Used by (6):** [`scripts/smoke-client-match.test.ts`](scripts.md#file-scripts-smoke-client-match-test-ts-67198581a9) · [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspaceServer.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspaceserver-tsx-90294b0e08) · [`src/app/portal/agency/pipelines/[slug]/page.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-page-tsx-6d47eb0c95) · [`src/app/portal/clients/_PeopleHub.tsx`](app.md#file-src-app-portal-clients-peoplehub-tsx-62c6426811) · [`src/app/portal/clients/page.tsx`](app.md#file-src-app-portal-clients-page-tsx-bffc1e671f) · [`src/built-ins/modules/leads-pipeline/src/api/handlers.ts`](#file-src-built-ins-modules-leads-pipeline-src-api-handlers-ts-1726bbbb81)
 
 <a id="file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1"></a>
 
@@ -6795,11 +6839,12 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** CSV-import idempotency check + AudienceFilter resolution stay O(1).
 
-**Exports (67):**
+**Exports (70):**
 
 - `isLeadRelationshipCategory(value: unknown): value is LeadRelationshipCategory`
 - `inferLeadRelationshipCategory(value: { relationshipCategory?: unknown; source?: string; tags?: string[]; }): LeadRelationshipCategory`
 - `installmentAllocation(pack: Pick<CommercialPack, "billingCadence" | "totalCents" | "installmentCount">): { count: number; recurringCents: number; remainderCents: number }` — How an installment plan divides the promised total EXACTLY. A Stripe subscription bills one fixed recurring price, so a rounded-up `ceil(total / count)` collected up to `count - 1…
+- `normalizeGooglePlaceId(value: unknown): string | undefined` — Google Place IDs are opaque textual identifiers. Do not invent a character set or maximum length that Google does not publish: the surrounding HTTP boundaries already cap request …
 - `projectLeadCard(lead: Lead): LeadCard`
 - `LEAD_RELATIONSHIP_CATEGORIES = [`
 - `LEAD_RELATIONSHIP_CATEGORY_LABELS: Record<LeadRelationshipCategory, string>`
@@ -6824,12 +6869,13 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type ProspectInspectionCheck = | "business-verified" | "contact-route-verified" | "opportunity-confirmed" | "decision-maker-identified" | "timing-understood"`
 - `type ProspectFollowUpStatus = "scheduled" | "completed" | "skipped"`
 - `type LeadJourneyEventType = | "lead-captured" | "enquiry-received" | "contact-recorded" | "stage-changed" | "meeting-scheduled" | "converted" // Archiving is part of the journey, not a hole in it. Issue #62: the control…` — ─── Lead ─────────────────────────────────────────────────────────────────
+- `type LeadProspectAcquisitionInput = Omit< LeadProspectAcquisition, "qualifiedAt" | "qualifiedByUserId" >` — Trusted server-side input; qualification time and actor come from context.
 - `type ContactType = "lead" | "customer" | "account" | "vendor" | "employee" | "other"` — ─── Contact ──────────────────────────────────────────────────────────────
 - `type CampaignStatus = | "draft" | "scheduled" | "active" | "paused" | "sending" | "queued" | "partially-sent" | "failed" | "sent" | "completed"` — place the operator finds out whether the emails actually left the building.
 - `type CampaignChannel = "email" | "newsletter" | "cold-outreach" | "dm" | "direct-mail" | "print" | "google-ads" | "meta-ads" | "linkedin-ads" | "organic" | "social" | "event" | "referral" | "charity" | "other"`
 - `type CampaignKind = "social-media" | "physical" | "newsletter" | "cold" | "dm" | "charity" | "paid" | "organic" | "event" | "other"`
 - `type CampaignPlacement = | "instagram-feed" | "instagram-story" | "instagram-reel" | "facebook-feed" | "facebook-story" | "linkedin-feed" | "google-display"`
-- `interface MeetingAttempt (5 members)`
+- `interface MeetingAttempt (6 members)`
 - `interface SalesPresentation (3 members)`
 - `interface CommercialLineItem (3 members)`
 - `interface CommercialPayment (13 members)`
@@ -6837,17 +6883,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface CommercialPack (56 members)`
 - `interface SaveCommercialPackInput (20 members)`
 - `interface CustomFieldDefinition (6 members)`
-- `interface ProspectOutreachAttempt (8 members)`
+- `interface ProspectOutreachAttempt (10 members)`
 - `interface ProspectNote (4 members)`
-- `interface ProspectFollowUp (9 members)`
-- `interface Prospect (35 members)`
-- `interface CreateProspectInput (25 members)`
-- `interface UpdateProspectPatch (27 members)`
-- `interface RecordProspectOutreachInput (6 members)`
+- `interface ProspectFollowUp (11 members)`
+- `interface Prospect (42 members)`
+- `interface CreateProspectInput (26 members)`
+- `interface UpdateProspectPatch (28 members)`
+- `interface RecordProspectOutreachInput (8 members)`
 - `interface ScheduleProspectFollowUpInput (3 members)`
 - `interface ResolveProspectFollowUpInput (3 members)`
-- `interface LeadJourneyEvent (13 members)`
-- `interface Lead (54 members)`
+- `interface LeadJourneyEvent (15 members)`
+- `interface LeadProspectAcquisition (11 members)` — The exact scouting dossier at the point a Prospect becomes a Lead. The human-readable Lead notes remain useful for operators, but they are not an audit ledger: flattening loses st…
+- `interface Lead (55 members)`
 - `interface CreateLeadInput (14 members)`
 - `interface UpdateLeadPatch (35 members)`
 - `interface LeadFilter (6 members)`
@@ -6867,7 +6914,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (1):** [`src/built-ins/modules/leads-pipeline/src/lib/tenancy.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-tenancy-ts-7c7be8ab2d)
 
-**Used by (24):** [`scripts/smoke-client-match.test.ts`](scripts.md#file-scripts-smoke-client-match-test-ts-67198581a9) · [`scripts/smoke-commercial-intelligence.test.ts`](scripts.md#file-scripts-smoke-commercial-intelligence-test-ts-1e7c24ce8c) · [`scripts/smoke-lead-relationship-categories.test.ts`](scripts.md#file-scripts-smoke-lead-relationship-categories-test-ts-e383297caa) · [`scripts/smoke-lead-wait-tracing.test.ts`](scripts.md#file-scripts-smoke-lead-wait-tracing-test-ts-fb6a1dd5df) · [`scripts/smoke-metric-registry.test.ts`](scripts.md#file-scripts-smoke-metric-registry-test-ts-b9829306eb) · [`scripts/smoke-website-signup-lead.test.ts`](scripts.md#file-scripts-smoke-website-signup-lead-test-ts-58675d9221) · [`src/app/portal/agency/leads-pipeline/contacts/_ContactsWorkspace.tsx`](app.md#file-src-app-portal-agency-leads-pipeline-contacts-contactsworkspace-tsx-9e6c6879f9) · [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspace.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspace-tsx-f2c8061bae) · [`src/app/portal/agency/pipelines/[slug]/_leadTypes.ts`](app.md#file-src-app-portal-agency-pipelines-slug-leadtypes-ts-27bc220ff8) · [`src/app/portal/clients/_PeopleHub.tsx`](app.md#file-src-app-portal-clients-peoplehub-tsx-62c6426811) · [`src/app/portal/clients/page.tsx`](app.md#file-src-app-portal-clients-page-tsx-bffc1e671f) · [`src/built-ins/modules/leads-pipeline/src/__smoke__/leads-pipeline.test.ts`](#file-src-built-ins-modules-leads-pipeline-src-smoke-leads-pipeline-test-ts-d720e6b46f) · [`src/built-ins/modules/leads-pipeline/src/api/handlers.ts`](#file-src-built-ins-modules-leads-pipeline-src-api-handlers-ts-1726bbbb81) · [`src/built-ins/modules/leads-pipeline/src/lib/clientMatch.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-clientmatch-ts-908892ce11) · [`src/built-ins/modules/leads-pipeline/src/pages/ContactsPage.tsx`](#file-src-built-ins-modules-leads-pipeline-src-pages-contactspage-tsx-82802ae8e8) · [`src/built-ins/modules/leads-pipeline/src/server/campaigns.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-campaigns-ts-64e6e5027b) · [`src/built-ins/modules/leads-pipeline/src/server/commercial.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-commercial-ts-be652f847d) · [`src/built-ins/modules/leads-pipeline/src/server/contacts.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-contacts-ts-396a68ffb8) · [`src/built-ins/modules/leads-pipeline/src/server/csv.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-csv-ts-ec5874fb35) · [`src/built-ins/modules/leads-pipeline/src/server/index.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-index-ts-887b568dd6) · [`src/built-ins/modules/leads-pipeline/src/server/leads.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-leads-ts-aedd6f72a5) · [`src/built-ins/modules/leads-pipeline/src/server/prospects.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-prospects-ts-59cfdd04fc) · [`src/lib/intelligence/commercialIntelligence.ts`](lib.md#file-src-lib-intelligence-commercialintelligence-ts-c3611e436c) · [`src/lib/server/commandIntelligenceService.ts`](lib.md#file-src-lib-server-commandintelligenceservice-ts-8aba485964)
+**Used by (30):** [`scripts/smoke-client-match.test.ts`](scripts.md#file-scripts-smoke-client-match-test-ts-67198581a9) · [`scripts/smoke-commercial-intelligence.test.ts`](scripts.md#file-scripts-smoke-commercial-intelligence-test-ts-1e7c24ce8c) · [`scripts/smoke-lead-relationship-categories.test.ts`](scripts.md#file-scripts-smoke-lead-relationship-categories-test-ts-e383297caa) · [`scripts/smoke-lead-wait-tracing.test.ts`](scripts.md#file-scripts-smoke-lead-wait-tracing-test-ts-fb6a1dd5df) · [`scripts/smoke-metric-registry.test.ts`](scripts.md#file-scripts-smoke-metric-registry-test-ts-b9829306eb) · [`scripts/smoke-prospect-acquisition-continuity.test.ts`](scripts.md#file-scripts-smoke-prospect-acquisition-continuity-test-ts-190db0efd2) · [`scripts/smoke-website-signup-lead.test.ts`](scripts.md#file-scripts-smoke-website-signup-lead-test-ts-58675d9221) · [`src/app/portal/agency/leads-pipeline/contacts/_ContactsWorkspace.tsx`](app.md#file-src-app-portal-agency-leads-pipeline-contacts-contactsworkspace-tsx-9e6c6879f9) · [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspace.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspace-tsx-f2c8061bae) · [`src/app/portal/agency/pipelines/[slug]/_leadJourneyProjection.ts`](app.md#file-src-app-portal-agency-pipelines-slug-leadjourneyprojection-ts-07570a82ff) · [`src/app/portal/agency/pipelines/[slug]/_leadTypes.ts`](app.md#file-src-app-portal-agency-pipelines-slug-leadtypes-ts-27bc220ff8) · [`src/app/portal/agency/pipelines/[slug]/_scoutingProspectView.ts`](app.md#file-src-app-portal-agency-pipelines-slug-scoutingprospectview-ts-6047a5839c) · [`src/app/portal/clients/_PeopleHub.tsx`](app.md#file-src-app-portal-clients-peoplehub-tsx-62c6426811) · [`src/app/portal/clients/page.tsx`](app.md#file-src-app-portal-clients-page-tsx-bffc1e671f) · [`src/built-ins/modules/leads-pipeline/src/__smoke__/leads-pipeline.test.ts`](#file-src-built-ins-modules-leads-pipeline-src-smoke-leads-pipeline-test-ts-d720e6b46f) · [`src/built-ins/modules/leads-pipeline/src/api/googlePlaces.ts`](#file-src-built-ins-modules-leads-pipeline-src-api-googleplaces-ts-47524227f9) · [`src/built-ins/modules/leads-pipeline/src/api/handlers.ts`](#file-src-built-ins-modules-leads-pipeline-src-api-handlers-ts-1726bbbb81) · [`src/built-ins/modules/leads-pipeline/src/lib/clientAcquisitionLineage.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-clientacquisitionlineage-ts-c558775ef2) · [`src/built-ins/modules/leads-pipeline/src/pages/ContactsPage.tsx`](#file-src-built-ins-modules-leads-pipeline-src-pages-contactspage-tsx-82802ae8e8) · [`src/built-ins/modules/leads-pipeline/src/server/campaigns.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-campaigns-ts-64e6e5027b) · [`src/built-ins/modules/leads-pipeline/src/server/commercial.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-commercial-ts-be652f847d) · [`src/built-ins/modules/leads-pipeline/src/server/contacts.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-contacts-ts-396a68ffb8) · [`src/built-ins/modules/leads-pipeline/src/server/csv.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-csv-ts-ec5874fb35) · [`src/built-ins/modules/leads-pipeline/src/server/index.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-index-ts-887b568dd6) · [`src/built-ins/modules/leads-pipeline/src/server/leads.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-leads-ts-aedd6f72a5) · [`src/built-ins/modules/leads-pipeline/src/server/meetingMutation.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-meetingmutation-ts-5bbc6544a5) · [`src/built-ins/modules/leads-pipeline/src/server/prospectAcquisition.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-prospectacquisition-ts-edb9744eda) · [`src/built-ins/modules/leads-pipeline/src/server/prospects.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-prospects-ts-59cfdd04fc) · [`src/lib/intelligence/commercialIntelligence.ts`](lib.md#file-src-lib-intelligence-commercialintelligence-ts-c3611e436c) · [`src/lib/server/commandIntelligenceService.ts`](lib.md#file-src-lib-server-commandintelligenceservice-ts-8aba485964)
 
 <a id="file-src-built-ins-modules-leads-pipeline-src-lib-ids-ts-77fae66661"></a>
 
@@ -6883,6 +6930,21 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Depends on:** _No internal imports._
 
 **Used by (5):** [`src/built-ins/modules/leads-pipeline/src/server/campaigns.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-campaigns-ts-64e6e5027b) · [`src/built-ins/modules/leads-pipeline/src/server/commercial.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-commercial-ts-be652f847d) · [`src/built-ins/modules/leads-pipeline/src/server/contacts.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-contacts-ts-396a68ffb8) · [`src/built-ins/modules/leads-pipeline/src/server/leads.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-leads-ts-aedd6f72a5) · [`src/built-ins/modules/leads-pipeline/src/server/prospects.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-prospects-ts-59cfdd04fc)
+
+<a id="file-src-built-ins-modules-leads-pipeline-src-lib-meetingasseturl-ts-b275db770a"></a>
+
+### `src/built-ins/modules/leads-pipeline/src/lib/meetingAssetUrl.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (2):**
+
+- `safeMeetingAssetUrl(value: unknown): string | undefined` — Return the canonical, browser-safe form of a meeting or recording URL. This is deliberately strict: relative URLs and credential-bearing URLs are not valid external meeting assets…
+- `cleanMeetingAssetUrlForStorage(value: unknown, label: "Meeting link" | "Call recording URL"): string | undefined` — Validate an optional meeting asset at a write boundary. Blank/null values clear the field; a supplied unsafe value fails the whole mutation.
+
+**Depends on:** _No internal imports._
+
+**Used by (8):** [`scripts/smoke-meeting-asset-url-safety.test.ts`](scripts.md#file-scripts-smoke-meeting-asset-url-safety-test-ts-fa70630e27) · [`src/app/portal/agency/leads-pipeline/_UpcomingMeetings.tsx`](app.md#file-src-app-portal-agency-leads-pipeline-upcomingmeetings-tsx-18fcadc035) · [`src/app/portal/agency/pipelines/[slug]/_LeadsPipelineWorkspace.tsx`](app.md#file-src-app-portal-agency-pipelines-slug-leadspipelineworkspace-tsx-f2c8061bae) · [`src/app/portal/clients/[clientId]/page.tsx`](app.md#file-src-app-portal-clients-clientid-page-tsx-f2587fcff8) · [`src/app/portal/clients/_JourneyMeetingsWorkspace.tsx`](app.md#file-src-app-portal-clients-journeymeetingsworkspace-tsx-1fdcf4ce27) · [`src/built-ins/modules/leads-pipeline/src/api/handlers.ts`](#file-src-built-ins-modules-leads-pipeline-src-api-handlers-ts-1726bbbb81) · [`src/built-ins/modules/leads-pipeline/src/server/contacts.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-contacts-ts-396a68ffb8) · [`src/built-ins/modules/leads-pipeline/src/server/leads.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-leads-ts-aedd6f72a5)
 
 <a id="file-src-built-ins-modules-leads-pipeline-src-lib-safedate-ts-8a21c84580"></a>
 
@@ -6923,7 +6985,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on:** _No internal imports._
 
-**Used by (12):** [`src/built-ins/modules/leads-pipeline/src/__smoke__/leads-pipeline.test.ts`](#file-src-built-ins-modules-leads-pipeline-src-smoke-leads-pipeline-test-ts-d720e6b46f) · [`src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-aquaplugintypes-ts-f59e96dcca) · [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) · [`src/built-ins/modules/leads-pipeline/src/server/campaigns.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-campaigns-ts-64e6e5027b) · [`src/built-ins/modules/leads-pipeline/src/server/commercial.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-commercial-ts-be652f847d) · [`src/built-ins/modules/leads-pipeline/src/server/contacts.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-contacts-ts-396a68ffb8) · [`src/built-ins/modules/leads-pipeline/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-foundationadapter-ts-9f18a9a0ea) · [`src/built-ins/modules/leads-pipeline/src/server/index.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-index-ts-887b568dd6) · [`src/built-ins/modules/leads-pipeline/src/server/leads.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-leads-ts-aedd6f72a5) · [`src/built-ins/modules/leads-pipeline/src/server/ports.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-ports-ts-3da7bed047) · [`src/built-ins/modules/leads-pipeline/src/server/prospects.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-prospects-ts-59cfdd04fc) · [`src/built-ins/modules/leads-pipeline/src/server/subscribers.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-subscribers-ts-eda7161818)
+**Used by (14):** [`src/built-ins/modules/leads-pipeline/src/__smoke__/leads-pipeline.test.ts`](#file-src-built-ins-modules-leads-pipeline-src-smoke-leads-pipeline-test-ts-d720e6b46f) · [`src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-aquaplugintypes-ts-f59e96dcca) · [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) · [`src/built-ins/modules/leads-pipeline/src/server/campaigns.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-campaigns-ts-64e6e5027b) · [`src/built-ins/modules/leads-pipeline/src/server/commercial.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-commercial-ts-be652f847d) · [`src/built-ins/modules/leads-pipeline/src/server/contacts.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-contacts-ts-396a68ffb8) · [`src/built-ins/modules/leads-pipeline/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-foundationadapter-ts-9f18a9a0ea) · [`src/built-ins/modules/leads-pipeline/src/server/index.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-index-ts-887b568dd6) · [`src/built-ins/modules/leads-pipeline/src/server/leads.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-leads-ts-aedd6f72a5) · [`src/built-ins/modules/leads-pipeline/src/server/meetingMutation.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-meetingmutation-ts-5bbc6544a5) · [`src/built-ins/modules/leads-pipeline/src/server/ports.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-ports-ts-3da7bed047) · [`src/built-ins/modules/leads-pipeline/src/server/prospectAcquisition.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-prospectacquisition-ts-edb9744eda) · [`src/built-ins/modules/leads-pipeline/src/server/prospects.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-prospects-ts-59cfdd04fc) · [`src/built-ins/modules/leads-pipeline/src/server/subscribers.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-subscribers-ts-eda7161818)
 
 <a id="file-src-built-ins-modules-leads-pipeline-src-lib-time-ts-6221b77bb3"></a>
 
@@ -7056,19 +7118,23 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Exports (1):**
 
 - `class ContactService`
-    - `constructor(private agencyId: AgencyId, private storage: PluginStorage, private activity: ActivityLogPort, private events: EventBusPort)`
+    - `constructor(private agencyId: AgencyId, private storage: PluginStorage, private activity: ActivityLogPort, private events: EventBusPort, private personIdentity?: PersonIdentityPort)`
+    - `assertLeadPromotable(lead: Lead): void`
     - `async list(filter?: ContactFilter): Promise<Contact[]>`
     - `async get(id: string): Promise<Contact | null>`
     - `async getByEmail(email: string): Promise<Contact | null>`
+    - `async getByPersonId(personId: string): Promise<Contact | null>`
     - `async upsert(input: CreateContactInput, actor: UserId): Promise<{ contact: Contact; created: boolean }>`
     - `async promoteLead(lead: Lead, actor: UserId): Promise<Contact>`
+    - `async recordClientConversion(contactId: string, clientId: string, actor: UserId): Promise<Contact | null>`
     - `async update(id: string, patch: UpdateContactPatch, actor: UserId): Promise<Contact | null>`
+    - `async updateMeeting(id: string, input: MeetingMutationInput, actor: UserId): Promise<Contact | null>`
     - `async stampLastContactedAt(contactId: string, ts: number): Promise<Contact | null>`
     - `async delete(id: string, actor: UserId): Promise<boolean>`
 
-**Depends on (6):** [`src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-aquaplugintypes-ts-f59e96dcca) · [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) · [`src/built-ins/modules/leads-pipeline/src/lib/ids.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-ids-ts-77fae66661) · [`src/built-ins/modules/leads-pipeline/src/lib/tenancy.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-tenancy-ts-7c7be8ab2d) · [`src/built-ins/modules/leads-pipeline/src/lib/time.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-time-ts-6221b77bb3) · [`src/built-ins/modules/leads-pipeline/src/server/ports.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-ports-ts-3da7bed047)
+**Depends on (8):** [`src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-aquaplugintypes-ts-f59e96dcca) · [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) · [`src/built-ins/modules/leads-pipeline/src/lib/ids.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-ids-ts-77fae66661) · [`src/built-ins/modules/leads-pipeline/src/lib/meetingAssetUrl.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-meetingasseturl-ts-b275db770a) · [`src/built-ins/modules/leads-pipeline/src/lib/tenancy.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-tenancy-ts-7c7be8ab2d) · [`src/built-ins/modules/leads-pipeline/src/lib/time.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-time-ts-6221b77bb3) · [`src/built-ins/modules/leads-pipeline/src/server/meetingMutation.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-meetingmutation-ts-5bbc6544a5) · [`src/built-ins/modules/leads-pipeline/src/server/ports.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-ports-ts-3da7bed047)
 
-**Used by (2):** [`src/built-ins/modules/leads-pipeline/src/server/index.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-index-ts-887b568dd6) · [`src/built-ins/modules/leads-pipeline/src/server/subscribers.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-subscribers-ts-eda7161818)
+**Used by (3):** [`scripts/smoke-meeting-asset-url-safety.test.ts`](scripts.md#file-scripts-smoke-meeting-asset-url-safety-test-ts-fa70630e27) · [`src/built-ins/modules/leads-pipeline/src/server/index.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-index-ts-887b568dd6) · [`src/built-ins/modules/leads-pipeline/src/server/subscribers.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-subscribers-ts-eda7161818)
 
 <a id="file-src-built-ins-modules-leads-pipeline-src-server-csv-ts-ec5874fb35"></a>
 
@@ -7087,7 +7153,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (1):** [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1)
 
-**Used by (5):** [`scripts/smoke-scouting-niche.test.ts`](scripts.md#file-scripts-smoke-scouting-niche-test-ts-b0571d11ad) · [`src/built-ins/modules/leads-pipeline/src/__smoke__/leads-pipeline.test.ts`](#file-src-built-ins-modules-leads-pipeline-src-smoke-leads-pipeline-test-ts-d720e6b46f) · [`src/built-ins/modules/leads-pipeline/src/api/handlers.ts`](#file-src-built-ins-modules-leads-pipeline-src-api-handlers-ts-1726bbbb81) · [`src/built-ins/modules/leads-pipeline/src/server/index.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-index-ts-887b568dd6) · [`src/built-ins/modules/leads-pipeline/src/server/leads.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-leads-ts-aedd6f72a5)
+**Used by (6):** [`scripts/smoke-scouting-niche.test.ts`](scripts.md#file-scripts-smoke-scouting-niche-test-ts-b0571d11ad) · [`scripts/smoke-spreadsheet-upload-bounds.test.ts`](scripts.md#file-scripts-smoke-spreadsheet-upload-bounds-test-ts-c052362c5f) · [`src/built-ins/modules/leads-pipeline/src/__smoke__/leads-pipeline.test.ts`](#file-src-built-ins-modules-leads-pipeline-src-smoke-leads-pipeline-test-ts-d720e6b46f) · [`src/built-ins/modules/leads-pipeline/src/api/handlers.ts`](#file-src-built-ins-modules-leads-pipeline-src-api-handlers-ts-1726bbbb81) · [`src/built-ins/modules/leads-pipeline/src/server/index.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-index-ts-887b568dd6) · [`src/built-ins/modules/leads-pipeline/src/server/leads.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-leads-ts-aedd6f72a5)
 
 <a id="file-src-built-ins-modules-leads-pipeline-src-server-foundationadapter-ts-9f18a9a0ea"></a>
 
@@ -7104,7 +7170,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `containerFor(args: { agencyId: AgencyId; storage: PluginStorage; settings?: LeadsPipelineSettings; }): LeadsPipelineContainer`
 - `containerWithDeps(args: { agencyId: AgencyId; storage: PluginStorage; foundation: LeadsPipelineFoundation; }): LeadsPipelineContainer`
 - `_containerFromCtx(args: { agencyId: AgencyId; actor: UserId; storage: PluginStorage; }): LeadsPipelineContainer | null`
-- `interface LeadsPipelineFoundation (6 members)`
+- `interface LeadsPipelineFoundation (7 members)`
 
 **Depends on (4):** [`src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-aquaplugintypes-ts-f59e96dcca) · [`src/built-ins/modules/leads-pipeline/src/lib/tenancy.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-tenancy-ts-7c7be8ab2d) · [`src/built-ins/modules/leads-pipeline/src/server/index.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-index-ts-887b568dd6) · [`src/built-ins/modules/leads-pipeline/src/server/ports.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-ports-ts-3da7bed047)
 
@@ -7116,30 +7182,31 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** adapter exports. Same shape as agency-hr / public-funnel.
 
-**Exports (18):**
+**Exports (19):**
 
 - `readLeadsPipelineSettings(config: unknown): LeadsPipelineSettings`
 - `buildLeadsPipelineContainer(deps: LeadsPipelineDeps): LeadsPipelineContainer`
 - `interface LeadsPipelineSettings (2 members)` — The operator-facing manifest settings this module actually consumes, normalised from `install.config` (issue #44). Blank means "no override".
-- `interface LeadsPipelineDeps (9 members)`
+- `interface LeadsPipelineDeps (10 members)`
 - `interface LeadsPipelineContainer (5 members)`
 - `{ LeadIdentityConflictError, LeadService } from "./leads"`
 - `{ CommercialAcceptanceStateError, CommercialPaymentConflictError, CommercialService, commercialContentHash, commercialFinancialHash } from "./commercial"`
 - `{ ProspectService } from "./prospects"`
+- `{ ensureAcquisitionDossierForLead, leadProspectAcquisition, mutateProspectAndConverge } from "./prospectAcquisition"`
 - `{ ContactService } from "./contacts"`
 - `{ CampaignService, PLUGIN_ID } from "./campaigns"`
 - `{ CommercialPack, CommercialPartyKind, CommercialPayment, CommercialPaymentMethod, BillingCadence, SaveCommercialPackInput } from "../lib/domain"`
 - `{ parseCsv, splitCsvLine, stripBom } from "./csv"`
 - `{ ParsedRow, ParseCsvResult } from "./csv"`
-- `{ EVENT_SUBSCRIPTIONS, handleFunnelLeadCaptured, handlePipelineCardMoved } from "./subscribers"`
-- `{ FunnelLeadCapturedPayload, PipelineCardMovedPayload } from "./subscribers"`
-- `{ ActivityLogPort, EventBusPort, LeadsEventName, SubscribedEventName, ListActivityFilter, LogActivityInput, PluginInstallStorePort, TenantPort, EmailEnqueuePort, EmailEnqueueInput, EmailEnqueueResult, PipelinePort, PipelineCardRef, AddLeadCardInput } from "./ports"`
+- `{ EVENT_SUBSCRIPTIONS, promoteFunnelCaptureToLead, handlePipelineCardMoved } from "./subscribers"`
+- `{ FunnelCapturePromotionLineage, FunnelCapturePromotionPayload, PipelineCardMovedPayload } from "./subscribers"`
+- `{ ActivityLogPort, EventBusPort, LeadsEventName, SubscribedEventName, ListActivityFilter, LogActivityInput, EraseActivityReferencesInput, PluginInstallStorePort, TenantPort, EmailEnqueuePort, EmailEnqueueInput, EmailEnqueueResult, PipelinePort, PipelineCardRef, AddLeadCardInput, PersonIdentityPort, ResolveAcquisitionPersonInput, AttachAcquisitionPersonFacetsInput } from "./ports"`
 - `{ registerLeadsPipelineFoundation, clearLeadsPipelineFoundation, isFoundationRegistered, requireFoundation, containerFor, containerWithDeps, _containerFromCtx } from "./foundationAdapter"`
 - `{ LeadsPipelineFoundation } from "./foundationAdapter"`
 
-**Depends on (12):** [`src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-aquaplugintypes-ts-f59e96dcca) · [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) · [`src/built-ins/modules/leads-pipeline/src/lib/tenancy.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-tenancy-ts-7c7be8ab2d) · [`src/built-ins/modules/leads-pipeline/src/server/campaigns.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-campaigns-ts-64e6e5027b) · [`src/built-ins/modules/leads-pipeline/src/server/commercial.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-commercial-ts-be652f847d) · [`src/built-ins/modules/leads-pipeline/src/server/contacts.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-contacts-ts-396a68ffb8) · [`src/built-ins/modules/leads-pipeline/src/server/csv.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-csv-ts-ec5874fb35) · [`src/built-ins/modules/leads-pipeline/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-foundationadapter-ts-9f18a9a0ea) · [`src/built-ins/modules/leads-pipeline/src/server/leads.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-leads-ts-aedd6f72a5) · [`src/built-ins/modules/leads-pipeline/src/server/ports.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-ports-ts-3da7bed047) · [`src/built-ins/modules/leads-pipeline/src/server/prospects.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-prospects-ts-59cfdd04fc) · [`src/built-ins/modules/leads-pipeline/src/server/subscribers.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-subscribers-ts-eda7161818)
+**Depends on (13):** [`src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-aquaplugintypes-ts-f59e96dcca) · [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) · [`src/built-ins/modules/leads-pipeline/src/lib/tenancy.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-tenancy-ts-7c7be8ab2d) · [`src/built-ins/modules/leads-pipeline/src/server/campaigns.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-campaigns-ts-64e6e5027b) · [`src/built-ins/modules/leads-pipeline/src/server/commercial.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-commercial-ts-be652f847d) · [`src/built-ins/modules/leads-pipeline/src/server/contacts.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-contacts-ts-396a68ffb8) · [`src/built-ins/modules/leads-pipeline/src/server/csv.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-csv-ts-ec5874fb35) · [`src/built-ins/modules/leads-pipeline/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-foundationadapter-ts-9f18a9a0ea) · [`src/built-ins/modules/leads-pipeline/src/server/leads.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-leads-ts-aedd6f72a5) · [`src/built-ins/modules/leads-pipeline/src/server/ports.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-ports-ts-3da7bed047) · [`src/built-ins/modules/leads-pipeline/src/server/prospectAcquisition.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-prospectacquisition-ts-edb9744eda) · [`src/built-ins/modules/leads-pipeline/src/server/prospects.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-prospects-ts-59cfdd04fc) · [`src/built-ins/modules/leads-pipeline/src/server/subscribers.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-subscribers-ts-eda7161818)
 
-**Used by (3):** [`src/built-ins/modules/leads-pipeline/src/__smoke__/leads-pipeline.test.ts`](#file-src-built-ins-modules-leads-pipeline-src-smoke-leads-pipeline-test-ts-d720e6b46f) · [`src/built-ins/modules/leads-pipeline/src/api/handlers.ts`](#file-src-built-ins-modules-leads-pipeline-src-api-handlers-ts-1726bbbb81) · [`src/built-ins/modules/leads-pipeline/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-foundationadapter-ts-9f18a9a0ea)
+**Used by (4):** [`src/built-ins/modules/leads-pipeline/src/__smoke__/leads-pipeline.test.ts`](#file-src-built-ins-modules-leads-pipeline-src-smoke-leads-pipeline-test-ts-d720e6b46f) · [`src/built-ins/modules/leads-pipeline/src/api/handlers.ts`](#file-src-built-ins-modules-leads-pipeline-src-api-handlers-ts-1726bbbb81) · [`src/built-ins/modules/leads-pipeline/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-foundationadapter-ts-9f18a9a0ea) · [`src/built-ins/modules/leads-pipeline/src/server/prospectAcquisition.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-prospectacquisition-ts-edb9744eda)
 
 <a id="file-src-built-ins-modules-leads-pipeline-src-server-leads-ts-aedd6f72a5"></a>
 
@@ -7147,19 +7214,23 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** idempotent CSV re-import)
 
-**Exports (3):**
+**Exports (4):**
 
 - `normalizeLeadJourney(lead: Lead): Lead`
 - `class LeadIdentityConflictError`
     - `constructor(field: "email" | "phone")`
 - `class LeadService`
-    - `constructor(private agencyId: AgencyId, private storage: PluginStorage, private activity: ActivityLogPort, private events: EventBusPort, private pipeline?: PipelinePort, private settings?: { newColumnLabel?: string })`
+    - `constructor(private agencyId: AgencyId, private storage: PluginStorage, private activity: ActivityLogPort, private events: EventBusPort, private pipeline?: PipelinePort, private settings?: { newColumnLabel?: string }, p…`
     - `async list(filter?: LeadFilter): Promise<Lead[]>`
     - `async get(id: string): Promise<Lead | null>`
     - `async getByEmail(email: string): Promise<Lead | null>`
     - `async getByPhone(phone: string): Promise<Lead | null>`
+    - `async getByPersonId(personId: string): Promise<Lead | null>`
     - `async upsert(input: CreateLeadInput, actor: UserId): Promise<{ lead: Lead; created: boolean }>`
+    - `async upsertForPerson(input: CreateLeadInput, personId: string, actor: UserId): Promise<{ lead: Lead; created: boolean }>`
     - `async update(id: string, patch: UpdateLeadPatch, actor: UserId): Promise<Lead | null>`
+    - `async updateMeeting(id: string, input: MeetingMutationInput, actor: UserId): Promise<LeadMeetingMutationResult | null>`
+    - `async attachProspectAcquisition(id: string, input: LeadProspectAcquisitionInput, actor: UserId): Promise<Lead | null>`
     - `async recordEnquiryCapture(id: string, input: { at: number; source: string; enquiryId?: string }, actor: UserId): Promise<Lead | null>`
     - `async recordContact(id: string, input: { at?: number; channel?: string; outcome?: string; note?: string; incrementSentCount?: boolean }, actor: UserId): Promise<Lead | null>`
     - `async recordStageChange(id: string, input: { fromStage?: string; toStage: string; at?: number }, actor: UserId): Promise<Lead | null>`
@@ -7172,10 +7243,29 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
     - `async importCsv(args: { text: string; filename?: string; actor: UserId; defaultSource?: string; defaultTags?: string[]; defaultRelationshipCategory?: LeadRelationshipCategory; mapping?: Record<string, string>; customFie…`
     - `async resolveAudience(filter: AudienceFilter): Promise<Lead[]>`
     - `async stampLastEmailedAt(leadId: string, ts: number, actor: UserId): Promise<Lead | null>`
+- `interface LeadMeetingMutationResult (2 members)`
 
-**Depends on (8):** [`src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-aquaplugintypes-ts-f59e96dcca) · [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) · [`src/built-ins/modules/leads-pipeline/src/lib/ids.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-ids-ts-77fae66661) · [`src/built-ins/modules/leads-pipeline/src/lib/safeDate.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-safedate-ts-8a21c84580) · [`src/built-ins/modules/leads-pipeline/src/lib/tenancy.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-tenancy-ts-7c7be8ab2d) · [`src/built-ins/modules/leads-pipeline/src/lib/time.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-time-ts-6221b77bb3) · [`src/built-ins/modules/leads-pipeline/src/server/csv.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-csv-ts-ec5874fb35) · [`src/built-ins/modules/leads-pipeline/src/server/ports.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-ports-ts-3da7bed047)
+**Depends on (10):** [`src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-aquaplugintypes-ts-f59e96dcca) · [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) · [`src/built-ins/modules/leads-pipeline/src/lib/ids.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-ids-ts-77fae66661) · [`src/built-ins/modules/leads-pipeline/src/lib/meetingAssetUrl.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-meetingasseturl-ts-b275db770a) · [`src/built-ins/modules/leads-pipeline/src/lib/safeDate.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-safedate-ts-8a21c84580) · [`src/built-ins/modules/leads-pipeline/src/lib/tenancy.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-tenancy-ts-7c7be8ab2d) · [`src/built-ins/modules/leads-pipeline/src/lib/time.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-time-ts-6221b77bb3) · [`src/built-ins/modules/leads-pipeline/src/server/csv.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-csv-ts-ec5874fb35) · [`src/built-ins/modules/leads-pipeline/src/server/meetingMutation.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-meetingmutation-ts-5bbc6544a5) · [`src/built-ins/modules/leads-pipeline/src/server/ports.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-ports-ts-3da7bed047)
 
-**Used by (7):** [`scripts/smoke-lead-wait-tracing.test.ts`](scripts.md#file-scripts-smoke-lead-wait-tracing-test-ts-fb6a1dd5df) · [`scripts/smoke-marketing-durable-mutations.test.ts`](scripts.md#file-scripts-smoke-marketing-durable-mutations-test-ts-e0fb96f243) · [`src/built-ins/modules/leads-pipeline/src/__smoke__/leads-pipeline.test.ts`](#file-src-built-ins-modules-leads-pipeline-src-smoke-leads-pipeline-test-ts-d720e6b46f) · [`src/built-ins/modules/leads-pipeline/src/api/handlers.ts`](#file-src-built-ins-modules-leads-pipeline-src-api-handlers-ts-1726bbbb81) · [`src/built-ins/modules/leads-pipeline/src/server/campaigns.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-campaigns-ts-64e6e5027b) · [`src/built-ins/modules/leads-pipeline/src/server/index.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-index-ts-887b568dd6) · [`src/built-ins/modules/leads-pipeline/src/server/subscribers.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-subscribers-ts-eda7161818)
+**Used by (10):** [`scripts/smoke-lead-wait-tracing.test.ts`](scripts.md#file-scripts-smoke-lead-wait-tracing-test-ts-fb6a1dd5df) · [`scripts/smoke-marketing-durable-mutations.test.ts`](scripts.md#file-scripts-smoke-marketing-durable-mutations-test-ts-e0fb96f243) · [`scripts/smoke-meeting-asset-url-safety.test.ts`](scripts.md#file-scripts-smoke-meeting-asset-url-safety-test-ts-fa70630e27) · [`scripts/smoke-prospect-acquisition-continuity.test.ts`](scripts.md#file-scripts-smoke-prospect-acquisition-continuity-test-ts-190db0efd2) · [`scripts/smoke-sales-enquiry-admission.test.ts`](scripts.md#file-scripts-smoke-sales-enquiry-admission-test-ts-188ee74474) · [`src/built-ins/modules/leads-pipeline/src/__smoke__/leads-pipeline.test.ts`](#file-src-built-ins-modules-leads-pipeline-src-smoke-leads-pipeline-test-ts-d720e6b46f) · [`src/built-ins/modules/leads-pipeline/src/api/handlers.ts`](#file-src-built-ins-modules-leads-pipeline-src-api-handlers-ts-1726bbbb81) · [`src/built-ins/modules/leads-pipeline/src/server/campaigns.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-campaigns-ts-64e6e5027b) · [`src/built-ins/modules/leads-pipeline/src/server/index.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-index-ts-887b568dd6) · [`src/built-ins/modules/leads-pipeline/src/server/subscribers.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-subscribers-ts-eda7161818)
+
+<a id="file-src-built-ins-modules-leads-pipeline-src-server-meetingmutation-ts-5bbc6544a5"></a>
+
+### `src/built-ins/modules/leads-pipeline/src/server/meetingMutation.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (4):**
+
+- `appendServerMeetingAttempt(existing: MeetingAttempt[] | undefined, input: NonNullable<MeetingMutationInput["attempt"]>, actor: UserId, at: number): MeetingAttempt[]`
+- `class MeetingAttemptHistoryLimitError`
+    - `constructor()`
+- `MEETING_ATTEMPT_HISTORY_LIMIT = 1_000`
+- `interface MeetingMutationInput (3 members)` — Sanitised meeting fields supplied by the HTTP boundary. The actor, write timestamp and complete attempt history are intentionally absent: the service creates those only after it h…
+
+**Depends on (2):** [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) · [`src/built-ins/modules/leads-pipeline/src/lib/tenancy.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-tenancy-ts-7c7be8ab2d)
+
+**Used by (3):** [`src/built-ins/modules/leads-pipeline/src/api/handlers.ts`](#file-src-built-ins-modules-leads-pipeline-src-api-handlers-ts-1726bbbb81) · [`src/built-ins/modules/leads-pipeline/src/server/contacts.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-contacts-ts-396a68ffb8) · [`src/built-ins/modules/leads-pipeline/src/server/leads.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-leads-ts-aedd6f72a5)
 
 <a id="file-src-built-ins-modules-leads-pipeline-src-server-ports-ts-3da7bed047"></a>
 
@@ -7183,14 +7273,16 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** (foundation-pending — see chapter).
 
-**Exports (14):**
+**Exports (19):**
 
-- `type LeadsEventName = | "leads.prospect.created" | "leads.prospect.updated" | "leads.prospect.inspection-saved" | "leads.prospect.follow-up-scheduled" | "leads.prospect.follow-up-resolved" | "leads.lead.created" | "lead…` — ─── Event bus ─────────────────────────────────────────────────────────────
-- `type SubscribedEventName = | "public-funnel.lead.captured" | "pipelines.card.moved"` — Cross-plugin events this plugin subscribes to.
+- `type LeadsEventName = | "leads.prospect.created" | "leads.prospect.updated" | "leads.prospect.dismissed" | "leads.prospect.restored" | "leads.prospect.inspection-saved" | "leads.prospect.follow-up-scheduled" | "leads.pr…` — ─── Event bus ─────────────────────────────────────────────────────────────
+- `type SubscribedEventName = | "pipelines.card.moved"` — Cross-plugin events this plugin subscribes to.
 - `interface TenantPort (1 members)` — ─── Tenant ────────────────────────────────────────────────────────────────
 - `interface LogActivityInput (9 members)` — ─── Activity ──────────────────────────────────────────────────────────────
 - `interface ListActivityFilter (3 members)`
-- `interface ActivityLogPort (2 members)`
+- `interface EraseActivityReferencesInput (8 members)`
+- `interface EraseActivityReferencesResult (2 members)`
+- `interface ActivityLogPort (3 members)`
 - `interface EventBusPort (2 members)`
 - `interface PluginInstallStorePort (1 members)` — ─── Plugin install store (read-only) ─────────────────────────────────────
 - `interface EmailEnqueueInput (7 members)` — ─── Email enqueue (adapter onto T2 R024 email-sender) ────────────────────
@@ -7199,10 +7291,29 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface PipelineCardRef (3 members)` — ─── Pipeline port (adapter onto T1 R034 foundation pipelines) ───────────
 - `interface AddLeadCardInput (9 members)`
 - `interface PipelinePort (5 members)`
+- `interface ResolveAcquisitionPersonInput (9 members)` — The leads plugin owns acquisition records, while foundation owns the canonical Person graph. This deliberately narrow port is the only bridge: plugin code supplies identity eviden…
+- `interface AttachAcquisitionPersonFacetsInput (5 members)`
+- `interface PersonIdentityPort (3 members)`
 
 **Depends on (1):** [`src/built-ins/modules/leads-pipeline/src/lib/tenancy.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-tenancy-ts-7c7be8ab2d)
 
-**Used by (10):** [`scripts/smoke-client-journey.test.ts`](scripts.md#file-scripts-smoke-client-journey-test-ts-4687798ba0) · [`src/built-ins/modules/leads-pipeline/src/__smoke__/leads-pipeline.test.ts`](#file-src-built-ins-modules-leads-pipeline-src-smoke-leads-pipeline-test-ts-d720e6b46f) · [`src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-aquaplugintypes-ts-f59e96dcca) · [`src/built-ins/modules/leads-pipeline/src/server/campaigns.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-campaigns-ts-64e6e5027b) · [`src/built-ins/modules/leads-pipeline/src/server/commercial.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-commercial-ts-be652f847d) · [`src/built-ins/modules/leads-pipeline/src/server/contacts.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-contacts-ts-396a68ffb8) · [`src/built-ins/modules/leads-pipeline/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-foundationadapter-ts-9f18a9a0ea) · [`src/built-ins/modules/leads-pipeline/src/server/index.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-index-ts-887b568dd6) · [`src/built-ins/modules/leads-pipeline/src/server/leads.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-leads-ts-aedd6f72a5) · [`src/built-ins/modules/leads-pipeline/src/server/prospects.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-prospects-ts-59cfdd04fc)
+**Used by (15):** [`scripts/smoke-client-journey.test.ts`](scripts.md#file-scripts-smoke-client-journey-test-ts-4687798ba0) · [`scripts/smoke-meeting-asset-url-safety.test.ts`](scripts.md#file-scripts-smoke-meeting-asset-url-safety-test-ts-fa70630e27) · [`scripts/smoke-prospect-acquisition-continuity.test.ts`](scripts.md#file-scripts-smoke-prospect-acquisition-continuity-test-ts-190db0efd2) · [`scripts/smoke-prospect-not-qualified-archive.test.ts`](scripts.md#file-scripts-smoke-prospect-not-qualified-archive-test-ts-d3add2f559) · [`scripts/smoke-sales-enquiry-admission.test.ts`](scripts.md#file-scripts-smoke-sales-enquiry-admission-test-ts-188ee74474) · [`scripts/smoke-sales-outreach-attribution.test.ts`](scripts.md#file-scripts-smoke-sales-outreach-attribution-test-ts-bf5735fc71) · [`src/built-ins/modules/leads-pipeline/src/__smoke__/leads-pipeline.test.ts`](#file-src-built-ins-modules-leads-pipeline-src-smoke-leads-pipeline-test-ts-d720e6b46f) · [`src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-aquaplugintypes-ts-f59e96dcca) · [`src/built-ins/modules/leads-pipeline/src/server/campaigns.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-campaigns-ts-64e6e5027b) · [`src/built-ins/modules/leads-pipeline/src/server/commercial.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-commercial-ts-be652f847d) · [`src/built-ins/modules/leads-pipeline/src/server/contacts.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-contacts-ts-396a68ffb8) · [`src/built-ins/modules/leads-pipeline/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-foundationadapter-ts-9f18a9a0ea) · [`src/built-ins/modules/leads-pipeline/src/server/index.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-index-ts-887b568dd6) · [`src/built-ins/modules/leads-pipeline/src/server/leads.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-leads-ts-aedd6f72a5) · [`src/built-ins/modules/leads-pipeline/src/server/prospects.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-prospects-ts-59cfdd04fc)
+
+<a id="file-src-built-ins-modules-leads-pipeline-src-server-prospectacquisition-ts-edb9744eda"></a>
+
+### `src/built-ins/modules/leads-pipeline/src/server/prospectAcquisition.ts`
+
+_No file-level doc-comment; purpose is inferred from the path and exports._
+
+**Exports (3):**
+
+- `leadProspectAcquisition(prospect: Prospect): LeadProspectAcquisitionInput` — The Prospect is canonical; the Lead copy is a server-maintained Journey projection.
+- `async mutateProspectAndConverge(container: AcquisitionContainer, prospectId: string, actor: UserId, mutate: () => Promise<Prospect | null>): Promise<Prospect | null>` — Validate the server-owned Prospect -> Lead edge before mutation, then refresh the Lead projection after it. A later focused-workspace load runs the same idempotent attachment, rep…
+- `async ensureAcquisitionDossierForLead(container: AcquisitionContainer, lead: Lead, actor: UserId): Promise<Prospect>` — Server-only backfill/repair used by focused acquisition desks. It creates at most one dossier per active Lead, then idempotently attaches the latest dossier projection so refreshe…
+
+**Depends on (3):** [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) · [`src/built-ins/modules/leads-pipeline/src/lib/tenancy.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-tenancy-ts-7c7be8ab2d) · [`src/built-ins/modules/leads-pipeline/src/server/index.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-index-ts-887b568dd6)
+
+**Used by (4):** [`scripts/smoke-prospect-acquisition-continuity.test.ts`](scripts.md#file-scripts-smoke-prospect-acquisition-continuity-test-ts-190db0efd2) · [`scripts/smoke-sales-enquiry-admission.test.ts`](scripts.md#file-scripts-smoke-sales-enquiry-admission-test-ts-188ee74474) · [`src/built-ins/modules/leads-pipeline/src/server/index.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-index-ts-887b568dd6) · [`src/built-ins/modules/leads-pipeline/src/server/subscribers.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-subscribers-ts-eda7161818)
 
 <a id="file-src-built-ins-modules-leads-pipeline-src-server-prospects-ts-59cfdd04fc"></a>
 
@@ -7210,25 +7321,31 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (2):**
+**Exports (3):**
 
 - `class ProspectService`
     - `constructor(private agencyId: AgencyId, private storage: PluginStorage, private activity: ActivityLogPort, private events: EventBusPort)`
     - `async list(): Promise<Prospect[]>`
     - `async get(id: string): Promise<Prospect | null>`
+    - `async getByQualifiedLeadId(leadId: string): Promise<Prospect | null>`
+    - `async eraseForErasure(id: string, qualifiedLeadIds: string[] = []): Promise<boolean>`
+    - `async ensureAcquisitionDossierForLead(lead: Lead, actor: UserId): Promise<Prospect>`
     - `async create(input: CreateProspectInput, actor: UserId): Promise<Prospect>`
     - `async update(id: string, patch: UpdateProspectPatch, actor: UserId): Promise<Prospect | null>`
     - `async dismiss(id: string, actor: UserId): Promise<Prospect | null>`
+    - `async restore(id: string, actor: UserId): Promise<Prospect | null>`
+    - `async linkQualifiedLead(id: string, leadId: string, actor: UserId): Promise<Prospect | null>`
     - `async recordOutreach(id: string, input: RecordProspectOutreachInput, actor: UserId): Promise<Prospect | null>`
     - `async saveInspection(id: string, checks: ProspectInspectionCheck[], actor: UserId): Promise<Prospect | null>`
     - `async scheduleFollowUp(id: string, input: ScheduleProspectFollowUpInput, actor: UserId): Promise<Prospect | null>`
     - `async resolveFollowUp(id: string, input: ResolveProspectFollowUpInput, actor: UserId): Promise<Prospect | null>`
     - `async addNote(id: string, body: string, actor: UserId): Promise<Prospect | null>`
+- `MIGRATED_LEAD_CONTACT_NOTE_PREFIX = "migrated_lead_contact_"`
 - `REQUIRED_PROSPECT_INSPECTION_CHECKS: ProspectInspectionCheck[]`
 
 **Depends on (6):** [`src/built-ins/modules/leads-pipeline/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-aquaplugintypes-ts-f59e96dcca) · [`src/built-ins/modules/leads-pipeline/src/lib/domain.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-domain-ts-75b8607db1) · [`src/built-ins/modules/leads-pipeline/src/lib/ids.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-ids-ts-77fae66661) · [`src/built-ins/modules/leads-pipeline/src/lib/tenancy.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-tenancy-ts-7c7be8ab2d) · [`src/built-ins/modules/leads-pipeline/src/lib/time.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-time-ts-6221b77bb3) · [`src/built-ins/modules/leads-pipeline/src/server/ports.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-ports-ts-3da7bed047)
 
-**Used by (3):** [`scripts/smoke-scouting-niche.test.ts`](scripts.md#file-scripts-smoke-scouting-niche-test-ts-b0571d11ad) · [`src/built-ins/modules/leads-pipeline/src/api/handlers.ts`](#file-src-built-ins-modules-leads-pipeline-src-api-handlers-ts-1726bbbb81) · [`src/built-ins/modules/leads-pipeline/src/server/index.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-index-ts-887b568dd6)
+**Used by (7):** [`scripts/smoke-prospect-acquisition-continuity.test.ts`](scripts.md#file-scripts-smoke-prospect-acquisition-continuity-test-ts-190db0efd2) · [`scripts/smoke-prospect-not-qualified-archive.test.ts`](scripts.md#file-scripts-smoke-prospect-not-qualified-archive-test-ts-d3add2f559) · [`scripts/smoke-sales-enquiry-admission.test.ts`](scripts.md#file-scripts-smoke-sales-enquiry-admission-test-ts-188ee74474) · [`scripts/smoke-sales-outreach-attribution.test.ts`](scripts.md#file-scripts-smoke-sales-outreach-attribution-test-ts-bf5735fc71) · [`scripts/smoke-scouting-niche.test.ts`](scripts.md#file-scripts-smoke-scouting-niche-test-ts-b0571d11ad) · [`src/built-ins/modules/leads-pipeline/src/server/index.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-index-ts-887b568dd6) · [`src/built-ins/modules/leads-pipeline/src/server/subscribers.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-subscribers-ts-eda7161818)
 
 <a id="file-src-built-ins-modules-leads-pipeline-src-server-subscribers-ts-eda7161818"></a>
 
@@ -7236,16 +7353,17 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** promote the lead to a Customer Contact (idempotent on email).
 
-**Exports (6):**
+**Exports (7):**
 
-- `async handleFunnelLeadCaptured(leads: LeadService, payload: FunnelLeadCapturedPayload): Promise<void>`
+- `async promoteFunnelCaptureToLead(leads: LeadService, payload: FunnelCapturePromotionPayload, prospects?: ProspectService): Promise<FunnelCapturePromotionLineage>`
 - `async handlePipelineCardMoved(leads: LeadService, contacts: ContactService, payload: PipelineCardMovedPayload): Promise<void>`
 - `SYSTEM_ACTOR: UserId`
 - `EVENT_SUBSCRIPTIONS = [` — subscriptions without hard-coding the names elsewhere.
-- `interface FunnelLeadCapturedPayload (6 members)`
+- `interface FunnelCapturePromotionPayload (8 members)`
+- `interface FunnelCapturePromotionLineage (4 members)`
 - `interface PipelineCardMovedPayload (5 members)`
 
-**Depends on (3):** [`src/built-ins/modules/leads-pipeline/src/lib/tenancy.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-tenancy-ts-7c7be8ab2d) · [`src/built-ins/modules/leads-pipeline/src/server/contacts.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-contacts-ts-396a68ffb8) · [`src/built-ins/modules/leads-pipeline/src/server/leads.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-leads-ts-aedd6f72a5)
+**Depends on (5):** [`src/built-ins/modules/leads-pipeline/src/lib/tenancy.ts`](#file-src-built-ins-modules-leads-pipeline-src-lib-tenancy-ts-7c7be8ab2d) · [`src/built-ins/modules/leads-pipeline/src/server/contacts.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-contacts-ts-396a68ffb8) · [`src/built-ins/modules/leads-pipeline/src/server/leads.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-leads-ts-aedd6f72a5) · [`src/built-ins/modules/leads-pipeline/src/server/prospectAcquisition.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-prospectacquisition-ts-edb9744eda) · [`src/built-ins/modules/leads-pipeline/src/server/prospects.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-prospects-ts-59cfdd04fc)
 
 **Used by (2):** [`src/built-ins/modules/leads-pipeline/src/__smoke__/leads-pipeline.test.ts`](#file-src-built-ins-modules-leads-pipeline-src-smoke-leads-pipeline-test-ts-d720e6b46f) · [`src/built-ins/modules/leads-pipeline/src/server/index.ts`](#file-src-built-ins-modules-leads-pipeline-src-server-index-ts-887b568dd6)
 
@@ -7981,7 +8099,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports:** _No exported symbols (internal/side-effect module)._
 
-**Depends on (6):** [`src/built-ins/modules/public-funnel/src/api/handlers.ts`](#file-src-built-ins-modules-public-funnel-src-api-handlers-ts-651089471a) · [`src/built-ins/modules/public-funnel/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-public-funnel-src-lib-aquaplugintypes-ts-baa26f2904) · [`src/built-ins/modules/public-funnel/src/lib/tenancy.ts`](#file-src-built-ins-modules-public-funnel-src-lib-tenancy-ts-fede09310d) · [`src/built-ins/modules/public-funnel/src/lib/time.ts`](#file-src-built-ins-modules-public-funnel-src-lib-time-ts-1aad9c0fba) · [`src/built-ins/modules/public-funnel/src/server/index.ts`](#file-src-built-ins-modules-public-funnel-src-server-index-ts-847cb3f894) · [`src/built-ins/modules/public-funnel/src/server/ports.ts`](#file-src-built-ins-modules-public-funnel-src-server-ports-ts-0d7058fb16)
+**Depends on (6):** [`src/built-ins/modules/public-funnel/src/api/routes.ts`](#file-src-built-ins-modules-public-funnel-src-api-routes-ts-9661e57f0d) · [`src/built-ins/modules/public-funnel/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-public-funnel-src-lib-aquaplugintypes-ts-baa26f2904) · [`src/built-ins/modules/public-funnel/src/lib/tenancy.ts`](#file-src-built-ins-modules-public-funnel-src-lib-tenancy-ts-fede09310d) · [`src/built-ins/modules/public-funnel/src/lib/time.ts`](#file-src-built-ins-modules-public-funnel-src-lib-time-ts-1aad9c0fba) · [`src/built-ins/modules/public-funnel/src/server/index.ts`](#file-src-built-ins-modules-public-funnel-src-server-index-ts-847cb3f894) · [`src/built-ins/modules/public-funnel/src/server/ports.ts`](#file-src-built-ins-modules-public-funnel-src-server-ports-ts-0d7058fb16)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -8014,7 +8132,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (2):** [`src/built-ins/modules/public-funnel/src/api/handlers.ts`](#file-src-built-ins-modules-public-funnel-src-api-handlers-ts-651089471a) · [`src/built-ins/modules/public-funnel/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-public-funnel-src-lib-aquaplugintypes-ts-baa26f2904)
 
-**Used by (1):** [`src/built-ins/modules/public-funnel/index.ts`](#file-src-built-ins-modules-public-funnel-index-ts-3dd41cc1bc)
+**Used by (3):** [`scripts/smoke-health-check-abuse-controls.test.ts`](scripts.md#file-scripts-smoke-health-check-abuse-controls-test-ts-e84bf643d5) · [`src/built-ins/modules/public-funnel/index.ts`](#file-src-built-ins-modules-public-funnel-index-ts-3dd41cc1bc) · [`src/built-ins/modules/public-funnel/src/__smoke__/funnel.test.ts`](#file-src-built-ins-modules-public-funnel-src-smoke-funnel-test-ts-097b822cc9)
 
 
 ## `src/built-ins/modules/public-funnel/src/lib/`
@@ -8046,7 +8164,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface PluginFeature (5 members)`
 - `interface BlockDescriptor (5 members)`
 - `interface HealthStatus (3 members)`
-- `interface ErasureSubject (3 members)` — Who is being erased. Mirrors `built-ins/runtime/_types.ts`.
+- `interface ErasureSubject (7 members)` — Who is being erased. Mirrors `built-ins/runtime/_types.ts`.
 - `interface AquaPlugin (26 members)`
 
 **Depends on (2):** [`src/built-ins/modules/public-funnel/src/lib/tenancy.ts`](#file-src-built-ins-modules-public-funnel-src-lib-tenancy-ts-fede09310d) · [`src/built-ins/modules/public-funnel/src/server/ports.ts`](#file-src-built-ins-modules-public-funnel-src-server-ports-ts-0d7058fb16)
@@ -8059,24 +8177,28 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** Public-funnel domain.
 
-**Exports (12):**
+**Exports (16):**
 
 - `bucketHcSlot(slot?: HCSlot): HcScoreBucket | undefined`
-- `canonEmail(raw: string): string` — capture retry identity comes from the optional stable completion id.
+- `canonEmail(raw: string): string` — an identity; the canonical form makes repeat refusal deterministic.
 - `isPlausibleEmail(raw: string): boolean`
 - `LEAD_SOURCES: readonly LeadSource[]`
 - `type LeadSource = "hc" | "tool" | "signup-card"`
+- `type PendingCapturePromotionCredential = | { kind: "mailbox-proof"; /** Opaque receipt id minted and stored by a separate mailbox verifier. */ receiptId: string; } | { kind: "authenticated"; /** Signed session token; ra…` — Untrusted request material. It is deliberately not an authority claim: the foundation must resolve it through PendingCapturePromotionAuthorityPort.
 - `type HcScoreBucket = "early" | "growing" | "scaling"` — stable across HC schema bumps.
 - `interface HCSlot (5 members)` — fields documented for BOS readers.
-- `interface LeadCapture (7 members)`
+- `interface LeadCapture (11 members)`
+- `interface PendingCapturePromotion (7 members)`
+- `interface PromotePendingCaptureInput (3 members)`
+- `interface PromotePendingCaptureResult (3 members)`
 - `interface CaptureHcInput (4 members)`
 - `interface CaptureToolInput (6 members)`
-- `interface CaptureResult (4 members)`
+- `interface CaptureResult (3 members)`
 - `interface MeContext (4 members)`
 
 **Depends on (1):** [`src/built-ins/modules/public-funnel/src/lib/tenancy.ts`](#file-src-built-ins-modules-public-funnel-src-lib-tenancy-ts-fede09310d)
 
-**Used by (3):** [`src/built-ins/modules/public-funnel/src/api/handlers.ts`](#file-src-built-ins-modules-public-funnel-src-api-handlers-ts-651089471a) · [`src/built-ins/modules/public-funnel/src/server/index.ts`](#file-src-built-ins-modules-public-funnel-src-server-index-ts-847cb3f894) · [`src/built-ins/modules/public-funnel/src/server/services.ts`](#file-src-built-ins-modules-public-funnel-src-server-services-ts-c24702fabd)
+**Used by (3):** [`src/built-ins/modules/public-funnel/src/server/index.ts`](#file-src-built-ins-modules-public-funnel-src-server-index-ts-847cb3f894) · [`src/built-ins/modules/public-funnel/src/server/ports.ts`](#file-src-built-ins-modules-public-funnel-src-server-ports-ts-0d7058fb16) · [`src/built-ins/modules/public-funnel/src/server/services.ts`](#file-src-built-ins-modules-public-funnel-src-server-services-ts-c24702fabd)
 
 <a id="file-src-built-ins-modules-public-funnel-src-lib-ids-ts-1f36d74813"></a>
 
@@ -8147,9 +8269,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `isFoundationRegistered(): boolean`
 - `requireFoundation(): FunnelFoundation`
 - `containerFor(args: ContainerForArgs): FunnelContainer`
-- `containerWithDeps(args: { agencyId: AgencyId; storage: PluginStorage; activity: ActivityLogPort; events: EventBusPort; leadUsers: LeadUserPort; sessions?: SessionPort; }): FunnelContainer`
-- `_containerFromCtx(args: { agencyId: AgencyId; storage: PluginStorage }): FunnelContainer | null`
-- `interface FunnelFoundation (6 members)`
+- `containerWithDeps(args: { agencyId: AgencyId; installId: string; storage: PluginStorage; activity: ActivityLogPort; events: EventBusPort; leadUsers: LeadUserPort; promotionAuthority: PendingCapturePromotionAuthorityPort…`
+- `_containerFromCtx(args: { agencyId: AgencyId; installId: string; storage: PluginStorage }): FunnelContainer | null`
+- `interface FunnelFoundation (7 members)`
 - `interface ContainerForArgs (3 members)`
 
 **Depends on (4):** [`src/built-ins/modules/public-funnel/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-public-funnel-src-lib-aquaplugintypes-ts-baa26f2904) · [`src/built-ins/modules/public-funnel/src/lib/tenancy.ts`](#file-src-built-ins-modules-public-funnel-src-lib-tenancy-ts-fede09310d) · [`src/built-ins/modules/public-funnel/src/server/index.ts`](#file-src-built-ins-modules-public-funnel-src-server-index-ts-847cb3f894) · [`src/built-ins/modules/public-funnel/src/server/ports.ts`](#file-src-built-ins-modules-public-funnel-src-server-ports-ts-0d7058fb16)
@@ -8162,14 +8284,15 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (8):**
+**Exports (9):**
 
 - `buildFunnelContainer(deps: FunnelDepsInput): FunnelContainer`
-- `interface FunnelDepsInput (6 members)`
+- `interface FunnelDepsInput (8 members)`
 - `interface FunnelContainer (1 members)`
 - `{ FunnelService, FunnelInputError } from "./services"`
 - `{ LEAD_SOURCES, bucketHcSlot, canonEmail, isPlausibleEmail } from "../lib/domain"`
-- `{ ActivityLogPort, EventBusPort, FunnelEventName, LeadUserPort, SessionPort, LogActivityInput, StoragePort, TenantPort, UserPort } from "./ports"`
+- `{ PendingCapturePromotion, PendingCapturePromotionCredential, PromotePendingCaptureInput, PromotePendingCaptureResult } from "../lib/domain"`
+- `{ ActivityLogPort, EventBusPort, FunnelEventName, LeadUserPort, LogActivityInput, PendingCapturePromotionAuthorityGrant, PendingCapturePromotionAuthorityPort, PendingCapturePromotionPort, PendingCapturePromotionLineage, StoragePort, TenantPort, UserPort } from "./ports"`
 - `{ registerFunnelFoundation, clearFunnelFoundation, isFoundationRegistered, requireFoundation, containerFor, containerWithDeps, _containerFromCtx } from "./foundationAdapter"`
 - `{ FunnelFoundation, ContainerForArgs } from "./foundationAdapter"`
 
@@ -8183,19 +8306,22 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (9):**
+**Exports (12):**
 
-- `type FunnelEventName = | "public-funnel.lead.captured" | "public-funnel.hc.completed" | "public-funnel.tool.completed"`
-- `interface StoragePort (5 members)`
+- `type FunnelEventName = | "public-funnel.capture.pending" | "public-funnel.capture.promoted"`
+- `interface StoragePort (6 members)`
 - `interface UserPort (1 members)`
 - `interface TenantPort (1 members)`
 - `interface LogActivityInput (8 members)`
 - `interface ActivityLogPort (1 members)`
 - `interface EventBusPort (1 members)`
-- `interface LeadUserPort (1 members)` — internal user store directly.
-- `interface SessionPort (1 members)` — the returned token as opaque.
+- `interface LeadUserPort (3 members)` — compatibility, but anonymous capture must never create a global User.
+- `interface PendingCapturePromotionLineage (4 members)`
+- `interface PendingCapturePromotionAuthorityGrant (4 members)`
+- `interface PendingCapturePromotionAuthorityPort (1 members)` — Trust boundary for promotion. The plugin passes only an opaque credential; the host verifies a durable proof receipt or a signed, fresh agency session.
+- `interface PendingCapturePromotionPort (1 members)` — Trusted server-side bridge into the CRM. Anonymous capture never calls this port; FunnelService exposes it only through its explicit authority-bearing promotion command.
 
-**Depends on (1):** [`src/built-ins/modules/public-funnel/src/lib/tenancy.ts`](#file-src-built-ins-modules-public-funnel-src-lib-tenancy-ts-fede09310d)
+**Depends on (2):** [`src/built-ins/modules/public-funnel/src/lib/domain.ts`](#file-src-built-ins-modules-public-funnel-src-lib-domain-ts-b9e9da1f9f) · [`src/built-ins/modules/public-funnel/src/lib/tenancy.ts`](#file-src-built-ins-modules-public-funnel-src-lib-tenancy-ts-fede09310d)
 
 **Used by (5):** [`src/built-ins/modules/public-funnel/src/__smoke__/funnel.test.ts`](#file-src-built-ins-modules-public-funnel-src-smoke-funnel-test-ts-097b822cc9) · [`src/built-ins/modules/public-funnel/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-public-funnel-src-lib-aquaplugintypes-ts-baa26f2904) · [`src/built-ins/modules/public-funnel/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-public-funnel-src-server-foundationadapter-ts-c8f4de7d32) · [`src/built-ins/modules/public-funnel/src/server/index.ts`](#file-src-built-ins-modules-public-funnel-src-server-index-ts-847cb3f894) · [`src/built-ins/modules/public-funnel/src/server/services.ts`](#file-src-built-ins-modules-public-funnel-src-server-services-ts-c24702fabd)
 
@@ -8205,7 +8331,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** erasure still removes the old pointers.
 
-**Exports (3):**
+**Exports (5):**
 
 - `class FunnelInputError`
     - `constructor(message: string)`
@@ -8213,15 +8339,19 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
     - `constructor(deps: FunnelDeps)`
     - `async captureHcCompletion(input: CaptureHcInput): Promise<CaptureResult>`
     - `async captureToolCompletion(input: CaptureToolInput): Promise<CaptureResult>`
-    - `async eraseForAddresses(addresses: readonly string[]): Promise<number>`
+    - `async promotePendingCapture(input: PromotePendingCaptureInput): Promise<PromotePendingCaptureResult>`
+    - `async eraseExactCapture(captureIdInput: string): Promise<{ erased: boolean; recordsErased: number }>`
+    - `async eraseForClient(subject: FunnelErasureSubject): Promise<FunnelErasureResult>`
     - `async listByEmail(email: string): Promise<LeadCapture[]>`
     - `async list(filter: { source?: LeadSource } = {}): Promise<LeadCapture[]>`
     - `async meContext(leadUserId: UserId): Promise<MeContext | null>`
-- `interface FunnelDeps (6 members)`
+- `interface FunnelErasureResult (2 members)`
+- `interface FunnelErasureSubject (5 members)`
+- `interface FunnelDeps (8 members)`
 
 **Depends on (5):** [`src/built-ins/modules/public-funnel/src/lib/domain.ts`](#file-src-built-ins-modules-public-funnel-src-lib-domain-ts-b9e9da1f9f) · [`src/built-ins/modules/public-funnel/src/lib/ids.ts`](#file-src-built-ins-modules-public-funnel-src-lib-ids-ts-1f36d74813) · [`src/built-ins/modules/public-funnel/src/lib/tenancy.ts`](#file-src-built-ins-modules-public-funnel-src-lib-tenancy-ts-fede09310d) · [`src/built-ins/modules/public-funnel/src/lib/time.ts`](#file-src-built-ins-modules-public-funnel-src-lib-time-ts-1aad9c0fba) · [`src/built-ins/modules/public-funnel/src/server/ports.ts`](#file-src-built-ins-modules-public-funnel-src-server-ports-ts-0d7058fb16)
 
-**Used by (2):** [`src/built-ins/modules/public-funnel/src/api/handlers.ts`](#file-src-built-ins-modules-public-funnel-src-api-handlers-ts-651089471a) · [`src/built-ins/modules/public-funnel/src/server/index.ts`](#file-src-built-ins-modules-public-funnel-src-server-index-ts-847cb3f894)
+**Used by (1):** [`src/built-ins/modules/public-funnel/src/server/index.ts`](#file-src-built-ins-modules-public-funnel-src-server-index-ts-847cb3f894)
 
 
 ## `src/built-ins/modules/website-editor/`
@@ -9740,7 +9870,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `default CrmContactFormBlock({ block, editorMode, renderChildren }: BlockRenderProps)`
 - `DEFAULT_CONSENT_NOTICE = "By submitting, you agree we can store and use your details to respond to your "` — deliberately NOT a hard consent gate, per Ed's "transparency over gating".
 
-**Depends on (3):** [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](#file-src-built-ins-modules-website-editor-src-components-blockregistry-ts-28285b9913) · [`src/built-ins/modules/website-editor/src/components/blockStyles.ts`](#file-src-built-ins-modules-website-editor-src-components-blockstyles-ts-4baaa846b8) · [`src/built-ins/modules/website-editor/src/components/blocks/FormRenderBlock.tsx`](#file-src-built-ins-modules-website-editor-src-components-blocks-formrenderblock-tsx-ad56dfee43)
+**Depends on (4):** [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](#file-src-built-ins-modules-website-editor-src-components-blockregistry-ts-28285b9913) · [`src/built-ins/modules/website-editor/src/components/blockStyles.ts`](#file-src-built-ins-modules-website-editor-src-components-blockstyles-ts-4baaa846b8) · [`src/built-ins/modules/website-editor/src/components/blocks/FormRenderBlock.tsx`](#file-src-built-ins-modules-website-editor-src-components-blocks-formrenderblock-tsx-ad56dfee43) · [`src/components/security/BotChallenge.tsx`](components.md#file-src-components-security-botchallenge-tsx-0fa09b369d)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -9948,9 +10078,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Exports (1):**
 
-- `default HtmlBlock({ block }: BlockRenderProps)` — strict mode in PortalSettings.
+- `default HtmlBlock({ block }: BlockRenderProps)` — editor's own sandboxed iframe still shows the author their markup.
 
-**Depends on (2):** [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](#file-src-built-ins-modules-website-editor-src-components-blockregistry-ts-28285b9913) · [`src/built-ins/modules/website-editor/src/components/blockStyles.ts`](#file-src-built-ins-modules-website-editor-src-components-blockstyles-ts-4baaa846b8)
+**Depends on (3):** [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](#file-src-built-ins-modules-website-editor-src-components-blockregistry-ts-28285b9913) · [`src/built-ins/modules/website-editor/src/components/blockStyles.ts`](#file-src-built-ins-modules-website-editor-src-components-blockstyles-ts-4baaa846b8) · [`src/built-ins/modules/website-editor/src/lib/customCodeSafeMode.ts`](#file-src-built-ins-modules-website-editor-src-lib-customcodesafemode-ts-fba737a4d8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -10006,7 +10136,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default LoginFormBlock({ block, editorMode }: BlockRenderProps)`
 
-**Depends on (2):** [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](#file-src-built-ins-modules-website-editor-src-components-blockregistry-ts-28285b9913) · [`src/built-ins/modules/website-editor/src/components/blockStyles.ts`](#file-src-built-ins-modules-website-editor-src-components-blockstyles-ts-4baaa846b8)
+**Depends on (3):** [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](#file-src-built-ins-modules-website-editor-src-components-blockregistry-ts-28285b9913) · [`src/built-ins/modules/website-editor/src/components/blockStyles.ts`](#file-src-built-ins-modules-website-editor-src-components-blockstyles-ts-4baaa846b8) · [`src/components/security/BotChallenge.tsx`](components.md#file-src-components-security-botchallenge-tsx-0fa09b369d)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -10427,7 +10557,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 - `default TextBlock({ block, editorMode }: BlockRenderProps)`
 
-**Depends on (2):** [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](#file-src-built-ins-modules-website-editor-src-components-blockregistry-ts-28285b9913) · [`src/built-ins/modules/website-editor/src/components/blockStyles.ts`](#file-src-built-ins-modules-website-editor-src-components-blockstyles-ts-4baaa846b8)
+**Depends on (3):** [`src/built-ins/modules/website-editor/src/components/blockRegistry.ts`](#file-src-built-ins-modules-website-editor-src-components-blockregistry-ts-28285b9913) · [`src/built-ins/modules/website-editor/src/components/blockStyles.ts`](#file-src-built-ins-modules-website-editor-src-components-blockstyles-ts-4baaa846b8) · [`src/built-ins/modules/website-editor/src/lib/customCodeSafeMode.ts`](#file-src-built-ins-modules-website-editor-src-lib-customcodesafemode-ts-fba737a4d8)
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
@@ -11615,6 +11745,23 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Depends on:** _No internal imports._
 
 **Used by (2):** [`src/built-ins/modules/website-editor/src/__smoke__/r029-custom-css.test.ts`](#file-src-built-ins-modules-website-editor-src-smoke-r029-custom-css-test-ts-b8a6bca5d7) · [`src/built-ins/modules/website-editor/src/api/handlers/customCode.ts`](#file-src-built-ins-modules-website-editor-src-api-handlers-customcode-ts-a575fd3d26)
+
+<a id="file-src-built-ins-modules-website-editor-src-lib-customcodesafemode-ts-fba737a4d8"></a>
+
+### `src/built-ins/modules/website-editor/src/lib/customCodeSafeMode.ts`
+
+**What it is:** separate preview origin will remove. Setting the break-glass is loud.
+
+**Exports (4):**
+
+- `storedCodeMode(env: NodeJS.ProcessEnv = process.env): StoredCodeMode`
+- `mayRenderStoredMarkup(env: NodeJS.ProcessEnv = process.env): boolean` — True when raw operator markup may be stamped into the authenticated same-origin render.
+- `storedMarkupOrNull(value: string | undefined, env: NodeJS.ProcessEnv = process.env): string | null` — The value to inject for a stored markup slot. In safe mode returns null (the caller renders nothing / a placeholder); otherwise the original string. Centralised so every sink (cus…
+- `type StoredCodeMode = "safe" | "unsafe-render"` — separate preview origin will remove. Setting the break-glass is loud.
+
+**Depends on:** _No internal imports._
+
+**Used by (4):** [`scripts/smoke-stored-code-boundary.test.ts`](scripts.md#file-scripts-smoke-stored-code-boundary-test-ts-4b3e737880) · [`src/app/client-website-preview/[clientId]/[siteId]/[pageId]/page.tsx`](app.md#file-src-app-client-website-preview-clientid-siteid-pageid-page-tsx-5c23b67350) · [`src/built-ins/modules/website-editor/src/components/blocks/HtmlBlock.tsx`](#file-src-built-ins-modules-website-editor-src-components-blocks-htmlblock-tsx-ae7d5d4382) · [`src/built-ins/modules/website-editor/src/components/blocks/TextBlock.tsx`](#file-src-built-ins-modules-website-editor-src-components-blocks-textblock-tsx-42a0c15ca8)
 
 <a id="file-src-built-ins-modules-website-editor-src-lib-custompages-ts-4b6c3c8144"></a>
 
@@ -13808,7 +13955,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **What it is:** 4. Done. Sidebar nav, API routes and pages mount from the manifest.
 
-**Exports (56):**
+**Exports (59):**
 
 - `assertPortalRole(v: unknown): PortalRole` — foundation routes that receive a portalRole from request bodies.
 - `isPortalRole(v: unknown): v is PortalRole`
@@ -13821,8 +13968,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `type PlanId = "free" | "starter" | "pro" | "enterprise"`
 - `type EventName = | "agency.created" | "client.created" | "client.updated" | "client.archived" | "client.stage_changed" | "user.signed_up" | "user.signed_in" | "user.password_reset" | "plugin.installed" | "plugin.uninsta…`
 - `type PortalRole = | "login" | "affiliates" | "orders" | "account" | "customer" | "member" | "start-here" | "other"` — for tenant-specific custom variants). Existing roles preserved.
-- `type PanelId = | "main" | "fulfillment" | "store" | "content" | "marketing" | "settings" | "ops" | "tools" // End-customer surface (Felicia's shoppers / members / affiliates). // Plugins set `panelId: "customer"` on nav…` — ─── Sidebar contributions ────────────────────────────────────────────────
+- `type PanelId = | "main" | "fulfillment" | "store" | "content" | "marketing" | "sales" | "settings" | "ops" | "tools" // End-customer surface (Felicia's shoppers / members / affiliates). // Plugins set `panelId: "custome…` — ─── Sidebar contributions ────────────────────────────────────────────────
 - `type PluginScopePolicy = "client" | "agency" | "either"` — ─── Install scope policy (optional, defaults to "either") ────────────────
+- `type ErasureReviewReason = "legacy-unscoped" | "shared-identity"` — pre-client/address-only matches are evidence to preserve for operator review.
 - `type PluginDataDisposition = "delete" | "retain"` — deliverable proof) — excluded from the sweep so it survives erasure.
 - `interface CreateClientInput (7 members)` — surface. Implementations live in `src/plugins/foundation-adapters/`.
 - `interface UpdateClientPatch (6 members)`
@@ -13835,7 +13983,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface PluginRegistryPort (3 members)`
 - `interface LogActivityInput (9 members)`
 - `interface ListActivityFilter (3 members)`
-- `interface ActivityLogPort (2 members)`
+- `interface ActivityLogPort (3 members)`
 - `interface EventBusPort (1 members)`
 - `interface PortalVariantPort (1 members)`
 - `interface PhaseStorePort (4 members)`
@@ -13860,7 +14008,9 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `interface SettingsField (13 members)`
 - `interface PluginFeature (6 members)` — ─── Feature toggles ──────────────────────────────────────────────────────
 - `interface HealthStatus (3 members)` — ─── Health check ─────────────────────────────────────────────────────────
-- `interface ErasureSubject (3 members)` — lead, an email to a lead who converted later) can only match on it.
+- `interface ErasureReviewRequired (3 members)`
+- `interface ErasureIdentityEvidence (4 members)`
+- `interface ErasureSubject (10 members)`
 - `interface AquaPlugin (28 members)` — ─── The plugin manifest ──────────────────────────────────────────────────
 - `interface AquaPreset (7 members)` — ─── Presets ──────────────────────────────────────────────────────────────
 - `interface PresetPluginEntry (3 members)`
@@ -13869,7 +14019,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (1):** [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by (37):** [`scripts/smoke-client-sidebar-catalog.test.ts`](scripts.md#file-scripts-smoke-client-sidebar-catalog-test-ts-2fe38ae86b) · [`scripts/smoke-finance-section-gates.test.ts`](scripts.md#file-scripts-smoke-finance-section-gates-test-ts-bb835c5a2c) · [`scripts/smoke-plugin-api-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-api-host-gates-test-ts-a532a714e3) · [`scripts/smoke-plugin-api-tenancy.test.ts`](scripts.md#file-scripts-smoke-plugin-api-tenancy-test-ts-8bbf35181d) · [`scripts/smoke-plugin-page-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-page-host-gates-test-ts-a2690cdf7e) · [`scripts/smoke-portal-role-brandkit.test.ts`](scripts.md#file-scripts-smoke-portal-role-brandkit-test-ts-0d497171f7) · [`scripts/smoke-unwired-settings.test.ts`](scripts.md#file-scripts-smoke-unwired-settings-test-ts-acfbdd281e) · [`src/app/api/portal/[module]/[...rest]/route.ts`](app.md#file-src-app-api-portal-module-rest-route-ts-b2456019c9) · [`src/app/portal/agency/[...rest]/page.tsx`](app.md#file-src-app-portal-agency-rest-page-tsx-27d1ad6afa) · [`src/app/portal/clients/[clientId]/[...rest]/page.tsx`](app.md#file-src-app-portal-clients-clientid-rest-page-tsx-f215f5ac0f) · [`src/app/portal/customer/[...rest]/page.tsx`](app.md#file-src-app-portal-customer-rest-page-tsx-88df60b027) · [`src/built-ins/modules/website-editor/src/pages/EditorRoutePage.tsx`](#file-src-built-ins-modules-website-editor-src-pages-editorroutepage-tsx-d7e8b2f724) · [`src/built-ins/runtime/_pageScope.ts`](#file-src-built-ins-runtime-pagescope-ts-3cc574306e) · [`src/built-ins/runtime/_presets.ts`](#file-src-built-ins-runtime-presets-ts-91b4e14e96) · [`src/built-ins/runtime/_registry.ts`](#file-src-built-ins-runtime-registry-ts-504f0b067d) · [`src/built-ins/runtime/_routeResolver.ts`](#file-src-built-ins-runtime-routeresolver-ts-bbf700f5cc) · [`src/built-ins/runtime/_runtime.ts`](#file-src-built-ins-runtime-runtime-ts-d2a0efb5ed) · [`src/built-ins/runtime/_validate.ts`](#file-src-built-ins-runtime-validate-ts-7537e6b17c) · [`src/built-ins/runtime/foundation-adapters/activityLogAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-activitylogadapter-ts-83c88f8691) · [`src/built-ins/runtime/foundation-adapters/clientStoreAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-clientstoreadapter-ts-d9f633b076) · [`src/built-ins/runtime/foundation-adapters/eventBusAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-eventbusadapter-ts-7779dab897) · [`src/built-ins/runtime/foundation-adapters/index.ts`](#file-src-built-ins-runtime-foundation-adapters-index-ts-dcf532e6f2) · [`src/built-ins/runtime/foundation-adapters/phaseStoreAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-phasestoreadapter-ts-8ef086bb47) · [`src/built-ins/runtime/foundation-adapters/pluginInstallStoreAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-plugininstallstoreadapter-ts-2a7e1c6e0d) · [`src/built-ins/runtime/foundation-adapters/pluginRegistryAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-pluginregistryadapter-ts-8a92b62f94) · [`src/built-ins/runtime/foundation-adapters/pluginRuntimeAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-pluginruntimeadapter-ts-ad61c52b09) · [`src/built-ins/runtime/foundation-adapters/portalVariantAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-portalvariantadapter-ts-8738bd92b5) · [`src/built-ins/runtime/foundation-adapters/publicMediaAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-publicmediaadapter-ts-4b47d9ab84) · [`src/lib/chrome/agencySidebarPluginCatalog.ts`](lib.md#file-src-lib-chrome-agencysidebarplugincatalog-ts-73941e68df) · [`src/lib/chrome/clientSidebarPluginCatalog.ts`](lib.md#file-src-lib-chrome-clientsidebarplugincatalog-ts-a302bba740) · [`src/lib/chrome/pluginHealth.ts`](lib.md#file-src-lib-chrome-pluginhealth-ts-d71c78b8c0) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/server/plugins/pluginHealthRunner.ts`](lib.md#file-src-lib-server-plugins-pluginhealthrunner-ts-feda990895) · [`src/lib/server/plugins/pluginSecretConfig.ts`](lib.md#file-src-lib-server-plugins-pluginsecretconfig-ts-8cb887a277) · [`src/lib/server/plugins/pluginSettingsSurface.ts`](lib.md#file-src-lib-server-plugins-pluginsettingssurface-ts-f5a8104127) · [`src/lib/server/plugins/readOnlyPluginStorage.ts`](lib.md#file-src-lib-server-plugins-readonlypluginstorage-ts-2e4e793f30)
+**Used by (38):** [`scripts/smoke-client-sidebar-catalog.test.ts`](scripts.md#file-scripts-smoke-client-sidebar-catalog-test-ts-2fe38ae86b) · [`scripts/smoke-finance-section-gates.test.ts`](scripts.md#file-scripts-smoke-finance-section-gates-test-ts-bb835c5a2c) · [`scripts/smoke-plugin-api-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-api-host-gates-test-ts-a532a714e3) · [`scripts/smoke-plugin-api-tenancy.test.ts`](scripts.md#file-scripts-smoke-plugin-api-tenancy-test-ts-8bbf35181d) · [`scripts/smoke-plugin-page-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-page-host-gates-test-ts-a2690cdf7e) · [`scripts/smoke-portal-role-brandkit.test.ts`](scripts.md#file-scripts-smoke-portal-role-brandkit-test-ts-0d497171f7) · [`scripts/smoke-unwired-settings.test.ts`](scripts.md#file-scripts-smoke-unwired-settings-test-ts-acfbdd281e) · [`src/app/api/portal/[module]/[...rest]/route.ts`](app.md#file-src-app-api-portal-module-rest-route-ts-b2456019c9) · [`src/app/portal/agency/[...rest]/page.tsx`](app.md#file-src-app-portal-agency-rest-page-tsx-27d1ad6afa) · [`src/app/portal/clients/[clientId]/[...rest]/page.tsx`](app.md#file-src-app-portal-clients-clientid-rest-page-tsx-f215f5ac0f) · [`src/app/portal/customer/[...rest]/page.tsx`](app.md#file-src-app-portal-customer-rest-page-tsx-88df60b027) · [`src/built-ins/modules/website-editor/src/pages/EditorRoutePage.tsx`](#file-src-built-ins-modules-website-editor-src-pages-editorroutepage-tsx-d7e8b2f724) · [`src/built-ins/runtime/_pageScope.ts`](#file-src-built-ins-runtime-pagescope-ts-3cc574306e) · [`src/built-ins/runtime/_presets.ts`](#file-src-built-ins-runtime-presets-ts-91b4e14e96) · [`src/built-ins/runtime/_registry.ts`](#file-src-built-ins-runtime-registry-ts-504f0b067d) · [`src/built-ins/runtime/_routeResolver.ts`](#file-src-built-ins-runtime-routeresolver-ts-bbf700f5cc) · [`src/built-ins/runtime/_runtime.ts`](#file-src-built-ins-runtime-runtime-ts-d2a0efb5ed) · [`src/built-ins/runtime/_validate.ts`](#file-src-built-ins-runtime-validate-ts-7537e6b17c) · [`src/built-ins/runtime/foundation-adapters/activityLogAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-activitylogadapter-ts-83c88f8691) · [`src/built-ins/runtime/foundation-adapters/clientStoreAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-clientstoreadapter-ts-d9f633b076) · [`src/built-ins/runtime/foundation-adapters/eventBusAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-eventbusadapter-ts-7779dab897) · [`src/built-ins/runtime/foundation-adapters/index.ts`](#file-src-built-ins-runtime-foundation-adapters-index-ts-dcf532e6f2) · [`src/built-ins/runtime/foundation-adapters/phaseStoreAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-phasestoreadapter-ts-8ef086bb47) · [`src/built-ins/runtime/foundation-adapters/pluginInstallStoreAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-plugininstallstoreadapter-ts-2a7e1c6e0d) · [`src/built-ins/runtime/foundation-adapters/pluginRegistryAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-pluginregistryadapter-ts-8a92b62f94) · [`src/built-ins/runtime/foundation-adapters/pluginRuntimeAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-pluginruntimeadapter-ts-ad61c52b09) · [`src/built-ins/runtime/foundation-adapters/portalVariantAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-portalvariantadapter-ts-8738bd92b5) · [`src/built-ins/runtime/foundation-adapters/publicMediaAdapter.ts`](#file-src-built-ins-runtime-foundation-adapters-publicmediaadapter-ts-4b47d9ab84) · [`src/lib/chrome/agencySidebarPluginCatalog.ts`](lib.md#file-src-lib-chrome-agencysidebarplugincatalog-ts-73941e68df) · [`src/lib/chrome/clientSidebarPluginCatalog.ts`](lib.md#file-src-lib-chrome-clientsidebarplugincatalog-ts-a302bba740) · [`src/lib/chrome/pluginHealth.ts`](lib.md#file-src-lib-chrome-pluginhealth-ts-d71c78b8c0) · [`src/lib/chrome/sidebarLayout.ts`](lib.md#file-src-lib-chrome-sidebarlayout-ts-fd33b5f411) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/lib/server/plugins/pluginHealthRunner.ts`](lib.md#file-src-lib-server-plugins-pluginhealthrunner-ts-feda990895) · [`src/lib/server/plugins/pluginSecretConfig.ts`](lib.md#file-src-lib-server-plugins-pluginsecretconfig-ts-8cb887a277) · [`src/lib/server/plugins/pluginSettingsSurface.ts`](lib.md#file-src-lib-server-plugins-pluginsettingssurface-ts-f5a8104127) · [`src/lib/server/plugins/readOnlyPluginStorage.ts`](lib.md#file-src-lib-server-plugins-readonlypluginstorage-ts-2e4e793f30) · [`src/server/clientErasure.ts`](server.md#file-src-server-clienterasure-ts-551ffd3571)
 
 <a id="file-src-built-ins-runtime-validate-ts-7537e6b17c"></a>
 
@@ -14172,13 +14322,15 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (3):**
+**Exports (5):**
 
+- `erasePublicFunnelCaptureArtifacts(input: { agencyId: string; captureIds: string[]; }): number` — Remove only durable derivatives carrying an exact capture-id field.
 - `leadUserPort = {`
-- `sessionPort = {`
+- `pendingCapturePromotionPort = {`
+- `pendingCapturePromotionAuthorityPort = {` — Promotion authority is resolved here, outside the plugin. Raw user ids and caller-asserted mailbox addresses are never authority. The current host has no durable mailbox-proof rec…
 - `funnelMePort = {` — renders.
 
-**Depends on (3):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8) · [`src/server/users.ts`](server.md#file-src-server-users-ts-f6a1ca7f78)
+**Depends on (4):** [`src/lib/server/auth/auth.ts`](lib.md#file-src-lib-server-auth-auth-ts-022f1f8a37) · [`src/server/productWorkspaceCoordinator.ts`](server.md#file-src-server-productworkspacecoordinator-ts-746a08d0be) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (2):** [`src/app/api/public/business-os/context/route.ts`](app.md#file-src-app-api-public-business-os-context-route-ts-9eb9689fc9) · [`src/built-ins/runtime/foundation-adapters/publicFunnelFoundation.ts`](#file-src-built-ins-runtime-foundation-adapters-publicfunnelfoundation-ts-18280e9710)
 
@@ -14188,13 +14340,14 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (1):**
+**Exports (2):**
 
 - `ensureLeadsPipelineFoundationRegistered(): void`
+- `async promoteVerifiedFunnelCapture(input: { agencyId: string; captureId: string; email: string; source: string; actorUserId: string; profile?: { name?: string; phone?: string; company?: string }; }): Promise<{ leadId: s…`
 
 **Depends on (6):** [`src/built-ins/runtime/foundation-adapters/_foundationPorts.ts`](#file-src-built-ins-runtime-foundation-adapters-foundationports-ts-4b979334a9) · [`src/built-ins/runtime/foundation-adapters/personClientSeeding.ts`](#file-src-built-ins-runtime-foundation-adapters-personclientseeding-ts-313518954c) · [`src/lib/server/leadsPipelinePorts.ts`](lib.md#file-src-lib-server-leadspipelineports-ts-65fb36de0a) · [`src/lib/server/pluginStorage.ts`](lib.md#file-src-lib-server-pluginstorage-ts-412c6c3112) · [`src/server/eventBus.ts`](server.md#file-src-server-eventbus-ts-0d11c56fb0) · [`src/server/pluginInstalls.ts`](server.md#file-src-server-plugininstalls-ts-9b522e5a40)
 
-**Used by (21):** [`scripts/smoke-website-signup-lead.test.ts`](scripts.md#file-scripts-smoke-website-signup-lead-test-ts-58675d9221) · [`src/app/api/auth/signup/route.ts`](app.md#file-src-app-api-auth-signup-route-ts-1b48626832) · [`src/app/api/portal/search/route.ts`](app.md#file-src-app-api-portal-search-route-ts-4b746a12f2) · [`src/app/api/portal/website-enquiries/classification/route.ts`](app.md#file-src-app-api-portal-website-enquiries-classification-route-ts-e367cccc11) · [`src/app/api/portal/website-enquiries/lead/route.ts`](app.md#file-src-app-api-portal-website-enquiries-lead-route-ts-b89a336d61) · [`src/app/api/public/brand-enquiry/route.ts`](app.md#file-src-app-api-public-brand-enquiry-route-ts-a6e218f276) · [`src/app/api/public/contact/route.ts`](app.md#file-src-app-api-public-contact-route-ts-08a246b9bd) · [`src/app/portal/agency/actions/_ActionsPage.tsx`](app.md#file-src-app-portal-agency-actions-actionspage-tsx-66b9e510e2) · [`src/app/portal/agency/marketing/page.tsx`](app.md#file-src-app-portal-agency-marketing-page-tsx-e2b361f4ba) · [`src/app/portal/clients/page.tsx`](app.md#file-src-app-portal-clients-page-tsx-bffc1e671f) · [`src/built-ins/runtime/_registry.ts`](#file-src-built-ins-runtime-registry-ts-504f0b067d) · [`src/engines/data/server/kpi/companyHealthSnapshot.ts`](engines.md#file-src-engines-data-server-kpi-companyhealthsnapshot-ts-efcfa02aef) · [`src/engines/data/server/radar/businessIssueRadar.ts`](engines.md#file-src-engines-data-server-radar-businessissueradar-ts-df308875cc) · [`src/engines/data/server/radar/radarSourceInspection.ts`](engines.md#file-src-engines-data-server-radar-radarsourceinspection-ts-18f2227fe9) · [`src/lib/server/brandPortfolioService.ts`](lib.md#file-src-lib-server-brandportfolioservice-ts-76537b2419) · [`src/lib/server/commandIntelligenceService.ts`](lib.md#file-src-lib-server-commandintelligenceservice-ts-8aba485964) · [`src/lib/server/commercialProposal.ts`](lib.md#file-src-lib-server-commercialproposal-ts-3cca2c10db) · [`src/lib/server/inbox/operationalAlerts.ts`](lib.md#file-src-lib-server-inbox-operationalalerts-ts-564a396d10) · [`src/lib/server/plugins/ensureLeadsPipelineInstall.ts`](lib.md#file-src-lib-server-plugins-ensureleadspipelineinstall-ts-bc1dba2897) · [`src/lib/server/resolutionPlans.ts`](lib.md#file-src-lib-server-resolutionplans-ts-790d7f163e) · [`src/lib/server/websiteEnquiryLeadSync.ts`](lib.md#file-src-lib-server-websiteenquiryleadsync-ts-90c226107f)
+**Used by (22):** [`scripts/smoke-website-signup-lead.test.ts`](scripts.md#file-scripts-smoke-website-signup-lead-test-ts-58675d9221) · [`src/app/api/auth/signup/route.ts`](app.md#file-src-app-api-auth-signup-route-ts-1b48626832) · [`src/app/api/portal/inbox/conversations/route.ts`](app.md#file-src-app-api-portal-inbox-conversations-route-ts-8a49625972) · [`src/app/api/portal/search/route.ts`](app.md#file-src-app-api-portal-search-route-ts-4b746a12f2) · [`src/app/api/portal/website-enquiries/classification/route.ts`](app.md#file-src-app-api-portal-website-enquiries-classification-route-ts-e367cccc11) · [`src/app/api/portal/website-enquiries/lead/route.ts`](app.md#file-src-app-api-portal-website-enquiries-lead-route-ts-b89a336d61) · [`src/app/api/public/brand-enquiry/route.ts`](app.md#file-src-app-api-public-brand-enquiry-route-ts-a6e218f276) · [`src/app/api/public/contact/route.ts`](app.md#file-src-app-api-public-contact-route-ts-08a246b9bd) · [`src/app/portal/agency/actions/_ActionsPage.tsx`](app.md#file-src-app-portal-agency-actions-actionspage-tsx-66b9e510e2) · [`src/app/portal/agency/marketing/page.tsx`](app.md#file-src-app-portal-agency-marketing-page-tsx-e2b361f4ba) · [`src/app/portal/clients/page.tsx`](app.md#file-src-app-portal-clients-page-tsx-bffc1e671f) · [`src/built-ins/runtime/_registry.ts`](#file-src-built-ins-runtime-registry-ts-504f0b067d) · [`src/engines/data/server/kpi/companyHealthSnapshot.ts`](engines.md#file-src-engines-data-server-kpi-companyhealthsnapshot-ts-efcfa02aef) · [`src/engines/data/server/radar/businessIssueRadar.ts`](engines.md#file-src-engines-data-server-radar-businessissueradar-ts-df308875cc) · [`src/engines/data/server/radar/radarSourceInspection.ts`](engines.md#file-src-engines-data-server-radar-radarsourceinspection-ts-18f2227fe9) · [`src/lib/server/brandPortfolioService.ts`](lib.md#file-src-lib-server-brandportfolioservice-ts-76537b2419) · [`src/lib/server/commandIntelligenceService.ts`](lib.md#file-src-lib-server-commandintelligenceservice-ts-8aba485964) · [`src/lib/server/commercialProposal.ts`](lib.md#file-src-lib-server-commercialproposal-ts-3cca2c10db) · [`src/lib/server/inbox/operationalAlerts.ts`](lib.md#file-src-lib-server-inbox-operationalalerts-ts-564a396d10) · [`src/lib/server/plugins/ensureLeadsPipelineInstall.ts`](lib.md#file-src-lib-server-plugins-ensureleadspipelineinstall-ts-bc1dba2897) · [`src/lib/server/resolutionPlans.ts`](lib.md#file-src-lib-server-resolutionplans-ts-790d7f163e) · [`src/lib/server/websiteEnquiryLeadSync.ts`](lib.md#file-src-lib-server-websiteenquiryleadsync-ts-90c226107f)
 
 <a id="file-src-built-ins-runtime-foundation-adapters-membershipsfoundation-ts-f01e9eeeea"></a>
 
@@ -14310,7 +14463,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (2):** [`src/built-ins/runtime/foundation-adapters/_foundationPorts.ts`](#file-src-built-ins-runtime-foundation-adapters-foundationports-ts-4b979334a9) · [`src/built-ins/runtime/foundation-adapters/leadFunnelPorts.ts`](#file-src-built-ins-runtime-foundation-adapters-leadfunnelports-ts-c751d4855d)
 
-**Used by (3):** [`src/app/api/public/business-os/context/route.ts`](app.md#file-src-app-api-public-business-os-context-route-ts-9eb9689fc9) · [`src/app/api/public/health-check/complete/route.ts`](app.md#file-src-app-api-public-health-check-complete-route-ts-630525eded) · [`src/built-ins/runtime/_registry.ts`](#file-src-built-ins-runtime-registry-ts-504f0b067d)
+**Used by (4):** [`scripts/smoke-health-check-abuse-controls.test.ts`](scripts.md#file-scripts-smoke-health-check-abuse-controls-test-ts-e84bf643d5) · [`src/app/api/public/business-os/context/route.ts`](app.md#file-src-app-api-public-business-os-context-route-ts-9eb9689fc9) · [`src/app/api/public/health-check/complete/route.ts`](app.md#file-src-app-api-public-health-check-complete-route-ts-630525eded) · [`src/built-ins/runtime/_registry.ts`](#file-src-built-ins-runtime-registry-ts-504f0b067d)
 
 <a id="file-src-built-ins-runtime-foundation-adapters-publicmediaadapter-ts-4b47d9ab84"></a>
 

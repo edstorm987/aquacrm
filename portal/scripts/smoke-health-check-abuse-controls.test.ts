@@ -26,12 +26,14 @@ import {
   runAutomationWorkflow,
 } from "../src/server/automations";
 import { makePluginStorage } from "../src/lib/server/pluginStorage";
+import { issueSession } from "../src/lib/server/auth/auth";
+import { previewRetentionSweep, runRetentionSweep } from "../src/lib/server/compliance/retention";
 import { __resetBotChallengeForTest } from "../src/lib/server/security/botChallenge";
 import { _resetFounderSeedForTests, seedFounder } from "../src/lib/server/seeds/founderSeed";
 import { getInstall, upsertInstall } from "../src/server/pluginInstalls";
-import { getState, reset } from "../src/server/storage";
+import { getState, mutate, reset } from "../src/server/storage";
 import { createAgency, getAgencyBySlug } from "../src/server/tenants";
-import { createUser, getUser } from "../src/server/users";
+import { createUser, getUser, rotateUserSession } from "../src/server/users";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const URL = "http://localhost:3030/api/public/health-check/complete";
@@ -464,17 +466,12 @@ describe("mounted Health Check managed-challenge admission", () => {
     assert.equal(JSON.stringify(currentState).split(capture.pendingLeadId!).length - 1, 1,
       "pending identity escaped its exact capture row");
 
-    const clientId = "client_hc_exact_pending_erasure";
-    await store.set(`captures/by-id/${capture.id}`, { ...capture, clientId });
-
-    const erased = await funnel.eraseForClient({
-      clientId,
-      personShared: false,
-      emails: [email],
-      sharedEmails: [],
-    });
-    assert.equal(erased.erased, 1);
-    assert.deepEqual(erased.reviewRequired, { legacyUnscoped: 0, sharedIdentity: 0 });
+    const erased = await funnel.eraseExactCapture(capture.id);
+    const replay = await funnel.eraseExactCapture(capture.id);
+    assert.equal(erased.erased, true);
+    assert.ok(erased.recordsErased >= 4,
+      "capture, two audit rows and its automation run should be exact lineage");
+    assert.deepEqual(replay, { erased: false, recordsErased: 0 }, "exact erasure must be idempotent");
     assert.equal((await funnel.listByEmail(email)).length, 0);
     assert.equal(getUser(email), null);
     assert.equal(getState().activity.some(entry =>
@@ -482,6 +479,8 @@ describe("mounted Health Check managed-challenge admission", () => {
     "exact capture activity survived erasure");
     assert.equal(JSON.stringify(getState().automationRuns[unrelatedRun.id]), unrelatedBefore,
       "exact capture erasure changed an unrelated automation run");
+    assert.equal(getState().automationRuns[matchingRun.id], undefined,
+      "exact capture erasure left its durable automation receipt");
     const durableRuns = JSON.stringify(getState().automationRuns);
     assert.equal(durableRuns.includes(email), false, "capture email survived in an automation run");
     assert.equal(durableRuns.includes(capture.pendingLeadId!), false,
@@ -492,7 +491,103 @@ describe("mounted Health Check managed-challenge admission", () => {
     assert.equal(erasedState.includes(privateAnswer), false, "full Health Check answers survived exact erasure");
   });
 
-  it("promotes one exact pending capture only after proof and replays its lineage", async () => {
+  it("ages out natural capture lineage without deleting the pending source or unrelated runs", async () => {
+    await provisionConfiguredFixture();
+    const founder = getAgencyBySlug("milesymedia");
+    assert.ok(founder);
+    const actor = Object.values(getState().users).find(user =>
+      user.role === "agency-owner" && user.agencyIds.includes(founder.id));
+    assert.ok(actor);
+    const workflow = createAutomationWorkflow(founder.id, {
+      name: "Retention proof for pending capture",
+      status: "active",
+      nodes: [
+        {
+          id: "trigger",
+          kind: "trigger",
+          position: { x: 0, y: 0 },
+          config: {
+            label: "Pending capture retention proof",
+            triggerType: "custom.event",
+            eventName: "public-funnel.capture.pending",
+          },
+        },
+        {
+          id: "activity",
+          kind: "action",
+          position: { x: 240, y: 0 },
+          config: { label: "Record receipt", actionType: "log-activity", message: "Pending capture retained." },
+        },
+      ],
+      edges: [{ id: "trigger-to-activity", source: "trigger", target: "activity" }],
+    }, actor.id);
+    const unrelatedRun = await runAutomationWorkflow(
+      founder.id,
+      workflow.id,
+      "test",
+      actor.id,
+      { captureId: "unrelated-capture-id", marker: "preserve-unrelated-retention-run" },
+    );
+    const email = "hc-natural-retention@example.com";
+    const response = await POST(request(
+      body(email, "hc_natural_retention_01", "valid-natural-retention"),
+      "42.0.5.2",
+    ));
+    assert.equal(response.status, 200);
+
+    const install = getInstall({ agencyId: founder.id }, "public-funnel");
+    assert.ok(install);
+    const funnel = publicFunnelContainerFor({
+      agencyId: founder.id,
+      install,
+      storage: makePluginStorage(install.id),
+    }).funnel;
+    const capture = (await funnel.listByEmail(email))[0];
+    assert.ok(capture?.pendingLeadId);
+    let matchingRun = listAutomationRuns(founder.id).find(run =>
+      run.workflowId === workflow.id && run.eventData.captureId === capture.id);
+    for (let attempt = 0; !matchingRun && attempt < 25; attempt += 1) {
+      await new Promise<void>(resolve => setImmediate(resolve));
+      matchingRun = listAutomationRuns(founder.id).find(run =>
+        run.workflowId === workflow.id && run.eventData.captureId === capture.id);
+    }
+    assert.ok(matchingRun, "natural pending event did not create a durable automation receipt");
+
+    const old = Date.now() - 60 * 24 * 60 * 60 * 1000;
+    mutate(state => {
+      for (const entry of state.activity) {
+        if ((entry.metadata as { captureId?: string } | undefined)?.captureId === capture.id) entry.ts = old;
+      }
+      state.automationRuns[matchingRun.id]!.createdAt = old;
+      state.automationRuns[matchingRun.id]!.updatedAt = old;
+      state.automationRuns[unrelatedRun.id]!.createdAt = old;
+      state.automationRuns[unrelatedRun.id]!.updatedAt = old;
+      const current = state.agencySettings[founder.id] ?? { agencyId: founder.id };
+      state.agencySettings[founder.id] = {
+        ...current,
+        retention: { ...(current.retention ?? {}), activityDays: 30 },
+      };
+    });
+
+    const preview = previewRetentionSweep(founder.id);
+    assert.equal(preview.removed.publicFunnelAutomationRuns, 1);
+    assert.ok(preview.removed.activityDays >= 2);
+    assert.ok(getState().automationRuns[matchingRun.id], "preview mutated a matching run");
+    const applied = runRetentionSweep(founder.id);
+    assert.equal(applied.total, preview.total, "retention preview drifted from its sweep");
+    assert.equal(getState().automationRuns[matchingRun.id], undefined,
+      "retention left the capture-linked automation receipt");
+    assert.ok(getState().automationRuns[unrelatedRun.id],
+      "retention removed a run without an owned Public Funnel event lineage");
+    assert.equal(getState().activity.some(entry =>
+      (entry.metadata as { captureId?: string } | undefined)?.captureId === capture.id), false,
+    "retention left aged capture activity");
+    assert.equal((await funnel.listByEmail(email)).length, 1,
+      "activity retention deleted the pending source without an erasure decision");
+    assert.equal(getUser(email), null);
+  });
+
+  it("promotes one exact pending capture only from a fresh signed agency session", async () => {
     await provisionConfiguredFixture();
     const email = "hc-mailbox-promoted@example.com";
     const response = await POST(request(
@@ -514,6 +609,19 @@ describe("mounted Health Check managed-challenge admission", () => {
     }).funnel;
     const pending = (await funnel.listByEmail(email))[0];
     assert.ok(pending?.pendingLeadId);
+    const actor = Object.values(getState().users).find(user =>
+      user.role === "agency-owner" && user.agencyIds.includes(founder.id));
+    assert.ok(actor);
+    const staleActorToken = issueSession({
+      userId: actor.id,
+      email: actor.email,
+      role: actor.role,
+      agencyId: founder.id,
+      agencyIds: actor.agencyIds,
+      activeAgencyId: founder.id,
+      sessionRev: actor.sessionRev,
+      accessRev: actor.accessRev,
+    });
 
     const derivativeSnapshot = () => ({
       leadKeys: Object.keys(getState().pluginData[leadsInstall.id] ?? {})
@@ -525,25 +633,116 @@ describe("mounted Health Check managed-challenge admission", () => {
     await assert.rejects(
       () => funnel.promotePendingCapture({
         captureId: pending.id,
-        authority: {
-          kind: "mailbox-proof",
-          verifiedEmail: "attacker@example.com",
-          verificationId: "mailbox-proof-001",
+        credential: { kind: "mailbox-proof", receiptId: "caller-invented-receipt" },
+      }),
+      (error: unknown) => error instanceof FunnelInputError && error.message === "promotion_authority_refused",
+    );
+    await assert.rejects(
+      () => funnel.promotePendingCapture({
+        captureId: pending.id,
+        credential: {
+          kind: "authenticated",
+          sessionToken: "not-a-real-user",
+          operationId: "forged-actor-command-001",
         },
       }),
-      (error: unknown) => error instanceof FunnelInputError && error.message === "mailbox_proof_mismatch",
+      (error: unknown) => error instanceof FunnelInputError && error.message === "promotion_authority_refused",
+    );
+
+    const otherAgency = createAgency({ name: "Promotion authority other", slug: "promotion-authority-other" });
+    const otherOwner = createUser({
+      email: "other-promotion-owner@example.com",
+      password: "OtherPromotionSecret42!",
+      role: "agency-owner",
+      agencyId: otherAgency.id,
+    });
+    const wrongTenantToken = issueSession({
+      userId: otherOwner.id,
+      email: otherOwner.email,
+      role: otherOwner.role,
+      agencyId: otherAgency.id,
+      agencyIds: otherOwner.agencyIds,
+      activeAgencyId: otherAgency.id,
+      sessionRev: otherOwner.sessionRev,
+      accessRev: otherOwner.accessRev,
+    });
+    await assert.rejects(
+      () => funnel.promotePendingCapture({
+        captureId: pending.id,
+        credential: {
+          kind: "authenticated",
+          sessionToken: wrongTenantToken,
+          operationId: "wrong-tenant-command-001",
+        },
+      }),
+      (error: unknown) => error instanceof FunnelInputError && error.message === "promotion_authority_refused",
+    );
+
+    const clientScopedToken = issueSession({
+      userId: actor.id,
+      email: actor.email,
+      role: actor.role,
+      agencyId: founder.id,
+      agencyIds: actor.agencyIds,
+      activeAgencyId: founder.id,
+      clientId: "client_scope_must_not_promote",
+      sessionRev: actor.sessionRev,
+      accessRev: actor.accessRev,
+    });
+    await assert.rejects(
+      () => funnel.promotePendingCapture({
+        captureId: pending.id,
+        credential: {
+          kind: "authenticated",
+          sessionToken: clientScopedToken,
+          operationId: "wrong-client-command-001",
+        },
+      }),
+      (error: unknown) => error instanceof FunnelInputError && error.message === "promotion_authority_refused",
+    );
+    const rotated = rotateUserSession(actor.id);
+    assert.ok(rotated);
+    await assert.rejects(
+      () => funnel.promotePendingCapture({
+        captureId: pending.id,
+        credential: {
+          kind: "authenticated",
+          sessionToken: staleActorToken,
+          operationId: "stale-session-command-001",
+        },
+      }),
+      (error: unknown) => error instanceof FunnelInputError && error.message === "promotion_authority_refused",
     );
     assert.deepEqual(derivativeSnapshot(), beforeProof, "failed proof created CRM derivatives");
 
+    const actorToken = issueSession({
+      userId: rotated.id,
+      email: rotated.email,
+      role: rotated.role,
+      agencyId: founder.id,
+      agencyIds: rotated.agencyIds,
+      activeAgencyId: founder.id,
+      sessionRev: rotated.sessionRev,
+      accessRev: rotated.accessRev,
+    });
+
     const command = {
       captureId: pending.id,
-      authority: {
-        kind: "mailbox-proof" as const,
-        verifiedEmail: ` ${email.toUpperCase()} `,
-        verificationId: "mailbox-proof-001",
+      credential: {
+        kind: "authenticated" as const,
+        sessionToken: actorToken,
+        operationId: "operator-command-001",
       },
     };
-    const promoted = await funnel.promotePendingCapture(command);
+    const raced = await Promise.all([
+      funnel.promotePendingCapture(command),
+      funnel.promotePendingCapture(command),
+    ]);
+    const promoted = raced.find(result => result.promoted);
+    const concurrentReplay = raced.find(result => !result.promoted);
+    assert.ok(promoted);
+    assert.ok(concurrentReplay);
+    assert.deepEqual(concurrentReplay.promotion, promoted.promotion);
     assert.equal(promoted.promoted, true);
     assert.equal(promoted.capture.pendingLeadId, undefined);
     assert.equal(promoted.capture.clientId, undefined, "promotion widened an unscoped capture to a client");

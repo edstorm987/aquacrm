@@ -53,7 +53,7 @@ export const RETENTION_CATEGORIES: readonly RetentionCategory[] = [
   {
     id: "activityDays",
     label: "Activity log",
-    describes: "Audit entries older than the period. The log is bounded at 50,000 entries regardless; this puts an age on them as well.",
+    describes: "Audit entries and capture-linked Public Funnel automation receipts older than the period. The log is bounded at 50,000 entries regardless; this puts an age on both durable traces as well.",
   },
   {
     id: "subjectRequestDays",
@@ -98,6 +98,7 @@ function cutoffFor(days: number | undefined, now: number): number | null {
  */
 interface ExpiredRecords {
   activityIds: string[];
+  publicFunnelAutomationRunIds: string[];
   requestIds: string[];
   noticeIds: string[];
   result: RetentionSweepResult;
@@ -134,6 +135,20 @@ function findExpired(agencyId: string, now: number): ExpiredRecords {
     .filter(entry => entry.agencyId === agencyId && entry.ts < activityCutoff)
     .map(entry => entry.id);
 
+  // Public Funnel pending/promoted events deliberately carry only an opaque
+  // capture id, but that id remains exact erasure lineage. Its durable
+  // automation receipt follows the same age policy as the activity trace.
+  // Match the owning event and an exact scalar captureId so arbitrary
+  // workflow data cannot be swept merely because it resembles an id.
+  const publicFunnelAutomationRunIds = activityCutoff === null ? [] : Object.values(state.automationRuns)
+    .filter(run => run.agencyId === agencyId
+      && run.createdAt < activityCutoff
+      && (run.eventData.eventName === "public-funnel.capture.pending"
+        || run.eventData.eventName === "public-funnel.capture.promoted")
+      && typeof run.eventData.captureId === "string"
+      && run.eventData.captureId.length > 0)
+    .map(run => run.id);
+
   const requestIds = requestCutoff === null ? [] : Object.values(state.subjectRequests ?? {})
     .filter(request => request.agencyId === agencyId
       // A request still running its clock cannot expire, however old. Age is
@@ -147,14 +162,20 @@ function findExpired(agencyId: string, now: number): ExpiredRecords {
     .map(notice => notice.id);
 
   removed.activityDays = activityIds.length;
+  removed.publicFunnelAutomationRuns = publicFunnelAutomationRunIds.length;
   removed.subjectRequestDays = requestIds.length;
   removed.clientFormNoticeDays = noticeIds.length;
 
   return {
     activityIds,
+    publicFunnelAutomationRunIds,
     requestIds,
     noticeIds,
-    result: { removed, total: activityIds.length + requestIds.length + noticeIds.length, unset },
+    result: {
+      removed,
+      total: activityIds.length + publicFunnelAutomationRunIds.length + requestIds.length + noticeIds.length,
+      unset,
+    },
   };
 }
 
@@ -170,6 +191,7 @@ export function runRetentionSweep(agencyId: string, now = Date.now()): Retention
     const activityIds = new Set(expired.activityIds);
     mutate(draft => {
       if (activityIds.size) draft.activity = draft.activity.filter(entry => !activityIds.has(entry.id));
+      for (const id of expired.publicFunnelAutomationRunIds) delete draft.automationRuns[id];
       for (const id of expired.requestIds) delete draft.subjectRequests[id];
       for (const id of expired.noticeIds) delete draft.clientFormNotices[id];
     });

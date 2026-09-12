@@ -2,12 +2,17 @@ import "server-only";
 // T1 R032 — port adapters for `@aqua/plugin-public-funnel` (R021)
 // and `@aqua/plugin-bos-auth-gate` (R022).
 //
-// Two ports, from chapters #132 + #137:
+// Capture, promotion and legacy-context ports, from chapters #132 + #137:
 //
 //   - LeadUserPort.withPendingLeadByEmail(email, operation)
 //       Anonymous capture must never create, resolve or reuse an authenticatable
 //       account. It allocates only an opaque pending id after refusing every
-//       existing User; mailbox proof is the future promotion boundary.
+//       existing User; verified proof or fresh operator authority is the
+//       promotion boundary.
+//
+//   - PendingCapturePromotionAuthorityPort.verify(credential)
+//       Resolves an opaque credential against the host's real auth/proof
+//       foundation. Raw actor ids and caller-asserted mailbox claims fail.
 //
 //   - FunnelMePort.getMeContextByUserId(userId)
 //       BOS gate's `me` endpoint reads this to populate `hcSlot` +
@@ -18,6 +23,11 @@ import "server-only";
 //       a captured lead — graceful no-op so BOS still renders.
 
 import crypto from "node:crypto";
+import {
+  getActiveAgencyId,
+  resolveFreshSessionUser,
+  verifyToken,
+} from "@/lib/server/auth/auth";
 import { withPortalStateTransaction } from "@/server/productWorkspaceCoordinator";
 import { getState, mutate } from "@/server/storage";
 import { LEAD_AGENCY_ID } from "@/server/types";
@@ -46,6 +56,43 @@ const LEAD_USER_REFERENCE_FIELDS = new Set(["leadUserId"]);
 const CAPTURE_REFERENCE_FIELDS = new Set(["captureId", "captureIds"]);
 const PUBLIC_FUNNEL_PLUGIN_ID = "public-funnel";
 const CAPTURE_ROW_PREFIX = "captures/by-id/";
+
+/** Remove only durable derivatives carrying an exact capture-id field. */
+export function erasePublicFunnelCaptureArtifacts(input: {
+  agencyId: string;
+  captureIds: string[];
+}): number {
+  const captureIds = new Set(input.captureIds.filter(Boolean));
+  if (!captureIds.size) return 0;
+  let recordsErased = 0;
+  mutate(state => {
+    const removedActivityIds = new Set<string>();
+    state.activity = state.activity.filter(entry => {
+      const exactCaptureActivity = entry.agencyId === input.agencyId
+        && entry.category === "public-funnel"
+        && hasExactFieldReference(entry.metadata, CAPTURE_REFERENCE_FIELDS, captureIds);
+      if (!exactCaptureActivity) return true;
+      removedActivityIds.add(entry.id);
+      recordsErased += 1;
+      return false;
+    });
+    for (const [eventId, event] of Object.entries(state.clientRecordLedger ?? {})) {
+      if (event.sourceType === "activity" && removedActivityIds.has(event.sourceId)) {
+        delete state.clientRecordLedger[eventId];
+        recordsErased += 1;
+      }
+    }
+    for (const [runId, run] of Object.entries(state.automationRuns)) {
+      if (run.agencyId !== input.agencyId
+        || !hasExactFieldReference(run.eventData, CAPTURE_REFERENCE_FIELDS, captureIds)) {
+        continue;
+      }
+      delete state.automationRuns[runId];
+      recordsErased += 1;
+    }
+  });
+  return recordsErased;
+}
 
 function publicFunnelHasCanonicalCapture(email: string): boolean {
   const state = getState();
@@ -97,27 +144,7 @@ export const leadUserPort = {
   async eraseCaptureArtifacts(input: { agencyId: string; captureIds: string[] }): Promise<{
     recordsErased: number;
   }> {
-    const captureIds = new Set(input.captureIds.filter(Boolean));
-    let recordsErased = 0;
-    mutate(state => {
-      const removedActivityIds = new Set<string>();
-      state.activity = state.activity.filter(entry => {
-        const exactCaptureActivity = entry.agencyId === input.agencyId
-          && entry.category === "public-funnel"
-          && hasExactFieldReference(entry.metadata, CAPTURE_REFERENCE_FIELDS, captureIds);
-        if (!exactCaptureActivity) return true;
-        removedActivityIds.add(entry.id);
-        recordsErased += 1;
-        return false;
-      });
-      for (const [eventId, event] of Object.entries(state.clientRecordLedger ?? {})) {
-        if (event.sourceType === "activity" && removedActivityIds.has(event.sourceId)) {
-          delete state.clientRecordLedger[eventId];
-          recordsErased += 1;
-        }
-      }
-    });
-    return { recordsErased };
+    return { recordsErased: erasePublicFunnelCaptureArtifacts(input) };
   },
 
   async eraseIfUnreferenced(input: { userId: string; email: string }): Promise<{
@@ -234,6 +261,62 @@ export const pendingCapturePromotionPort = {
     // authority-bearing promotePendingCapture command.
     const { promoteVerifiedFunnelCapture } = await import("./leadsPipelineFoundation");
     return promoteVerifiedFunnelCapture(input);
+  },
+};
+
+const FUNNEL_PROMOTION_ROLES = new Set(["agency-owner", "agency-manager", "agency-staff"]);
+
+/**
+ * Promotion authority is resolved here, outside the plugin. Raw user ids and
+ * caller-asserted mailbox addresses are never authority. The current host has
+ * no durable mailbox-proof receipt table for pending captures, so that branch
+ * fails closed until the verifier that owns such receipts is mounted.
+ */
+export const pendingCapturePromotionAuthorityPort = {
+  async verify(input: {
+    agencyId: string;
+    installId: string;
+    captureId: string;
+    captureEmail: string;
+    credential:
+      | { kind: "mailbox-proof"; receiptId: string }
+      | { kind: "authenticated"; sessionToken: string; operationId: string };
+  }) {
+    const install = getState().pluginInstalls[input.installId];
+    if (!install
+      || install.pluginId !== PUBLIC_FUNNEL_PLUGIN_ID
+      || !install.enabled
+      || install.agencyId !== input.agencyId
+      || install.clientId) {
+      return null;
+    }
+    if (input.credential.kind !== "authenticated") return null;
+    const session = verifyToken(input.credential.sessionToken);
+    if (!session
+      || session.clientId
+      || session.publicShowcase
+      || session.isDemo
+      || session.sandbox
+      || getActiveAgencyId(session) !== input.agencyId) {
+      return null;
+    }
+    const user = await resolveFreshSessionUser(session);
+    const memberships = user?.agencyIds.length
+      ? user.agencyIds
+      : user?.agencyId ? [user.agencyId] : [];
+    if (!user
+      || user.id !== session.userId
+      || user.email.trim().toLowerCase() !== session.email.trim().toLowerCase()
+      || user.role !== session.role
+      || !FUNNEL_PROMOTION_ROLES.has(user.role)
+      || !memberships.includes(input.agencyId)) {
+      return null;
+    }
+    return {
+      kind: "authenticated" as const,
+      operationId: input.credential.operationId,
+      actorUserId: user.id,
+    };
   },
 };
 

@@ -21,7 +21,11 @@ import {
   eventBusPort,
   tenantPort,
 } from "./_foundationPorts";
-import { leadUserPort, pendingCapturePromotionPort } from "./leadFunnelPorts";
+import {
+  leadUserPort,
+  pendingCapturePromotionAuthorityPort,
+  pendingCapturePromotionPort,
+} from "./leadFunnelPorts";
 
 let registered = false;
 
@@ -38,6 +42,7 @@ export function ensurePublicFunnelFoundationRegistered(): void {
     activity: activityPort,
     events: eventBusPort,
     leadUsers: leadUserPort,
+    promotionAuthority: pendingCapturePromotionAuthorityPort,
     promotions: pendingCapturePromotionPort,
     tenant: tenantPort,
   } as unknown as Parameters<typeof registerFunnelFoundation>[0]);
