@@ -2668,7 +2668,7 @@ aside[aria-label="Primary navigation"][data-workspace="growth"]    [data-workspa
 /* Tenant retints of the CSS-only field (no images). The mark + name in the card
    carry brand identity; the background stays calm and on-palette per brand. */
 .mm-auth-shell[data-auth-brand="aqua"] {
-  --auth-accent: #1B8585;
+  --auth-accent: #198080;
   --auth-bg-top: #12666C;
   --auth-bg-mid: #0C464B;
   --auth-bg-base: #082F33;
@@ -3211,7 +3211,7 @@ aside[aria-label="Primary navigation"][data-workspace="growth"]    [data-workspa
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.16em;
-  color: rgba(20, 18, 14, 0.4);
+  color: #6B635A;
 }
 .mm-or-divider::before,
 .mm-or-divider::after {
