@@ -331,7 +331,7 @@ move each one and know what you are trading.
 | Category | Suggested | Why that, and what it costs |
 |---|---|---|
 | **Activity log** | `2555` (7 years) | It is the audit trail — the evidence for everything else, including erasures you have performed. Seven years lines up with the usual UK business-record horizon, so it will not expire before the records it evidences. Shorter is defensible; going below ~2 years starts destroying proof of your own compliance. |
-| **DSAR register** | `1095` (3 years) | Long enough to show a regulator a pattern of handled requests, short enough not to keep people's names indefinitely. Note the register only ever holds a label, a date and an outcome — never the exported data. **Open requests never expire**, whatever this is set to. |
+| **DSAR register** | `1095` (3 years) | Long enough to show a regulator a pattern of handled requests, short enough not to keep people's names indefinitely. An open access/portability request may temporarily hold one bounded staged export for exact replay; evidenced delivery clears those bytes and retains only digest/evidence metadata. **Open requests never expire**, whatever this is set to, so unresolved staged exports require operational review rather than relying on expiry. |
 | **Enquiry notices** | `730` (2 years) | These are pointers, not content: an id, a timestamp, a seen flag. Deleting one removes *our* record that an enquiry arrived; the enquiry itself lives in the client's own database and is untouched. Two years keeps a useful reporting window without holding pointers to people indefinitely. |
 
 **Before enabling any of them**, set the numbers and read the count the panel
@@ -384,4 +384,3 @@ problem in a published notice — Art. 5(1)(a), fairness and transparency.
 
 I have not chosen. Rewriting a published privacy claim is your call, and adding
 a per-event database read to the collector is a performance decision.
-

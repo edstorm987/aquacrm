@@ -2,12 +2,12 @@
 
 > External APIs, inbox and portal concepts, compliance packs and brand records.
 >
-> Consolidated 2026-09-12 from **6** source documents / **7,185 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-12 from **6** source documents / **7,244 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
 - [`assistant-integrations/milesymedia-api/SKILL.md`](#source-assistant-integrations-milesymedia-api-skill-md) — 289 words · `482c82e344fb`
-- [`docs/compliance/erasure-dpo-pack.md`](#source-docs-compliance-erasure-dpo-pack-md) — 2,881 words · `7afaac696768`
+- [`docs/compliance/erasure-dpo-pack.md`](#source-docs-compliance-erasure-dpo-pack-md) — 2,940 words · `abf639934a60`
 - [`docs/external-assistant-api.md`](#source-docs-external-assistant-api-md) — 1,675 words · `2a4a76c6d69d`
 - [`docs/meta-master-inbox.md`](#source-docs-meta-master-inbox-md) — 718 words · `1de766d50ed8`
 - [`docs/portal-tiers-and-fractal-fulfilment.md`](#source-docs-portal-tiers-and-fractal-fulfilment-md) — 1,286 words · `af8659f6076a`
@@ -77,7 +77,7 @@ ${AQUACRM_API_BASE_URL}/openapi.json
 
 ## Source document — `docs/compliance/erasure-dpo-pack.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/compliance/erasure-dpo-pack.md" sha256="7afaac69676811484f9e7dde6fb17f885b48774882d9a5002ebec21209fea778" -->
+<!-- AQUACRM_SOURCE_START path="docs/compliance/erasure-dpo-pack.md" sha256="abf639934a600c0f905c3fdd2612585c4bf38acd546ffe0efd4a5ef9984e7599" -->
 # Right-to-erasure — review pack for a DPO / solicitor
 
 ← [development.md](../development.md) · [erasure plan](../development/plans/plugin-data-erasure.md) · [compliance & legal plan](../development/plans/compliance-legal.md)
@@ -138,9 +138,12 @@ treated as proof that every system completed the erasure.
 
 **Partially built process:** the DSAR register now records receipt, the statutory
 clock and identity-verification evidence. A subject-access export is bound to an
-exact verified request. Intake is still manual, however, and the erasure button is
-not yet bound to that request record, so an owner must still connect the out-of-band
-request to the destructive action correctly. See §8.
+exact verified request. Its bounded staged bytes/digest remain on the open request
+for replay until separate review (when required) and delivery evidence fulfil it;
+delivery clears the staged bytes but retains the audit fingerprint. Intake is still
+manual, however, and the erasure button is not yet bound to that request record, so
+an owner must still connect the out-of-band request to the destructive action
+correctly. See §8.
 
 ---
 
@@ -312,9 +315,11 @@ A maintained Records-of-Processing map (ROPA) and automated DSAR intake are not
 built. The register, clock, breach register, configurable retention mechanism and a
 safe automatic access/portability export now exist, but remain **partial**: retention
 periods are unset, the export withholds review-required rows and excludes systems
-outside hydrated PortalState, final delivery is not evidenced, and erasure is not
-bound to the verified request. A legal-document register and cookie-consent capture
-also exist today.
+outside hydrated PortalState, and final delivery evidence is an operator-supplied
+reference rather than independent proof of receipt. The access workflow stages exact
+bounded bytes for replay, keeps non-zero-review requests open, and fulfils only after
+separate review/delivery evidence; erasure is not bound to the verified request. A
+legal-document register and cookie-consent capture also exist today.
 
 **Since 2026-08-20 these gaps are visible in the product, not only in this document.**
 A compliance posture at `/portal/agency/company?view=legal` lists each control, its

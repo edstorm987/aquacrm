@@ -5716,6 +5716,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
 
+<a id="file-scripts-smoke-plugin-lineage-test-ts-05632a81ce"></a>
+
+### `scripts/smoke-plugin-lineage.test.ts`
+
+**What it is:** Run: node --import tsx --test scripts/smoke-plugin-lineage.test.ts
+
+**Exports:** _No exported symbols (internal/side-effect module)._
+
+**Depends on (6):** [`src/built-ins/modules/agency-marketing/src/api/handlers.ts`](built-ins.md#file-src-built-ins-modules-agency-marketing-src-api-handlers-ts-4482e1e66b) · [`src/built-ins/modules/agency-marketing/src/lib/mutationAllowlist.ts`](built-ins.md#file-src-built-ins-modules-agency-marketing-src-lib-mutationallowlist-ts-4eef9d459c) · [`src/built-ins/modules/agency-marketing/src/server/foundationAdapter.ts`](built-ins.md#file-src-built-ins-modules-agency-marketing-src-server-foundationadapter-ts-aa533e48bd) · [`src/built-ins/modules/email-sender/index.ts`](built-ins.md#file-src-built-ins-modules-email-sender-index-ts-99f0cb2139) · [`src/built-ins/modules/email-sender/src/api/handlers.ts`](built-ins.md#file-src-built-ins-modules-email-sender-src-api-handlers-ts-103f6a498c) · [`src/built-ins/modules/email-sender/src/server/foundationAdapter.ts`](built-ins.md#file-src-built-ins-modules-email-sender-src-server-foundationadapter-ts-1889ff7cf0)
+
+**Used by:** _No internal importers found; entry point, script, route, test or dynamically loaded module._
+
 <a id="file-scripts-smoke-plugin-page-host-gates-test-ts-a2690cdf7e"></a>
 
 ### `scripts/smoke-plugin-page-host-gates.test.ts`

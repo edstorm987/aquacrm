@@ -104,7 +104,7 @@ export function verifySubjectRequestIdentity(agencyId: string, id: string, actor
 }
 
 export class SubjectRequestError extends Error {
-  constructor(public code: "identity_unverified" | "already_closed") {
+  constructor(public code: "identity_unverified" | "already_closed" | "delivery_evidence_required") {
     super(code);
   }
 }
@@ -162,6 +162,28 @@ export interface PreparedSubjectAccessExport {
   json: string;
 }
 
+const MAX_STAGED_SUBJECT_ACCESS_BYTES = 1_000_000;
+const SUBJECT_ACCESS_DELIVERY_METHODS = new Set<NonNullable<SubjectRequest["deliveryMethod"]>>([
+  "verified-portal", "secure-email", "in-person", "other",
+]);
+
+function validPreparedExport(prepared: PreparedSubjectAccessExport): boolean {
+  const actualBytes = Buffer.byteLength(prepared.json, "utf8");
+  return /^[a-f0-9]{64}$/.test(prepared.digest)
+    && crypto.createHash("sha256").update(prepared.json, "utf8").digest("hex") === prepared.digest
+    && actualBytes === prepared.byteLength
+    && actualBytes <= MAX_STAGED_SUBJECT_ACCESS_BYTES
+    && Number.isFinite(prepared.generatedAt)
+    && Number.isInteger(prepared.recordCount)
+    && prepared.recordCount >= 0
+    && Number.isInteger(prepared.reviewCount)
+    && prepared.reviewCount >= 0;
+}
+
+function validEvidenceId(value: string): boolean {
+  return value.length > 0 && value.length <= 200 && /^[A-Za-z0-9_.:-]+$/.test(value);
+}
+
 /**
  * Durably stage an immutable, bounded export. This never closes the request:
  * successful generation is not evidence that the subject received anything.
@@ -174,6 +196,7 @@ export function recordPreparedSubjectAccessExport(
   actorUserId: string,
   prepared: PreparedSubjectAccessExport,
 ): SubjectRequest {
+  if (!validPreparedExport(prepared)) throw new SubjectAccessRequestGateError();
   let updated: SubjectRequest | null = null;
   mutate(state => {
     const request = state.subjectRequests[id];
@@ -211,6 +234,7 @@ export function recordSubjectAccessReviewCompletion(
   digest: string,
   evidenceId: string,
 ): SubjectRequest {
+  if (!/^[a-f0-9]{64}$/.test(digest) || !validEvidenceId(evidenceId)) throw new SubjectAccessRequestGateError();
   let updated: SubjectRequest | null = null;
   mutate(state => {
     const request = state.subjectRequests[id];
@@ -246,6 +270,9 @@ export function fulfilPreparedSubjectAccessDelivery(
   deliveryMethod: NonNullable<SubjectRequest["deliveryMethod"]>,
   evidenceId: string,
 ): SubjectRequest {
+  if (!/^[a-f0-9]{64}$/.test(digest)
+    || !SUBJECT_ACCESS_DELIVERY_METHODS.has(deliveryMethod)
+    || !validEvidenceId(evidenceId)) throw new SubjectAccessRequestGateError();
   let updated: SubjectRequest | null = null;
   mutate(state => {
     const request = state.subjectRequests[id];
@@ -288,6 +315,7 @@ export function fulfilSubjectRequest(
   if (!existing) return null;
   if (!existing.identityVerifiedAt) throw new SubjectRequestError("identity_unverified");
   if (existing.fulfilledAt || existing.refusedAt) throw new SubjectRequestError("already_closed");
+  if (SUBJECT_ACCESS_KINDS.has(existing.kind)) throw new SubjectRequestError("delivery_evidence_required");
 
   let updated: SubjectRequest | null = null;
   mutate(state => {
@@ -295,6 +323,7 @@ export function fulfilSubjectRequest(
     if (!request || request.agencyId !== agencyId) return;
     if (!request.identityVerifiedAt) throw new SubjectRequestError("identity_unverified");
     if (request.fulfilledAt || request.refusedAt) throw new SubjectRequestError("already_closed");
+    if (SUBJECT_ACCESS_KINDS.has(request.kind)) throw new SubjectRequestError("delivery_evidence_required");
     request.fulfilledAt = Date.now();
     request.fulfilledBy = actorUserId;
     request.outcome = outcome.trim().slice(0, 2_000);

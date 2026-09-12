@@ -4639,16 +4639,25 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (6):**
+**Exports (14):**
 
-- `collectSubjectAccessExport(agencyId: string, personId: string): SubjectAccessResult | null` — Collect safe rows and explicit review counts for everything uncertain.
-- `subjectAccessExportJson(result: SubjectAccessResult): string` — Structured output that states its review and retention limits explicitly.
-- `portalStateCollectionNames(state: PortalState): string[]` — Exported for the coverage test — the set a search must have walked.
-- `interface SubjectAccessSubject (4 members)`
-- `interface SubjectAccessReviewTotals (6 members)`
-- `interface SubjectAccessResult (12 members)`
+- `subjectAccessExportReviewCount(result: SubjectAccessResult): number`
+- `collectSubjectAccessExport(agencyId: string, personId: string, options: { generatedAt?: number } = {}): SubjectAccessResult | null`
+- `subjectAccessExportJson(result: SubjectAccessResult): string`
+- `class SubjectAccessExportIncompleteError`
+    - `constructor(public readonly reasons: SubjectAccessIncompleteReason[])`
+- `SUBJECT_ACCESS_REQUIRED_SIDECARS = ["devTeamWorkspaceFiles"] as const`
+- `MAX_SUBJECT_ACCESS_RECORDS = 50_000`
+- `MAX_SUBJECT_ACCESS_VALUES = 500_000`
+- `MAX_SUBJECT_ACCESS_CHARACTERS = 5_000_000`
+- `MAX_SUBJECT_ACCESS_STRING_CHARACTERS = 100_000`
+- `MAX_SUBJECT_ACCESS_EXPORT_BYTES = 1_000_000`
+- `type SubjectAccessIncompleteReason = | "record-limit" | "value-limit" | "character-limit" | "string-limit" | "output-size-limit"`
+- `interface SubjectAccessSubject (7 members)`
+- `interface SubjectAccessReviewTotals (7 members)`
+- `interface SubjectAccessResult (17 members)`
 
-**Depends on (3):** [`src/lib/server/identityResolution.ts`](#file-src-lib-server-identityresolution-ts-7b1487fea4) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
+**Depends on (2):** [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
 **Used by (1):** [`src/app/api/portal/governance/subject-access/route.ts`](app.md#file-src-app-api-portal-governance-subject-access-route-ts-2dbcab7186)
 
@@ -4658,7 +4667,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (14):**
+**Exports (17):**
 
 - `oneMonthAfter(from: number): number` — Art. 12(3). Calendar month, not 30 days — the regulation says month.
 - `recordSubjectRequest(input: RecordSubjectRequestInput): SubjectRequest`
@@ -4666,15 +4675,18 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 - `listSubjectRequests(agencyId: string): SubjectRequest[]`
 - `verifySubjectRequestIdentity(agencyId: string, id: string, actorUserId: string): SubjectRequest | null` — Art. 12(6) — confirm who is asking, before anything is released. Separate from fulfilment on purpose. Handing somebody's data to whoever emailed in is itself a breach, and a singl…
 - `requireSubjectAccessRequestForExport(agencyId: string, id: string, personId: string): SubjectRequest` — Read-side gate used inside the same coordinated transaction as fulfilment.
-- `fulfilSubjectAccessRequest(agencyId: string, id: string, personId: string, actorUserId: string, outcome: string): SubjectRequest` — Close only an exact, verified access/portability request. The complete gate is repeated inside mutate so this remains safe even when reused outside the route's transaction.
+- `recordPreparedSubjectAccessExport(agencyId: string, id: string, personId: string, actorUserId: string, prepared: PreparedSubjectAccessExport): SubjectRequest` — Durably stage an immutable, bounded export. This never closes the request: successful generation is not evidence that the subject received anything. Retaining the staged bytes mak…
+- `recordSubjectAccessReviewCompletion(agencyId: string, id: string, personId: string, actorUserId: string, digest: string, evidenceId: string): SubjectRequest` — Record human review against the exact prepared file, without delivery.
+- `fulfilPreparedSubjectAccessDelivery(agencyId: string, id: string, personId: string, actorUserId: string, digest: string, deliveryMethod: NonNullable<SubjectRequest["deliveryMethod"]>, evidenceId: string): SubjectRequest` — Close only after separate evidence says the exact prepared file was delivered. Review-bearing exports additionally require evidence that review was completed against this same dig…
 - `fulfilSubjectRequest(agencyId: string, id: string, actorUserId: string, outcome: string): SubjectRequest | null` — Close a request as fulfilled. Refuses when identity has not been verified. That refusal is the point of the whole module — it is the one place the sequence can be enforced rather …
 - `extendSubjectRequest(agencyId: string, id: string, reason: string): SubjectRequest | null` — Art. 12(3) — two further months, for complex or numerous requests. The subject must be told within the first month, and told why. The reason is therefore required rather than opti…
 - `subjectRequestClock(agencyId: string, now = Date.now()): SubjectRequestClock` — The register at a glance — what Radar and the governance screen need.
 - `class SubjectRequestError`
-    - `constructor(public code: "identity_unverified" | "already_closed")`
+    - `constructor(public code: "identity_unverified" | "already_closed" | "delivery_evidence_required")`
 - `class SubjectAccessRequestGateError` — Deliberately one public failure for every export-request gate. A route must not disclose whether a guessed request id belongs to another agency, names a different person, is the w…
     - `constructor()`
 - `interface RecordSubjectRequestInput (6 members)`
+- `interface PreparedSubjectAccessExport (6 members)`
 - `interface SubjectRequestClock (4 members)`
 
 **Depends on (2):** [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
@@ -5797,7 +5809,7 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 **Depends on (4):** [`src/lib/clients/clientContacts.ts`](#file-src-lib-clients-clientcontacts-ts-b78a3dff30) · [`src/server/storage.ts`](server.md#file-src-server-storage-ts-8a9c7ce23a) · [`src/server/tenants.ts`](server.md#file-src-server-tenants-ts-f9d9e75c7c) · [`src/server/types.ts`](server.md#file-src-server-types-ts-0409a449c8)
 
-**Used by (11):** [`src/app/api/portal/identity-resolution/route.ts`](app.md#file-src-app-api-portal-identity-resolution-route-ts-9e00e97510) · [`src/app/api/portal/inbox/conversations/route.ts`](app.md#file-src-app-api-portal-inbox-conversations-route-ts-8a49625972) · [`src/app/api/public/brand-enquiry/route.ts`](app.md#file-src-app-api-public-brand-enquiry-route-ts-a6e218f276) · [`src/app/portal/agency/inbox/page.tsx`](app.md#file-src-app-portal-agency-inbox-page-tsx-4d64a629ec) · [`src/app/portal/clients/page.tsx`](app.md#file-src-app-portal-clients-page-tsx-bffc1e671f) · [`src/lib/server/compliance/subjectAccessExport.ts`](#file-src-lib-server-compliance-subjectaccessexport-ts-0cf0955bd6) · [`src/lib/server/inbox/inboxService.ts`](#file-src-lib-server-inbox-inboxservice-ts-1c9968c293) · [`src/lib/server/websiteEnquiries.ts`](#file-src-lib-server-websiteenquiries-ts-e00ecfd23b) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/clientErasure.ts`](server.md#file-src-server-clienterasure-ts-551ffd3571) · [`src/server/persons.ts`](server.md#file-src-server-persons-ts-c2f3c0cfec)
+**Used by (10):** [`src/app/api/portal/identity-resolution/route.ts`](app.md#file-src-app-api-portal-identity-resolution-route-ts-9e00e97510) · [`src/app/api/portal/inbox/conversations/route.ts`](app.md#file-src-app-api-portal-inbox-conversations-route-ts-8a49625972) · [`src/app/api/public/brand-enquiry/route.ts`](app.md#file-src-app-api-public-brand-enquiry-route-ts-a6e218f276) · [`src/app/portal/agency/inbox/page.tsx`](app.md#file-src-app-portal-agency-inbox-page-tsx-4d64a629ec) · [`src/app/portal/clients/page.tsx`](app.md#file-src-app-portal-clients-page-tsx-bffc1e671f) · [`src/lib/server/inbox/inboxService.ts`](#file-src-lib-server-inbox-inboxservice-ts-1c9968c293) · [`src/lib/server/websiteEnquiries.ts`](#file-src-lib-server-websiteenquiries-ts-e00ecfd23b) · [`src/server/activity.ts`](server.md#file-src-server-activity-ts-f5d23efb37) · [`src/server/clientErasure.ts`](server.md#file-src-server-clienterasure-ts-551ffd3571) · [`src/server/persons.ts`](server.md#file-src-server-persons-ts-c2f3c0cfec)
 
 
 ## `src/lib/server/inbox/`

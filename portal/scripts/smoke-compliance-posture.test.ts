@@ -225,12 +225,13 @@ describe("posture is built from real evidence", () => {
     // Changed to "partial" on 2026-08-28: the export was BUILT
     // (`POST /api/portal/governance/subject-access`), so leaving this at
     // "missing" would have the app under-report a right it can now perform.
-    // It is not "met" — the request side (identity verification before
-    // releasing someone's data, and a clock against the one-month deadline)
-    // still does not exist, which the control's own `gap` now says.
+    // It is not "met": local preparation/review/delivery evidence exists, but
+    // external-system collection, lawful human disposition and independently
+    // verified receipt remain outside the automatic path.
     assert.equal(control(posture, "gdpr.dsar-access").status, "partial");
     assert.match(control(posture, "gdpr.dsar-access").gap, /human review/);
     assert.match(control(posture, "gdpr.dsar-access").gap, /client-owned databases/);
+    assert.match(control(posture, "gdpr.dsar-access").gap, /operator-supplied opaque reference/);
     assert.match(control(posture, "gdpr.dsar-access").evidence.join(" "), /exact open, identity-verified request/);
     // Also "partial" as of 2026-08-28: the register, the identity gate and the
     // Art. 12(3) clock are built. It is not "met" because nothing FEEDS the

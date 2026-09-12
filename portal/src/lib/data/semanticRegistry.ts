@@ -997,7 +997,7 @@ export const PORTAL_STATE_COVERAGE: Readonly<Record<string, CollectionClassifica
   personalMetricDays: { entity: "evidenceItem", plane: "derived", note: "Bounded actor-owned daily metric counts derived from explicit prospect qualification, outreach and client-conversion facts." },
   outbox: { entity: "domainEvent", plane: "operational", note: "Durable event facts; atomic only at same-mutation call sites, then best-effort dispatched to the unacknowledged in-process bus (server/outbox.ts)." },
   clientRecordLedger: { entity: "auditEvent", plane: "derived", note: "Internal client history projection incl. entries a client must never see; actor lives on ActivityEntry." },
-  subjectRequests: { plane: "operational", note: "Agency-scoped GDPR rights register. Access/portability export requires one exact open request bound to the same Person after identity verification; intake is still manual." },
+  subjectRequests: { plane: "operational", note: "Agency-scoped GDPR rights register. Access/portability requires one exact open request bound to the same Person after identity verification, then a durably staged digest, resolution of any review counts, and separate delivery evidence before fulfilment; intake is still manual." },
   websiteDemoSignups: { plane: "operational", note: "Public AquaCRM demo-gate signups and their consent {timestamp, terms version}. Untenanted personal data, held in the `website-demo` data realm and never the live one; erasable by contact detail via server/websiteDemo.ts." },
   breachIncidents: { plane: "operational", note: "GDPR Art. 33/34 breach register: the 72-hour clock runs from discovery, and Art. 33(5) keeps the decisions NOT to notify on the record too." },
 

@@ -10,6 +10,7 @@
 // fulfilment is refused until identity has been checked — a rule, not a prompt.
 
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import { createRequire } from "node:module";
 import { before, test } from "node:test";
 
@@ -57,7 +58,7 @@ test("a request cannot be fulfilled before identity is checked", () => {
   // remembered by whoever is on the rota that week.
   const agencyId = "agency_seq";
   const request = requests.recordSubjectRequest({
-    agencyId, kind: "access", subjectLabel: "claimant@example.com", createdBy: "owner",
+    agencyId, kind: "rectification", subjectLabel: "claimant@example.com", createdBy: "owner",
   });
 
   assert.throws(
@@ -86,7 +87,7 @@ test("a request cannot be fulfilled before identity is checked", () => {
   );
 });
 
-test("subject-access fulfilment requires the exact open verified request and person", () => {
+test("subject-access preparation, review and delivery require the exact open verified request and person", () => {
   const agencyId = "agency_subject_access_gate";
   const personId = "per_subject_access_gate";
   const request = requests.recordSubjectRequest({
@@ -97,12 +98,10 @@ test("subject-access fulfilment requires the exact open verified request and per
     createdBy: "owner",
   });
 
-  for (const attempt of [
+  assert.throws(
     () => requests.requireSubjectAccessRequestForExport(agencyId, request.id, personId),
-    () => requests.fulfilSubjectAccessRequest(agencyId, request.id, personId, "owner", "Done."),
-  ]) {
-    assert.throws(attempt, (error: unknown) => (error as { code?: string }).code === "request_not_ready");
-  }
+    (error: unknown) => (error as { code?: string }).code === "request_not_ready",
+  );
 
   requests.verifySubjectRequestIdentity(agencyId, request.id, "owner");
   assert.throws(
@@ -116,19 +115,43 @@ test("subject-access fulfilment requires the exact open verified request and per
     "another tenant cannot use the request id",
   );
 
-  const fulfilled = requests.fulfilSubjectAccessRequest(
+  const digest = crypto.createHash("sha256").update("{}", "utf8").digest("hex");
+  const prepared = requests.recordPreparedSubjectAccessExport(
     agencyId,
     request.id,
     personId,
     "owner",
-    "Verified export prepared.",
+    { digest, generatedAt: 123, recordCount: 4, reviewCount: 2, byteLength: 2, json: "{}" },
+  );
+  assert.equal(prepared.fulfilledAt, undefined, "preparation cannot close the request");
+  assert.equal(prepared.preparedExportDigest, digest);
+  assert.throws(
+    () => requests.fulfilPreparedSubjectAccessDelivery(agencyId, request.id, personId, "owner", digest, "verified-portal", "delivery-1"),
+    (error: unknown) => (error as { code?: string }).code === "request_not_ready",
+    "review-bearing files cannot be marked delivered before review evidence",
+  );
+  const reviewed = requests.recordSubjectAccessReviewCompletion(agencyId, request.id, personId, "owner", digest, "review-1");
+  assert.equal(reviewed.fulfilledAt, undefined, "review is not delivery");
+  const fulfilled = requests.fulfilPreparedSubjectAccessDelivery(
+    agencyId, request.id, personId, "owner", digest, "verified-portal", "delivery-1",
   );
   assert.ok(fulfilled.fulfilledAt);
   assert.equal(fulfilled.fulfilledBy, "owner");
+  assert.equal(fulfilled.deliveryEvidenceId, "delivery-1");
   assert.throws(
     () => requests.requireSubjectAccessRequestForExport(agencyId, request.id, personId),
     (error: unknown) => (error as { code?: string }).code === "request_not_ready",
     "a closed request cannot be replayed",
+  );
+
+  const bypass = requests.recordSubjectRequest({
+    agencyId, kind: "access", subjectLabel: "subject@example.test", personId, createdBy: "owner",
+  });
+  requests.verifySubjectRequestIdentity(agencyId, bypass.id, "owner");
+  assert.throws(
+    () => requests.fulfilSubjectRequest(agencyId, bypass.id, "owner", "Exported."),
+    (error: unknown) => (error as { code?: string }).code === "delivery_evidence_required",
+    "the generic register helper cannot bypass staged export and delivery evidence",
   );
 
   const erasure = requests.recordSubjectRequest({
@@ -176,7 +199,7 @@ test("the register is scoped, and the clock counts what is actually late", () =>
   const now = Date.now();
 
   const overdue = requests.recordSubjectRequest({
-    agencyId: mine, kind: "access", subjectLabel: "late@example.com", createdBy: "owner",
+    agencyId: mine, kind: "rectification", subjectLabel: "late@example.com", createdBy: "owner",
     receivedAt: now - MONTH_ISH - 5 * 24 * 60 * 60 * 1000,
   });
   requests.recordSubjectRequest({

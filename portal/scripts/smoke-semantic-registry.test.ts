@@ -108,5 +108,8 @@ test("the semantic registry states the exact subject-request authority boundary"
   assert.match(note, /exact open request/);
   assert.match(note, /same Person/);
   assert.match(note, /identity verification/);
+  assert.match(note, /staged digest/);
+  assert.match(note, /review counts/);
+  assert.match(note, /delivery evidence before fulfilment/);
   assert.match(note, /intake is still manual/);
 });

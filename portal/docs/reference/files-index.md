@@ -2,7 +2,7 @@
 
 ← Back to [the reference index](00-index.md) · [the map](../WORKSPACE-FILE-TREE.md) · [development.md](../development.md)
 
-Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2844 source files; 0 per-source stubs.**
+Every source path links to its anchored entry inside one of eight large generated volumes. Those entries preserve the old per-file reference's purpose, exported API, dependencies and dependants without creating thousands of tiny Markdown files. **2846 source files; 0 per-source stubs.**
 
 ## Engines — `src/engines/` (89)
 
@@ -713,7 +713,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/components/workspaces/PluginSettingsPanel.tsx`](components.md#file-src-components-workspaces-pluginsettingspanel-tsx-1ae842fede)
 - [`src/components/workspaces/PluginWorkspaceNav.tsx`](components.md#file-src-components-workspaces-pluginworkspacenav-tsx-34bb1220e7)
 
-## Plugins — `src/built-ins/` (774)
+## Plugins — `src/built-ins/` (775)
 
 - [`src/built-ins/modules/affiliates/index.ts`](built-ins.md#file-src-built-ins-modules-affiliates-index-ts-68c0702721) — `requires: ["ecommerce"]`, opt-in.
 - [`src/built-ins/modules/affiliates/src/__smoke__/affiliates.test.ts`](built-ins.md#file-src-built-ins-modules-affiliates-src-smoke-affiliates-test-ts-e464cf139b) — - side-effects: activity log + event bus
@@ -854,6 +854,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/built-ins/modules/agency-marketing/src/lib/aquaPluginTypes.ts`](built-ins.md#file-src-built-ins-modules-agency-marketing-src-lib-aquaplugintypes-ts-e7a4c4e8ae) — Vendored AquaPlugin contract.
 - [`src/built-ins/modules/agency-marketing/src/lib/domain.ts`](built-ins.md#file-src-built-ins-modules-agency-marketing-src-lib-domain-ts-4e2d2548b6) — outbound activity to drive new client acquisition + nurture.
 - [`src/built-ins/modules/agency-marketing/src/lib/ids.ts`](built-ins.md#file-src-built-ins-modules-agency-marketing-src-lib-ids-ts-1aaa59dc45) — Same id helper as the other Aqua plugins.
+- [`src/built-ins/modules/agency-marketing/src/lib/mutationAllowlist.ts`](built-ins.md#file-src-built-ins-modules-agency-marketing-src-lib-mutationallowlist-ts-4eef9d459c)
 - [`src/built-ins/modules/agency-marketing/src/lib/safeDate.ts`](built-ins.md#file-src-built-ins-modules-agency-marketing-src-lib-safedate-ts-c5268f3a80)
 - [`src/built-ins/modules/agency-marketing/src/lib/tenancy.ts`](built-ins.md#file-src-built-ins-modules-agency-marketing-src-lib-tenancy-ts-c28ff933dc) — Vendored to keep the plugin tsc-clean standalone.
 - [`src/built-ins/modules/agency-marketing/src/lib/time.ts`](built-ins.md#file-src-built-ins-modules-agency-marketing-src-lib-time-ts-a708c02903) — Clock indirection.
@@ -2179,7 +2180,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`src/app/signup/setup/page.tsx`](app.md#file-src-app-signup-setup-page-tsx-e3c8edbab5)
 - [`src/app/signup/setup/SetupForm.tsx`](app.md#file-src-app-signup-setup-setupform-tsx-4ad89f7f91)
 
-## Scripts — `scripts/` (681)
+## Scripts — `scripts/` (682)
 
 - [`scripts/attention-protection.test.ts`](scripts.md#file-scripts-attention-protection-test-ts-d64d01714c)
 - [`scripts/audit-actions.ts`](scripts.md#file-scripts-audit-actions-ts-862ea31175) — What state Actions is actually in — measured, not remembered. For every alert the checks currently …
@@ -2654,6 +2655,7 @@ Every source path links to its anchored entry inside one of eight large generate
 - [`scripts/smoke-plugin-client-element.test.ts`](scripts.md#file-scripts-smoke-plugin-client-element-test-ts-27f6a3b76a) — `requireCurrentClientWorkspaceElementAccess`.
 - [`scripts/smoke-plugin-health-panel.test.ts`](scripts.md#file-scripts-smoke-plugin-health-panel-test-ts-aecf83055f) — component, so all of the above can be driven directly here.
 - [`scripts/smoke-plugin-health-route.test.ts`](scripts.md#file-scripts-smoke-plugin-health-route-test-ts-e71d45300f) — • a summary that disagrees with the rows it summarises.
+- [`scripts/smoke-plugin-lineage.test.ts`](scripts.md#file-scripts-smoke-plugin-lineage-test-ts-05632a81ce) — Run: node --import tsx --test scripts/smoke-plugin-lineage.test.ts
 - [`scripts/smoke-plugin-page-host-gates.test.ts`](scripts.md#file-scripts-smoke-plugin-page-host-gates-test-ts-a2690cdf7e) — ARM 4 Mutation checks. A guard nobody has watched fail is a guess.
 - [`scripts/smoke-plugin-settings-surface.test.ts`](scripts.md#file-scripts-smoke-plugin-settings-surface-test-ts-2205532d69) — record that page props hand to the browser, not in the activity log.
 - [`scripts/smoke-plugin-setup-completion.test.ts`](scripts.md#file-scripts-smoke-plugin-setup-completion-test-ts-dc01c2efa5) — silently makes a requirement uncollectable fails here rather than on screen.

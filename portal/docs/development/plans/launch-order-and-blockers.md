@@ -2182,19 +2182,23 @@ everything we hold about you". **A wrong subject-access response is worse than
 none: it is a false statement made under a legal obligation.** So there is no
 list; every collection is walked and the question is asked of each record.
 
-Walking is recursive; **ownership matching is not**. Only exact typed Person,
-reciprocal client/facet/relationship lineage, typed scope, or an exclusive
-email/phone in a recognised contact field can authorise a row. A subject id,
-email or phone inside arbitrary prose, or a reference to the subject as actor or
-assignee, is a review-only mention. Shared identifiers and contradictory client
-lineage are ambiguous and cannot authorise automatic release.
+The review scan walks nested values, but **ownership matching is schema-bound**.
+Only exact typed Person, reciprocal client/facet/relationship lineage, typed
+owner/scope, or an exclusive email/phone in a recognised contact field can
+authorise a row. Any contradictory root or nested owner/scope person/client id
+vetoes a weaker contact match, including stale/missing ids. A subject id, email
+or phone inside arbitrary prose, or a reference to the subject as actor or
+assignee, is review-only.
 
-An attributable row is still not automatically safe. Deterministic third-party
-name, postal address/postcode, email and phone fields are redacted on a copy.
-Operator-authored free text and content beyond the inspection-depth limit make
-the whole row review-only. The JSON reports value-free counts for unscoped,
-unclassified, ambiguous, co-mingled and depth-limit rows, plus field-redaction
-counts; it never embeds the withheld values.
+An attributable row is still not automatically safe. Known releasable
+collections use explicit typed projections; there is no general recursive
+key/regex mutation. Safe Person facets/classification history, finance-ledger
+fields and real `pluginData[installId][key]` reached through its install/client
+lineage are preserved. Unknown fields (including unknown names, NI and bank
+identifiers), co-mingled/free-text values and content beyond the inspection
+depth are withheld as value-free review metadata. Known third-party contact
+fields may be replaced with fixed redaction markers; ids and timestamps are
+never phone-redacted.
 
 **Tenant safety.** Only records whose own `agencyId` matches are included: a
 subject-access response that leaked another tenant's records would be a breach
@@ -2202,28 +2206,36 @@ committed in the act of complying with a subject right. Matches carrying **no**
 `agencyId` cannot be proven to belong here, so they are counted and reported as
 `recordsNotAttributableToThisAgency` — visible, never silently dropped.
 
-The body is bounded before hydration/auth work and contains only `requestId` and
-`personId`; the tenant and actor come from the session. The request must already
-exist in the exact agency, be access/portability kind, bind the exact Person, be
-identity-verified, and remain open. Export construction, id-only activity
-evidence and fulfilment share one coordinated transaction, and the download is
-returned only after commit. Commit failure rolls back both evidence and
-fulfilment. Success, request refusals, malformed/oversized input and auth errors
-all carry `no-store`.
+The body is bounded before hydration/auth work; tenant and actor come from the
+session. The request must already exist in the exact agency, be
+access/portability kind, bind the exact Person, be identity-verified, and remain
+open. POST constructs a bounded export, then atomically stages the exact bytes,
+digest and preparation activity. It returns the automatic safe subset but does
+**not** fulfil; a lost response replays those same durable bytes. Non-zero review
+counts require PUT review evidence against that exact digest. PATCH separately
+records delivery evidence and only then fulfils, atomically with delivery
+activity. The generic request helper cannot bypass this sequence. Work, string,
+record and serialised-size limits fail explicitly before transition; every
+success/error, including auth and malformed/oversized input, carries `no-store`.
 
 Permanent adversarial coverage lives in
 `scripts/smoke-subject-access-export-security.test.ts`: free-text ids, phones
-and emails; actor/assignee mentions; shared identifiers; exact client facets and
-relationship siblings; contradictory lineage; third-party name/address/postcode,
-email, phone and prose; traversal depth; other tenants/requests; every request
-gate; malformed/oversized bodies; no-store; and storage-failure rollback.
+and emails; actor/assignee mentions; stale and nested contradictory ownership;
+shared identifiers; exact client facets and relationship siblings; unknown
+name/NI/bank fields; third-party name/address/postcode/email/phone/prose; Person
+history; finance ledger fields; real pluginData lineage; lazy-sidecar
+classification; traversal depth; 10k/100k linear work; other tenants/requests;
+every request gate; malformed/oversized bodies; output caps; exact replay;
+no-store; and preparation/delivery storage-failure rollback.
 
 **The posture remains `partial`, not `met`.** The request register, identity
 sequence and statutory clock exist, and this route is now bound to them. Intake
 is still manual; every non-zero review count needs explicit disposition; external
 systems still need collection; lawful scope and final handover still need a
-human process; and configured retention periods remain unset. A point-in-time
-export does not alter source retention.
+human process; and configured retention periods remain unset. The bounded
+staged file lives with the open request until evidenced delivery, when its bytes
+are cleared but digest/evidence remain. A point-in-time export does not alter
+source retention.
 
 > Two existing guards caught this work before it landed, which is the system
 > behaving correctly: the app-route tenancy test refused a new route until its

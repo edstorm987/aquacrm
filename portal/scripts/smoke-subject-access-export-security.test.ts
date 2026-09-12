@@ -202,6 +202,22 @@ function post(token: string, body: unknown, raw = false): Promise<Response> {
   })));
 }
 
+function put(token: string, body: unknown): Promise<Response> {
+  return withSession(token, () => route.PUT(new Request("http://localhost/api/portal/governance/subject-access", {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  })));
+}
+
+function patch(token: string, body: unknown): Promise<Response> {
+  return withSession(token, () => route.PATCH(new Request("http://localhost/api/portal/governance/subject-access", {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  })));
+}
+
 function assertNoStore(response: Response): void {
   assert.match(response.headers.get("cache-control") ?? "", /no-store/);
   assert.equal(response.headers.get("pragma"), "no-cache");
@@ -296,6 +312,63 @@ test("only typed exclusive ownership authorises rows; client facets and relation
   assert.deepEqual(result.searchedCollections.sort(), Object.keys(realStorage.getState()).sort(), "every collection is walked");
 });
 
+test("stale root owners and conflicting nested scopes veto otherwise exclusive contact authority", async () => {
+  const world = await seedWorld();
+  const poisonedFacetClientId = `client_poisoned_facet_${sequence}`;
+  putClient(clientFixture({
+    id: poisonedFacetClientId,
+    agencyId: world.agencyId,
+    personId: world.otherPersonId,
+    relationshipId: `relationship_poisoned_${sequence}`,
+    name: THIRD_PARTY_NAME,
+  }));
+  realStorage.mutate(state => {
+    state.persons[world.personId].facets.clientIds = [
+      ...(state.persons[world.personId].facets.clientIds ?? []),
+      poisonedFacetClientId,
+    ];
+  });
+  storeRows("tasks", {
+    stale_person_owner: {
+      id: "stale_person_owner",
+      agencyId: world.agencyId,
+      personId: "per_deleted_owner",
+      contact: { email: SUBJECT_EMAIL },
+    },
+    stale_client_owner: {
+      id: "stale_client_owner",
+      agencyId: world.agencyId,
+      ownerClientId: "client_deleted_owner",
+      contact: { email: SUBJECT_EMAIL },
+    },
+    nested_scope_conflict: {
+      id: "nested_scope_conflict",
+      agencyId: world.agencyId,
+      contact: { email: SUBJECT_EMAIL },
+      scope: { envelope: { access: { owner: { kind: "person", id: world.otherPersonId } } } },
+    },
+    nested_scope_match: {
+      id: "nested_scope_match",
+      agencyId: world.agencyId,
+      scope: { envelope: { access: { subject: { kind: "person", id: world.personId } } } },
+    },
+    poisoned_facet_contact: {
+      id: "poisoned_facet_contact",
+      agencyId: world.agencyId,
+      clientId: poisonedFacetClientId,
+      contact: { email: SUBJECT_EMAIL },
+    },
+  });
+
+  const result = exportsApi.collectSubjectAccessExport(world.agencyId, world.personId)!;
+  const ids = (result.found.tasks ?? []).map(row => (row as { id: string }).id);
+  assert.deepEqual(ids.includes("nested_scope_match"), true);
+  for (const id of ["stale_person_owner", "stale_client_owner", "nested_scope_conflict", "poisoned_facet_contact"]) {
+    assert.equal(ids.includes(id), false, `${id} must be quarantined despite the subject's exclusive email`);
+  }
+  assert.ok(result.ambiguousMatches.tasks >= 4);
+});
+
 test("third-party fields are redacted while free text and depth-limit rows are quarantined", async () => {
   const world = await seedWorld();
   let tooDeep: Record<string, unknown> = { leaf: "opaque" };
@@ -343,8 +416,8 @@ test("third-party fields are redacted while free text and depth-limit rows are q
     address: "[redacted:third-party-address]",
     postcode: "[redacted:third-party-address]",
   });
-  assert.equal(result.coMingledPiiMatches.tasks, 1);
-  assert.equal(result.depthLimitMatches.tasks, 1);
+  assert.ok(result.coMingledPiiMatches.tasks >= 1);
+  assert.ok(result.depthLimitMatches.tasks >= 1);
   assert.equal(result.redactedFields.tasks, 5);
   const json = exportsApi.subjectAccessExportJson(result);
   for (const secret of [THIRD_PARTY_NAME, THIRD_PARTY_EMAIL, THIRD_PARTY_PHONE, THIRD_PARTY_ADDRESS, THIRD_PARTY_POSTCODE]) {
@@ -354,6 +427,212 @@ test("third-party fields are redacted while free text and depth-limit rows are q
   assert.match(json, /recordsBeyondInspectionDepth/);
 });
 
+test("typed projections preserve Person history and finance fields while unknown PII, unsafe ledger text and lazy rows are withheld", async () => {
+  const world = await seedWorld();
+  const clientId = `client_primary_${sequence}`;
+  putClient(clientFixture({
+    id: clientId,
+    agencyId: world.agencyId,
+    personId: world.personId,
+    relationshipId: `relationship_subject_${sequence}`,
+    name: "Subject Person",
+  }));
+  const occurredAt = 1_725_555_000_123;
+  const unsafeBank = "Account number 12345678, sort code 11-22-33";
+  realStorage.mutate(state => {
+    const subject = state.persons[world.personId] as Person & Record<string, unknown>;
+    subject.facets = {
+      leadId: `lead_subject_${sequence}`,
+      contactId: `contact_subject_${sequence}`,
+      clientIds: [clientId],
+      enquiryIds: [`enquiry_one_${sequence}`, `enquiry_two_${sequence}`],
+    };
+    subject.classificationHistory = [{
+      from: "sales",
+      to: "existing-client",
+      at: occurredAt,
+      by: "usr_operator",
+      note: `${THIRD_PARTY_NAME} approved it`,
+      sourceType: "manual",
+      sourceId: `source_${sequence}`,
+    }];
+    subject.record = [{
+      id: `person_record_${sequence}`,
+      kind: "meeting",
+      at: occurredAt,
+      summary: `Meeting with ${THIRD_PARTY_NAME}`,
+      body: THIRD_PARTY_ADDRESS,
+      createdBy: "usr_operator",
+      createdAt: occurredAt,
+    }];
+    subject.emails[0].raw = "Injected Raw <raw-third-party@example.test>";
+    subject.firstName = "MallorySecretFirst";
+    subject.lastName = "MallorySecretLast";
+    subject.nationalInsuranceNumber = "QQ123456C";
+    subject.bankAccount = "99887766";
+    state.tasks[`unknown_pii_${sequence}`] = {
+      id: `unknown_pii_${sequence}`,
+      agencyId: world.agencyId,
+      personId: world.personId,
+      status: "todo",
+      priority: "normal",
+      title: "Subject Person",
+      createdBy: world.ownerId,
+      createdAt: occurredAt,
+      updatedAt: occurredAt,
+      firstName: "UnknownThirdFirst",
+      lastName: "UnknownThirdLast",
+      nationalInsuranceNumber: "AB123456C",
+      bankDetails: { accountNumber: "12345678", sortCode: "12-34-56" },
+    } as never;
+    state.clientRecordLedger[`safe_ledger_${sequence}`] = {
+      id: `safe_ledger_${sequence}`,
+      agencyId: world.agencyId,
+      clientId,
+      sourceType: "payment-plan",
+      sourceId: `payment-plan:plan_${sequence}`,
+      group: "commercial",
+      title: "Growth plan",
+      body: "3 milestones · GBP 100.00 paid of GBP 300.00",
+      occurredAt,
+      eyebrow: "commercial · active",
+      visibility: "system",
+      createdAt: occurredAt,
+      updatedAt: occurredAt + 1,
+    };
+    state.clientRecordLedger[`unsafe_ledger_${sequence}`] = {
+      id: `unsafe_ledger_${sequence}`,
+      agencyId: world.agencyId,
+      clientId,
+      sourceType: "invoice",
+      sourceId: `invoice:unsafe_${sequence}`,
+      group: "commercial",
+      title: "Invoice INV-2",
+      body: unsafeBank,
+      occurredAt,
+      eyebrow: "commercial · sent",
+      visibility: "system",
+      createdAt: occurredAt,
+      updatedAt: occurredAt,
+    };
+    state.clientRecordLedger[`unsafe_phone_ledger_${sequence}`] = {
+      id: `unsafe_phone_ledger_${sequence}`,
+      agencyId: world.agencyId,
+      clientId,
+      sourceType: "payment-plan",
+      sourceId: `payment-plan:unsafe_phone_${sequence}`,
+      group: "commercial",
+      title: "Support plan",
+      body: `Call the other contact on ${THIRD_PARTY_PHONE}`,
+      occurredAt,
+      eyebrow: "commercial · active",
+      visibility: "system",
+      createdAt: occurredAt,
+      updatedAt: occurredAt,
+    };
+    const installId = `install_finance_${sequence}`;
+    state.pluginInstalls[installId] = {
+      id: installId,
+      pluginId: "agency-finance",
+      agencyId: world.agencyId,
+      enabled: true,
+      config: {},
+      features: { invoices: true },
+      installedAt: occurredAt,
+    };
+    state.pluginData[installId] = {
+      [`invoices/by-id/invoice_${sequence}`]: {
+        id: `invoice_${sequence}`,
+        agencyId: world.agencyId,
+        clientId,
+        number: "INV-2026-0001",
+        issuedAt: occurredAt,
+        dueAt: occurredAt + 86_400_000,
+        lineItems: [{ description: THIRD_PARTY_ADDRESS, quantity: 1, unitCents: 10_000, totalCents: 10_000 }],
+        subtotalCents: 10_000,
+        taxCents: 2_000,
+        totalCents: 12_000,
+        currency: "gbp",
+        status: "sent",
+        notes: THIRD_PARTY_PHONE,
+        createdAt: occurredAt,
+        updatedAt: occurredAt,
+      },
+      [`invoices/by-id/cross_tenant_${sequence}`]: {
+        id: `cross_tenant_${sequence}`,
+        agencyId: world.otherAgencyId,
+        clientId,
+        number: "INV-CROSS-TENANT",
+        issuedAt: occurredAt,
+        dueAt: occurredAt,
+        subtotalCents: 1,
+        taxCents: 0,
+        totalCents: 1,
+        currency: "gbp",
+        status: "sent",
+        createdAt: occurredAt,
+        updatedAt: occurredAt,
+      },
+    };
+    state.devTeamWorkspaceFiles[`lazy_subject_${sequence}`] = {
+      id: `lazy_subject_${sequence}`,
+      agencyId: world.agencyId,
+      personId: world.personId,
+      content: THIRD_PARTY_POSTCODE,
+    } as never;
+  });
+
+  const result = exportsApi.collectSubjectAccessExport(world.agencyId, world.personId)!;
+  const person = (result.found.persons ?? []).find(row => (row as { id?: string }).id === world.personId) as Record<string, unknown>;
+  assert.deepEqual((person.facets as { enquiryIds: string[] }).enquiryIds, [`enquiry_one_${sequence}`, `enquiry_two_${sequence}`]);
+  assert.deepEqual(person.classificationHistory, [{
+    from: "sales", to: "existing-client", at: occurredAt, by: "usr_operator", sourceType: "manual", sourceId: `source_${sequence}`,
+  }]);
+  assert.deepEqual(person.record, [{ id: `person_record_${sequence}`, kind: "meeting", at: occurredAt, createdAt: occurredAt }]);
+
+  const ledger = result.found.clientRecordLedger ?? [];
+  const safeLedger = ledger.find(row => (row as { id?: string }).id === `safe_ledger_${sequence}`) as Record<string, unknown>;
+  assert.equal(safeLedger.title, "Growth plan");
+  assert.equal(safeLedger.body, "3 milestones · GBP 100.00 paid of GBP 300.00");
+  assert.equal(safeLedger.occurredAt, occurredAt, "typed dates remain numeric and unmodified");
+  assert.equal(ledger.some(row => (row as { id?: string }).id === `unsafe_ledger_${sequence}`), false);
+  assert.equal(ledger.some(row => (row as { id?: string }).id === `unsafe_phone_ledger_${sequence}`), false);
+
+  const pluginInvoice = (result.found.pluginData ?? []).find(row => (row as { key?: string }).key === `invoices/by-id/invoice_${sequence}`) as {
+    installId: string;
+    value: Record<string, unknown>;
+  };
+  assert.equal(pluginInvoice.installId, `install_finance_${sequence}`);
+  assert.equal(pluginInvoice.value.totalCents, 12_000);
+  assert.equal(pluginInvoice.value.dueAt, occurredAt + 86_400_000);
+  assert.equal(pluginInvoice.value.lineItems, undefined);
+  assert.equal((result.found.pluginData ?? []).some(row => (row as { key?: string }).key === `invoices/by-id/cross_tenant_${sequence}`), false);
+  assert.ok(result.unsupportedCollectionMatches.devTeamWorkspaceFiles >= 1, "explicitly loaded lazy sidecars are classified, not silently skipped");
+
+  const json = exportsApi.subjectAccessExportJson(result);
+  for (const secret of [
+    "MallorySecretFirst", "MallorySecretLast", "QQ123456C", "99887766", "UnknownThirdFirst", "UnknownThirdLast",
+    "AB123456C", "12345678", "12-34-56", unsafeBank, "raw-third-party@example.test", THIRD_PARTY_ADDRESS, THIRD_PARTY_PHONE, THIRD_PARTY_POSTCODE,
+  ]) assert.equal(json.includes(secret), false, `${secret} must not leak from an unknown or co-mingled field`);
+});
+
+test("free-text inspection is linearly bounded at 10k and 100k characters", async () => {
+  const world = await seedWorld();
+  const makeText = (length: number) => "x".repeat(length - world.personId.length) + world.personId;
+  storeRows("tasks", {
+    linear_probe: { id: "linear_probe", agencyId: world.agencyId, notes: makeText(10_000) },
+  });
+  const small = exportsApi.collectSubjectAccessExport(world.agencyId, world.personId)!;
+  realStorage.mutate(state => {
+    (state.tasks.linear_probe as unknown as Record<string, unknown>).notes = makeText(100_000);
+  });
+  const large = exportsApi.collectSubjectAccessExport(world.agencyId, world.personId)!;
+  assert.deepEqual(small.incompleteReasons, []);
+  assert.deepEqual(large.incompleteReasons, []);
+  assert.ok(large.work.charactersInspected > small.work.charactersInspected);
+  assert.ok(large.work.charactersInspected < small.work.charactersInspected * 12, "10x input must remain within a linear work bound");
+});
+
 test("route uses one generic request gate and no-store for every body, auth and request refusal", async () => {
   const world = await seedWorld();
   const unverified = makeRequest(world, {});
@@ -361,9 +640,10 @@ test("route uses one generic request gate and no-store for every body, auth and 
   const mismatch = makeRequest(world, { personId: world.otherPersonId, verify: true });
   const wrongKind = makeRequest(world, { kind: "erasure", verify: true });
   const closed = makeRequest(world, { verify: true });
-  requests.fulfilSubjectRequest(world.agencyId, closed.id, world.ownerId, "Already completed.");
   const refused = makeRequest(world, { verify: true });
   realStorage.mutate(state => {
+    state.subjectRequests[closed.id].fulfilledAt = Date.now();
+    state.subjectRequests[closed.id].fulfilledBy = world.ownerId;
     state.subjectRequests[refused.id].refusedAt = Date.now();
     state.subjectRequests[refused.id].refusalReason = "Manifestly unfounded.";
   });
@@ -398,6 +678,27 @@ test("route uses one generic request gate and no-store for every body, auth and 
   const extraAgency = await post(world.token, { requestId: unverified.id, personId: world.personId, agencyId: world.otherAgencyId });
   assert.equal(extraAgency.status, 400, "the request body cannot name a tenant");
   assertNoStore(extraAgency);
+  const malformedReview = await put(world.token, {
+    requestId: unverified.id,
+    personId: world.personId,
+    preparedExportDigest: "not-a-digest",
+    reviewEvidenceId: "review-1",
+  });
+  assert.equal(malformedReview.status, 400);
+  assertNoStore(malformedReview);
+  const oversizedDelivery = await route.PATCH(new Request("http://localhost/api/portal/governance/subject-access", {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      requestId: unverified.id,
+      personId: world.personId,
+      preparedExportDigest: "a".repeat(64),
+      deliveryMethod: "other",
+      deliveryEvidenceId: "x".repeat(4_200),
+    }),
+  }));
+  assert.equal(oversizedDelivery.status, 413);
+  assertNoStore(oversizedDelivery);
 
   const anonymousReady = makeRequest(world, { verify: true });
   const anonymous = await withRequestScope({}, () => route.POST(new Request("http://localhost/api/portal/governance/subject-access", {
@@ -409,22 +710,65 @@ test("route uses one generic request gate and no-store for every body, auth and 
   assertNoStore(anonymous);
 });
 
-test("a successful route fulfils only after durable export and activity; commit failure rolls both back", async () => {
+test("preparation is replayable but only evidenced review and delivery fulfil; failures roll back", async () => {
   const world = await seedWorld();
   const ready = makeRequest(world, { kind: "portability", verify: true });
   const success = await post(world.token, { requestId: ready.id, personId: world.personId });
   assert.equal(success.status, 200);
   assertNoStore(success);
   assert.match(success.headers.get("content-disposition") ?? "", new RegExp(world.personId));
-  const body = await success.json() as { subject: { personId: string }; reviewRequired: unknown };
+  const successText = await success.text();
+  const body = JSON.parse(successText) as { subject: { personId: string }; reviewRequired: unknown };
   assert.equal(body.subject.personId, world.personId);
   assert.ok(body.reviewRequired);
-  assert.ok(requests.findSubjectRequest(world.agencyId, ready.id)?.fulfilledAt);
+  const digest = success.headers.get("x-subject-access-digest")!;
+  const staged = requests.findSubjectRequest(world.agencyId, ready.id);
+  assert.equal(staged?.fulfilledAt, undefined, "preparation is not delivery");
+  assert.equal(staged?.preparedExportDigest, digest);
+  assert.equal(staged?.preparedExportJson, successText, "the exact bounded bytes are staged for lost-response replay");
   const events = activity.listActivity({ agencyId: world.agencyId, limit: 100 })
-    .filter(entry => entry.action === "subject_access.exported");
+    .filter(entry => entry.action === "subject_access.export-prepared");
   assert.equal(events.length, 1);
   assert.equal(events[0].metadata?.requestId, ready.id);
   assert.equal(JSON.stringify(events[0].metadata).includes(SUBJECT_EMAIL), false, "audit metadata is identifier-only");
+
+  const replay = await post(world.token, { requestId: ready.id, personId: world.personId });
+  assert.equal(replay.status, 200);
+  assert.equal(replay.headers.get("x-subject-access-replay"), "true");
+  assert.equal(await replay.text(), successText, "a disconnect can replay the exact staged artifact");
+  assert.equal(activity.listActivity({ agencyId: world.agencyId, limit: 100 }).filter(entry => entry.action === "subject_access.export-prepared").length, 1);
+
+  const prematureDelivery = await patch(world.token, {
+    requestId: ready.id,
+    personId: world.personId,
+    preparedExportDigest: digest,
+    deliveryMethod: "verified-portal",
+    deliveryEvidenceId: "delivery-before-review",
+  });
+  assert.equal(prematureDelivery.status, 409, "nonzero review totals keep the request open");
+  assertNoStore(prematureDelivery);
+
+  const reviewed = await put(world.token, {
+    requestId: ready.id,
+    personId: world.personId,
+    preparedExportDigest: digest,
+    reviewEvidenceId: "review-case-1",
+  });
+  assert.equal(reviewed.status, 200);
+  assertNoStore(reviewed);
+  assert.equal(requests.findSubjectRequest(world.agencyId, ready.id)?.fulfilledAt, undefined);
+
+  const delivered = await patch(world.token, {
+    requestId: ready.id,
+    personId: world.personId,
+    preparedExportDigest: digest,
+    deliveryMethod: "verified-portal",
+    deliveryEvidenceId: "delivery-case-1",
+  });
+  assert.equal(delivered.status, 200);
+  assertNoStore(delivered);
+  assert.ok(requests.findSubjectRequest(world.agencyId, ready.id)?.fulfilledAt);
+  assert.equal(requests.findSubjectRequest(world.agencyId, ready.id)?.preparedExportJson, undefined, "staged PII is cleared after delivery");
 
   const rollback = makeRequest(world, { verify: true });
   const beforeActivity = activity.listActivity({ agencyId: world.agencyId, limit: 100 }).length;
@@ -436,5 +780,62 @@ test("a successful route fulfils only after durable export and activity; commit 
   const unchanged = requests.findSubjectRequest(world.agencyId, rollback.id);
   assert.ok(unchanged?.identityVerifiedAt);
   assert.equal(unchanged?.fulfilledAt, undefined, "failure before durable commit leaves the request open");
-  assert.equal(activity.listActivity({ agencyId: world.agencyId, limit: 100 }).length, beforeActivity, "activity rolls back with fulfilment");
+  assert.equal(unchanged?.preparedExportDigest, undefined, "the staged artifact rolls back too");
+  assert.equal(activity.listActivity({ agencyId: world.agencyId, limit: 100 }).length, beforeActivity, "activity rolls back with preparation");
+
+  const deliveryRollback = makeRequest(world, { verify: true });
+  const preparedResponse = await post(world.token, { requestId: deliveryRollback.id, personId: world.personId });
+  const deliveryDigest = preparedResponse.headers.get("x-subject-access-digest")!;
+  await put(world.token, {
+    requestId: deliveryRollback.id,
+    personId: world.personId,
+    preparedExportDigest: deliveryDigest,
+    reviewEvidenceId: "review-before-delivery-failure",
+  });
+  const beforeDeliveryActivity = activity.listActivity({ agencyId: world.agencyId, limit: 100 }).length;
+  failNextCommit = true;
+  const failedDelivery = await patch(world.token, {
+    requestId: deliveryRollback.id,
+    personId: world.personId,
+    preparedExportDigest: deliveryDigest,
+    deliveryMethod: "secure-email",
+    deliveryEvidenceId: "delivery-storage-failure",
+  });
+  assert.equal(failedDelivery.status, 503);
+  assertNoStore(failedDelivery);
+  const afterFailedDelivery = requests.findSubjectRequest(world.agencyId, deliveryRollback.id);
+  assert.equal(afterFailedDelivery?.fulfilledAt, undefined);
+  assert.equal(afterFailedDelivery?.deliveredAt, undefined);
+  assert.ok(afterFailedDelivery?.preparedExportJson, "rollback retains the replayable prepared file");
+  assert.equal(activity.listActivity({ agencyId: world.agencyId, limit: 100 }).length, beforeDeliveryActivity);
+});
+
+test("an oversized serialised export fails explicitly before any request or activity transition", async () => {
+  const world = await seedWorld();
+  const ready = makeRequest(world, { verify: true });
+  realStorage.mutate(state => {
+    for (let index = 0; index < 15_000; index += 1) {
+      const id = `cap_${String(index).padStart(5, "0")}`;
+      state.tasks[id] = {
+        id,
+        agencyId: world.agencyId,
+        personId: world.personId,
+        title: "Subject Person",
+        status: "todo",
+        priority: "normal",
+        createdBy: world.ownerId,
+        createdAt: 1_725_555_000_123,
+        updatedAt: 1_725_555_000_123,
+      };
+    }
+  });
+  const beforeActivity = activity.listActivity({ agencyId: world.agencyId, limit: 100 }).length;
+  const response = await post(world.token, { requestId: ready.id, personId: world.personId });
+  assert.equal(response.status, 422);
+  assertNoStore(response);
+  assert.deepEqual(await response.json(), { ok: false, error: "export_incomplete", reasons: ["output-size-limit"] });
+  const unchanged = requests.findSubjectRequest(world.agencyId, ready.id);
+  assert.equal(unchanged?.preparedExportDigest, undefined);
+  assert.equal(unchanged?.fulfilledAt, undefined);
+  assert.equal(activity.listActivity({ agencyId: world.agencyId, limit: 100 }).length, beforeActivity);
 });

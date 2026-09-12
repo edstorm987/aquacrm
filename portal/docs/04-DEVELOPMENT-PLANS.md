@@ -2,7 +2,7 @@
 
 > Every active, completed and archived phased implementation plan and handoff.
 >
-> Consolidated 2026-09-12 from **63** source documents / **130,716 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-12 from **63** source documents / **130,838 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -43,7 +43,7 @@
 - [`docs/development/plans/information-architecture-v2.md`](#source-docs-development-plans-information-architecture-v2-md) — 893 words · `d2d34f2ce729`
 - [`docs/development/plans/internal-chat-attention.md`](#source-docs-development-plans-internal-chat-attention-md) — 434 words · `5f94a11ee09b`
 - [`docs/development/plans/kpi-intelligence-overhaul.md`](#source-docs-development-plans-kpi-intelligence-overhaul-md) — 1,995 words · `166a3cc9b521`
-- [`docs/development/plans/launch-order-and-blockers.md`](#source-docs-development-plans-launch-order-and-blockers-md) — 21,204 words · `62ce019946d1`
+- [`docs/development/plans/launch-order-and-blockers.md`](#source-docs-development-plans-launch-order-and-blockers-md) — 21,308 words · `526fe9c1eb57`
 - [`docs/development/plans/marketing-workspace-overhaul.md`](#source-docs-development-plans-marketing-workspace-overhaul-md) — 1,849 words · `c42bb1c185ed`
 - [`docs/development/plans/meta-inbox-connect.md`](#source-docs-development-plans-meta-inbox-connect-md) — 1,197 words · `48c3b40b0764`
 - [`docs/development/plans/mfa-login.md`](#source-docs-development-plans-mfa-login-md) — 1,513 words · `b48b0cc1945d`
@@ -66,7 +66,7 @@
 - [`docs/development/plans/storage-and-remaining-build.md`](#source-docs-development-plans-storage-and-remaining-build-md) — 1,535 words · `e64b344f91ca`
 - [`docs/development/plans/storage-architecture-and-2026-09-04-incident.md`](#source-docs-development-plans-storage-architecture-and-2026-09-04-incident-md) — 1,608 words · `931ec0578a74`
 - [`docs/development/plans/supabase-alignment-2026-09-03.md`](#source-docs-development-plans-supabase-alignment-2026-09-03-md) — 3,064 words · `fe76984637fe`
-- [`docs/development/plans/supabase-cutover-and-policy-drafts.md`](#source-docs-development-plans-supabase-cutover-and-policy-drafts-md) — 2,976 words · `31f7d543ae10`
+- [`docs/development/plans/supabase-cutover-and-policy-drafts.md`](#source-docs-development-plans-supabase-cutover-and-policy-drafts-md) — 2,994 words · `31c0fb8094fd`
 - [`docs/development/plans/you-deserve-it-upgrade.md`](#source-docs-development-plans-you-deserve-it-upgrade-md) — 1,191 words · `110d90851c7f`
 - [`public/health-check/DELIVERY-PLAN.md`](#source-public-health-check-delivery-plan-md) — 642 words · `623e142b3266`
 
@@ -6917,7 +6917,7 @@ plan in flight._
 
 ## Source document — `docs/development/plans/launch-order-and-blockers.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/launch-order-and-blockers.md" sha256="62ce019946d179c9e4900d7eea97896278bd2ddfecdc8a19b637db956c2e9350" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/launch-order-and-blockers.md" sha256="526fe9c1eb57a750776127689573ff0e9d59d42643a33c44739c5b159ed005b9" -->
 # Launch: the order, and what is stopping us
 
 > **HISTORICAL LAUNCH PLAN (written 27–28 August 2026).** Its Vercel steps,
@@ -9102,19 +9102,23 @@ everything we hold about you". **A wrong subject-access response is worse than
 none: it is a false statement made under a legal obligation.** So there is no
 list; every collection is walked and the question is asked of each record.
 
-Walking is recursive; **ownership matching is not**. Only exact typed Person,
-reciprocal client/facet/relationship lineage, typed scope, or an exclusive
-email/phone in a recognised contact field can authorise a row. A subject id,
-email or phone inside arbitrary prose, or a reference to the subject as actor or
-assignee, is a review-only mention. Shared identifiers and contradictory client
-lineage are ambiguous and cannot authorise automatic release.
+The review scan walks nested values, but **ownership matching is schema-bound**.
+Only exact typed Person, reciprocal client/facet/relationship lineage, typed
+owner/scope, or an exclusive email/phone in a recognised contact field can
+authorise a row. Any contradictory root or nested owner/scope person/client id
+vetoes a weaker contact match, including stale/missing ids. A subject id, email
+or phone inside arbitrary prose, or a reference to the subject as actor or
+assignee, is review-only.
 
-An attributable row is still not automatically safe. Deterministic third-party
-name, postal address/postcode, email and phone fields are redacted on a copy.
-Operator-authored free text and content beyond the inspection-depth limit make
-the whole row review-only. The JSON reports value-free counts for unscoped,
-unclassified, ambiguous, co-mingled and depth-limit rows, plus field-redaction
-counts; it never embeds the withheld values.
+An attributable row is still not automatically safe. Known releasable
+collections use explicit typed projections; there is no general recursive
+key/regex mutation. Safe Person facets/classification history, finance-ledger
+fields and real `pluginData[installId][key]` reached through its install/client
+lineage are preserved. Unknown fields (including unknown names, NI and bank
+identifiers), co-mingled/free-text values and content beyond the inspection
+depth are withheld as value-free review metadata. Known third-party contact
+fields may be replaced with fixed redaction markers; ids and timestamps are
+never phone-redacted.
 
 **Tenant safety.** Only records whose own `agencyId` matches are included: a
 subject-access response that leaked another tenant's records would be a breach
@@ -9122,28 +9126,36 @@ committed in the act of complying with a subject right. Matches carrying **no**
 `agencyId` cannot be proven to belong here, so they are counted and reported as
 `recordsNotAttributableToThisAgency` — visible, never silently dropped.
 
-The body is bounded before hydration/auth work and contains only `requestId` and
-`personId`; the tenant and actor come from the session. The request must already
-exist in the exact agency, be access/portability kind, bind the exact Person, be
-identity-verified, and remain open. Export construction, id-only activity
-evidence and fulfilment share one coordinated transaction, and the download is
-returned only after commit. Commit failure rolls back both evidence and
-fulfilment. Success, request refusals, malformed/oversized input and auth errors
-all carry `no-store`.
+The body is bounded before hydration/auth work; tenant and actor come from the
+session. The request must already exist in the exact agency, be
+access/portability kind, bind the exact Person, be identity-verified, and remain
+open. POST constructs a bounded export, then atomically stages the exact bytes,
+digest and preparation activity. It returns the automatic safe subset but does
+**not** fulfil; a lost response replays those same durable bytes. Non-zero review
+counts require PUT review evidence against that exact digest. PATCH separately
+records delivery evidence and only then fulfils, atomically with delivery
+activity. The generic request helper cannot bypass this sequence. Work, string,
+record and serialised-size limits fail explicitly before transition; every
+success/error, including auth and malformed/oversized input, carries `no-store`.
 
 Permanent adversarial coverage lives in
 `scripts/smoke-subject-access-export-security.test.ts`: free-text ids, phones
-and emails; actor/assignee mentions; shared identifiers; exact client facets and
-relationship siblings; contradictory lineage; third-party name/address/postcode,
-email, phone and prose; traversal depth; other tenants/requests; every request
-gate; malformed/oversized bodies; no-store; and storage-failure rollback.
+and emails; actor/assignee mentions; stale and nested contradictory ownership;
+shared identifiers; exact client facets and relationship siblings; unknown
+name/NI/bank fields; third-party name/address/postcode/email/phone/prose; Person
+history; finance ledger fields; real pluginData lineage; lazy-sidecar
+classification; traversal depth; 10k/100k linear work; other tenants/requests;
+every request gate; malformed/oversized bodies; output caps; exact replay;
+no-store; and preparation/delivery storage-failure rollback.
 
 **The posture remains `partial`, not `met`.** The request register, identity
 sequence and statutory clock exist, and this route is now bound to them. Intake
 is still manual; every non-zero review count needs explicit disposition; external
 systems still need collection; lawful scope and final handover still need a
-human process; and configured retention periods remain unset. A point-in-time
-export does not alter source retention.
+human process; and configured retention periods remain unset. The bounded
+staged file lives with the open request until evidenced delivery, when its bytes
+are cleared but digest/evidence remain. A point-in-time export does not alter
+source retention.
 
 > Two existing guards caught this work before it landed, which is the system
 > behaving correctly: the app-route tenancy test refused a new route until its
@@ -12795,7 +12807,7 @@ authorisation, not routed around the gate.
 
 ## Source document — `docs/development/plans/supabase-cutover-and-policy-drafts.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/supabase-cutover-and-policy-drafts.md" sha256="31f7d543ae105a420063fe92bfa6e835a8cc39f74ba585fcf39dc9f184148f7d" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/supabase-cutover-and-policy-drafts.md" sha256="31c0fb8094fd4fb7e1cda27367dba82cf1dc75c7a03b2ddd22cd47e1e9a53daa" -->
 # The two blockers, with the homework already done
 
 **Written 2026-08-27.** Ed's blockers are decisions and credentials, not code —
@@ -13129,7 +13141,7 @@ move each one and know what you are trading.
 | Category | Suggested | Why that, and what it costs |
 |---|---|---|
 | **Activity log** | `2555` (7 years) | It is the audit trail — the evidence for everything else, including erasures you have performed. Seven years lines up with the usual UK business-record horizon, so it will not expire before the records it evidences. Shorter is defensible; going below ~2 years starts destroying proof of your own compliance. |
-| **DSAR register** | `1095` (3 years) | Long enough to show a regulator a pattern of handled requests, short enough not to keep people's names indefinitely. Note the register only ever holds a label, a date and an outcome — never the exported data. **Open requests never expire**, whatever this is set to. |
+| **DSAR register** | `1095` (3 years) | Long enough to show a regulator a pattern of handled requests, short enough not to keep people's names indefinitely. An open access/portability request may temporarily hold one bounded staged export for exact replay; evidenced delivery clears those bytes and retains only digest/evidence metadata. **Open requests never expire**, whatever this is set to, so unresolved staged exports require operational review rather than relying on expiry. |
 | **Enquiry notices** | `730` (2 years) | These are pointers, not content: an id, a timestamp, a seen flag. Deleting one removes *our* record that an enquiry arrived; the enquiry itself lives in the client's own database and is untouched. Two years keeps a useful reporting window without holding pointers to people indefinitely. |
 
 **Before enabling any of them**, set the numbers and read the count the panel
@@ -13182,7 +13194,6 @@ problem in a published notice — Art. 5(1)(a), fairness and transparency.
 
 I have not chosen. Rewriting a published privacy claim is your call, and adding
 a per-event database read to the collector is a performance decision.
-
 <!-- AQUACRM_SOURCE_END path="docs/development/plans/supabase-cutover-and-policy-drafts.md" -->
 
 ---
