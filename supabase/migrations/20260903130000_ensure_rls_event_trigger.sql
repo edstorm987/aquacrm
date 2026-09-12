@@ -90,14 +90,15 @@ begin
   end if;
 
   -- A same-name trigger is not enough. Bind the recorded safety control to its
-  -- exact event, tags and hardened SECURITY DEFINER function, and require the
-  -- managed owner pair to remain the same. Supabase's hosted `postgres` role
-  -- is accepted because that is the dashboard-provisioned live owner; fresh
-  -- rebuilds use the superuser path above.
+  -- exact event, tags and hardened SECURITY DEFINER function. Event triggers
+  -- remain superuser-owned; Supabase's hosted `postgres` role is accepted as
+  -- the function owner because that is the dashboard-provisioned live shape.
+  -- Fresh rebuilds use the superuser path above for both objects.
   if not exists (
     select 1
     from pg_event_trigger e
     join pg_proc p on p.oid = e.evtfoid
+    join pg_roles event_owner on event_owner.oid = e.evtowner
     join pg_roles function_owner on function_owner.oid = p.proowner
     join pg_language l on l.oid = p.prolang
     where e.evtname = 'ensure_rls'
@@ -106,7 +107,7 @@ begin
       and e.evttags @> array['CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO']::text[]
       and cardinality(e.evttags) = 3
       and e.evtfoid = 'public.rls_auto_enable()'::regprocedure
-      and e.evtowner = p.proowner
+      and event_owner.rolsuper
       and (function_owner.rolsuper or function_owner.rolname = 'postgres')
       and p.prosecdef
       and p.prorettype = 'event_trigger'::regtype

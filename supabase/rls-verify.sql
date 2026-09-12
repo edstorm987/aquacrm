@@ -433,6 +433,7 @@ where not exists (
   select 1
   from pg_event_trigger e
   join pg_proc p on p.oid = e.evtfoid
+  join pg_roles event_owner on event_owner.oid = e.evtowner
   join pg_roles function_owner on function_owner.oid = p.proowner
   join pg_language l on l.oid = p.prolang
   where e.evtname = 'ensure_rls'
@@ -441,7 +442,7 @@ where not exists (
     and e.evttags @> array['CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO']::text[]
     and cardinality(e.evttags) = 3
     and e.evtfoid = 'public.rls_auto_enable()'::regprocedure
-    and e.evtowner = p.proowner
+    and event_owner.rolsuper
     and (function_owner.rolsuper or function_owner.rolname = 'postgres')
     and p.prosecdef
     and p.prorettype = 'event_trigger'::regtype
