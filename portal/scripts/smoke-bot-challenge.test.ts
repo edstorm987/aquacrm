@@ -21,6 +21,8 @@ import {
   captchaConfigured,
   botChallengeClientConfig,
   __resetBotChallengeForTest,
+  __botChallengeReplaySizeForTest,
+  __seedBotChallengeReplayForTest,
 } from "../src/lib/server/security/botChallenge";
 import {
   clearSecurityEventsForTest,
@@ -211,6 +213,23 @@ describe("bot-challenge — action + hostname + age binding", () => {
     assert.equal(decision.reason, "expired");
   });
 
+  it("refuses a malformed provider timestamp", async () => {
+    const decision = await verify({
+      fetchImpl: fetchReturning({ ...happyBody, challenge_ts: "not-a-date" }),
+    });
+    assert.equal(decision.reason, "invalid-timestamp");
+  });
+
+  it("refuses a provider timestamp materially in the future", async () => {
+    const decision = await verify({
+      fetchImpl: fetchReturning({
+        ...happyBody,
+        challenge_ts: new Date(NOW + 2 * 60_000).toISOString(),
+      }),
+    });
+    assert.equal(decision.reason, "invalid-timestamp");
+  });
+
   it("tolerates absent action/hostname OUTSIDE production (test keys) with a warning", async () => {
     const decision = await verify({ fetchImpl: fetchReturning({ success: true }) });
     assert.equal(decision.ok, true);
@@ -225,6 +244,19 @@ describe("bot-challenge — action + hostname + age binding", () => {
     assert.equal(decision.ok, false);
     assert.equal(decision.reason, "action-mismatch");
   });
+
+  it("REQUIRES a provider timestamp in production", async () => {
+    process.env.NODE_ENV = "production";
+    const decision = await verify({
+      fetchImpl: fetchReturning({
+        success: true,
+        action: "login",
+        hostname: "portal.aquacrm.test",
+      }),
+    });
+    assert.equal(decision.ok, false);
+    assert.equal(decision.reason, "invalid-timestamp");
+  });
 });
 
 describe("bot-challenge — replay resistance", () => {
@@ -234,6 +266,14 @@ describe("bot-challenge — replay resistance", () => {
     const second = await verify({ token: "single.use.token" });
     assert.equal(second.ok, false);
     assert.equal(second.reason, "replayed");
+  });
+
+
+  it("keeps the process-local replay cache at its hard maximum", async () => {
+    __seedBotChallengeReplayForTest(5_000, NOW);
+    const decision = await verify({ token: "new-token-at-capacity" });
+    assert.equal(decision.ok, true);
+    assert.equal(__botChallengeReplaySizeForTest(), 5_000);
   });
 });
 

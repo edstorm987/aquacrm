@@ -55,6 +55,9 @@ const TURNSTILE_SITEVERIFY_URL =
 // Turnstile tokens live 300s; we treat anything older as expired regardless of
 // what siteverify says, so a stashed token cannot be used far later.
 const MAX_TOKEN_AGE_MS = 5 * 60_000;
+// Provider clocks can differ slightly from ours, but a timestamp materially in
+// the future is not a valid proof. Keep the allowance narrow and explicit.
+const MAX_CLOCK_SKEW_MS = 60_000;
 // Bounded provider call — a slow/hanging siteverify becomes a fail-closed
 // timeout well before a serverless invocation would.
 const PROVIDER_TIMEOUT_MS = 5_000;
@@ -86,6 +89,7 @@ export type BotChallengeReason =
   | "rejected"
   | "action-mismatch"
   | "hostname-mismatch"
+  | "invalid-timestamp"
   | "expired";
 
 export interface BotChallengeDecision {
@@ -207,9 +211,17 @@ const REPLAY_SALT = createHash("sha256")
   .digest("hex");
 
 function pruneSpent(now: number): void {
-  if (spentTokens.size < SPENT_TOKEN_MAX) return;
+  // Remove expired entries on every successful verification. More importantly,
+  // if all entries are still live, evict the oldest before adding the next one.
+  // Map preserves insertion order, so this is a deterministic hard bound rather
+  // than the previous soft bound that could grow forever after 5,000 tokens.
   for (const [key, value] of spentTokens) {
     if (value.expiresAt <= now) spentTokens.delete(key);
+  }
+  while (spentTokens.size >= SPENT_TOKEN_MAX) {
+    const oldest = spentTokens.keys().next().value as string | undefined;
+    if (!oldest) break;
+    spentTokens.delete(oldest);
   }
 }
 
@@ -449,14 +461,43 @@ export async function verifyBotChallenge(
     }
   }
 
-  // Age binding — a stashed token cannot be used long after it was solved.
-  if (typeof data.challenge_ts === "string") {
-    const solvedAt = Date.parse(data.challenge_ts);
-    if (Number.isFinite(solvedAt) && now - solvedAt > MAX_TOKEN_AGE_MS) {
+  // Age binding — production requires a parseable provider timestamp. A
+  // malformed/missing or materially future timestamp is not evidence of a
+  // recently solved challenge. Outside production only an absent timestamp is
+  // tolerated for Cloudflare's official test-key response shape.
+  const challengeTimestamp = typeof data.challenge_ts === "string"
+    ? data.challenge_ts.trim()
+    : "";
+  if (!challengeTimestamp) {
+    if (strict) {
+      return deny("invalid-timestamp", MESSAGE_CHALLENGE, {
+        action,
+        tenantId: input.tenantId,
+        detail: { cause: "missing" },
+      });
+    }
+  } else {
+    const solvedAt = Date.parse(challengeTimestamp);
+    if (!Number.isFinite(solvedAt)) {
+      return deny("invalid-timestamp", MESSAGE_CHALLENGE, {
+        action,
+        tenantId: input.tenantId,
+        detail: { cause: "malformed" },
+      });
+    }
+    const ageMs = now - solvedAt;
+    if (ageMs > MAX_TOKEN_AGE_MS) {
       return deny("expired", MESSAGE_CHALLENGE, {
         action,
         tenantId: input.tenantId,
-        detail: { ageMs: now - solvedAt },
+        detail: { ageMs },
+      });
+    }
+    if (ageMs < -MAX_CLOCK_SKEW_MS) {
+      return deny("invalid-timestamp", MESSAGE_CHALLENGE, {
+        action,
+        tenantId: input.tenantId,
+        detail: { cause: "future", ageMs },
       });
     }
   }
@@ -476,4 +517,14 @@ export async function verifyBotChallenge(
 export function __resetBotChallengeForTest(): void {
   spentTokens.clear();
   warnedUnconfigured = false;
+}
+
+export function __botChallengeReplaySizeForTest(): number {
+  return spentTokens.size;
+}
+
+export function __seedBotChallengeReplayForTest(count: number, now: number): void {
+  for (let i = 0; i < count; i += 1) {
+    spentTokens.set(`test-digest-${i}`, { expiresAt: now + MAX_TOKEN_AGE_MS });
+  }
 }
