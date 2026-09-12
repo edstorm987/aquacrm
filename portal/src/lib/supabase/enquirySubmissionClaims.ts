@@ -19,7 +19,12 @@ export interface SubmissionRpcError {
 }
 
 export interface SubmissionClaimClient {
-  rpc(fn: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: SubmissionRpcError | null }>;
+  rpc(fn: string, args: Record<string, unknown>): PromiseLike<{
+    data: unknown;
+    error: SubmissionRpcError | null;
+    /** Supabase/PostgREST uses 0 when no authoritative HTTP response exists. */
+    status?: number;
+  }>;
 }
 
 export type AquaTagArrival = "tag" | "brand";
@@ -145,6 +150,15 @@ export function isSubmissionConflict(error: SubmissionRpcError | null | undefine
   return error.code === CONFLICT_CODE || /aqua_tag_submission_conflict/.test(error.message ?? "");
 }
 
+function completionErrorProvesRollback(error: SubmissionRpcError, status: number | undefined): boolean {
+  // An Error object alone is not an acknowledgement from PostgreSQL. In
+  // particular supabase-js represents fetch/network ambiguity with status 0;
+  // the transaction may already have committed behind the lost response.
+  if (!Number.isInteger(status) || status! < 400 || status! >= 500) return false;
+  const code = (error.code ?? "").trim().toUpperCase();
+  return /^[0-9A-Z]{5}$/.test(code) || /^PGRST\d{3}$/.test(code);
+}
+
 function conflictFact(error: SubmissionRpcError): string {
   const match = /aqua_tag_submission_conflict:([A-Za-z0-9_.-]+)/.exec(error.message ?? "");
   return match?.[1] ?? "submission";
@@ -237,13 +251,21 @@ function captureReceiptFrom(value: unknown): AquaTagCaptureReceipt | null {
  */
 export async function claimAquaTagCapture(
   client: SubmissionClaimClient,
-  input: { tenantScope: string; submissionId: string; siteKey: string; captureDigest: string; leaseMs?: number },
+  input: {
+    tenantScope: string;
+    submissionId: string;
+    siteKey: string;
+    captureDigest: string;
+    legacyCaptureFingerprint: string;
+    leaseMs?: number;
+  },
 ): Promise<AquaTagCaptureClaimResult> {
   const { data, error } = await client.rpc("claim_aqua_tag_capture", {
     p_tenant_scope: input.tenantScope,
     p_submission_id: input.submissionId,
     p_site_key: input.siteKey,
     p_capture_digest: input.captureDigest,
+    p_legacy_capture_fingerprint: input.legacyCaptureFingerprint,
     p_lease_ms: input.leaseMs ?? 15_000,
   });
   if (error) {
@@ -263,6 +285,12 @@ export async function claimAquaTagCapture(
     const receipt = captureReceiptFrom(body?.receipt);
     if (receipt) return { kind: "replay", receipt };
   }
+  if (kind === "unavailable") {
+    return {
+      kind: "unavailable",
+      reason: typeof body?.reason === "string" ? body.reason : "The legacy capture requires evidence-backed adoption.",
+    };
+  }
   throw new Error("The form-capture classifier returned an incomplete result.");
 }
 
@@ -270,7 +298,7 @@ export async function completeAquaTagCapture(
   client: SubmissionClaimClient,
   input: AquaTagIngestInput & { claimToken: string },
 ): Promise<{ receipt: AquaTagCaptureReceipt; ingestion: AquaTagIngestReceipt }> {
-  const { data, error } = await client.rpc("complete_aqua_tag_capture", {
+  const response = await client.rpc("complete_aqua_tag_capture", {
     p_tenant_scope: input.tenantScope,
     p_submission_id: input.submissionId,
     p_site_key: input.siteKey,
@@ -279,9 +307,11 @@ export async function completeAquaTagCapture(
     p_capture: input.capture ?? null,
     p_enquiry_row: input.enquiryRow,
   });
+  const { data, error } = response;
   if (error) {
-    if (isSubmissionConflict(error)) throw new AquaTagCaptureCompletionError("aqua_tag_submission_conflict:capture", true);
-    throw new AquaTagCaptureCompletionError(`Could not complete the form capture: ${error.message ?? "unknown error"}`, true);
+    const rollbackConfirmed = completionErrorProvesRollback(error, response.status);
+    if (isSubmissionConflict(error)) throw new AquaTagCaptureCompletionError("aqua_tag_submission_conflict:capture", rollbackConfirmed);
+    throw new AquaTagCaptureCompletionError(`Could not complete the form capture: ${error.message ?? "unknown error"}`, rollbackConfirmed);
   }
   const body = record(data);
   const receipt = captureReceiptFrom(body?.receipt);

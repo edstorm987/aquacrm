@@ -23,6 +23,7 @@ import {
 } from "@/lib/supabase/enquirySubmissionClaims";
 import {
   aquaTagCaptureDigest,
+  legacyAquaTagCaptureFingerprint,
   resolveAquaTagAdmissionScope,
   verifyAquaTagFormAdmission,
   type AquaTagFormFacts,
@@ -306,6 +307,7 @@ export async function POST(req: NextRequest) {
       submissionId,
       siteKey,
       captureDigest,
+      legacyCaptureFingerprint: legacyAquaTagCaptureFingerprint(admissionFacts),
     });
     // A simultaneous exact retry waits briefly for the winning transaction's
     // receipt. It never spends quotas while another owner holds the claim.
@@ -317,6 +319,7 @@ export async function POST(req: NextRequest) {
         submissionId,
         siteKey,
         captureDigest,
+        legacyCaptureFingerprint: legacyAquaTagCaptureFingerprint(admissionFacts),
       });
     }
     if (claim.kind === "conflict") {

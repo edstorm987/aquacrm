@@ -232,6 +232,22 @@ describe("the durable boundary: one identity, atomic merge, honest receipts", ()
     assert.equal(budget.charges, 2);
     assert.equal(model.dump().enquiries.length, 1);
   });
+
+  it("reconciles a resolved status-0 response after commit without refunding or charging twice", async () => {
+    model.injectFault({ target: "rpc:complete_aqua_tag_capture", mode: "status-zero-after" });
+    const ambiguous = await capture();
+    assert.equal(ambiguous.status, 503);
+    assert.equal(budget.charges, 1);
+    assert.equal(budget.refunds, 0, "status 0 is not authoritative proof of database rollback");
+    assert.equal(model.dump().enquiries.length, 1, "the lost response may follow a committed mutation");
+
+    const replay = await json(await capture());
+    assert.equal(replay.ok, true);
+    assert.equal(replay.boundary, "database");
+    assert.equal(budget.charges, 1, "durable replay reconciliation must not charge a second quota batch");
+    assert.equal(budget.refunds, 0);
+    assert.equal(model.dump().enquiries.length, 1);
+  });
 });
 
 describe("crash recovery, fencing and bounded retries", () => {
@@ -365,6 +381,48 @@ describe("crash recovery, fencing and bounded retries", () => {
 });
 
 describe("the deployment dependency and static contract", () => {
+  it("upgrades an exact legacy tag-first retry with its truthful attached:false receipt", async () => {
+    const legacyBody = fixture.captureBody(SUBMISSION_ID);
+    model.seedLegacyCapture({
+      tenantScope: fixture.AGENCY_ID,
+      submissionId: SUBMISSION_ID,
+      siteKey: fixture.SITE_KEY,
+      legacyFingerprint: fixture.legacyCaptureFingerprint(legacyBody),
+    });
+    model.applyCaptureClaimUpgrade();
+    const adopted = submission();
+    assert.equal(adopted.tag_capture_digest, null, "the incompatible legacy fingerprint must not masquerade as the new digest");
+    assert.equal(adopted.tag_capture_receipt.attached, false, "tag-first created the hold row; it did not attach");
+
+    const replay = await json(await capture());
+    assert.equal(replay.ok, true);
+    assert.equal(replay.attached, false);
+    assert.equal(replay.enquiryId, adopted.enquiry_id);
+    assert.equal(budget.charges, 0, "an adopted exact replay must not spend a new quota batch");
+    assert.equal(model.dump().enquiries.length, 1);
+
+    const conflict = await capture({ fields: [{ key: "email", value: "changed@example.test" }] });
+    assert.equal(conflict.status, 409);
+    assert.equal(budget.charges, 0);
+  });
+
+  it("quarantines a legacy two-half row whose original attached value cannot be proven", async () => {
+    const legacyBody = fixture.captureBody(SUBMISSION_ID);
+    model.seedLegacyCapture({
+      tenantScope: fixture.AGENCY_ID,
+      submissionId: SUBMISSION_ID,
+      siteKey: fixture.SITE_KEY,
+      legacyFingerprint: fixture.legacyCaptureFingerprint(legacyBody),
+      brand: { contactKey: "email:taylor@example.test" },
+    });
+    model.applyCaptureClaimUpgrade();
+    assert.equal(submission().tag_capture_status, "legacy-review");
+    assert.equal(submission().tag_capture_receipt, null, "the upgrade must not invent attached:true or attached:false");
+    assert.equal((await capture()).status, 503);
+    assert.equal(budget.charges, 0);
+    assert.equal(model.dump().enquiries.length, 1);
+  });
+
   it("without the additive capture claim the public tag mutation fails closed", async () => {
     model.setMode("legacy");
     const held = await json(await capture());
@@ -395,6 +453,9 @@ describe("the deployment dependency and static contract", () => {
     assert.match(migration, /revoke all on table public\.aqua_tag_submissions from public, anon, authenticated/);
     assert.match(migration, /update public\.brand_enquiries e\s+set metadata = e\.metadata \|\| p_metadata_patch/);
     assert.match(captureClaimMigration, /create or replace function public\.claim_aqua_tag_capture/);
+    assert.match(captureClaimMigration, /'attached', false/);
+    assert.match(captureClaimMigration, /tag_capture_status = 'legacy-review'/);
+    assert.doesNotMatch(captureClaimMigration, /'attached', true/);
     assert.match(captureClaimMigration, /tag_capture_receipt/);
     assert.match(captureClaimMigration, /complete_aqua_tag_capture/);
     assert.match(captureClaimMigration, /p_facts ->> 'captureDigest'[\s\S]*submission\.tag_capture_digest/);

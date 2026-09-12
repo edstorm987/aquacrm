@@ -25,7 +25,8 @@ import {
 } from "../src/lib/server/security/aquaTagFormAdmission";
 import { ensureClientTelemetry } from "../src/lib/server/clients/clientTelemetryService";
 import { ensureAgencyWebsite } from "../src/server/agencyWebsite";
-import { createAgency, createClient } from "../src/server/tenants";
+import { getState } from "../src/server/storage";
+import { createAgency, createClient, updateClient } from "../src/server/tenants";
 import { addWebsiteSource, ensureAgencyMasterSiteKey } from "../src/server/websiteSources";
 import {
   __resetBotChallengeForTest,
@@ -300,6 +301,7 @@ describe("Aqua Tag signed form admission", { concurrency: false }, () => {
     agencyId: "agency_scope",
     siteKey: "site_scope",
     host: "site.example.test",
+    challengeHostname: "site.example.test",
     keyClass: "agency-master" as const,
     siteId: "site_scope_id",
     propertyId: "property_scope",
@@ -335,6 +337,7 @@ describe("Aqua Tag signed form admission", { concurrency: false }, () => {
     }).ok, false);
     assert.equal(verifyAquaTagFormAdmission({ token: issued.token, scope: { ...scope, agencyId: "agency_other" }, facts, now: 1_001_000 }).ok, false);
     assert.equal(verifyAquaTagFormAdmission({ token: issued.token, scope: { ...scope, host: "other.example.test" }, facts, now: 1_001_000 }).ok, false);
+    assert.equal(verifyAquaTagFormAdmission({ token: issued.token, scope: { ...scope, challengeHostname: "www.site.example.test" }, facts, now: 1_001_000 }).ok, false);
     assert.equal(verifyAquaTagFormAdmission({ token: issued.token, scope: { ...scope, siteKey: "other_site" }, facts, now: 1_001_000 }).ok, false);
     assert.equal(verifyAquaTagFormAdmission({ token: issued.token, scope, facts: { ...facts, formId: "other" }, now: 1_001_000 }).ok, false);
     assert.equal(verifyAquaTagFormAdmission({ token: issued.token, scope, facts: { ...facts, fields: [{ key: "email", value: "victim@example.test" }] }, now: 1_001_000 }).ok, false);
@@ -394,6 +397,43 @@ describe("Aqua Tag signed form admission", { concurrency: false }, () => {
         fields: [{ key: "email", value: "visitor@example.test" }],
       },
     }).ok, true, "challenge proof leaked into the admission's captured-field digest");
+  });
+
+  it("keeps www routing canonical while binding proof to the exact request hostname", async () => {
+    const base = {
+      siteKey: "aqua_public_milesymedia_v1",
+      propertyId: "milesymedia",
+      submissionId: "aqua_sub_wwwadmission000001",
+      pageUrl: "https://www.milesymedia.com/contact",
+      pagePath: "/contact",
+      formName: "Website enquiry",
+      fields: [{ key: "email", value: "visitor@example.test" }],
+    };
+    const post = (origin: string, captchaToken: string, pageUrl = base.pageUrl) => issueAdmission(new NextRequest(
+      "http://localhost/api/public/aqua-tag-admission",
+      {
+        method: "POST",
+        headers: { origin, "content-type": "application/json", "x-forwarded-for": `198.51.100.${captchaToken.length}` },
+        body: JSON.stringify({ ...base, pageUrl, captchaToken }),
+      },
+    ));
+    const wwwScope = resolveAquaTagAdmissionScope(base.siteKey, "https://www.milesymedia.com");
+    const apexScope = resolveAquaTagAdmissionScope(base.siteKey, "https://milesymedia.com");
+    assert.equal(wwwScope?.host, "milesymedia.com");
+    assert.equal(wwwScope?.challengeHostname, "www.milesymedia.com");
+    assert.equal(apexScope?.host, "milesymedia.com");
+    assert.equal(apexScope?.challengeHostname, "milesymedia.com");
+
+    assert.equal((await post("https://www.milesymedia.com", "tag@milesymedia.com")).status, 403,
+      "an apex proof must not satisfy a www request");
+    __resetBotChallengeForTest();
+    assert.equal((await post("https://www.milesymedia.com", "tag@www.milesymedia.com")).status, 201);
+    __resetBotChallengeForTest();
+    assert.equal((await post("https://milesymedia.com", "tag@www.milesymedia.com", "https://milesymedia.com/contact")).status, 403,
+      "a www proof must not satisfy an apex request");
+    __resetBotChallengeForTest();
+    assert.equal((await post("https://www.milesymedia.com", "tag@www.milesymedia.com", "https://milesymedia.com/contact")).status, 403,
+      "the signed page hostname must equal the exact request hostname");
   });
 
   it("routes every emitted key class through one exact tenant/site/registered-host mapping", async () => {
@@ -477,5 +517,38 @@ describe("Aqua Tag signed form admission", { concurrency: false }, () => {
     assert.equal((await post("https://attacker.example")).status, 403);
     assert.equal((await post("https://telemetry-client.example")).status, 202);
     assert.equal(Object.hasOwn(body, "captchaToken"), false, "telemetry was coupled to a human challenge");
+  });
+
+  it("writes a duplicate browser key only to the exact host-resolved tenant and fails closed on ambiguity", async () => {
+    const sharedKey = `aqua_duplicate_${Date.now()}`;
+    const agencyA = createAgency({ name: "Telemetry tenant A", slug: `telemetry-a-${Date.now()}` });
+    const agencyB = createAgency({ name: "Telemetry tenant B", slug: `telemetry-b-${Date.now()}` });
+    const clientA = createClient(agencyA.id, { name: "Tenant A client", websiteUrl: "https://tenant-a.example" });
+    const clientB = createClient(agencyB.id, { name: "Tenant B client", websiteUrl: "https://tenant-b.example" });
+    updateClient(agencyA.id, clientA.id, { metadata: { telemetrySiteKey: sharedKey, telemetryEvents: [] } });
+    updateClient(agencyB.id, clientB.id, { metadata: { telemetrySiteKey: sharedKey, telemetryEvents: [] } });
+    const body = {
+      siteKey: sharedKey,
+      type: "pageview",
+      category: "analytics",
+      consentNecessary: true,
+      consentAnalytics: true,
+      occurredAt: Date.now(),
+      path: "/exact-owner",
+    };
+    const post = (origin: string, payload = body) => collectTelemetry(new NextRequest("http://localhost/api/telemetry/collect", {
+      method: "POST",
+      headers: { origin, "content-type": "application/json", "x-forwarded-for": "203.0.113.181" },
+      body: JSON.stringify(payload),
+    }));
+
+    assert.equal((await post("https://tenant-b.example")).status, 202);
+    assert.equal((getState().clients[clientA.id]?.metadata?.telemetryEvents as unknown[] | undefined)?.length ?? 0, 0);
+    assert.equal((getState().clients[clientB.id]?.metadata?.telemetryEvents as unknown[] | undefined)?.length ?? 0, 1);
+
+    updateClient(agencyA.id, clientA.id, { websiteUrl: "https://tenant-b.example" });
+    assert.equal((await post("https://tenant-b.example", { ...body, occurredAt: body.occurredAt + 1 })).status, 403,
+      "two owners for one exact key/host must fail closed");
+    assert.equal((getState().clients[clientB.id]?.metadata?.telemetryEvents as unknown[] | undefined)?.length ?? 0, 1);
   });
 });

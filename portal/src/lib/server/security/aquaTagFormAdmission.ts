@@ -25,7 +25,10 @@ const MAX_CLOCK_SKEW_MS = 30_000;
 export interface AquaTagAdmissionScope {
   agencyId: string;
   siteKey: string;
+  /** Canonical host used by Aqua's routing registry (`www.` is equivalent). */
   host: string;
+  /** Exact hostname the browser requested and the challenge provider must attest. */
+  challengeHostname: string;
   keyClass: "public" | "agency-master" | "client-telemetry" | "agency-website";
   siteId: string;
   clientId?: string;
@@ -49,6 +52,7 @@ interface AquaTagFormAdmissionClaims {
   agencyId: string;
   siteKey: string;
   host: string;
+  challengeHostname: string;
   keyClass: AquaTagAdmissionScope["keyClass"];
   siteId: string;
   clientId?: string;
@@ -106,11 +110,15 @@ function clean(value: unknown, max: number): string {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
 
-function normalizeHost(value: string): string {
+function normalizeChallengeHostname(value: string): string {
   let host = clean(value, 255).toLowerCase();
   host = host.replace(/^[a-z]+:\/\//, "").split("/")[0] ?? host;
   host = (host.split("@").pop() ?? host).split(":")[0] ?? host;
-  return host.replace(/^www\./, "").trim();
+  return host.trim();
+}
+
+function normalizeHost(value: string): string {
+  return normalizeChallengeHostname(value).replace(/^www\./, "");
 }
 
 function canonicalFacts(facts: AquaTagFormFacts) {
@@ -135,6 +143,21 @@ export function aquaTagCaptureDigest(facts: AquaTagFormFacts): string {
   return createHash("sha256").update(JSON.stringify(canonicalFacts(facts))).digest("hex");
 }
 
+/**
+ * Identity written by the pre-admission form-capture route. It is retained
+ * only to classify an exact retry of an unambiguously tag-first legacy row;
+ * new captures always use the stronger full-facts digest above.
+ */
+export function legacyAquaTagCaptureFingerprint(facts: AquaTagFormFacts): string {
+  return createHash("sha256")
+    .update(JSON.stringify([
+      facts.formId ?? "",
+      facts.pagePath,
+      facts.fields.map(field => [field.key, field.value]),
+    ]))
+    .digest("hex");
+}
+
 function safeOrigin(raw: string | null): URL | null {
   if (!raw) return null;
   try {
@@ -154,8 +177,9 @@ export function resolveAquaTagAdmissionScope(siteKeyValue: unknown, originValue:
   const siteKey = clean(siteKeyValue, 80);
   const origin = safeOrigin(originValue);
   if (!siteKey || !origin) return null;
-  const host = normalizeHost(origin.hostname);
-  if (!host) return null;
+  const challengeHostname = normalizeChallengeHostname(origin.hostname);
+  const host = normalizeHost(challengeHostname);
+  if (!host || !challengeHostname) return null;
 
   const publicSite = publicAquaSite(siteKey);
   if (publicSite) {
@@ -165,6 +189,7 @@ export function resolveAquaTagAdmissionScope(siteKeyValue: unknown, originValue:
       agencyId,
       siteKey,
       host,
+      challengeHostname,
       keyClass: "public",
       siteId: `public:${siteKey}`,
       propertyId: publicAquaPropertyId(siteKey, publicSite.propertyId) ?? publicSite.propertyId,
@@ -180,6 +205,7 @@ export function resolveAquaTagAdmissionScope(siteKeyValue: unknown, originValue:
         agencyId: masterAgencyId,
         siteKey,
         host,
+        challengeHostname,
         keyClass: "agency-master",
         siteId: source.id,
         ...(source.destinationClientId ? { clientId: source.destinationClientId } : {}),
@@ -200,6 +226,7 @@ export function resolveAquaTagAdmissionScope(siteKeyValue: unknown, originValue:
       clientId: client.id,
       siteKey,
       host,
+      challengeHostname,
       keyClass: "client-telemetry",
       siteId: source?.id ?? `client:${client.id}`,
     });
@@ -214,6 +241,7 @@ export function resolveAquaTagAdmissionScope(siteKeyValue: unknown, originValue:
       agencyId: website.agencyId,
       siteKey,
       host,
+      challengeHostname,
       keyClass: "agency-website",
       siteId: `agency-website:${website.agencyId}`,
     });
@@ -238,6 +266,7 @@ export function issueAquaTagFormAdmission(
     agencyId: scope.agencyId,
     siteKey: scope.siteKey,
     host: scope.host,
+    challengeHostname: scope.challengeHostname,
     keyClass: scope.keyClass,
     siteId: scope.siteId,
     ...(scope.clientId ? { clientId: scope.clientId } : {}),
@@ -261,7 +290,7 @@ function parseClaims(value: unknown): AquaTagFormAdmissionClaims | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
   const keys = new Set([
-    "v", "action", "agencyId", "siteKey", "host", "keyClass", "siteId", "clientId", "propertyId", "submissionId",
+    "v", "action", "agencyId", "siteKey", "host", "challengeHostname", "keyClass", "siteId", "clientId", "propertyId", "submissionId",
     "formName", "formId", "purpose", "pageUrl", "pagePath", "captureDigest",
     "nonce", "iat", "exp",
   ]);
@@ -270,6 +299,7 @@ function parseClaims(value: unknown): AquaTagFormAdmissionClaims | null {
   const agencyId = clean(row.agencyId, 120);
   const siteKey = clean(row.siteKey, 80);
   const host = normalizeHost(clean(row.host, 255));
+  const challengeHostname = normalizeChallengeHostname(clean(row.challengeHostname, 255));
   const keyClass = clean(row.keyClass, 30) as AquaTagAdmissionScope["keyClass"];
   const siteId = clean(row.siteId, 160);
   const submissionId = clean(row.submissionId, 120);
@@ -279,7 +309,7 @@ function parseClaims(value: unknown): AquaTagFormAdmissionClaims | null {
   const iat = Number(row.iat);
   const exp = Number(row.exp);
   if (
-    !agencyId || !siteKey || !host || !siteId
+    !agencyId || !siteKey || !host || !challengeHostname || !siteId
     || !["public", "agency-master", "client-telemetry", "agency-website"].includes(keyClass)
     || !/^aqua_sub_[a-z0-9]{12,100}$/.test(submissionId)
     || !/^[a-f0-9]{64}$/.test(captureDigest)
@@ -292,6 +322,7 @@ function parseClaims(value: unknown): AquaTagFormAdmissionClaims | null {
     agencyId,
     siteKey,
     host,
+    challengeHostname,
     keyClass,
     siteId,
     ...(clean(row.clientId, 120) ? { clientId: clean(row.clientId, 120) } : {}),
@@ -338,6 +369,7 @@ export function verifyAquaTagFormAdmission(input: {
     || claims.agencyId !== input.scope.agencyId
     || claims.siteKey !== input.scope.siteKey
     || claims.host !== input.scope.host
+    || claims.challengeHostname !== input.scope.challengeHostname
     || claims.keyClass !== input.scope.keyClass
     || claims.siteId !== input.scope.siteId
     || (claims.clientId ?? "") !== (input.scope.clientId ?? "")

@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
   const pageUrl = clean(body.pageUrl, 500) || undefined;
   if (pageUrl) {
     try {
-      if (new URL(pageUrl).hostname.replace(/^www\./, "").toLowerCase() !== scope.host) {
+      if (new URL(pageUrl).hostname.toLowerCase() !== scope.challengeHostname) {
         return NextResponse.json({ ok: false }, { status: 403, headers: cors(null) });
       }
     } catch { return NextResponse.json({ ok: false }, { status: 400, headers: cors(origin) }); }
@@ -115,7 +115,7 @@ export async function POST(req: NextRequest) {
     action: AQUA_TAG_FORM_CAPTURE_ACTION,
     token: body.captchaToken,
     remoteIp: ip,
-    hostname: scope.host,
+    hostname: scope.challengeHostname,
     tenantId: scope.agencyId,
   });
   if (!challenge.ok) {

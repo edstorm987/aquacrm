@@ -223,6 +223,7 @@ function captureRequest() {
     agencyId: AGENCY_ID,
     siteKey: body.siteKey,
     host: "milesymedia.com",
+    challengeHostname: "milesymedia.com",
     keyClass: "public",
     siteId: `public:${body.siteKey}`,
     propertyId: body.propertyId,

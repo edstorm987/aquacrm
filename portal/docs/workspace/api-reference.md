@@ -331,8 +331,8 @@ not live.
 | `/api/public/brand-enquiry` | OPTIONS, POST | Website enquiry submission → leads pipeline + Supabase (dedupe guard) | public (CORS, rate-limited) | **LIVE (admin + brand_enquiries)** |
 | `/api/public/careers` | POST | Public job application w/ CV upload (multipart) | public (origin + rate-limited) | **LIVE (Storage)** |
 | `/api/public/contact` | POST | Public contact form → leads pipeline + website telemetry | public (origin-checked) | |
-| `/api/public/aqua-tag-admission` | OPTIONS, POST | Verify managed proof for exact `aqua-tag-form-capture` action/tenant/registered host, then mint a short-lived admission bound to tenant/key-class/site/host and exact form facts | public (managed proof + exact key/host resolver + caller-IP/provider limits) | |
-| `/api/public/form-capture` | OPTIONS, POST | Verify Aqua-Tag admission, atomically classify new/replay/conflict, then form-capture enrichment + master-tag routing → Supabase | public (signed admission + durable claim; post-proof local quotas); **503 until additive claim migration exists** | **LIVE (admin)** |
+| `/api/public/aqua-tag-admission` | OPTIONS, POST | Verify managed proof for exact `aqua-tag-form-capture` action/tenant/exact request hostname, then mint a short-lived admission bound to tenant/key-class/site/canonical routing host/exact challenge host and exact form facts | public (managed proof + exact key/host resolver + caller-IP/provider limits) | |
+| `/api/public/form-capture` | OPTIONS, POST | Verify Aqua-Tag admission, atomically classify new/replay/conflict, then form-capture enrichment + master-tag routing → Supabase | public (signed admission + durable claim; post-proof local quotas); **503 until additive claim migration exists, and for ambiguous legacy rows pending evidence-backed receipt adoption** | **LIVE (admin)** |
 | `/api/public/proposals/[token]` | POST | Accept a commercial proposal by public token | public (token) | |
 | `/api/public/aqua-tag-config` | GET, OPTIONS | Serve a site's enabled injections by key+host (cached, CORS) — tag-manager delivery seam | public (CORS) | |
 | `/api/public/demo-interest` | POST | AquaCRM demo gate — records name/contact + consent {timestamp, terms version} in the `website-demo` data realm, never the live one | public (same-origin, honeypot, rate-limited); **404 unless `WEBSITE_DEMO_ENABLED`** | |
@@ -359,7 +359,7 @@ not live.
 | `/api/assistant` | GET, POST | AI assistant workspace: threads, memory, ask OpenAI | agency owner/manager | |
 | `/api/mcp` | POST, GET, DELETE | External-assistant MCP JSON-RPC (POST); GET 405 / DELETE 204 | external assistant token | |
 | `/api/webhooks/meta` | GET, POST | Meta webhook verify (GET) + signed event ingest → inbox queue | public (verify-token / signature) | **LIVE (inbox store)** |
-| `/api/telemetry/collect` | OPTIONS, POST | Ingest website telemetry/consent events → Supabase | public (CORS, consent-gated) | **LIVE (admin, consent events)** |
+| `/api/telemetry/collect` | OPTIONS, POST | Ingest website telemetry/consent events using the exact resolved tenant/client/site target → Supabase | public (exact key+host scope, CORS, consent-gated; no CAPTCHA) | **LIVE (admin, consent events)** |
 | `/api/cron/inbox` | GET | Cron (daily): drain inbox webhook queue + prune + full radar sweeps + evidence rollup | `CRON_SECRET` bearer | **LIVE (inbox store)** |
 | `/api/cron/radar-probes` | GET | Cron (~10 min): fast Deep + Infra probe refresh only (no Pulse rebuild) — radar upgrade probe cadence | `CRON_SECRET` bearer | **LIVE (probes DB/network)** |
 | `/api/internal/sweep` | GET | Founder diagnostic: sweep rate-limit/lockout + automations + inbox queue | agency owner (founder) | **LIVE (inbox store)** |

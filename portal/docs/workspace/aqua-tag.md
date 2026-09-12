@@ -43,7 +43,10 @@ registry:
 
 `resolveAquaTagAdmissionScope` is the one public request resolver for all four
 classes. It requires one unambiguous key owner plus the exact registered host;
-key collisions or an unregistered host fail closed.
+key collisions or an unregistered host fail closed. It keeps both the canonical
+routing host (`www.example.com` → `example.com`) and the exact request hostname.
+Turnstile must attest that exact hostname, so an apex proof cannot satisfy a
+`www` request (or vice versa) even though both may map to the same routing rule.
 
 **The rule:** master tag → agency inbox by default; a `websiteSources` entry for that host **overrides** it to a **client** (their inbox) or a **company** (one of Ed's own brands, since 2026-08-19). A company-routed enquiry is recorded on the enquiry (`routedCompanyId` in metadata) and — per "the configured route wins" — is *not* also filed onto a client.
 
@@ -133,7 +136,9 @@ The step-2/3 logic is real, not stubbed:
   key plus exact registered Origin to a tenant/site/host scope, then verifies a
   managed Turnstile token for exact action `aqua-tag-form-capture`, that
   registered hostname and tenant before minting anything. Only caller-IP and
-  provider pressure valves run before proof. The resulting two-minute HMAC
+  provider pressure valves run before proof. The challenge is checked against
+  the exact request hostname, while the canonical host remains the routing key.
+  The resulting two-minute HMAC
   admission is bound to action, tenant, key class, site id, host, form metadata,
   submission id and a digest of every captured answer. Its signed claim payload
   is decodable but carries no plaintext answers or challenge token, and the
@@ -146,9 +151,14 @@ The step-2/3 logic is real, not stubbed:
   enquiry. The additive `20260912140000_aqua_tag_capture_admission_claims.sql`
   migration supplies that claim/complete/release boundary; without it this
   public mutation fails closed with 503. The site key remains discovery
-  metadata, never mutation authority by itself.
+  metadata, never mutation authority by itself. The upgrade adopts only legacy
+  tag-first rows whose old fingerprint and original `attached:false` outcome are
+  provable. A legacy row that already has both tag and brand halves cannot prove
+  arrival order, so it is marked `legacy-review` and fails closed until a
+  one-time evidence-backed backfill records the true original receipt; the
+  migration never invents `attached:true`.
 - **`POST /api/public/brand-enquiry`** *(LIVE `brand_enquiries`)* — website enquiry submission; carries the same routing + a 2-minute **dedupe guard**.
-- **`POST /api/telemetry/collect`** *(LIVE `website_consent_events`)* — page telemetry + consent events, CORS + consent-gated.
+- **`POST /api/telemetry/collect`** *(LIVE `website_consent_events`)* — page telemetry + consent events, CORS + consent-gated. The route passes the exact resolved tenant/client/site scope into the sink; the sink rechecks it instead of choosing the first client carrying a browser-public key. Distinct hosts can therefore route a collided key to their exact owners, while an ambiguous exact key/host fails closed. Telemetry beacons do not use CAPTCHA.
 - **`src/server/agencyWebsite.ts`** — records/summarises agency-site telemetry (`recordAgencyWebsiteTelemetry`, `resetAgencyWebsiteTelemetryKey`, `summarizeAgencyWebsite`). Client telemetry mirrors this via `/api/tenants/client-telemetry` + `lib/…/clientTelemetry`.
 
 ## 6. Embed (tag-adjacent)
@@ -179,7 +189,10 @@ a visitor straight into their portal.
 and — live in Supabase — `website_consent_events` plus
 `aqua_tag_submissions`. The latter's additive tag-capture columns hold the
 immutable capture digest, fenced claim lease and original completion receipt;
-table access and claim/complete/release RPCs are service-role only.
+table access and claim/complete/release RPCs are service-role only. A resolved
+RPC response with status `0` is treated as an unknown commit outcome, never as
+rollback proof: quota stays charged and an exact retry reconciles through the
+durable receipt or lease.
 
 ## 9. Consent model & the tag-manager (foundation built — Phase 4)
 The tag already reads `aqua-cookie-preferences` and gates analytics on it

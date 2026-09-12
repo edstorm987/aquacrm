@@ -267,15 +267,51 @@ export function clearAgencyWebsiteTelemetry(agencyId: string, actorUserId: strin
   return updated;
 }
 
+export interface AgencyWebsiteTelemetryWriteScope {
+  agencyId: string;
+  siteKey: string;
+  siteId: string;
+  host: string;
+  keyClass: "public" | "agency-website";
+}
+
+function telemetryHost(value: string | undefined): string {
+  if (!value) return "";
+  try { return new URL(value).hostname.toLowerCase().replace(/^www\./, ""); }
+  catch { return ""; }
+}
+
+function agencyWebsiteMatchesTelemetryScope(
+  project: AgencyWebsiteProject,
+  scope: AgencyWebsiteTelemetryWriteScope,
+): boolean {
+  if (project.agencyId !== scope.agencyId) return false;
+  if (scope.keyClass === "public") {
+    return Boolean(publicAquaSite(scope.siteKey)) && scope.siteId === `public:${scope.siteKey}`;
+  }
+  if (project.telemetrySiteKey !== scope.siteKey) return false;
+  if (scope.keyClass !== "agency-website" || scope.siteId !== `agency-website:${scope.agencyId}`) return false;
+  return [project.productionUrl, process.env.NODE_ENV === "production" ? undefined : project.previewUrl]
+    .some(value => telemetryHost(value) === scope.host);
+}
+
 export function recordAgencyWebsiteTelemetry(
   siteKey: string,
   input: Record<string, unknown>,
   userAgent?: string,
+  resolvedScope?: AgencyWebsiteTelemetryWriteScope,
 ): { status: "recorded"; agencyId: string; event: AgencyWebsiteTelemetryEvent } | { status: "rate-limited" } | null {
   const publicSite = publicAquaSite(siteKey);
-  const project = publicSite
-    ? ensurePrimaryAgencyWebsite()
-    : Object.values(getState().agencyWebsites).find(item => item.telemetrySiteKey === siteKey);
+  const state = getState();
+  const matchingProjects = Object.values(state.agencyWebsites).filter(item => item.telemetrySiteKey === siteKey);
+  const scopedProject = resolvedScope
+    ? resolvedScope.siteKey === siteKey
+      ? state.agencyWebsites[resolvedScope.agencyId] ?? (publicSite ? ensurePrimaryAgencyWebsite() : null)
+      : null
+    : null;
+  const project = resolvedScope
+    ? scopedProject && agencyWebsiteMatchesTelemetryScope(scopedProject, resolvedScope) ? scopedProject : null
+    : publicSite ? ensurePrimaryAgencyWebsite() : matchingProjects.length === 1 ? matchingProjects[0] : null;
   if (!project) return null;
   const minuteAgo = Date.now() - 60_000;
   const propertyId = publicSite
@@ -321,13 +357,20 @@ export function recordAgencyWebsiteTelemetry(
     consentMarketing: cleanBoolean(input.consentMarketing),
     userAgent: cleanText(userAgent, 400),
   };
+  let writeAccepted = false;
   mutate(state => {
     const stored = state.agencyWebsites[project.agencyId];
-    if (!stored || (!publicSite && stored.telemetrySiteKey !== siteKey)) return;
+    if (
+      !stored
+      || (!publicSite && stored.telemetrySiteKey !== siteKey)
+      || (resolvedScope && !agencyWebsiteMatchesTelemetryScope(stored, resolvedScope))
+    ) return;
+    writeAccepted = true;
     stored.telemetryEvents = [event, ...stored.telemetryEvents].slice(0, MAX_EVENTS);
     stored.telemetryLastSeenAt = now;
     stored.updatedAt = now;
   });
+  if (!writeAccepted) return null;
   if (["error", "deployment", "form", "conversion", "search", "chatbot", "interaction", "custom"].includes(event.type)) {
     logActivity({
       agencyId: project.agencyId,

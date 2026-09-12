@@ -91,7 +91,8 @@ export async function POST(req: NextRequest) {
   const siteKey = clean(body.siteKey, 160);
   if (!siteKey) return json({ ok: false, error: "siteKey required" }, 400, requestedOrigin);
   await ensureHydrated({ fresh: true });
-  if (!resolveAquaTagAdmissionScope(siteKey, requestedOrigin)) {
+  const scope = resolveAquaTagAdmissionScope(siteKey, requestedOrigin);
+  if (!scope) {
     return json({ ok: false, error: "origin is not registered for this site" }, 403, null);
   }
   const publicSite = publicAquaSite(siteKey);
@@ -114,8 +115,27 @@ export async function POST(req: NextRequest) {
   }
 
   const userAgent = req.headers.get("user-agent") ?? undefined;
-  const recorded = recordClientTelemetry(siteKey, telemetry, userAgent)
-    ?? recordAgencyWebsiteTelemetry(siteKey, telemetry, userAgent);
+  // Resolution is the authority. Never rediscover an owner from the public key
+  // inside a sink: duplicate keys on different tenants otherwise make `.find()`
+  // write to whichever client happens to be enumerated first.
+  const recorded = scope.keyClass === "client-telemetry" && scope.clientId
+    ? recordClientTelemetry(siteKey, telemetry, userAgent, {
+        agencyId: scope.agencyId,
+        clientId: scope.clientId,
+        siteKey: scope.siteKey,
+        siteId: scope.siteId,
+        host: scope.host,
+        keyClass: scope.keyClass,
+      })
+    : scope.keyClass === "public" || scope.keyClass === "agency-website"
+      ? recordAgencyWebsiteTelemetry(siteKey, telemetry, userAgent, {
+          agencyId: scope.agencyId,
+          siteKey: scope.siteKey,
+          siteId: scope.siteId,
+          host: scope.host,
+          keyClass: scope.keyClass,
+        })
+      : null;
   if (!recorded) return json({ ok: false, error: "unknown site" }, 404, requestedOrigin);
   if (recorded.status === "rate-limited") {
     return json({ ok: false, error: "signal limit reached" }, 429, requestedOrigin);

@@ -122,11 +122,7 @@ export function createSubmissionStoreModel() {
     return { data, error: null };
   }
 
-  function rpc(fn, args) {
-    if (state.mode === "legacy") return { data: null, error: MISSING_FUNCTION(fn) };
-    const fault = consumeFault(`rpc:${fn}`, args);
-    if (fault?.mode === "throw") throw new Error(fault.message ?? `forced ${fn} transport failure`);
-    if (fault) return { data: null, error: { code: "XX000", message: fault.message ?? `forced ${fn} failure` } };
+  function invokeRpc(fn, args) {
     if (fn === "ingest_aqua_tag_submission") return ingest(args);
     if (fn === "claim_aqua_tag_capture") return claimCapture(args);
     if (fn === "complete_aqua_tag_capture") return completeCapture(args);
@@ -134,7 +130,30 @@ export function createSubmissionStoreModel() {
     if (fn === "claim_aqua_tag_submission_work") return claim(args);
     if (fn === "checkpoint_aqua_tag_submission_work") return checkpoint(args);
     if (fn === "settle_aqua_tag_submission_work") return settle(args);
-    return { data: null, error: MISSING_FUNCTION(fn) };
+    return { data: null, error: MISSING_FUNCTION(fn), status: 404 };
+  }
+
+  function rpc(fn, args) {
+    if (state.mode === "legacy") return { data: null, error: MISSING_FUNCTION(fn), status: 404 };
+    const fault = consumeFault(`rpc:${fn}`, args);
+    if (fault?.mode === "throw") throw new Error(fault.message ?? `forced ${fn} transport failure`);
+    if (fault?.mode === "status-zero-after") {
+      const outcome = invokeRpc(fn, args);
+      if (outcome.error) return outcome;
+      return {
+        data: null,
+        error: { code: "FETCH_ERROR", message: fault.message ?? `lost ${fn} response after a possible commit` },
+        status: 0,
+      };
+    }
+    if (fault) {
+      return {
+        data: null,
+        error: { code: "XX000", message: fault.message ?? `forced ${fn} failure` },
+        status: Number.isInteger(fault.status) ? fault.status : 400,
+      };
+    }
+    return invokeRpc(fn, args);
   }
 
   function mergeFacts(existing, incoming) {
@@ -263,7 +282,14 @@ export function createSubmissionStoreModel() {
     const id = args.p_submission_id;
     const siteKey = args.p_site_key;
     const digest = args.p_capture_digest;
-    if (!scope || !SUBMISSION_ID.test(String(id ?? "")) || !siteKey || !/^[a-f0-9]{64}$/.test(String(digest ?? ""))) {
+    const legacyFingerprint = args.p_legacy_capture_fingerprint;
+    if (
+      !scope
+      || !SUBMISSION_ID.test(String(id ?? ""))
+      || !siteKey
+      || !/^[a-f0-9]{64}$/.test(String(digest ?? ""))
+      || !/^[a-f0-9]{64}$/.test(String(legacyFingerprint ?? ""))
+    ) {
       return { data: null, error: { code: "P0001", message: "aqua tag capture identity is invalid" } };
     }
     const storageKey = key(scope, id);
@@ -272,10 +298,21 @@ export function createSubmissionStoreModel() {
     if (row.site_key !== siteKey) {
       return { data: null, error: { code: CONFLICT_CODE, message: "aqua_tag_submission_conflict:siteKey" } };
     }
+    if (row.tag_capture_receipt) {
+      if (row.tag_capture_digest && row.tag_capture_digest !== digest) {
+        return { data: null, error: { code: CONFLICT_CODE, message: "aqua_tag_submission_conflict:captureDigest" } };
+      }
+      if (!row.tag_capture_digest && row.facts?.captureFingerprint !== legacyFingerprint) {
+        return { data: null, error: { code: CONFLICT_CODE, message: "aqua_tag_submission_conflict:legacyCaptureFingerprint" } };
+      }
+      return { data: { kind: "replay", receipt: clone(row.tag_capture_receipt) }, error: null };
+    }
+    if (row.tag_capture_status === "legacy-review") {
+      return { data: { kind: "unavailable", reason: "legacy_aqua_tag_capture_requires_evidence_backfill" }, error: null };
+    }
     if (row.tag_capture_digest && row.tag_capture_digest !== digest) {
       return { data: null, error: { code: CONFLICT_CODE, message: "aqua_tag_submission_conflict:captureDigest" } };
     }
-    if (row.tag_capture_receipt) return { data: { kind: "replay", receipt: clone(row.tag_capture_receipt) }, error: null };
     if (row.tag_capture_status === "processing" && Date.parse(row.tag_capture_lease_expires_at ?? "1970-01-01") > now()) {
       return { data: { kind: "pending", retryAfterMs: 25 }, error: null };
     }
@@ -435,6 +472,34 @@ export function createSubmissionStoreModel() {
     injectFault(fault) { state.faults.push({ times: 1, ...fault }); },
     recordEffect(entry) { state.effects.push({ ...entry, at: now() }); },
     setMaxAttempts(scope, id, max) { const row = state.submissions.get(key(scope, id)); if (row) row.max_attempts = max; },
+    seedLegacyCapture({ tenantScope, submissionId, siteKey, legacyFingerprint, brand = null }) {
+      const row = blankSubmission(tenantScope, submissionId, siteKey);
+      const enquiryId = `enq_${++state.sequence}`;
+      row.enquiry_id = enquiryId;
+      row.facts = { captureFingerprint: legacyFingerprint, pagePath: "/contact" };
+      row.capture = { submissionId, siteKey, pagePath: "/contact" };
+      row.brand = brand;
+      state.enquiries.push({ id: enquiryId, metadata: { submissionId, formCapture: row.capture } });
+      state.submissions.set(key(tenantScope, submissionId), row);
+      return clone(row);
+    },
+    applyCaptureClaimUpgrade() {
+      for (const row of state.submissions.values()) {
+        if (!row.capture || row.tag_capture_status || row.tag_capture_receipt) continue;
+        if (row.enquiry_id && !row.brand && /^[a-f0-9]{64}$/.test(row.facts?.captureFingerprint ?? "")) {
+          row.tag_capture_status = "complete";
+          row.tag_capture_receipt = {
+            ok: true,
+            attached: false,
+            submissionId: row.submission_id,
+            enquiryId: row.enquiry_id,
+            boundary: "database",
+          };
+        } else {
+          row.tag_capture_status = "legacy-review";
+        }
+      }
+    },
     submission(scope, id) { return clone(state.submissions.get(key(scope, id)) ?? null); },
     dump() {
       return { enquiries: clone(state.enquiries), submissions: clone([...state.submissions.values()]), effects: clone(state.effects) };
@@ -682,6 +747,7 @@ export function captureBody(submissionId, overrides = {}) {
     agencyId: AGENCY_ID,
     siteKey: SITE_KEY,
     host: "milesymedia.com",
+    challengeHostname: "milesymedia.com",
     keyClass: "public",
     siteId: `public:${SITE_KEY}`,
     propertyId: "milesymedia",
@@ -698,6 +764,16 @@ export function captureBody(submissionId, overrides = {}) {
   const key = `aqua-tag-form-admission:v1\u0000${process.env.AQUA_TAG_ADMISSION_SECRET ?? process.env.PORTAL_SESSION_SECRET ?? ""}`;
   body.admission = `${payload}.${createHmac("sha256", key).update(payload).digest("base64url")}`;
   return body;
+}
+
+export function legacyCaptureFingerprint(body) {
+  return createHash("sha256")
+    .update(JSON.stringify([
+      body.formId ?? "",
+      body.pagePath || "/",
+      (body.fields ?? []).map(field => [field.key, field.value]),
+    ]))
+    .digest("hex");
 }
 
 export function brandBody(submissionId, overrides = {}) {
