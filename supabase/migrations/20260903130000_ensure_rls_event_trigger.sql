@@ -47,8 +47,46 @@ begin
 end;
 $$;
 
-drop event trigger if exists ensure_rls;
-create event trigger ensure_rls
-  on ddl_command_end
-  when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')
-  execute function public.rls_auto_enable();
+-- Do not drop and recreate the hosted trigger. Supabase's managed `postgres`
+-- role is intentionally not a superuser, while the pre-existing dashboard
+-- trigger was provisioned by `supabase_admin`. Recreating it from a normal
+-- migration can therefore fail after the DROP and leave the safety net absent.
+--
+-- A fresh, privileged rebuild may create the trigger here. An unprivileged
+-- rebuild fails closed with an actionable error instead of silently claiming
+-- that RLS auto-enforcement exists.
+do $$
+declare
+  current_role_is_superuser boolean;
+begin
+  if exists (
+    select 1
+    from pg_event_trigger
+    where evtname = 'ensure_rls'
+  ) then
+    return;
+  end if;
+
+  select rolsuper
+    into current_role_is_superuser
+  from pg_roles
+  where rolname = current_user;
+
+  if not coalesce(current_role_is_superuser, false) then
+    raise exception using
+      errcode = '42501',
+      message = 'ensure_rls is absent and must be provisioned by a Supabase superuser',
+      hint = 'Run this migration as supabase_admin; do not bypass the RLS event-trigger control.';
+  end if;
+
+  execute format(
+    'alter function public.rls_auto_enable() owner to %I',
+    current_user
+  );
+  execute $create_trigger$
+    create event trigger ensure_rls
+      on ddl_command_end
+      when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')
+      execute function public.rls_auto_enable()
+  $create_trigger$;
+end $$;
