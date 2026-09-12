@@ -19,9 +19,9 @@ test("every table the migrations create is expected, and the one they drop is no
     "app_datastore_history", "inbox_channel_connections", "inbox_contact_identities",
     "inbox_conversations", "inbox_messages", "inbox_webhook_events", "editor_ai_reply_claims",
     "lead_conversion_operations", "product_workspace_leases", "app_datastore_patch_receipts",
-    "aqua_tag_submissions",
+    "aqua_tag_submissions", "aqua_auth_nonces",
   ]) assert.ok(tables.has(name), `expected table ${name}`);
-  assert.equal(tables.size, 22);
+  assert.equal(tables.size, 23);
   // 20260731133000 drops the first app_datastores; 20260807010000 restores it.
   assert.equal(tables.get("app_datastores"), "20260807010000_restore_aquacrm_datastore.sql");
 });

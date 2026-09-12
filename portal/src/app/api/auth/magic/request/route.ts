@@ -22,6 +22,10 @@ import {
   runBoundedPublicAuthDelivery,
   waitForPublicAuthResponseWindow,
 } from "@/lib/server/auth/publicAuthDelivery";
+import {
+  preparePublicAuthLinkDelivery,
+  recordPublicAuthLinkDelivery,
+} from "@/server/publicAuthLinkDelivery";
 
 interface Body { email?: unknown; clientId?: unknown; returnUrl?: unknown; captchaToken?: unknown; }
 
@@ -80,6 +84,8 @@ export async function POST(req: NextRequest) {
 
   // Per-(clientId, email) rate limit so an attacker can't spam the same
   // mailbox from many IPs. This victim-address budget is after human proof.
+  // Cross-instance durable enforcement remains the systemic ABUSE-BASE-001
+  // control; this process-local limiter is only a cheap first boundary.
   const perEmail = rateLimit({ key: `magic-email:${clientId}:${email}`, max: 3, windowMs: 60_000 });
   if (!perEmail.allowed) {
     return NextResponse.json({ ok: false, error: "Too many requests for this email." }, { status: 429 });
@@ -122,19 +128,49 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(ACCEPTED);
   }
 
-  const delivery = await runBoundedPublicAuthDelivery(signal => {
-    const { token } = signMagicToken({
-      email,
-      clientId,
-      agencyId: client.agencyId,
+  const delivery = await runBoundedPublicAuthDelivery(async signal => {
+    const operation = await preparePublicAuthLinkDelivery({
+      kind: "magic-link",
+      userId: member.id,
+      email: member.email,
+      agencyId: member.agencyId,
+      clientId: member.clientId ?? null,
       sessionRev: magicLinkSessionRevision(member),
+      presentation: returnUrl,
+    });
+    const { token } = signMagicToken({
+      email: operation.email,
+      clientId: operation.clientId!,
+      agencyId: operation.agencyId,
+      sessionRev: operation.expectedSessionRev,
+      nonce: operation.tokenNonce,
+      exp: operation.tokenExpiresAt,
     });
     const verifyPath = new URL("/login/magic", publicOrigin);
     verifyPath.searchParams.set("token", token);
-    verifyPath.searchParams.set("return", returnUrl);
-    return deliverMagicLink({
-      email, clientId, agencyId: client.agencyId, magicUrl: verifyPath.toString(), signal,
-    });
+    verifyPath.searchParams.set("return", operation.presentation);
+    try {
+      const result = await deliverMagicLink({
+        email: operation.email,
+        clientId: operation.clientId!,
+        agencyId: operation.agencyId,
+        magicUrl: verifyPath.toString(),
+        operationRef: operation.providerOperationRef,
+        signal,
+      });
+      await recordPublicAuthLinkDelivery(operation.id, operation.generation, {
+        delivered: result.delivered,
+        outcomeUnknown: result.outcomeUnknown,
+        unavailable: result.via === "console" && !result.outcomeUnknown,
+      });
+      return result;
+    } catch {
+      await recordPublicAuthLinkDelivery(operation.id, operation.generation, {
+        delivered: false,
+        outcomeUnknown: true,
+      });
+      throw new Error("magic_link_delivery_failed");
+    }
   }, { startedAt: responseStartedAt, requestSignal: req.signal });
   if (delivery.status !== "complete") logPublicAuthDeliveryFailure("magic", delivery.status);
 

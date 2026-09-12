@@ -36,7 +36,11 @@ export function magicLinkSessionRevision(user: { sessionRev?: number }): number 
   return user.sessionRev ?? 0;
 }
 
-type MagicLinkSubject = Pick<MagicLinkPayload, "email" | "clientId" | "agencyId" | "sessionRev">;
+type MagicLinkSubject = Pick<MagicLinkPayload, "email" | "clientId" | "agencyId" | "sessionRev"> & {
+  /** Durable delivery generations supply these to reconstruct one exact token. */
+  nonce?: string;
+  exp?: number;
+};
 
 function getSecret(): string {
   return resolveSigningSecret();
@@ -51,8 +55,8 @@ function signPurposeToken(input: MagicLinkSubject, purpose: MagicLinkPurpose): {
     email: input.email.trim().toLowerCase(),
     clientId: input.clientId,
     agencyId: input.agencyId,
-    exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS,
-    nonce: crypto.randomBytes(16).toString("base64url"),
+    exp: input.exp ?? Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS,
+    nonce: input.nonce ?? crypto.randomBytes(16).toString("base64url"),
     sessionRev: input.sessionRev,
   };
   const json = JSON.stringify(payload);
@@ -188,6 +192,8 @@ export interface MagicLinkDelivery {
     magicUrl: string;
     /** Stable for retries of this exact token generation; changes for a new token. */
     operationRef: string;
+    /** Public response deadline/caller cancellation reaches every delivery hook. */
+    signal?: AbortSignal;
   }): Promise<void>;
 }
 
@@ -202,6 +208,8 @@ interface MagicLinkDeliveryInput {
   clientId: string;
   agencyId: string;
   magicUrl: string;
+  /** Durable server-side operation identity; never accepted from a request. */
+  operationRef?: string;
   signal?: AbortSignal;
 }
 
@@ -256,9 +264,9 @@ export async function deliverMagicLink(
   input: MagicLinkDeliveryInput,
   dependencies: { sendEmail?: typeof sendTransactionalEmail } = {},
 ): Promise<MagicLinkDeliveryResult> {
-  const operationRef = magicLinkDeliveryOperationRef(input);
+  const operationRef = input.operationRef ?? magicLinkDeliveryOperationRef(input);
   if (delivery) {
-    await delivery({ ...input, operationRef });
+    await delivery({ ...input, operationRef, signal: input.signal });
     return { delivered: true, via: "email-sender", operationRef };
   }
 

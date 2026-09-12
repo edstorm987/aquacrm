@@ -24,6 +24,7 @@ import {
 import { checkSideDoorMfa } from "@/lib/server/auth/mfa";
 import { resolvePostLoginPath } from "@/lib/server/auth/postLoginRedirect";
 import { configuredPublicAuthOrigin } from "@/lib/server/auth/publicAuthOrigin";
+import { markPublicAuthLinkConsumed } from "@/server/publicAuthLinkDelivery";
 
 function err(origin: string, code: string) {
   const url = new URL("/login", origin);
@@ -124,6 +125,22 @@ export async function GET(req: NextRequest) {
   // admission capability explicit in both the signed claim and durable ledger.
   const consumed = await consumePurposeNonce(purpose, nonce, exp);
   if (!consumed) return err(publicOrigin, "already_used");
+  if (purpose === "sign-in") {
+    try {
+      await markPublicAuthLinkConsumed({
+        kind: "magic-link",
+        email,
+        agencyId,
+        clientId,
+        nonce,
+      });
+    } catch {
+      // The durable nonce is already spent. A receipt-write failure must not
+      // strand the person after successful proof, and cannot make this token
+      // reusable; the next request also fences against the session revision.
+      console.error("[public-auth] magic-link consumption receipt failed");
+    }
+  }
 
   // Re-read after the awaited atomic consume so a concurrent redemption cannot
   // race the membership check and create two records.

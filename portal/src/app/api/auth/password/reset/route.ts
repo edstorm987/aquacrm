@@ -19,6 +19,7 @@ import { verifyPasswordResetToken } from "@/lib/server/auth/passwordReset";
 import { validatePassword } from "@/server/users";
 import { logActivity } from "@/server/activity";
 import { executePasswordReset } from "@/server/passwordResetOperation";
+import { markPublicAuthLinkConsumed } from "@/server/publicAuthLinkDelivery";
 
 interface Body {
   token?: unknown;
@@ -71,6 +72,19 @@ export async function POST(req: NextRequest) {
   }
 
   const { user } = completed;
+  try {
+    await markPublicAuthLinkConsumed({
+      kind: "password-reset",
+      email: tok.payload.email,
+      agencyId: user.agencyId,
+      clientId: tok.payload.clientId,
+      nonce: tok.payload.nonce,
+    });
+  } catch {
+    // The completed reset already rotated sessionRev, which invalidates this
+    // generation even if the delivery receipt cannot be marked immediately.
+    console.error("[public-auth] password-reset consumption receipt failed");
+  }
   if (completed.completedNow) {
     logActivity({
       agencyId: user.agencyId,

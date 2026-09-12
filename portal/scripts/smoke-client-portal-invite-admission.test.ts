@@ -42,6 +42,7 @@ type VerifyRoute = typeof import("../src/app/api/auth/magic/verify/route");
 type SetupRoute = typeof import("../src/app/api/portal/customer/setup/route");
 type ControlRoute = typeof import("../src/app/api/tenants/customer-portal-control/route");
 type LoginRoute = typeof import("../src/app/api/auth/login/route");
+type SupabaseAdmin = typeof import("../src/lib/supabase/admin");
 
 let storage: Storage;
 let tenants: Tenants;
@@ -55,6 +56,7 @@ let verifyRoute: VerifyRoute;
 let setupRoute: SetupRoute;
 let controlRoute: ControlRoute;
 let loginRoute: LoginRoute;
+let supabaseAdmin: SupabaseAdmin;
 let supabaseServer: Server | undefined;
 
 interface StubSupabaseUser {
@@ -200,6 +202,7 @@ before(async () => {
     setupRoute,
     controlRoute,
     loginRoute,
+    supabaseAdmin,
   ] = await Promise.all([
     import("../src/server/storage"),
     import("../src/server/tenants"),
@@ -213,6 +216,7 @@ before(async () => {
     import("../src/app/api/portal/customer/setup/route"),
     import("../src/app/api/tenants/customer-portal-control/route"),
     import("../src/app/api/auth/login/route"),
+    import("../src/lib/supabase/admin"),
   ]);
 });
 
@@ -232,6 +236,81 @@ beforeEach(async () => {
   remoteUsers = [];
   remoteCreates = 0;
   remotePasswordUpdates = 0;
+});
+
+describe("admin-only Supabase recovery provenance", () => {
+  it("rejects forged user_metadata for agency signup, unbound reset, staff, and freelancer adoption", async () => {
+    const cases = [
+      { label: "agency-signup", role: "owner" as const },
+      { label: "unbound-reset", role: "owner" as const },
+      { label: "staff", role: "staff" as const },
+      { label: "freelancer", role: "client" as const },
+    ];
+    for (const item of cases) {
+      const operationId = `${item.label}-operation`;
+      const email = `${item.label}@example.test`;
+      remoteUsers = [{
+        id: `remote-${item.label}`,
+        email,
+        app_metadata: {},
+        // Every recovery marker is forged in the subject-editable namespace.
+        user_metadata: {
+          full_name: "Forged Subject",
+          aqua_subject_kind: item.role === "owner" ? "agency-owner" : "agency-staff",
+          aqua_provisioning_operation_id: operationId,
+          aqua_agency_id: "agency-admin-provenance",
+          aqua_profile_role: item.role,
+        },
+        factors: [],
+        passwordMarker: "victim-password-before",
+      }];
+      const updatesBefore = remotePasswordUpdates;
+      await assert.rejects(supabaseAdmin.provisionOrAdoptSupabaseIdentity({
+        email,
+        password: "Attacker-selected-password-123",
+        name: "Expected Subject",
+        role: item.role,
+        agencyId: "agency-admin-provenance",
+        operationId,
+      }), /was not created by this provisioning operation/);
+      assert.equal(remotePasswordUpdates, updatesBefore, item.label);
+      assert.equal(remoteUsers[0]?.passwordMarker, "victim-password-before", item.label);
+    }
+  });
+
+  it("writes operation authority only to app_metadata and adopts only that exact admin marker", async () => {
+    const operationId = "legitimate-staff-operation";
+    const created = await supabaseAdmin.provisionOrAdoptSupabaseIdentity({
+      email: "legitimate-staff@example.test",
+      password: "First-password-123",
+      name: "Legitimate Staff",
+      role: "staff",
+      agencyId: "agency-legitimate-staff",
+      operationId,
+    });
+    assert.equal(created.adopted, false);
+    const remote = remoteUsers[0]!;
+    assert.equal(remote.app_metadata.aqua_subject_kind, "agency-staff");
+    assert.equal(remote.app_metadata.aqua_provisioning_operation_id, operationId);
+    assert.equal(remote.app_metadata.aqua_agency_id, "agency-legitimate-staff");
+    assert.equal(remote.app_metadata.aqua_profile_role, "staff");
+    assert.equal(remote.user_metadata.full_name, "Legitimate Staff");
+    assert.equal(remote.user_metadata.aqua_provisioning_operation_id, undefined);
+    assert.equal(remote.user_metadata.aqua_agency_id, undefined);
+    assert.equal(remote.user_metadata.aqua_profile_role, undefined);
+
+    const adopted = await supabaseAdmin.provisionOrAdoptSupabaseIdentity({
+      email: remote.email,
+      password: "Resumed-password-456",
+      name: "Legitimate Staff",
+      role: "staff",
+      agencyId: "agency-legitimate-staff",
+      operationId,
+    });
+    assert.equal(adopted.adopted, true);
+    assert.equal(remotePasswordUpdates, 1);
+    assert.equal(remote.passwordMarker, "Resumed-password-456");
+  });
 });
 
 async function fixture() {

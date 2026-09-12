@@ -29,7 +29,7 @@ const STORE = join(ROOT, "src", "lib", "server", "auth", "nonceStore.ts");
 const RATE_LIMIT = join(ROOT, "src", "lib", "server", "rateLimit.ts");
 const MAGIC_VERIFY = join(ROOT, "src", "app", "api", "auth", "magic", "verify", "route.ts");
 const VERIFY_EMAIL = join(ROOT, "src", "app", "api", "auth", "verify-email", "route.ts");
-const MIGRATION = join(ROOT, "..", "supabase", "migrations", "20260912140000_durable_auth_nonces.sql");
+const MIGRATION = join(ROOT, "..", "supabase", "migrations", "20260912150000_durable_auth_nonces.sql");
 
 describe("Durable nonce store — memory adapter (R028)", () => {
   it("first consume returns true", async () => {

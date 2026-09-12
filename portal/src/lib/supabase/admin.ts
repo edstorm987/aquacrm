@@ -83,6 +83,16 @@ function clientPortalAppMetadata(binding: ClientPortalIdentityBinding) {
   };
 }
 
+function provisioningAppMetadata(input: ProvisionIdentityInput) {
+  if (!input.operationId) return {};
+  return {
+    aqua_subject_kind: input.role === "owner" ? "agency-owner" : "agency-staff",
+    aqua_provisioning_operation_id: input.operationId,
+    aqua_agency_id: input.agencyId?.trim() || null,
+    aqua_profile_role: input.role,
+  };
+}
+
 async function upsertSupabaseProfile(
   admin: ReturnType<typeof createSupabaseAdminClient>,
   userId: string,
@@ -122,12 +132,8 @@ export async function provisionSupabaseIdentity(input: ProvisionIdentityInput) {
     email_confirm: true,
     user_metadata: {
       full_name: input.name?.trim() || email.split("@")[0],
-      ...(input.operationId ? {
-        aqua_provisioning_operation_id: input.operationId,
-        aqua_agency_id: input.agencyId?.trim() || null,
-        aqua_profile_role: input.role,
-      } : {}),
     },
+    app_metadata: provisioningAppMetadata(input),
   });
   if (error || !data.user) {
     throw new Error(error?.message ?? "Could not create the Supabase sign-in.");
@@ -289,12 +295,12 @@ export async function provisionOrAdoptSupabaseIdentity(input: ProvisionIdentityI
     return { user: await provisionSupabaseIdentity(input), adopted: false };
   }
 
-  const metadata = existing.user_metadata ?? {};
-  if (
-    metadata.aqua_provisioning_operation_id !== input.operationId
-    || metadata.aqua_agency_id !== (input.agencyId?.trim() || null)
-    || metadata.aqua_profile_role !== input.role
-  ) {
+  // Recovery provenance is admin-only authority. Supabase users may edit
+  // `user_metadata` themselves, so matching subject-supplied fields here would
+  // let an unrelated account adopt an agency signup/staff/reset operation.
+  const metadata = existing.app_metadata ?? {};
+  const expected = provisioningAppMetadata(input);
+  if (!Object.entries(expected).every(([key, value]) => metadata[key] === value)) {
     throw new Error("A Supabase sign-in already exists for that email and was not created by this provisioning operation.");
   }
 
@@ -303,7 +309,7 @@ export async function provisionOrAdoptSupabaseIdentity(input: ProvisionIdentityI
     password: input.password,
     email_confirm: true,
     user_metadata: {
-      ...metadata,
+      ...(existing.user_metadata ?? {}),
       full_name: input.name?.trim() || email.split("@")[0],
     },
   });

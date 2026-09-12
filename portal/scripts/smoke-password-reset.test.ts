@@ -214,8 +214,8 @@ describe("Password reset — file structure (R038)", () => {
       "passwordReset.ts must not import 'server-only' — smoke driver imports it");
   });
 
-  it("/api/auth/password/request-reset/route.ts rate-limits + no-leak", () => {
-    const p = join(ROOT, "src", "app", "api", "auth", "password", "request-reset", "route.ts");
+  it("/api/auth/password/request-reset handler rate-limits + no-leak", () => {
+    const p = join(ROOT, "src", "app", "api", "auth", "password", "request-reset", "handler.ts");
     assert.equal(existsSync(p), true);
     const src = readFileSync(p, "utf8");
     assert.ok(src.includes("rateLimit"));
@@ -228,9 +228,17 @@ describe("Password reset — file structure (R038)", () => {
     // matching the success branch shape so a probing attacker can't
     // distinguish "email exists" from "email doesn't".
     assert.ok(
-      /if \(!user\)[\s\S]*?return NextResponse\.json\(\s*\{\s*ok:\s*true\s*\}/.test(src),
+      /if \(!user\)[\s\S]*?return NextResponse\.json\(ACCEPTED\)/.test(src),
       "missing user must still return ok:true (no enumeration leak)",
     );
+
+    const route = readFileSync(
+      join(ROOT, "src", "app", "api", "auth", "password", "request-reset", "route.ts"),
+      "utf8",
+    );
+    assert.match(route, /export (?:async )?function POST/);
+    assert.doesNotMatch(route, /export async function handlePasswordResetRequest/,
+      "Next route modules must not export the injectable implementation seam");
   });
 
   it("/api/auth/password/reset/route.ts verifies + consumes + commits a durable exact-user reset", () => {

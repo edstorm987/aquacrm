@@ -4544,6 +4544,45 @@ export type AgencySignupStage =
 
 export type AgencySignupDeliveryStatus = "pending" | "delivered" | "failed";
 
+export type PublicAuthLinkKind = "magic-link" | "password-reset";
+export type PublicAuthLinkDeliveryStatus = "pending" | "delivered" | "failed" | "consumed";
+
+/**
+ * Durable delivery generation for one exact public-auth subject.
+ *
+ * The signed bearer is deliberately not persisted. `tokenNonce`, expiry, and
+ * the authoritative subject claims are enough for the server to reconstruct
+ * the same HMAC token after a lost/ambiguous provider response. A generation
+ * changes only after expiry, consumption, or a session-epoch change, so retries
+ * cannot leave several simultaneously valid links in different inbox messages.
+ */
+export interface PublicAuthLinkDeliveryOperation {
+  id: string;
+  kind: PublicAuthLinkKind;
+  userId: string;
+  email: string;
+  agencyId: string;
+  clientId: string | null;
+  expectedSessionRev: number;
+  /** Non-secret presentation context: safe return path or stable brand id. */
+  presentation: string;
+  generation: number;
+  tokenNonce: string;
+  tokenExpiresAt: number;
+  providerOperationRef: string;
+  deliveryStatus: PublicAuthLinkDeliveryStatus;
+  deliveryAttempts: number;
+  deliveryLastAttemptAt?: number;
+  deliveryExternalMessageId?: string;
+  /** Stable internal category only; never provider text or subject data. */
+  deliveryLastError?: "provider_failed" | "delivery_unavailable";
+  deliveryOutcomeUnknown?: boolean;
+  deliveredAt?: number;
+  consumedAt?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export type PasswordResetOperationStatus = "accepted" | "provider-applied" | "complete";
 
 /** Durable checkpoint joining one mailbox reset proof to provider + local state. */
@@ -4617,7 +4656,8 @@ export interface AgencySignupOperation {
   deliveryAttempts: number;
   deliveryLastAttemptAt?: number;
   deliveryExternalMessageId?: string;
-  deliveryLastError?: string;
+  /** Stable internal category only; never provider response text. */
+  deliveryLastError?: "provider_failed" | "delivery_unavailable";
   /** Retry the same provider idempotency key after an ambiguous response. */
   deliveryOutcomeUnknown?: boolean;
   setupNonce?: string;
@@ -5215,6 +5255,7 @@ export interface PortalState {
   peopleTrainingModules: Record<string, PeopleTrainingModule>;
   staffProvisioningOperations: Record<string, StaffProvisioningOperation>;
   agencySignupOperations: Record<string, AgencySignupOperation>;
+  publicAuthLinkDeliveryOperations: Record<string, PublicAuthLinkDeliveryOperation>;
   passwordResetOperations: Record<string, PasswordResetOperation>;
   clientPortalSetupOperations: Record<string, ClientPortalSetupOperation>;
   // Durable checkpoints for client-website provision/publish/deploy, so a retry

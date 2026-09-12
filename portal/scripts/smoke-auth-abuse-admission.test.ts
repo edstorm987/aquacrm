@@ -10,7 +10,7 @@ process.env.PORTAL_SESSION_SECRET = "abuse-admission-smoke-secret";
 import { POST as signupPOST } from "../src/app/api/auth/signup/route";
 import { GET as verifyEmailGET } from "../src/app/api/auth/verify-email/route";
 import { POST as passwordResetPOST } from "../src/app/api/auth/password/request-reset/route";
-import { handlePasswordResetRequest } from "../src/app/api/auth/password/request-reset/route";
+import { handlePasswordResetRequest } from "../src/app/api/auth/password/request-reset/handler";
 import { POST as magicRequestPOST } from "../src/app/api/auth/magic/request/route";
 import {
   activateAgencySignup,
@@ -24,7 +24,7 @@ import {
 import { consumeVerifyNonce, verifyVerifyEmailToken } from "../src/lib/server/auth/emailVerification";
 import { __resetBotChallengeForTest } from "../src/lib/server/security/botChallenge";
 import { _createMemoryAdapterForTests, _swapStoreForTests } from "../src/lib/server/auth/nonceStore";
-import { reset } from "../src/server/storage";
+import { getState, reset } from "../src/server/storage";
 import { bindSupabaseAuthIdentity, createUser, getUser } from "../src/server/users";
 import { createAgency, createClient, getAgency, listAgencies } from "../src/server/tenants";
 import { SESSION_COOKIE_NAME } from "../src/lib/server/auth/auth";
@@ -617,6 +617,83 @@ describe("agency owner mailbox-first state machine", () => {
 });
 
 describe("public mailbox request anti-enumeration", () => {
+  it("magic and reset timeout retries reuse one bearer, one provider key, and carry AbortSignal", async () => {
+    const agency = createAgency({ name: "Durable Delivery Agency" });
+    const client = createClient(agency.id, { name: "Durable Delivery Client" });
+    const email = "durable-delivery@example.test";
+    createUser({
+      email,
+      password: "Customer-password-123",
+      role: "end-customer",
+      agencyId: agency.id,
+      clientId: client.id,
+    });
+    const oldNodeEnv = process.env.NODE_ENV;
+    const oldOrigin = process.env.NEXT_PUBLIC_PORTAL_BASE_URL;
+    process.env.NODE_ENV = "production";
+    process.env.NEXT_PUBLIC_PORTAL_BASE_URL = "https://portal.example.com";
+
+    const magicCalls: Array<{ magicUrl: string; operationRef: string; signal?: AbortSignal }> = [];
+    registerMagicLinkDelivery(async input => {
+      magicCalls.push(input);
+      if (magicCalls.length === 1) await new Promise(resolve => setTimeout(resolve, 30));
+    });
+    try {
+      const firstMagic = await magicRequestPOST(jsonRequest(
+        "/api/auth/magic/request",
+        { email, clientId: client.id, captchaToken: "valid:magic-link-request:durable-1" },
+        "43.1.0.1",
+      ));
+      assert.deepEqual(await firstMagic.json(), { ok: true, sent: true });
+      assert.equal(magicCalls[0]?.signal?.aborted, true, "the response window abort reaches the typed hook");
+      const secondMagic = await magicRequestPOST(jsonRequest(
+        "/api/auth/magic/request",
+        { email, clientId: client.id, returnUrl: "/changed", captchaToken: "valid:magic-link-request:durable-2" },
+        "43.1.0.2",
+      ));
+      assert.deepEqual(await secondMagic.json(), { ok: true, sent: true });
+      assert.equal(magicCalls.length, 2);
+      assert.equal(magicCalls[0]?.magicUrl, magicCalls[1]?.magicUrl);
+      assert.equal(magicCalls[0]?.operationRef, magicCalls[1]?.operationRef);
+
+      const resetCalls: Array<{ externalRef: string; bodyText: string; signal?: AbortSignal }> = [];
+      type ResetDependencies = NonNullable<Parameters<typeof handlePasswordResetRequest>[1]>;
+      const sendEmail: NonNullable<ResetDependencies["sendEmail"]> = async input => {
+        resetCalls.push({ externalRef: input.externalRef, bodyText: input.bodyText, signal: input.signal });
+        if (resetCalls.length === 1) await new Promise(resolve => setTimeout(resolve, 30));
+        return { delivered: true, via: "resend" as const };
+      };
+      const firstReset = await handlePasswordResetRequest(jsonRequest(
+        "/api/auth/password/request-reset",
+        { email, clientId: client.id, captchaToken: "valid:password-reset-request:durable-1" },
+        "43.1.1.1",
+      ), { sendEmail });
+      assert.deepEqual(await firstReset.json(), { ok: true });
+      assert.equal(resetCalls[0]?.signal?.aborted, true);
+      const secondReset = await handlePasswordResetRequest(jsonRequest(
+        "/api/auth/password/request-reset",
+        { email, clientId: client.id, brand: "milesymedia", captchaToken: "valid:password-reset-request:durable-2" },
+        "43.1.1.2",
+      ), { sendEmail });
+      assert.deepEqual(await secondReset.json(), { ok: true });
+      assert.equal(resetCalls.length, 2);
+      assert.equal(resetCalls[0]?.externalRef, resetCalls[1]?.externalRef);
+      const resetUrl = (resetCalls[0]?.bodyText.match(/https:\/\/\S+/)?.[0]) ?? "";
+      const retryUrl = (resetCalls[1]?.bodyText.match(/https:\/\/\S+/)?.[0]) ?? "";
+      assert.equal(resetUrl, retryUrl);
+      await new Promise(resolve => setTimeout(resolve, 40));
+      const operations = Object.values(getState().publicAuthLinkDeliveryOperations);
+      assert.equal(operations.filter(operation => operation.kind === "magic-link").length, 1);
+      assert.equal(operations.filter(operation => operation.kind === "password-reset").length, 1);
+      assert.ok(operations.every(operation => operation.generation === 1));
+    } finally {
+      registerMagicLinkDelivery(null);
+      if (oldNodeEnv === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = oldNodeEnv;
+      if (oldOrigin === undefined) delete process.env.NEXT_PUBLIC_PORTAL_BASE_URL;
+      else process.env.NEXT_PUBLIC_PORTAL_BASE_URL = oldOrigin;
+    }
+  });
+
   it("password reset carries an exact client audience and never falls back to a same-email owner", async () => {
     const agency = createAgency({ name: "Scoped Reset Agency" });
     const client = createClient(agency.id, { name: "Scoped Reset Client" });
@@ -724,12 +801,104 @@ describe("public mailbox request anti-enumeration", () => {
       else process.env.NODE_ENV = prior;
     }
   });
+
+  it("makes existing, fresh, provider-error, and provider-timeout signup paths share one bounded window", async () => {
+    const agency = createAgency({ name: "Timing Existing Agency" });
+    createUser({
+      email: "timing-existing@example.test",
+      password: "Existing-password-123",
+      role: "agency-owner",
+      agencyId: agency.id,
+    });
+    const oldNodeEnv = process.env.NODE_ENV;
+    const oldOrigin = process.env.NEXT_PUBLIC_PORTAL_BASE_URL;
+    const oldKey = process.env.RESEND_API_KEY;
+    const oldFrom = process.env.AQUACRM_AUTH_FROM_EMAIL;
+    const oldWindow = process.env.PUBLIC_AUTH_RESPONSE_WINDOW_MS;
+    const priorFetch = globalThis.fetch;
+    process.env.NODE_ENV = "production";
+    process.env.NEXT_PUBLIC_PORTAL_BASE_URL = "https://portal.example.com";
+    process.env.RESEND_API_KEY = "local-test-key";
+    process.env.AQUACRM_AUTH_FROM_EMAIL = "auth@example.com";
+    process.env.PUBLIC_AUTH_RESPONSE_WINDOW_MS = "25";
+    globalThis.fetch = (async (input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      if (url.includes("challenges.cloudflare.com/turnstile")) {
+        const token = new URLSearchParams(String(init?.body ?? "")).get("response") ?? "";
+        return new Response(JSON.stringify({
+          success: true,
+          action: challengeAction(token),
+          hostname: "localhost",
+          challenge_ts: new Date().toISOString(),
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url === "https://api.resend.com/emails") {
+        const request = JSON.parse(String(init?.body ?? "{}")) as { to?: string[] };
+        const recipient = request.to?.[0] ?? "";
+        if (recipient.includes("timeout")) return new Promise<Response>(() => undefined);
+        if (recipient.includes("error")) throw new Error("private provider detail");
+        return new Response(JSON.stringify({ id: "local-message-id" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      throw new Error(`unexpected local-only fetch: ${url}`);
+    }) as typeof fetch;
+    try {
+      const scenarios = [
+        ["timing-existing@example.test", "existing"],
+        ["timing-fresh@example.test", "fresh"],
+        ["timing-error@example.test", "error"],
+        ["timing-timeout@example.test", "timeout"],
+      ] as const;
+      const results: Array<{ elapsed: number; status: number; body: string }> = [];
+      for (let index = 0; index < scenarios.length; index += 1) {
+        const [email, name] = scenarios[index]!;
+        const startedAt = performance.now();
+        const response = await signupPOST(jsonRequest(
+          "/api/auth/signup",
+          {
+            companyName: `Timing ${name}`,
+            email,
+            captchaToken: `valid:agency-signup:timing-${index}`,
+          },
+          `43.2.0.${index + 1}`,
+        ));
+        results.push({ elapsed: performance.now() - startedAt, status: response.status, body: await response.text() });
+      }
+      assert.ok(results.every(result => result.status === 202));
+      assert.equal(new Set(results.map(result => result.body)).size, 1);
+      assert.ok(results.every(result => result.elapsed >= 20), JSON.stringify(results));
+      assert.ok(Math.max(...results.map(result => result.elapsed)) - Math.min(...results.map(result => result.elapsed)) < 35,
+        JSON.stringify(results));
+      const timeoutOperation = getAgencySignupOperation("timing-timeout@example.test");
+      assert.ok(timeoutOperation);
+      assert.doesNotMatch(JSON.stringify(timeoutOperation), /private provider detail/);
+      const errorOperation = getAgencySignupOperation("timing-error@example.test");
+      assert.equal(errorOperation?.deliveryLastError, "provider_failed");
+      assert.ok(
+        errorOperation?.deliveryLastError === undefined
+          || ["provider_failed", "delivery_unavailable"].includes(errorOperation.deliveryLastError),
+        "persisted signup errors are stable categories only",
+      );
+    } finally {
+      globalThis.fetch = priorFetch;
+      if (oldNodeEnv === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = oldNodeEnv;
+      if (oldOrigin === undefined) delete process.env.NEXT_PUBLIC_PORTAL_BASE_URL;
+      else process.env.NEXT_PUBLIC_PORTAL_BASE_URL = oldOrigin;
+      if (oldKey === undefined) delete process.env.RESEND_API_KEY; else process.env.RESEND_API_KEY = oldKey;
+      if (oldFrom === undefined) delete process.env.AQUACRM_AUTH_FROM_EMAIL;
+      else process.env.AQUACRM_AUTH_FROM_EMAIL = oldFrom;
+      if (oldWindow === undefined) delete process.env.PUBLIC_AUTH_RESPONSE_WINDOW_MS;
+      else process.env.PUBLIC_AUTH_RESPONSE_WINDOW_MS = oldWindow;
+    }
+  });
 });
 
 describe("source-level order and truthful invitation affordances", () => {
   it("challenge checks precede subject budgets, lookup and work on all three request routes", () => {
     const signup = readFileSync("src/app/api/auth/signup/route.ts", "utf8");
-    const reset = readFileSync("src/app/api/auth/password/request-reset/route.ts", "utf8");
+    const reset = readFileSync("src/app/api/auth/password/request-reset/handler.ts", "utf8");
     const magic = readFileSync("src/app/api/auth/magic/request/route.ts", "utf8");
     const accountStart = signup.indexOf("async function handleAccountSignup");
     const account = signup.slice(accountStart);

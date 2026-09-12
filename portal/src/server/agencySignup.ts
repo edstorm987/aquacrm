@@ -45,8 +45,8 @@ export interface PreparedAgencySignup {
 export interface AgencySignupDeliveryResult {
   delivered: boolean;
   externalMessageId?: string;
-  error?: string;
   outcomeUnknown?: boolean;
+  unavailable?: boolean;
 }
 
 export interface AgencySignupActivationDependencies {
@@ -303,7 +303,9 @@ export async function recordAgencySignupDelivery(
       ...operation,
       deliveryStatus: result.delivered ? "delivered" : "failed",
       deliveryExternalMessageId: result.delivered ? result.externalMessageId : undefined,
-      deliveryLastError: result.delivered ? undefined : (result.error ?? "Verification email delivery failed.").slice(0, 500),
+      deliveryLastError: result.delivered
+        ? undefined
+        : result.unavailable ? "delivery_unavailable" : "provider_failed",
       deliveryOutcomeUnknown: result.delivered ? undefined : result.outcomeUnknown === true,
       updatedAt: now,
     });

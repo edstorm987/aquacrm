@@ -68,6 +68,11 @@ import {
   configuredPublicAuthOrigin,
   isExactConfiguredRequestOrigin,
 } from "@/lib/server/auth/publicAuthOrigin";
+import {
+  logPublicAuthDeliveryFailure,
+  runBoundedPublicAuthDelivery,
+  waitForPublicAuthResponseWindow,
+} from "@/lib/server/auth/publicAuthDelivery";
 
 interface Body {
   companyName?: unknown;
@@ -252,6 +257,8 @@ async function handleWebsiteLead(req: NextRequest): Promise<NextResponse> {
 
   // Only a human-verified submission may spend another person's address
   // budget. This is intentionally before tenant lookup and lead mutation.
+  // Cross-instance durable victim-address enforcement remains the systemic
+  // ABUSE-BASE-001 control; this process-local limiter is only a first bound.
   const emailLimit = rateLimit({
     key: `website-lead-signup-email:${email}`,
     max: 3,
@@ -470,6 +477,8 @@ async function handleAccountSignup(req: NextRequest) {
     );
   }
 
+  // Cross-instance durable victim-address enforcement remains the systemic
+  // ABUSE-BASE-001 control; this process-local limiter is only a first bound.
   const emailLimit = rateLimit({
     key: `agency-signup-email:${email}`,
     max: 3,
@@ -482,8 +491,15 @@ async function handleAccountSignup(req: NextRequest) {
     );
   }
 
-  const publicOrigin = configuredPublicAuthOrigin();
+  const responseStartedAt = Date.now();
+  let publicOrigin: string | null = null;
+  try {
+    publicOrigin = configuredPublicAuthOrigin();
+  } catch {
+    // Keep configuration faults on the generic accepted path.
+  }
   if (!publicOrigin) {
+    await waitForPublicAuthResponseWindow(responseStartedAt);
     return NextResponse.json({
       ok: true,
       accepted: true,
@@ -491,44 +507,55 @@ async function handleAccountSignup(req: NextRequest) {
     }, { status: 202 });
   }
 
-  const prepared = await prepareAgencySignup({
-    email,
-    companyName,
-    consent: {
-      acceptedAt: Date.now(),
-      policy: "agency-self-service-terms",
-      version: AGENCY_SIGNUP_TERMS_VERSION,
-      termsUrl: new URL("/terms", publicOrigin).toString(),
-    },
-  });
-  const verifyUrl = prepared.verificationToken
-    ? `${publicOrigin}/api/auth/verify-email?token=${encodeURIComponent(prepared.verificationToken)}`
-    : undefined;
-  if (prepared.shouldDeliver && prepared.operation && verifyUrl) {
-    const fromEmail = (process.env.AQUACRM_AUTH_FROM_EMAIL ?? process.env.MILESYMEDIA_FROM_EMAIL ?? "").trim();
-    const senderName = (process.env.AQUACRM_AUTH_FROM_NAME ?? "AquaCRM").trim();
-    const sent = fromEmail
-      ? await sendResendEmail({
-          to: prepared.operation.email,
-          from: `${senderName} <${fromEmail}>`,
-          replyTo: process.env.MILESYMEDIA_REPLY_TO?.trim() || fromEmail,
-          idempotencyKey: `agency-signup-verify:${prepared.operation.id}:${prepared.operation.deliveryGeneration}`,
-          signal: req.signal,
-          subject: "Verify your AquaCRM account",
-          text: `Confirm your email address to continue setting up AquaCRM. This link expires in 24 hours.\n\n${verifyUrl}`,
-          html: `<p>Confirm your email address to continue setting up AquaCRM. This link expires in 24 hours.</p><p><a href="${verifyUrl}">Verify email address</a></p>`,
-        })
-      : { ok: false as const, reason: "AquaCRM auth email sender is not configured.", unconfigured: true };
-    await recordAgencySignupDelivery(
-      prepared.operation.id,
-      prepared.operation.deliveryGeneration,
-      sent.ok
-        ? { delivered: true, externalMessageId: sent.id }
-        : { delivered: false, error: sent.reason, outcomeUnknown: sent.outcomeUnknown },
-    );
+  const delivery = await runBoundedPublicAuthDelivery(async signal => {
+    const prepared = await prepareAgencySignup({
+      email,
+      companyName,
+      consent: {
+        acceptedAt: Date.now(),
+        policy: "agency-self-service-terms",
+        version: AGENCY_SIGNUP_TERMS_VERSION,
+        termsUrl: new URL("/terms", publicOrigin).toString(),
+      },
+    });
+    const verifyUrl = prepared.verificationToken
+      ? `${publicOrigin}/api/auth/verify-email?token=${encodeURIComponent(prepared.verificationToken)}`
+      : undefined;
+    if (prepared.shouldDeliver && prepared.operation && verifyUrl) {
+      const fromEmail = (process.env.AQUACRM_AUTH_FROM_EMAIL ?? process.env.MILESYMEDIA_FROM_EMAIL ?? "").trim();
+      const senderName = (process.env.AQUACRM_AUTH_FROM_NAME ?? "AquaCRM").trim();
+      const sent = fromEmail
+        ? await sendResendEmail({
+            to: prepared.operation.email,
+            from: `${senderName} <${fromEmail}>`,
+            replyTo: process.env.MILESYMEDIA_REPLY_TO?.trim() || fromEmail,
+            idempotencyKey: `agency-signup-verify:${prepared.operation.id}:${prepared.operation.deliveryGeneration}`,
+            signal,
+            subject: "Verify your AquaCRM account",
+            text: `Confirm your email address to continue setting up AquaCRM. This link expires in 24 hours.\n\n${verifyUrl}`,
+            html: `<p>Confirm your email address to continue setting up AquaCRM. This link expires in 24 hours.</p><p><a href="${verifyUrl}">Verify email address</a></p>`,
+          })
+        : { ok: false as const, reason: "AquaCRM auth email sender is not configured.", unconfigured: true };
+      await recordAgencySignupDelivery(
+        prepared.operation.id,
+        prepared.operation.deliveryGeneration,
+        sent.ok
+          ? { delivered: true, externalMessageId: sent.id }
+          : {
+              delivered: false,
+              outcomeUnknown: sent.outcomeUnknown,
+              unavailable: sent.unconfigured === true,
+            },
+      );
+    }
+    return { verifyUrl };
+  }, { startedAt: responseStartedAt, requestSignal: req.signal });
+  if (delivery.status !== "complete") {
+    logPublicAuthDeliveryFailure("agency-signup", delivery.status);
   }
 
   const isDev = process.env.NODE_ENV !== "production";
+  const verifyUrl = delivery.status === "complete" ? delivery.value.verifyUrl : undefined;
   if (isDev && verifyUrl) {
     // eslint-disable-next-line no-console
     console.log(`[signup] verify-email URL prepared for local development: ${verifyUrl}`);

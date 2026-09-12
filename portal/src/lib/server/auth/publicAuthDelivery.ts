@@ -57,6 +57,6 @@ export async function waitForPublicAuthResponseWindow(startedAt: number): Promis
 }
 
 /** Static-only telemetry: never serialize provider messages or subjects. */
-export function logPublicAuthDeliveryFailure(kind: "magic" | "password-reset", status: "failed" | "timeout"): void {
+export function logPublicAuthDeliveryFailure(kind: "magic" | "password-reset" | "agency-signup", status: "failed" | "timeout"): void {
   console.error(`[public-auth] ${kind} delivery ${status}`);
 }

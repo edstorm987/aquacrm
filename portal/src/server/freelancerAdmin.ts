@@ -191,14 +191,22 @@ export async function inviteFreelancer(
       exp: invitationExpiresAt,
     });
     const setupUrl = `${publicOrigin}/login/reset?token=${encodeURIComponent(token)}`;
-    const sent = await (dependencies.sendEmail ?? sendTransactionalEmail)({
-      to: result.user.email,
-      agencyId,
-      externalRef: invitationRef,
-      subject: "Set up your freelancer workspace",
-      bodyText: `You have been invited to a freelancer workspace. Set your password using this secure link (valid for 24 hours):\n\n${setupUrl}`,
-      bodyHtml: `<p>You have been invited to a freelancer workspace.</p><p><a href="${setupUrl}">Set up your password</a></p><p>This link is valid for 24 hours.</p>`,
-    });
+    let sent: Awaited<ReturnType<typeof sendTransactionalEmail>>;
+    try {
+      sent = await (dependencies.sendEmail ?? sendTransactionalEmail)({
+        to: result.user.email,
+        agencyId,
+        externalRef: invitationRef,
+        subject: "Set up your freelancer workspace",
+        bodyText: `You have been invited to a freelancer workspace. Set your password using this secure link (valid for 24 hours):\n\n${setupUrl}`,
+        bodyHtml: `<p>You have been invited to a freelancer workspace.</p><p><a href="${setupUrl}">Set up your password</a></p><p>This link is valid for 24 hours.</p>`,
+      });
+    } catch {
+      // Provisioning and the invitation receipt are already durable. Provider
+      // exceptions become the same generic, retryable delivery result instead
+      // of escaping the mounted action or exposing provider detail.
+      sent = { delivered: false, via: "unconfigured" };
+    }
     if (sent.delivered && !invitationOperation.invitationDeliveredAt) {
       await recordStaffInvitation(agencyId, email, {
         invitationNonce,

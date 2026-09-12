@@ -416,7 +416,12 @@ describe("Signup JSON contract — mailbox proof precedes product activation", (
     const before = listAgencies().length;
     const res = await POST(
       jsonRequest(
-        { companyName: "Deliberate Product Signup Ltd", email: "founder@deliberate.test", password: "a-long-enough-pw" },
+        {
+          companyName: "Deliberate Product Signup Ltd",
+          email: "founder@deliberate.test",
+          password: "a-long-enough-pw",
+          consent: true,
+        },
         { ip: "20.2.0.3" },
       ),
     );

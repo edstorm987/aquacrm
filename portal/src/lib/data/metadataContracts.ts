@@ -115,6 +115,7 @@ export const METADATA_KEY_CONTRACTS: readonly MetadataKeyContract[] = [
 
   // ── crm-lineage — how this record traces back to its origin ─────────────
   plain("leadId", "crm-lineage", "string — the pipeline card this client was promoted from", "server/leadConversionCoordinator"),
+  plain("prospectId", "crm-lineage", "string — exact prospect linked to an activity row", "server/activity", "activity"),
   plain("promotedFromLeadId", "crm-lineage", "string — same lineage, earlier writer", "server/leadConversionCoordinator"),
   plain("contactId", "crm-lineage", "string — originating CRM contact id", "server/tenants"),
   plain("applicationId", "crm-lineage", "string — People application linked from an activity", "server/people", "activity"),
@@ -129,6 +130,7 @@ export const METADATA_KEY_CONTRACTS: readonly MetadataKeyContract[] = [
   // ── routing — tenant/company/client addressing on enquiry rows ──────────
   plain("agencyId", "routing", "string — owning agency (backfilled into the agency_id column)", "lib/supabase/enquiryAgencyColumn", "enquiry"),
   plain("clientId", "routing", "string — client the enquiry routed to", "lib/enquiries", "enquiry"),
+  plain("clientLinkSource", "routing", "configured-site-route | manual-review | typed-lineage — authority used to link the enquiry to a client", "lib/server/websiteEnquiries", "enquiry"),
   plain("routedCompanyId", "routing", "string — trading company the enquiry routed to", "lib/enquiries", "enquiry"),
   plain("captureOnly", "routing", "boolean — site captures without routing to a client", "server/websiteSources", "enquiry"),
   plain("siteKey", "routing", "string — Aqua Tag site key that captured it", "server/websiteSources", "enquiry"),
@@ -252,9 +254,10 @@ export const METADATA_KEY_CONTRACTS: readonly MetadataKeyContract[] = [
   plain("whatsappLink", "contact", "string — WhatsApp deep link", "server/tenants", "client", "personal"),
 
   // ── system — provisioning plumbing ──────────────────────────────────────
+  plain("aqua_subject_kind", "system", "admin-only app_metadata string — immutable Aqua subject class", "lib/supabase/admin", "auth-user"),
   plain("aqua_agency_id", "system", "string — agency stamped on the Supabase auth user", "lib/server/auth", "auth-user"),
   plain("aqua_profile_role", "system", "string — role stamped on the Supabase auth user", "lib/server/auth", "auth-user"),
-  plain("aqua_provisioning_operation_id", "system", "string — idempotency key for staff provisioning", "server/staffProvisioning", "auth-user"),
+  plain("aqua_provisioning_operation_id", "system", "admin-only app_metadata string — idempotency key for agency/staff/reset provisioning", "server/staffProvisioning", "auth-user"),
   plain("ingestionState", "system", "string — import ingestion state", "server/tenants"),
   plain("ingestionCompletedAt", "system", "number epoch ms", "server/tenants"),
   plain("resourceId", "system", "string — Development Toolkit resource linked from an activity", "server/developmentToolkit", "activity"),

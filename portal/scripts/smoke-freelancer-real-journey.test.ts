@@ -138,7 +138,7 @@ test("real freelancer journey provisions once, invites, shares work, messages, u
   // A realistic production simulation therefore carries a real secret; the
   // fail-closed guard itself has its own suite (smoke-auth-fail-closed).
   process.env.PORTAL_SESSION_SECRET = "freelancer-journey-production-simulation-secret";
-  process.env.NEXT_PUBLIC_PORTAL_BASE_URL = "https://portal.example.test";
+  process.env.NEXT_PUBLIC_PORTAL_BASE_URL = "https://portal.example.com";
   try {
     const deliveryFallback = await inviteFreelancer(agency.id, owner.id, {
       name: "Fran Creator",
@@ -151,8 +151,23 @@ test("real freelancer journey provisions once, invites, shares work, messages, u
     });
     assert.equal(deliveryFallback.ok, true);
     assert.equal(deliveryFallback.inviteDelivered, false);
-    assert.match(deliveryFallback.setupUrl ?? "", /^https:\/\/portal\.example\.test\/login\/reset\?token=/,
+    assert.match(deliveryFallback.setupUrl ?? "", /^https:\/\/portal\.example\.com\/login\/reset\?token=/,
       "a production mail outage must still leave the authorised operator one usable setup path");
+
+    const thrownDelivery = await inviteFreelancer(agency.id, owner.id, {
+      name: "Fran Creator",
+      email: "fran@example.test",
+      title: "Motion Designer",
+    }, {
+      runtime,
+      sendEmail: async () => { throw new Error("private freelancer provider detail"); },
+      now: () => 1237,
+    });
+    assert.equal(thrownDelivery.ok, true);
+    assert.equal(thrownDelivery.inviteDelivered, false);
+    assert.equal(thrownDelivery.setupUrl, deliveryFallback.setupUrl,
+      "an exception uses the structured retry contract and keeps the one live bearer");
+    assert.equal(Object.prototype.hasOwnProperty.call(thrownDelivery, "providerError"), false);
   } finally {
     if (savedNodeEnvironment === undefined) delete process.env.NODE_ENV;
     else process.env.NODE_ENV = savedNodeEnvironment;

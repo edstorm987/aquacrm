@@ -104,10 +104,13 @@ describe("Post-login redirect — call-site wire-up", () => {
     assert.ok(!src.match(/redirect:\s*"\/portal\/agency"/), "no hardcoded /portal/agency redirect should remain");
   });
 
-  it("/api/auth/signup imports + uses resolver (no hardcoded redirect)", () => {
+  it("/api/auth/signup keeps mailbox-first admission free of a post-login redirect", () => {
     const src = readFileSync(SIGNUP_ROUTE, "utf8");
-    assert.ok(src.includes('import { resolvePostLoginPath }'));
-    assert.ok(src.includes("redirect: resolvePostLoginPath"));
+    const admission = src.slice(src.indexOf("async function handleAccountSignup"));
+    assert.ok(admission.includes("prepareAgencySignup"));
+    assert.ok(admission.includes("accepted: true"));
+    assert.ok(!admission.includes("redirect: resolvePostLoginPath"),
+      "mailbox-unverified admission must not behave like a completed login");
     assert.ok(!src.match(/redirect:\s*"\/portal\/agency"/), "no hardcoded /portal/agency should remain");
   });
 
