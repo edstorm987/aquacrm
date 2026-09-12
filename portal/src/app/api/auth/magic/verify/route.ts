@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
 
   const v = verifyMagicToken(token);
   if (!v.ok) return err(publicOrigin, v.error);
-  const { purpose, email, clientId, agencyId, exp, nonce } = v.payload;
+  const { purpose, email, clientId, agencyId, exp, nonce, sessionRev } = v.payload;
 
   const client = getClient(clientId);
   const clientStateAllowed = purpose === "client-portal-invite"
@@ -96,6 +96,12 @@ export async function GET(req: NextRequest) {
   if (purpose === "sign-in" && !beforeConsume) {
     return err(publicOrigin, "membership_required");
   }
+  if (
+    (beforeConsume && sessionRev !== magicLinkSessionRevision(beforeConsume))
+    || (!beforeConsume && (purpose !== "client-portal-invite" || sessionRev !== null))
+  ) {
+    return err(publicOrigin, "session_epoch_changed");
+  }
   // Never manufacture a new scoped identity over an existing unscoped
   // agency/client/lead account. No role is mutated or widened here.
   if (purpose === "client-portal-invite" && !beforeConsume && getUser(email)) {
@@ -123,6 +129,12 @@ export async function GET(req: NextRequest) {
   // race the membership check and create two records.
   let user = getUser(email, { clientId, role: "end-customer" });
   if (user && !isExactEndCustomer(user, scope)) return err(publicOrigin, "membership_invalid");
+  if (
+    (user && sessionRev !== magicLinkSessionRevision(user))
+    || (!user && (purpose !== "client-portal-invite" || sessionRev !== null))
+  ) {
+    return err(publicOrigin, "session_epoch_changed");
+  }
   if (!user) {
     if (purpose !== "client-portal-invite") return err(publicOrigin, "membership_required");
     if (getUser(email)) return err(publicOrigin, "account_conflict");

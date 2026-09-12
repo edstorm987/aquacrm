@@ -176,11 +176,13 @@ async function startAbsentSupabaseAdmin(): Promise<string> {
 
 before(async () => {
   for (const key of [
+    "NEXT_PUBLIC_PORTAL_BASE_URL",
     "NEXT_PUBLIC_SUPABASE_URL",
     "NEXT_PUBLIC_SUPABASE_ANON_KEY",
     "SUPABASE_SERVICE_ROLE_KEY",
   ]) savedEnv[key] = process.env[key];
 
+  process.env.NEXT_PUBLIC_PORTAL_BASE_URL = ORIGIN;
   process.env.NEXT_PUBLIC_SUPABASE_URL = await startAbsentSupabaseAdmin();
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "stub-anon-key";
   process.env.SUPABASE_SERVICE_ROLE_KEY = "stub-service-role-key";
@@ -311,7 +313,7 @@ async function assertNoPortalSession(response: Response): Promise<void> {
   assert.equal(sessionCookieOf(response), undefined, "a refused admission must not mint a cookie");
   const protectedResponse = await setupRoute.POST(new NextRequest(`${ORIGIN}/api/portal/customer/setup`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", origin: ORIGIN },
     body: JSON.stringify({ password: "A-valid-password-123" }),
   }));
   assert.equal(protectedResponse.status, 401, "without a minted session, client portal routes remain inaccessible");
@@ -342,6 +344,75 @@ function substituteClaim(token: string, key: "email" | "clientId", value: string
 }
 
 describe("client portal admission", () => {
+  it("requires exact JSON and the configured browser Origin before client setup", async () => {
+    const home = await fixture();
+    const member = users.createUser({
+      email: "setup-origin@example.com",
+      password: "Before-password-123",
+      role: "end-customer",
+      agencyId: home.agency.id,
+      clientId: home.client.id,
+    });
+    users.markEmailVerified(member.id);
+    const token = auth.issueSession({
+      userId: member.id,
+      email: member.email,
+      role: member.role,
+      agencyId: member.agencyId,
+      clientId: member.clientId,
+      sessionRev: member.sessionRev ?? 0,
+      aal: "aal1",
+    });
+    const invoke = (contentType: string, origin: string) => setupRoute.POST(new NextRequest(
+      `${ORIGIN}/api/portal/customer/setup`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": contentType,
+          origin,
+          cookie: `${auth.SESSION_COOKIE_NAME}=${token}`,
+        },
+        body: JSON.stringify({ password: "Chosen-password-456" }),
+      },
+    ));
+    assert.equal((await invoke("text/plain", ORIGIN)).status, 415);
+    assert.equal((await invoke("application/jsonp", ORIGIN)).status, 415);
+    assert.equal((await invoke("application/json", "https://attacker.example")).status, 403);
+    assert.equal(remoteCreates, 0);
+    assert.equal(remotePasswordUpdates, 0);
+  });
+
+  it("rejects pre-password-change magic and existing-member invite epochs before nonce consumption", async () => {
+    const home = await fixture();
+    const email = "epoch-bound-member@example.com";
+    const member = users.createUser({
+      email,
+      password: "Before-password-123",
+      role: "end-customer",
+      agencyId: home.agency.id,
+      clientId: home.client.id,
+    });
+    const magicToken = magic.signMagicToken({
+      email,
+      clientId: home.client.id,
+      agencyId: home.agency.id,
+      sessionRev: member.sessionRev ?? 0,
+    });
+    const inviteToken = magic.signClientPortalInviteToken({
+      email,
+      clientId: home.client.id,
+      agencyId: home.agency.id,
+      sessionRev: member.sessionRev ?? 0,
+    });
+    assert.ok(users.setUserPasswordById(member.id, "After-password-456", member.sessionRev ?? 0));
+
+    assert.equal(errorOf(await verifyRoute.GET(verifyRequest(magicToken.token))), "session_epoch_changed");
+    assert.equal(errorOf(await verifyRoute.GET(verifyRequest(inviteToken.token))), "session_epoch_changed");
+    assert.equal(await magic.consumeMagicNonce(magicToken.payload.nonce, magicToken.payload.exp), true,
+      "epoch rejection occurs before the durable nonce is consumed");
+    assert.equal(await magic.consumeClientPortalInviteNonce(inviteToken.payload.nonce, inviteToken.payload.exp), true);
+  });
+
   it("closes direct signup even when an attacker supplies a real active client id", async () => {
     const home = await fixture();
     const email = "attacker-selected-client@invite.test";
@@ -459,6 +530,7 @@ describe("client portal admission", () => {
       method: "POST",
       headers: {
         "content-type": "application/json",
+        origin: ORIGIN,
         cookie: cookie!.split(";")[0]!,
       },
       body: JSON.stringify({ password: "Legitimate-portal-password-123" }),
@@ -472,19 +544,10 @@ describe("client portal admission", () => {
     assert.equal(remote?.app_metadata.aqua_agency_id, home.agency.id);
     assert.equal(remote?.app_metadata.aqua_client_id, home.client.id);
 
-    const updated = await setupRoute.POST(new NextRequest(`${ORIGIN}/api/portal/customer/setup`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        cookie: cookie!.split(";")[0]!,
-      },
-      body: JSON.stringify({ password: "Updated-portal-password-456" }),
-    }));
-    assert.equal(updated.status, 200, JSON.stringify(await updated.clone().json()));
-    assert.equal(remotePasswordUpdates, 1);
-    assert.equal(remote?.passwordMarker, "Updated-portal-password-456");
+    assert.equal(remote?.passwordMarker, "Legitimate-portal-password-123");
+    assert.equal(configured?.sessionRev, 1, "setup rotates the invitation session epoch");
 
-    const passwordLogin = await loginRoute.POST(loginRequest(email, "Updated-portal-password-456"));
+    const passwordLogin = await loginRoute.POST(loginRequest(email, "Legitimate-portal-password-123"));
     assert.equal(passwordLogin.status, 200, JSON.stringify(await passwordLogin.clone().json()));
     const passwordLoginBody = await passwordLogin.clone().json() as {
       user?: { id?: string; role?: string; clientId?: string };
@@ -502,6 +565,7 @@ describe("client portal admission", () => {
       email,
       clientId: home.client.id,
       agencyId: home.agency.id,
+      sessionRev: null,
     });
 
     for (const [label, changed, unintendedClient] of [
@@ -526,6 +590,7 @@ describe("client portal admission", () => {
       agencyId: home.agency.id,
       exp: Math.floor(Date.now() / 1000) - 1,
       nonce: "expired-invite-nonce",
+      sessionRev: null,
     });
     const expiredResponse = await verifyRoute.GET(verifyRequest(expired));
     assert.equal(errorOf(expiredResponse), "expired");
@@ -537,11 +602,20 @@ describe("client portal admission", () => {
       email: replayEmail,
       clientId: home.client.id,
       agencyId: home.agency.id,
+      sessionRev: null,
     });
     const first = await verifyRoute.GET(verifyRequest(token));
     assert.ok(sessionCookieOf(first));
     const second = await verifyRoute.GET(verifyRequest(token));
-    assert.equal(errorOf(second), "already_used");
+    assert.equal(errorOf(second), "session_epoch_changed");
+    const decodedReplay = magic.verifyMagicToken(token);
+    assert.equal(decodedReplay.ok, true);
+    if (decodedReplay.ok) {
+      assert.equal(await magic.consumeClientPortalInviteNonce(
+        decodedReplay.payload.nonce,
+        decodedReplay.payload.exp,
+      ), false, "the accepted invitation nonce remains single-use");
+    }
     assert.equal(sessionCookieOf(second), undefined);
     assert.equal(exactMember(replayEmail, home.client.id)?.agencyId, home.agency.id);
   });
@@ -553,6 +627,7 @@ describe("client portal admission", () => {
       email,
       clientId: home.client.id,
       agencyId: home.foreignAgency.id,
+      sessionRev: null,
     });
 
     const response = await verifyRoute.GET(verifyRequest(token));
@@ -570,11 +645,13 @@ describe("client portal admission", () => {
       password: "Existing-owner-password",
       role: "agency-owner",
       agencyId: home.agency.id,
+      sessionRev: null,
     });
     const { token } = magic.signClientPortalInviteToken({
       email,
       clientId: home.client.id,
       agencyId: home.agency.id,
+      sessionRev: null,
     });
 
     const response = await verifyRoute.GET(verifyRequest(token));
@@ -617,6 +694,7 @@ describe("client portal admission", () => {
       email,
       clientId: home.client.id,
       agencyId: home.agency.id,
+      sessionRev: 0,
     });
     const verified = await verifyRoute.GET(verifyRequest(token));
     const cookie = sessionCookieOf(verified);
@@ -626,12 +704,13 @@ describe("client portal admission", () => {
       method: "POST",
       headers: {
         "content-type": "application/json",
+        origin: ORIGIN,
         cookie: cookie!.split(";")[0]!,
       },
       body: JSON.stringify({ password: "Attempted-takeover-password-123" }),
     }));
-    assert.equal(setup.status, 502, "an occupied global email must fail closed, not be adopted");
-    assert.equal(remoteCreates, 1, "setup may attempt a fresh exact subject, never an email lookup/adoption");
+    assert.equal(setup.status, 503, "an occupied global email must fail closed, not be adopted");
+    assert.equal(remoteCreates, 0, "an occupied global email must be rejected before any sibling subject is created");
     assert.equal(remotePasswordUpdates, 0, "the owner's exact Supabase id was never updated");
     assert.equal(remoteUsers[0]?.passwordMarker, "owner-password-before");
     const customer = exactMember(email, home.client.id);
@@ -778,6 +857,7 @@ describe("client portal admission", () => {
         method: "POST",
         headers: {
           "content-type": "application/json",
+          origin: ORIGIN,
           cookie: `${auth.SESSION_COOKIE_NAME}=${token}`,
         },
         body: JSON.stringify({ password }),
@@ -787,12 +867,12 @@ describe("client portal admission", () => {
     for (const aal of ["aal1", "aal2"] as const) {
       const updatesBeforeAttempt = remotePasswordUpdates;
       const fresh = auth.issueSession({
-        userId: member.id,
-        email: member.email,
-        role: member.role,
-        agencyId: member.agencyId,
-        clientId: member.clientId,
-        sessionRev: member.sessionRev ?? 0,
+        userId: users.getUserById(member.id)!.id,
+        email: users.getUserById(member.id)!.email,
+        role: users.getUserById(member.id)!.role,
+        agencyId: users.getUserById(member.id)!.agencyId,
+        clientId: users.getUserById(member.id)!.clientId,
+        sessionRev: users.getUserById(member.id)!.sessionRev ?? 0,
         aal,
       });
       const stale = rewriteSignedPayload(fresh, {
@@ -804,7 +884,10 @@ describe("client portal admission", () => {
         "a stale session must not reach the remote password update");
 
       const accepted = await postSetup(fresh, `Fresh-${aal}-password-123`);
-      assert.equal(accepted.status, 200, JSON.stringify(await accepted.clone().json()));
+      assert.equal(accepted.status, 200, JSON.stringify({
+        response: await accepted.clone().json(),
+        operations: storage.getState().clientPortalSetupOperations,
+      }));
       assert.equal(remotePasswordUpdates, updatesBeforeAttempt + 1,
         "a fresh session should update the exact bound subject once");
     }
@@ -820,6 +903,7 @@ describe("client portal admission", () => {
       email,
       clientId: home.client.id,
       agencyId: home.agency.id,
+      sessionRev: 0,
     });
 
     const response = await verifyRoute.GET(verifyRequest(token));

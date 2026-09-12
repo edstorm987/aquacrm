@@ -89,6 +89,7 @@ function exactOperation(
     && operation.tokenNonce === payload.nonce
     && operation.tokenExpiresAt === payload.exp
     && operation.expectedSessionRev === payload.sessionRev
+    && (operation.clientId ?? null) === payload.clientId
     && operation.passwordFingerprint === fingerprint;
 }
 
@@ -160,7 +161,11 @@ export async function executePasswordReset(input: {
   return withPortalProviderLease(`password-reset:${payload.userId}`, async () => {
     await ensureHydrated({ fresh: true });
     let user = getUserById(payload.userId);
-    if (!user || user.email !== payload.email) throw new Error("password_reset_invalid");
+    if (
+      !user
+      || user.email !== payload.email
+      || (user.clientId ?? null) !== payload.clientId
+    ) throw new Error("password_reset_invalid");
     let operation = currentOperation(id);
 
     if (!operation) {
@@ -228,14 +233,15 @@ export async function executePasswordReset(input: {
       let provider: { authUserId: string };
       try {
         provider = await dependencies.apply({ operation, user, password });
-      } catch (cause) {
-        const message = cause instanceof Error ? cause.message : "Password provider update failed.";
+      } catch {
         await withPortalStateTransaction(`password-reset:${id}`, () => {
           const current = currentOperation(id);
           if (!current || current.status !== "accepted") return;
           writeOperation({
             ...current,
-            providerLastError: message.slice(0, 500),
+            // Provider bodies can contain configuration and subject detail.
+            // Persist only a stable internal category, never the raw message.
+            providerLastError: "provider_failed",
             // A thrown provider call is conservatively ambiguous. Retrying is
             // safe only because the exact operation and password are reused.
             providerOutcomeUnknown: true,

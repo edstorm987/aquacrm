@@ -10,13 +10,14 @@ process.env.PORTAL_SESSION_SECRET = "abuse-admission-smoke-secret";
 import { POST as signupPOST } from "../src/app/api/auth/signup/route";
 import { GET as verifyEmailGET } from "../src/app/api/auth/verify-email/route";
 import { POST as passwordResetPOST } from "../src/app/api/auth/password/request-reset/route";
+import { handlePasswordResetRequest } from "../src/app/api/auth/password/request-reset/route";
 import { POST as magicRequestPOST } from "../src/app/api/auth/magic/request/route";
 import {
   activateAgencySignup,
   AGENCY_SIGNUP_SETUP_COOKIE,
   claimAgencySignupVerification,
   getAgencySignupOperation,
-  prepareAgencySignup,
+  prepareAgencySignup as prepareAgencySignupRaw,
   recordAgencySignupDelivery,
   type AgencySignupActivationDependencies,
 } from "../src/server/agencySignup";
@@ -25,8 +26,10 @@ import { __resetBotChallengeForTest } from "../src/lib/server/security/botChalle
 import { _createMemoryAdapterForTests, _swapStoreForTests } from "../src/lib/server/auth/nonceStore";
 import { reset } from "../src/server/storage";
 import { bindSupabaseAuthIdentity, createUser, getUser } from "../src/server/users";
-import { createAgency, getAgency, listAgencies } from "../src/server/tenants";
+import { createAgency, createClient, getAgency, listAgencies } from "../src/server/tenants";
 import { SESSION_COOKIE_NAME } from "../src/lib/server/auth/auth";
+import { verifyPasswordResetToken } from "../src/lib/server/auth/passwordReset";
+import { registerMagicLinkDelivery } from "../src/lib/server/auth/magicLink";
 
 const ORIGIN = "http://localhost:3030";
 const savedEnvironment = {
@@ -36,6 +39,7 @@ const savedEnvironment = {
   resend: process.env.RESEND_API_KEY,
   from: process.env.AQUACRM_AUTH_FROM_EMAIL,
   legacyFrom: process.env.MILESYMEDIA_FROM_EMAIL,
+  responseWindow: process.env.PUBLIC_AUTH_RESPONSE_WINDOW_MS,
 };
 let realFetch: typeof fetch;
 
@@ -45,10 +49,31 @@ function challengeAction(token: string): string {
 }
 
 function jsonRequest(path: string, body: unknown, ip: string): NextRequest {
+  const enriched = path === "/api/auth/signup"
+    && body !== null
+    && typeof body === "object"
+    && "companyName" in body
+    ? { ...(body as Record<string, unknown>), consent: true }
+    : body;
   return new NextRequest(`${ORIGIN}${path}`, {
     method: "POST",
     headers: { "content-type": "application/json", "x-forwarded-for": ip, origin: ORIGIN },
-    body: JSON.stringify(body),
+    body: JSON.stringify(enriched),
+  });
+}
+
+function prepareAgencySignup(
+  input: Omit<Parameters<typeof prepareAgencySignupRaw>[0], "consent">,
+) {
+  const now = input.now ?? Date.now();
+  return prepareAgencySignupRaw({
+    ...input,
+    consent: {
+      acceptedAt: now,
+      policy: "agency-self-service-terms",
+      version: "2026-09-12",
+      termsUrl: `${ORIGIN}/terms`,
+    },
   });
 }
 
@@ -79,6 +104,7 @@ before(() => {
   delete process.env.RESEND_API_KEY;
   delete process.env.AQUACRM_AUTH_FROM_EMAIL;
   delete process.env.MILESYMEDIA_FROM_EMAIL;
+  process.env.PUBLIC_AUTH_RESPONSE_WINDOW_MS = "5";
   realFetch = globalThis.fetch;
   globalThis.fetch = (async (input, init) => {
     const url = typeof input === "string"
@@ -115,6 +141,7 @@ after(() => {
   restore("RESEND_API_KEY", savedEnvironment.resend);
   restore("AQUACRM_AUTH_FROM_EMAIL", savedEnvironment.from);
   restore("MILESYMEDIA_FROM_EMAIL", savedEnvironment.legacyFrom);
+  restore("PUBLIC_AUTH_RESPONSE_WINDOW_MS", savedEnvironment.responseWindow);
 });
 
 describe("managed challenges precede victim-address budgets", () => {
@@ -177,6 +204,37 @@ describe("managed challenges precede victim-address budgets", () => {
 });
 
 describe("agency owner mailbox-first state machine", () => {
+  it("requires consent and stores the exact accepted policy evidence", async () => {
+    const email = "consented-owner@example.test";
+    const missing = await signupPOST(new NextRequest(`${ORIGIN}/api/auth/signup`, {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: ORIGIN, "x-forwarded-for": "41.0.0.40" },
+      body: JSON.stringify({
+        email,
+        companyName: "Consent Required Ltd",
+        captchaToken: "valid:agency-signup:no-consent",
+      }),
+    }));
+    assert.equal(missing.status, 400);
+    assert.equal(getAgencySignupOperation(email), null);
+
+    const accepted = await signupPOST(jsonRequest(
+      "/api/auth/signup",
+      {
+        email,
+        companyName: "Consent Required Ltd",
+        captchaToken: "valid:agency-signup:consent",
+      },
+      "41.0.0.41",
+    ));
+    assert.equal(accepted.status, 202);
+    const operation = getAgencySignupOperation(email);
+    assert.equal(operation?.consentPolicy, "agency-self-service-terms");
+    assert.equal(operation?.consentPolicyVersion, "2026-09-12");
+    assert.equal(operation?.consentTermsUrl, `${ORIGIN}/terms`);
+    assert.ok(operation?.consentAcceptedAt);
+  });
+
   it("keeps existing-account and new-address admission responses indistinguishable in production", async () => {
     const agency = createAgency({ name: "Existing Agency" });
     createUser({
@@ -469,6 +527,63 @@ describe("agency owner mailbox-first state machine", () => {
     assert.equal(providerCalls, 2, "completed replay must not touch the provider");
   });
 
+  it("recovers the exact setup receipt after a crash between nonce consume and state finalisation", async () => {
+    const prepared = await prepareAgencySignup({
+      email: "recover-verify@example.test",
+      companyName: "Recover Verify Ltd",
+    });
+    assert.ok(prepared.verificationToken);
+    const verified = verifyVerifyEmailToken(prepared.verificationToken);
+    assert.equal(verified.ok, true);
+    if (!verified.ok) return;
+    await assert.rejects(
+      claimAgencySignupVerification(verified.payload, Date.now(), {
+        afterNonceConsumed: () => { throw new Error("simulated crash after consume"); },
+      }),
+      /simulated crash/,
+    );
+    assert.equal(getAgencySignupOperation(verified.payload.email)?.stage, "verification-claiming");
+    const recovered = await claimAgencySignupVerification(verified.payload);
+    assert.equal(recovered.ok, true);
+    if (recovered.ok) assert.equal(recovered.state, "setup-required");
+    assert.equal(getAgencySignupOperation(verified.payload.email)?.stage, "email-verified");
+  });
+
+  it("binds provider-ready signup retries to the first password", async () => {
+    const prepared = await prepareAgencySignup({
+      email: "password-bound-owner@example.test",
+      companyName: "Password Bound Ltd",
+    });
+    assert.ok(prepared.verificationToken);
+    const verified = verifyVerifyEmailToken(prepared.verificationToken);
+    assert.equal(verified.ok, true);
+    if (!verified.ok) return;
+    const claim = await claimAgencySignupVerification(verified.payload);
+    assert.equal(claim.ok, true);
+    if (!claim.ok || claim.state !== "setup-required") return;
+
+    let providerCalls = 0;
+    const dependencies: AgencySignupActivationDependencies = {
+      async provisionProvider() {
+        providerCalls += 1;
+        throw new Error("ambiguous provider response");
+      },
+    };
+    await assert.rejects(activateAgencySignup({
+      setupToken: claim.setupToken,
+      password: "First-password-123",
+      dependencies,
+    }), /ambiguous/);
+    assert.equal(getAgencySignupOperation(verified.payload.email)?.activationLastError, "signup_activation_failed");
+    assert.doesNotMatch(JSON.stringify(getAgencySignupOperation(verified.payload.email)), /ambiguous provider response/i);
+    await assert.rejects(activateAgencySignup({
+      setupToken: claim.setupToken,
+      password: "Changed-password-456",
+      dependencies,
+    }), /signup_password_changed/);
+    assert.equal(providerCalls, 1, "changed retry must fail before touching the provider");
+  });
+
   it("a local binding failure rolls the new agency and owner back atomically", async () => {
     const otherAgency = createAgency({ name: "Existing Principal" });
     const otherUser = createUser({
@@ -501,6 +616,116 @@ describe("agency owner mailbox-first state machine", () => {
   });
 });
 
+describe("public mailbox request anti-enumeration", () => {
+  it("password reset carries an exact client audience and never falls back to a same-email owner", async () => {
+    const agency = createAgency({ name: "Scoped Reset Agency" });
+    const client = createClient(agency.id, { name: "Scoped Reset Client" });
+    const email = "shared-reset@example.com";
+    const owner = createUser({
+      email,
+      password: "Owner-password-123",
+      role: "agency-owner",
+      agencyId: agency.id,
+    });
+    const customer = createUser({
+      email,
+      password: "Customer-password-123",
+      role: "end-customer",
+      agencyId: agency.id,
+      clientId: client.id,
+    });
+    const scoped = await passwordResetPOST(jsonRequest(
+      "/api/auth/password/request-reset",
+      { email, clientId: client.id, captchaToken: "valid:password-reset-request:scoped" },
+      "43.0.0.1",
+    ));
+    const scopedBody = await scoped.json() as { devResetUrl?: string };
+    assert.ok(scopedBody.devResetUrl);
+    const scopedToken = new URL(scopedBody.devResetUrl).searchParams.get("token") ?? "";
+    const scopedPayload = verifyPasswordResetToken(scopedToken);
+    assert.equal(scopedPayload.ok, true);
+    if (scopedPayload.ok) {
+      assert.equal(scopedPayload.payload.userId, customer.id);
+      assert.equal(scopedPayload.payload.clientId, client.id);
+    }
+
+    const workspace = await passwordResetPOST(jsonRequest(
+      "/api/auth/password/request-reset",
+      { email, captchaToken: "valid:password-reset-request:workspace" },
+      "43.0.0.2",
+    ));
+    const workspaceBody = await workspace.json() as { devResetUrl?: string };
+    const workspaceToken = new URL(workspaceBody.devResetUrl!).searchParams.get("token") ?? "";
+    const workspacePayload = verifyPasswordResetToken(workspaceToken);
+    assert.equal(workspacePayload.ok, true);
+    if (workspacePayload.ok) {
+      assert.equal(workspacePayload.payload.userId, owner.id);
+      assert.equal(workspacePayload.payload.clientId, null);
+    }
+
+    const miss = await passwordResetPOST(jsonRequest(
+      "/api/auth/password/request-reset",
+      { email, clientId: "wrong-client", captchaToken: "valid:password-reset-request:miss" },
+      "43.0.0.3",
+    ));
+    assert.deepEqual(await miss.json(), { ok: true });
+  });
+
+  it("magic and reset provider exceptions keep byte-equivalent production responses", async () => {
+    const agency = createAgency({ name: "Delivery Oracle Agency" });
+    const client = createClient(agency.id, { name: "Delivery Oracle Client" });
+    const email = "delivery-oracle@example.com";
+    createUser({
+      email,
+      password: "Customer-password-123",
+      role: "end-customer",
+      agencyId: agency.id,
+      clientId: client.id,
+    });
+    const prior = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    const originalError = console.error;
+    const telemetry: string[] = [];
+    console.error = (...args: unknown[]) => { telemetry.push(args.map(String).join(" ")); };
+    registerMagicLinkDelivery(async () => { throw new Error("secret plugin detail"); });
+    try {
+      const knownMagic = await magicRequestPOST(jsonRequest(
+        "/api/auth/magic/request",
+        { email, clientId: client.id, captchaToken: "valid:magic-link-request:known" },
+        "43.0.1.1",
+      ));
+      const unknownMagic = await magicRequestPOST(jsonRequest(
+        "/api/auth/magic/request",
+        { email: "unknown-delivery@example.com", clientId: client.id, captchaToken: "valid:magic-link-request:unknown" },
+        "43.0.1.2",
+      ));
+      assert.equal(knownMagic.status, unknownMagic.status);
+      assert.equal(await knownMagic.text(), await unknownMagic.text());
+      assert.deepEqual([...knownMagic.headers], [...unknownMagic.headers]);
+
+      const knownReset = await handlePasswordResetRequest(jsonRequest(
+        "/api/auth/password/request-reset",
+        { email, clientId: client.id, captchaToken: "valid:password-reset-request:known" },
+        "43.0.2.1",
+      ), { sendEmail: async () => { throw new Error("secret reset provider detail"); } });
+      const unknownReset = await passwordResetPOST(jsonRequest(
+        "/api/auth/password/request-reset",
+        { email: "unknown-reset@example.com", clientId: client.id, captchaToken: "valid:password-reset-request:unknown" },
+        "43.0.2.2",
+      ));
+      assert.equal(knownReset.status, unknownReset.status);
+      assert.equal(await knownReset.text(), await unknownReset.text());
+      assert.deepEqual([...knownReset.headers], [...unknownReset.headers]);
+      assert.doesNotMatch(telemetry.join("\n"), /secret .*provider detail/i);
+    } finally {
+      console.error = originalError;
+      registerMagicLinkDelivery(null);
+      if (prior === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = prior;
+    }
+  });
+});
+
 describe("source-level order and truthful invitation affordances", () => {
   it("challenge checks precede subject budgets, lookup and work on all three request routes", () => {
     const signup = readFileSync("src/app/api/auth/signup/route.ts", "utf8");
@@ -511,7 +736,7 @@ describe("source-level order and truthful invitation affordances", () => {
     assert.ok(account.indexOf('action: "agency-signup"') < account.indexOf("agency-signup-email:"));
     assert.ok(account.indexOf("agency-signup-email:") < account.indexOf("prepareAgencySignup"));
     assert.ok(reset.indexOf('action: "password-reset-request"') < reset.indexOf("password-reset-email:"));
-    assert.ok(reset.indexOf("password-reset-email:") < reset.indexOf("const user = getUser"));
+    assert.ok(reset.indexOf("password-reset-email:") < reset.indexOf("const user = getExactPasswordResetUser"));
     assert.ok(magic.indexOf('action: "magic-link-request"') < magic.indexOf("magic-email:"));
     assert.ok(magic.indexOf("magic-email:") < magic.indexOf("const client = getClient"));
     assert.ok(signup.indexOf('action: "website-lead-signup"') < signup.indexOf("website-lead-signup-email:"));
@@ -524,11 +749,16 @@ describe("source-level order and truthful invitation affordances", () => {
     const lead = readFileSync("src/built-ins/modules/website-editor/src/components/blocks/SignupFormBlock.tsx", "utf8");
     assert.match(forgot, /action="password-reset-request"/);
     assert.match(forgot, /captchaRef\.current\?\.reset\(\)/);
+    assert.match(forgot, /clientId/);
     assert.match(login, /"magic-link-request"/);
     assert.match(login, /captchaToken/);
     assert.match(login, /captchaRef\.current\?\.reset\(\)/);
     assert.match(lead, /action="website-lead-signup"/);
     assert.match(lead, /name="captchaToken"/);
+    assert.match(login, /forgotParams\.set\("clientId", clientId\)/);
+    const publishedLogin = readFileSync("src/built-ins/modules/website-editor/src/components/blocks/LoginFormBlock.tsx", "utf8");
+    assert.match(publishedLogin, /context\?\.clientId/);
+    assert.match(publishedLogin, /name="clientId"/);
   });
 
   it("removes direct end-customer signup and preserves authenticated invitations", () => {
@@ -545,6 +775,11 @@ describe("source-level order and truthful invitation affordances", () => {
     assert.match(publicSignup, /status: 403/);
     assert.match(issuer, /signClientPortalInviteToken/);
     assert.match(issuer, /invitationsEnabled: true/);
+    const persistedEligibility = issuer.indexOf("await flushPendingWrites();", issuer.indexOf("if (!portalLoginEmail)"));
+    const tokenIssued = issuer.indexOf("signClientPortalInviteToken", persistedEligibility);
+    const emailAttempted = issuer.indexOf("await deliverMagicLink", tokenIssued);
+    assert.ok(persistedEligibility > 0 && persistedEligibility < tokenIssued);
+    assert.ok(tokenIssued < emailAttempted, "eligibility must be durable before invitation delivery");
     assert.match(verifier, /purpose === "client-portal-invite"/);
   });
 });

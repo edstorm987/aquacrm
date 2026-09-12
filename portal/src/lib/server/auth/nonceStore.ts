@@ -5,7 +5,7 @@
 // emailVerification.ts. Multi-instance deploys lose security
 // guarantees with in-memory single-process state — a magic-link
 // nonce consumed on instance A could be replayed against instance B.
-// This module provides a single nonceStore with two adapters:
+// This module provides a single nonceStore with three adapters:
 //
 //   - Postgres adapter: when `PORTAL_BACKEND === "postgres"` OR
 //     `DATABASE_URL` is set. Lazily ensures the `nonces` table on
@@ -13,6 +13,9 @@
 //     DO NOTHING RETURNING token` returns a row iff this was the
 //     first consumption — second call returns no row, we report
 //     false ("already used").
+//   - Supabase adapter: service-role-only atomic RPCs backed by the
+//     `aqua_auth_nonces` table. This is the normal production adapter when
+//     `PORTAL_BACKEND=supabase`; it does not require DATABASE_URL.
 //   - Memory adapter: dev / test default. Map<token, expiresAt>
 //     with the same single-use semantics.
 //
@@ -31,10 +34,13 @@
 
 import "node:async_hooks"; // marker — file is server-only intent; runtime guard via storagePostgres lazy import.
 
+import crypto from "node:crypto";
+import { resolveSupabaseSecretKey, resolveSupabaseUrl } from "@/lib/supabase/keys";
+
 export type NonceKind = "magic-link" | "client-portal-invite" | "email-verify" | "password-reset" | "csrf";
 
 export interface NonceStore {
-  kind: "memory" | "postgres";
+  kind: "memory" | "postgres" | "supabase";
   consumeNonce(token: string, kind: NonceKind, ttlMs: number): Promise<boolean>;
   /**
    * Undo one consume, for exactly one situation: the caller consumed the nonce
@@ -47,6 +53,14 @@ export interface NonceStore {
   gcExpiredNonces(now?: number): Promise<number>;
   // Test-only — clears every entry. Postgres adapter TRUNCATEs.
   _resetForTests?: () => Promise<void>;
+}
+
+function tokenDigest(token: string): string {
+  return crypto.createHash("sha256")
+    .update("aqua-auth-nonce-v1")
+    .update("\0")
+    .update(token)
+    .digest("hex");
 }
 
 // ─── Memory adapter ───────────────────────────────────────────────────────
@@ -145,15 +159,98 @@ function createPostgresAdapter(): NonceStore {
   };
 }
 
+// ─── Supabase adapter ─────────────────────────────────────────────────────
+
+interface SupabaseRpcResponse {
+  ok: boolean;
+  status: number;
+  text(): Promise<string>;
+}
+
+type SupabaseFetch = (
+  input: string | URL | Request,
+  init?: RequestInit,
+) => Promise<SupabaseRpcResponse>;
+
+function createSupabaseAdapter(fetchImpl: SupabaseFetch = fetch): NonceStore {
+  async function rpc<T>(name: string, body: Record<string, unknown>): Promise<T> {
+    const baseUrl = resolveSupabaseUrl()?.replace(/\/$/, "");
+    const secret = resolveSupabaseSecretKey();
+    if (!baseUrl || !secret) {
+      throw new Error("durable_nonce_store_unavailable");
+    }
+    const response = await fetchImpl(`${baseUrl}/rest/v1/rpc/${name}`, {
+      method: "POST",
+      headers: {
+        apikey: secret,
+        authorization: `Bearer ${secret}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+    const raw = await response.text();
+    if (!response.ok) {
+      // Never copy a provider body into an auth error: PostgREST may include
+      // schema/configuration detail. Callers fail closed on this stable code.
+      throw new Error(`durable_nonce_store_rpc_failed_${response.status}`);
+    }
+    try {
+      return JSON.parse(raw || "null") as T;
+    } catch {
+      throw new Error("durable_nonce_store_response_invalid");
+    }
+  }
+
+  return {
+    kind: "supabase",
+    async consumeNonce(token, kind, ttlMs) {
+      if (ttlMs <= 0) return false;
+      return rpc<boolean>("consume_aqua_auth_nonce", {
+        p_token_hash: tokenDigest(token),
+        p_kind: kind,
+        p_expires_at: Date.now() + ttlMs,
+      });
+    },
+    async releaseNonce(token, kind) {
+      await rpc<boolean>("release_aqua_auth_nonce", {
+        p_token_hash: tokenDigest(token),
+        p_kind: kind,
+      });
+    },
+    async gcExpiredNonces(now = Date.now()) {
+      const deleted = await rpc<number>("gc_aqua_auth_nonces", { p_now: now });
+      return Number.isSafeInteger(deleted) && deleted >= 0 ? deleted : 0;
+    },
+  };
+}
+
 // ─── Adapter resolution ──────────────────────────────────────────────────
 
 let cached: NonceStore | null = null;
 
 export function getNonceStore(): NonceStore {
-  if (cached) return cached;
+  if (cached) {
+    if (process.env.NODE_ENV === "production" && cached.kind === "memory") {
+      throw new Error("durable_nonce_store_required");
+    }
+    return cached;
+  }
   const explicit = (process.env.PORTAL_BACKEND ?? "").toLowerCase();
   const wantsPostgres = explicit === "postgres" || (!explicit && !!process.env.DATABASE_URL);
-  cached = wantsPostgres ? createPostgresAdapter() : createMemoryAdapter();
+  const wantsSupabase = explicit === "supabase" || (
+    !explicit
+    && !process.env.DATABASE_URL
+    && !!resolveSupabaseUrl()
+    && !!resolveSupabaseSecretKey()
+  );
+  if (wantsPostgres) cached = createPostgresAdapter();
+  else if (wantsSupabase) cached = createSupabaseAdapter();
+  else {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("durable_nonce_store_required");
+    }
+    cached = createMemoryAdapter();
+  }
   return cached;
 }
 
@@ -171,4 +268,8 @@ export async function _swapStoreForTests(adapter: NonceStore | null): Promise<vo
 // adapters without going through the singleton.
 export function _createMemoryAdapterForTests(): NonceStore {
   return createMemoryAdapter();
+}
+
+export function _createSupabaseAdapterForTests(fetchImpl: SupabaseFetch): NonceStore {
+  return createSupabaseAdapter(fetchImpl);
 }

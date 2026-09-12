@@ -4527,10 +4527,17 @@ export interface StaffProvisioningOperation {
   createdAt: number;
   updatedAt: number;
   completedAt?: number;
+  invitationNonce?: string;
+  invitationExpiresAt?: number;
+  invitationSessionRev?: number;
+  invitationDeliveryRef?: string;
+  invitationAttempts?: number;
+  invitationDeliveredAt?: number;
 }
 
 export type AgencySignupStage =
   | "awaiting-email-verification"
+  | "verification-claiming"
   | "email-verified"
   | "provider-ready"
   | "complete";
@@ -4562,6 +4569,29 @@ export interface PasswordResetOperation {
   updatedAt: number;
 }
 
+export type ClientPortalSetupOperationStatus = "accepted" | "provider-applied" | "complete";
+
+/** Durable first-password checkpoint for one exact invited client identity. */
+export interface ClientPortalSetupOperation {
+  id: string;
+  userId: string;
+  email: string;
+  agencyId: string;
+  clientId: string;
+  role: Role;
+  expectedSessionRev: number;
+  passwordFingerprint: string;
+  initialSupabaseAuthUserId?: string;
+  providerUserId?: string;
+  status: ClientPortalSetupOperationStatus;
+  providerAttempts: number;
+  providerLastError?: string;
+  providerOutcomeUnknown?: boolean;
+  completedAt?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
 /**
  * Durable, password-free admission and recovery ledger for self-service agency
  * signup. No Agency or ServerUser exists while the row is awaiting mailbox
@@ -4575,6 +4605,10 @@ export interface AgencySignupOperation {
   intentFingerprint: string;
   userId: string;
   agencyId: string;
+  consentAcceptedAt: number;
+  consentPolicy: "agency-self-service-terms";
+  consentPolicyVersion: string;
+  consentTermsUrl: string;
   stage: AgencySignupStage;
   verificationNonce: string;
   verificationExpiresAt: number;
@@ -4589,6 +4623,8 @@ export interface AgencySignupOperation {
   setupNonce?: string;
   setupExpiresAt?: number;
   providerUserId?: string;
+  /** Keyed digest binding every activation retry to the original password. */
+  activationPasswordFingerprint?: string;
   activationAttempts: number;
   activationLastError?: string;
   verifiedAt?: number;
@@ -5180,6 +5216,7 @@ export interface PortalState {
   staffProvisioningOperations: Record<string, StaffProvisioningOperation>;
   agencySignupOperations: Record<string, AgencySignupOperation>;
   passwordResetOperations: Record<string, PasswordResetOperation>;
+  clientPortalSetupOperations: Record<string, ClientPortalSetupOperation>;
   // Durable checkpoints for client-website provision/publish/deploy, so a retry
   // after a lost save adopts the external thing that already exists.
   clientProjectOperations: Record<string, ClientProjectOperation>;

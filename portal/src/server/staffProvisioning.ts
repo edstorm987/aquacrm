@@ -417,3 +417,27 @@ export async function runStaffProvisioning(
 export function getStaffProvisioningOperation(agencyId: string, email: string): StaffProvisioningOperation | null {
   return getState().staffProvisioningOperations[staffProvisioningOperationKey(agencyId, email)] ?? null;
 }
+
+export async function recordStaffInvitation(
+  agencyId: string,
+  email: string,
+  patch: Pick<StaffProvisioningOperation,
+    | "invitationNonce"
+    | "invitationExpiresAt"
+    | "invitationSessionRev"
+    | "invitationDeliveryRef"
+    | "invitationAttempts"
+    | "invitationDeliveredAt">,
+): Promise<StaffProvisioningOperation> {
+  const key = staffProvisioningOperationKey(agencyId, email);
+  let saved: StaffProvisioningOperation | null = null;
+  mutate(state => {
+    const operation = state.staffProvisioningOperations[key];
+    if (!operation) return;
+    saved = { ...operation, ...patch, updatedAt: Date.now() };
+    state.staffProvisioningOperations[key] = saved;
+  });
+  if (!saved) throw new Error("staff_invitation_operation_missing");
+  await flushPendingWrites();
+  return saved;
+}

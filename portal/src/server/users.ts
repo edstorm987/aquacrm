@@ -16,7 +16,7 @@ import crypto from "crypto";
 import { getState, mutate } from "./storage";
 import { drainOutbox, recordOutboxEvent } from "./outbox";
 import type { Role, ServerUser } from "./types";
-import { LEAD_AGENCY_ID } from "./types";
+import { CUSTOMER_PORTAL_ROLES, LEAD_AGENCY_ID } from "./types";
 
 const SCRYPT_N = 16384;
 const SCRYPT_R = 8;
@@ -202,6 +202,25 @@ export function getUserById(userId: string): ServerUser | null {
     if (u.id === userId) return u;
   }
   return null;
+}
+
+/**
+ * Resolve a forgotten-password subject without the legacy scoped-to-unscoped
+ * fallback. A client audience is immutable authority, not a lookup hint. Any
+ * duplicate/corrupt match fails closed so a shared mailbox cannot select a
+ * more privileged account by enumeration order.
+ */
+export function getExactPasswordResetUser(email: string, clientId?: string): ServerUser | null {
+  const wantedEmail = normEmail(email);
+  const wantedClient = clientId?.trim();
+  const matches = Object.values(getState().users).filter(user => {
+    if (normEmail(user.email) !== wantedEmail) return false;
+    if (wantedClient) {
+      return user.clientId === wantedClient && CUSTOMER_PORTAL_ROLES.includes(user.role);
+    }
+    return !user.clientId && !CUSTOMER_PORTAL_ROLES.includes(user.role);
+  });
+  return matches.length === 1 ? matches[0]! : null;
 }
 
 /**

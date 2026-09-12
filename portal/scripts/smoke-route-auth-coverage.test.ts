@@ -91,6 +91,7 @@ const PUBLIC: Record<string, string> = {
   "public/health-check/complete": "completes a health check from a link; rate-limited",
   "public/proposals/[token]": "a proposal opened from an emailed link; the token IS the gate",
   "public/client-forms/[connectionId]": "a client's Supabase webhook; HMAC-verified per connection",
+  "public/bot-challenge/config": "serves only the public managed-challenge site key and required/enabled flags; no secret or tenant data",
 
   // Machine callers that authenticate by something other than a session.
   "v1/openapi.json": "the API's own published specification",

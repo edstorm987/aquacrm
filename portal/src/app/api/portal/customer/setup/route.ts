@@ -3,18 +3,17 @@ import { NextResponse, type NextRequest } from "next/server";
 import { authErrorResponse, getSessionFromRequest } from "@/lib/server/auth/auth";
 import { ensureHydrated, flushPendingWrites } from "@/server/storage";
 import {
-  bindSupabaseAuthIdentity,
   getUserById,
   markWelcomeComplete,
   validatePassword,
 } from "@/server/users";
-import {
-  deleteSupabaseIdentityById,
-  provisionBoundClientPortalIdentity,
-  updateBoundClientPortalPassword,
-} from "@/lib/supabase/admin";
 import { logActivity } from "@/server/activity";
 import { CUSTOMER_PORTAL_ROLES } from "@/server/types";
+import {
+  configuredPublicAuthOrigin,
+  isExactConfiguredRequestOrigin,
+} from "@/lib/server/auth/publicAuthOrigin";
+import { executeClientPortalSetup } from "@/server/clientPortalSetupOperation";
 
 const PASSWORD_SETUP_MAX_AUTH_AGE_SECONDS = 15 * 60;
 const SESSION_IAT_FUTURE_SKEW_SECONDS = 60;
@@ -42,6 +41,15 @@ function hasRecentPasswordAuthentication(session: { aal?: unknown; iat?: unknown
  */
 export async function POST(request: NextRequest) {
   try {
+    const contentType = (request.headers.get("content-type") ?? "")
+      .split(";", 1)[0]?.trim().toLowerCase();
+    if (contentType !== "application/json") {
+      return NextResponse.json({ ok: false, error: "Request was not accepted." }, { status: 415 });
+    }
+    const publicOrigin = configuredPublicAuthOrigin();
+    if (!publicOrigin || !isExactConfiguredRequestOrigin(request, publicOrigin)) {
+      return NextResponse.json({ ok: false, error: "Request was not accepted." }, { status: 403 });
+    }
     await ensureHydrated();
     const session = await getSessionFromRequest(request);
     if (!session) return NextResponse.json({ ok: false, error: "Sign in first." }, { status: 401 });
@@ -111,51 +119,17 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      const binding = {
-        aquaUserId: user.id,
-        agencyId: user.agencyId,
-        clientId: user.clientId,
-      };
-      if (user.supabaseAuthUserId) {
-        await updateBoundClientPortalPassword({
-          authUserId: user.supabaseAuthUserId,
-          email: user.email,
-          password,
-          binding,
-        });
-      } else {
-        // A first setup may create a NEW exact subject after the invitation
-        // proved mailbox control. It must never adopt the global account that
-        // happens to share this email — that may be an owner or another role.
-        if (!user.emailVerifiedAt) {
-          return NextResponse.json(
-            { ok: false, error: "Use a fresh client portal access invitation before setting a password." },
-            { status: 403 },
-          );
-        }
-        const provisioned = await provisionBoundClientPortalIdentity({
-          email: user.email,
-          password,
-          name: user.name,
-          binding,
-        });
-        const bound = bindSupabaseAuthIdentity(user.id, provisioned.id);
-        if (!bound) {
-          await deleteSupabaseIdentityById(provisioned.id);
-          throw new Error("The new Supabase sign-in could not be bound to this portal account.");
-        }
-      }
-    } catch (error) {
-      // Said plainly rather than swallowed: somebody halfway through setting up
-      // their account needs to know it did not take, not be sent onward
-      // believing they have a password they cannot use.
+      await executeClientPortalSetup({
+        userId: user.id,
+        expectedSessionRev: user.sessionRev ?? 0,
+        password,
+      });
+    } catch {
       return NextResponse.json({
         ok: false,
-        error: error instanceof Error ? error.message : "That password could not be saved.",
-      }, { status: 502 });
+        error: "That password could not be saved. Verify your access again or try shortly.",
+      }, { status: 503 });
     }
-
-    markWelcomeComplete(session.userId);
 
     logActivity({
       agencyId: session.agencyId,

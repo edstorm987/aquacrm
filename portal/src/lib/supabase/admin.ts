@@ -159,17 +159,21 @@ export async function provisionBoundClientPortalIdentity(input: {
   binding: ClientPortalIdentityBinding;
   /** Stable durable operation allowed to adopt only its own lost response. */
   operationId?: string;
+  operationKind?: "password-reset" | "client-setup";
 }) {
   const admin = createSupabaseAdminClient();
   const email = input.email.trim().toLowerCase();
   const binding = normaliseClientPortalBinding(input.binding);
+  const operationMarker = input.operationKind === "client-setup"
+    ? "aqua_client_setup_operation_id"
+    : "aqua_password_reset_operation_id";
   if (input.operationId) {
     const existing = await findSupabaseUserByEmail(email);
     if (existing) {
       const expected = clientPortalAppMetadata(binding);
       const metadata = existing.app_metadata ?? {};
       const exactBinding = Object.entries(expected).every(([key, value]) => metadata[key] === value);
-      if (!exactBinding || metadata.aqua_password_reset_operation_id !== input.operationId) {
+      if (!exactBinding || metadata[operationMarker] !== input.operationId) {
         throw new Error("An unrelated Supabase sign-in already exists for this email.");
       }
       const { data, error } = await admin.auth.admin.updateUserById(existing.id, { password: input.password });
@@ -184,7 +188,7 @@ export async function provisionBoundClientPortalIdentity(input: {
     user_metadata: { full_name: input.name?.trim() || email.split("@")[0] },
     app_metadata: {
       ...clientPortalAppMetadata(binding),
-      ...(input.operationId ? { aqua_password_reset_operation_id: input.operationId } : {}),
+      ...(input.operationId ? { [operationMarker]: input.operationId } : {}),
     },
   });
   if (error || !data.user) {

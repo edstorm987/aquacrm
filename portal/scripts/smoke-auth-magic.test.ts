@@ -23,7 +23,7 @@ import {
 } from "../src/lib/server/auth/magicLink";
 
 test("signMagicToken → verifyMagicToken round-trip", () => {
-  const { token, payload } = signMagicToken({ email: "Jane@Example.COM", clientId: "cl_1", agencyId: "ag_1" });
+  const { token, payload } = signMagicToken({ email: "Jane@Example.COM", clientId: "cl_1", agencyId: "ag_1", sessionRev: 3 });
   const r = verifyMagicToken(token);
   assert.equal(r.ok, true);
   if (r.ok) {
@@ -31,6 +31,7 @@ test("signMagicToken → verifyMagicToken round-trip", () => {
     assert.equal(r.payload.clientId, "cl_1");
     assert.equal(r.payload.agencyId, "ag_1");
     assert.equal(r.payload.purpose, "sign-in");
+    assert.equal(r.payload.sessionRev, 3);
     assert.equal(r.payload.nonce, payload.nonce);
   }
 });
@@ -40,6 +41,7 @@ test("client portal invitations carry a distinct, signed admission purpose", () 
     email: "Jane@Example.COM",
     clientId: "cl_1",
     agencyId: "ag_1",
+    sessionRev: null,
   });
   const result = verifyMagicToken(token);
   assert.equal(result.ok, true);
@@ -47,7 +49,7 @@ test("client portal invitations carry a distinct, signed admission purpose", () 
 });
 
 test("verifyMagicToken: tampered signature rejected", () => {
-  const { token } = signMagicToken({ email: "j@x.com", clientId: "cl_1", agencyId: "ag_1" });
+  const { token } = signMagicToken({ email: "j@x.com", clientId: "cl_1", agencyId: "ag_1", sessionRev: 0 });
   const dot = token.indexOf(".");
   const tampered = token.slice(0, dot) + "." + "A".repeat(token.length - dot - 1);
   const r = verifyMagicToken(tampered);
@@ -70,6 +72,7 @@ test("verifyMagicToken: expired payload rejected", () => {
     agencyId: "ag_1",
     exp: Math.floor(Date.now() / 1000) - 10,
     nonce: "n1",
+    sessionRev: 0,
   };
   const json = JSON.stringify(expired);
   const b64 = Buffer.from(json, "utf8").toString("base64url");
@@ -96,9 +99,26 @@ test("verifyMagicToken: legacy purpose-less tokens fail closed", () => {
   if (!result.ok) assert.equal(result.error, "missing_claims");
 });
 
+test("verifyMagicToken: purpose-bearing tokens without an issuance epoch fail closed", () => {
+  const crypto = require("node:crypto") as typeof import("node:crypto");
+  const payload = {
+    purpose: "sign-in",
+    email: "legacy-epoch@example.test",
+    clientId: "cl_1",
+    agencyId: "ag_1",
+    exp: Math.floor(Date.now() / 1000) + 60,
+    nonce: "legacy-epoch-nonce",
+  };
+  const b64 = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+  const sig = crypto.createHmac("sha256", process.env.PORTAL_SESSION_SECRET!).update(b64).digest("base64url");
+  const result = verifyMagicToken(`${b64}.${sig}`);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.error, "missing_claims");
+});
+
 test("single-use: mark + replay rejection", () => {
   _clearUsedForTests();
-  const { payload } = signMagicToken({ email: "j@x.com", clientId: "cl_1", agencyId: "ag_1" });
+  const { payload } = signMagicToken({ email: "j@x.com", clientId: "cl_1", agencyId: "ag_1", sessionRev: 0 });
   assert.equal(isUsed(payload.nonce), false);
   markUsed(payload.nonce, payload.exp);
   assert.equal(isUsed(payload.nonce), true);
@@ -128,6 +148,7 @@ test("delivery ambiguity retries the same token generation with the same provide
     email: "Retry@Example.test",
     clientId: "client_retry",
     agencyId: "agency_retry",
+    sessionRev: 0,
   });
   const input = {
     email: "retry@example.test",
@@ -177,6 +198,7 @@ test("a subsequent genuinely new magic request receives a different provider ope
     email: "new-request@example.test",
     clientId: "client_new_request",
     agencyId: "agency_new_request",
+    sessionRev: 0,
   };
   const firstToken = signMagicToken(subject).token;
   const secondToken = signMagicToken(subject).token;

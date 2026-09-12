@@ -8,7 +8,7 @@ import {
   usePublicBotChallengeConfig,
 } from "@/components/security/BotChallenge";
 
-export function ForgotForm({ brand }: { brand: AuthBrandId }) {
+export function ForgotForm({ brand, clientId }: { brand: AuthBrandId; clientId?: string }) {
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +26,12 @@ export function ForgotForm({ brand }: { brand: AuthBrandId }) {
       const res = await fetch("/api/auth/password/request-reset", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, brand, ...(captchaToken ? { captchaToken } : {}) }),
+        body: JSON.stringify({
+          email,
+          brand,
+          ...(clientId ? { clientId } : {}),
+          ...(captchaToken ? { captchaToken } : {}),
+        }),
       });
       const data = (await res.json()) as { ok: boolean; error?: string; devResetUrl?: string };
       if (!res.ok || !data.ok) {

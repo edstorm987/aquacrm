@@ -14,9 +14,14 @@ import { ensureHydrated } from "@/server/storage";
 import { clientIpFromHeaders, rateLimit } from "@/lib/server/rateLimit";
 import { getClient } from "@/server/tenants";
 import { getUser } from "@/server/users";
-import { signMagicToken, deliverMagicLink } from "@/lib/server/auth/magicLink";
+import { signMagicToken, deliverMagicLink, magicLinkSessionRevision } from "@/lib/server/auth/magicLink";
 import { verifyBotChallenge } from "@/lib/server/security/botChallenge";
 import { configuredPublicAuthOrigin } from "@/lib/server/auth/publicAuthOrigin";
+import {
+  logPublicAuthDeliveryFailure,
+  runBoundedPublicAuthDelivery,
+  waitForPublicAuthResponseWindow,
+} from "@/lib/server/auth/publicAuthDelivery";
 
 interface Body { email?: unknown; clientId?: unknown; returnUrl?: unknown; captchaToken?: unknown; }
 
@@ -80,13 +85,29 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "Too many requests for this email." }, { status: 429 });
   }
 
-  await ensureHydrated();
+  const responseStartedAt = Date.now();
 
-  const publicOrigin = configuredPublicAuthOrigin();
-  if (!publicOrigin) return NextResponse.json(ACCEPTED);
+  try {
+    await ensureHydrated();
+  } catch {
+    await waitForPublicAuthResponseWindow(responseStartedAt);
+    return NextResponse.json(ACCEPTED);
+  }
+
+  let publicOrigin: string | null = null;
+  try {
+    publicOrigin = configuredPublicAuthOrigin();
+  } catch {
+    // Public configuration failures remain indistinguishable from misses.
+  }
+  if (!publicOrigin) {
+    await waitForPublicAuthResponseWindow(responseStartedAt);
+    return NextResponse.json(ACCEPTED);
+  }
 
   const client = getClient(clientId);
   if (!client || !["active", "suspended"].includes(client.status)) {
+    await waitForPublicAuthResponseWindow(responseStartedAt);
     return NextResponse.json(ACCEPTED);
   }
 
@@ -97,18 +118,25 @@ export async function POST(req: NextRequest) {
     || member.clientId !== client.id
     || member.agencyId !== client.agencyId
   ) {
+    await waitForPublicAuthResponseWindow(responseStartedAt);
     return NextResponse.json(ACCEPTED);
   }
 
-  const { token } = signMagicToken({ email, clientId, agencyId: client.agencyId });
-  const verifyPath = new URL("/login/magic", publicOrigin);
-  verifyPath.searchParams.set("token", token);
-  verifyPath.searchParams.set("return", returnUrl);
-  const magicUrl = verifyPath.toString();
-
-  await deliverMagicLink({
-    email, clientId, agencyId: client.agencyId, magicUrl,
-  });
+  const delivery = await runBoundedPublicAuthDelivery(signal => {
+    const { token } = signMagicToken({
+      email,
+      clientId,
+      agencyId: client.agencyId,
+      sessionRev: magicLinkSessionRevision(member),
+    });
+    const verifyPath = new URL("/login/magic", publicOrigin);
+    verifyPath.searchParams.set("token", token);
+    verifyPath.searchParams.set("return", returnUrl);
+    return deliverMagicLink({
+      email, clientId, agencyId: client.agencyId, magicUrl: verifyPath.toString(), signal,
+    });
+  }, { startedAt: responseStartedAt, requestSignal: req.signal });
+  if (delivery.status !== "complete") logPublicAuthDeliveryFailure("magic", delivery.status);
 
   // Never reveal whether the membership or delivery target exists. The
   // authenticated customer-portal-control route retains its local dev URL.

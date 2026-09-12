@@ -898,6 +898,13 @@ export const PROMOTION_DISPOSITION = {
     reason:
       "Password-reset provider receipts are security lineage for the original exact user and tenant. They never follow a promoted company or become credentials in the new tenant.",
   },
+  clientPortalSetupOperations: {
+    disposition: "leave",
+    ownership: "agency-scoped",
+    keying: "own-id",
+    reason:
+      "Client portal setup receipts bind one exact user and client to provider/local convergence. They remain security lineage in the originating tenant.",
+  },
   clientProjectOperations: {
     disposition: "leave",
     ownership: "agency-scoped",
@@ -956,7 +963,7 @@ type _NoStaleCollections = AssertNever<StaleCollections>;
 // tenant key and live outside the live data realm entirely.
 // 98 → 99 on 2026-09-03: `personalMetricDays`, the bounded actor-owned
 // semantic projection behind personal recurring targets.
-export const PROMOTION_COLLECTION_COUNT = 103;
+export const PROMOTION_COLLECTION_COUNT = 104;
 
 /** Every classified collection name, in `PortalState` order. */
 export const PROMOTION_COLLECTIONS = Object.keys(PROMOTION_DISPOSITION) as Array<

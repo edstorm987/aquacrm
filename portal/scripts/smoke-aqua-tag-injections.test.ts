@@ -298,6 +298,10 @@ describe("the master tag as surfaced on the Dev Team API page", () => {
       "http://192.168.68.58:3046",      // the LAN address Next prints on boot
       "http://172.20.1.5:3000",
       "http://169.254.10.2",
+      "http://0.0.0.0:3000",
+      "http://[::]:3000",
+      "http://[fc00::1]:3000",
+      "http://[fe80::1]:3000",
       "https://ed-mac.local:3000",
       "not a url",
       "",

@@ -13,7 +13,7 @@ import type { Metadata } from "next";
 export async function generateMetadata({
   searchParams,
 }: {
-  searchParams: Promise<{ brand?: string }>;
+  searchParams: Promise<{ brand?: string; clientId?: string }>;
 }): Promise<Metadata> {
   const params = await searchParams;
   const brand = getAuthBrand(params.brand);
@@ -26,7 +26,7 @@ export async function generateMetadata({
 export default async function ForgotPage({
   searchParams,
 }: {
-  searchParams: Promise<{ brand?: string }>;
+  searchParams: Promise<{ brand?: string; clientId?: string }>;
 }) {
   const params = await searchParams;
   const brand = getAuthBrand(params.brand);
@@ -57,10 +57,13 @@ export default async function ForgotPage({
             <h1>Forgot password</h1>
             <p>Enter the email used for your {brand.name} workspace.</p>
           </div>
-          <ForgotForm brand={brand.id} />
+          <ForgotForm brand={brand.id} clientId={params.clientId} />
           <div className="mm-auth-foot">
             <span>
-              Remembered it? <Link href={`/login?brand=${brand.id}`}>Sign in →</Link>
+              Remembered it? <Link href={`/login?${new URLSearchParams({
+                brand: brand.id,
+                ...(params.clientId ? { clientId: params.clientId } : {}),
+              }).toString()}`}>Sign in →</Link>
             </span>
           </div>
         </div>

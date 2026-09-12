@@ -25,6 +25,8 @@ export interface MagicLinkPayload {
   agencyId: string;
   exp: number;
   nonce: string;
+  /** Exact user session epoch at issuance; null only for a new invitation. */
+  sessionRev: number | null;
 }
 
 export type MagicLinkPurpose = "sign-in" | "client-portal-invite";
@@ -34,7 +36,7 @@ export function magicLinkSessionRevision(user: { sessionRev?: number }): number 
   return user.sessionRev ?? 0;
 }
 
-type MagicLinkSubject = Pick<MagicLinkPayload, "email" | "clientId" | "agencyId">;
+type MagicLinkSubject = Pick<MagicLinkPayload, "email" | "clientId" | "agencyId" | "sessionRev">;
 
 function getSecret(): string {
   return resolveSigningSecret();
@@ -51,6 +53,7 @@ function signPurposeToken(input: MagicLinkSubject, purpose: MagicLinkPurpose): {
     agencyId: input.agencyId,
     exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS,
     nonce: crypto.randomBytes(16).toString("base64url"),
+    sessionRev: input.sessionRev,
   };
   const json = JSON.stringify(payload);
   const b64 = Buffer.from(json, "utf8").toString("base64url");
@@ -112,6 +115,12 @@ export function verifyMagicToken(
     || typeof candidate.exp !== "number" || !Number.isSafeInteger(candidate.exp)
     || typeof candidate.nonce !== "string" || !candidate.nonce
     || typeof candidate.purpose !== "string" || !candidate.purpose
+    || !(
+      candidate.sessionRev === null
+      || (typeof candidate.sessionRev === "number"
+        && Number.isSafeInteger(candidate.sessionRev)
+        && candidate.sessionRev >= 0)
+    )
   ) {
     return { ok: false, error: "missing_claims" };
   }
@@ -193,6 +202,7 @@ interface MagicLinkDeliveryInput {
   clientId: string;
   agencyId: string;
   magicUrl: string;
+  signal?: AbortSignal;
 }
 
 export interface MagicLinkDeliveryResult {
@@ -292,6 +302,7 @@ export async function deliverMagicLink(
       '</td></tr></table>',
       '</body></html>',
     ].join(""),
+    signal: input.signal,
   });
   if (sent.delivered) return { delivered: true, via: "resend", operationRef };
 
@@ -300,7 +311,7 @@ export async function deliverMagicLink(
       `[magic-link] Email delivery is not configured. URL for ${input.email}: ${input.magicUrl}`,
     );
   } else {
-    console.error(`[magic-link] Delivery failed for ${input.email}: ${sent.reason}`);
+    console.error("[magic-link] Delivery failed.");
   }
   return {
     delivered: false,

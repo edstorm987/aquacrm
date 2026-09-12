@@ -186,12 +186,14 @@ function jsonResponse(payload: unknown): Response {
 
 before(async () => {
   for (const key of [
+    "NEXT_PUBLIC_PORTAL_BASE_URL",
     "NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY",
     "GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_REDIRECT_URI",
   ]) {
     savedEnv[key] = process.env[key];
   }
   const base = await startStubSupabase();
+  process.env.NEXT_PUBLIC_PORTAL_BASE_URL = ORIGIN;
   process.env.NEXT_PUBLIC_SUPABASE_URL = base;
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "stub-anon-key";
   process.env.SUPABASE_SERVICE_ROLE_KEY = "stub-service-role-key";
@@ -267,7 +269,7 @@ function sessionAalOf(res: Response): unknown {
 }
 
 function magicRequestFor(email: string): NextRequest {
-  const { token } = signMagicToken({ email, clientId, agencyId });
+  const { token } = signMagicToken({ email, clientId, agencyId, sessionRev: 0 });
   const url = new URL("/api/auth/magic/verify", ORIGIN);
   url.searchParams.set("token", token);
   return new NextRequest(url, { method: "GET" });

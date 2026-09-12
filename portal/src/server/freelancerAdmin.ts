@@ -12,6 +12,7 @@ import type { PeopleFreelancerJobStatus } from "@/server/types";
 import {
   runStaffProvisioning,
   getStaffProvisioningOperation,
+  recordStaffInvitation,
   StaffProvisioningConflictError,
   StaffProvisioningRecoveryError,
   type StaffProvisioningRuntime,
@@ -157,20 +158,57 @@ export async function inviteFreelancer(
       await flushPendingWrites();
     }
 
+    const currentRev = result.user.sessionRev ?? 0;
+    const now = (dependencies.now ?? Date.now)();
+    const liveReceipt = result.operation.invitationNonce
+      && result.operation.invitationExpiresAt
+      && result.operation.invitationExpiresAt * 1_000 > now
+      && result.operation.invitationSessionRev === currentRev;
+    const invitationNonce = liveReceipt
+      ? result.operation.invitationNonce!
+      : crypto.randomBytes(16).toString("base64url");
+    const invitationExpiresAt = liveReceipt
+      ? result.operation.invitationExpiresAt!
+      : Math.floor(now / 1_000) + 24 * 60 * 60;
+    const invitationRef = liveReceipt && result.operation.invitationDeliveryRef
+      ? result.operation.invitationDeliveryRef
+      : `freelancer-invite:${result.operation.id}:${crypto.createHash("sha256").update(invitationNonce).digest("hex").slice(0, 20)}`;
+    const invitationOperation = await recordStaffInvitation(agencyId, email, {
+      invitationNonce,
+      invitationExpiresAt,
+      invitationSessionRev: currentRev,
+      invitationDeliveryRef: invitationRef,
+      invitationAttempts: (result.operation.invitationAttempts ?? 0) + 1,
+      invitationDeliveredAt: result.operation.invitationDeliveredAt,
+    });
+
     const { token } = (dependencies.signSetupToken ?? signPasswordResetToken)({
       userId: result.user.id,
       email: result.user.email,
-      sessionRev: result.user.sessionRev ?? 0,
+      sessionRev: currentRev,
+      clientId: null,
+      nonce: invitationNonce,
+      exp: invitationExpiresAt,
     });
     const setupUrl = `${publicOrigin}/login/reset?token=${encodeURIComponent(token)}`;
     const sent = await (dependencies.sendEmail ?? sendTransactionalEmail)({
       to: result.user.email,
       agencyId,
-      externalRef: `freelancer-invite:${result.operation.id}:${(dependencies.now ?? Date.now)()}`,
+      externalRef: invitationRef,
       subject: "Set up your freelancer workspace",
       bodyText: `You have been invited to a freelancer workspace. Set your password using this secure link (valid for 24 hours):\n\n${setupUrl}`,
       bodyHtml: `<p>You have been invited to a freelancer workspace.</p><p><a href="${setupUrl}">Set up your password</a></p><p>This link is valid for 24 hours.</p>`,
     });
+    if (sent.delivered && !invitationOperation.invitationDeliveredAt) {
+      await recordStaffInvitation(agencyId, email, {
+        invitationNonce,
+        invitationExpiresAt,
+        invitationSessionRev: currentRev,
+        invitationDeliveryRef: invitationRef,
+        invitationAttempts: invitationOperation.invitationAttempts,
+        invitationDeliveredAt: now,
+      });
+    }
     return {
       ok: true,
       employeeId: result.employee?.id,

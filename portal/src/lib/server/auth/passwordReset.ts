@@ -27,6 +27,8 @@ export interface PasswordResetPayload {
   email: string;
   /** Per-user reset epoch. A completed sibling reset increments this value. */
   sessionRev: number;
+  /** Exact client account audience; null means an unscoped workspace account. */
+  clientId: string | null;
   exp: number;
   nonce: string;
 }
@@ -35,7 +37,14 @@ function getSecret(): string {
   return resolveSigningSecret();
 }
 
-export function signPasswordResetToken(input: { userId: string; email: string; sessionRev: number }): {
+export function signPasswordResetToken(input: {
+  userId: string;
+  email: string;
+  sessionRev: number;
+  clientId?: string | null;
+  nonce?: string;
+  exp?: number;
+}): {
   token: string;
   payload: PasswordResetPayload;
 } {
@@ -44,8 +53,9 @@ export function signPasswordResetToken(input: { userId: string; email: string; s
     userId: input.userId,
     email: input.email.trim().toLowerCase(),
     sessionRev: input.sessionRev,
-    exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS,
-    nonce: crypto.randomBytes(16).toString("base64url"),
+    clientId: input.clientId?.trim() || null,
+    exp: input.exp ?? Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS,
+    nonce: input.nonce ?? crypto.randomBytes(16).toString("base64url"),
   };
   const json = JSON.stringify(payload);
   const b64 = Buffer.from(json, "utf8").toString("base64url");
@@ -86,6 +96,7 @@ export function verifyPasswordResetToken(
     typeof candidate.userId !== "string" || !candidate.userId
     || typeof candidate.email !== "string" || !candidate.email
     || typeof candidate.sessionRev !== "number" || !Number.isSafeInteger(candidate.sessionRev) || candidate.sessionRev < 0
+    || !(candidate.clientId === null || (typeof candidate.clientId === "string" && !!candidate.clientId))
     || typeof candidate.exp !== "number" || !Number.isSafeInteger(candidate.exp)
     || typeof candidate.nonce !== "string" || !candidate.nonce
   ) {

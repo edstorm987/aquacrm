@@ -123,6 +123,11 @@ test("real freelancer journey provisions once, invites, shares work, messages, u
   assert.equal(replay.userId, freelancer.id);
   assert.equal(replay.employeeId, employee.id);
   assert.equal(providerInputs.length, 1, "a completed replay must not create a second provider identity");
+  assert.equal(deliveredEmails.length, 2);
+  assert.equal(deliveredEmails[0]?.externalRef, deliveredEmails[1]?.externalRef,
+    "delivery retry must reuse the logical provider operation key");
+  assert.equal(replay.setupUrl, invite.setupUrl,
+    "a retry while the first link is live must not mint another bearer link");
   assert.equal(Object.values(getState().users).filter(user => user.email === freelancer.email).length, 1);
 
   const savedNodeEnvironment = process.env.NODE_ENV;

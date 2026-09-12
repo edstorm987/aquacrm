@@ -53,6 +53,7 @@ import { sendResendEmail } from "@/lib/server/email/resendEmail";
 import { verifyBotChallenge } from "@/lib/server/security/botChallenge";
 import {
   activateAgencySignup,
+  AGENCY_SIGNUP_TERMS_VERSION,
   AGENCY_SIGNUP_SETUP_COOKIE,
   prepareAgencySignup,
   recordAgencySignupDelivery,
@@ -74,6 +75,7 @@ interface Body {
   password?: unknown;
   phase?: unknown;
   captchaToken?: unknown;
+  consent?: unknown;
 }
 
 // ─── Website-lead capture (the form branch) ──────────────────────────────
@@ -88,6 +90,8 @@ const LEAD_FIELDS_ERROR = "Please add your name and a valid email address.";
 const LEAD_CONSENT_ERROR = "Please confirm the terms before sending your details.";
 const LEAD_UNAVAILABLE = "This form is temporarily unavailable. Please email us instead.";
 const LEAD_TOO_MANY = "Too many submissions. Please try again shortly.";
+const LEAD_CONSENT_POLICY = "website-lead-terms";
+const LEAD_CONSENT_VERSION = "2026-09-12";
 
 const PLAUSIBLE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -303,6 +307,15 @@ async function handleWebsiteLead(req: NextRequest): Promise<NextResponse> {
         customFields: {
           capturedBy: "signup-form-block",
           pagePath,
+          consentAcceptedAt: new Date().toISOString(),
+          consentPolicy: LEAD_CONSENT_POLICY,
+          consentPolicyVersion: LEAD_CONSENT_VERSION,
+          // Host was resolved to exactly one registered WebsiteSource above.
+          // Persist a server-derived policy URL; request Host is never evidence.
+          consentTermsUrl: new URL(
+            "/terms",
+            `${process.env.NODE_ENV === "production" ? "https" : "http"}://${owner.host}`,
+          ).toString(),
           ...(owner.clientId ? { routedClientId: owner.clientId } : {}),
           ...(owner.companyId ? { routedCompanyId: owner.companyId } : {}),
         },
@@ -430,6 +443,9 @@ async function handleAccountSignup(req: NextRequest) {
   if (email.length > 254 || !PLAUSIBLE_EMAIL.test(email)) {
     return NextResponse.json({ ok: false, error: "A valid email is required." }, { status: 400 });
   }
+  if (body.consent !== true) {
+    return NextResponse.json({ ok: false, error: "Please accept the terms to continue." }, { status: 400 });
+  }
   const ipLimit = rateLimit({ key: `agency-signup:${ip}`, max: 5, windowMs: 60_000 });
   if (!ipLimit.allowed) {
     return NextResponse.json(
@@ -475,7 +491,16 @@ async function handleAccountSignup(req: NextRequest) {
     }, { status: 202 });
   }
 
-  const prepared = await prepareAgencySignup({ email, companyName });
+  const prepared = await prepareAgencySignup({
+    email,
+    companyName,
+    consent: {
+      acceptedAt: Date.now(),
+      policy: "agency-self-service-terms",
+      version: AGENCY_SIGNUP_TERMS_VERSION,
+      termsUrl: new URL("/terms", publicOrigin).toString(),
+    },
+  });
   const verifyUrl = prepared.verificationToken
     ? `${publicOrigin}/api/auth/verify-email?token=${encodeURIComponent(prepared.verificationToken)}`
     : undefined;

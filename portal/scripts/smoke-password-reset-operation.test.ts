@@ -101,6 +101,8 @@ describe("durable password-reset operation", () => {
     }), /password_reset_provider_failed/);
     assert.equal(getPasswordResetOperation(signed.payload)?.status, "accepted");
     assert.equal(getPasswordResetOperation(signed.payload)?.providerOutcomeUnknown, true);
+    assert.equal(getPasswordResetOperation(signed.payload)?.providerLastError, "provider_failed");
+    assert.doesNotMatch(JSON.stringify(getPasswordResetOperation(signed.payload)), /response lost/i);
 
     await assert.rejects(executePasswordReset({
       payload: signed.payload,
@@ -141,6 +143,7 @@ describe("durable password-reset operation", () => {
       userId: current.id,
       email: current.email,
       sessionRev: current.sessionRev ?? 0,
+      clientId: client.id,
     });
     const dependencies: PasswordResetProviderDependencies = {
       async apply({ operation, user: exact }) {

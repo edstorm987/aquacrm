@@ -25,6 +25,13 @@ describe("canonical public auth origin", () => {
       "http://aqua-crm.com",
       "https://localhost:3030",
       "https://192.168.1.2",
+      "https://0.0.0.0",
+      "https://[::]",
+      "https://[::1]",
+      "https://[fc00::1]",
+      "https://[fd12:3456::1]",
+      "https://[fe80::1]",
+      "https://[::ffff:127.0.0.1]",
     ]) {
       assert.equal(configuredPublicAuthOrigin({
         NODE_ENV: "production",

@@ -112,7 +112,7 @@ export const ORIGIN_NEVER_CONTRIBUTES: Readonly<Record<string, readonly Collecti
     "editorAiConfigs", "agencyMasterTagKeys", "commandCalendarConnections",
     // Pre-tenant verification nonces and recovery receipts are app-wide
     // security state. They must never be copied from an origin into an agency.
-    "agencySignupOperations", "passwordResetOperations",
+    "agencySignupOperations", "passwordResetOperations", "clientPortalSetupOperations",
     // The assume-breach security control plane: epochs, suspensions and the
     // session registry. Seeding another tenant's revocation state would leak
     // security telemetry and desynchronise the central session gate.

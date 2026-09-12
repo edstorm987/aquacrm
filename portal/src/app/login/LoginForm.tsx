@@ -165,6 +165,10 @@ export function LoginForm({
   const submitLabel = busy ? "Signing in…" : "Sign in";
 
   const isMagic = mode === "magic";
+  const forgotParams = new URLSearchParams();
+  if (brandParam) forgotParams.set("brand", brandParam);
+  if (clientId) forgotParams.set("clientId", clientId);
+  const forgotHref = `/login/forgot${forgotParams.size ? `?${forgotParams.toString()}` : ""}`;
 
   // The one showing of the recovery codes. Rendered INSTEAD of the form: the
   // sign-in already succeeded, and the only job left is making sure these are
@@ -263,7 +267,7 @@ export function LoginForm({
       )}
       {!isMagic && mode === "signin" && (
         <a
-          href={`/login/forgot${brandParam ? `?brand=${encodeURIComponent(brandParam)}` : ""}`}
+          href={forgotHref}
           className="mm-form-toggle"
           data-testid="login-forgot-link"
 

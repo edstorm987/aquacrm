@@ -6,7 +6,7 @@ import { signVerifyEmailPayload, type VerifyEmailPayload, consumeVerifyNonce } f
 import { resolveSigningSecret } from "@/lib/server/auth/sessionToken";
 import { provisionOrAdoptSupabaseIdentity } from "@/lib/supabase/admin";
 import { bootstrapAgency } from "./agencyBootstrap";
-import { ensureHydrated, getState, mutate } from "./storage";
+import { ensureHydrated, flushPendingWrites, getState, mutate } from "./storage";
 import { getAgency } from "./tenants";
 import type { AgencySignupOperation, ServerUser } from "./types";
 import {
@@ -22,6 +22,7 @@ import { withPortalProviderLease, withPortalStateTransaction } from "./productWo
 const VERIFICATION_TTL_MS = 24 * 60 * 60 * 1_000;
 const SETUP_TTL_MS = 30 * 60 * 1_000;
 const DELIVERY_COOLDOWN_MS = 60_000;
+export const AGENCY_SIGNUP_TERMS_VERSION = "2026-09-12";
 
 export const AGENCY_SIGNUP_SETUP_COOKIE = "aqua_agency_signup_setup";
 
@@ -58,6 +59,13 @@ export interface AgencySignupActivationDependencies {
   }): Promise<{ id: string }>;
 }
 
+export interface AgencySignupConsentEvidence {
+  acceptedAt: number;
+  policy: "agency-self-service-terms";
+  version: string;
+  termsUrl: string;
+}
+
 function canonicalEmail(email: string): string {
   return email.trim().toLowerCase();
 }
@@ -76,6 +84,16 @@ function companySlug(value: string): string {
 
 function intentFingerprint(email: string, companyName: string): string {
   return digest("agency-signup-intent", canonicalEmail(email), companyName.trim());
+}
+
+function activationPasswordFingerprint(operationId: string, password: string): string {
+  return crypto.createHmac("sha256", resolveSigningSecret())
+    .update("agency-signup-password-v1")
+    .update("\0")
+    .update(operationId)
+    .update("\0")
+    .update(password)
+    .digest("hex");
 }
 
 function writeOperation(operation: AgencySignupOperation): void {
@@ -139,11 +157,26 @@ export function verifyAgencySignupSetupToken(token: string):
 export async function prepareAgencySignup(input: {
   email: string;
   companyName: string;
+  consent: AgencySignupConsentEvidence;
   now?: number;
 }): Promise<PreparedAgencySignup> {
   const email = canonicalEmail(input.email);
   const companyName = input.companyName.trim();
   const now = input.now ?? Date.now();
+  if (
+    input.consent.policy !== "agency-self-service-terms"
+    || input.consent.version !== AGENCY_SIGNUP_TERMS_VERSION
+    || !Number.isSafeInteger(input.consent.acceptedAt)
+    || input.consent.acceptedAt > now + 60_000
+  ) throw new Error("agency_signup_consent_invalid");
+  let consentTermsUrl: string;
+  try {
+    const parsed = new URL(input.consent.termsUrl);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") throw new Error();
+    consentTermsUrl = parsed.toString();
+  } catch {
+    throw new Error("agency_signup_consent_invalid");
+  }
   const id = operationKey(email);
   return withPortalStateTransaction(`agency-signup:${id}`, () => {
     // Anti-enumeration: an existing account gets the same accepted response but
@@ -153,7 +186,7 @@ export async function prepareAgencySignup(input: {
     const existing = currentOperation(id);
     if (existing?.stage === "complete") return { accepted: true, shouldDeliver: false };
     const tokenExpired = !existing || existing.verificationExpiresAt * 1_000 <= now;
-    const setupExpired = existing?.stage === "email-verified"
+    const setupExpired = (existing?.stage === "email-verified" || existing?.stage === "verification-claiming")
       && (!existing.setupExpiresAt || existing.setupExpiresAt <= now);
     const needsFreshVerification = tokenExpired || setupExpired;
     const fingerprint = intentFingerprint(email, companyName);
@@ -230,6 +263,10 @@ export async function prepareAgencySignup(input: {
       intentFingerprint: fingerprint,
       userId,
       agencyId: existing?.agencyId ?? `${companySlug(companyName)}-${hashSuffix}`,
+      consentAcceptedAt: existing?.consentAcceptedAt ?? input.consent.acceptedAt,
+      consentPolicy: "agency-self-service-terms",
+      consentPolicyVersion: existing?.consentPolicyVersion ?? input.consent.version,
+      consentTermsUrl: existing?.consentTermsUrl ?? consentTermsUrl,
       stage: "awaiting-email-verification",
       verificationNonce: signed.payload.nonce,
       verificationExpiresAt: signed.payload.exp,
@@ -273,7 +310,17 @@ export async function recordAgencySignupDelivery(
   });
 }
 
-export async function claimAgencySignupVerification(payload: VerifyEmailPayload, now = Date.now()): Promise<
+export interface AgencySignupVerificationDependencies {
+  consumeNonce?: typeof consumeVerifyNonce;
+  /** Test-only crash seam proving recovery after the durable nonce wins. */
+  afterNonceConsumed?: () => void | Promise<void>;
+}
+
+export async function claimAgencySignupVerification(
+  payload: VerifyEmailPayload,
+  now = Date.now(),
+  dependencies: AgencySignupVerificationDependencies = {},
+): Promise<
   | { ok: true; state: "setup-required"; setupToken: string }
   | { ok: true; state: "complete" }
   | { ok: false; error: string }
@@ -282,44 +329,80 @@ export async function claimAgencySignupVerification(payload: VerifyEmailPayload,
     return { ok: false, error: "invalid_verification_purpose" };
   }
   const id = operationKey(payload.email);
-  return withPortalStateTransaction(`agency-signup:${id}`, async () => {
-    const operation = currentOperation(id);
+  if (payload.exp * 1_000 <= now) return { ok: false, error: "verification_expired" };
+  return withPortalProviderLease(`agency-signup-verification:${id}`, async () => {
+    await ensureHydrated({ fresh: true });
+    let operation = currentOperation(id);
     if (!operation || !sameVerification(operation, payload)) return { ok: false, error: "signup_not_found" };
     if (operation.stage === "complete") return { ok: true, state: "complete" };
 
-    if (operation.stage !== "awaiting-email-verification" && operation.stage !== "email-verified") {
+    if (
+      operation.stage !== "awaiting-email-verification"
+      && operation.stage !== "verification-claiming"
+      && operation.stage !== "email-verified"
+    ) {
       return { ok: false, error: "signup_state_invalid" };
     }
 
     const setupStillLive = operation.setupNonce
       && operation.setupExpiresAt
       && operation.setupExpiresAt > now;
-    if (operation.stage === "email-verified" && !setupStillLive) {
+    if ((operation.stage === "email-verified" || operation.stage === "verification-claiming") && !setupStillLive) {
       // The email proof bought one short setup window, not an evergreen setup
       // token factory. A fresh challenged request must mint and deliver a new
       // verification generation.
       return { ok: false, error: "setup_expired" };
     }
     if (operation.stage === "awaiting-email-verification") {
-      const consumed = await consumeVerifyNonce(payload.nonce, payload.exp);
-      if (!consumed) return { ok: false, error: "already_used" };
+      operation = await withPortalStateTransaction(`agency-signup:${id}`, () => {
+        const current = currentOperation(id);
+        if (!current || !sameVerification(current, payload)) throw new Error("signup_state_changed");
+        if (current.stage !== "awaiting-email-verification") return current;
+        const claiming: AgencySignupOperation = {
+          ...current,
+          stage: "verification-claiming",
+          setupNonce: crypto.randomBytes(16).toString("base64url"),
+          setupExpiresAt: Math.floor((now + SETUP_TTL_MS) / 1_000) * 1_000,
+          updatedAt: now,
+        };
+        writeOperation(claiming);
+        return claiming;
+      });
+      // This intent must outlive the process before the cross-instance nonce is
+      // consumed. A crash after consumption can then finish only this exact
+      // operation/nonce/setup receipt on retry.
+      await flushPendingWrites();
     }
 
-    const setupNonce = setupStillLive
-      ? operation.setupNonce!
-      : crypto.randomBytes(16).toString("base64url");
-    const setupExpiresAt = setupStillLive
-      ? operation.setupExpiresAt!
-      : Math.floor((now + SETUP_TTL_MS) / 1_000) * 1_000;
-    const next: AgencySignupOperation = {
-      ...operation,
-      stage: operation.stage === "awaiting-email-verification" ? "email-verified" : operation.stage,
-      setupNonce,
-      setupExpiresAt,
-      verifiedAt: operation.verifiedAt ?? now,
-      updatedAt: now,
-    };
-    writeOperation(next);
+    if (operation.stage === "verification-claiming") {
+      const consumed = await (dependencies.consumeNonce ?? consumeVerifyNonce)(payload.nonce, payload.exp);
+      if (!consumed) {
+        const recovery = currentOperation(id);
+        if (!recovery || recovery.stage !== "verification-claiming" || !sameVerification(recovery, payload)) {
+          return { ok: false, error: "already_used" };
+        }
+      } else {
+        await dependencies.afterNonceConsumed?.();
+      }
+      operation = await withPortalStateTransaction(`agency-signup:${id}`, () => {
+        const current = currentOperation(id);
+        if (!current || current.stage !== "verification-claiming" || !sameVerification(current, payload)) {
+          throw new Error("signup_state_changed");
+        }
+        const verified: AgencySignupOperation = {
+          ...current,
+          stage: "email-verified",
+          verifiedAt: current.verifiedAt ?? now,
+          updatedAt: now,
+        };
+        writeOperation(verified);
+        return verified;
+      });
+      await flushPendingWrites();
+    }
+
+    const next = operation;
+    if (!next.setupNonce || !next.setupExpiresAt) return { ok: false, error: "signup_state_invalid" };
     return {
       ok: true,
       state: "setup-required",
@@ -328,8 +411,8 @@ export async function claimAgencySignupVerification(payload: VerifyEmailPayload,
         operationId: next.id,
         userId: next.userId,
         email: next.email,
-        nonce: setupNonce,
-        exp: Math.floor(setupExpiresAt / 1_000),
+        nonce: next.setupNonce,
+        exp: Math.floor(next.setupExpiresAt / 1_000),
       }),
     };
   });
@@ -377,11 +460,16 @@ export async function activateAgencySignup(input: {
   if (!passwordCheck.ok) throw new Error(passwordCheck.error ?? "Invalid password.");
   const payload = verified.payload;
   const dependencies = input.dependencies ?? defaultActivationDependencies;
+  const passwordFingerprint = activationPasswordFingerprint(payload.operationId, input.password);
 
   return withPortalProviderLease(`agency-signup:${payload.operationId}`, async () => {
     await ensureHydrated({ fresh: true });
     let operation = exactSetupOperation(payload);
     if (!operation) throw new Error("signup_setup_invalid");
+    if (
+      operation.activationPasswordFingerprint
+      && operation.activationPasswordFingerprint !== passwordFingerprint
+    ) throw new Error("signup_password_changed");
     if (operation.stage === "complete") {
       const user = getUserById(operation.userId);
       if (!user || user.agencyId !== operation.agencyId || user.role !== "agency-owner") {
@@ -404,6 +492,7 @@ export async function activateAgencySignup(input: {
       }
       const next: AgencySignupOperation = {
         ...current,
+        activationPasswordFingerprint: current.activationPasswordFingerprint ?? passwordFingerprint,
         activationAttempts: current.activationAttempts + 1,
         activationLastError: undefined,
         updatedAt: Date.now(),
@@ -411,6 +500,9 @@ export async function activateAgencySignup(input: {
       writeOperation(next);
       return next;
     });
+    // Password binding and attempt receipt must survive before the provider is
+    // touched; otherwise a lost response could be retried with different input.
+    await flushPendingWrites();
     try {
       if (operation.stage === "email-verified") {
         const provider = await dependencies.provisionProvider({
@@ -433,6 +525,7 @@ export async function activateAgencySignup(input: {
           writeOperation(next);
           return next;
         });
+        await flushPendingWrites();
       }
 
       const completed = await withPortalStateTransaction(`agency-signup:${operation.id}`, async () => {
@@ -475,16 +568,21 @@ export async function activateAgencySignup(input: {
         writeOperation(next);
         return { operation: next, user };
       });
+      await flushPendingWrites();
       return { ...completed, resumed, completedNow: true };
     } catch (error) {
-      const message = (error instanceof Error ? error.message : String(error)).slice(0, 500);
+      const internalCode = error instanceof Error && /^signup_[a-z0-9_]+$/.test(error.message)
+        ? error.message
+        : "signup_activation_failed";
       try {
         await withPortalStateTransaction(`agency-signup:${payload.operationId}`, () => {
           const current = exactSetupOperation(payload);
           if (!current || current.stage === "complete") return;
           writeOperation({
             ...current,
-            activationLastError: message,
+            // Never persist provider/configuration messages in the portal
+            // document; only stable application-owned categories are safe.
+            activationLastError: internalCode,
             updatedAt: Date.now(),
           });
         });

@@ -89,6 +89,7 @@ describe("Password reset — HMAC token (R038)", () => {
       userId: "usr_exp",
       email: "old@x.com",
       sessionRev: 4,
+      clientId: null,
       exp: Math.floor(Date.now() / 1000) - 60,
       nonce: "expired-nonce",
     };
@@ -115,6 +116,23 @@ describe("Password reset — HMAC token (R038)", () => {
     if (!result.ok) assert.equal(result.error, "missing_claims");
   });
 
+  it("legacy reset payloads without an immutable client audience fail closed", () => {
+    const payload = {
+      purpose: "password-reset",
+      userId: "usr_legacy_audience",
+      email: "legacy-audience@x.com",
+      sessionRev: 0,
+      exp: Math.floor(Date.now() / 1000) + 60,
+      nonce: "legacy-audience-nonce",
+    };
+    const b64 = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+    const secret = process.env.PORTAL_SESSION_SECRET ?? "dev-secret-do-not-use-in-prod";
+    const sig = crypto.createHmac("sha256", secret).update(b64).digest("base64url");
+    const result = verifyPasswordResetToken(`${b64}.${sig}`);
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.error, "missing_claims");
+  });
+
   it("email-verification and magic-link tokens cannot cross into password reset", () => {
     const emailVerification = signVerifyEmailToken({
       userId: "usr_email_verify",
@@ -129,6 +147,7 @@ describe("Password reset — HMAC token (R038)", () => {
       email: "magic@example.test",
       clientId: "client_magic",
       agencyId: "agency_magic",
+      sessionRev: 0,
     });
     assert.equal(verifyMagicToken(magic.token).ok, true);
     const magicAsReset = verifyPasswordResetToken(magic.token);
@@ -282,7 +301,8 @@ describe("Password reset — file structure (R038)", () => {
   it("LoginForm exposes a Forgot password? link in password sign-in mode", () => {
     const p = join(ROOT, "src", "app", "login", "LoginForm.tsx");
     const src = readFileSync(p, "utf8");
-    assert.ok(src.includes("/login/forgot${brandParam"));
+    assert.ok(src.includes("const forgotHref = `/login/forgot"));
+    assert.ok(src.includes('forgotParams.set("clientId", clientId)'));
     assert.ok(src.includes("mm-form-toggle"),
       "Use the mm-form-toggle class per the Login premium redesign chapter.");
     assert.ok(src.includes('data-testid="login-forgot-link"'));

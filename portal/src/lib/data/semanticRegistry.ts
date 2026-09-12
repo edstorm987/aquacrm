@@ -920,6 +920,7 @@ export const PORTAL_STATE_COVERAGE: Readonly<Record<string, CollectionClassifica
   staffProvisioningOperations: { entity: "staffMember", plane: "operational", note: "Idempotency ledger for staff provisioning." },
   agencySignupOperations: { entity: "userAccount", plane: "operational", note: "Password-free, app-wide admission and recovery ledger for mailbox-verified self-service agency signup." },
   passwordResetOperations: { entity: "userAccount", plane: "operational", note: "Exact-user password-reset receipts joining mailbox proof, provider reconciliation and local session-revocation state." },
+  clientPortalSetupOperations: { entity: "userAccount", plane: "operational", note: "Exact client-member first-password receipts joining verified invitation, provider binding and local session-epoch rotation." },
   clientProjectOperations: { entity: "client", plane: "operational", note: "Idempotency ledger for client-website provision/publish/deploy; retries adopt the recorded folder, repository or deployment." },
 
   // CRM people & organisations
