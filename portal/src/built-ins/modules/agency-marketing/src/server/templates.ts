@@ -121,27 +121,9 @@ export class TemplateService {
   }
 
   async update(id: string, untrustedPatch: UpdateTemplatePatch, actor: UserId): Promise<EmailTemplate | null> {
+    const patch = allowlistedTemplateUpdate(untrustedPatch);
     const existing = await this.get(id);
     if (!existing) return null;
-    const patch = allowlistedTemplateUpdate(untrustedPatch);
-    if (patch.name !== undefined && (typeof patch.name !== "string" || !patch.name.trim())) {
-      throw new Error("Template name required.");
-    }
-    if (patch.subject !== undefined && (typeof patch.subject !== "string" || !patch.subject.trim())) {
-      throw new Error("Template subject required.");
-    }
-    if (patch.bodyHtml !== undefined && (typeof patch.bodyHtml !== "string" || !patch.bodyHtml.trim())) {
-      throw new Error("Template body required.");
-    }
-    if (patch.bodyText !== undefined && typeof patch.bodyText !== "string") {
-      throw new Error("Template text body must be text.");
-    }
-    if (patch.category !== undefined && !["welcome", "re-engagement", "newsletter", "transactional", "other"].includes(patch.category)) {
-      throw new Error("Template category is not supported.");
-    }
-    if (patch.status !== undefined && patch.status !== "active" && patch.status !== "archived") {
-      throw new Error("Template status is not supported.");
-    }
     const next: EmailTemplate = {
       id: existing.id,
       agencyId: existing.agencyId,

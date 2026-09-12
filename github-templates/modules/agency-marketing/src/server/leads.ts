@@ -16,7 +16,10 @@ import type {
   UpdateLeadPatch,
 } from "../lib/domain";
 import type { ActivityLogPort, EventBusPort, StoragePort } from "./ports";
-import { allowlistedLeadUpdate } from "../lib/mutationAllowlist";
+import {
+  allowlistedLeadUpdate,
+  MarketingMutationValidationError,
+} from "../lib/mutationAllowlist";
 
 const LEAD_INDEX_KEY = "leads/index";
 const leadKey = (id: string): string => `leads/by-id/${id}`;
@@ -144,49 +147,17 @@ export class LeadService {
   }
 
   async update(id: string, untrustedPatch: UpdateLeadPatch, actor: UserId): Promise<Lead | null> {
+    const patch = allowlistedLeadUpdate(untrustedPatch);
     const existing = await this.get(id);
     if (!existing) return null;
-    const patch = allowlistedLeadUpdate(untrustedPatch);
+    const nextEmail = patch.email?.trim() ?? existing.email;
 
     if (patch.status && patch.status !== existing.status) {
       if (!ALLOWED_TRANSITIONS[existing.status].includes(patch.status)) {
-        throw new Error(`Cannot transition lead ${existing.email} from ${existing.status} → ${patch.status}.`);
-      }
-    }
-
-    // Email change → re-key the by-email index.
-    if (patch.email && patch.email.toLowerCase() !== existing.email.toLowerCase()) {
-      const dup = await this.getByEmail(patch.email);
-      if (dup) throw new Error(`Email ${patch.email} already in use.`);
-      await this.storage.del(byEmailKey(existing.email));
-      await this.storage.set(byEmailKey(patch.email), id);
-    }
-
-    // Campaign re-key.
-    if (patch.campaignId !== undefined && patch.campaignId !== existing.campaignId) {
-      if (existing.campaignId) {
-        const oldIx = (await this.storage.get<string[]>(byCampaignKey(existing.campaignId))) ?? [];
-        await this.storage.set(byCampaignKey(existing.campaignId), oldIx.filter(x => x !== id));
-      }
-      if (patch.campaignId) {
-        const newIx = (await this.storage.get<string[]>(byCampaignKey(patch.campaignId))) ?? [];
-        if (!newIx.includes(id)) {
-          await this.storage.set(byCampaignKey(patch.campaignId), [...newIx, id]);
-        }
-      }
-    }
-
-    // Staff re-key.
-    if (patch.assignedStaffId !== undefined && patch.assignedStaffId !== existing.assignedStaffId) {
-      if (existing.assignedStaffId) {
-        const oldIx = (await this.storage.get<string[]>(byStaffKey(existing.assignedStaffId))) ?? [];
-        await this.storage.set(byStaffKey(existing.assignedStaffId), oldIx.filter(x => x !== id));
-      }
-      if (patch.assignedStaffId) {
-        const newIx = (await this.storage.get<string[]>(byStaffKey(patch.assignedStaffId))) ?? [];
-        if (!newIx.includes(id)) {
-          await this.storage.set(byStaffKey(patch.assignedStaffId), [...newIx, id]);
-        }
+        throw new MarketingMutationValidationError(
+          `Cannot transition lead ${existing.email} from ${existing.status} → ${patch.status}.`,
+          "status",
+        );
       }
     }
 
@@ -194,7 +165,7 @@ export class LeadService {
       id: existing.id,
       agencyId: existing.agencyId,
       campaignId: patch.campaignId === null ? undefined : patch.campaignId ?? existing.campaignId,
-      email: patch.email?.trim() ?? existing.email,
+      email: nextEmail,
       name: patch.name?.trim() ?? existing.name,
       phone: patch.phone?.trim() ?? existing.phone,
       source: existing.source,
@@ -206,6 +177,43 @@ export class LeadService {
       updatedAt: now(),
       lastContactedAt: existing.lastContactedAt,
     };
+
+    // Email change → re-key the by-email index.
+    if (nextEmail.toLowerCase() !== existing.email.toLowerCase()) {
+      const dup = await this.getByEmail(nextEmail);
+      if (dup) throw new Error(`Email ${patch.email} already in use.`);
+      await this.storage.del(byEmailKey(existing.email));
+      await this.storage.set(byEmailKey(nextEmail), id);
+    }
+
+    // Campaign re-key.
+    if (patch.campaignId !== undefined && next.campaignId !== existing.campaignId) {
+      if (existing.campaignId) {
+        const oldIx = (await this.storage.get<string[]>(byCampaignKey(existing.campaignId))) ?? [];
+        await this.storage.set(byCampaignKey(existing.campaignId), oldIx.filter(x => x !== id));
+      }
+      if (next.campaignId) {
+        const newIx = (await this.storage.get<string[]>(byCampaignKey(next.campaignId))) ?? [];
+        if (!newIx.includes(id)) {
+          await this.storage.set(byCampaignKey(next.campaignId), [...newIx, id]);
+        }
+      }
+    }
+
+    // Staff re-key.
+    if (patch.assignedStaffId !== undefined && next.assignedStaffId !== existing.assignedStaffId) {
+      if (existing.assignedStaffId) {
+        const oldIx = (await this.storage.get<string[]>(byStaffKey(existing.assignedStaffId))) ?? [];
+        await this.storage.set(byStaffKey(existing.assignedStaffId), oldIx.filter(x => x !== id));
+      }
+      if (next.assignedStaffId) {
+        const newIx = (await this.storage.get<string[]>(byStaffKey(next.assignedStaffId))) ?? [];
+        if (!newIx.includes(id)) {
+          await this.storage.set(byStaffKey(next.assignedStaffId), [...newIx, id]);
+        }
+      }
+    }
+
     await this.storage.set(leadKey(id), next);
 
     if (patch.status && patch.status !== existing.status) {

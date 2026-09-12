@@ -252,8 +252,8 @@ export async function updateCampaignHandler(req: Request, ctx: PluginCtx): Promi
   if (guard) return guard;
   const body = await safeJson<{ id?: unknown; patch?: unknown }>(req);
   if (typeof body?.id !== "string" || !body.id.trim()) return badRequest("id required.");
-  const patch = allowlistedCampaignUpdate(body.patch);
   try {
+    const patch = allowlistedCampaignUpdate(body.patch);
     const cmp = await buildContainer(ctx).campaigns.update(body.id, patch, ctx.actor);
     return cmp ? json({ ok: true, campaign: cmp }) : notFound("campaign not found");
   } catch (err) {
@@ -318,8 +318,8 @@ export async function updateLeadHandler(req: Request, ctx: PluginCtx): Promise<R
   if (guard) return guard;
   const body = await safeJson<{ id?: unknown; patch?: unknown }>(req);
   if (typeof body?.id !== "string" || !body.id.trim()) return badRequest("id required.");
-  const patch = allowlistedLeadUpdate(body.patch);
   try {
+    const patch = allowlistedLeadUpdate(body.patch);
     const lead = await buildContainer(ctx).leads.update(body.id, patch, ctx.actor);
     return lead ? json({ ok: true, lead }) : notFound("lead not found");
   } catch (err) {
@@ -371,8 +371,8 @@ export async function updateTemplateHandler(req: Request, ctx: PluginCtx): Promi
   if (guard) return guard;
   const body = await safeJson<{ id?: unknown; patch?: unknown }>(req);
   if (typeof body?.id !== "string" || !body.id.trim()) return badRequest("id required.");
-  const patch = allowlistedTemplateUpdate(body.patch);
   try {
+    const patch = allowlistedTemplateUpdate(body.patch);
     const tpl = await buildContainer(ctx).templates.update(body.id, patch, ctx.actor);
     return tpl ? json({ ok: true, template: tpl }) : notFound("template not found");
   } catch (err) {

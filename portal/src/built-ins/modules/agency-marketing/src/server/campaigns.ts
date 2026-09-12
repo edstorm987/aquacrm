@@ -25,7 +25,10 @@ import type {
   UpdateCampaignPatch,
 } from "../lib/domain";
 import type { ActivityLogPort, EventBusPort, StoragePort } from "./ports";
-import { allowlistedCampaignUpdate } from "../lib/mutationAllowlist";
+import {
+  allowlistedCampaignUpdate,
+  MarketingMutationValidationError,
+} from "../lib/mutationAllowlist";
 
 const CMP_INDEX_KEY = "campaigns/index";
 const cmpKey = (id: string): string => `campaigns/by-id/${id}`;
@@ -217,10 +220,16 @@ export class CampaignService {
       createdAt: existing.createdAt,
       updatedAt: now(),
     };
+    if (next.startAt !== undefined && next.endAt !== undefined && next.endAt < next.startAt) {
+      throw new MarketingMutationValidationError("endAt must be on or after startAt.", "endAt");
+    }
     assertCampaignRecord(next);
 
     if (next.status !== existing.status && !ALLOWED_TRANSITIONS[existing.status].includes(next.status)) {
-      throw new Error(`Cannot transition campaign ${existing.name} from ${existing.status} → ${next.status}.`);
+      throw new MarketingMutationValidationError(
+        `Cannot transition campaign ${existing.name} from ${existing.status} → ${next.status}.`,
+        "status",
+      );
     }
 
     // Channel re-index when changed.
