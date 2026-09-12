@@ -143,20 +143,21 @@ describe("Sign-in landing company — brand is a preference, never a grant", () 
     assert.equal(matchAuthBrandAgency("mine", myMemberships)?.id, "ag_mine");
   });
 
-  it("the login route narrows to the user's memberships before matching the brand", () => {
+  it("the login route delegates exact membership/client narrowing to the shared resolver", () => {
     const src = sourceWithoutComments("src/app/api/auth/login/route.ts");
     assert.match(src, /memberAgencyIds/, "login route must compute the user's memberships");
     assert.match(
       src,
-      /matchAuthBrandAgency\(\s*requestedBrandValue,\s*listAgencies\(\)\.filter\(a => memberAgencyIds\.includes\(a\.id\)\),?\s*\)/,
-      "the brand must be matched against membership-filtered agencies only",
+      /resolveUserAuthContext\(portalUser,\s*\{[\s\S]*?brand: body\.brand,[\s\S]*?clientId: body\.clientId/,
+      "the route must resolve brand/client only through the subject-aware server resolver",
     );
+    assert.match(src, /if \(!authContext\)[\s\S]*?status: 403/, "an explicit mismatch must fail closed");
     assert.match(src, /activeAgencyId,/, "the session must be minted with the resolved activeAgencyId");
   });
 
   it("the login page resolves ?brand= dynamically and still guards the fallback", () => {
     const src = sourceWithoutComments("src/app/login/page.tsx");
-    assert.match(src, /resolveAuthBrand\(value, listAgencies\(\)\)/);
+    assert.match(src, /resolvePublicAuthContext\(\{ brand, clientId \}\)/);
     assert.doesNotMatch(src, /getAuthBrand\(/, "the hardcoded four-brand resolver must no longer decide this page");
   });
 });

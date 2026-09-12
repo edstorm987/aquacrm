@@ -45,14 +45,17 @@ export function LoginForm({
   // (`mfa_required`), or when enrolment could not be checked at all
   // (`mfa_unavailable`) — and the person deserves to be told which, or the
   // bounce reads as the link being broken.
-  const doorError = [params.get("magic_error"), params.get("oauth_error")];
+  const oauthError = params.get("oauth_error");
+  const doorError = [params.get("magic_error"), oauthError];
   const doorNotice = doorError.includes("mfa_required")
     ? "Two-factor authentication is switched on for this account, so that sign-in "
       + "method cannot check it. Sign in with your password and authenticator code."
     : doorError.includes("mfa_unavailable")
       ? "Two-factor enrolment could not be checked just now, so that sign-in was "
         + "refused. Sign in with your password, or try again shortly."
-      : null;
+      : oauthError
+        ? "Google sign-in could not be completed for this workspace. Return to the sign-in link you were issued and try again."
+        : null;
 
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
@@ -169,6 +172,12 @@ export function LoginForm({
   if (brandParam) forgotParams.set("brand", brandParam);
   if (clientId) forgotParams.set("clientId", clientId);
   const forgotHref = `/login/forgot${forgotParams.size ? `?${forgotParams.toString()}` : ""}`;
+  const oauthParams = new URLSearchParams({
+    return: success.startsWith("/") && !success.startsWith("//") ? success : "/portal",
+  });
+  if (brandParam) oauthParams.set("brand", brandParam);
+  if (clientId) oauthParams.set("clientId", clientId);
+  const oauthHref = `/api/auth/oauth/google/start?${oauthParams.toString()}`;
 
   // The one showing of the recovery codes. Rendered INSTEAD of the form: the
   // sign-in already succeeded, and the only job left is making sure these are
@@ -202,7 +211,7 @@ export function LoginForm({
     <form onSubmit={onSubmit} className="mm-auth-form">
       {googleEnabled && (
         <a
-          href={`/api/auth/oauth/google/start?return=${encodeURIComponent(success)}`}
+          href={oauthHref}
           className="mm-btn-google"
         >
           <span aria-hidden="true">🔐</span>

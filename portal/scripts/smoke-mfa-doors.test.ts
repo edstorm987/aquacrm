@@ -48,6 +48,7 @@ const PLAIN_EMAIL = "doors.plain@doors-smoke.test";
 const CUSTOMER_EMAIL = "doors.customer@doors-smoke.test";
 const UNCHECKED_CUSTOMER_EMAIL = "doors.unchecked@doors-smoke.test";
 const OAUTH_PLAIN_EMAIL = "doors.oauth.plain@doors-smoke.test";
+const OAUTH_CLIENT_EMAIL = "doors.oauth.client@doors-smoke.test";
 const PASSWORD = "Sup3rSecret!pw";
 
 // ─── the pure decision ─────────────────────────────────────────────────────
@@ -232,6 +233,14 @@ before(async () => {
   for (const email of [ENROLLED_EMAIL, PLAIN_EMAIL, OAUTH_PLAIN_EMAIL]) {
     createUser({ email, password: PASSWORD, name: "Doors", role: "agency-owner", agencyId: agency.id });
   }
+  createUser({
+    email: OAUTH_CLIENT_EMAIL,
+    password: PASSWORD,
+    name: "OAuth client",
+    role: "end-customer",
+    agencyId: agency.id,
+    clientId: client.id,
+  });
   for (const email of [ENROLLED_EMAIL, CUSTOMER_EMAIL, UNCHECKED_CUSTOMER_EMAIL]) {
     createUser({
       email,
@@ -257,15 +266,18 @@ function sessionCookieOf(res: Response): string | undefined {
   return res.headers.getSetCookie().find(c => c.startsWith(`${SESSION_COOKIE_NAME}=`));
 }
 
-/** The `aal` claim inside the minted app session cookie, or undefined. */
-function sessionAalOf(res: Response): unknown {
+function sessionPayloadOf(res: Response): Record<string, unknown> | undefined {
   const cookie = sessionCookieOf(res);
   if (!cookie) return undefined;
   const token = decodeURIComponent(cookie.split(";")[0]!.slice(`${SESSION_COOKIE_NAME}=`.length));
-  const payload = JSON.parse(
+  return JSON.parse(
     Buffer.from(token.split(".")[0]!, "base64url").toString("utf8"),
-  ) as { aal?: unknown };
-  return payload.aal;
+  ) as Record<string, unknown>;
+}
+
+/** The `aal` claim inside the minted app session cookie, or undefined. */
+function sessionAalOf(res: Response): unknown {
+  return sessionPayloadOf(res)?.aal;
 }
 
 function magicRequestFor(email: string): NextRequest {
@@ -319,16 +331,25 @@ describe("the magic-link door", () => {
 
 // ─── the Google OAuth door ─────────────────────────────────────────────────
 
-function oauthCallbackRequest(): NextRequest {
+function oauthCallbackRequest(options: {
+  brand?: string;
+  clientId?: string;
+  transformState?: (state: string) => string;
+  providerError?: string;
+} = {}): NextRequest {
   const config = readGoogleOAuthConfig(`${ORIGIN}/api/auth/oauth/google/callback`);
   assert.ok(config, "Google OAuth env must be configured for this test");
   const { url } = buildAuthorizeUrl(config!, {
     returnUrl: "/portal",
+    brand: options.brand,
+    clientId: options.clientId,
     secret: process.env.PORTAL_SESSION_SECRET!,
   });
-  const state = new URL(url).searchParams.get("state")!;
+  const signedState = new URL(url).searchParams.get("state")!;
+  const state = options.transformState?.(signedState) ?? signedState;
   const callback = new URL("/api/auth/oauth/google/callback", ORIGIN);
-  callback.searchParams.set("code", "stub-auth-code");
+  if (options.providerError) callback.searchParams.set("error", options.providerError);
+  else callback.searchParams.set("code", "stub-auth-code");
   callback.searchParams.set("state", state);
   return new NextRequest(callback, { method: "GET" });
 }
@@ -342,16 +363,76 @@ describe("the Google OAuth door", () => {
     assert.equal(sessionAalOf(res), "aal1", "Google is one factor, and the cookie must say so");
   });
 
+  it("selects the exact authorised agency/client carried by signed state", async () => {
+    googleEmail = OAUTH_CLIENT_EMAIL;
+    const res = await oauthCallback(oauthCallbackRequest({ brand: agencyId, clientId }));
+    assert.equal(res.status, 302);
+    const payload = sessionPayloadOf(res);
+    assert.ok(payload);
+    assert.equal(payload?.activeAgencyId, agencyId);
+    assert.equal(payload?.clientId, clientId);
+    assert.equal(payload?.aal, "aal1");
+  });
+
+  it("fails closed on signed but unauthorised brand/client context", async () => {
+    googleEmail = OAUTH_CLIENT_EMAIL;
+    for (const context of [
+      { brand: "other-agency", clientId },
+      { brand: agencyId, clientId: "other-client" },
+    ]) {
+      const res = await oauthCallback(oauthCallbackRequest(context));
+      assert.equal(sessionCookieOf(res), undefined);
+      const location = new URL(res.headers.get("location") ?? "", ORIGIN);
+      assert.equal(location.searchParams.get("oauth_error"), "context_mismatch");
+      assert.equal(location.searchParams.get("brand"), context.brand);
+      assert.equal(location.searchParams.get("clientId"), context.clientId);
+    }
+  });
+
+  it("does not reflect context from tampered state", async () => {
+    googleEmail = OAUTH_CLIENT_EMAIL;
+    const res = await oauthCallback(oauthCallbackRequest({
+      brand: agencyId,
+      clientId,
+      transformState: state => `${state.slice(0, -1)}${state.endsWith("a") ? "b" : "a"}`,
+    }));
+    assert.equal(sessionCookieOf(res), undefined);
+    const location = new URL(res.headers.get("location") ?? "", ORIGIN);
+    assert.equal(location.searchParams.get("oauth_error"), "invalid_state");
+    assert.equal(location.searchParams.has("brand"), false);
+    assert.equal(location.searchParams.has("clientId"), false);
+  });
+
   it("refuses to mint a session for an enrolled account", async () => {
     // The worst of the side doors before the gate: it minted agency-owner
     // sessions, not client-scoped ones.
     googleEmail = ENROLLED_EMAIL;
-    const res = await oauthCallback(oauthCallbackRequest());
+    const res = await oauthCallback(oauthCallbackRequest({ brand: agencyId }));
     assert.equal(res.status, 302);
     assert.equal(sessionCookieOf(res), undefined, "an enrolled account must not get a cookie here");
     const location = new URL(res.headers.get("location") ?? "", ORIGIN);
     assert.equal(location.pathname, "/login");
     assert.equal(location.searchParams.get("oauth_error"), MFA_SIDE_DOOR_ENROLLED_ERROR);
+    assert.equal(location.searchParams.get("brand"), agencyId, "trusted context survives the MFA refusal");
+  });
+
+  it("validates state before reflecting provider errors", async () => {
+    const trusted = await oauthCallback(oauthCallbackRequest({
+      brand: agencyId,
+      providerError: "access_denied",
+    }));
+    const trustedLocation = new URL(trusted.headers.get("location") ?? "", ORIGIN);
+    assert.equal(trustedLocation.searchParams.get("oauth_error"), "access_denied");
+    assert.equal(trustedLocation.searchParams.get("brand"), agencyId);
+
+    const tampered = await oauthCallback(oauthCallbackRequest({
+      brand: agencyId,
+      providerError: "access_denied",
+      transformState: state => `${state}.tampered`,
+    }));
+    const tamperedLocation = new URL(tampered.headers.get("location") ?? "", ORIGIN);
+    assert.notEqual(tamperedLocation.searchParams.get("oauth_error"), "access_denied");
+    assert.equal(tamperedLocation.searchParams.has("brand"), false);
   });
 
   it("refuses everyone when enrolment cannot be checked at all", async () => {

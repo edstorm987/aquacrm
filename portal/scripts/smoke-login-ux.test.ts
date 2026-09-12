@@ -20,6 +20,8 @@ const reset = readFileSync("src/app/login/reset/page.tsx", "utf8");
 const form = readFileSync("src/app/login/LoginForm.tsx", "utf8");
 const challenge = readFileSync("src/components/security/BotChallenge.tsx", "utf8");
 const skipLink = readFileSync("src/components/ui/SkipToContent.tsx", "utf8");
+const websiteShell = readFileSync("src/app/(website)/WebsiteShell.tsx", "utf8");
+const portalLayout = readFileSync("src/app/portal/agency/layout.tsx", "utf8");
 const css = readFileSync("src/app/globals.css", "utf8");
 const browserGate = readFileSync("scripts/browser-login-ux-acceptance.mjs", "utf8");
 const challengeFrameCss = /\.mm-captcha-frame \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
@@ -40,7 +42,7 @@ function contrastRatio(foreground: string, background: string): number {
 
 test("LOGIN-UX-001: tenancy + the canonical Policies destination are preserved", () => {
   assert.match(page, /data-auth-brand=\{brand\.id\}/, "the shell stays brand-scoped (tenant-safe theming)");
-  assert.match(page, /resolveAuthBrand/, "brand resolution (with neutral fallback) is preserved");
+  assert.match(page, /resolvePublicAuthContext/, "dynamic tenant/client brand resolution is preserved");
   assert.match(page, /href="\/privacy"/, "the one canonical Policies destination (/privacy) is preserved");
   assert.match(page, /<LoginForm/, "the sign-in form is still mounted");
 });
@@ -50,6 +52,7 @@ test("LOGIN-UX-001: MFA, recovery, OAuth and CAPTCHA are preserved on the form",
   assert.match(form, /one-time-code/, "the authenticator code field is preserved");
   assert.match(form, /recoveryCodes/, "recovery-code handling is preserved");
   assert.match(form, /oauth\/google\/start/, "the Google OAuth entry is preserved");
+  assert.match(form, /Google sign-in could not be completed for this workspace/, "OAuth failures remain visible but generic");
   assert.match(form, /googleEnabled/, "OAuth stays server-gated");
   assert.match(form, /<BotChallenge/, "the managed CAPTCHA widget is preserved");
   assert.match(form, /\/login\/forgot/, "the password-recovery link is preserved");
@@ -114,13 +117,19 @@ test("LOGIN-UX-001: the card is a single centred column sized ~520-600px", () =>
   assert.match(css, /\.mm-auth-split \{[\s\S]*?max-width: 560px;[\s\S]*?margin: 0 auto;/, "recovery pages collapse to the same single centred card");
 });
 
-test("LOGIN-UX-001: every auth route is a working skip-link target", () => {
+test("LOGIN-UX-001: global skip navigation focuses auth, website and portal targets natively", () => {
   for (const [route, source] of [["login", page], ["forgot", forgot], ["reset", reset]] as const) {
     assert.match(source, /<main id="main-content" tabIndex=\{-1\}/, `${route} exposes the exact focusable skip target`);
   }
+  assert.match(websiteShell, /<main id="main-content"/, "the website shell exposes the global target");
+  assert.match(portalLayout, /<main id="main-content"/, "the portal shell exposes the global target");
+  assert.match(skipLink, /<a[\s\S]*?href=\{`#\$\{targetId\}`\}/, "the skip control retains native fragment navigation");
+  assert.match(skipLink, /target\.setAttribute\("tabindex", "-1"\)/, "non-focusable main elements become programmatically focusable");
   assert.match(skipLink, /target\.focus\(\{ preventScroll: true \}\)/, "the global skip control moves focus explicitly");
-  assert.match(skipLink, /target\.scrollIntoView\(\{ block: "start" \}\)/, "the global skip control scrolls to the target");
-  assert.match(browserGate, /activeElement\?\.id === "main-content"/, "the browser gate proves focus moves to the target");
+  assert.doesNotMatch(skipLink, /preventDefault|pushState|replaceState|scrollIntoView/, "native navigation/history/scroll are not reimplemented");
+  assert.match(browserGate, /assert\.equal\(focus\.activeElement, "main-content"/, "the browser gate proves focus moves to the target");
+  assert.match(browserGate, /\/for-agencies/, "the browser gate covers a non-focusable website shell");
+  assert.match(browserGate, /\/showcase/, "the browser gate covers a portal shell");
 });
 
 test("LOGIN-UX-001: recovery routes retain the visible tenant lockup", () => {
@@ -129,12 +138,10 @@ test("LOGIN-UX-001: recovery routes retain the visible tenant lockup", () => {
     assert.match(source, /className="mm-auth-logo-mark" aria-hidden="true"/, `${route} hides the decorative mark`);
     assert.match(source, /className="mm-auth-logo-name">\{brand\.name\}/, `${route} exposes one readable tenant name`);
   }
-  assert.match(
-    forgot,
-    /new URLSearchParams\(\{[\s\S]*?brand: brand\.id,[\s\S]*?clientId: params\.clientId/,
-    "forgot preserves both the tenant brand and the newer client-scoped admission context",
-  );
-  assert.match(reset, /href=\{`\/login\?brand=\$\{brand\.id\}`\}/, "reset preserves the tenant-scoped sign-in destination");
+  assert.match(forgot, /resolvePublicAuthContext/, "forgot resolves dynamic presentation from exact tenant/client context");
+  assert.match(forgot, /forgot-context-error/, "a mismatched recovery context is refused instead of silently rebranded");
+  assert.match(reset, /resolvePasswordResetAuthContext/, "reset presentation comes from the signed exact subject context");
+  assert.doesNotMatch(reset, /params\.brand|getAuthBrand\(params/, "reset never trusts a caller-selected brand");
 });
 
 test("LOGIN-UX-001: narrow challenges use the provider compact mode, never clipping", () => {

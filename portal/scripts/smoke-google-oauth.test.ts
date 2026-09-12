@@ -85,6 +85,11 @@ test("start route: file shape — config gate, 302 redirect, return param", () =
   assert.match(src, /buildAuthorizeUrl/);
   assert.match(src, /NextResponse\.redirect\(.*302/s);
   assert.match(src, /searchParams\.get\("return"\)/);
+  assert.match(src, /searchParams\.get\("brand"\)/);
+  assert.match(src, /searchParams\.get\("clientId"\)/);
+  assert.match(src, /resolvePublicAuthContext\(\{ brand, clientId \}\)/,
+    "OAuth initiation must fail before Google when public tenant/client context conflicts");
+  assert.match(src, /invalid_context/);
 });
 
 // ── 5. callback route: bad state rejected ───────────────────────────────────
@@ -101,9 +106,14 @@ test("callback route: file shape — state + email_verified + session + role-awa
   assert.match(src, /emailVerified/);
   assert.match(src, /issueSession/);
   assert.match(src, /sessionCookie/);
+  assert.match(src, /resolveUserAuthContext\(user, trustedContext\)/,
+    "signed navigation context must still be resolved against server memberships");
+  assert.match(src, /stateCheck\.clientId \? \{ clientId: stateCheck\.clientId \}/,
+    "the exact signed client must disambiguate client-scoped subjects");
+  assert.match(src, /activeAgencyId: context\.agency\.id/);
   // First-run bootstrap (existing) + existing-email path (existing)
   assert.match(src, /bootstrapAgency/);
-  assert.match(src, /getUser\(claims\.email\)/);
+  assert.match(src, /getUser\([\s\S]*?claims\.email,[\s\S]*?stateCheck\.clientId/);
   // Role-aware fallback via resolvePostLoginPath.
   assert.match(src, /resolvePostLoginPath/);
 });

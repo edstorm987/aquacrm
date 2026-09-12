@@ -3,7 +3,8 @@
 // kind so a forgotten-password token can't be replayed against the
 // email-verify surface and vice-versa.
 //
-// Token shape:    base64url(JSON({purpose,userId,email,sessionRev,exp,nonce})) "." HMAC
+// Token shape:    base64url(JSON({purpose,userId,email,sessionRev,clientId,
+//                 contextAgencyId,exp,nonce})) "." HMAC
 // TTL:            24 hours — comfortable inbox-latency window; longer
 //                 than magic-link (15 min) since users may walk away
 //                 before clicking through.
@@ -29,6 +30,8 @@ export interface PasswordResetPayload {
   sessionRev: number;
   /** Exact client account audience; null means an unscoped workspace account. */
   clientId: string | null;
+  /** Signed presentation tenant, resolved from the subject's membership. */
+  contextAgencyId: string | null;
   exp: number;
   nonce: string;
 }
@@ -42,6 +45,7 @@ export function signPasswordResetToken(input: {
   email: string;
   sessionRev: number;
   clientId?: string | null;
+  contextAgencyId?: string | null;
   nonce?: string;
   exp?: number;
 }): {
@@ -54,6 +58,7 @@ export function signPasswordResetToken(input: {
     email: input.email.trim().toLowerCase(),
     sessionRev: input.sessionRev,
     clientId: input.clientId?.trim() || null,
+    contextAgencyId: input.contextAgencyId?.trim() || null,
     exp: input.exp ?? Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS,
     nonce: input.nonce ?? crypto.randomBytes(16).toString("base64url"),
   };
@@ -97,12 +102,19 @@ export function verifyPasswordResetToken(
     || typeof candidate.email !== "string" || !candidate.email
     || typeof candidate.sessionRev !== "number" || !Number.isSafeInteger(candidate.sessionRev) || candidate.sessionRev < 0
     || !(candidate.clientId === null || (typeof candidate.clientId === "string" && !!candidate.clientId))
+    || !(candidate.contextAgencyId === null || candidate.contextAgencyId === undefined
+      || (typeof candidate.contextAgencyId === "string" && !!candidate.contextAgencyId))
     || typeof candidate.exp !== "number" || !Number.isSafeInteger(candidate.exp)
     || typeof candidate.nonce !== "string" || !candidate.nonce
   ) {
     return { ok: false, error: "missing_claims" };
   }
-  const payload = candidate as unknown as PasswordResetPayload;
+  const payload = {
+    ...candidate,
+    // Bearers minted before tenant presentation was signed remain safe: they
+    // render the exact subject's primary membership rather than URL input.
+    contextAgencyId: typeof candidate.contextAgencyId === "string" ? candidate.contextAgencyId : null,
+  } as unknown as PasswordResetPayload;
   if (payload.exp < Math.floor(Date.now() / 1000)) return { ok: false, error: "expired" };
   return { ok: true, payload };
 }

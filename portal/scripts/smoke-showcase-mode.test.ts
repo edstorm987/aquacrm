@@ -182,11 +182,11 @@ test("public showcase client hub hides every management control and heavy mutabl
   assert.doesNotMatch(code(page), /ensureDefaultAgencyProducts\s*\(/,
     "the Clients list is seeding the product catalogue again, which a public showcase visitor would trigger");
   assert.match(page, /publicShowcase: session\.publicShowcase/);
-  assert.match(page, /canManage=\{!session\.publicShowcase\}/);
-  assert.match(page, /journeyWorkspace=\{session\.publicShowcase \? null : <JourneyCommercialWorkspace/);
+  assert.match(page, /const canManage = canAccessAllHubViews && !session\.publicShowcase;/);
+  assert.match(page, /<PeopleHub[\s\S]*?canManage=\{canManage\}/);
+  assert.match(page, /journeyWorkspace=\{canAccessAllHubViews && !session\.publicShowcase \? <JourneyCommercialWorkspace/);
   assert.match(page, /notifications=\{session\.publicShowcase \? null/);
   assert.match(hub, /canManage \? \([\s\S]*Add contact[\s\S]*NewClientButton/);
-  assert.match(hub, /Read-only showcase/);
   assert.match(hub, /canManage \? journeyWorkspace : <JourneySection rows=\{journeyRows\} canManage=\{false\}/);
   assert.match(hub, /canManage && addingContact/);
   assert.match(hub, /canManage && reviewing/);

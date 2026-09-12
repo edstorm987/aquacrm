@@ -6,9 +6,17 @@
 // without a page round-trip.
 
 import Link from "next/link";
-import { ForgotForm } from "./ForgotForm";
-import { getAuthBrand } from "@/lib/brands/authBrand";
 import type { Metadata } from "next";
+import { ForgotForm } from "./ForgotForm";
+import { resolvePublicAuthContext } from "@/lib/server/auth/authContext";
+import { ensureHydrated } from "@/server/storage";
+
+export const dynamic = "force-dynamic";
+
+async function recoveryContext(brand: string | undefined, clientId: string | undefined) {
+  await ensureHydrated();
+  return resolvePublicAuthContext({ brand, clientId });
+}
 
 export async function generateMetadata({
   searchParams,
@@ -16,7 +24,7 @@ export async function generateMetadata({
   searchParams: Promise<{ brand?: string; clientId?: string }>;
 }): Promise<Metadata> {
   const params = await searchParams;
-  const brand = getAuthBrand(params.brand);
+  const { brand } = await recoveryContext(params.brand, params.clientId);
   return {
     title: `Forgot password · ${brand.name}`,
     description: `Recover access to your ${brand.name} workspace.`,
@@ -29,7 +37,8 @@ export default async function ForgotPage({
   searchParams: Promise<{ brand?: string; clientId?: string }>;
 }) {
   const params = await searchParams;
-  const brand = getAuthBrand(params.brand);
+  const context = await recoveryContext(params.brand, params.clientId);
+  const brand = context.brand;
   return (
     <main id="main-content" tabIndex={-1} className="mm-auth-shell" data-auth-brand={brand.id}>
       <div className="mm-auth-split">
@@ -61,12 +70,18 @@ export default async function ForgotPage({
             <h1>Forgot password</h1>
             <p>Enter the email used for your {brand.name} workspace.</p>
           </div>
-          <ForgotForm brand={brand.id} clientId={params.clientId} />
+          {context.valid ? (
+            <ForgotForm brand={brand.id} clientId={context.requestedClientId} />
+          ) : (
+            <p role="alert" className="mm-form-error" data-testid="forgot-context-error">
+              This recovery link does not match an active workspace. Return to sign in and request a new link.
+            </p>
+          )}
           <div className="mm-auth-foot">
             <span>
               Remembered it? <Link href={`/login?${new URLSearchParams({
                 brand: brand.id,
-                ...(params.clientId ? { clientId: params.clientId } : {}),
+                ...(context.requestedClientId ? { clientId: context.requestedClientId } : {}),
               }).toString()}`}>Sign in →</Link>
             </span>
           </div>

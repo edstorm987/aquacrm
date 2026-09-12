@@ -96,10 +96,23 @@ export async function POST(req: NextRequest) {
   const brand = typeof form.get("brand") === "string"
     ? String(form.get("brand"))
     : "milesymedia";
+  const clientField = form.get("clientId");
+  const clientId = typeof clientField === "string"
+    && clientField === clientField.trim()
+    && clientField.length > 0
+    && clientField.length <= 120
+    ? clientField
+    : "";
+  const invalidClientContext = clientField !== null && !clientId;
 
   const fallback = new URL("/login", req.nextUrl.origin);
   fallback.searchParams.set("brand", brand);
+  if (clientId) fallback.searchParams.set("clientId", clientId);
   const errorReturn = safeErrorReturn(form.get("errorReturn"), fallback);
+  if (invalidClientContext) {
+    errorReturn.searchParams.set("error", "Account access is not configured correctly.");
+    return NextResponse.redirect(errorReturn, 303);
+  }
   const challengeHostname = trustedChallengeHostname(req, brand);
   if (!challengeHostname) {
     errorReturn.searchParams.set("error", "This sign-in page could not be verified.");
@@ -122,7 +135,7 @@ export async function POST(req: NextRequest) {
           req.headers.get("x-real-ip") ??
           "browser-form",
       },
-      body: JSON.stringify({ email, password, brand, captchaToken }),
+      body: JSON.stringify({ email, password, brand, clientId: clientId || undefined, captchaToken }),
     },
   );
   const loginResponse = await loginWithTrustedChallengeHostname(

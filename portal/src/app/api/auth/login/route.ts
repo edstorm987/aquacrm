@@ -11,11 +11,12 @@ import {
   recordLoginFailure,
   recordLoginSuccess,
 } from "@/lib/server/rateLimit";
-import { getAgency, getClientForAgency, listAgencies } from "@/server/tenants";
+import { getClientForAgency } from "@/server/tenants";
 import { getUserByLogin, getUserBySupabaseAuthId } from "@/server/users";
 import { logActivity } from "@/server/activity";
 import { resolvePostLoginPath } from "@/lib/server/auth/postLoginRedirect";
-import { getAuthBrand, matchAuthBrandAgency } from "@/lib/brands/authBrand";
+import { getAuthBrand } from "@/lib/brands/authBrand";
+import { resolveUserAuthContext } from "@/lib/server/auth/authContext";
 import { CUSTOMER_PORTAL_ROLES } from "@/server/types";
 import {
   MFA_LOGIN_REJECTED_MESSAGE,
@@ -31,6 +32,7 @@ interface Body {
   username?: unknown;
   password?: unknown;
   brand?: unknown;
+  clientId?: unknown;
   // Opaque managed-challenge token, verified server-side before any password
   // work. It is skipped only when unconfigured outside production.
   captchaToken?: unknown;
@@ -162,6 +164,7 @@ async function handleFormLogin(req: NextRequest): Promise<NextResponse> {
       username: field("username"),
       password: field("password") ?? "",
       brand: field("brand"),
+      clientId: field("clientId"),
       // Carried through so a native form post can complete the MFA step too.
       // Dropping it here would leave anybody with an authenticator unable to
       // sign in from a published site at all.
@@ -391,10 +394,15 @@ async function handleJsonLogin(
       NextResponse.json({ ok: false, error: "Account access is not configured correctly." }, { status: 403 }),
     );
   }
-  if (!getAgency(portalUser.agencyId)) {
+  const requestedBrandValue = typeof body.brand === "string" ? body.brand : undefined;
+  const authContext = resolveUserAuthContext(portalUser, {
+    brand: body.brand,
+    clientId: body.clientId,
+  });
+  if (!authContext) {
     await supabase.auth.signOut();
     return applyCookies(
-      NextResponse.json({ ok: false, error: "Account is not attached to an active workspace." }, { status: 403 }),
+      NextResponse.json({ ok: false, error: "Account access is not configured correctly." }, { status: 403 }),
     );
   }
 
@@ -521,24 +529,13 @@ async function handleJsonLogin(
   // from." Each company website hands the visitor to /login?brand=<slug>, and
   // that value rides through to here.
   //
-  // SECURITY: the candidate list is narrowed to THIS user's own memberships
-  // BEFORE the brand is matched against it. So `brand` can only ever pick
-  // between agencies the account already belongs to — it can never add one,
-  // and a brand naming an agency they are not in simply falls through to their
-  // primary. It is a preference, never a grant. (Same rule the switcher
-  // enforces in /api/auth/switch-agency.)
+  // SECURITY: resolveUserAuthContext already narrowed the request to THIS
+  // user's exact active memberships/client. An explicit mismatch was refused;
+  // it never silently falls through to the primary company.
   const memberAgencyIds = portalUser.agencyIds && portalUser.agencyIds.length > 0
     ? portalUser.agencyIds
     : [portalUser.agencyId];
-  const requestedBrandValue =
-    typeof body.brand === "string"
-      ? body.brand
-      : req.cookies.get("aqua_public_brand")?.value;
-  const brandAgency = matchAuthBrandAgency(
-    requestedBrandValue,
-    listAgencies().filter(a => memberAgencyIds.includes(a.id)),
-  );
-  const activeAgencyId = brandAgency?.id ?? portalUser.agencyId;
+  const activeAgencyId = authContext.agency.id;
 
   // Assume-breach containment: mint under a known session id and record it in
   // the durable session registry so THIS device/session can be individually
@@ -616,7 +613,7 @@ async function handleJsonLogin(
   // guard, not a regression.
   const publicBrand = portalUser.role.startsWith("agency-")
     ? "aquacrm"
-    : getAuthBrand(requestedBrandValue).id;
+    : getAuthBrand(requestedBrandValue ?? req.cookies.get("aqua_public_brand")?.value).id;
   response.cookies.set("aqua_public_brand", publicBrand, {
     httpOnly: true,
     sameSite: "lax",

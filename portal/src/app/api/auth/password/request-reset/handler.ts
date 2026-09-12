@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { getAuthBrand } from "@/lib/brands/authBrand";
 import { configuredPublicAuthOrigin } from "@/lib/server/auth/publicAuthOrigin";
+import { resolveUserAuthContext } from "@/lib/server/auth/authContext";
 import {
   logPublicAuthDeliveryFailure,
   runBoundedPublicAuthDelivery,
@@ -30,6 +30,15 @@ interface Body {
 
 const ACCEPTED = { ok: true } as const;
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 /**
  * Non-route implementation seam. Next route files may export only supported
  * HTTP methods/config; tests inject a local delivery hook through this module.
@@ -46,8 +55,14 @@ export async function handlePasswordResetRequest(
   }
 
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-  const requestedBrand = getAuthBrand(typeof body.brand === "string" ? body.brand : undefined);
-  const clientId = typeof body.clientId === "string" ? body.clientId.trim().slice(0, 120) : "";
+  const requestedBrand = typeof body.brand === "string" ? body.brand : undefined;
+  const clientId = typeof body.clientId === "string"
+    && body.clientId === body.clientId.trim()
+    && body.clientId.length > 0
+    && body.clientId.length <= 120
+    ? body.clientId
+    : "";
+  const invalidClientContext = body.clientId !== undefined && !clientId;
   if (!email || !email.includes("@")) {
     return NextResponse.json({ ok: false, error: "A valid email is required." }, { status: 400 });
   }
@@ -110,8 +125,16 @@ export async function handlePasswordResetRequest(
     return NextResponse.json(ACCEPTED);
   }
 
-  const user = getExactPasswordResetUser(email, clientId || undefined);
+  const user = invalidClientContext ? null : getExactPasswordResetUser(email, clientId || undefined);
   if (!user) {
+    await waitForPublicAuthResponseWindow(responseStartedAt);
+    return NextResponse.json(ACCEPTED);
+  }
+  const exactContext = resolveUserAuthContext(user, {
+    brand: requestedBrand,
+    clientId: clientId || undefined,
+  });
+  if (!exactContext) {
     await waitForPublicAuthResponseWindow(responseStartedAt);
     return NextResponse.json(ACCEPTED);
   }
@@ -121,21 +144,28 @@ export async function handlePasswordResetRequest(
       kind: "password-reset",
       userId: user.id,
       email: user.email,
-      agencyId: user.agencyId,
+      agencyId: exactContext.agency.id,
       clientId: user.clientId ?? null,
       sessionRev: user.sessionRev ?? 0,
-      presentation: requestedBrand.id,
+      // Server-derived immutable tenant identity. A request value never becomes
+      // durable email presentation state.
+      presentation: exactContext.agency.id,
     });
-    const authBrand = getAuthBrand(operation.presentation);
+    if (operation.presentation !== exactContext.agency.id) {
+      throw new Error("password_reset_presentation_mismatch");
+    }
+    const authBrand = exactContext.brand;
+    const safeBrandName = escapeHtml(authBrand.name);
     const { token } = signPasswordResetToken({
       userId: operation.userId,
       email: operation.email,
       sessionRev: operation.expectedSessionRev,
       clientId: operation.clientId,
+      contextAgencyId: exactContext.agency.id,
       nonce: operation.tokenNonce,
       exp: operation.tokenExpiresAt,
     });
-    const resetUrl = `${publicOrigin}/login/reset?token=${encodeURIComponent(token)}&brand=${encodeURIComponent(authBrand.id)}`;
+    const resetUrl = `${publicOrigin}/login/reset?token=${encodeURIComponent(token)}`;
     let sent: TransactionalEmailResult;
     try {
       sent = await (dependencies.sendEmail ?? sendTransactionalEmail)({
@@ -146,7 +176,7 @@ export async function handlePasswordResetRequest(
         signal,
         subject: `Reset your ${authBrand.name} password`,
         bodyText: `Use this secure link to reset your ${authBrand.name} password. It expires in 24 hours.\n\n${resetUrl}`,
-        bodyHtml: `<p>Use the secure link below to reset your ${authBrand.name} password. It expires in 24 hours.</p><p><a href="${resetUrl}">Reset password</a></p>`,
+        bodyHtml: `<p>Use the secure link below to reset your ${safeBrandName} password. It expires in 24 hours.</p><p><a href="${resetUrl}">Reset password</a></p>`,
       });
     } catch {
       await recordPublicAuthLinkDelivery(operation.id, operation.generation, {

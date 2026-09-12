@@ -7,7 +7,7 @@
 // credential is submitted.
 
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { findProvisionedChromium } from "./browser-matrix.mjs";
 
@@ -32,8 +32,19 @@ const VIEWPORTS = [
 const ROUTES = [
   { path: "/login?brand=aqua", brand: "AquaOasis-Web" },
   { path: "/login/forgot?brand=aqua", brand: "AquaOasis-Web" },
-  { path: "/login/reset?brand=aqua&token=browser-fixture", brand: "AquaOasis-Web" },
+  { path: "/login/reset?brand=aqua&token=browser-fixture", brand: "AquaCRM" },
 ];
+
+const SKIP_SURFACES = [
+  { path: "/login?brand=aqua", kind: "auth" },
+  { path: "/for-agencies", kind: "website" },
+  { path: "/showcase", kind: "portal" },
+];
+const SKIP_VIEWPORTS = [
+  { width: 320, height: 568 },
+  { width: 1440, height: 900 },
+];
+const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
 
 async function launchBrowser() {
   const { chromium } = await import("playwright-core");
@@ -78,20 +89,62 @@ async function installTurnstileFixture(context) {
   });
 }
 
-async function verifySkipTarget(page, route) {
+async function verifySkipTarget(page, surface, viewport) {
+  const route = typeof surface === "string" ? surface : surface.path;
+  const kind = typeof surface === "string" ? "auth" : surface.kind;
   await page.goto(`${BASE}${route}`, { waitUntil: "networkidle" });
+  // Next's development-only toolbar is injected ahead of the application and
+  // participates in Tab order through a shadow root. It is absent from the
+  // production document, so remove only that test-runner artefact before
+  // asserting the application's first keyboard destination.
+  await page.locator("nextjs-portal").evaluate(element => element.remove()).catch(() => undefined);
+  const before = await page.evaluate(() => ({
+    href: document.querySelector("a[href='#main-content']")?.getAttribute("href"),
+    tabIndex: document.getElementById("main-content")?.getAttribute("tabindex"),
+    historyLength: history.length,
+    pathname: window.location.pathname,
+    url: window.location.href,
+    target: Boolean(document.getElementById("main-content")),
+    portalMain: document.getElementById("main-content")?.classList.contains("mm-private-surface") ?? false,
+    activeElement: `${document.activeElement?.tagName ?? ""}#${document.activeElement?.id ?? ""}`,
+  }));
   await page.keyboard.press("Tab");
-  assert.equal(await page.locator("a").filter({ hasText: "Skip to content" }).evaluate(el => el === document.activeElement), true);
+  const firstTab = await page.evaluate(() => ({
+    element: `${document.activeElement?.tagName ?? ""}#${document.activeElement?.id ?? ""}`,
+    text: document.activeElement?.textContent?.trim().slice(0, 80) ?? "",
+  }));
+  assert.equal(
+    await page.locator("a").filter({ hasText: "Skip to content" }).evaluate(el => el === document.activeElement),
+    true,
+    `${route} at ${viewport.width}x${viewport.height} focuses the skip link first; before ${before.activeElement}, after ${JSON.stringify(firstTab)}`,
+  );
   await page.keyboard.press("Enter");
-  await page.waitForFunction(() => document.activeElement?.id === "main-content");
+  await page.waitForTimeout(100);
   const focus = await page.evaluate(() => ({
     activeElement: document.activeElement?.id,
     hash: window.location.hash,
     target: Boolean(document.getElementById("main-content")),
+    tabIndex: document.getElementById("main-content")?.getAttribute("tabindex"),
+    historyLength: history.length,
+    pathname: window.location.pathname,
+    url: window.location.href,
+    portalMain: document.getElementById("main-content")?.classList.contains("mm-private-surface") ?? false,
   }));
-  assert.equal(focus.target, true, `${route} exposes #main-content`);
+  assert.equal(before.href, "#main-content", `${route} keeps a native fragment href`);
+  assert.equal(focus.target, true, `${route} exposes #main-content; before ${JSON.stringify(before)}, after ${JSON.stringify(focus)}`);
   assert.equal(focus.activeElement, "main-content", `${route} moves keyboard focus to #main-content`);
   assert.equal(focus.hash, "#main-content", `${route} records the skip destination in the URL`);
+  assert.equal(focus.tabIndex, "-1", `${route} has robust programmatic focus semantics`);
+  assert.ok(focus.historyLength >= before.historyLength, `${route} retains native history semantics`);
+  if (kind === "website" || kind === "portal") {
+    assert.equal(before.tabIndex, null, `${route} exercises a genuinely non-focusable main`);
+  }
+  if (kind === "website") assert.equal(focus.pathname, "/for-agencies");
+  if (kind === "portal") {
+    assert.match(focus.pathname, /^\/portal\//, `${route} reached a real portal surface`);
+    assert.equal(focus.portalMain, true, `${route} focused the portal shell rather than an auth fallback`);
+  }
+  return kind === "portal" ? 10 : kind === "website" ? 9 : 7;
 }
 
 async function main() {
@@ -138,7 +191,15 @@ async function main() {
       assert.ok(facts.iframe.right <= facts.viewportWidth + 1, `${viewport.id}: challenge stays inside the viewport`);
       assert.ok(facts.controls.every(control => control.height >= 44), `${viewport.id}: form controls remain at least 44px high`);
       assert.deepEqual(errors, [], `${viewport.id}: no page/console errors`);
-      checks += 7;
+      if (viewport.id === "mobile-390") {
+        await page.addScriptTag({ content: axeSource });
+        const axe = await page.evaluate(async () => window.axe.run(document, {
+          runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa"] },
+        }));
+        assert.deepEqual(axe.violations.map(violation => violation.id), [], `${viewport.id}: axe WCAG A/AA`);
+        checks += 1;
+      }
+      checks += 8;
       await context.close();
     }
 
@@ -146,12 +207,22 @@ async function main() {
     await installTurnstileFixture(context);
     const page = await context.newPage();
     for (const route of ROUTES) {
-      await verifySkipTarget(page, route.path);
+      checks += await verifySkipTarget(page, route.path, { width: 390, height: 844 });
       const brand = await page.locator(".mm-auth-card .mm-auth-logo-name").textContent();
       assert.equal(brand?.trim(), route.brand, `${route.path}: visible tenant lockup is retained`);
-      checks += 4;
+      checks += 1;
     }
     await context.close();
+
+    for (const viewport of SKIP_VIEWPORTS) {
+      for (const surface of SKIP_SURFACES) {
+        const skipContext = await browser.newContext({ viewport });
+        await installTurnstileFixture(skipContext);
+        const skipPage = await skipContext.newPage();
+        checks += await verifySkipTarget(skipPage, surface, viewport);
+        await skipContext.close();
+      }
+    }
   } finally {
     await browser.close();
   }

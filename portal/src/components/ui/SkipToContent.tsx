@@ -4,28 +4,26 @@
 
 "use client";
 
-import Link from "next/link";
-import type { MouseEvent } from "react";
-
 export function SkipToContent({ targetId = "main-content" }: { targetId?: string }) {
-  function moveFocus(event: MouseEvent<HTMLAnchorElement>) {
+  function moveFocus() {
     const target = document.getElementById(targetId);
     if (!target) return;
-    event.preventDefault();
-    const hash = `#${targetId}`;
-    if (window.location.hash === hash) window.history.replaceState(null, "", hash);
-    else window.history.pushState(null, "", hash);
+
+    // Most application shells use a plain <main>, which is not focusable by
+    // default. Add the programmatic-only tabindex at the point of use so every
+    // existing #main-content target works without requiring each route to
+    // duplicate accessibility plumbing.
+    if (!target.hasAttribute("tabindex")) target.setAttribute("tabindex", "-1");
     target.focus({ preventScroll: true });
-    target.scrollIntoView({ block: "start" });
   }
 
   return (
-    <Link
+    <a
       href={`#${targetId}`}
       onClick={moveFocus}
       className="sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:left-2 focus-visible:top-2 focus-visible:z-[100] focus-visible:rounded-md focus-visible:bg-brand focus-visible:px-3 focus-visible:py-2 focus-visible:text-sm focus-visible:font-medium focus-visible:text-white"
     >
       Skip to content
-    </Link>
+    </a>
   );
 }

@@ -55,6 +55,7 @@ describe("Password reset — HMAC token (R038)", () => {
       userId: "usr_1",
       email: "Ed@Example.com",
       sessionRev: 7,
+      contextAgencyId: "agency_reset_1",
     });
     const result = verifyPasswordResetToken(token);
     assert.equal(result.ok, true);
@@ -63,6 +64,7 @@ describe("Password reset — HMAC token (R038)", () => {
       assert.equal(result.payload.email, "ed@example.com");
       assert.equal(result.payload.purpose, "password-reset");
       assert.equal(result.payload.sessionRev, 7);
+      assert.equal(result.payload.contextAgencyId, "agency_reset_1");
       assert.equal(result.payload.nonce, payload.nonce);
       assert.equal(result.payload.exp, payload.exp);
     }
@@ -276,7 +278,9 @@ describe("Password reset — file structure (R038)", () => {
     assert.equal(existsSync(form), true);
     const pageSrc = readFileSync(page, "utf8");
     assert.ok(pageSrc.includes("mm-auth-shell"));
-    assert.ok(pageSrc.includes("getAuthBrand"));
+    assert.ok(pageSrc.includes("resolvePublicAuthContext"));
+    assert.ok(pageSrc.includes("ensureHydrated"));
+    assert.ok(pageSrc.includes("forgot-context-error"));
     assert.ok(pageSrc.includes("ForgotForm"));
     assert.ok(pageSrc.includes("brand={brand.id}"));
     const formSrc = readFileSync(form, "utf8");
@@ -295,6 +299,8 @@ describe("Password reset — file structure (R038)", () => {
     const pageSrc = readFileSync(page, "utf8");
     assert.ok(pageSrc.includes("mm-auth-shell"));
     assert.ok(pageSrc.includes("getAuthBrand"));
+    assert.ok(pageSrc.includes("resolvePasswordResetAuthContext"));
+    assert.ok(pageSrc.includes("verifyPasswordResetToken"));
     assert.ok(pageSrc.includes("data-auth-brand={brand.id}"));
     assert.ok(pageSrc.includes("ResetForm"));
     const formSrc = readFileSync(form, "utf8");

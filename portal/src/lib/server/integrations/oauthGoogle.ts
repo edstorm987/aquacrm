@@ -47,19 +47,67 @@ export interface OAuthStartUrl {
   state: string;
 }
 
-// Build the authorize URL + a state token the callback will verify.
-// State is HMAC(returnUrl|nonce|exp) so we don't need server-side
-// state storage — survives serverless cold starts.
+export interface OAuthStateContext {
+  returnUrl: string;
+  brand?: string;
+  clientId?: string;
+}
+
+const MAX_OAUTH_STATE_LENGTH = 4_096;
+const MAX_OAUTH_CONTEXT_LENGTH = 120;
+
+function safeReturnPath(value: string | undefined): string {
+  const raw = value?.trim() ?? "";
+  if (
+    !raw
+    || raw.length > 2_048
+    || !raw.startsWith("/")
+    || raw.startsWith("//")
+    || raw.includes("\\")
+    || /%(?:2f|5c)/i.test(raw)
+  ) {
+    return "/portal";
+  }
+  try {
+    const base = new URL("https://oauth-state.invalid");
+    const parsed = new URL(raw, base);
+    if (parsed.origin !== base.origin) return "/portal";
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return "/portal";
+  }
+}
+
+function optionalContextValue(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed && trimmed.length <= MAX_OAUTH_CONTEXT_LENGTH ? trimmed : undefined;
+}
+
+// Build the authorize URL + a signed, versioned state envelope. Tenant/client
+// values are navigation context only: the callback still resolves them against
+// the authenticated user's server-side memberships before minting a session.
 export function buildAuthorizeUrl(
   config: GoogleOAuthConfig,
-  opts: { returnUrl?: string; secret: string },
+  opts: { returnUrl?: string; brand?: string; clientId?: string; secret: string },
 ): OAuthStartUrl {
+  const brand = optionalContextValue(opts.brand);
+  const clientId = optionalContextValue(opts.clientId);
+  if ((opts.brand !== undefined && brand !== opts.brand) || (opts.clientId !== undefined && clientId !== opts.clientId)) {
+    throw new Error("invalid_oauth_context");
+  }
   const nonce = crypto.randomBytes(12).toString("base64url");
   const exp = Math.floor(Date.now() / 1000) + 600; // 10 min
-  const returnUrl = opts.returnUrl ?? "/portal";
-  const stateBody = `${nonce}|${exp}|${returnUrl}`;
-  const sig = crypto.createHmac("sha256", opts.secret).update(stateBody).digest("base64url");
-  const state = `${Buffer.from(stateBody, "utf8").toString("base64url")}.${sig}`;
+  const stateBody = JSON.stringify({
+    v: 2,
+    nonce,
+    exp,
+    returnUrl: safeReturnPath(opts.returnUrl),
+    ...(brand ? { brand } : {}),
+    ...(clientId ? { clientId } : {}),
+  });
+  const encoded = Buffer.from(stateBody, "utf8").toString("base64url");
+  const sig = crypto.createHmac("sha256", opts.secret).update(encoded).digest("base64url");
+  const state = `${encoded}.${sig}`;
 
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   url.searchParams.set("client_id", config.clientId);
@@ -75,29 +123,60 @@ export function buildAuthorizeUrl(
 export function verifyOAuthState(
   state: string,
   secret: string,
-): { ok: true; returnUrl: string } | { ok: false; error: string } {
+): ({ ok: true } & OAuthStateContext) | { ok: false; error: string } {
+  if (state.length > MAX_OAUTH_STATE_LENGTH) return { ok: false, error: "malformed_state" };
   const dot = state.indexOf(".");
   if (dot <= 0) return { ok: false, error: "malformed_state" };
   const b64 = state.slice(0, dot);
   const sig = state.slice(dot + 1);
-  let body: string;
-  try {
-    body = Buffer.from(b64, "base64url").toString("utf8");
-  } catch {
+  if (!/^[A-Za-z0-9_-]+$/.test(b64) || !/^[A-Za-z0-9_-]+$/.test(sig)) {
     return { ok: false, error: "malformed_state" };
   }
-  const expected = crypto.createHmac("sha256", secret).update(body).digest("base64url");
+  const expected = crypto.createHmac("sha256", secret).update(b64).digest("base64url");
   const a = Buffer.from(expected, "utf8");
   const b = Buffer.from(sig, "utf8");
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
     return { ok: false, error: "invalid_state" };
   }
-  const parts = body.split("|");
-  const exp = Number(parts[1] ?? 0);
-  if (!exp || exp < Math.floor(Date.now() / 1000)) {
+  let body: unknown;
+  try {
+    body = JSON.parse(Buffer.from(b64, "base64url").toString("utf8"));
+  } catch {
+    return { ok: false, error: "malformed_state" };
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return { ok: false, error: "malformed_state" };
+  }
+  const candidate = body as Record<string, unknown>;
+  const exp = candidate.exp;
+  if (
+    candidate.v !== 2
+    || typeof candidate.nonce !== "string"
+    || !candidate.nonce
+    || typeof exp !== "number"
+    || !Number.isSafeInteger(exp)
+    || typeof candidate.returnUrl !== "string"
+    || safeReturnPath(candidate.returnUrl) !== candidate.returnUrl
+    || !(candidate.brand === undefined || (
+      typeof candidate.brand === "string"
+      && optionalContextValue(candidate.brand) === candidate.brand
+    ))
+    || !(candidate.clientId === undefined || (
+      typeof candidate.clientId === "string"
+      && optionalContextValue(candidate.clientId) === candidate.clientId
+    ))
+  ) {
+    return { ok: false, error: "malformed_state" };
+  }
+  if (exp < Math.floor(Date.now() / 1000)) {
     return { ok: false, error: "expired_state" };
   }
-  return { ok: true, returnUrl: parts[2] ?? "/portal" };
+  return {
+    ok: true,
+    returnUrl: candidate.returnUrl,
+    ...(typeof candidate.brand === "string" ? { brand: candidate.brand } : {}),
+    ...(typeof candidate.clientId === "string" ? { clientId: candidate.clientId } : {}),
+  };
 }
 
 // ─── Token exchange + ID-token verification ─────────────────────────────────

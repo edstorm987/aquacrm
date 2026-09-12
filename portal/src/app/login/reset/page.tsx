@@ -9,15 +9,26 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { ResetForm } from "./ResetForm";
 import { getAuthBrand } from "@/lib/brands/authBrand";
+import { resolvePasswordResetAuthContext } from "@/lib/server/auth/authContext";
+import { verifyPasswordResetToken } from "@/lib/server/auth/passwordReset";
+import { ensureHydrated } from "@/server/storage";
 import type { Metadata } from "next";
+
+async function resetContext(token: string | undefined) {
+  if (!token) return null;
+  const verified = verifyPasswordResetToken(token);
+  if (!verified.ok) return null;
+  await ensureHydrated();
+  return resolvePasswordResetAuthContext(verified.payload);
+}
 
 export async function generateMetadata({
   searchParams,
 }: {
-  searchParams: Promise<{ brand?: string }>;
+  searchParams: Promise<{ token?: string }>;
 }): Promise<Metadata> {
   const params = await searchParams;
-  const brand = getAuthBrand(params.brand);
+  const brand = (await resetContext(params.token))?.brand ?? getAuthBrand(undefined);
   return {
     title: `Reset password · ${brand.name}`,
     description: `Choose a new password for your ${brand.name} workspace.`,
@@ -33,10 +44,13 @@ export const dynamic = "force-dynamic";
 export default async function ResetPage({
   searchParams,
 }: {
-  searchParams: Promise<{ brand?: string }>;
+  searchParams: Promise<{ token?: string }>;
 }) {
   const params = await searchParams;
-  const brand = getAuthBrand(params.brand);
+  const context = await resetContext(params.token);
+  const brand = context?.brand ?? getAuthBrand(undefined);
+  const signInParams = new URLSearchParams({ brand: brand.id });
+  if (context?.client) signInParams.set("clientId", context.client.id);
   return (
     <main id="main-content" tabIndex={-1} className="mm-auth-shell" data-auth-brand={brand.id}>
       <div className="mm-auth-split">
@@ -73,7 +87,7 @@ export default async function ResetPage({
           </Suspense>
           <div className="mm-auth-foot">
             <span>
-              Changed your mind? <Link href={`/login?brand=${brand.id}`}>Sign in →</Link>
+              Changed your mind? <Link href={`/login?${signInParams.toString()}`}>Sign in →</Link>
             </span>
           </div>
         </div>

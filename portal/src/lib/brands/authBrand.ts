@@ -174,7 +174,7 @@ export function matchAuthBrandAgency(
   );
 }
 
-function brandFromAgency(agency: AuthBrandAgency): ResolvedAuthBrand {
+export function authBrandForAgency(agency: AuthBrandAgency): ResolvedAuthBrand {
   const name = agency.name.trim() || agency.slug;
   return {
     id: agency.slug,
@@ -197,6 +197,41 @@ function brandFromAgency(agency: AuthBrandAgency): ResolvedAuthBrand {
 }
 
 /**
+ * Resolve a presentation hint to one exact active agency.
+ *
+ * Static website fronts are presentation aliases, not tenant authority. They
+ * never select an agency. Callers must narrow `agencies` to the signed-in
+ * person's memberships before using a dynamic slug/id result for a session.
+ * `aquacrm` is deliberately neutral too.
+ */
+export function matchAuthBrandContextAgency(
+  value: string | undefined | null,
+  agencies: readonly AuthBrandAgency[],
+): AuthBrandAgency | null {
+  const raw = normaliseBrandValue(value);
+  if (!raw || raw === "aquacrm") return null;
+
+  // A hand-written website front is presentation, never tenant authority.
+  // The exact client or authenticated subject selects the tenant instead.
+  if (isKnownAuthBrandId(raw)) return null;
+
+  const exact = matchAuthBrandAgency(raw, agencies);
+  if (exact) return exact;
+  return null;
+}
+
+export function authBrandContextMatchesAgency(
+  value: string | undefined | null,
+  agency: AuthBrandAgency,
+): boolean {
+  const raw = normaliseBrandValue(value);
+  // Missing and AquaCRM are neutral presentation contexts. They cannot select
+  // another tenant, so the exact subject/client lineage remains authoritative.
+  if (!raw || isKnownAuthBrandId(raw)) return true;
+  return matchAuthBrandContextAgency(raw, [agency])?.id === agency.id;
+}
+
+/**
  * Brand front for a `?brand=` value, resolved against real agencies.
  *
  * Order: known static front → active agency (slug, then id) → AquaCRM.
@@ -210,7 +245,7 @@ export function resolveAuthBrand(
   const raw = normaliseBrandValue(value);
   if (raw && isKnownAuthBrandId(raw)) return getAuthBrand(raw);
   const agency = matchAuthBrandAgency(raw, agencies);
-  if (agency) return brandFromAgency(agency);
+  if (agency) return authBrandForAgency(agency);
   // The guard. Unknown or stale → AquaCRM, never someone else's brand.
   return getAuthBrand(undefined);
 }

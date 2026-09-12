@@ -6,22 +6,24 @@ import { isGoogleOAuthConfigured } from "@/lib/server/integrations/oauthGoogle";
 import { botChallengeClientConfig } from "@/lib/server/security/botChallenge";
 import { getCurrentUser, getSession } from "@/lib/server/auth/auth";
 import { resolvePostLoginPath } from "@/lib/server/auth/postLoginRedirect";
-import { resolveAuthBrand, type ResolvedAuthBrand } from "@/lib/brands/authBrand";
+import { resolvePublicAuthContext, type PublicAuthContext } from "@/lib/server/auth/authContext";
 import { ensureHydrated } from "@/server/storage";
-import { listAgencies } from "@/server/tenants";
 import type { Metadata } from "next";
 
 // `?brand=` used to be matched against a hardcoded list of four fronts. Ed now
 // signs in from several of his own company websites into ONE AquaCRM, so the
 // value is matched against real agency records too.
 //
-// The guard is unchanged and load-bearing: `resolveAuthBrand` falls back to the
-// neutral AquaCRM front for anything it does not recognise, so a stale, guessed
-// or hostile `?brand=` can never paint this page with an unrelated client's
-// name. See `src/lib/brands/authBrand.ts`.
-async function brandFor(value: string | undefined): Promise<ResolvedAuthBrand> {
+// The guard is load-bearing: presentation is resolved from current tenant and
+// client rows, while login later re-binds the same values to the authenticated
+// subject. A stale or mismatched context renders neutral and cannot select a
+// membership.
+async function authContextFor(
+  brand: string | undefined,
+  clientId: string | undefined,
+): Promise<PublicAuthContext> {
   await ensureHydrated();
-  return resolveAuthBrand(value, listAgencies());
+  return resolvePublicAuthContext({ brand, clientId });
 }
 
 // Code-split: form bundle only ships when /login renders, and the
@@ -39,10 +41,10 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({
   searchParams,
 }: {
-  searchParams: Promise<{ brand?: string }>;
+  searchParams: Promise<{ brand?: string; clientId?: string }>;
 }): Promise<Metadata> {
   const params = await searchParams;
-  const brand = await brandFor(params.brand);
+  const { brand } = await authContextFor(params.brand, params.clientId);
   return {
     title: `Sign in · ${brand.name}`,
     description: `Secure access to your ${brand.name} workspace.`,
@@ -52,11 +54,13 @@ export async function generateMetadata({
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ brand?: string; next?: string; clientId?: string }>;
+  searchParams: Promise<{ brand?: string; next?: string; clientId?: string; context_error?: string }>;
 }) {
   const botChallenge = botChallengeClientConfig();
   const params = await searchParams;
-  const brand = await brandFor(params.brand);
+  const context = await authContextFor(params.brand, params.clientId);
+  const contextIsValid = context.valid && params.context_error !== "invalid";
+  const brand = context.brand;
   const contactHref = brand.id === "aquacrm"
     ? brand.homeUrl.startsWith("http")
       ? new URL("/contact/", brand.homeUrl).toString()
@@ -68,8 +72,11 @@ export default async function LoginPage({
   // here for normal Supabase-backed authentication.
   const session = await getSession();
   if (session?.publicShowcase) {
-    const query = new URLSearchParams({ brand: brand.id });
-    if (params.next?.startsWith("/")) query.set("next", params.next);
+    const requestedBrand = params.brand?.trim().slice(0, 120);
+    const query = new URLSearchParams({ brand: requestedBrand || brand.id });
+    if (params.next?.startsWith("/") && !params.next.startsWith("//")) query.set("next", params.next);
+    if (context.requestedClientId) query.set("clientId", context.requestedClientId);
+    if (!contextIsValid) query.set("context_error", "invalid");
     redirect(`/login/live?${query.toString()}`);
   }
 
@@ -98,12 +105,18 @@ export default async function LoginPage({
           <h1 id="mm-auth-heading">Welcome back</h1>
           <p>{brand.id === "aquacrm" ? "Sign in with the access issued to you." : `Sign in to your ${brand.name} workspace.`}</p>
         </div>
-        <LoginForm
-          clientId={params.clientId}
-          googleEnabled={isGoogleOAuthConfigured()}
-          captchaSiteKey={botChallenge.siteKey}
-          captchaRequired={botChallenge.required}
-        />
+        {contextIsValid ? (
+          <LoginForm
+            clientId={context.requestedClientId}
+            googleEnabled={isGoogleOAuthConfigured()}
+            captchaSiteKey={botChallenge.siteKey}
+            captchaRequired={botChallenge.required}
+          />
+        ) : (
+          <p role="alert" className="mm-form-error" data-testid="login-context-error">
+            This sign-in link does not match an active workspace. Return to the site that issued it and request a new link.
+          </p>
+        )}
         <div className="mm-auth-support">
           <p className="mm-auth-lead-link">
             Not a client yet? <Link href={contactHref}>Let&apos;s get in touch</Link>.

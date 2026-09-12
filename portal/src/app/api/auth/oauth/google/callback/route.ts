@@ -12,25 +12,38 @@ import {
   exchangeAndVerify,
   readGoogleOAuthConfig,
   verifyOAuthState,
+  type OAuthStateContext,
 } from "@/lib/server/integrations/oauthGoogle";
-import { listAgencies, getAgency } from "@/server/tenants";
+import { listAgencies } from "@/server/tenants";
 import { bootstrapAgency } from "@/server/agencyBootstrap";
 import { createUser, getUser } from "@/server/users";
 import { logActivity } from "@/server/activity";
 import { resolvePostLoginPath } from "@/lib/server/auth/postLoginRedirect";
 import { checkSideDoorMfa } from "@/lib/server/auth/mfa";
+import { resolveUserAuthContext, type ExactAuthContext } from "@/lib/server/auth/authContext";
+import { isKnownAuthBrandId } from "@/lib/brands/authBrand";
+import type { ServerUser } from "@/server/types";
 import crypto from "crypto";
 import { resolveSigningSecret } from "@/lib/server/auth/sessionToken";
 
-function err(req: NextRequest, code: string, status = 400) {
+function safeErrorCode(value: string): string {
+  return /^[a-z0-9_-]{1,80}$/i.test(value) ? value : "oauth_failed";
+}
+
+function err(
+  req: NextRequest,
+  code: string,
+  _status = 400,
+  context?: Pick<OAuthStateContext, "brand" | "clientId">,
+) {
   const url = new URL("/login", req.nextUrl.origin);
-  url.searchParams.set("oauth_error", code);
+  url.searchParams.set("oauth_error", safeErrorCode(code));
+  if (context?.brand) url.searchParams.set("brand", context.brand);
+  if (context?.clientId) url.searchParams.set("clientId", context.clientId);
   return NextResponse.redirect(url, 302);
 }
 
 export async function GET(req: NextRequest) {
-  await ensureHydrated();
-
   const origin = req.nextUrl.origin;
   const config = readGoogleOAuthConfig(`${origin}/api/auth/oauth/google/callback`);
   if (!config) return NextResponse.json({ ok: false, error: "google_oauth_not_configured" }, { status: 404 });
@@ -38,34 +51,36 @@ export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
   const state = req.nextUrl.searchParams.get("state");
   const oauthErr = req.nextUrl.searchParams.get("error");
-  if (oauthErr) return err(req, oauthErr);
-  if (!code || !state) return err(req, "missing_params");
+  if (!state) return err(req, "missing_params");
 
   const secret = resolveSigningSecret();
   const stateCheck = verifyOAuthState(state, secret);
   if (!stateCheck.ok) return err(req, stateCheck.error);
+  const trustedContext = { brand: stateCheck.brand, clientId: stateCheck.clientId };
+  if (oauthErr) return err(req, oauthErr, 400, trustedContext);
+  if (!code) return err(req, "missing_params", 400, trustedContext);
 
   const result = await exchangeAndVerify(config, code);
-  if (!result.ok) return err(req, result.error);
+  if (!result.ok) return err(req, result.error, 400, trustedContext);
   const claims = result.claims;
-  if (!claims.emailVerified) return err(req, "email_not_verified");
+  if (!claims.emailVerified) return err(req, "email_not_verified", 400, trustedContext);
 
-  // ─── The second-factor side door check ──────────────────────────────────
-  // Google proves ONE factor. Before this gate, a Google sign-in minted a
-  // full session — agency-owner sessions included — for accounts whose TOTP
-  // enrolment the password door refuses to skip. An enrolled account is
-  // refused here and signs in with password + code instead. Fail-closed:
-  // when enrolment cannot be read at all, nothing is minted either. Sits
-  // before BOTH paths below, the first-run bootstrap included — an identity
-  // that cannot be checked must not become the first owner on the quiet.
-  const mfaGate = await checkSideDoorMfa(claims.email);
-  if (mfaGate.status === "refuse") return err(req, mfaGate.error, 403);
-
+  await ensureHydrated({ fresh: true });
   const agencies = listAgencies();
 
   // First-run bootstrap. No agencies + no users → OAuth identity becomes
-  // agency-owner of a new "Milesy Media" default agency.
+  // agency-owner of a new "Milesy Media" default agency. A tenant/client
+  // context cannot name authority which does not exist yet.
   if (agencies.length === 0) {
+    const bootstrapBrand = stateCheck.brand?.trim().toLowerCase();
+    if (stateCheck.clientId || (
+      bootstrapBrand
+      && !isKnownAuthBrandId(bootstrapBrand)
+    )) {
+      return err(req, "context_mismatch", 403, trustedContext);
+    }
+    const mfaGate = await checkSideDoorMfa(claims.email);
+    if (mfaGate.status === "refuse") return err(req, mfaGate.error, 403, trustedContext);
     const provisional = `usr_pending_${Date.now()}`;
     const { agency } = await bootstrapAgency(
       { name: "Milesy Media", slug: "milesy-media", ownerEmail: claims.email },
@@ -89,21 +104,33 @@ export async function GET(req: NextRequest) {
       action: "bootstrap.oauth_signup",
       message: `First-run bootstrap via Google OAuth: created agency "${agency.name}" and owner ${claims.email}.`,
     });
-    return setSessionAndRedirect(req, stateCheck.returnUrl, user);
+    const exactContext = resolveUserAuthContext(user);
+    if (!exactContext) return err(req, "context_mismatch", 403, trustedContext);
+    return setSessionAndRedirect(req, stateCheck.returnUrl, user, exactContext);
   }
 
-  // Existing-email path. Email must already be registered as an agency-
-  // or client-tier user. End-customer match is intentionally skipped —
-  // those go through magic-link, not Google.
-  const user = getUser(claims.email);
+  // Existing-email path. An exact signed client disambiguates client-scoped
+  // subjects; the subject-aware resolver below still proves that the selected
+  // record owns that client and agency before any session is minted.
+  const user = getUser(
+    claims.email,
+    stateCheck.clientId ? { clientId: stateCheck.clientId } : undefined,
+  );
   if (!user) {
-    return err(req, "unknown_email", 403);
+    return err(req, stateCheck.clientId ? "context_mismatch" : "unknown_email", 403, trustedContext);
   }
-  if (!getAgency(user.agencyId)) return err(req, "agency_inactive", 403);
+  const exactContext = resolveUserAuthContext(user, trustedContext);
+  if (!exactContext) return err(req, "context_mismatch", 403, trustedContext);
+
+  // Google proves one factor. An enrolled account must still use the password
+  // door and its second factor; an unreadable enrolment fails closed. This is
+  // intentionally after exact membership resolution but before any cookie.
+  const mfaGate = await checkSideDoorMfa(claims.email);
+  if (mfaGate.status === "refuse") return err(req, mfaGate.error, 403, trustedContext);
 
   logActivity({
-    agencyId: user.agencyId,
-    clientId: user.clientId,
+    agencyId: exactContext.agency.id,
+    clientId: exactContext.client?.id,
     actorUserId: user.id,
     actorEmail: user.email,
     category: "auth",
@@ -111,17 +138,22 @@ export async function GET(req: NextRequest) {
     message: `${user.email} signed in via Google.`,
   });
 
-  return setSessionAndRedirect(req, stateCheck.returnUrl, user);
+  return setSessionAndRedirect(req, stateCheck.returnUrl, user, exactContext);
 }
 
 function setSessionAndRedirect(
   req: NextRequest,
   returnUrl: string,
-  user: { id: string; email: string; role: import("@/server/types").Role; agencyId: string; clientId?: string },
+  user: ServerUser,
+  context: ExactAuthContext,
 ) {
   const token = issueSession({
     userId: user.id, email: user.email, role: user.role,
-    agencyId: user.agencyId, ...(user.clientId ? { clientId: user.clientId } : {}),
+    agencyId: user.agencyId,
+    agencyIds: user.agencyIds,
+    activeAgencyId: context.agency.id,
+    ...(context.client ? { clientId: context.client.id } : {}),
+    sessionRev: user.sessionRev ?? 0,
     // One factor was proven here (the Google identity), and the cookie says so.
     aal: "aal1",
   });

@@ -672,7 +672,7 @@ describe("public mailbox request anti-enumeration", () => {
       assert.equal(resetCalls[0]?.signal?.aborted, true);
       const secondReset = await handlePasswordResetRequest(jsonRequest(
         "/api/auth/password/request-reset",
-        { email, clientId: client.id, brand: "milesymedia", captchaToken: "valid:password-reset-request:durable-2" },
+        { email, clientId: client.id, brand: agency.slug, captchaToken: "valid:password-reset-request:durable-2" },
         "43.1.1.2",
       ), { sendEmail });
       assert.deepEqual(await secondReset.json(), { ok: true });
@@ -905,7 +905,7 @@ describe("source-level order and truthful invitation affordances", () => {
     assert.ok(account.indexOf('action: "agency-signup"') < account.indexOf("agency-signup-email:"));
     assert.ok(account.indexOf("agency-signup-email:") < account.indexOf("prepareAgencySignup"));
     assert.ok(reset.indexOf('action: "password-reset-request"') < reset.indexOf("password-reset-email:"));
-    assert.ok(reset.indexOf("password-reset-email:") < reset.indexOf("const user = getExactPasswordResetUser"));
+    assert.ok(reset.indexOf("password-reset-email:") < reset.indexOf("const user = invalidClientContext"));
     assert.ok(magic.indexOf('action: "magic-link-request"') < magic.indexOf("magic-email:"));
     assert.ok(magic.indexOf("magic-email:") < magic.indexOf("const client = getClient"));
     assert.ok(signup.indexOf('action: "website-lead-signup"') < signup.indexOf("website-lead-signup-email:"));

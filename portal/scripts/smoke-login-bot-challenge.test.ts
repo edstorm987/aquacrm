@@ -29,7 +29,7 @@ process.env.PORTAL_BACKEND ??= "memory";
 import * as loginRoute from "../src/app/api/auth/login/route";
 import { POST as browserPOST } from "../src/app/api/auth/login/browser/route";
 import { ensureHydrated } from "../src/server/storage";
-import { createAgency } from "../src/server/tenants";
+import { createAgency, createClient } from "../src/server/tenants";
 import { bindSupabaseAuthIdentity, createUser } from "../src/server/users";
 import { SESSION_COOKIE_NAME } from "../src/lib/server/auth/auth";
 import { __resetBotChallengeForTest } from "../src/lib/server/security/botChallenge";
@@ -46,6 +46,8 @@ const SB_USER_ID = "sb_user_captcha_login";
 const FREELANCER_EMAIL = "bound.freelancer@auth001.test";
 const FREELANCER_SB_USER_ID = "sb_user_bound_freelancer";
 const WRONG_FREELANCER_SB_USER_ID = "sb_user_wrong_freelancer";
+const CLIENT_EMAIL = "exact.client@auth001.test";
+const CLIENT_SB_USER_ID = "sb_user_exact_client";
 const POST = loginRoute.POST;
 
 let sbServer: Server | undefined;
@@ -54,6 +56,8 @@ let realFetch: typeof fetch;
 let savedEnv: Record<string, string | undefined> = {};
 let supabaseReachable = false;
 let freelancerAgencyId = "";
+let exactClientId = "";
+let exactClientUserId = "";
 let activeFreelancerSubjectId = FREELANCER_SB_USER_ID;
 const EXTERNAL_LOGIN_ORIGIN = "https://portal.aquaoasis.test";
 
@@ -108,6 +112,7 @@ async function startStubSupabase(): Promise<string> {
         }
         res.writeHead(200, { "content-type": "application/json" });
         const isFreelancer = requestedEmail === FREELANCER_EMAIL;
+        const isClient = requestedEmail === CLIENT_EMAIL;
         res.end(JSON.stringify({
           access_token: "stub-access-token",
           token_type: "bearer",
@@ -115,7 +120,7 @@ async function startStubSupabase(): Promise<string> {
           expires_at: Math.floor(Date.now() / 1000) + 3600,
           refresh_token: "stub-refresh-token",
           user: {
-            id: isFreelancer ? activeFreelancerSubjectId : SB_USER_ID,
+            id: isFreelancer ? activeFreelancerSubjectId : isClient ? CLIENT_SB_USER_ID : SB_USER_ID,
             aud: "authenticated",
             role: "authenticated",
             email: requestedEmail || MEMBER_EMAIL,
@@ -124,6 +129,12 @@ async function startStubSupabase(): Promise<string> {
               aqua_profile_role: "staff",
               aqua_agency_id: freelancerAgencyId,
               aqua_provisioning_operation_id: "staff-provisioning-test-operation",
+            } : isClient ? {
+              aqua_subject_kind: "client-portal",
+              aqua_profile_role: "client",
+              aqua_local_user_id: exactClientUserId,
+              aqua_agency_id: freelancerAgencyId,
+              aqua_client_id: exactClientId,
             } : {},
             user_metadata: {},
             created_at: new Date(0).toISOString(),
@@ -136,6 +147,8 @@ async function startStubSupabase(): Promise<string> {
         res.end(
           url.includes(FREELANCER_SB_USER_ID) || url.includes(WRONG_FREELANCER_SB_USER_ID)
             ? '[{"role":"staff"}]'
+            : url.includes(CLIENT_SB_USER_ID)
+              ? '[{"role":"client"}]'
             : "[]",
         );
         return;
@@ -212,6 +225,18 @@ before(async () => {
   const agency = createAgency({ name: "AUTH001 Captcha Co", ownerEmail: "owner@auth001.test" });
   createUser({ email: MEMBER_EMAIL, password: GOOD_PASSWORD, name: "Captcha Login", role: "agency-owner", agencyId: agency.id });
   freelancerAgencyId = agency.id;
+  const client = createClient(agency.id, { name: "Exact login client" });
+  exactClientId = client.id;
+  const clientUser = createUser({
+    email: CLIENT_EMAIL,
+    password: GOOD_PASSWORD,
+    name: "Exact client",
+    role: "client-owner",
+    agencyId: agency.id,
+    clientId: client.id,
+  });
+  exactClientUserId = clientUser.id;
+  assert.ok(bindSupabaseAuthIdentity(clientUser.id, CLIENT_SB_USER_ID));
   const freelancer = createUser({
     email: FREELANCER_EMAIL,
     password: GOOD_PASSWORD,
@@ -322,6 +347,51 @@ describe("Bound workforce subjects never fall back to a same-email account", () 
   });
 });
 
+describe("Exact client context narrows password login", () => {
+  it("mints the exact bound client and rejects altered client/tenant context", async () => {
+    turnstileVerdict = () => ({
+      success: true,
+      action: "login",
+      hostname: "localhost",
+      challenge_ts: new Date().toISOString(),
+    });
+    const exact = await POST(jsonRequest({
+      email: CLIENT_EMAIL,
+      password: GOOD_PASSWORD,
+      brand: freelancerAgencyId,
+      clientId: exactClientId,
+      captchaToken: "exact-client-context",
+    }, "20.0.4.1"));
+    assert.equal(exact.status, 200, await exact.clone().text());
+    const cookie = cookieValue(exact, SESSION_COOKIE_NAME);
+    assert.ok(cookie);
+    const payload = JSON.parse(Buffer.from(cookie!.split(".")[0]!, "base64url").toString("utf8"));
+    assert.equal(payload.agencyId, freelancerAgencyId);
+    assert.equal(payload.clientId, exactClientId);
+
+    for (const [index, context] of [
+      { brand: "other-agency", clientId: exactClientId },
+      { brand: freelancerAgencyId, clientId: "other-client" },
+      { brand: freelancerAgencyId, clientId: `${exactClientId} ` },
+      { brand: freelancerAgencyId, clientId: 42 },
+      { brand: freelancerAgencyId, clientId: null },
+    ].entries()) {
+      const refused = await POST(jsonRequest({
+        email: CLIENT_EMAIL,
+        password: GOOD_PASSWORD,
+        ...context,
+        captchaToken: `altered-client-context-${index}`,
+      }, `20.0.4.${index + 2}`));
+      assert.equal(refused.status, 403);
+      assert.equal(cookieValue(refused, SESSION_COOKIE_NAME), undefined);
+      assert.deepEqual(await refused.json(), {
+        ok: false,
+        error: "Account access is not configured correctly.",
+      });
+    }
+  });
+});
+
 describe("Branded browser login preserves the external challenge hostname", () => {
   const common = {
     email: MEMBER_EMAIL,
@@ -399,7 +469,7 @@ describe("Branded browser login preserves the external challenge hostname", () =
     assert.equal(res.status, 303);
     assert.ok(
       res.headers.getSetCookie().some((cookie) => cookie.startsWith(`${SESSION_COOKIE_NAME}=`)),
-      "a correctly host-bound branded login receives the session cookie",
+      `a correctly host-bound branded login receives the session cookie; location=${res.headers.get("location")}`,
     );
     turnstileVerdict = () => ({
       success: true,

@@ -1,13 +1,12 @@
 import Link from "next/link";
 import { ArrowLeft, KeyRound, UserRound } from "lucide-react";
 import { notFound } from "next/navigation";
-import { cookies } from "next/headers";
 import { AvatarUploader } from "@/app/portal/account/AvatarUploader";
 import { requireRole } from "@/lib/server/auth/auth";
+import { resolveUserAuthContext } from "@/lib/server/auth/authContext";
 import { ensureHydrated } from "@/server/storage";
 import { getUserById } from "@/server/users";
 import { listOwnPortalConnections } from "@/server/portalConnectionStore";
-import { getAuthBrand } from "@/lib/brands/authBrand";
 import { ConnectedApps } from "./_ConnectedApps";
 import { CUSTOMER_PORTAL_ROLES } from "@/server/types";
 
@@ -22,8 +21,9 @@ export default async function CustomerAccountPage() {
   const session = await requireRole([...CUSTOMER_PORTAL_ROLES]);
   const user = getUserById(session.userId);
   if (!user) notFound();
-  const cookieStore = await cookies();
-  const authBrand = getAuthBrand(cookieStore.get("aqua_public_brand")?.value);
+  const authContext = resolveUserAuthContext(user, { clientId: session.clientId });
+  if (!authContext) notFound();
+  const authBrand = authContext.brand;
   const connectedApps = session.clientId
     ? listOwnPortalConnections({ clientId: session.clientId, userId: session.userId })
         .map(connection => ({ id: connection.id, label: connection.label, connectedAt: connection.connectedAt }))
@@ -99,7 +99,10 @@ export default async function CustomerAccountPage() {
           <p className="mt-3 text-sm leading-6 text-white/52">
             We will send the secure next step to your sign-in email.
           </p>
-          <Link href={`/login/forgot?brand=${authBrand.id}`} className="mt-7 inline-flex min-h-10 items-center rounded-md border border-white/15 px-4 text-sm font-medium text-white/85">
+          <Link href={`/login/forgot?${new URLSearchParams({
+            brand: authBrand.id,
+            ...(authContext.client ? { clientId: authContext.client.id } : {}),
+          }).toString()}`} className="mt-7 inline-flex min-h-10 items-center rounded-md border border-white/15 px-4 text-sm font-medium text-white/85">
             Reset password
           </Link>
         </aside>

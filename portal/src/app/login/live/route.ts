@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { clearSessionCookie, getSessionFromRequest } from "@/lib/server/auth/auth";
-import { getAuthBrand } from "@/lib/brands/authBrand";
+import { resolvePublicAuthContext } from "@/lib/server/auth/authContext";
+import { ensureHydrated } from "@/server/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,12 @@ export const dynamic = "force-dynamic";
 // this boundary clears that one cookie before the database login is rendered.
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
-  const brand = getAuthBrand(requestUrl.searchParams.get("brand") ?? "aquacrm");
+  await ensureHydrated();
+  const requestedBrand = requestUrl.searchParams.get("brand")?.trim().slice(0, 120);
+  const context = resolvePublicAuthContext({
+    brand: requestedBrand,
+    clientId: requestUrl.searchParams.get("clientId") ?? undefined,
+  });
 
   // Build a RELATIVE redirect (Location: /login?…) rather than an absolute one.
   // Behind a proxy (Railway), `request.url` / `requestUrl.origin` is the app's
@@ -19,7 +25,14 @@ export async function GET(request: NextRequest) {
   // Location is resolved by the browser against the current public host, so it
   // works regardless of proxy, region, or which domain served the request.
   const params = new URLSearchParams();
-  params.set("brand", brand.id);
+  // Preserve the signed-in subject's requested context through the showcase
+  // cookie-clearing boundary. The next page resolves presentation again and
+  // the login handler treats these values only as a narrowing request.
+  params.set("brand", requestedBrand || context.brand.id);
+  if (context.requestedClientId) params.set("clientId", context.requestedClientId);
+  if (!context.valid || requestUrl.searchParams.get("context_error") === "invalid") {
+    params.set("context_error", "invalid");
+  }
   const next = requestUrl.searchParams.get("next");
   if (next?.startsWith("/") && !next.startsWith("//")) {
     params.set("next", next);

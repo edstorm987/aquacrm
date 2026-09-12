@@ -20,6 +20,7 @@ import { validatePassword } from "@/server/users";
 import { logActivity } from "@/server/activity";
 import { executePasswordReset } from "@/server/passwordResetOperation";
 import { markPublicAuthLinkConsumed } from "@/server/publicAuthLinkDelivery";
+import { resolveUserAuthContext } from "@/lib/server/auth/authContext";
 
 interface Body {
   token?: unknown;
@@ -76,7 +77,7 @@ export async function POST(req: NextRequest) {
     await markPublicAuthLinkConsumed({
       kind: "password-reset",
       email: tok.payload.email,
-      agencyId: user.agencyId,
+      agencyId: tok.payload.contextAgencyId ?? user.agencyId,
       clientId: tok.payload.clientId,
       nonce: tok.payload.nonce,
     });
@@ -104,5 +105,17 @@ export async function POST(req: NextRequest) {
   // this route was the one that did not.
   await flushPendingWrites();
 
-  return NextResponse.json({ ok: true, redirect: "/login?reset=1" });
+  // The post-reset destination is reconstructed from the exact consumed
+  // subject/client. No caller-selected brand or query parameter survives this
+  // boundary as presentation truth.
+  const context = resolveUserAuthContext(user, {
+    brand: tok.payload.contextAgencyId ?? undefined,
+    clientId: tok.payload.clientId ?? undefined,
+  });
+  const redirectParams = new URLSearchParams({ reset: "1" });
+  if (context) {
+    redirectParams.set("brand", context.brand.id);
+    if (context.client) redirectParams.set("clientId", context.client.id);
+  }
+  return NextResponse.json({ ok: true, redirect: `/login?${redirectParams.toString()}` });
 }
