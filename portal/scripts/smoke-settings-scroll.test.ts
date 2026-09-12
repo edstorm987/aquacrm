@@ -2,9 +2,10 @@
 // right pane scrolls independently at desktop, with a single-column document
 // flow at small widths and 200% zoom.
 //
-// Source assertions (this is a client component with no DOM/RTL harness here);
-// they fail if the sticky-rail contract or the single-column fallback regresses.
-// Browser-accepted separately (see CLAUDE-HANDOFF.md) at 320/390/768/1440 + zoom.
+// Static source-contract assertions only: these catch accidental class or
+// structure drift, but they are not browser acceptance. Runtime layout,
+// overflow and keyboard/select behaviour are exercised separately by the
+// hermetic `npm run browser:settings-scroll` loopback fixture.
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
