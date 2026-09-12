@@ -9093,14 +9093,18 @@ nested structure, but this is not represented as “everything held” or as pro
 of delivery: client-owned databases, providers and other systems outside the
 hydrated PortalState snapshot require separate collection.
 
-**It searches every collection in state, not a maintained list.** The obvious
+**It attempts every enumerable top-level state entry, not a maintained list.** The obvious
 design classifies each of the ~90 collections as personal/not-personal and
 searches the first group. That fails silently and in the worst direction:
 anything mis-classified — or any collection added next year and never
 classified — is simply absent, while the covering letter says "this is
 everything we hold about you". **A wrong subject-access response is worse than
 none: it is a false statement made under a legal obligation.** So there is no
-list; every collection is walked and the question is asked of each record.
+list; every descriptor-backed collection is walked and the question is asked
+of each record. A getter, malformed scalar collection, invalid stored scalar,
+or exhausted traversal/matcher/output cap is recorded as explicit
+incompleteness and blocks export preparation; it is not listed as successfully
+searched and cannot produce an automatic-complete file.
 
 The review scan walks nested values, but **ownership matching is schema-bound**.
 Only exact typed Person, reciprocal client/facet/relationship lineage, typed
@@ -9114,11 +9118,15 @@ An attributable row is still not automatically safe. Known releasable
 collections use explicit typed projections; there is no general recursive
 key/regex mutation. Safe Person facets/classification history, finance-ledger
 fields and real `pluginData[installId][key]` reached through its install/client
-lineage are preserved. Unknown fields (including unknown names, NI and bank
-identifiers), co-mingled/free-text values and content beyond the inspection
-depth are withheld as value-free review metadata. Known third-party contact
-fields may be replaced with fixed redaction markers; ids and timestamps are
-never phone-redacted.
+lineage are preserved. Every emitted object key and string value is checked;
+PII-bearing dynamic keys are dropped and counted. Unknown fields,
+co-mingled/free-text values, realistic UK street-address shapes, identifiers
+and content beyond the inspection depth are withheld, redacted or surfaced as
+value-free review metadata. Known third-party contact fields may be replaced
+with fixed redaction markers. Contextual account-number checks preserve valid
+calendar-like references such as `INV-20260912`; numeric timestamps are not
+string-scanned. These controls produce a conservative safe subset, not a legal
+claim that regexes alone identified every possible item of personal data.
 
 **Tenant safety.** Only records whose own `agencyId` matches are included: a
 subject-access response that leaked another tenant's records would be a breach

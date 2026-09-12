@@ -872,6 +872,209 @@ test("allowlisted task, ledger and finance reference strings redact third-party 
   assert.equal(json.includes("87654321"), false);
 });
 
+test("dynamic keys and realistic UK addresses are withheld without corrupting calendar-like references", async () => {
+  const world = await seedWorld();
+  const clientId = `client_key_address_${sequence}`;
+  const installId = `install_key_address_${sequence}`;
+  putClient(clientFixture({
+    id: clientId,
+    agencyId: world.agencyId,
+    personId: world.personId,
+    relationshipId: `relationship_key_address_${sequence}`,
+    name: "Subject Person",
+  }));
+  realStorage.mutate(state => {
+    state.clientRecordLedger.address_without_postcode = {
+      id: "address_without_postcode",
+      agencyId: world.agencyId,
+      clientId,
+      sourceType: "payment-plan",
+      sourceId: "payment-plan:address-review",
+      group: "commercial",
+      title: "Correspondence",
+      body: "Send papers to 12 Baker Close, London",
+      occurredAt: 1_725_555_000_123,
+      visibility: "system",
+      createdAt: 1_725_555_000_123,
+      updatedAt: 1_725_555_000_123,
+    };
+    state.clientRecordLedger.close_without_address = {
+      id: "close_without_address",
+      agencyId: world.agencyId,
+      clientId,
+      sourceType: "payment-plan",
+      sourceId: "payment-plan:safe-language",
+      group: "commercial",
+      title: "Quarter plan",
+      body: "Close the quarter in 12 ways after review",
+      occurredAt: 1_725_555_000_123,
+      visibility: "system",
+      createdAt: 1_725_555_000_123,
+      updatedAt: 1_725_555_000_123,
+    };
+    state.pluginInstalls[installId] = {
+      id: installId,
+      pluginId: "agency-finance",
+      agencyId: world.agencyId,
+      clientId,
+      enabled: true,
+      config: {},
+      features: { invoices: true, [THIRD_PARTY_EMAIL]: true },
+      installedAt: 1_725_555_000_123,
+    };
+    state.pluginData[installId] = {
+      "invoices/by-id/calendar-reference": {
+        id: "invoice_calendar_reference",
+        agencyId: world.agencyId,
+        clientId,
+        number: "INV-20260912",
+        issuedAt: 1_725_555_000_123,
+        dueAt: 1_725_555_100_123,
+        subtotalCents: 10_000,
+        taxCents: 2_000,
+        totalCents: 12_000,
+        currency: "gbp",
+        status: "sent",
+        createdAt: 1_725_555_000_123,
+        updatedAt: 1_725_555_000_123,
+      },
+    };
+  });
+
+  const result = exportsApi.collectSubjectAccessExport(world.agencyId, world.personId)!;
+  const ledger = result.found.clientRecordLedger ?? [];
+  assert.equal(ledger.some(row => (row as { id?: string }).id === "address_without_postcode"), false,
+    "house number plus UK street suffix/locality is review-only even without a postcode");
+  assert.equal(
+    (ledger.find(row => (row as { id?: string }).id === "close_without_address") as { body?: string }).body,
+    "Close the quarter in 12 ways after review",
+    "ordinary uses of close/ways are not address false positives",
+  );
+  const install = (result.found.pluginInstalls ?? []).find(row => (row as { id?: string }).id === installId) as {
+    features: Record<string, boolean>;
+  };
+  assert.equal(install.features.invoices, true);
+  assert.equal(Object.hasOwn(install.features, THIRD_PARTY_EMAIL), false, "PII cannot survive as an emitted JSON key");
+  const invoice = (result.found.pluginData ?? []).find(row => (row as { key?: string }).key === "invoices/by-id/calendar-reference") as {
+    value: { number: string };
+  };
+  assert.equal(invoice.value.number, "INV-20260912", "a valid compact date inside an invoice reference is not a bank-account false positive");
+  assert.ok((result.redactedFields.pluginInstalls ?? 0) >= 1);
+  assert.ok((result.omittedFields.pluginInstalls ?? 0) >= 1);
+  const json = exportsApi.subjectAccessExportJson(result);
+  assert.equal(json.includes(THIRD_PARTY_EMAIL), false);
+  assert.equal(json.includes("12 Baker Close, London"), false);
+});
+
+test("malformed authoritative scalars and root collection shapes make preparation explicitly incomplete", async () => {
+  const world = await seedWorld();
+  realStorage.mutate(state => {
+    state.tasks.malformed_scalar = {
+      id: "malformed_scalar",
+      agencyId: world.agencyId,
+      personId: world.personId,
+      status: "todo",
+      priority: "normal",
+      createdAt: { secret: "not-a-number" },
+      updatedAt: 1_725_555_000_123,
+    } as never;
+  });
+  const malformed = exportsApi.collectSubjectAccessExport(world.agencyId, world.personId)!;
+  const projected = (malformed.found.tasks ?? []).find(row => (row as { id?: string }).id === "malformed_scalar") as Record<string, unknown>;
+  assert.equal(projected.createdAt, undefined);
+  assert.ok(malformed.incompleteReasons.includes("invalid-stored-value"));
+  assert.ok((malformed.omittedFields.tasks ?? 0) >= 1);
+  assert.throws(
+    () => exportsApi.subjectAccessExportJson(malformed),
+    (error: unknown) => error instanceof exportsApi.SubjectAccessExportIncompleteError,
+  );
+
+  const secondWorld = await seedWorld();
+  realStorage.mutate(state => {
+    (state as unknown as Record<string, unknown>).tasks = "corrupt-collection";
+  });
+  const corruptCollection = exportsApi.collectSubjectAccessExport(secondWorld.agencyId, secondWorld.personId)!;
+  assert.equal(corruptCollection.searchedCollections.includes("tasks"), false);
+  assert.ok(corruptCollection.incompleteReasons.includes("invalid-stored-value"));
+  assert.ok((corruptCollection.omittedFields.tasks ?? 0) >= 1);
+  assert.throws(
+    () => exportsApi.subjectAccessExportJson(corruptCollection),
+    (error: unknown) => error instanceof exportsApi.SubjectAccessExportIncompleteError,
+  );
+});
+
+test("lineage matching has no silent 1000-identifier truncation and fails explicitly only at the shared meter", async () => {
+  const world = await seedWorld();
+  const facetIds = Array.from({ length: 1_005 }, (_, index) => `enquiry_lineage_${String(index).padStart(4, "0")}`);
+  const lastFacetId = facetIds.at(-1)!;
+  realStorage.mutate(state => {
+    state.persons[world.personId].facets = { enquiryIds: facetIds };
+    state.tasks.last_lineage_mention = {
+      id: "last_lineage_mention",
+      agencyId: world.agencyId,
+      notes: `Imported reference ${lastFacetId}`,
+    } as never;
+  });
+  const result = exportsApi.collectSubjectAccessExport(world.agencyId, world.personId)!;
+  assert.equal(result.subject.facetIds.includes(lastFacetId), true);
+  assert.ok((result.unclassifiedMatches.tasks ?? 0) >= 1, "the final lineage identifier is still recognised for review");
+  assert.deepEqual(result.incompleteReasons, []);
+
+  const capped = exportsApi.collectSubjectAccessExport(world.agencyId, world.personId, { maxValues: 512 })!;
+  assert.ok(capped.incompleteReasons.includes("value-limit"), "the shared traversal meter replaces a silent private cap");
+  assert.throws(
+    () => exportsApi.subjectAccessExportJson(capped),
+    (error: unknown) => error instanceof exportsApi.SubjectAccessExportIncompleteError,
+  );
+});
+
+test("other-person PII matching uses bounded indexed work as people and emitted records scale together", async () => {
+  const observations: Array<{ size: number; matcherCharacters: number; values: number }> = [];
+  for (const size of [250, 500, 1_000, 2_000]) {
+    const world = await seedWorld();
+    realStorage.mutate(state => {
+      for (let index = 0; index < size; index += 1) {
+        const personId = `per_name_scale_${index}`;
+        state.persons[personId] = personFixture({
+          id: personId,
+          agencyId: world.agencyId,
+          name: `Outside${index.toString(36).padStart(6, "x")}`,
+          emails: [],
+          phones: [],
+        });
+        const taskId = `name_scale_task_${index}`;
+        state.tasks[taskId] = {
+          id: taskId,
+          agencyId: world.agencyId,
+          personId: world.personId,
+          title: "Subject Person",
+          status: "todo",
+          priority: "normal",
+          createdAt: 1_725_555_000_123,
+          updatedAt: 1_725_555_000_123,
+        };
+      }
+    });
+    const result = exportsApi.collectSubjectAccessExport(world.agencyId, world.personId)!;
+    assert.deepEqual(result.incompleteReasons, []);
+    observations.push({
+      size,
+      matcherCharacters: result.work.matcherCharactersInspected,
+      values: result.work.valuesVisited,
+    });
+  }
+  for (let index = 1; index < observations.length; index += 1) {
+    assert.ok(
+      observations[index].matcherCharacters < observations[index - 1].matcherCharacters * 2.6,
+      `doubling people and records must keep indexed matching linear: ${JSON.stringify(observations)}`,
+    );
+    assert.ok(
+      observations[index].values < observations[index - 1].values * 2.6,
+      `all name-index preprocessing stays inside the shared traversal budget: ${JSON.stringify(observations)}`,
+    );
+  }
+});
+
 test("every SubjectRequest lifecycle field is exported or explicitly counted, so silent omissions cannot claim completion", async () => {
   const world = await seedWorld();
   const request = makeRequest(world, { verify: true });
@@ -937,7 +1140,7 @@ test("every SubjectRequest lifecycle field is exported or explicitly counted, so
 test("foreign-tenant volume does not consume the tenant-local record budget", async () => {
   const world = await seedWorld();
   realStorage.mutate(state => {
-    for (let index = 0; index < 16_000; index += 1) {
+    for (let index = 0; index < 50_000; index += 1) {
       const id = `foreign_candidate_${index}`;
       state.tasks[id] = { id, agencyId: world.otherAgencyId, personId: world.personId } as never;
     }

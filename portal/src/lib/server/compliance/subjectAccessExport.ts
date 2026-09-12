@@ -74,6 +74,7 @@ export interface SubjectAccessResult {
     recordsVisited: number;
     valuesVisited: number;
     charactersInspected: number;
+    matcherCharactersInspected: number;
     serializedBytes: number;
   };
 }
@@ -162,8 +163,14 @@ function copyScalarFields(
 ): JsonRecord {
   const out: JsonRecord = {};
   for (const field of fields) {
-    const value = ownDataValue(source, field);
-    if (value === null || typeof value === "number" || typeof value === "boolean") {
+    const descriptor = Object.getOwnPropertyDescriptor(source, field);
+    if (!descriptor || ("value" in descriptor && descriptor.value === undefined)) continue;
+    if (!descriptor.enumerable || !("value" in descriptor)) {
+      markStoredValueIssue(context, collection, "accessor-value");
+      continue;
+    }
+    const value = descriptor.value;
+    if (value === null || typeof value === "boolean" || (typeof value === "number" && Number.isFinite(value))) {
       out[field] = value;
       continue;
     }
@@ -175,7 +182,12 @@ function copyScalarFields(
       } else {
         out[field] = value;
       }
+      continue;
     }
+    // A recognised scalar with an object/function/symbol/NaN runtime value is
+    // corrupt authoritative state, not an absent optional. Silent omission
+    // would let the generated manifest claim automatic completeness.
+    markStoredValueIssue(context, collection, "invalid-stored-value");
   }
   return out;
 }
@@ -426,13 +438,108 @@ interface ExportContext {
   person: Person;
   identifiers: IdentifierPartition;
   lineage: SubjectLineage;
-  otherPersonNames: string[];
-  subjectIdNeedles: string[];
-  subjectEmailNeedles: string[];
-  subjectPhoneDigitNeedles: string[];
+  otherPersonNameMatcher: IndexedStringMatcher;
+  subjectReferenceMatcher: IndexedStringMatcher;
+  subjectPhoneMatcher: IndexedStringMatcher;
+  ambiguousEmailMatcher: IndexedStringMatcher;
+  ambiguousPhoneMatcher: IndexedStringMatcher;
   maxValues: number;
   result: SubjectAccessResult;
   materialised: WeakMap<object, MaterialisedValue>;
+}
+
+interface IndexedMatcherNode {
+  next: Map<string, number>;
+  failure: number;
+  terminal: boolean;
+}
+
+interface IndexedStringMatcher {
+  readonly nodes: IndexedMatcherNode[];
+  readonly caseInsensitive: boolean;
+}
+
+function buildIndexedStringMatcher(
+  patterns: Iterable<string>,
+  meter: Pick<TraversalMeter, "maxValues" | "result">,
+  options: { caseInsensitive?: boolean; nameTokens?: boolean } = {},
+): IndexedStringMatcher {
+  const nodes: IndexedMatcherNode[] = [{ next: new Map(), failure: 0, terminal: false }];
+  const unique = new Set<string>();
+  const addPattern = (raw: string) => {
+    const pattern = options.caseInsensitive ? raw.toLocaleLowerCase("en-GB") : raw;
+    if (!pattern || unique.has(pattern)) return;
+    unique.add(pattern);
+    let nodeIndex = 0;
+    for (const character of pattern) {
+      let next = nodes[nodeIndex].next.get(character);
+      if (next === undefined) {
+        next = nodes.length;
+        nodes[nodeIndex].next.set(character, next);
+        nodes.push({ next: new Map(), failure: 0, terminal: false });
+      }
+      nodeIndex = next;
+    }
+    nodes[nodeIndex].terminal = true;
+  };
+
+  for (const raw of patterns) {
+    if (!meterTraversalValue(raw, meter)) break;
+    addPattern(raw);
+    if (options.nameTokens) {
+      for (const token of raw.match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu) ?? []) {
+        if (token.length >= 2) addPattern(token);
+      }
+    }
+  }
+
+  const queue: number[] = [];
+  for (const child of nodes[0].next.values()) {
+    nodes[child].failure = 0;
+    queue.push(child);
+  }
+  for (let cursor = 0; cursor < queue.length; cursor += 1) {
+    const parent = queue[cursor];
+    for (const [character, child] of nodes[parent].next) {
+      let failure = nodes[parent].failure;
+      while (failure !== 0 && !nodes[failure].next.has(character)) failure = nodes[failure].failure;
+      const fallback = nodes[failure].next.get(character);
+      nodes[child].failure = fallback !== undefined && fallback !== child ? fallback : 0;
+      nodes[child].terminal = nodes[child].terminal || nodes[nodes[child].failure].terminal;
+      queue.push(child);
+    }
+  }
+  return { nodes, caseInsensitive: Boolean(options.caseInsensitive) };
+}
+
+/** Aho-Corasick lookup: matching cost is linear in the inspected string, not
+ * the number of people/identifiers in the tenant. Each lookup is charged to a
+ * dedicated hard matcher-character budget alongside stored-value discovery. */
+function indexedMatcherHas(
+  matcher: IndexedStringMatcher,
+  raw: string,
+  meter: Pick<TraversalMeter, "maxValues" | "result">,
+): boolean {
+  if (matcher.nodes.length === 1) return false;
+  if (raw.length > MAX_SUBJECT_ACCESS_STRING_CHARACTERS) {
+    addIncomplete(meter.result, "string-limit");
+    return false;
+  }
+  if (meter.result.work.matcherCharactersInspected + raw.length > MAX_SUBJECT_ACCESS_CHARACTERS) {
+    addIncomplete(meter.result, "character-limit");
+    return false;
+  }
+  meter.result.work.matcherCharactersInspected += raw.length;
+  const value = matcher.caseInsensitive ? raw.toLocaleLowerCase("en-GB") : raw;
+  let nodeIndex = 0;
+  for (const character of value) {
+    while (nodeIndex !== 0 && !matcher.nodes[nodeIndex].next.has(character)) {
+      nodeIndex = matcher.nodes[nodeIndex].failure;
+    }
+    nodeIndex = matcher.nodes[nodeIndex].next.get(character) ?? 0;
+    if (matcher.nodes[nodeIndex].terminal) return true;
+  }
+  return false;
 }
 
 interface TypedClaims {
@@ -634,11 +741,9 @@ function scanForSubject(value: unknown, context: ExportContext): ScanResult {
     }
     if (typeof current.value === "string") {
       const raw = current.value;
-      if (context.subjectIdNeedles.some(needle => raw.includes(needle))) mentioned = true;
-      const lower = raw.toLowerCase();
-      if (context.subjectEmailNeedles.some(email => lower.includes(email))) mentioned = true;
+      if (indexedMatcherHas(context.subjectReferenceMatcher, raw, context)) mentioned = true;
       const digits = digitsOnly(raw);
-      if (digits.length >= 7 && context.subjectPhoneDigitNeedles.some(phone => digits.includes(phone))) mentioned = true;
+      if (digits.length >= 7 && indexedMatcherHas(context.subjectPhoneMatcher, digits, context)) mentioned = true;
       continue;
     }
     if (current.value === null || typeof current.value !== "object") continue;
@@ -1079,8 +1184,25 @@ const UK_SORT_CODE = /(?:^|[^0-9])\d{2}[\s\-/]\d{2}[\s\-/]\d{2}(?:$|[^0-9])/;
 const UK_NINO = /\b[A-CEGHJ-PR-TW-Z]{2}\s*\d{2}\s*\d{2}\s*\d{2}\s*[A-D]\b/i;
 const UK_POSTCODE = /\b(?:GIR\s?0AA|(?:[A-PR-UWYZ][0-9][0-9A-HJKSTUW]?|[A-PR-UWYZ][A-HK-Y][0-9][0-9ABEHMNPRV-Y]?)\s?[0-9][ABD-HJLNP-UW-Z]{2})\b/i;
 const IBAN_TOKEN = /\b[A-Z]{2}\d{2}(?:[\s-]?[A-Z0-9]){11,30}\b/i;
-const EIGHT_DIGIT_ACCOUNT = /(?:^|[^0-9A-Z_])\d{8}(?:$|[^0-9A-Z_])/i;
 const UK_PHONE = /(?:^|[^A-Z0-9_])(?:\+44\s?(?:\(0\)\s?)?|0)(?:\d[\s().-]?){9,10}(?:$|[^A-Z0-9_])/i;
+const UK_STREET_ADDRESS = /\b(?:flat|apartment|unit|suite|room)?\s*(?:\d{1,5}[A-Z]?(?:\s*[-/]\s*\d{1,5}[A-Z]?)?)\s+(?:[\p{L}][\p{L}'’.-]*\s+){0,6}(?:road|street|avenue|lane|drive|close|court|way|place|terrace|crescent|gardens?|grove|mews|square|parade|rise|row|walk|hill|view|vale)\b/iu;
+const BANK_ACCOUNT_CONTEXT = /\b(?:bank[\s_-]*account|account[\s_-]*(?:number|no)|acct)\s*[:#=-]?\s*\d{8}\b/i;
+const BARE_EIGHT_DIGIT = /^\s*(\d{8})\s*$/;
+
+function isCompactCalendarDate(value: string): boolean {
+  const year = Number(value.slice(0, 4));
+  const month = Number(value.slice(4, 6));
+  const day = Number(value.slice(6, 8));
+  if (year < 1900 || year > 2200 || month < 1 || month > 12 || day < 1 || day > 31) return false;
+  const candidate = new Date(Date.UTC(year, month - 1, day));
+  return candidate.getUTCFullYear() === year && candidate.getUTCMonth() === month - 1 && candidate.getUTCDate() === day;
+}
+
+function containsBankAccountIdentifier(value: string): boolean {
+  if (BANK_ACCOUNT_CONTEXT.test(value)) return true;
+  const bare = value.match(BARE_EIGHT_DIGIT)?.[1];
+  return Boolean(bare && !isCompactCalendarDate(bare));
+}
 
 function exactSubjectString(value: string, context: ExportContext): boolean {
   if (value === context.person.name || value === context.person.company) return true;
@@ -1089,11 +1211,16 @@ function exactSubjectString(value: string, context: ExportContext): boolean {
   return Boolean(phone && context.identifiers.exclusivePhones.has(phone));
 }
 
-function textHasRestrictedPii(value: string, context: ExportContext, title: boolean): boolean {
+function textHasRestrictedPii(
+  value: string,
+  context: ExportContext,
+  title: boolean,
+  allowExactSubject = true,
+): boolean {
   if (value.length > MAX_SUBJECT_ACCESS_STRING_CHARACTERS) return true;
   const labels = [
     "national insurance", "nationalinsurance", "nino", "ni number", "ni:", "bank account", "account number", "sort code",
-    "iban", "swift", "routing number", " postcode", " address", " road", " street", " avenue", " lane", " drive",
+    "iban", "swift", "routing number", " postcode", " address",
   ];
   const candidates = [value];
   try {
@@ -1103,7 +1230,7 @@ function textHasRestrictedPii(value: string, context: ExportContext, title: bool
     // Invalid percent encoding is inspected verbatim and never widened.
   }
   for (const candidate of candidates) {
-    if (exactSubjectString(candidate, context)) continue;
+    if (allowExactSubject && exactSubjectString(candidate, context)) continue;
     const lower = candidate.toLowerCase();
     if (labels.some(label => lower.includes(label))) return true;
     if (EMAIL_TOKEN.test(candidate)
@@ -1112,16 +1239,12 @@ function textHasRestrictedPii(value: string, context: ExportContext, title: bool
       || UK_POSTCODE.test(candidate)
       || IBAN_TOKEN.test(candidate)
       || UK_PHONE.test(candidate)
-      || (!title && EIGHT_DIGIT_ACCOUNT.test(candidate))) return true;
-    if (context.otherPersonNames.some(name => name && lower.includes(name.toLowerCase()))) return true;
+      || UK_STREET_ADDRESS.test(candidate)
+      || (!title && containsBankAccountIdentifier(candidate))) return true;
+    if (indexedMatcherHas(context.otherPersonNameMatcher, lower, context)) return true;
     const digits = digitsOnly(candidate);
-    for (const phone of context.identifiers.ambiguousPhones) {
-      const phoneDigits = digitsOnly(phone);
-      if (phoneDigits.length >= 7 && digits.includes(phoneDigits)) return true;
-    }
-    for (const email of context.identifiers.ambiguousEmails) {
-      if (lower.includes(email)) return true;
-    }
+    if (digits.length >= 7 && indexedMatcherHas(context.ambiguousPhoneMatcher, digits, context)) return true;
+    if (indexedMatcherHas(context.ambiguousEmailMatcher, lower, context)) return true;
   }
   return false;
 }
@@ -1218,11 +1341,19 @@ function projectKnownCollection(collection: string, record: JsonRecord, context:
 
 function inspectEveryEmittedString(value: unknown, collection: string, context: ExportContext): void {
   const stack: Array<{ parent: JsonRecord | unknown[]; key: string | number; value: unknown }> = [];
-  if (value !== null && typeof value === "object") {
-    for (const [key, child] of ownDataEntries(value as object)) {
-      stack.push({ parent: value as JsonRecord | unknown[], key: Array.isArray(value) ? Number(key) : key, value: child });
+  const queueChildren = (parent: JsonRecord | unknown[]) => {
+    for (const [key, child] of ownDataEntries(parent)) {
+      if (!Array.isArray(parent) && textHasRestrictedPii(key, context, false, false)) {
+        delete parent[key];
+        addCount(context.result.redactedFields, collection);
+        addCount(context.result.coMingledPiiMatches, collection);
+        addCount(context.result.omittedFields, collection);
+        continue;
+      }
+      stack.push({ parent, key: Array.isArray(parent) ? Number(key) : key, value: child });
     }
-  }
+  };
+  if (value !== null && typeof value === "object") queueChildren(value as JsonRecord | unknown[]);
   const seen = new WeakSet<object>();
   while (stack.length) {
     const current = stack.pop()!;
@@ -1237,13 +1368,7 @@ function inspectEveryEmittedString(value: unknown, collection: string, context: 
     }
     if (current.value === null || typeof current.value !== "object" || seen.has(current.value)) continue;
     seen.add(current.value);
-    for (const [key, child] of ownDataEntries(current.value)) {
-      stack.push({
-        parent: current.value as JsonRecord | unknown[],
-        key: Array.isArray(current.value) ? Number(key) : key,
-        value: child,
-      });
-    }
+    queueChildren(current.value as JsonRecord | unknown[]);
   }
 }
 
@@ -1487,7 +1612,13 @@ function initialSubjectAccessResult(personId: string, generatedAt: number): Subj
       omittedFields: 0,
     },
     incompleteReasons: [],
-    work: { recordsVisited: 0, valuesVisited: 0, charactersInspected: 0, serializedBytes: 0 },
+    work: {
+      recordsVisited: 0,
+      valuesVisited: 0,
+      charactersInspected: 0,
+      matcherCharactersInspected: 0,
+      serializedBytes: 0,
+    },
   };
 }
 
@@ -1518,9 +1649,14 @@ export function collectSubjectAccessExport(
   };
   const root = storedDataEntries(state as unknown as JsonRecord, meter, "portalState");
   const resident = new Map(root.entries);
-  const rawPersons = asRecord(resident.get("persons"));
+  const rawPersonsValue = resident.get("persons");
+  const rawPersons = asRecord(rawPersonsValue);
   if (!rawPersons) {
     if (root.nonDataKeys.has("persons") || result.incompleteReasons.length) return result;
+    if (resident.has("persons")) {
+      markStoredValueIssue(meter, "persons", "invalid-stored-value");
+      return result;
+    }
     return null;
   }
   const personEntries = storedDataEntries(rawPersons, meter, "persons");
@@ -1564,7 +1700,8 @@ export function collectSubjectAccessExport(
   if (!person) return result;
 
   const clients: Client[] = [];
-  const rawClients = asRecord(resident.get("clients"));
+  const rawClientsValue = resident.get("clients");
+  const rawClients = asRecord(rawClientsValue);
   if (rawClients) {
     const clientEntries = storedDataEntries(rawClients, meter, "clients");
     for (const [storedId, rawValue] of clientEntries.entries) {
@@ -1584,6 +1721,8 @@ export function collectSubjectAccessExport(
     }
   } else if (root.nonDataKeys.has("clients")) {
     addIncomplete(result, "accessor-value");
+  } else if (resident.has("clients")) {
+    markStoredValueIssue(meter, "clients", "invalid-stored-value");
   }
 
   const identifiers = partitionIdentifiers(persons, agencyId, person, meter);
@@ -1599,31 +1738,26 @@ export function collectSubjectAccessExport(
     if (!meterTraversalValue(candidate.name, meter)) break;
     if (candidate.name) otherPersonNames.push(candidate.name);
   }
-  const subjectIdNeedles: string[] = [];
-  for (const value of [person.id, ...lineage.relationshipIds, ...lineage.facetIds]) {
-    if (subjectIdNeedles.length >= 1_000 || !meterTraversalValue(value, meter)) break;
-    if (typeof value === "string" && value) subjectIdNeedles.push(value);
-  }
-  const subjectEmailNeedles: string[] = [];
-  for (const value of identifiers.allSubjectEmails) {
-    if (!meterTraversalValue(value, meter)) break;
-    subjectEmailNeedles.push(value);
-  }
-  const subjectPhoneDigitNeedles: string[] = [];
+  const subjectReferencePatterns = [person.id, ...lineage.relationshipIds, ...lineage.facetIds, ...identifiers.allSubjectEmails];
+  const subjectPhonePatterns: string[] = [];
   for (const value of identifiers.allSubjectPhones) {
     if (!meterTraversalValue(value, meter)) break;
     const digits = digitsOnly(value);
-    if (digits.length >= 7) subjectPhoneDigitNeedles.push(digits);
+    if (digits.length >= 7) subjectPhonePatterns.push(digits);
   }
+  const ambiguousPhonePatterns = [...identifiers.ambiguousPhones]
+    .map(value => digitsOnly(value))
+    .filter(value => value.length >= 7);
   const context: ExportContext = {
     agencyId,
     person,
     identifiers,
     lineage,
-    otherPersonNames,
-    subjectIdNeedles,
-    subjectEmailNeedles,
-    subjectPhoneDigitNeedles,
+    otherPersonNameMatcher: buildIndexedStringMatcher(otherPersonNames, meter, { caseInsensitive: true, nameTokens: true }),
+    subjectReferenceMatcher: buildIndexedStringMatcher(subjectReferencePatterns, meter, { caseInsensitive: true }),
+    subjectPhoneMatcher: buildIndexedStringMatcher(subjectPhonePatterns, meter),
+    ambiguousEmailMatcher: buildIndexedStringMatcher(identifiers.ambiguousEmails, meter, { caseInsensitive: true }),
+    ambiguousPhoneMatcher: buildIndexedStringMatcher(ambiguousPhonePatterns, meter),
     maxValues: meter.maxValues,
     result,
     materialised: meter.materialised,
@@ -1645,7 +1779,10 @@ export function collectSubjectAccessExport(
 
   const rawPluginInstalls = asRecord(resident.get("pluginInstalls"));
   for (const [collection, rawCollection] of root.entries) {
-    if (rawCollection === null || typeof rawCollection !== "object") continue;
+    if (rawCollection === null || typeof rawCollection !== "object") {
+      markStoredValueIssue(context, collection, "invalid-stored-value");
+      continue;
+    }
     if (textHasRestrictedPii(collection, context, false)) {
       markStoredValueIssue(context, "portalState", "invalid-stored-value");
       continue;

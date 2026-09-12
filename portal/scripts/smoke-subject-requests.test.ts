@@ -228,6 +228,95 @@ test("subject-access preparation, review and delivery require the exact open ver
   );
 });
 
+test("stored request accessors are refused throughout the register lifecycle without executing them", () => {
+  const agencyId = "agency_subject_request_accessor";
+  const personId = "per_subject_request_accessor";
+  const request = requests.recordSubjectRequest({
+    agencyId,
+    kind: "access",
+    subjectLabel: "subject@example.test",
+    personId,
+    createdBy: "owner",
+  });
+  const digest = crypto.createHash("sha256").update("{}", "utf8").digest("hex");
+  let getterCalls = 0;
+  storage.mutate(state => {
+    Object.defineProperty(state.subjectRequests[request.id], "agencyId", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        getterCalls += 1;
+        throw new Error("stored SubjectRequest getter executed");
+      },
+    });
+  });
+
+  try {
+    for (const read of [
+      () => requests.findSubjectRequest(agencyId, request.id),
+      () => requests.listSubjectRequests(agencyId),
+      () => requests.subjectRequestClock(agencyId),
+      () => requests.verifySubjectRequestIdentity(agencyId, request.id, "owner"),
+      () => requests.fulfilSubjectRequest(agencyId, request.id, "owner", "done"),
+      () => requests.extendSubjectRequest(agencyId, request.id, "complex"),
+    ]) {
+      assert.throws(read, /subject_request_state_invalid/);
+    }
+    for (const gated of [
+      () => requests.requireSubjectAccessRequestForExport(agencyId, request.id, personId),
+      () => requests.recordPreparedSubjectAccessExport(
+        agencyId,
+        request.id,
+        personId,
+        "owner",
+        { digest, generatedAt: 123, recordCount: 0, reviewCount: 0, byteLength: 2, json: "{}" },
+      ),
+      () => requests.recordSubjectAccessReviewCompletion(agencyId, request.id, personId, "owner", digest, "review-accessor"),
+      () => requests.fulfilPreparedSubjectAccessDelivery(
+        agencyId, request.id, personId, "owner", digest, "verified-portal", "delivery-accessor",
+      ),
+    ]) {
+      assert.throws(gated, (error: unknown) => (error as { code?: string }).code === "request_not_ready");
+    }
+    assert.equal(getterCalls, 0, "no read, gate, review or delivery path evaluates the poisoned descriptor");
+  } finally {
+    storage.mutate(state => {
+      Object.defineProperty(state.subjectRequests[request.id], "agencyId", {
+        configurable: true, enumerable: true, writable: true, value: agencyId,
+      });
+    });
+  }
+});
+
+test("malformed stored request enums and scalar shapes fail the same closed lifecycle gates", () => {
+  const agencyId = "agency_subject_request_malformed";
+  const personId = "per_subject_request_malformed";
+  const request = requests.recordSubjectRequest({
+    agencyId,
+    kind: "access",
+    subjectLabel: "subject@example.test",
+    personId,
+    createdBy: "owner",
+  });
+  storage.mutate(state => {
+    (state.subjectRequests[request.id] as unknown as Record<string, unknown>).kind = "access-with-secret@example.test";
+    (state.subjectRequests[request.id] as unknown as Record<string, unknown>).identityVerifiedAt = {
+      get value() {
+        throw new Error("nested malformed scalar was traversed");
+      },
+    };
+  });
+  assert.throws(() => requests.findSubjectRequest(agencyId, request.id), /subject_request_state_invalid/);
+  assert.throws(
+    () => requests.requireSubjectAccessRequestForExport(agencyId, request.id, personId),
+    (error: unknown) => (error as { code?: string }).code === "request_not_ready",
+  );
+  storage.mutate(state => {
+    state.subjectRequests[request.id].kind = "access";
+    delete state.subjectRequests[request.id].identityVerifiedAt;
+  });
+});
+
 test("an extension runs from the original deadline and must state a reason", () => {
   const agencyId = "agency_ext";
   const received = Date.UTC(2026, 2, 1, 0, 0, 0);
