@@ -39,8 +39,8 @@ function preparedExport(personId: string, input: { generatedAt?: number; recordC
   const json = JSON.stringify({
     format: "aqua-subject-access-v2",
     generatedAt: new Date(generatedAt).toISOString(),
-    subject: { personId },
-    records: {},
+    subject: { personId, emails: [], phones: [], clientIds: [], relationshipIds: [], facetIds: [] },
+    records: recordCount ? { fixture: Array.from({ length: recordCount }, (_, index) => ({ id: `record-${index}` })) } : {},
     totalRecords: recordCount,
     collectionsSearched: [],
     reviewRequired: {
@@ -52,7 +52,17 @@ function preparedExport(personId: string, input: { generatedAt?: number; recordC
       unsupportedCollections: 0,
       omittedFields: reviewCount,
     },
-    completeness: { status: reviewCount === 0 ? "automatic-safe-subset-complete" : "human-review-required" },
+    completeness: {
+      status: reviewCount === 0 ? "automatic-safe-subset-complete" : "human-review-required",
+      recordsNotAttributableToThisAgency: {},
+      unclassifiedSubjectMentions: {},
+      ambiguousOwnership: {},
+      coMingledThirdPartyPii: {},
+      recordsBeyondInspectionDepth: {},
+      unsupportedCollections: {},
+      omittedFields: reviewCount ? { fixture: reviewCount } : {},
+      redactedFields: {},
+    },
   });
   return {
     digest: crypto.createHash("sha256").update(json, "utf8").digest("hex"),

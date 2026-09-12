@@ -13,6 +13,7 @@ process.env.PORTAL_SESSION_SECRET = "subject-access-export-security-smoke-secret
 import { withRequestScope, withSession } from "./dev-console-request-scope";
 
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import { createRequire } from "node:module";
 import { beforeEach, test } from "node:test";
 
@@ -851,14 +852,15 @@ test("allowlisted task, ledger and finance reference strings redact third-party 
   assert.equal(safeTask.origin, "manual");
   assert.equal(safeTask.clientBoardColumn, "backlog");
   const ledger = (result.found.clientRecordLedger ?? []).find(row => (row as { id?: string }).id === "ledger_reference_leak") as Record<string, unknown>;
-  assert.equal(ledger.href, "[redacted:restricted-identifier]");
-  assert.equal(ledger.parentSourceId, "[redacted:restricted-identifier]");
+  assert.equal(ledger.href, undefined, "non-canonical ledger links are review-only, not detector-authorised");
+  assert.equal(ledger.parentSourceId, undefined, "unsupported parent references are review-only");
   const invoice = (result.found.pluginData ?? [])[0] as { value: Record<string, unknown> };
   assert.equal(invoice.value.externalRef, "[redacted:restricted-identifier]");
   assert.equal(invoice.value.paidVia, "[redacted:restricted-identifier]");
   assert.equal(result.redactedFields.tasks, 3);
   assert.ok((result.omittedFields.tasks ?? 0) >= 4, "malformed runtime enum strings are explicitly counted for review");
-  assert.equal(result.redactedFields.clientRecordLedger, 2);
+  assert.equal(result.redactedFields.clientRecordLedger ?? 0, 0);
+  assert.ok((result.omittedFields.clientRecordLedger ?? 0) >= 3, "unverified ledger references are counted for review");
   assert.equal(result.redactedFields.pluginData, 2);
   const json = exportsApi.subjectAccessExportJson(result);
   const exported = JSON.parse(json) as { completeness: { redactedFields: Record<string, number> } };
@@ -949,6 +951,19 @@ test("dynamic keys and realistic UK addresses are withheld without corrupting ca
         updatedAt: 1_725_555_000_123,
       };
     }
+    state.clientRecordLedger.unregistered_source_text = {
+      id: "unregistered_source_text",
+      agencyId: world.agencyId,
+      clientId,
+      sourceType: "invoice",
+      sourceId: "Spoke with Evelyn Stone at The Old Rectory Church Lane Oxford",
+      group: "commercial",
+      title: "Invoice summary",
+      occurredAt: 1_725_555_000_123,
+      visibility: "system",
+      createdAt: 1_725_555_000_123,
+      updatedAt: 1_725_555_000_123,
+    };
     state.pluginInstalls[installId] = {
       id: installId,
       pluginId: "agency-finance",
@@ -992,14 +1007,12 @@ test("dynamic keys and realistic UK addresses are withheld without corrupting ca
     assert.ok(projected, "typed ledger metadata remains available");
     assert.equal(projected.body, undefined, "all ledger prose is review-only, including previously undetected named premises");
   }
-  for (const id of ["unregistered_third_party_name", "named_premise_variant", "embedded_bare_bank_identifier"]) {
+  for (const id of ["unregistered_third_party_name", "named_premise_variant", "embedded_bare_bank_identifier", "unregistered_source_text"]) {
     const projected = ledger.find(row => (row as { id?: string }).id === id) as { title?: string; body?: string; sourceId?: string };
     assert.ok(projected, "typed ledger metadata survives review quarantine");
     assert.equal(projected.title, undefined);
     assert.equal(projected.body, undefined);
-    if (id === "embedded_bare_bank_identifier") {
-      assert.equal(projected.sourceId, "[redacted:restricted-identifier]", "embedded bare bank identifiers redact in ledger references too");
-    }
+    assert.equal(projected.sourceId, undefined, "free-text and invalid machine references are withheld regardless of detector coverage");
   }
   const install = (result.found.pluginInstalls ?? []).find(row => (row as { id?: string }).id === installId) as {
     features: Record<string, boolean>;
@@ -1134,6 +1147,37 @@ test("malformed recognised Person and Client arrays, objects and enums are expli
   );
 });
 
+test("missing required Person record summaries and Client slugs cannot claim automatic completeness", async () => {
+  const world = await seedWorld();
+  const clientId = `client_missing_required_${sequence}`;
+  putClient(clientFixture({
+    id: clientId,
+    agencyId: world.agencyId,
+    personId: world.personId,
+    relationshipId: `relationship_missing_required_${sequence}`,
+    name: "Subject Person",
+  }));
+  realStorage.mutate(state => {
+    state.persons[world.personId].record = [{
+      id: "record-without-summary",
+      kind: "note",
+      at: 1_725_555_000_123,
+      createdAt: 1_725_555_000_123,
+    } as never];
+    delete (state.clients[clientId] as Partial<Client>).slug;
+  });
+
+  const result = exportsApi.collectSubjectAccessExport(world.agencyId, world.personId)!;
+  assert.ok(result.incompleteReasons.includes("invalid-stored-value"));
+  assert.ok((result.omittedFields.persons ?? 0) >= 1, "missing required summary is explicitly counted");
+  assert.ok((result.omittedFields.clients ?? 0) >= 1, "missing required slug is explicitly counted");
+  assert.ok(exportsApi.subjectAccessExportReviewCount(result) > 0);
+  assert.throws(
+    () => exportsApi.subjectAccessExportJson(result),
+    (error: unknown) => error instanceof exportsApi.SubjectAccessExportIncompleteError,
+  );
+});
+
 test("lineage matching has no silent 1000-identifier truncation and fails explicitly only at the shared meter", async () => {
   const world = await seedWorld();
   const facetIds = Array.from({ length: 1_005 }, (_, index) => `enquiry_lineage_${String(index).padStart(4, "0")}`);
@@ -1236,7 +1280,7 @@ test("short other-person names use token boundaries and cannot poison schema key
       agencyId: world.agencyId,
       clientId,
       sourceType: "invoice",
-      sourceId: "invoice:Annual-20260912",
+      sourceId: "invoice:inv_annual202609",
       group: "commercial",
       title: "Invoice summary",
       body: "Annual invoice INV-20260912",
@@ -1266,14 +1310,14 @@ test("short other-person names use token boundaries and cannot poison schema key
   const ledger = (result.found.clientRecordLedger ?? []).find(row => (
     row as { id?: string }
   ).id === "short_name_false_positive") as { sourceId?: string; body?: string };
-  assert.equal(ledger.sourceId, "invoice:Annual-20260912");
+  assert.equal(ledger.sourceId, "invoice:inv_annual202609");
   assert.equal(ledger.body, undefined, "ledger prose remains review-only independently of name matching");
   assert.ok(result.searchedCollections.includes("peopleChannels"), "Ann cannot poison peopleChannels");
   assert.ok(result.searchedCollections.includes("peopleEmployees"), "Lee cannot poison peopleEmployees");
   const trueMatch = (result.found.clientRecordLedger ?? []).find(row => (
     row as { id?: string }
   ).id === "short_name_true_positive") as { sourceId?: string };
-  assert.equal(trueMatch.sourceId, "[redacted:restricted-identifier]", "a real standalone short name remains detected");
+  assert.equal(trueMatch.sourceId, undefined, "a non-machine source id containing a standalone name remains withheld");
   assert.doesNotThrow(() => exportsApi.subjectAccessExportJson(result));
 });
 
@@ -1293,6 +1337,7 @@ test("every SubjectRequest lifecycle field is exported or explicitly counted, so
       preparedExportRecordCount: 4,
       preparedExportReviewCount: 2,
       preparedExportByteLength: 1234,
+      preparedExportIntegrityTag: "e".repeat(64),
       preparedExportJson: JSON.stringify({ subject: SUBJECT_EMAIL }),
       preparedExportReviewResolvedAt: 104,
       preparedExportReviewResolvedBy: "usr_reviewer",
@@ -1319,7 +1364,7 @@ test("every SubjectRequest lifecycle field is exported or explicitly counted, so
   const result = exportsApi.collectSubjectAccessExport(world.agencyId, world.personId)!;
   const projected = (result.found.subjectRequests ?? []).find(row => (row as { id?: string }).id === request.id) as Record<string, unknown>;
   for (const field of [
-    "identityVerifiedBy", "preparedExportAt", "preparedExportBy", "preparedExportDigest", "preparedExportGeneratedAt",
+    "identityVerifiedBy", "preparedExportAt", "preparedExportBy", "preparedExportDigest", "preparedExportIntegrityTag", "preparedExportGeneratedAt",
     "preparedExportRecordCount", "preparedExportReviewCount", "preparedExportByteLength", "preparedExportReviewResolvedAt",
     "preparedExportReviewResolvedBy", "preparedExportReviewResolvedDigest", "preparedExportReviewEvidenceId", "preparedExportReviewResultId", "deliveredAt",
     "deliveredBy", "deliveryMethod", "deliveryEvidenceId", "deliveryResultId", "fulfilledAt", "fulfilledBy", "refusedAt", "createdBy",
@@ -1605,6 +1650,7 @@ test("preparation is replayable but only evidenced review and delivery fulfil; f
   assert.equal(staged?.fulfilledAt, undefined, "preparation is not delivery");
   assert.equal(staged?.preparedExportDigest, digest);
   assert.equal(staged?.preparedExportJson, successText, "the exact bounded bytes are staged for lost-response replay");
+  assert.match(staged?.preparedExportIntegrityTag ?? "", /^[a-f0-9]{64}$/, "staged bytes and manifest carry a server-authenticated binding");
   const events = activity.listActivity({ agencyId: world.agencyId, limit: 100 })
     .filter(entry => entry.action === "subject_access.export-prepared");
   assert.equal(events.length, 1);
@@ -1691,17 +1737,84 @@ test("preparation is replayable but only evidenced review and delivery fulfil; f
     state.subjectRequests[ready.id].preparedExportReviewResultId = reviewedBody.resultId;
   });
 
+  const tamperedManifest = JSON.parse(stagedJson) as {
+    subject: { emails: string[] };
+    reviewRequired: Record<string, number>;
+    completeness: { status: string; omittedFields: Record<string, number> };
+  };
+  tamperedManifest.subject.emails.push("mallory.third.party@example.test");
+  for (const key of Object.keys(tamperedManifest.reviewRequired)) tamperedManifest.reviewRequired[key] = 0;
+  tamperedManifest.completeness.status = "automatic-safe-subset-complete";
+  tamperedManifest.completeness.omittedFields.tasks = Math.max(1, tamperedManifest.completeness.omittedFields.tasks ?? 0);
+  const tamperedJson = JSON.stringify(tamperedManifest);
+  const tamperedDigest = crypto.createHash("sha256").update(tamperedJson, "utf8").digest("hex");
+  const manifestOnlyRequest = makeRequest(world, { verify: true });
+  assert.throws(
+    () => requests.recordPreparedSubjectAccessExport(
+      world.agencyId,
+      manifestOnlyRequest.id,
+      world.personId,
+      world.ownerId,
+      {
+        json: tamperedJson,
+        digest: tamperedDigest,
+        generatedAt: reviewedState.preparedExportGeneratedAt!,
+        recordCount: reviewedState.preparedExportRecordCount!,
+        reviewCount: 0,
+        byteLength: Buffer.byteLength(tamperedJson, "utf8"),
+      },
+    ),
+    (error: unknown) => error instanceof requests.SubjectAccessRequestGateError,
+    "detailed completeness counts must reconcile with the top-level review total",
+  );
+  realStorage.mutate(state => {
+    Object.assign(state.subjectRequests[ready.id], {
+      preparedExportJson: tamperedJson,
+      preparedExportDigest: tamperedDigest,
+      preparedExportByteLength: Buffer.byteLength(tamperedJson, "utf8"),
+      preparedExportReviewCount: 0,
+      preparedExportReviewResolvedDigest: tamperedDigest,
+    });
+  });
+  const tamperedReplay = await post(world.token, { requestId: ready.id, personId: world.personId });
+  assert.equal(tamperedReplay.status, 409, "POST replay authenticates stored bytes instead of returning a consistently rehashed forgery");
+  const tamperedDelivery = await patch(world.token, {
+    requestId: ready.id,
+    personId: world.personId,
+    preparedExportDigest: tamperedDigest,
+    deliveryMethod: "verified-portal",
+    deliveryEvidenceId: "delivery-rehashed-manifest-tamper",
+  });
+  assert.equal(tamperedDelivery.status, 409, "delivery rejects injected PII and contradictory recomputed manifest totals");
+  realStorage.mutate(state => {
+    Object.assign(state.subjectRequests[ready.id], {
+      preparedExportJson: stagedJson,
+      preparedExportDigest: digest,
+      preparedExportByteLength: reviewedState.preparedExportByteLength,
+      preparedExportReviewCount: reviewedState.preparedExportReviewCount,
+      preparedExportReviewResolvedDigest: digest,
+    });
+  });
+
   const forgedReviewRequest = makeRequest(world, { verify: true });
   const forgedPreparation = await post(world.token, { requestId: forgedReviewRequest.id, personId: world.personId });
   assert.equal(forgedPreparation.status, 200);
   const forgedDigest = forgedPreparation.headers.get("x-subject-access-digest")!;
+  const unkeyedPublicResult = crypto.createHash("sha256").update([
+    "aqua-subject-access-review-v1",
+    world.agencyId,
+    forgedReviewRequest.id,
+    world.personId,
+    forgedDigest,
+    "forged-review-evidence",
+  ].join("\0"), "utf8").digest("hex");
   realStorage.mutate(state => {
     Object.assign(state.subjectRequests[forgedReviewRequest.id], {
       preparedExportReviewResolvedAt: Date.now(),
       preparedExportReviewResolvedBy: world.ownerId,
       preparedExportReviewResolvedDigest: forgedDigest,
       preparedExportReviewEvidenceId: "forged-review-evidence",
-      preparedExportReviewResultId: "b".repeat(64),
+      preparedExportReviewResultId: unkeyedPublicResult,
     });
   });
   const forgedDelivery = await patch(world.token, {
@@ -1711,7 +1824,7 @@ test("preparation is replayable but only evidenced review and delivery fulfil; f
     deliveryMethod: "secure-email",
     deliveryEvidenceId: "forged-review-delivery",
   });
-  assert.equal(forgedDelivery.status, 409, "field presence and arbitrary hashes cannot forge request-bound review evidence");
+  assert.equal(forgedDelivery.status, 409, "a publicly recomputed deterministic hash cannot forge server-authenticated review evidence");
   assert.equal(requests.findSubjectRequest(world.agencyId, forgedReviewRequest.id)?.fulfilledAt, undefined);
   assert.ok(requests.findSubjectRequest(world.agencyId, forgedReviewRequest.id)?.preparedExportJson,
     "a failed proof check preserves the staged artifact and open request");
@@ -1761,6 +1874,38 @@ test("preparation is replayable but only evidenced review and delivery fulfil; f
     1,
     "delivery replay cannot duplicate audit evidence",
   );
+  const fulfilledIntegrityTag = fulfilled?.preparedExportIntegrityTag;
+  const fulfilledRecordCount = fulfilled?.preparedExportRecordCount;
+  assert.match(fulfilledIntegrityTag ?? "", /^[a-f0-9]{64}$/);
+  assert.equal(typeof fulfilledRecordCount, "number");
+  realStorage.mutate(state => {
+    state.subjectRequests[ready.id]!.preparedExportIntegrityTag = "f".repeat(64);
+  });
+  const tamperedIntegrityReplay = await patch(world.token, {
+    requestId: ready.id,
+    personId: world.personId,
+    preparedExportDigest: digest,
+    deliveryMethod: "verified-portal",
+    deliveryEvidenceId: "delivery-case-1",
+  });
+  assert.equal(tamperedIntegrityReplay.status, 409,
+    "retained delivery evidence cannot replay after the authenticated artifact binding is changed");
+  realStorage.mutate(state => {
+    state.subjectRequests[ready.id]!.preparedExportIntegrityTag = fulfilledIntegrityTag;
+    state.subjectRequests[ready.id]!.preparedExportRecordCount = (fulfilledRecordCount ?? 0) + 1;
+  });
+  const tamperedManifestReplay = await patch(world.token, {
+    requestId: ready.id,
+    personId: world.personId,
+    preparedExportDigest: digest,
+    deliveryMethod: "verified-portal",
+    deliveryEvidenceId: "delivery-case-1",
+  });
+  assert.equal(tamperedManifestReplay.status, 409,
+    "retained delivery evidence cannot replay after its authenticated manifest totals are changed");
+  realStorage.mutate(state => {
+    state.subjectRequests[ready.id]!.preparedExportRecordCount = fulfilledRecordCount;
+  });
   for (const mismatch of [
     { preparedExportDigest: "f".repeat(64), deliveryMethod: "verified-portal", deliveryEvidenceId: "delivery-case-1" },
     { preparedExportDigest: digest, deliveryMethod: "secure-email", deliveryEvidenceId: "delivery-case-1" },

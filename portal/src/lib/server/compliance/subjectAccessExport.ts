@@ -976,9 +976,13 @@ function projectPerson(record: JsonRecord, context: ExportContext): JsonRecord {
   ]);
   noteUnknownFields(collection, record, allowed, context);
   const out = copyScalarFields(record, [
-    "id", "agencyId", "name", "company", "organisationId", "jobTitle", "isPrimaryContact",
-    "classifiedAt", "classifiedBy", "relationshipId", "source", "createdAt", "updatedAt",
+    "name", "company", "organisationId", "jobTitle", "isPrimaryContact",
+    "classifiedAt", "classifiedBy", "relationshipId", "source",
   ], collection, context);
+  projectStrictString(record, out, "id", collection, context, true);
+  projectStrictString(record, out, "agencyId", collection, context, true);
+  projectStrictNumber(record, out, "createdAt", collection, context, { required: true });
+  projectStrictNumber(record, out, "updatedAt", collection, context, { required: true });
   projectStrictEnum(record, out, "classification", PERSON_CLASSIFICATIONS, collection, context, true);
 
   const emailsValue = ownDataValue(record, "emails");
@@ -1070,7 +1074,7 @@ function projectPerson(record: JsonRecord, context: ExportContext): JsonRecord {
   }
   out.facets = projectedFacets;
   const classificationHistoryValue = ownDataValue(record, "classificationHistory");
-  if (classificationHistoryValue !== undefined && !Array.isArray(classificationHistoryValue)) {
+  if (!Array.isArray(classificationHistoryValue)) {
     markStoredValueIssue(context, collection, "invalid-stored-value");
   }
   out.classificationHistory = (Array.isArray(classificationHistoryValue) ? classificationHistoryValue : []).flatMap(entry => {
@@ -1120,7 +1124,13 @@ function projectPerson(record: JsonRecord, context: ExportContext): JsonRecord {
       return [];
     }
     noteUnknownFields(collection, item, new Set(["id", "kind", "at", "summary", "body", "location", "outcome", "createdBy", "createdAt"]), context);
-    for (const field of ["summary", "body", "location", "outcome", "createdBy"] as const) {
+    const summary = ownDataValue(item, "summary");
+    if (typeof summary !== "string" || !summary) {
+      markStoredValueIssue(context, collection, "invalid-stored-value");
+    } else {
+      noteOmitted(collection, summary, context, { coMingled: true });
+    }
+    for (const field of ["body", "location", "outcome", "createdBy"] as const) {
       const value = ownDataValue(item, field);
       if (value !== undefined) noteOmitted(collection, value, context, { coMingled: true });
     }
@@ -1151,8 +1161,13 @@ function projectClient(record: JsonRecord, context: ExportContext): JsonRecord {
   ]);
   noteUnknownFields(collection, record, allowed, context);
   const out = copyScalarFields(record, [
-    "id", "agencyId", "relationshipId", "personId", "companyId", "slug", "createdAt", "updatedAt",
+    "relationshipId", "personId", "companyId",
   ], collection, context);
+  projectStrictString(record, out, "id", collection, context, true);
+  projectStrictString(record, out, "agencyId", collection, context, true);
+  projectStrictString(record, out, "slug", collection, context, true);
+  projectStrictNumber(record, out, "createdAt", collection, context, { required: true });
+  projectStrictNumber(record, out, "updatedAt", collection, context, { required: true });
   projectStrictEnum(record, out, "stage", CLIENT_STAGES, collection, context, true);
   projectStrictEnum(record, out, "status", AGENCY_STATUSES, collection, context, true);
   projectSafeStringFields(record, out, ["websiteUrl"], collection, context);
@@ -1301,7 +1316,7 @@ const SUBJECT_REQUEST_ID_FIELDS = [
   "id", "agencyId", "personId",
 ] as const satisfies readonly (keyof SubjectRequest)[];
 const SUBJECT_REQUEST_DIGEST_FIELDS = [
-  "preparedExportDigest", "preparedExportReviewResolvedDigest", "preparedExportReviewResultId", "deliveryResultId",
+  "preparedExportDigest", "preparedExportIntegrityTag", "preparedExportReviewResolvedDigest", "preparedExportReviewResultId", "deliveryResultId",
 ] as const satisfies readonly (keyof SubjectRequest)[];
 const SUBJECT_REQUEST_ENUM_FIELDS = ["kind", "deliveryMethod"] as const satisfies readonly (keyof SubjectRequest)[];
 const SUBJECT_REQUEST_SAFE_STRING_FIELDS = [
@@ -1403,6 +1418,10 @@ const LEDGER_SOURCE_TYPES = new Set(["invoice", "payment-plan"]);
 const LEDGER_GROUPS = new Set(["messages", "notes", "calls", "commercial", "delivery", "files", "activity"]);
 const LEDGER_VISIBILITIES = new Set(["internal", "client", "inherent", "system"]);
 const LEDGER_ATTENTION = new Set(["critical", "warning"]);
+const LEDGER_MACHINE_REFERENCES = new Map<string, RegExp>([
+  ["invoice", /^invoice:inv_(?:[0-9a-z]{12}|[a-f0-9]{32})$/],
+  ["payment-plan", /^payment-plan:payplan_[a-f0-9]{16}$/],
+]);
 
 const EMAIL_TOKEN = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i;
 const UK_SORT_CODE = /(?:^|[^0-9])\d{2}[\s\-/]\d{2}[\s\-/]\d{2}(?:$|[^0-9])/;
@@ -1503,6 +1522,44 @@ function projectSafeStringFields(
   }
 }
 
+function projectLedgerReferenceFields(
+  record: JsonRecord,
+  out: JsonRecord,
+  sourceType: string,
+  context: ExportContext,
+): void {
+  const collection = "clientRecordLedger";
+  const sourceId = ownDataValue(record, "sourceId");
+  const sourceIdPattern = LEDGER_MACHINE_REFERENCES.get(sourceType);
+  if (typeof sourceId !== "string" || !sourceIdPattern?.test(sourceId)) {
+    if (sourceId === undefined) markStoredValueIssue(context, collection, "invalid-stored-value");
+    else noteOmitted(collection, sourceId, context, { coMingled: true });
+  } else {
+    if (!textHasRestrictedPii(sourceId, context, false)) {
+      out.sourceId = sourceId;
+    } else {
+      noteOmitted(collection, sourceId, context, { coMingled: true });
+    }
+  }
+
+  const clientId = ownDataValue(record, "clientId");
+  const href = ownDataValue(record, "href");
+  if (href !== undefined) {
+    const expectedHref = typeof clientId === "string"
+      ? `/portal/clients/${encodeURIComponent(clientId)}?tab=finance#client-${sourceType === "invoice" ? "invoices" : "payment-plans"}`
+      : "";
+    if (typeof href === "string" && href === expectedHref && !textHasRestrictedPii(href, context, false)) out.href = href;
+    else noteOmitted(collection, href, context, { coMingled: true });
+  }
+
+  const parentSourceId = ownDataValue(record, "parentSourceId");
+  if (parentSourceId !== undefined) {
+    // Invoice and payment-plan ledger builders do not emit parent references.
+    // A value here is heterogeneous state, not a proven machine reference.
+    noteOmitted(collection, parentSourceId, context, { coMingled: true });
+  }
+}
+
 function projectLedger(record: JsonRecord, context: ExportContext): JsonRecord | null {
   const collection = "clientRecordLedger";
   const sourceType = ownDataValue(record, "sourceType");
@@ -1520,7 +1577,7 @@ function projectLedger(record: JsonRecord, context: ExportContext): JsonRecord |
   projectStrictEnum(record, out, "group", LEDGER_GROUPS, collection, context, true);
   projectStrictEnum(record, out, "visibility", LEDGER_VISIBILITIES, collection, context, true);
   projectStrictEnum(record, out, "attention", LEDGER_ATTENTION, collection, context);
-  projectSafeStringFields(record, out, LEDGER_SAFE_STRING_FIELDS, collection, context);
+  projectLedgerReferenceFields(record, out, sourceType, context);
 
   // Ledger title/body/eyebrow are human-authored prose. A finite detector can
   // catch known identifiers, but cannot prove that an unregistered name or

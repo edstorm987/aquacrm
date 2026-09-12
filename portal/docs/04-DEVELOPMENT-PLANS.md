@@ -2,7 +2,7 @@
 
 > Every active, completed and archived phased implementation plan and handoff.
 >
-> Consolidated 2026-09-12 from **63** source documents / **131,111 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
+> Consolidated 2026-09-12 from **63** source documents / **131,184 words**. Each source is retained verbatim between provenance markers. The original path remains alongside it because relative links and runtime-backed Dev Team records still resolve from that location during the compatibility phase.
 
 ## Source map
 
@@ -43,7 +43,7 @@
 - [`docs/development/plans/information-architecture-v2.md`](#source-docs-development-plans-information-architecture-v2-md) — 893 words · `d2d34f2ce729`
 - [`docs/development/plans/internal-chat-attention.md`](#source-docs-development-plans-internal-chat-attention-md) — 434 words · `5f94a11ee09b`
 - [`docs/development/plans/kpi-intelligence-overhaul.md`](#source-docs-development-plans-kpi-intelligence-overhaul-md) — 1,995 words · `166a3cc9b521`
-- [`docs/development/plans/launch-order-and-blockers.md`](#source-docs-development-plans-launch-order-and-blockers-md) — 21,581 words · `7ae3e05a876c`
+- [`docs/development/plans/launch-order-and-blockers.md`](#source-docs-development-plans-launch-order-and-blockers-md) — 21,654 words · `fefbf127a893`
 - [`docs/development/plans/marketing-workspace-overhaul.md`](#source-docs-development-plans-marketing-workspace-overhaul-md) — 1,849 words · `c42bb1c185ed`
 - [`docs/development/plans/meta-inbox-connect.md`](#source-docs-development-plans-meta-inbox-connect-md) — 1,197 words · `48c3b40b0764`
 - [`docs/development/plans/mfa-login.md`](#source-docs-development-plans-mfa-login-md) — 1,513 words · `b48b0cc1945d`
@@ -6917,7 +6917,7 @@ plan in flight._
 
 ## Source document — `docs/development/plans/launch-order-and-blockers.md`
 
-<!-- AQUACRM_SOURCE_START path="docs/development/plans/launch-order-and-blockers.md" sha256="7ae3e05a876ce365c0dff9d20eaf990192b3f071cc2aba1649b9a737c31767ff" -->
+<!-- AQUACRM_SOURCE_START path="docs/development/plans/launch-order-and-blockers.md" sha256="fefbf127a89363502074e4bb04c414673ac3b9d956c8e67ed3beb8003ed37cf0" -->
 # Launch: the order, and what is stopping us
 
 > **HISTORICAL LAUNCH PLAN (written 27–28 August 2026).** Its Vercel steps,
@@ -9102,7 +9102,7 @@ everything we hold about you". **A wrong subject-access response is worse than
 none: it is a false statement made under a legal obligation.** So there is no
 list. Descriptor-backed object collections are inspected and reported as
 searched. A non-data descriptor, scalar collection, scalar row in a recognised
-typed collection, malformed recognised nested Person/Client object, array or enum, or exhausted
+typed collection, malformed or missing required recognised Person/Client member, nested object, array or enum, or exhausted
 traversal/matcher/output cap records explicit incompleteness and blocks export
 preparation. Other resident scalar containers are not presumed to be record
 collections.
@@ -9126,7 +9126,10 @@ and counted for review. A bounded final scan also drops recognised restricted
 PII in emitted keys and redacts it in emitted structured strings. Ledger
 title/body/eyebrow prose is always withheld and counted for review: no finite
 name/address detector can prove that an unregistered person or named premise
-belongs to the subject. Tested bounded patterns include
+belongs to the subject. Ledger references are separately admitted only when
+they match the invoice/payment-plan source-specific machine shape; links must
+match the canonical first-party client-finance path and heterogeneous parent
+references are withheld. Tested bounded patterns include
 email, phone, formatted sort code/NINO/postcode, contextual bank-account data,
 numbered streets and named-premise addresses such as `Rose Cottage, Church
 Lane, Oxford`. This is a conservative pattern set, not proof that every possible
@@ -9147,15 +9150,17 @@ The body is bounded before hydration/auth work; tenant and actor come from the
 session. The request must already exist in the exact agency, be
 access/portability kind, bind the exact Person, be identity-verified, and remain
 open. POST constructs a bounded export, then atomically stages the exact bytes,
-digest and preparation activity. It returns the automatic safe subset but does
-**not** fulfil; a lost response replays those same durable bytes. Non-zero review
-counts require PUT review evidence against that exact digest. The review receipt
-is bound to one agency/request/person/digest result identity: an exact replay
-returns the same result id, while changed or cross-request reuse is refused.
-Before PATCH can fulfil, it recomputes the staged byte digest, validates the
-stored manifest's exact person/generated-at/record/review totals, recomputes the
-request-bound review result and checks evidence uniqueness. It then separately
-binds delivery evidence and fulfils atomically with
+digest, manifest totals, server-secret HMAC integrity tag and preparation
+activity. It returns the automatic safe subset but does **not** fulfil; a lost
+response replays only bytes that still match that authenticated binding.
+Non-zero review counts require PUT review evidence against that exact artifact.
+The review receipt is a server-secret HMAC over the exact
+agency/request/person/bytes/digest/manifest totals and evidence: an exact replay
+returns the same result id, while publicly recomputed hashes, changed state and
+cross-request reuse are refused. Before PATCH can fulfil, it recomputes the
+staged digest, actual record count, detailed review maps and top-level totals,
+then verifies the artifact tag and authenticated review receipt. It separately
+HMAC-binds delivery method/evidence to that exact artifact and fulfils atomically with
 delivery activity. The generic request helper cannot bypass this sequence.
 Work, string, record and serialised-size limits fail explicitly before
 transition; every success/error, including auth and malformed/oversized input,
@@ -9166,14 +9171,17 @@ Permanent adversarial coverage lives in
 and emails; actor/assignee mentions; stale and nested contradictory ownership;
 shared identifiers; exact client facets and relationship siblings; unknown
 name/NI/bank fields; third-party name/address/postcode/email/phone/prose; Person
-history plus malformed Person/Client objects, arrays and enums; typed finance
-ledger metadata with all ledger prose quarantined; real pluginData
+history plus malformed/missing required Person/Client members, objects, arrays
+and enums; typed finance ledger metadata with all ledger prose and heterogeneous
+references quarantined; real pluginData
 lineage; allowlisted versus arbitrary plugin features; numbered and named-premise
 addresses; lazy-sidecar classification; scalar typed rows; traversal depth;
 10k/100k linear work; 2k/4k/8k/16k typed claims; short-name false positives;
 other tenants/requests; every request gate; malformed/oversized bodies; output
-caps; token-boundary short-name probes; stored-byte/manifest tampering; arbitrary
-review-result hashes; request-bound review and delivery evidence/replay; no-store; and
+caps; token-boundary short-name probes; consistently rehashed stored-byte/manifest
+tampering with injected PII and contradictory detailed totals; arbitrary and
+publicly recomputed review-result hashes; authenticated request-bound artifact,
+review and delivery evidence/replay; no-store; and
 preparation/delivery storage-failure rollback.
 
 **The posture remains `partial`, not `met`.** The request register, identity

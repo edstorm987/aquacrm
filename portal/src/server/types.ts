@@ -4882,6 +4882,9 @@ export interface SubjectRequest {
   preparedExportRecordCount?: number;
   preparedExportReviewCount?: number;
   preparedExportByteLength?: number;
+  /** Server-authenticated binding of the request identity, staged bytes,
+   * digest and manifest totals. Missing or mismatched tags fail closed. */
+  preparedExportIntegrityTag?: string;
   /** Bounded staged payload so a lost response can replay the identical file.
    * Cleared after evidenced delivery; the digest remains as audit evidence. */
   preparedExportJson?: string;
@@ -4891,18 +4894,18 @@ export interface SubjectRequest {
   preparedExportReviewResolvedBy?: string;
   preparedExportReviewResolvedDigest?: string;
   preparedExportReviewEvidenceId?: string;
-  /** Stable identity of the exact agency/request/person/digest/evidence review
-   * result. Retained so an exact replay is idempotent while changed or reused
-   * evidence is refused. */
+  /** Server-authenticated identity of the exact staged artifact and review
+   * evidence. Retained so exact replay is idempotent while forged, changed or
+   * reused evidence is refused. */
   preparedExportReviewResultId?: string;
   /** Separate evidence that the exact prepared export was handed over. */
   deliveredAt?: number;
   deliveredBy?: string;
   deliveryMethod?: "verified-portal" | "secure-email" | "in-person" | "other";
   deliveryEvidenceId?: string;
-  /** Stable identity of the exact digest/method/evidence fulfilment result.
-   * Retained after staged bytes are deleted so a lost success response can be
-   * replayed idempotently without reopening or rewriting the evidence. */
+  /** Server-authenticated identity of the exact staged artifact, review,
+   * method and delivery evidence. Retained after staged bytes are deleted so
+   * a lost success response can replay without trusting caller-derived hashes. */
   deliveryResultId?: string;
   fulfilledAt?: number;
   fulfilledBy?: string;
