@@ -3089,6 +3089,35 @@ aside[aria-label="Primary navigation"][data-workspace="growth"]    [data-workspa
   background: #FAF7EE;
   border-color: rgba(20, 18, 14, 0.22);
 }
+/* LOGIN-UX-001 — a consistent, high-contrast keyboard focus ring for EVERY
+   interactive control on the sign-in surface. The inputs already show a ring on
+   `:focus`; buttons and links previously showed nothing to a keyboard user.
+   `:focus-visible` keeps mouse clicks quiet while making tab-focus obvious, the
+   ring does not rely on colour alone (a solid offset outline), and it adds no
+   motion so it is reduced-motion safe. Uses the per-brand `--auth-accent` with a
+   neutral fallback so tenant theming is preserved. */
+.mm-auth-shell a:focus-visible,
+.mm-auth-shell button:focus-visible,
+.mm-auth-shell .mm-input:focus-visible {
+  outline: 3px solid var(--auth-accent, #8A563A);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+/* Reduced motion: the primary button lifts on hover (`translateY`) and controls
+   ease their colour. Honour a reduced-motion preference by removing the movement
+   and the eased transitions on the sign-in surface without changing any of the
+   end states, so nothing depends on animation to be usable. */
+@media (prefers-reduced-motion: reduce) {
+  .mm-auth-shell .mm-btn-primary,
+  .mm-auth-shell .mm-btn-google,
+  .mm-auth-shell .mm-input,
+  .mm-auth-shell .mm-auth-home-link {
+    transition: none;
+  }
+  .mm-auth-shell .mm-btn-primary:hover:not(:disabled) {
+    transform: none;
+  }
+}
 .mm-or-divider {
   display: flex;
   align-items: center;
