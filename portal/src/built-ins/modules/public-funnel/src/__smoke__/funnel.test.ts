@@ -4,7 +4,7 @@ import { describe, test } from "node:test";
 import { strict as assert } from "node:assert";
 
 import type { ActivityEntry, AgencyId, UserId, UserProfile } from "../lib/tenancy";
-import type { PluginCtx, PluginStorage } from "../lib/aquaPluginTypes";
+import type { PluginStorage } from "../lib/aquaPluginTypes";
 import type {
   ActivityLogPort, EventBusPort, LeadUserPort,
 } from "../server/ports";
@@ -14,7 +14,7 @@ import {
   FunnelInputError,
   registerFunnelFoundation,
 } from "../server/index";
-import { hcCompleteHandler, toolCompleteHandler } from "../api/handlers";
+import { ROUTES } from "../api/routes";
 import { now, setClock, resetClock } from "../lib/time";
 
 const AGENCY: AgencyId = "agency_milesy_master";
@@ -397,73 +397,9 @@ describe("@aqua/plugin-public-funnel smoke", () => {
     resetClock();
   });
 
-  test("18. the legacy public handler never sets a cookie and refuses replay", async () => {
-    setClock(() => T0);
-    const w = buildWorld();
-    registerFunnelFoundation({
-      activity: w.activity,
-      events: w.events,
-      leadUsers: w.leadUsers,
-    });
-    const ctx = {
-      agencyId: AGENCY,
-      actor: "anonymous",
-      storage: w.storage,
-      install: {
-        id: "install_public_funnel",
-        pluginId: "public-funnel",
-        agencyId: AGENCY,
-        enabled: true,
-        config: {},
-        features: {},
-        installedAt: T0,
-      },
-      services: {},
-    } as unknown as PluginCtx;
-    const request = () => new Request("https://portal.test/api/portal/public-funnel/hc-complete", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        email: "handler-retry@example.com",
-        completionId: "hc_handler_retry_01",
-        slot: { slot: 3 },
-      }),
-    });
-    try {
-      const first = await hcCompleteHandler(request(), ctx);
-      assert.equal(first.status, 200);
-      assert.equal(first.headers.get("set-cookie"), null);
-      const payload = await first.json() as Record<string, unknown>;
-      assert.equal(payload.authentication, "email_verification_required");
-      assert.equal("captureId" in payload, false);
-      assert.equal("leadUserId" in payload, false);
-
-      const replay = await hcCompleteHandler(request(), ctx);
-      assert.equal(replay.status, 400);
-      assert.equal((await replay.json() as { error: string }).error, "invalid_completion");
-      assert.equal(replay.headers.get("set-cookie"), null);
-      assert.equal((await container(w).funnel.list()).length, 1);
-
-      const tool = await toolCompleteHandler(new Request(
-        "https://portal.test/api/portal/public-funnel/tool-complete",
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            email: "handler-retry@example.com",
-            completionId: "tool_existing_identity_01",
-            toolId: "rank-my-website",
-          }),
-        },
-      ), ctx);
-      assert.equal(tool.status, 400);
-      assert.equal((await tool.json() as { error: string }).error, "invalid_completion");
-      assert.equal(tool.headers.get("set-cookie"), null);
-      assert.equal((await container(w).funnel.list()).length, 1);
-    } finally {
-      clearFunnelFoundation();
-      resetClock();
-    }
+  test("18. query-scoped anonymous capture routes are retired", () => {
+    assert.deepEqual(ROUTES.map(route => route.path), ["me-context"]);
+    assert.equal(ROUTES.some(route => route.public === true), false);
   });
 
   test("19. exact erasure cleans indexes and retries while a shared lead identity is preserved", async () => {

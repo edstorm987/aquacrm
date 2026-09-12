@@ -35,8 +35,8 @@ const manifest: AquaPlugin = {
     "foundation `LeadUserPort`, captures the slot for BOS " +
     "personalisation, and responds with a BOS redirect without issuing authentication. " +
     "Existing identities and repeated completion ids fail closed. A future " +
-    "mailbox-verified, single-use flow may authenticate the lead. Future Resources tools (rank-my-website, …) hit " +
-    "`tool-complete` with the same shape.",
+    "mailbox-verified, single-use flow may authenticate the lead. Anonymous capture has one canonical mounted " +
+    "admission; the former query-scoped plugin completion routes are retired.",
 
   core: true,
   scopePolicy: "agency",

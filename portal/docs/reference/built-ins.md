@@ -7994,15 +7994,13 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 
 _No file-level doc-comment; purpose is inferred from the path and exports._
 
-**Exports (3):**
+**Exports (1):**
 
-- `async hcCompleteHandler(req: Request, ctx: PluginCtx): Promise<Response>`
-- `async toolCompleteHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 - `async meContextHandler(req: Request, ctx: PluginCtx): Promise<Response>`
 
-**Depends on (4):** [`src/built-ins/modules/public-funnel/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-public-funnel-src-lib-aquaplugintypes-ts-baa26f2904) · [`src/built-ins/modules/public-funnel/src/lib/domain.ts`](#file-src-built-ins-modules-public-funnel-src-lib-domain-ts-b9e9da1f9f) · [`src/built-ins/modules/public-funnel/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-public-funnel-src-server-foundationadapter-ts-c8f4de7d32) · [`src/built-ins/modules/public-funnel/src/server/services.ts`](#file-src-built-ins-modules-public-funnel-src-server-services-ts-c24702fabd)
+**Depends on (2):** [`src/built-ins/modules/public-funnel/src/lib/aquaPluginTypes.ts`](#file-src-built-ins-modules-public-funnel-src-lib-aquaplugintypes-ts-baa26f2904) · [`src/built-ins/modules/public-funnel/src/server/foundationAdapter.ts`](#file-src-built-ins-modules-public-funnel-src-server-foundationadapter-ts-c8f4de7d32)
 
-**Used by (2):** [`src/built-ins/modules/public-funnel/src/__smoke__/funnel.test.ts`](#file-src-built-ins-modules-public-funnel-src-smoke-funnel-test-ts-097b822cc9) · [`src/built-ins/modules/public-funnel/src/api/routes.ts`](#file-src-built-ins-modules-public-funnel-src-api-routes-ts-9661e57f0d)
+**Used by (1):** [`src/built-ins/modules/public-funnel/src/api/routes.ts`](#file-src-built-ins-modules-public-funnel-src-api-routes-ts-9661e57f0d)
 
 <a id="file-src-built-ins-modules-public-funnel-src-api-routes-ts-9661e57f0d"></a>
 
@@ -14330,4 +14328,3 @@ _No file-level doc-comment; purpose is inferred from the path and exports._
 **Depends on (2):** [`src/built-ins/runtime/_types.ts`](#file-src-built-ins-runtime-types-ts-bae4cd6b2a) · [`src/lib/server/publicUploadStorage.ts`](lib.md#file-src-lib-server-publicuploadstorage-ts-7bf29f859e)
 
 **Used by (2):** [`scripts/smoke-public-media-promotion.test.ts`](scripts.md#file-scripts-smoke-public-media-promotion-test-ts-fbdd9dd480) · [`src/built-ins/runtime/foundation-adapters/index.ts`](#file-src-built-ins-runtime-foundation-adapters-index-ts-dcf532e6f2)
-

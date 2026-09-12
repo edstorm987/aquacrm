@@ -482,7 +482,7 @@ describe("reads never see the other tenant", () => {
 // ─── ARM 4: the public routes the peek exists for ─────────────────────────
 
 describe("public routes — the reason the peek exists — still work", () => {
-  it("the shipped public routes are exactly the seventeen, and each names its own module", () => {
+  it("the shipped public routes are exactly the fifteen, and each names its own module", () => {
     const publics = listPlugins()
       .filter(plugin => !plugin.id.startsWith("zz-"))
       .flatMap(plugin => plugin.api.filter(route => route.public === true).map(r => `${plugin.id}/${r.path}`))
@@ -499,8 +499,6 @@ describe("public routes — the reason the peek exists — still work", () => {
       "email-sender/public/webhook/postmark",
       "leads-pipeline/commercial/stripe-webhook",
       "memberships/stripe/webhook",
-      "public-funnel/hc-complete",
-      "public-funnel/tool-complete",
       "website-editor/public/blog/posts",
       "website-editor/public/blog/posts/by-slug",
       "website-editor/visitor/contact",

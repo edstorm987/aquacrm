@@ -385,6 +385,9 @@
             <h2>Open your Business OS.</h2>
             <p>The Health Check is the mirror. Business OS is where you act on it — your home dashboard, your customers, your numbers, your tasks. If you saved with an email, these results are synced into your signed-in Business OS. If you skipped contact details, the free OS still opens with the browser copy you just created.</p>
             <a href="/business-os/app.html?from=hc" class="btn btn-primary btn-lg" data-hc-incubator-cta>Open my Business OS →</a>
+            <form data-hc-completion-proof data-hc-challenge-action="health-check-complete" aria-label="Verification to save Health Check results">
+              <p class="muted">Complete verification to save an emailed copy of these results securely.</p>
+            </form>
           </div>
         </div>
 
@@ -628,6 +631,13 @@
   function show(name) {
     state.step = name;
     $$(".hc-step").forEach(function (el) { el.hidden = el.getAttribute("data-step") !== name; });
+    if (name === 'results') {
+      var proofForm = document.querySelector('[data-hc-completion-proof]');
+      if (proofForm) {
+        proofForm.setAttribute('data-aqua-challenge-action', 'health-check-complete');
+        window.AquaBotChallenge?.mount(proofForm);
+      }
+    }
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function currentArea() { return AREAS[state.areaIdx]; }
@@ -1130,6 +1140,12 @@
   function syncHealthCheckCompletion(summary) {
     var email = capturedHealthCheckEmail();
     if (!email || !summary) return Promise.resolve({ synced: false, redirect: '/business-os/app.html?from=hc' });
+    var proofForm = document.querySelector('[data-hc-completion-proof]');
+    var challenge = window.AquaBotChallenge;
+    var captchaToken = challenge && proofForm ? challenge.tokenFor(proofForm) : '';
+    if (!challenge || !proofForm || (!captchaToken && !challenge.ready(proofForm))) {
+      return Promise.reject(new Error('Please complete verification before saving your Health Check.'));
+    }
     var completionId = completionIdFor(summary, email);
     if (activeCompletionSync && activeCompletionId === completionId) return activeCompletionSync;
     activeCompletionId = completionId;
@@ -1141,7 +1157,8 @@
         email: email,
         completionId: completionId,
         slot: funnelSlotFor(summary),
-        sourceUrl: window.location.href
+        sourceUrl: window.location.href,
+        captchaToken: captchaToken || undefined
       })
     }).then(function (response) {
       return response.json().catch(function () { return null; }).then(function (result) {
@@ -1156,6 +1173,8 @@
       activeCompletionSync = null;
       activeCompletionId = null;
       throw error;
+    }).finally(function () {
+      challenge.reset(proofForm);
     });
     return activeCompletionSync;
   }
