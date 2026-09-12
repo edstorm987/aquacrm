@@ -242,6 +242,59 @@ test("fast pre-filter can deny but never grant around the durable authority", as
   assert.equal(calls.length, 4);
 });
 
+test("a saturated fast pre-filter defers untracked dimensions to durable authority", async () => {
+  const { client, calls } = fakeClient((_fn, args) => {
+    const now = Number(args.p_now_ms);
+    const windowMs = Number(args.p_window_ms);
+    return {
+      data: [{
+        allowed: true,
+        hits: 1,
+        reset_at: Math.floor(now / windowMs) * windowMs + windowMs,
+      }],
+      error: null,
+    };
+  });
+  await _swapAdmissionStoreForTests(createDurableAdmissionStore(async () => client));
+
+  for (let i = 0; i < MAX_LOCAL_ADMISSION_COUNTERS; i += 1) {
+    const decision = await admit({
+      dimension: "subject",
+      key: `fill-${i}`,
+      max: 1,
+      windowMs: 86_400_000,
+      now: NOW,
+    });
+    assert.equal(decision.allowed, true);
+    assert.equal(decision.backend, "durable");
+  }
+  assert.equal(calls.length, MAX_LOCAL_ADMISSION_COUNTERS);
+
+  const tracked = await admit({
+    dimension: "subject",
+    key: "fill-0",
+    max: 1,
+    windowMs: 86_400_000,
+    now: NOW,
+  });
+  assert.equal(tracked.allowed, false, "an already-tracked over-limit key must still be denied locally");
+  assert.equal(tracked.backend, "fast-local");
+  assert.equal(calls.length, MAX_LOCAL_ADMISSION_COUNTERS, "local denial must not spend a durable call");
+
+  const unrelated = await admit({
+    dimension: "provider-budget",
+    key: "unrelated-provider",
+    max: 1,
+    windowMs: 86_400_000,
+    now: NOW,
+  });
+  assert.equal(unrelated.allowed, true);
+  assert.equal(unrelated.backend, "durable");
+  assert.equal(unrelated.degraded, false);
+  assert.equal(unrelated.errorCode, undefined);
+  assert.equal(calls.length, MAX_LOCAL_ADMISSION_COUNTERS + 1, "durable authority must decide an untracked key");
+});
+
 test("backend resolution is exact, observable, and production-memory-safe", async () => {
   assert.equal(resolveAdmissionStore().kind, "memory");
 

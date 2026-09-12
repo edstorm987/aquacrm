@@ -13,7 +13,8 @@
 // - raw IPs/identifiers never reach durable storage: bounded canonical input is
 //   HMAC-SHA256 pseudonymised with the server session secret first;
 // - every malformed/error authority response and invalid request fails closed;
-// - local counter cardinality and cleanup work are hard-bounded; and
+// - local counter cardinality and cleanup work are hard-bounded; cache
+//   saturation is neutral for untracked keys when durable authority exists; and
 // - counters carry their own expiry, so one policy window cannot expire another.
 //
 // Deliberately omits `server-only` so the pure adapters can be driven by the
@@ -411,7 +412,9 @@ export async function admit(req: AdmissionRequest): Promise<AdmissionDecision> {
     const id = `${req.dimension}:${req.windowMs}:${prepared.keyHash}`;
     const result = bumpWindowed(fastLocal, id, prepared.now, req.windowMs);
     if (result.capacityExceeded) {
-      return denyFailClosed(result.resetAt, prepared.now, "fast-local", "admission_limiter_capacity_exceeded");
+      // The optional prefilter has no authority over a key it could not track.
+      // Keep its hard memory bound and defer the decision to the durable store.
+      return store.admit(req);
     }
     if (result.hits > req.max) return decide(result.hits, req.max, result.resetAt, prepared.now, "fast-local");
   }
